@@ -19,33 +19,23 @@ package local
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"sort"
-	"sync"
 	"time"
-
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gokyle/hotp"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport/api/types"
+	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/lib/auth/u2f"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
-
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 )
-
-// GlobalSessionDataMaxEntries represents the maximum number of in-flight
-// global WebAuthn challenges for a given scope.
-// Attempting to write more instances than the max limit causes an error.
-// The limit is enforced separately by Auth Server instances.
-var GlobalSessionDataMaxEntries = 5000 // arbitrary
 
 // IdentityService is responsible for managing web users and currently
 // user accounts as well
@@ -597,6 +587,42 @@ func (s *IdentityService) UpsertPassword(user string, password []byte) error {
 	return nil
 }
 
+func (s *IdentityService) UpsertU2FRegisterChallenge(token string, u2fChallenge *u2f.Challenge) error {
+	if token == "" {
+		return trace.BadParameter("missing parmeter token")
+	}
+	value, err := json.Marshal(u2fChallenge)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:     backend.Key(u2fRegChalPrefix, token),
+		Value:   value,
+		Expires: s.Clock().Now().UTC().Add(defaults.U2FChallengeTimeout),
+	}
+	_, err = s.Put(context.TODO(), item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *IdentityService) GetU2FRegisterChallenge(token string) (*u2f.Challenge, error) {
+	if token == "" {
+		return nil, trace.BadParameter("missing parameter token")
+	}
+	item, err := s.Get(context.TODO(), backend.Key(u2fRegChalPrefix, token))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var u2fChal u2f.Challenge
+	err = json.Unmarshal(item.Value, &u2fChal)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &u2fChal, nil
+}
+
 func (s *IdentityService) UpsertWebauthnLocalAuth(ctx context.Context, user string, wla *types.WebauthnLocalAuth) error {
 	switch {
 	case user == "":
@@ -608,45 +634,15 @@ func (s *IdentityService) UpsertWebauthnLocalAuth(ctx context.Context, user stri
 		return trace.Wrap(err)
 	}
 
-	// Marshal both values before writing, we want to minimize the chances of
-	// having to "undo" a write below.
-	wlaJSON, err := json.Marshal(wla)
+	value, err := json.Marshal(wla)
 	if err != nil {
-		return trace.Wrap(err, "marshal webauthn local auth")
+		return trace.Wrap(err)
 	}
-	userJSON, err := json.Marshal(&wantypes.User{
-		TeleportUser: user,
+	_, err = s.Put(ctx, backend.Item{
+		Key:   webauthnLocalAuthKey(user),
+		Value: value,
 	})
-	if err != nil {
-		return trace.Wrap(err, "marshal webauthn user")
-	}
-
-	// Write WebauthnLocalAuth.
-	wlaKey := webauthnLocalAuthKey(user)
-	if _, err = s.Put(ctx, backend.Item{
-		Key:   wlaKey,
-		Value: wlaJSON,
-	}); err != nil {
-		return trace.Wrap(err, "writing webauthn local auth")
-	}
-
-	// Write wla.UserID->user mapping, used for usernameless logins.
-	if _, err = s.Put(ctx, backend.Item{
-		Key:   webauthnUserKey(wla.UserID),
-		Value: userJSON,
-	}); err != nil {
-		// Undo the first write if the one below fails.
-		// This is a best-effort attempt, as both the 2nd write and the delete may
-		// fail (it's even likely that both do, depending on the error).
-		// lib/auth/webauthn is prepared to deal with eventual inconsistencies
-		// between "web/users/.../webauthnlocalauth" and "webauthn/users/" keys.
-		if err := s.Delete(ctx, wlaKey); err != nil {
-			s.log.WithError(err).Warn("Failed to undo WebauthnLocalAuth update")
-		}
-		return trace.Wrap(err, "writing webauthn user")
-	}
-
-	return nil
+	return trace.Wrap(err)
 }
 
 func (s *IdentityService) GetWebauthnLocalAuth(ctx context.Context, user string) (*types.WebauthnLocalAuth, error) {
@@ -662,29 +658,8 @@ func (s *IdentityService) GetWebauthnLocalAuth(ctx context.Context, user string)
 	return wal, trace.Wrap(json.Unmarshal(item.Value, wal))
 }
 
-func (s *IdentityService) GetTeleportUserByWebauthnID(ctx context.Context, webID []byte) (string, error) {
-	if len(webID) == 0 {
-		return "", trace.BadParameter("missing parameter webID")
-	}
-
-	item, err := s.Get(ctx, webauthnUserKey(webID))
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	user := &wantypes.User{}
-	if err := json.Unmarshal(item.Value, user); err != nil {
-		return "", trace.Wrap(err)
-	}
-	return user.TeleportUser, nil
-}
-
 func webauthnLocalAuthKey(user string) []byte {
 	return backend.Key(webPrefix, usersPrefix, user, webauthnLocalAuthPrefix)
-}
-
-func webauthnUserKey(id []byte) []byte {
-	key := base64.RawURLEncoding.EncodeToString(id)
-	return backend.Key(webauthnPrefix, usersPrefix, key)
 }
 
 func (s *IdentityService) UpsertWebauthnSessionData(ctx context.Context, user, sessionID string, sd *wantypes.SessionData) error {
@@ -740,48 +715,6 @@ func sessionDataKey(user, sessionID string) []byte {
 	return backend.Key(webPrefix, usersPrefix, user, webauthnSessionData, sessionID)
 }
 
-// globalSessionDataLimiter keeps a count of in-flight session data challenges
-// over a period of time.
-type globalSessionDataLimiter struct {
-	// Clock is public so it may be overwritten by tests.
-	Clock clockwork.Clock
-	// ResetPeriod is public so it may be overwritten by tests.
-	ResetPeriod time.Duration
-	// mu guards the fields below it.
-	mu         sync.Mutex
-	scopeCount map[string]int
-	lastReset  time.Time
-}
-
-func (l *globalSessionDataLimiter) add(scope string, n int) int {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	// Reset counters to account for key expiration.
-	now := l.Clock.Now()
-	if now.Sub(l.lastReset) >= l.ResetPeriod {
-		for k := range l.scopeCount {
-			l.scopeCount[k] = 0
-		}
-		l.lastReset = now
-	}
-
-	v := l.scopeCount[scope] + n
-	if v < 0 {
-		v = 0
-	}
-	l.scopeCount[scope] = v
-	return v
-}
-
-var sdLimiter = &globalSessionDataLimiter{
-	Clock: clockwork.NewRealClock(),
-	// Make ResetPeriod larger than the challenge expiration, so we are a bit
-	// more conservative than storage.
-	ResetPeriod: defaults.WebauthnGlobalChallengeTimeout + 10*time.Second,
-	scopeCount:  make(map[string]int),
-}
-
 func (s *IdentityService) UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wantypes.SessionData) error {
 	switch {
 	case scope == "":
@@ -792,27 +725,18 @@ func (s *IdentityService) UpsertGlobalWebauthnSessionData(ctx context.Context, s
 		return trace.BadParameter("missing parameter sd")
 	}
 
-	// Marshal before checking limiter, in case this fails.
+	// TODO(codingllama): Limit number of in-flight challenges.
+
 	value, err := json.Marshal(sd)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// Are we within the limits for the current time window?
-	if entries := sdLimiter.add(scope, 1); entries > GlobalSessionDataMaxEntries {
-		sdLimiter.add(scope, -1) // Request denied, adjust accordingly
-		return trace.LimitExceeded("too many in-flight challenges")
-	}
-
-	if _, err = s.Put(ctx, backend.Item{
+	_, err = s.Put(ctx, backend.Item{
 		Key:     globalSessionDataKey(scope, id),
 		Value:   value,
 		Expires: s.Clock().Now().UTC().Add(defaults.WebauthnGlobalChallengeTimeout),
-	}); err != nil {
-		sdLimiter.add(scope, -1) // Don't count eventual write failures
-		return trace.Wrap(err)
-	}
-	return nil
+	})
+	return trace.Wrap(err)
 }
 
 func (s *IdentityService) GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wantypes.SessionData, error) {
@@ -839,12 +763,7 @@ func (s *IdentityService) DeleteGlobalWebauthnSessionData(ctx context.Context, s
 		return trace.BadParameter("missing parameter id")
 	}
 
-	if err := s.Delete(ctx, globalSessionDataKey(scope, id)); err != nil {
-		return trace.Wrap(err)
-	}
-
-	sdLimiter.add(scope, -1)
-	return nil
+	return trace.Wrap(s.Delete(ctx, globalSessionDataKey(scope, id)))
 }
 
 func globalSessionDataKey(scope, id string) []byte {
@@ -960,6 +879,42 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 	return devices, nil
 }
 
+func (s *IdentityService) UpsertU2FSignChallenge(user string, challenge *u2f.Challenge) error {
+	if user == "" {
+		return trace.BadParameter("missing parameter user")
+	}
+	value, err := json.Marshal(challenge)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:     backend.Key(webPrefix, usersPrefix, user, u2fSignChallengePrefix),
+		Value:   value,
+		Expires: s.Clock().Now().UTC().Add(defaults.U2FChallengeTimeout),
+	}
+	_, err = s.Put(context.TODO(), item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *IdentityService) GetU2FSignChallenge(user string) (*u2f.Challenge, error) {
+	if user == "" {
+		return nil, trace.BadParameter("missing parameter user")
+	}
+	item, err := s.Get(context.TODO(), backend.Key(webPrefix, usersPrefix, user, u2fSignChallengePrefix))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var signChallenge u2f.Challenge
+	err = json.Unmarshal(item.Value, &signChallenge)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &signChallenge, nil
+}
+
 // UpsertOIDCConnector upserts OIDC Connector
 func (s *IdentityService) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error {
 	value, err := services.MarshalOIDCConnector(connector)
@@ -1037,7 +992,7 @@ func (s *IdentityService) GetOIDCConnectors(ctx context.Context, withSecrets boo
 }
 
 // CreateOIDCAuthRequest creates new auth request
-func (s *IdentityService) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest, ttl time.Duration) error {
+func (s *IdentityService) CreateOIDCAuthRequest(req services.OIDCAuthRequest, ttl time.Duration) error {
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1050,7 +1005,7 @@ func (s *IdentityService) CreateOIDCAuthRequest(ctx context.Context, req types.O
 		Value:   value,
 		Expires: backend.Expiry(s.Clock(), ttl),
 	}
-	_, err = s.Create(ctx, item)
+	_, err = s.Create(context.TODO(), item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1058,19 +1013,40 @@ func (s *IdentityService) CreateOIDCAuthRequest(ctx context.Context, req types.O
 }
 
 // GetOIDCAuthRequest returns OIDC auth request
-func (s *IdentityService) GetOIDCAuthRequest(ctx context.Context, stateToken string) (*types.OIDCAuthRequest, error) {
+func (s *IdentityService) GetOIDCAuthRequest(stateToken string) (*services.OIDCAuthRequest, error) {
 	if stateToken == "" {
 		return nil, trace.BadParameter("missing parameter stateToken")
 	}
-	item, err := s.Get(ctx, backend.Key(webPrefix, connectorsPrefix, oidcPrefix, requestsPrefix, stateToken))
+	item, err := s.Get(context.TODO(), backend.Key(webPrefix, connectorsPrefix, oidcPrefix, requestsPrefix, stateToken))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var req types.OIDCAuthRequest
+	var req services.OIDCAuthRequest
 	if err := json.Unmarshal(item.Value, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &req, nil
+}
+
+// CreateSAMLConnector creates SAML Connector
+func (s *IdentityService) CreateSAMLConnector(connector types.SAMLConnector) error {
+	if err := services.ValidateSAMLConnector(connector); err != nil {
+		return trace.Wrap(err)
+	}
+	value, err := services.MarshalSAMLConnector(connector)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:     backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
+		Value:   value,
+		Expires: connector.Expiry(),
+	}
+	_, err = s.Create(context.TODO(), item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // UpsertSAMLConnector upserts SAML Connector
@@ -1159,7 +1135,7 @@ func (s *IdentityService) GetSAMLConnectors(ctx context.Context, withSecrets boo
 }
 
 // CreateSAMLAuthRequest creates new auth request
-func (s *IdentityService) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest, ttl time.Duration) error {
+func (s *IdentityService) CreateSAMLAuthRequest(req services.SAMLAuthRequest, ttl time.Duration) error {
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1172,7 +1148,7 @@ func (s *IdentityService) CreateSAMLAuthRequest(ctx context.Context, req types.S
 		Value:   value,
 		Expires: backend.Expiry(s.Clock(), ttl),
 	}
-	_, err = s.Create(ctx, item)
+	_, err = s.Create(context.TODO(), item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1180,75 +1156,40 @@ func (s *IdentityService) CreateSAMLAuthRequest(ctx context.Context, req types.S
 }
 
 // GetSAMLAuthRequest returns SAML auth request if found
-func (s *IdentityService) GetSAMLAuthRequest(ctx context.Context, id string) (*types.SAMLAuthRequest, error) {
+func (s *IdentityService) GetSAMLAuthRequest(id string) (*services.SAMLAuthRequest, error) {
 	if id == "" {
 		return nil, trace.BadParameter("missing parameter id")
 	}
-	item, err := s.Get(ctx, backend.Key(webPrefix, connectorsPrefix, samlPrefix, requestsPrefix, id))
+	item, err := s.Get(context.TODO(), backend.Key(webPrefix, connectorsPrefix, samlPrefix, requestsPrefix, id))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var req types.SAMLAuthRequest
+	var req services.SAMLAuthRequest
 	if err := json.Unmarshal(item.Value, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &req, nil
 }
 
-// CreateSSODiagnosticInfo creates new SAML diagnostic info record.
-func (s *IdentityService) CreateSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string, entry types.SSODiagnosticInfo) error {
-	if authRequestID == "" {
-		return trace.BadParameter("missing parameter authRequestID")
+// CreateGithubConnector creates a new Github connector
+func (s *IdentityService) CreateGithubConnector(connector types.GithubConnector) error {
+	if err := connector.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
 	}
-
-	switch authKind {
-	case types.KindSAML, types.KindGithub, types.KindOIDC:
-		// nothing to do
-	default:
-		return trace.BadParameter("unsupported authKind %q", authKind)
-	}
-
-	jsonValue, err := json.Marshal(entry)
+	value, err := services.MarshalGithubConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, authKind, requestsTracePrefix, authRequestID),
-		Value:   jsonValue,
-		Expires: backend.Expiry(s.Clock(), time.Minute*15),
+		Key:     backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
+		Value:   value,
+		Expires: connector.Expiry(),
 	}
-	_, err = s.Create(ctx, item)
+	_, err = s.Create(context.TODO(), item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// GetSSODiagnosticInfo returns SSO diagnostic info records.
-func (s *IdentityService) GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) (*types.SSODiagnosticInfo, error) {
-	if authRequestID == "" {
-		return nil, trace.BadParameter("missing parameter authRequestID")
-	}
-
-	switch authKind {
-	case types.KindSAML, types.KindGithub, types.KindOIDC:
-		// nothing to do
-	default:
-		return nil, trace.BadParameter("unsupported authKind %q", authKind)
-	}
-
-	item, err := s.Get(ctx, backend.Key(webPrefix, connectorsPrefix, authKind, requestsTracePrefix, authRequestID))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var req types.SSODiagnosticInfo
-	if err := json.Unmarshal(item.Value, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &req, nil
 }
 
 // UpsertGithubConnector creates or updates a Github connector
@@ -1325,7 +1266,7 @@ func (s *IdentityService) DeleteGithubConnector(ctx context.Context, name string
 }
 
 // CreateGithubAuthRequest creates a new auth request for Github OAuth2 flow
-func (s *IdentityService) CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) error {
+func (s *IdentityService) CreateGithubAuthRequest(req services.GithubAuthRequest) error {
 	err := req.Check()
 	if err != nil {
 		return trace.Wrap(err)
@@ -1339,7 +1280,7 @@ func (s *IdentityService) CreateGithubAuthRequest(ctx context.Context, req types
 		Value:   value,
 		Expires: req.Expiry(),
 	}
-	_, err = s.Create(ctx, item)
+	_, err = s.Create(context.TODO(), item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1347,15 +1288,15 @@ func (s *IdentityService) CreateGithubAuthRequest(ctx context.Context, req types
 }
 
 // GetGithubAuthRequest retrieves Github auth request by the token
-func (s *IdentityService) GetGithubAuthRequest(ctx context.Context, stateToken string) (*types.GithubAuthRequest, error) {
+func (s *IdentityService) GetGithubAuthRequest(stateToken string) (*services.GithubAuthRequest, error) {
 	if stateToken == "" {
 		return nil, trace.BadParameter("missing parameter stateToken")
 	}
-	item, err := s.Get(ctx, backend.Key(webPrefix, connectorsPrefix, githubPrefix, requestsPrefix, stateToken))
+	item, err := s.Get(context.TODO(), backend.Key(webPrefix, connectorsPrefix, githubPrefix, requestsPrefix, stateToken))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var req types.GithubAuthRequest
+	var req services.GithubAuthRequest
 	err = json.Unmarshal(item.Value, &req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1500,10 +1441,11 @@ const (
 	samlPrefix                = "saml"
 	githubPrefix              = "github"
 	requestsPrefix            = "requests"
-	requestsTracePrefix       = "requestsTrace"
+	u2fRegChalPrefix          = "adduseru2fchallenges"
 	usedTOTPPrefix            = "used_totp"
 	usedTOTPTTL               = 30 * time.Second
 	mfaDevicePrefix           = "mfa"
+	u2fSignChallengePrefix    = "u2fsignchallenge"
 	webauthnPrefix            = "webauthn"
 	webauthnGlobalSessionData = "sessionData"
 	webauthnLocalAuthPrefix   = "webauthnlocalauth"

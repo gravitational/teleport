@@ -45,6 +45,7 @@ const (
 func main() {
 	if err := Run(os.Args[1:], os.Stdout); err != nil {
 		utils.FatalError(err)
+		trace.DebugReport(err)
 	}
 }
 
@@ -109,11 +110,6 @@ func Run(args []string, stdout io.Writer) error {
 		"Arguments to `tsh proxy ...`; prefix with `-- ` to ensure flags are passed correctly.",
 	))
 
-	kubeCmd := app.Command("kube", "Kubernetes helpers").Hidden()
-	kubeCredentialsCmd := kubeCmd.Command("credentials", "Get credentials for kubectl access").Hidden()
-	kubeCredentialsCmd.Flag("destination-dir", "The destination directory with which to generate Kubernetes credentials").Required().StringVar(&cf.DestinationDir)
-
-	utils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
 	if err != nil {
 		app.Usage(args)
@@ -154,8 +150,6 @@ func Run(args []string, stdout io.Writer) error {
 		err = onDBCommand(botConfig, &cf)
 	case proxyCmd.FullCommand():
 		err = onProxyCommand(botConfig, &cf)
-	case kubeCredentialsCmd.FullCommand():
-		err = onKubeCredentialsCommand(botConfig, &cf)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)
@@ -235,7 +229,7 @@ func handleSignals(log logrus.FieldLogger, reload chan struct{}, cancel context.
 	for signal := range signals {
 		switch signal {
 		case syscall.SIGINT:
-			log.Info("Received interrupt, canceling...")
+			log.Info("Received interrupt, cancelling...")
 			cancel()
 			return
 		case syscall.SIGHUP, syscall.SIGUSR1:

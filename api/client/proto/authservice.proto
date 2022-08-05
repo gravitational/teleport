@@ -121,9 +121,6 @@ message Event {
         types.AppServerV3 AppServer = 29 [ (gogoproto.jsontag) = "app_server,omitempty" ];
         // App is an application resource.
         types.AppV3 App = 30 [ (gogoproto.jsontag) = "app,omitempty" ];
-        // SnowflakeSession is a Snowflake web session.
-        types.WebSessionV2 SnowflakeSession = 31
-            [ (gogoproto.jsontag) = "snowflake_session,omitempty" ];
     }
 }
 
@@ -184,20 +181,6 @@ message HostCertsRequest {
     types.Rotation Rotation = 9 [ (gogoproto.jsontag) = "rotation,omitempty" ];
     // NoCache is argument that only local callers can supply to bypass cache
     bool NoCache = 10 [ (gogoproto.jsontag) = "-" ];
-    // SystemRoles is a list of system roles held by the host. Most host certs are
-    // single-role and only specify the Role field. The SystemRoles field is only
-    // currently used on Instance certs, which need to express all roles held by
-    // the instance.
-    repeated string SystemRoles = 11 [
-        (gogoproto.jsontag) = "system_roles,omitempty",
-        (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
-    ];
-    // UnstableSystemRoleAssertionID is not a stable part of the public API. Used by
-    // older instances to requisition a multi-role cert by individually proving which
-    // system roles are held.
-    // DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
-    string UnstableSystemRoleAssertionID = 12
-        [ (gogoproto.jsontag) = "system_role_assertion_id,omitempty" ];
 }
 
 // UserCertRequest specifies certificate-generation parameters
@@ -282,11 +265,6 @@ message UserCertsRequest {
     // UseRoleRequests is used to ensure a certificate request is intended to
     // use role impersonation, even if the list of role requests is empty.
     bool UseRoleRequests = 14 [ (gogoproto.jsontag) = "use_role_requests,omitempty" ];
-
-    // DropAccessRequests is an optional list of request IDs indicating requests
-    // whose escalated privileges should be removed from the certificate.
-    repeated string DropAccessRequests = 15
-        [ (gogoproto.jsontag) = "drop_access_requests,omitempty" ];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -467,8 +445,6 @@ message PingResponse {
     string ProxyPublicAddr = 4 [ (gogoproto.jsontag) = "proxy_public_addr" ];
     // IsBoring signals whether or not the server was compiled with BoringCrypto.
     bool IsBoring = 5 [ (gogoproto.jsontag) = "is_boring" ];
-    // LicenseWarnings is a list of license compliance warnings.
-    repeated string LicenseWarnings = 6 [ (gogoproto.jsontag) = "license_warnings" ];
 }
 
 // Features are auth server features.
@@ -495,10 +471,6 @@ message Features {
     bool Desktop = 10 [ (gogoproto.jsontag) = "desktop" ];
     // ModeratedSessions enables moderated sessions product
     bool ModeratedSessions = 11 [ (gogoproto.jsontag) = "moderated_sessions" ];
-    // MachineID enables MachineID product
-    bool MachineID = 12 [ (gogoproto.jsontag) = "machine_id" ];
-    // ResourceAccessRequests enables resource access requests product
-    bool ResourceAccessRequests = 13 [ (gogoproto.jsontag) = "resource_access_requests" ];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
@@ -673,12 +645,6 @@ message GetAppSessionsResponse {
     repeated types.WebSessionV2 Sessions = 1 [ (gogoproto.jsontag) = "sessions" ];
 }
 
-// GetSnowflakeSessionsResponse contains all the requested Snowflake web sessions.
-message GetSnowflakeSessionsResponse {
-    // Sessions is a list of Snowflake web sessions.
-    repeated types.WebSessionV2 Sessions = 1 [ (gogoproto.jsontag) = "sessions" ];
-}
-
 // CreateAppSessionRequest contains the parameters to request a application web session.
 message CreateAppSessionRequest {
     reserved 2;
@@ -698,40 +664,8 @@ message CreateAppSessionResponse {
     types.WebSessionV2 Session = 1 [ (gogoproto.jsontag) = "session" ];
 }
 
-// CreateSnowflakeSessionRequest contains data required to create Snowflake web session.
-message CreateSnowflakeSessionRequest {
-    // Username is the name of the user requesting the session.
-    string Username = 1 [ (gogoproto.jsontag) = "username" ];
-    // SessionToken is the Snowflake server session token.
-    string SessionToken = 2 [ (gogoproto.jsontag) = "session_token" ];
-    // TokenTTL is the token validity period.
-    int64 TokenTTL = 3 [ (gogoproto.jsontag) = "token_ttl", (gogoproto.casttype) = "Duration" ];
-}
-
-// CreateSnowflakeSessionResponse contains Snowflake WebSession.
-message CreateSnowflakeSessionResponse {
-    types.WebSessionV2 Session = 1 [ (gogoproto.jsontag) = "session" ];
-}
-
-// GetSnowflakeSessionRequest are the parameters used to request an Snowflake web session.
-message GetSnowflakeSessionRequest {
-    // SessionID is the ID of the session being requested.
-    string SessionID = 1 [ (gogoproto.jsontag) = "session_id" ];
-}
-
-// GetSnowflakeSessionResponse contains the requested Snowflake web session.
-message GetSnowflakeSessionResponse {
-    // Session is the Snowflake web session.
-    types.WebSessionV2 Session = 1 [ (gogoproto.jsontag) = "session" ];
-}
-
 // DeleteAppSessionRequest contains the parameters used to remove an application web session.
 message DeleteAppSessionRequest { string SessionID = 1 [ (gogoproto.jsontag) = "session_id" ]; }
-
-// DeleteSnowflakeSessionRequest contains the parameters used to remove a Snowflake web session.
-message DeleteSnowflakeSessionRequest {
-    string SessionID = 1 [ (gogoproto.jsontag) = "session_id" ];
-}
 
 // DeleteUserAppSessionsRequest contains the parameters used to remove the
 // user's application web sessions.
@@ -831,11 +765,6 @@ message DatabaseCSRRequest {
     bytes CSR = 1 [ (gogoproto.jsontag) = "csr" ];
     // ClusterName is the name of the cluster the request is for.
     string ClusterName = 2 [ (gogoproto.jsontag) = "cluster_name" ];
-    // SignWithDatabaseCA if set to true will use Database CA to sign the created certificate.
-    // This flag was created to enable Database CA for new proxies and don't break old one that
-    // are still using UserCA.
-    // DELETE IN 11.0.
-    bool SignWithDatabaseCA = 3 [ (gogoproto.jsontag) = "sign_with_database_ca" ];
 }
 
 // DatabaseCSRResponse contains the signed database certificate.
@@ -858,15 +787,6 @@ message DatabaseCertRequest {
     int64 TTL = 3 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration" ];
     // ServerNames are SANs to include in the certificate.
     repeated string ServerNames = 4 [ (gogoproto.jsontag) = "server_names" ];
-    // Requester is a name of service that sent the request.
-    enum Requester {
-        // UNSPECIFIED is set when the requester in unknown.
-        UNSPECIFIED = 0;
-        // TCTL is set when request was sent by tctl tool.
-        TCTL = 1;
-    }
-    // RequesterName identifies who sent the request.
-    Requester RequesterName = 5 [ (gogoproto.jsontag) = "requester_name" ];
 }
 
 // DatabaseCertResponse contains the signed certificate.
@@ -876,15 +796,6 @@ message DatabaseCertResponse {
     // CACerts is a list of certificate authorities.
     repeated bytes CACerts = 2 [ (gogoproto.jsontag) = "ca_certs" ];
 }
-
-// SnowflakeJWTRequest contains data required to generate Snowflake JWT used for authorization.
-message SnowflakeJWTRequest {
-    string AccountName = 1 [ (gogoproto.jsontag) = "account_name" ];
-    string UserName = 2 [ (gogoproto.jsontag) = "user_name" ];
-}
-
-// SnowflakeJWTResponse contains signed JWT that can be used for Snowflake authentication.
-message SnowflakeJWTResponse { string Token = 1 [ (gogoproto.jsontag) = "token" ]; }
 
 // GetRoleRequest is a request to query a role.
 message GetRoleRequest {
@@ -909,7 +820,8 @@ enum DeviceType {
     DEVICE_TYPE_UNSPECIFIED = 0;
     // TOTP is a Time-based One-Time Password device.
     DEVICE_TYPE_TOTP = 1;
-    reserved 2; // DEVICE_TYPE_U2F
+    // U2F is a U2F/CTAP1 capable device registered via U2F APIs.
+    DEVICE_TYPE_U2F = 2;
     // Webauthn is a device compatible with the Web Authentication
     // specification, registered via Webauthn APIs.
     // Supports various kinds of devices: U2F/CTAP1, CTAP2, platform
@@ -917,23 +829,12 @@ enum DeviceType {
     DEVICE_TYPE_WEBAUTHN = 3;
 }
 
-enum DeviceUsage {
-    DEVICE_USAGE_UNSPECIFIED = 0;
-
-    // Device intended for MFA use, but not for passwordless.
-    // Allows both FIDO and FIDO2 devices.
-    // Resident keys not required.
-    DEVICE_USAGE_MFA = 1;
-
-    // Device intended for both MFA and passwordless.
-    // Requires a FIDO2 device and takes a resident key slot.
-    DEVICE_USAGE_PASSWORDLESS = 2;
-}
-
 // MFAAuthenticateChallenge is a challenge for all MFA devices registered for a
 // user.
 message MFAAuthenticateChallenge {
-    reserved 1; // repeated U2FChallenge U2F
+    // U2F contains one U2FChallenge per U2F device registered for a
+    // user. Each challenge is unique.
+    repeated U2FChallenge U2F = 1;
     // TOTP is a challenge for all TOTP devices registered for a user. When
     // this field is set, any TOTP device a user has registered can be used to
     // respond.
@@ -950,10 +851,25 @@ message MFAAuthenticateChallenge {
 // of the MFA devices registered for a user.
 message MFAAuthenticateResponse {
     oneof Response {
-        // Removed: U2FResponse U2F = 1;
+        U2FResponse U2F = 1;
         TOTPResponse TOTP = 2;
         webauthn.CredentialAssertionResponse Webauthn = 3;
     }
+}
+
+// U2FChallenge is a U2F auth challenge.
+message U2FChallenge {
+    string KeyHandle = 1;
+    string Challenge = 2;
+    string AppID = 3;
+    string Version = 4;
+}
+
+// U2FResponse is a U2F auth challenge response.
+message U2FResponse {
+    string KeyHandle = 1;
+    string ClientData = 2;
+    string Signature = 3;
 }
 
 // TOTPChallenge is a challenge for all TOTP devices registered for a user.
@@ -971,7 +887,7 @@ message TOTPResponse { string Code = 1; }
 message MFARegisterChallenge {
     // Request depends on the type of the MFA device being registered.
     oneof Request {
-        // Removed: U2FRegisterChallenge U2F = 1;
+        U2FRegisterChallenge U2F = 1;
         TOTPRegisterChallenge TOTP = 2;
         webauthn.CredentialCreation Webauthn = 3;
     }
@@ -980,10 +896,23 @@ message MFARegisterChallenge {
 // MFARegisterResponse is a response to MFARegisterChallenge.
 message MFARegisterResponse {
     oneof Response {
-        // Removed: U2FRegisterResponse U2F = 1;
+        U2FRegisterResponse U2F = 1;
         TOTPRegisterResponse TOTP = 2;
         webauthn.CredentialCreationResponse Webauthn = 3;
     }
+}
+
+// U2FRegisterChallenge is a challenge for registering a new U2F device.
+message U2FRegisterChallenge {
+    string Challenge = 1;
+    string AppID = 2;
+    string Version = 3;
+}
+
+// U2FRegisterResponse is a response to U2FRegisterChallenge.
+message U2FRegisterResponse {
+    string RegistrationData = 1;
+    string ClientData = 2;
 }
 
 // TOTPRegisterChallenge is a challenge for registering a new TOTP device.
@@ -1039,12 +968,18 @@ message AddMFADeviceResponse {
 
 // AddMFADeviceRequestInit describes the new MFA device.
 message AddMFADeviceRequestInit {
+    // DELETE IN 9.x, superseded by DeviceType (codingllama).
+    // LegacyDeviceType is deprecated in favor of DeviceType.
+    enum LegacyDeviceType {
+        TOTP = 0;
+        U2F = 1;
+        Webauthn = 2;
+    }
+    // LegacyType is deprecated in favor of DeviceType.
+    LegacyDeviceType LegacyType = 2 [ deprecated = true ];
+
     string DeviceName = 1;
-    reserved 2; // LegacyDeviceType LegacyType
     DeviceType DeviceType = 3;
-    // DeviceUsage is the requested usage for the device.
-    // Defaults to DEVICE_USAGE_MFA.
-    DeviceUsage DeviceUsage = 4 [ (gogoproto.jsontag) = "device_usage,omitempty" ];
 }
 
 // AddMFADeviceResponseAck is a confirmation of successful device registration.
@@ -1100,9 +1035,6 @@ message AddMFADeviceSyncRequest {
     string NewDeviceName = 2 [ (gogoproto.jsontag) = "new_device_name,omitempty" ];
     // NewMFAResponse is a user's new mfa response to a mfa register challenge.
     MFARegisterResponse NewMFAResponse = 3 [ (gogoproto.jsontag) = "new_mfa_response,omitempty" ];
-    // DeviceUsage is the requested usage for the device.
-    // Defaults to DEVICE_USAGE_MFA.
-    DeviceUsage DeviceUsage = 4 [ (gogoproto.jsontag) = "device_usage,omitempty" ];
 }
 
 // AddMFADeviceSyncResponse is a response to AddMFADeviceSyncRequest.
@@ -1238,6 +1170,28 @@ message Events {
     string LastKey = 2;
 }
 
+// DELETE IN 10.0
+message ListNodesRequest {
+    // Namespace is the namespace of resources.
+    string Namespace = 1;
+    // Limit is the maximum amount of nodes to retrieve.
+    int32 Limit = 2;
+    // StartKey is used to start listing nodes from a specific spot. This should
+    // be set to the previous NextKey value if using pagination, or left empty.
+    string StartKey = 3;
+    // Labels is a label-based matcher if non-empty.
+    map<string, string> Labels = 4;
+}
+
+// DELETE IN 10.0
+message ListNodesResponse {
+    // Servers is a list of servers.
+    repeated types.ServerV2 Servers = 1;
+    // NextKey is the next Key to use as StartKey in a ListNodesRequest to continue
+    // retrieving pages of nodes. If NextKey is empty, there are no more pages.
+    string NextKey = 2;
+}
+
 message GetLocksRequest {
     // Targets is a list of targets. Every returned lock must match at least
     // one of the targets.
@@ -1339,15 +1293,10 @@ message CRL {
 }
 
 // ChangeUserAuthenticationRequest defines a request to change a password and if enabled
-// also adds a new MFA device from a user reset or from a new user invite. User can also skip
-// setting a new password if passwordless is enabled and just provide a new webauthn register
-// response.
-//
-// After a successful request a new web session is created.
-//
-// Users may also receive new recovery codes if they meet the necessary requirements. If a user
-// previously had recovery codes, the previous codes become invalid as it is replaced with newly
-// generated ones.
+// also adds a new MFA device from a user reset or from a new user invite. After successful changing
+// of authentications a new web session is created. Users may also receive new recovery codes if the
+// user meets the requirement to receive recovery codes. If a user previously had recovery codes,
+// the previous codes become invalid as it is replaced with newly generated ones.
 message ChangeUserAuthenticationRequest {
     // TokenID is the ID of a reset or invite token.
     // The token allows the user to change their credentials without being logged
@@ -1360,8 +1309,6 @@ message ChangeUserAuthenticationRequest {
     // cluster settings enable optional second factor), or cluster settings disabled second factor.
     MFARegisterResponse NewMFARegisterResponse = 3
         [ (gogoproto.jsontag) = "new_mfa_register_response,omitempty" ];
-    // NewDeviceName is the name of a new mfa or passwordless device.
-    string NewDeviceName = 4 [ (gogoproto.jsontag) = "new_device_name,omitempty" ];
 }
 
 // ChangeUserAuthenticationResponse is a response for ChangeUserAuthentication.
@@ -1478,17 +1425,12 @@ message UserCredentials {
     bytes Password = 2 [ (gogoproto.jsontag) = "password" ];
 }
 
-// ContextUser marks requests that rely in the currently authenticated user.
-message ContextUser {}
-
-// Passwordless marks requests for passwordless challenges.
-message Passwordless {}
-
 // CreateAuthenticateChallengeRequest is a request for creating MFA authentication challenges for a
 // users mfa devices.
 message CreateAuthenticateChallengeRequest {
     // Request defines how the request will be verified before creating challenges.
-    // An empty Request is equivalent to context_user being set.
+    // This field can be empty, which implies the request is to create challenges for the
+    // user in context (logged in user).
     oneof Request {
         // UserCredentials verifies request with username and password. Used with logins or
         // when the logged in user wants to change their password.
@@ -1498,12 +1440,6 @@ message CreateAuthenticateChallengeRequest {
         // VerifyAccountRecovery (step 2 of the recovery process after RPC StartAccountRecovery).
         string RecoveryStartTokenID = 2
             [ (gogoproto.jsontag) = "recovery_start_token_id,omitempty" ];
-        // ContextUser issues a challenge for the currently-authenticated user.
-        // Default option if no other is provided.
-        ContextUser ContextUser = 3 [ (gogoproto.jsontag) = "context_user,omitempty" ];
-        // Passwordless issues a passwordless challenge (authenticated user not
-        // required).
-        Passwordless Passwordless = 4 [ (gogoproto.jsontag) = "passwordless,omitempty" ];
     }
 }
 
@@ -1527,9 +1463,6 @@ message CreateRegisterChallengeRequest {
     string TokenID = 1 [ (gogoproto.jsontag) = "token_id" ];
     // DeviceType is the type of MFA device to make a register challenge for.
     DeviceType DeviceType = 2 [ (gogoproto.jsontag) = "device_type" ];
-    // DeviceUsage is the requested usage for the device.
-    // Defaults to DEVICE_USAGE_MFA.
-    DeviceUsage DeviceUsage = 3 [ (gogoproto.jsontag) = "device_usage,omitempty" ];
 }
 
 // PaginatedResource represents one of the supported resources.
@@ -1565,7 +1498,6 @@ message PaginatedResource {
 //  is requested. Matches are de-duplicated.
 message ListResourcesRequest {
     // ResourceType is the resource that is going to be retrieved.
-    // This only needs to be set explicitly for the `ListResources` rpc.
     string ResourceType = 1 [ (gogoproto.jsontag) = "resource_type,omitempty" ];
     // Namespace is the namespace of resources.
     string Namespace = 2 [ (gogoproto.jsontag) = "namespace,omitempty" ];
@@ -1590,9 +1522,6 @@ message ListResourcesRequest {
     // WindowsDesktopFilter specifies windows desktop specific filters.
     types.WindowsDesktopFilter WindowsDesktopFilter = 10
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "windows_desktop_filter,omitempty" ];
-    // UseSearchAsRoles indicates that the response should include all resources
-    // the caller is able to request access to using search_as_roles
-    bool UseSearchAsRoles = 11 [ (gogoproto.jsontag) = "use_search_as_roles,omitempty" ];
 }
 
 // ListResourceResponse response of ListResources.
@@ -1746,199 +1675,8 @@ message PresenceMFAChallengeSend {
     }
 }
 
-// GetDomainNameResponse is a response from GetDomainName.
-message GetDomainNameResponse {
-    // DomainName is the local auth domain of the current auth server.
-    string DomainName = 1 [ (gogoproto.jsontag) = "domain_name" ];
-}
-
-// GetClusterCACertResponse is a response from GetClusterCACert.
-message GetClusterCACertResponse {
-    // TLSCA is a PEM-encoded TLS certificate authority.
-    bytes TLSCA = 1 [ (gogoproto.jsontag) = "tls_ca" ];
-}
-
-// GenerateTokenRequest is a request to generate auth token.
-message GenerateTokenRequest {
-    // Token sets the token value. If not set, it will be auto generated.
-    string Token = 1 [ (gogoproto.jsontag) = "token" ];
-    // Roles is a list of roles this token authenticates as.
-    repeated string Roles = 2 [
-        (gogoproto.jsontag) = "roles",
-        (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
-    ];
-    // TTL specifies how long the generated token will be valid for.
-    // Defaults to 30 minutes if not set.
-    int64 TTL = 3 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration" ];
-    // Labels is a label-based matcher if non-empty.
-    map<string, string> Labels = 4 [ (gogoproto.jsontag) = "labels" ];
-}
-
-// GenerateTokenResponse contains a generated auth token.
-message GenerateTokenResponse {
-    // Token is the generated auth token.
-    string Token = 1 [ (gogoproto.jsontag) = "token" ];
-}
-
-// GetOIDCAuthRequestRequest is a request for GetOIDCAuthRequest.
-message GetOIDCAuthRequestRequest {
-    // StateToken is an oidc auth request state token.
-    string StateToken = 1 [ (gogoproto.jsontag) = "state_token" ];
-}
-
-// GetSAMLAuthRequestRequest is a request for GetSAMLAuthRequest.
-message GetSAMLAuthRequestRequest {
-    // ID is a saml auth request unique id.
-    string ID = 1 [ (gogoproto.jsontag) = "id" ];
-}
-
-// GetGithubAuthRequestRequest is a request for GetGithubAuthRequest.
-message GetGithubAuthRequestRequest {
-    // StateToken is a github auth request state token.
-    string StateToken = 1 [ (gogoproto.jsontag) = "state_token" ];
-}
-
-// GetSSODiagnosticInfoRequest is a request for GetSSODiagnosticInfo.
-message GetSSODiagnosticInfoRequest {
-    // AuthRequestKind is the SSO Auth Request kind (oidc, saml, or github).
-    string AuthRequestKind = 1 [ (gogoproto.jsontag) = "auth_request_kind" ];
-    // AuthRequestID is the SSO Auth Request id or state token.
-    string AuthRequestID = 2 [ (gogoproto.jsontag) = "auth_request_id" ];
-}
-
-// UnstableSystemRoleAssertion is not a stable part of the public API. Used by older instances
-// to prove that they hold a given system role.
-// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
-message UnstableSystemRoleAssertion {
-    string ServerID = 1 [ (gogoproto.jsontag) = "server_id,omitempty" ];
-    string AssertionID = 2 [ (gogoproto.jsontag) = "assertion_id,omitempty" ];
-    string SystemRole = 3 [
-        (gogoproto.jsontag) = "system_role,omitempty",
-        (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
-    ];
-}
-
-// UnstableSystemRoleAssertionSet is not a stable part of the public API. Records the sum of system
-// role assertions provided by a given instance.
-// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
-message UnstableSystemRoleAssertionSet {
-    string ServerID = 1 [ (gogoproto.jsontag) = "server_id,omitempty" ];
-    string AssertionID = 2 [ (gogoproto.jsontag) = "assertion_id,omitempty" ];
-    repeated string SystemRoles = 3 [
-        (gogoproto.jsontag) = "system_roles,omitempty",
-        (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
-    ];
-}
-
-// UpstreamInventoryOneOf is the upstream message for the inventory control stream,
-// sent from teleport instances to the auth server.
-message UpstreamInventoryOneOf {
-    oneof Msg {
-        // Hello is the first message sent up the control stream.
-        UpstreamInventoryHello Hello = 1;
-        // Heartbeat advertises instance status/liveness.
-        InventoryHeartbeat Heartbeat = 2;
-        // UpstreamInventoryPong is a response to a ping (used for testing/debug).
-        UpstreamInventoryPong Pong = 3;
-    }
-}
-
-// DownstreamInventoryOneOf is the downstream message for the inventory control stream,
-// sent from auth servers to teleport instances.
-message DownstreamInventoryOneOf {
-    oneof Msg {
-        // Hello is the first message sent down the control stream.
-        DownstreamInventoryHello Hello = 1;
-        // Ping triggers an upstream pong (used for testing/debug).
-        DownstreamInventoryPing Ping = 2;
-    }
-}
-
-// DownstreamInventoryPing is sent down the inventory control stream for testing/debug
-// purposes.
-message DownstreamInventoryPing { uint64 ID = 1; }
-
-// UpstreamInventoryPong is sent up the inventory control stream in response to a downstream
-// ping (used for testing/debug purposes).
-message UpstreamInventoryPong { uint64 ID = 1; }
-
-// UpstreamInventoryHello is the hello message sent up the inventory control stream.
-message UpstreamInventoryHello {
-    // Version advertises the teleport version of the instance.
-    string Version = 1;
-    // ServerID advertises the server ID of the instance.
-    string ServerID = 2;
-    // Services advertises the currently live services of the instance. note: this is
-    // distinct from the SystemRoles associated with a certificate in that a service may
-    // hold a system role that is not currently in use if it was granted that role by
-    // its auth token. i.e. Services is the subset of SystemRoles that are currently
-    // active.
-    repeated string Services = 3
-        [ (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole" ];
-
-    // TODO(fspmarshall): look into what other info can safely be stated here once, instead of
-    // being repeatedly announced (e.g. addrs, static labels, etc). may be able to achieve a
-    // non-trivial reduction in network usage by doing this.
-}
-
-// DownstreamInventoryHello is the hello message sent down the inventory control stream.
-message DownstreamInventoryHello {
-    // Version advertises the version of the auth server.
-    string Version = 1;
-    // ServerID advertises the server ID of the auth server.
-    string ServerID = 2;
-}
-
-// InventoryHeartbeat announces information about instance state.
-message InventoryHeartbeat {
-    // SSHServer is a complete ssh server spec to be heartbeated (note: the full spec is heartbeated
-    // in the interest of simple conversion from the old logic of heartbeating via UpsertNode, but
-    // we should be able to cut down on network usage fairly significantly by moving static values
-    // to the hello message and only heartbeating dynamic values here).
-    types.ServerV2 SSHServer = 1;
-}
-
-// InventoryStatusRequest requests inventory status info.
-message InventoryStatusRequest {
-    // Connected requests summary of the inventory control streams registered with
-    // the auth server that handles the request.
-    bool Connected = 1;
-}
-
-// InventoryStatusSummary is the status summary returned by the GetInventoryStatus rpc.
-message InventoryStatusSummary {
-    // Connected is a summary of the instances connected to the current auth server.  Only set if
-    // the Connected flag in the status request is true.
-    repeated UpstreamInventoryHello Connected = 1 [ (gogoproto.nullable) = false ];
-}
-
-// InventoryPingRequest is used to request that the specified server be sent an inventory ping
-// if it has a control stream registered.
-message InventoryPingRequest { string ServerID = 1; }
-
-// InventoryPingResponse returns the result of an inventory ping initiated via an
-// inventory ping request.
-message InventoryPingResponse { int64 Duration = 1 [ (gogoproto.casttype) = "time.Duration" ]; }
-
-// GetConnectionDiagnosticRequest is a request to return a connection diagnostic.
-message GetConnectionDiagnosticRequest {
-    // Name is the name of the connection diagnostic.
-    string Name = 1 [ (gogoproto.jsontag) = "name" ];
-}
-
 // AuthService is authentication/authorization service implementation
 service AuthService {
-    // InventoryControlStream is the per-instance stream used to advertise teleport instance
-    // presence/version/etc to the auth server.
-    rpc InventoryControlStream(stream UpstreamInventoryOneOf)
-        returns (stream DownstreamInventoryOneOf);
-
-    // GetInventoryStatus gets information about current instance inventory.
-    rpc GetInventoryStatus(InventoryStatusRequest) returns (InventoryStatusSummary);
-
-    // PingInventory attempts to trigger a downstream inventory ping (used in testing/debug).
-    rpc PingInventory(InventoryPingRequest) returns (InventoryPingResponse);
-
     // MaintainSessionPresence establishes a channel used to continously verify the presence for a
     // session.
     rpc MaintainSessionPresence(stream PresenceMFAChallengeSend)
@@ -1966,6 +1704,12 @@ service AuthService {
 
     // GetNode retrieves a node described by the given request.
     rpc GetNode(types.ResourceInNamespaceRequest) returns (types.ServerV2);
+    // GetNodes retrieves all nodes.
+    // DELETE IN 8.0.0 in favor of ListNodes
+    rpc GetNodes(types.ResourcesInNamespaceRequest) returns (types.ServerV2List);
+    // ListNodes retrieves a paginated list of nodes.
+    // DELETE IN 10.0. Deprecated, use ListResources.
+    rpc ListNodes(ListNodesRequest) returns (ListNodesResponse) { option deprecated = true; };
     // UpsertNode upserts a node in a backend.
     rpc UpsertNode(types.ServerV2) returns (types.KeepAlive);
     // DeleteNode deletes an existing node in a backend described by the given request.
@@ -2115,19 +1859,6 @@ service AuthService {
     // DeleteUserAppSessions deletes all user’s application sessions.
     rpc DeleteUserAppSessions(DeleteUserAppSessionsRequest) returns (google.protobuf.Empty);
 
-    // CreateSnowflakeSession creates web session with sub kind Snowflake used by Database access
-    // Snowflake integration.
-    rpc CreateSnowflakeSession(CreateSnowflakeSessionRequest)
-        returns (CreateSnowflakeSessionResponse);
-    // GetSnowflakeSession returns a web session with sub kind Snowflake.
-    rpc GetSnowflakeSession(GetSnowflakeSessionRequest) returns (GetSnowflakeSessionResponse);
-    // GetSnowflakeSessions gets all Snowflake web sessions.
-    rpc GetSnowflakeSessions(google.protobuf.Empty) returns (GetSnowflakeSessionsResponse);
-    // DeleteSnowflakeSession removes a Snowflake web session.
-    rpc DeleteSnowflakeSession(DeleteSnowflakeSessionRequest) returns (google.protobuf.Empty);
-    // DeleteAllSnowflakeSessions removes all Snowflake web sessions.
-    rpc DeleteAllSnowflakeSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
-
     // GetWebSession gets a web session.
     rpc GetWebSession(types.GetWebSessionRequest) returns (GetWebSessionResponse);
     // GetWebSessions gets all web sessions.
@@ -2184,8 +1915,6 @@ service AuthService {
     // GenerateDatabaseCert generates client certificate used by a database
     // service to authenticate with the database instance.
     rpc GenerateDatabaseCert(DatabaseCertRequest) returns (DatabaseCertResponse);
-    /// GenerateSnowflakeJWT generates JWT in the format required by Snowflake.
-    rpc GenerateSnowflakeJWT(SnowflakeJWTRequest) returns (SnowflakeJWTResponse);
 
     // GetRole retrieves a role described by the given request.
     rpc GetRole(GetRoleRequest) returns (types.RoleV5);
@@ -2238,10 +1967,6 @@ service AuthService {
     rpc UpsertOIDCConnector(types.OIDCConnectorV3) returns (google.protobuf.Empty);
     // DeleteOIDCConnector deletes an existing OIDC connector in a backend by name.
     rpc DeleteOIDCConnector(types.ResourceRequest) returns (google.protobuf.Empty);
-    // CreateOIDCAuthRequest creates OIDCAuthRequest.
-    rpc CreateOIDCAuthRequest(types.OIDCAuthRequest) returns (types.OIDCAuthRequest);
-    // GetOIDCAuthRequest returns OIDC auth request if found.
-    rpc GetOIDCAuthRequest(GetOIDCAuthRequestRequest) returns (types.OIDCAuthRequest);
 
     // GetSAMLConnector gets a SAML connector resource by name.
     rpc GetSAMLConnector(types.ResourceWithSecretsRequest) returns (types.SAMLConnectorV2);
@@ -2251,10 +1976,6 @@ service AuthService {
     rpc UpsertSAMLConnector(types.SAMLConnectorV2) returns (google.protobuf.Empty);
     // DeleteSAMLConnector deletes an existing SAML connector in a backend by name.
     rpc DeleteSAMLConnector(types.ResourceRequest) returns (google.protobuf.Empty);
-    // CreateSAMLAuthRequest creates SAMLAuthRequest.
-    rpc CreateSAMLAuthRequest(types.SAMLAuthRequest) returns (types.SAMLAuthRequest);
-    // GetSAMLAuthRequest returns SAML auth request if found.
-    rpc GetSAMLAuthRequest(GetSAMLAuthRequestRequest) returns (types.SAMLAuthRequest);
 
     // GetGithubConnector gets a Github connector resource by name.
     rpc GetGithubConnector(types.ResourceWithSecretsRequest) returns (types.GithubConnectorV3);
@@ -2265,13 +1986,6 @@ service AuthService {
     rpc UpsertGithubConnector(types.GithubConnectorV3) returns (google.protobuf.Empty);
     // DeleteGithubConnector deletes an existing Github connector in a backend by name.
     rpc DeleteGithubConnector(types.ResourceRequest) returns (google.protobuf.Empty);
-    // CreateGithubAuthRequest creates GithubAuthRequest.
-    rpc CreateGithubAuthRequest(types.GithubAuthRequest) returns (types.GithubAuthRequest);
-    // GetGithubAuthRequest returns Github auth request if found.
-    rpc GetGithubAuthRequest(GetGithubAuthRequestRequest) returns (types.GithubAuthRequest);
-
-    // GetSSODiagnosticInfo returns SSO diagnostic info records.
-    rpc GetSSODiagnosticInfo(GetSSODiagnosticInfoRequest) returns (types.SSODiagnosticInfo);
 
     // GetTrustedCluster gets a Trusted Cluster resource by name.
     rpc GetTrustedCluster(types.ResourceRequest) returns (types.TrustedClusterV2);
@@ -2288,10 +2002,6 @@ service AuthService {
     rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
     // UpsertToken upserts a token in a backend.
     rpc UpsertToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
-    // CreateToken creates a token in a backend.
-    rpc CreateToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
-    // GenerateToken generates a new auth token.
-    rpc GenerateToken(GenerateTokenRequest) returns (GenerateTokenResponse);
     // DeleteToken deletes an existing token in a backend described by the given request.
     rpc DeleteToken(types.ResourceRequest) returns (google.protobuf.Empty);
 
@@ -2404,12 +2114,6 @@ service AuthService {
     // GenerateCertAuthorityCRL creates an empty CRL for the specified CA.
     rpc GenerateCertAuthorityCRL(CertAuthorityRequest) returns (CRL);
 
-    // CreateConnectionDiagnostic creates a new connection diagnostic.
-    rpc CreateConnectionDiagnostic(types.ConnectionDiagnosticV1) returns (google.protobuf.Empty);
-    // GetConnectionDiagnostic reads a connection diagnostic.
-    rpc GetConnectionDiagnostic(GetConnectionDiagnosticRequest)
-        returns (types.ConnectionDiagnosticV1);
-
     // ChangeUserAuthentication allows a user to change their password and if enabled,
     // also adds a new MFA device. After successful invocation, a new web session is created as well
     // as a new set of recovery codes (if user meets the requirements to receive them), invalidating
@@ -2479,16 +2183,4 @@ service AuthService {
 
     // ListResources retrieves a paginated list of resources.
     rpc ListResources(ListResourcesRequest) returns (ListResourcesResponse);
-
-    // GetDomainName returns local auth domain of the current auth server
-    rpc GetDomainName(google.protobuf.Empty) returns (GetDomainNameResponse);
-    // GetClusterCACert returns the PEM-encoded TLS certs for the local cluster
-    // without signing keys. If the cluster has multiple TLS certs, they will
-    // all be appended.
-    rpc GetClusterCACert(google.protobuf.Empty) returns (GetClusterCACertResponse);
-
-    // UnstableAssertSystemRole is not a stable part of the public API. Used by older
-    // instances to prove that they hold a given system role.
-    // DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
-    rpc UnstableAssertSystemRole(UnstableSystemRoleAssertion) returns (google.protobuf.Empty);
 }

@@ -23,11 +23,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
@@ -38,6 +33,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 )
 
 // remoteSite is a remote site that established the inbound connection to
@@ -118,7 +118,6 @@ func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
 			Credentials: []client.Credentials{
 				client.LoadTLS(tlsConfig),
 			},
-			CircuitBreakerConfig: s.srv.CircuitBreakerConfig,
 		})
 		if err != nil {
 			return nil, false, trace.Wrap(err)
@@ -267,30 +266,12 @@ func (s *remoteSite) addConn(conn net.Conn, sconn ssh.Conn) (*remoteConn, error)
 	return rconn, nil
 }
 
-func (s *remoteSite) adviseReconnect(ctx context.Context) {
-	wg := &sync.WaitGroup{}
-
+func (s *remoteSite) adviseReconnect() {
 	s.RLock()
+	defer s.RUnlock()
 	for _, conn := range s.connections {
 		s.Debugf("Sending reconnect: %s", conn.nodeID)
-
-		wg.Add(1)
-		go func(conn *remoteConn) {
-			conn.adviseReconnect()
-			wg.Done()
-		}(conn)
-	}
-	s.RUnlock()
-
-	wait := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(wait)
-	}()
-
-	select {
-	case <-ctx.Done():
-	case <-wait:
+		go conn.adviseReconnect()
 	}
 }
 
@@ -487,12 +468,18 @@ func (s *remoteSite) updateCertAuthorities(retry utils.Retry, remoteWatcher *ser
 }
 
 func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityWatcher, remoteVersion string) error {
-	filter, err := s.getLocalWatchedCerts(remoteVersion)
-	if err != nil {
-		return trace.Wrap(err)
+	targets := []services.CertAuthorityTarget{
+		{
+			Type:        types.HostCA,
+			ClusterName: s.srv.ClusterName,
+		},
+		{
+			Type:        types.UserCA,
+			ClusterName: s.srv.ClusterName,
+		},
 	}
 
-	localWatch, err := s.srv.CertAuthorityWatcher.Subscribe(s.ctx, filter)
+	localWatch, err := s.srv.CertAuthorityWatcher.Subscribe(s.ctx, targets...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -504,8 +491,9 @@ func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityW
 
 	remoteWatch, err := remoteWatcher.Subscribe(
 		s.ctx,
-		types.CertAuthorityFilter{
-			types.HostCA: s.domainName,
+		services.CertAuthorityTarget{
+			ClusterName: s.domainName,
+			Type:        types.HostCA,
 		},
 	)
 	if err != nil {
@@ -517,11 +505,11 @@ func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityW
 		}
 	}()
 
-	localCAs := make(map[types.CertAuthType]types.CertAuthority, len(filter))
-	for caType, clusterName := range filter {
+	localCAs := make(map[types.CertAuthType]types.CertAuthority, len(targets))
+	for _, t := range targets {
 		caID := types.CertAuthID{
-			Type:       caType,
-			DomainName: clusterName,
+			Type:       t.Type,
+			DomainName: t.ClusterName,
 		}
 		ca, err := s.localAccessPoint.GetCertAuthority(s.ctx, caID, false)
 		if err != nil {
@@ -531,7 +519,7 @@ func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityW
 			return trace.Wrap(err, "failed to push local cert authority")
 		}
 		s.Debugf("Pushed local cert authority %v", caID.String())
-		localCAs[caType] = ca
+		localCAs[t.Type] = ca
 	}
 
 	remoteCA, err := s.remoteAccessPoint.GetCertAuthority(s.ctx, types.CertAuthID{
@@ -627,29 +615,6 @@ func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityW
 			}
 		}
 	}
-}
-
-// getLocalWatchedCerts returns local certificates types that should be watched by the cert authority watcher.
-func (s *remoteSite) getLocalWatchedCerts(remoteClusterVersion string) (types.CertAuthorityFilter, error) {
-	// Delete in 11.0.
-	ver10orAbove, err := utils.MinVerWithoutPreRelease(remoteClusterVersion, constants.DatabaseCAMinVersion)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if !ver10orAbove {
-		s.Debugf("Connected to remote cluster of version %s. Database CA won't be propagated.", remoteClusterVersion)
-		return types.CertAuthorityFilter{
-			types.HostCA: s.srv.ClusterName,
-			types.UserCA: s.srv.ClusterName,
-		}, nil
-	}
-
-	return types.CertAuthorityFilter{
-		types.HostCA:     s.srv.ClusterName,
-		types.UserCA:     s.srv.ClusterName,
-		types.DatabaseCA: s.srv.ClusterName,
-	}, nil
 }
 
 func (s *remoteSite) updateLocks(retry utils.Retry) {
@@ -803,9 +768,6 @@ func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
 		Emitter:         s.srv.Config.Emitter,
 		ParentContext:   s.srv.Context,
 		LockWatcher:     s.srv.LockWatcher,
-		TargetID:        params.ServerID,
-		TargetAddr:      params.To.String(),
-		TargetHostname:  params.Address,
 	}
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {

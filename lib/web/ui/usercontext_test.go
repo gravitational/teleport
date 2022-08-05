@@ -1,35 +1,36 @@
-/*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package ui
 
 import (
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/stretchr/testify/require"
+	"gopkg.in/check.v1"
 )
 
-func TestNewUserContext(t *testing.T) {
-	t.Parallel()
+type UserContextSuite struct{}
 
+var _ = check.Suite(&UserContextSuite{})
+
+func TestUserContext(t *testing.T) { check.TestingT(t) }
+
+func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	user := &types.UserV2{
 		Metadata: types.Metadata{
 			Name: "root",
@@ -78,58 +79,55 @@ func TestNewUserContext(t *testing.T) {
 
 	roleSet := []types.Role{role1, role2}
 	userContext, err := NewUserContext(user, roleSet, proto.Features{}, true)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	allowed := access{true, true, true, true, true}
 	denied := access{false, false, false, false, false}
 
 	// test user name and acl
-	require.Equal(t, userContext.Name, "root")
-	require.Empty(t, cmp.Diff(userContext.ACL.AuthConnectors, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.TrustedClusters, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.AppServers, denied))
-	require.Empty(t, cmp.Diff(userContext.ACL.DBServers, denied))
-	require.Empty(t, cmp.Diff(userContext.ACL.KubeServers, denied))
-	require.Empty(t, cmp.Diff(userContext.ACL.Events, denied))
-	require.Empty(t, cmp.Diff(userContext.ACL.RecordedSessions, denied))
-	require.Empty(t, cmp.Diff(userContext.ACL.Roles, denied))
-	require.Empty(t, cmp.Diff(userContext.ACL.Users, denied))
-	require.Empty(t, cmp.Diff(userContext.ACL.Tokens, denied))
-	require.Empty(t, cmp.Diff(userContext.ACL.Nodes, denied))
-	require.Empty(t, cmp.Diff(userContext.ACL.AccessRequests, denied))
-	require.Empty(t, cmp.Diff(userContext.ACL.Desktops, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.WindowsLogins, []string{"a", "b", "d"}))
-	require.Empty(t, cmp.Diff(userContext.AccessStrategy, accessStrategy{
+	c.Assert(userContext.Name, check.Equals, "root")
+	c.Assert(userContext.ACL.AuthConnectors, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.TrustedClusters, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.AppServers, check.DeepEquals, denied)
+	c.Assert(userContext.ACL.DBServers, check.DeepEquals, denied)
+	c.Assert(userContext.ACL.KubeServers, check.DeepEquals, denied)
+	c.Assert(userContext.ACL.Events, check.DeepEquals, denied)
+	c.Assert(userContext.ACL.Sessions, check.DeepEquals, denied)
+	c.Assert(userContext.ACL.Roles, check.DeepEquals, denied)
+	c.Assert(userContext.ACL.Users, check.DeepEquals, denied)
+	c.Assert(userContext.ACL.Tokens, check.DeepEquals, denied)
+	c.Assert(userContext.ACL.Nodes, check.DeepEquals, denied)
+	c.Assert(userContext.ACL.AccessRequests, check.DeepEquals, denied)
+	c.Assert(userContext.ACL.Desktops, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.WindowsLogins, check.DeepEquals, []string{"a", "b", "d"})
+	c.Assert(userContext.AccessStrategy, check.DeepEquals, accessStrategy{
 		Type:   types.RequestStrategyOptional,
 		Prompt: "",
-	}))
-
-	require.Empty(t, cmp.Diff(userContext.ACL.Billing, denied))
-	require.Equal(t, userContext.ACL.Clipboard, true)
-	require.Equal(t, userContext.ACL.DesktopSessionRecording, true)
+	})
+	c.Assert(userContext.ACL.Billing, check.DeepEquals, denied)
+	c.Assert(userContext.ACL.Clipboard, check.Equals, true)
+	c.Assert(userContext.ACL.DesktopSessionRecording, check.Equals, true)
 
 	// test local auth type
-	require.Equal(t, userContext.AuthType, authLocal)
+	c.Assert(userContext.AuthType, check.Equals, authLocal)
 
 	// test sso auth type
 	user.Spec.GithubIdentities = []types.ExternalIdentity{{ConnectorID: "foo", Username: "bar"}}
 	userContext, err = NewUserContext(user, roleSet, proto.Features{}, true)
-	require.NoError(t, err)
-	require.Equal(t, userContext.AuthType, authSSO)
+	c.Assert(err, check.IsNil)
+	c.Assert(userContext.AuthType, check.Equals, authSSO)
 
 	userContext, err = NewUserContext(user, roleSet, proto.Features{Cloud: true}, true)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(userContext.ACL.Billing, access{true, true, false, false, false}))
+	c.Assert(err, check.IsNil)
+	c.Assert(userContext.ACL.Billing, check.DeepEquals, access{true, true, false, false, false})
 
 	// test that desktopRecordingEnabled being false overrides the roleSet.RecordDesktopSession() returning true
 	userContext, err = NewUserContext(user, roleSet, proto.Features{}, false)
-	require.NoError(t, err)
-	require.Equal(t, userContext.ACL.DesktopSessionRecording, false)
+	c.Assert(err, check.IsNil)
+	c.Assert(userContext.ACL.DesktopSessionRecording, check.Equals, false)
 }
 
-func TestNewUserContextCloud(t *testing.T) {
-	t.Parallel()
-
+func (s *UserContextSuite) TestNewUserContextCloud(c *check.C) {
 	user := &types.UserV2{
 		Metadata: types.Metadata{
 			Name: "root",
@@ -153,31 +151,30 @@ func TestNewUserContextCloud(t *testing.T) {
 	allowed := access{true, true, true, true, true}
 
 	userContext, err := NewUserContext(user, roleSet, proto.Features{Cloud: true}, true)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
-	require.Equal(t, userContext.Name, "root")
-	require.Empty(t, cmp.Diff(userContext.ACL.AuthConnectors, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.TrustedClusters, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.AppServers, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.DBServers, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.KubeServers, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.Events, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.RecordedSessions, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.Roles, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.Users, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.Tokens, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.Nodes, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.AccessRequests, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.WindowsLogins, []string{"a", "b"}))
-	require.Empty(t, cmp.Diff(userContext.AccessStrategy, accessStrategy{
+	c.Assert(userContext.Name, check.Equals, "root")
+	c.Assert(userContext.ACL.AuthConnectors, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.TrustedClusters, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.AppServers, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.DBServers, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.KubeServers, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.Events, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.Sessions, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.Roles, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.Users, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.Tokens, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.Nodes, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.AccessRequests, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.WindowsLogins, check.DeepEquals, []string{"a", "b"})
+	c.Assert(userContext.AccessStrategy, check.DeepEquals, accessStrategy{
 		Type:   types.RequestStrategyOptional,
 		Prompt: "",
-	}))
-
-	require.Equal(t, userContext.ACL.Clipboard, true)
-	require.Equal(t, userContext.ACL.DesktopSessionRecording, true)
+	})
+	c.Assert(userContext.ACL.Clipboard, check.Equals, true)
+	c.Assert(userContext.ACL.DesktopSessionRecording, check.Equals, true)
 
 	// cloud-specific asserts
-	require.Empty(t, cmp.Diff(userContext.ACL.Billing, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.Desktops, allowed))
+	c.Assert(userContext.ACL.Billing, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.Desktops, check.DeepEquals, allowed)
 }

@@ -19,6 +19,7 @@ package types
 import (
 	"bytes"
 	"fmt"
+	"net"
 	"net/url"
 	"strings"
 	"time"
@@ -80,12 +81,6 @@ type AuthPreference interface {
 	// SetWebauthn sets the Webauthn configuration settings.
 	SetWebauthn(*Webauthn)
 
-	// GetAllowPasswordless returns if passwordless is allowed by cluster
-	// settings.
-	GetAllowPasswordless() bool
-	// SetAllowPasswordless sets the value of the allow passwordless setting.
-	SetAllowPasswordless(b bool)
-
 	// GetRequireSessionMFA returns true when all sessions in this cluster
 	// require an MFA check.
 	GetRequireSessionMFA() bool
@@ -120,7 +115,7 @@ func NewAuthPreference(spec AuthPreferenceSpecV2) (AuthPreference, error) {
 }
 
 // NewAuthPreferenceFromConfigFile is a convenience method to create
-// AuthPreferenceV2 labeled as originating from config file.
+// AuthPreferenceV2 labelled as originating from config file.
 func NewAuthPreferenceFromConfigFile(spec AuthPreferenceSpecV2) (AuthPreference, error) {
 	return newAuthPreferenceWithLabels(spec, map[string]string{
 		OriginLabel: OriginConfigFile,
@@ -239,16 +234,22 @@ func (c *AuthPreferenceV2) GetPreferredLocalMFA() constants.SecondFactorType {
 	switch sf := c.GetSecondFactor(); sf {
 	case constants.SecondFactorOff:
 		return "" // Nothing to suggest.
-	case constants.SecondFactorOTP:
-		return sf // Single method.
-	case constants.SecondFactorU2F, constants.SecondFactorWebauthn:
-		return constants.SecondFactorWebauthn // Always WebAuthn.
+	case constants.SecondFactorOTP, constants.SecondFactorU2F, constants.SecondFactorWebauthn:
+		return sf // If using a single method, then that is what it should be.
 	case constants.SecondFactorOn, constants.SecondFactorOptional:
 		// In order of preference:
 		// 1. WebAuthn (public-key based)
-		// 2. OTP
-		if _, err := c.GetWebauthn(); err == nil {
+		// 2. U2F (public-key based, deprecated by WebAuthn)
+		// 3. OTP
+		//
+		// Presently, some configurations here are impossible to reach (U2F is
+		// always required and WebAuthn always exists as a consequence).
+		// Nevertheless, we make an effort to gracefully handle those situations.
+		if w, err := c.GetWebauthn(); err == nil && !w.Disabled {
 			return constants.SecondFactorWebauthn
+		}
+		if _, err := c.GetU2F(); err == nil {
+			return constants.SecondFactorU2F
 		}
 		return constants.SecondFactorOTP
 	default:
@@ -271,24 +272,37 @@ func (c *AuthPreferenceV2) IsSecondFactorTOTPAllowed() bool {
 
 // IsSecondFactorU2FAllowed checks if users are allowed to register U2F devices.
 func (c *AuthPreferenceV2) IsSecondFactorU2FAllowed() bool {
-	return false // Never allowed, marked for removal.
+	// Is U2F configured?
+	switch _, err := c.GetU2F(); {
+	case trace.IsNotFound(err): // OK, expected to happen in some cases.
+		return false
+	case err != nil:
+		log.WithError(err).Warnf("Got unexpected error when reading U2F config")
+		return false
+	}
+
+	// Are second factor settings in accordance?
+	return c.Spec.SecondFactor == constants.SecondFactorU2F ||
+		c.Spec.SecondFactor == constants.SecondFactorOptional ||
+		c.Spec.SecondFactor == constants.SecondFactorOn
 }
 
 // IsSecondFactorWebauthnAllowed checks if users are allowed to register
 // Webauthn devices.
 func (c *AuthPreferenceV2) IsSecondFactorWebauthnAllowed() bool {
 	// Is Webauthn configured and enabled?
-	switch _, err := c.GetWebauthn(); {
+	switch webConfig, err := c.GetWebauthn(); {
 	case trace.IsNotFound(err): // OK, expected to happen in some cases.
 		return false
 	case err != nil:
 		log.WithError(err).Warnf("Got unexpected error when reading Webauthn config")
 		return false
+	case webConfig.Disabled: // OK, fallback to U2F in use.
+		return false
 	}
 
 	// Are second factor settings in accordance?
-	return c.Spec.SecondFactor == constants.SecondFactorU2F ||
-		c.Spec.SecondFactor == constants.SecondFactorWebauthn ||
+	return c.Spec.SecondFactor == constants.SecondFactorWebauthn ||
 		c.Spec.SecondFactor == constants.SecondFactorOptional ||
 		c.Spec.SecondFactor == constants.SecondFactorOn
 }
@@ -327,14 +341,6 @@ func (c *AuthPreferenceV2) GetWebauthn() (*Webauthn, error) {
 
 func (c *AuthPreferenceV2) SetWebauthn(w *Webauthn) {
 	c.Spec.Webauthn = w
-}
-
-func (c *AuthPreferenceV2) GetAllowPasswordless() bool {
-	return c.Spec.AllowPasswordless != nil && c.Spec.AllowPasswordless.Value
-}
-
-func (c *AuthPreferenceV2) SetAllowPasswordless(b bool) {
-	c.Spec.AllowPasswordless = NewBoolOption(b)
 }
 
 // GetRequireSessionMFA returns true when all sessions in this cluster require
@@ -416,30 +422,23 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		c.SetOrigin(OriginDynamic)
 	}
 
+	// make sure type makes sense
 	switch c.Spec.Type {
-	case constants.Local:
-		if !c.Spec.AllowLocalAuth.Value {
-			log.Warn("Ignoring local_auth=false when authentication.type=local")
-			c.Spec.AllowLocalAuth.Value = true
-		}
-	case constants.OIDC, constants.SAML, constants.Github:
+	case constants.Local, constants.OIDC, constants.SAML, constants.Github:
 	default:
 		return trace.BadParameter("authentication type %q not supported", c.Spec.Type)
 	}
 
-	// DELETE IN 11.0, time to sunset U2F (codingllama).
-	if c.Spec.SecondFactor == constants.SecondFactorU2F {
-		log.Warnf(`` +
-			`Second Factor "u2f" is deprecated and marked for removal, using "webauthn" instead. ` +
-			`Please update your configuration to use WebAuthn. ` +
-			`Refer to https://goteleport.com/docs/access-controls/guides/webauthn/`)
-		c.Spec.SecondFactor = constants.SecondFactorWebauthn
-	}
-
-	// Make sure second factor makes sense.
-	sf := c.Spec.SecondFactor
-	switch sf {
+	// make sure second factor makes sense
+	switch sf := c.Spec.SecondFactor; sf {
 	case constants.SecondFactorOff, constants.SecondFactorOTP:
+	case constants.SecondFactorU2F:
+		if c.Spec.U2F == nil {
+			return trace.BadParameter("missing required U2F configuration for second factor type %q", sf)
+		}
+		if err := c.Spec.U2F.Check(); err != nil {
+			return trace.Wrap(err)
+		}
 	case constants.SecondFactorWebauthn:
 		// If U2F is present validate it, we can derive Webauthn from it.
 		if c.Spec.U2F != nil {
@@ -451,8 +450,11 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 				c.Spec.Webauthn = &Webauthn{}
 			}
 		}
-		if c.Spec.Webauthn == nil {
+		switch {
+		case c.Spec.Webauthn == nil:
 			return trace.BadParameter("missing required webauthn configuration for second factor type %q", sf)
+		case c.Spec.Webauthn.Disabled:
+			return trace.BadParameter("disabled webauthn configuration not allowed for second factor type %q", sf)
 		}
 		if err := c.Spec.Webauthn.CheckAndSetDefaults(c.Spec.U2F); err != nil {
 			return trace.Wrap(err)
@@ -461,9 +463,13 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		// The following scenarios are allowed for "on" and "optional":
 		// - Webauthn is configured (preferred)
 		// - U2F is configured, Webauthn derived from it (U2F-compat mode)
+		// - U2F is configured, Webauthn is disabled (fallback mode)
 
-		if c.Spec.U2F == nil && c.Spec.Webauthn == nil {
+		switch {
+		case c.Spec.Webauthn == nil && c.Spec.U2F == nil:
 			return trace.BadParameter("missing required webauthn configuration for second factor type %q", sf)
+		case c.Spec.Webauthn != nil && c.Spec.Webauthn.Disabled && c.Spec.U2F == nil:
+			return trace.BadParameter("missing u2f configuration with disabled webauthn not allowed for second factor %q", sf)
 		}
 
 		// Is U2F configured?
@@ -485,30 +491,6 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		return trace.BadParameter("second factor type %q not supported", c.Spec.SecondFactor)
 	}
 
-	// Set/validate AllowPasswordless. We need Webauthn first to do this properly.
-	hasWebauthn := sf == constants.SecondFactorWebauthn ||
-		sf == constants.SecondFactorOn ||
-		sf == constants.SecondFactorOptional
-	switch {
-	case c.Spec.AllowPasswordless == nil:
-		c.Spec.AllowPasswordless = NewBoolOption(hasWebauthn)
-	case !hasWebauthn && c.Spec.AllowPasswordless.Value:
-		return trace.BadParameter("missing required Webauthn configuration for passwordless=true")
-	}
-
-	// Validate connector name for type=local.
-	if c.Spec.Type == constants.Local {
-		switch connectorName := c.Spec.ConnectorName; connectorName {
-		case "", constants.LocalConnector: // OK
-		case constants.PasswordlessConnector:
-			if !c.Spec.AllowPasswordless.Value {
-				return trace.BadParameter("invalid local connector %q, passwordless not allowed by cluster settings", connectorName)
-			}
-		default:
-			return trace.BadParameter("invalid local connector %q", connectorName)
-		}
-	}
-
 	switch c.Spec.LockingMode {
 	case constants.LockingModeBestEffort, constants.LockingModeStrict:
 	default:
@@ -527,11 +509,97 @@ func (u *U2F) Check() error {
 	if u.AppID == "" {
 		return trace.BadParameter("u2f configuration missing app_id")
 	}
+	if len(u.Facets) == 0 {
+		return trace.BadParameter("u2f configuration missing facets")
+	}
 	for _, ca := range u.DeviceAttestationCAs {
 		if err := isValidAttestationCert(ca); err != nil {
 			return trace.BadParameter("u2f configuration has an invalid attestation CA: %v", err)
 		}
 	}
+
+	// AppID must be a valid URL.
+	// NOTE: We allow naked AppIDs without a scheme for compatibility with WebAuthn
+	//       as we rely on that behaviour to derive WebAuthn configs on-the-fly.
+	//       This is only valid if all facets are also naked however.
+	appIDURL, err := url.Parse(u.AppID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Trim the www subdomain since it's a common AppID subdomain prefix.
+	host := strings.TrimPrefix(appIDURL.Host, "www.")
+	domain, err := getDomain(host)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, facet := range u.Facets {
+		err := validateU2FFacet(domain, appIDURL.Scheme, facet)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// getDomain removes the port from a URL host.
+func getDomain(s string) (string, error) {
+	if strings.Contains(s, ":") {
+		host, _, err := net.SplitHostPort(s)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		return host, nil
+	}
+
+	return s, nil
+}
+
+// validateU2FFacet validates that a facet is valid for U2F.
+// This means the following is true:
+//   - The facet domain is equal to the appIDDomain or a subdomain of it OR is localhost.
+//   - That the URL scheme is set for any non-localhost facet and is https if the domain is not localhost.
+//   - That the facet is either a well formed URL or a URL host (naked facet).
+func validateU2FFacet(appIDDomain string, appIDScheme string, facet string) error {
+	if facet == "" {
+		return trace.BadParameter("u2f configuration has an empty facet")
+	}
+
+	var facetHost string
+	var facetScheme string
+	if !strings.Contains(facet, "://") {
+		// Facet is naked, only allowed for localhost domains (checked later).
+		facetHost = facet
+	} else {
+		// FacetURL is a full URL that specifies a scheme.
+		facetURL, err := url.Parse(facet)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		facetScheme = facetURL.Scheme
+		facetHost = facetURL.Host
+	}
+
+	facetDomain, err := getDomain(facetHost)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Naked non-https facets are only allowed for localhost domains when the appID has a scheme set.
+	isLocalhost := strings.HasSuffix(facetDomain, "localhost")
+	if appIDScheme != "" && !isLocalhost && facetScheme != "https" {
+		log.Warnf("u2f configuration has an invalid facet %q, must be https", facet)
+	}
+
+	// Check that the facet domain is a equal to the AppID domain or a subdomain of it.
+	if !strings.HasSuffix(facetDomain, appIDDomain) {
+		log.Warnf("u2f configuration has a facet with a different domain than the app_id: %q", facet)
+	}
+
 	return nil
 }
 

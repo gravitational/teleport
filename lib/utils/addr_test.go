@@ -17,147 +17,131 @@ limitations under the License.
 package utils
 
 import (
-	"fmt"
 	"net"
 	"strings"
-	"testing"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/require"
+	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
 )
 
-func TestParseHostPort(t *testing.T) {
-	t.Parallel()
+type AddrTestSuite struct {
+}
 
+var _ = Suite(&AddrTestSuite{})
+
+func (s *AddrTestSuite) TestParseHostPort(c *C) {
 	// success
 	addr, err := ParseHostPortAddr("localhost:22", -1)
-	require.NoError(t, err)
-	require.Equal(t, addr.AddrNetwork, "tcp")
-	require.Equal(t, addr.Addr, "localhost:22")
+	c.Assert(err, IsNil)
+	c.Assert(addr.AddrNetwork, Equals, "tcp")
+	c.Assert(addr.Addr, Equals, "localhost:22")
 
 	// scheme + existing port
 	addr, err = ParseHostPortAddr("https://localhost", 443)
-	require.NoError(t, err)
-	require.Equal(t, addr.AddrNetwork, "https")
-	require.Equal(t, addr.Addr, "localhost:443")
+	c.Assert(err, IsNil)
+	c.Assert(addr.AddrNetwork, Equals, "https")
+	c.Assert(addr.Addr, Equals, "localhost:443")
 
 	// success
 	addr, err = ParseHostPortAddr("localhost", 1111)
-	require.NoError(t, err)
-	require.Equal(t, addr.AddrNetwork, "tcp")
-	require.Equal(t, addr.Addr, "localhost:1111")
+	c.Assert(err, IsNil)
+	c.Assert(addr.AddrNetwork, Equals, "tcp")
+	c.Assert(addr.Addr, Equals, "localhost:1111")
 
 	// missing port
 	addr, err = ParseHostPortAddr("localhost", -1)
-	require.Error(t, err)
-	require.Nil(t, addr)
+	c.Assert(err, NotNil)
+	c.Assert(addr, IsNil)
 
 	// scheme + missing port
 	_, err = ParseHostPortAddr("https://localhost", -1)
-	require.NotNil(t, err)
+	c.Assert(err, NotNil)
 }
 
-func TestEmpty(t *testing.T) {
-	t.Parallel()
-
+func (s *AddrTestSuite) TestEmpty(c *C) {
 	var a NetAddr
-	require.Equal(t, a.IsEmpty(), true)
+	c.Assert(a.IsEmpty(), Equals, true)
 }
 
-func TestParse(t *testing.T) {
-	t.Parallel()
-
+func (s *AddrTestSuite) TestParse(c *C) {
 	addr, err := ParseAddr("tcp://one:25/path")
-	require.NoError(t, err)
-	require.NotNil(t, addr)
-	require.Equal(t, addr.Addr, "one:25")
-	require.Equal(t, addr.Path, "/path")
-	require.Equal(t, addr.FullAddress(), "tcp://one:25")
-	require.Equal(t, addr.IsEmpty(), false)
-	require.Equal(t, addr.Host(), "one")
-	require.Equal(t, addr.Port(0), 25)
+	c.Assert(err, IsNil)
+	c.Assert(addr, NotNil)
+	c.Assert(addr.Addr, Equals, "one:25")
+	c.Assert(addr.Path, Equals, "/path")
+	c.Assert(addr.FullAddress(), Equals, "tcp://one:25")
+	c.Assert(addr.IsEmpty(), Equals, false)
+	c.Assert(addr.Host(), Equals, "one")
+	c.Assert(addr.Port(0), Equals, 25)
 }
 
-func TestParseIPV6(t *testing.T) {
-	t.Parallel()
-
+func (s *AddrTestSuite) TestParseIPV6(c *C) {
 	addr, err := ParseAddr("[::1]:49870")
-	require.NoError(t, err)
-	require.NotNil(t, addr)
-	require.Equal(t, addr.Addr, "[::1]:49870")
-	require.Equal(t, addr.Path, "")
-	require.Equal(t, addr.FullAddress(), "tcp://[::1]:49870")
-	require.Equal(t, addr.IsEmpty(), false)
-	require.Equal(t, addr.Host(), "::1")
-	require.Equal(t, addr.Port(0), 49870)
+	c.Assert(err, IsNil)
+	c.Assert(addr, NotNil)
+	c.Assert(addr.Addr, Equals, "[::1]:49870")
+	c.Assert(addr.Path, Equals, "")
+	c.Assert(addr.FullAddress(), Equals, "tcp://[::1]:49870")
+	c.Assert(addr.IsEmpty(), Equals, false)
+	c.Assert(addr.Host(), Equals, "::1")
+	c.Assert(addr.Port(0), Equals, 49870)
 
 	// Just square brackets is also valid
 	addr, err = ParseAddr("[::1]")
-	require.NoError(t, err)
-	require.NotNil(t, addr)
-	require.Equal(t, addr.Addr, "[::1]")
-	require.Equal(t, addr.Host(), "::1")
+	c.Assert(err, IsNil)
+	c.Assert(addr, NotNil)
+	c.Assert(addr.Addr, Equals, "[::1]")
+	c.Assert(addr.Host(), Equals, "::1")
 }
 
-func TestParseEmptyPort(t *testing.T) {
-	t.Parallel()
-
+func (s *AddrTestSuite) TestParseEmptyPort(c *C) {
 	addr, err := ParseAddr("one")
-	require.NoError(t, err)
-	require.NotNil(t, addr)
-	require.Equal(t, addr.Addr, "one")
-	require.Equal(t, addr.Path, "")
-	require.Equal(t, addr.FullAddress(), "tcp://one")
-	require.Equal(t, addr.IsEmpty(), false)
-	require.Equal(t, addr.Host(), "one")
-	require.Equal(t, addr.Port(443), 443)
+	c.Assert(err, IsNil)
+	c.Assert(addr, NotNil)
+	c.Assert(addr.Addr, Equals, "one")
+	c.Assert(addr.Path, Equals, "")
+	c.Assert(addr.FullAddress(), Equals, "tcp://one")
+	c.Assert(addr.IsEmpty(), Equals, false)
+	c.Assert(addr.Host(), Equals, "one")
+	c.Assert(addr.Port(443), Equals, 443)
 }
 
-func TestParseHTTP(t *testing.T) {
-	t.Parallel()
-
+func (s *AddrTestSuite) TestParseHTTP(c *C) {
 	addr, err := ParseAddr("http://one:25/path")
-	require.NoError(t, err)
-	require.NotNil(t, addr)
-	require.Equal(t, addr.Addr, "one:25")
-	require.Equal(t, addr.Path, "/path")
-	require.Equal(t, addr.FullAddress(), "http://one:25")
-	require.Equal(t, addr.IsEmpty(), false)
+	c.Assert(err, IsNil)
+	c.Assert(addr, NotNil)
+	c.Assert(addr.Addr, Equals, "one:25")
+	c.Assert(addr.Path, Equals, "/path")
+	c.Assert(addr.FullAddress(), Equals, "http://one:25")
+	c.Assert(addr.IsEmpty(), Equals, false)
 }
 
-func TestParseDefaults(t *testing.T) {
-	t.Parallel()
-
+func (s *AddrTestSuite) TestParseDefaults(c *C) {
 	addr, err := ParseAddr("host:25")
-	require.NoError(t, err)
-	require.NotNil(t, addr)
-	require.Equal(t, addr.Addr, "host:25")
-	require.Equal(t, addr.FullAddress(), "tcp://host:25")
-	require.Equal(t, addr.IsEmpty(), false)
+	c.Assert(err, IsNil)
+	c.Assert(addr, NotNil)
+	c.Assert(addr.Addr, Equals, "host:25")
+	c.Assert(addr.FullAddress(), Equals, "tcp://host:25")
+	c.Assert(addr.IsEmpty(), Equals, false)
 }
 
-func TestReplaceLocalhost(t *testing.T) {
-	t.Parallel()
-
+func (s *AddrTestSuite) TestReplaceLocalhost(c *C) {
 	var result string
 	result = ReplaceLocalhost("10.10.1.1", "192.168.1.100:399")
-	require.Equal(t, result, "10.10.1.1")
+	c.Assert(result, Equals, "10.10.1.1")
 	result = ReplaceLocalhost("10.10.1.1:22", "192.168.1.100:399")
-	require.Equal(t, result, "10.10.1.1:22")
+	c.Assert(result, Equals, "10.10.1.1:22")
 	result = ReplaceLocalhost("127.0.0.1:22", "192.168.1.100:399")
-	require.Equal(t, result, "192.168.1.100:22")
+	c.Assert(result, Equals, "192.168.1.100:22")
 	result = ReplaceLocalhost("0.0.0.0:22", "192.168.1.100:399")
-	require.Equal(t, result, "192.168.1.100:22")
+	c.Assert(result, Equals, "192.168.1.100:22")
 	result = ReplaceLocalhost("[::]:22", "192.168.1.100:399")
-	require.Equal(t, result, "192.168.1.100:22")
+	c.Assert(result, Equals, "192.168.1.100:22")
 	result = ReplaceLocalhost("[::]:22", "[1::1]:399")
-	require.Equal(t, result, "[1::1]:22")
+	c.Assert(result, Equals, "[1::1]:22")
 }
 
-func TestLocalAddrs(t *testing.T) {
-	t.Parallel()
-
+func (s *AddrTestSuite) TestLocalAddrs(c *C) {
 	testCases := []struct {
 		in       string
 		expected bool
@@ -171,15 +155,13 @@ func TestLocalAddrs(t *testing.T) {
 	}
 	for i, testCase := range testCases {
 		addr, err := ParseAddr(testCase.in)
-		require.NoError(t, err)
-		require.Equalf(t, addr.IsLocal(), testCase.expected,
-			fmt.Sprintf("test case %v, %v should be local(%v)", i, testCase.in, testCase.expected))
+		c.Assert(err, IsNil)
+		c.Assert(addr.IsLocal(), Equals, testCase.expected,
+			Commentf("test case %v, %v should be local(%v)", i, testCase.in, testCase.expected))
 	}
 }
 
-func TestGuessesIPAddress(t *testing.T) {
-	t.Parallel()
-
+func (s *AddrTestSuite) TestGuessesIPAddress(c *C) {
 	var testCases = []struct {
 		addrs    []net.Addr
 		expected net.IP
@@ -251,13 +233,11 @@ func TestGuessesIPAddress(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		ip := guessHostIP(testCase.addrs)
-		require.Empty(t, cmp.Diff(ip, testCase.expected), fmt.Sprintf(testCase.comment))
+		c.Assert(ip, DeepEquals, testCase.expected, Commentf(testCase.comment))
 	}
 }
 
-func TestMarshal(t *testing.T) {
-	t.Parallel()
-
+func (s *AddrTestSuite) TestMarshal(c *C) {
 	testCases := []struct {
 		in       *NetAddr
 		expected string
@@ -270,15 +250,13 @@ func TestMarshal(t *testing.T) {
 
 	for i, testCase := range testCases {
 		bytes, err := yaml.Marshal(testCase.in)
-		require.NoError(t, err)
-		require.Equalf(t, strings.TrimSpace(string(bytes)), testCase.expected,
-			fmt.Sprintf("test case %v, %v should be marshaled to: %v", i, testCase.in, testCase.expected))
+		c.Assert(err, IsNil)
+		c.Assert(strings.TrimSpace(string(bytes)), Equals, testCase.expected,
+			Commentf("test case %v, %v should be marshalled to: %v", i, testCase.in, testCase.expected))
 	}
 }
 
-func TestUnmarshal(t *testing.T) {
-	t.Parallel()
-
+func (s *AddrTestSuite) TestUnmarshal(c *C) {
 	testCases := []struct {
 		in       string
 		expected *NetAddr
@@ -291,16 +269,13 @@ func TestUnmarshal(t *testing.T) {
 	for i, testCase := range testCases {
 		addr := &NetAddr{}
 		err := yaml.Unmarshal([]byte(testCase.in), addr)
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(addr, testCase.expected),
-			fmt.Sprintf("test case %v, %v should be unmarshalled to: %v", i, testCase.in, testCase.expected))
-
+		c.Assert(err, IsNil)
+		c.Assert(addr, DeepEquals, testCase.expected,
+			Commentf("test case %v, %v should be unmarshalled to: %v", i, testCase.in, testCase.expected))
 	}
 }
 
-func TestParseMultiple(t *testing.T) {
-	t.Parallel()
-
+func (s *AddrTestSuite) TestParseMultiple(c *C) {
 	tests := []struct {
 		in  []string
 		out []NetAddr
@@ -320,7 +295,7 @@ func TestParseMultiple(t *testing.T) {
 	}
 	for _, test := range tests {
 		parsed, err := ParseAddrs(test.in)
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(parsed, test.out))
+		c.Assert(err, IsNil)
+		c.Assert(parsed, DeepEquals, test.out)
 	}
 }

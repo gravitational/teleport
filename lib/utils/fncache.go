@@ -18,18 +18,11 @@ package utils
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	oteltrace "go.opentelemetry.io/otel/trace"
-)
-
-var (
-	// ErrFnCacheClosed is returned from Get when the FnCache context is closed
-	ErrFnCacheClosed = errors.New("fncache permanently closed")
 )
 
 // FnCache is a helper for temporarily storing the results of regularly called functions. This helper is
@@ -50,13 +43,8 @@ type FnCache struct {
 const cleanupMultiplier time.Duration = 16
 
 type FnCacheConfig struct {
-	// TTL is the time to live for cache entries.
-	TTL time.Duration
-	// Clock is the clock used to determine the current time.
+	TTL   time.Duration
 	Clock clockwork.Clock
-	// Context is the context used to cancel the cache. All loadfns
-	// will be provided this context.
-	Context context.Context
 }
 
 func (c *FnCacheConfig) CheckAndSetDefaults() error {
@@ -66,10 +54,6 @@ func (c *FnCacheConfig) CheckAndSetDefaults() error {
 
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
-	}
-
-	if c.Context == nil {
-		c.Context = context.Background()
 	}
 
 	return nil
@@ -111,13 +95,7 @@ func (c *FnCache) removeExpiredLocked(now time.Time) {
 // block until the first call updates the entry.  Note that the supplied context can cancel the call to Get, but will
 // not cancel loading.  The supplied loadfn should not be canceled just because the specific request happens to have
 // been canceled.
-func (c *FnCache) Get(ctx context.Context, key interface{}, loadfn func(ctx context.Context) (interface{}, error)) (interface{}, error) {
-	select {
-	case <-c.cfg.Context.Done():
-		return nil, ErrFnCacheClosed
-	default:
-	}
-
+func (c *FnCache) Get(ctx context.Context, key interface{}, loadfn func() (interface{}, error)) (interface{}, error) {
 	c.mu.Lock()
 
 	now := c.cfg.Clock.Now()
@@ -150,10 +128,7 @@ func (c *FnCache) Get(ctx context.Context, key interface{}, loadfn func(ctx cont
 		}
 		c.entries[key] = entry
 		go func() {
-			// link the config context with the span from ctx, if one exists,
-			// so that the loadfn can be traced appropriately.
-			loadCtx := oteltrace.ContextWithSpan(c.cfg.Context, oteltrace.SpanFromContext(ctx))
-			entry.v, entry.e = loadfn(loadCtx)
+			entry.v, entry.e = loadfn()
 			entry.t = c.cfg.Clock.Now()
 			close(entry.loaded)
 		}()
@@ -167,7 +142,5 @@ func (c *FnCache) Get(ctx context.Context, key interface{}, loadfn func(ctx cont
 		return entry.v, entry.e
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case <-c.cfg.Context.Done():
-		return nil, ErrFnCacheClosed
 	}
 }

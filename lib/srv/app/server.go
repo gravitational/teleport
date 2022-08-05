@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/labels"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	appaws "github.com/gravitational/teleport/lib/srv/app/aws"
@@ -104,9 +103,6 @@ type Config struct {
 
 	// OnReconcile is called after each database resource reconciliation.
 	OnReconcile func(types.Apps)
-
-	// ConnectedProxyGetter gets the proxies teleport is connected to.
-	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 }
 
 // CheckAndSetDefaults makes sure the configuration has the minimum required
@@ -153,9 +149,6 @@ func (c *Config) CheckAndSetDefaults() error {
 		}
 		c.Cloud = cloud
 	}
-	if c.ConnectedProxyGetter == nil {
-		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
-	}
 
 	return nil
 }
@@ -170,7 +163,6 @@ type Server struct {
 	closeFunc    context.CancelFunc
 
 	httpServer *http.Server
-	tcpServer  *tcpServer
 	tlsConfig  *tls.Config
 
 	mu            sync.RWMutex
@@ -194,9 +186,6 @@ type Server struct {
 
 	// watcher monitors changes to application resources.
 	watcher *services.AppWatcher
-
-	// authMiddleware allows wrapping connections with identity information.
-	authMiddleware *auth.Middleware
 }
 
 // monitoredApps is a collection of applications from different sources
@@ -263,9 +252,9 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 
 	// Create and configure HTTP server with authorizing middleware.
 	s.httpServer = s.newHTTPServer()
-
-	// TCP server will handle TCP applications.
-	s.tcpServer = s.newTCPServer()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// Create a new session cache, this holds sessions that can be used to
 	// forward requests.
@@ -420,7 +409,7 @@ func (s *Server) getServerInfo(app types.Application) (types.Resource, error) {
 		s.c.CloudLabels.Apply(copy)
 	}
 	expires := s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
-	server, err := types.NewAppServerV3(types.Metadata{
+	return types.NewAppServerV3(types.Metadata{
 		Name:    copy.GetName(),
 		Expires: &expires,
 	}, types.AppServerSpecV3{
@@ -429,13 +418,7 @@ func (s *Server) getServerInfo(app types.Application) (types.Resource, error) {
 		HostID:   s.c.HostID,
 		Rotation: s.getRotationState(),
 		App:      copy,
-		ProxyIDs: s.c.ConnectedProxyGetter.GetProxyIDs(),
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return server, nil
 }
 
 // getRotationState is a helper to return this server's CA rotation state.
@@ -580,52 +563,9 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// httpServer will initiate the close call.
 	closerConn := utils.NewCloserConn(conn)
 
-	if err := s.handleConnection(closerConn); err != nil {
-		s.log.WithError(err).Warnf("Failed to handle client connection.")
-		if err := conn.Close(); err != nil {
-			s.log.WithError(err).Warnf("Failed to close client connection.")
-		}
-		return
-	}
-
-	// Wait for connection to close.
-	closerConn.Wait()
-}
-
-func (s *Server) handleConnection(conn net.Conn) error {
-	// Proxy sends a X.509 client certificate to pass identity information,
-	// extract it and run authorization checks on it.
-	tlsConn, user, app, err := s.getConnectionInfo(s.closeContext, conn)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Application access supports plain TCP connections which are handled
-	// differently than HTTP requests from web apps.
-	if app.IsTCP() {
-		return s.handleTCPApp(s.closeContext, tlsConn, user, app)
-	}
-
-	return s.handleHTTPApp(s.closeContext, tlsConn)
-}
-
-// handleTCPApp handles connection for a TCP application.
-func (s *Server) handleTCPApp(ctx context.Context, conn net.Conn, user auth.IdentityGetter, app types.Application) error {
-	id, _, err := s.authorizeContext(context.WithValue(ctx, auth.ContextUser, user))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = s.tcpServer.handleConnection(s.closeContext, conn, id, app)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// handleHTTPApp handles connection for an HTTP application.
-func (s *Server) handleHTTPApp(ctx context.Context, conn net.Conn) error {
 	// Wrap a TLS authorizing conn in a single-use listener.
-	listener := newListener(s.closeContext, conn)
+	tlsConn := tls.Server(closerConn, s.tlsConfig)
+	listener := newListener(s.closeContext, tlsConn)
 
 	// Serve will return as soon as tlsConn is running in its own goroutine
 	err := s.httpServer.Serve(listener)
@@ -633,10 +573,12 @@ func (s *Server) handleHTTPApp(ctx context.Context, conn net.Conn) error {
 		// okay to ignore errListenerConnServed; it is a signal that our
 		// single-use listener has passed the connection to http.Serve
 		// and conn is being served. See listener.Accept for details.
-		return trace.Wrap(err)
+		s.log.Warnf("Failed to handle connection: %v.", err)
+		return
 	}
 
-	return nil
+	// Wait for connection to close.
+	closerConn.Wait()
 }
 
 // ServeHTTP will forward the *http.Request to the target application.
@@ -653,7 +595,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	// Extract the identity and application being requested from the certificate
 	// and check if the caller has access.
-	identity, app, err := s.authorizeContext(r.Context())
+	identity, app, err := s.authorize(r.Context(), r)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -706,35 +648,11 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// getConnectionInfo extracts identity information from the provided
-// connection and runs authorization checks on it.
-//
-// The connection comes from the reverse tunnel and is expected to be TLS and
-// carry identity in the client certificate.
-func (s *Server) getConnectionInfo(ctx context.Context, conn net.Conn) (*tls.Conn, auth.IdentityGetter, types.Application, error) {
-	tlsConn := tls.Server(conn, s.tlsConfig)
-	if err := tlsConn.Handshake(); err != nil {
-		return nil, nil, nil, trace.Wrap(err, "TLS handshake failed")
-	}
-
-	user, err := s.authMiddleware.GetUser(tlsConn.ConnectionState())
-	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
-	}
-
-	app, err := s.getApp(ctx, user.GetIdentity().RouteToApp.PublicAddr)
-	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
-	}
-
-	return tlsConn, user, app, nil
-}
-
-// authorizeContext will check if the context carries identity information and
-// runs authorization checks on it.
-func (s *Server) authorizeContext(ctx context.Context) (*tlsca.Identity, types.Application, error) {
+// authorize will check if request carries a session cookie matching a
+// session in the backend.
+func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identity, types.Application, error) {
 	// Only allow local and remote identities to proxy to an application.
-	userType := ctx.Value(auth.ContextUser)
+	userType := r.Context().Value(auth.ContextUser)
 	switch userType.(type) {
 	case auth.LocalUser, auth.RemoteUser:
 	default:
@@ -742,14 +660,14 @@ func (s *Server) authorizeContext(ctx context.Context) (*tlsca.Identity, types.A
 	}
 
 	// Extract authorizing context and identity of the user from the request.
-	authContext, err := s.c.Authorizer.Authorize(ctx)
+	authContext, err := s.c.Authorizer.Authorize(r.Context())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 	identity := authContext.Identity.GetIdentity()
 
 	// Fetch the application and check if the identity has access.
-	app, err := s.getApp(ctx, identity.RouteToApp.PublicAddr)
+	app, err := s.getApp(r.Context(), identity.RouteToApp.PublicAddr)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -825,25 +743,16 @@ func (s *Server) getApp(ctx context.Context, publicAddr string) (types.Applicati
 func (s *Server) newHTTPServer() *http.Server {
 	// Reuse the auth.Middleware to authorize requests but only accept
 	// certificates that were specifically generated for applications.
-	s.authMiddleware = &auth.Middleware{
+	authMiddleware := &auth.Middleware{
 		AccessPoint:   s.c.AccessPoint,
 		AcceptedUsage: []string{teleport.UsageAppsOnly},
 	}
-	s.authMiddleware.Wrap(s)
+	authMiddleware.Wrap(s)
 
 	return &http.Server{
-		Handler:           s.authMiddleware,
+		Handler:           authMiddleware,
 		ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
 		ErrorLog:          utils.NewStdlogger(s.log.Error, teleport.ComponentApp),
-	}
-}
-
-// newTCPServer creates a server that proxies TCP applications.
-func (s *Server) newTCPServer() *tcpServer {
-	return &tcpServer{
-		authClient: s.c.AuthClient,
-		hostID:     s.c.HostID,
-		log:        s.log,
 	}
 }
 
@@ -881,7 +790,7 @@ func (s *Server) getConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, err
 
 	// Fetch list of CAs that could have signed this certificate. If clusterName
 	// is empty, all CAs that this cluster knows about are returned.
-	pool, _, err := auth.DefaultClientCertPool(s.c.AccessPoint, clusterName)
+	pool, err := auth.ClientCertPool(s.c.AccessPoint, clusterName)
 	if err != nil {
 		// If this request fails, return nil and fallback to the default ClientCAs.
 		s.log.Debugf("Failed to retrieve client pool: %v.", trace.DebugReport(err))

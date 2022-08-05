@@ -37,7 +37,7 @@ type accessStrategy struct {
 	// Type determines how a user should access teleport resources.
 	// ie: does the user require a request to access resources?
 	Type types.RequestStrategy `json:"type"`
-	// Prompt is the optional dialog shown to user,
+	// Prompt is the optional dialogue shown to user,
 	// when the access strategy type requires a reason.
 	Prompt string `json:"prompt"`
 }
@@ -51,10 +51,8 @@ type AccessCapabilities struct {
 }
 
 type userACL struct {
-	// RecordedSessions defines access to recorded sessions.
-	RecordedSessions access `json:"recordedSessions"`
-	// ActiveSessions defines access to active sessions.
-	ActiveSessions access `json:"activeSessions"`
+	// Sessions defines access to recorded sessions.
+	Sessions access `json:"sessions"`
 	// AuthConnectors defines access to auth.connectors.
 	AuthConnectors access `json:"authConnectors"`
 	// Roles defines access to roles.
@@ -182,8 +180,7 @@ func getAccessStrategy(roleset services.RoleSet) accessStrategy {
 // NewUserContext returns user context
 func NewUserContext(user types.User, userRoles services.RoleSet, features proto.Features, desktopRecordingEnabled bool) (*UserContext, error) {
 	ctx := &services.Context{User: user}
-	recordedSessionAccess := newAccess(userRoles, ctx, types.KindSession)
-	activeSessionAccess := newAccess(userRoles, ctx, types.KindSSHSession)
+	sessionAccess := newAccess(userRoles, ctx, types.KindSession)
 	roleAccess := newAccess(userRoles, ctx, types.KindRole)
 	authConnectors := newAccess(userRoles, ctx, types.KindAuthConnector)
 	trustedClusterAccess := newAccess(userRoles, ctx, types.KindTrustedCluster)
@@ -216,8 +213,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		Desktops:                desktopAccess,
 		AuthConnectors:          authConnectors,
 		TrustedClusters:         trustedClusterAccess,
-		RecordedSessions:        recordedSessionAccess,
-		ActiveSessions:          activeSessionAccess,
+		Sessions:                sessionAccess,
 		Roles:                   roleAccess,
 		Events:                  eventAccess,
 		WindowsLogins:           windowsLogins,

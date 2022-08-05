@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 func TestLocalSiteOverlap(t *testing.T) {
@@ -87,7 +88,7 @@ type mockLocalSiteClient struct {
 }
 
 // called by (*localSite).sshTunnelStats() as part of (*localSite).periodicFunctions()
-func (mockLocalSiteClient) GetNodes(_ context.Context, _ string) ([]types.Server, error) {
+func (mockLocalSiteClient) GetNodes(_ context.Context, _ string, _ ...services.MarshalOption) ([]types.Server, error) {
 	return nil, nil
 }
 

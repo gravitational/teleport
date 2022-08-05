@@ -28,8 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/elasticache"
-	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
 	"github.com/aws/aws-sdk-go/service/redshift"
@@ -60,38 +58,6 @@ func TestWatcher(t *testing.T) {
 	redshiftUse1Dev, _ := makeRedshiftCluster(t, "us-east-1", "dev")
 	redshiftUse1Unavailable, _ := makeRedshiftCluster(t, "us-east-1", "qa", withRedshiftStatus("paused"))
 	redshiftUse1UnknownStatus, redshiftDatabaseUnknownStatus := makeRedshiftCluster(t, "us-east-1", "test", withRedshiftStatus("status-does-not-exist"))
-
-	elasticacheProd, elasticacheDatabaseProd, elasticacheProdTags := makeElastiCacheCluster(t, "ec1", "us-east-1", "prod")
-	elasticacheQA, elasticacheDatabaseQA, elasticacheQATags := makeElastiCacheCluster(t, "ec2", "us-east-1", "qa", withElastiCacheConfigurationEndpoint())
-	elasticacheTest, _, elasticacheTestTags := makeElastiCacheCluster(t, "ec3", "us-east-1", "test")
-	elasticacheUnavailable, _, elasticacheUnavailableTags := makeElastiCacheCluster(t, "ec4", "us-east-1", "prod", func(cluster *elasticache.ReplicationGroup) {
-		cluster.Status = aws.String("deleting")
-	})
-	elasticacheUnsupported, _, elasticacheUnsupportedTags := makeElastiCacheCluster(t, "ec5", "us-east-1", "prod", func(cluster *elasticache.ReplicationGroup) {
-		cluster.TransitEncryptionEnabled = aws.Bool(false)
-	})
-	elasticacheTagsByARN := map[string][]*elasticache.Tag{
-		aws.StringValue(elasticacheProd.ARN):        elasticacheProdTags,
-		aws.StringValue(elasticacheQA.ARN):          elasticacheQATags,
-		aws.StringValue(elasticacheTest.ARN):        elasticacheTestTags,
-		aws.StringValue(elasticacheUnavailable.ARN): elasticacheUnavailableTags,
-		aws.StringValue(elasticacheUnsupported.ARN): elasticacheUnsupportedTags,
-	}
-
-	memorydbProd, memorydbDatabaseProd, memorydbProdTags := makeMemoryDBCluster(t, "memory1", "us-east-1", "prod")
-	memorydbTest, _, memorydbTestTags := makeMemoryDBCluster(t, "memory2", "us-east-1", "test")
-	memorydbUnavailable, _, memorydbUnavailableTags := makeMemoryDBCluster(t, "memory3", "us-east-1", "prod", func(cluster *memorydb.Cluster) {
-		cluster.Status = aws.String("deleting")
-	})
-	memorydbUnsupported, _, memorydbUnsupportedTags := makeMemoryDBCluster(t, "memory4", "us-east-1", "prod", func(cluster *memorydb.Cluster) {
-		cluster.TLSEnabled = aws.Bool(false)
-	})
-	memorydbTagsByARN := map[string][]*memorydb.Tag{
-		aws.StringValue(memorydbProd.ARN):        memorydbProdTags,
-		aws.StringValue(memorydbTest.ARN):        memorydbTestTags,
-		aws.StringValue(memorydbUnavailable.ARN): memorydbUnavailableTags,
-		aws.StringValue(memorydbUnsupported.ARN): memorydbUnsupportedTags,
-	}
 
 	tests := []struct {
 		name              string
@@ -213,60 +179,10 @@ func TestWatcher(t *testing.T) {
 			expectedDatabases: types.Databases{redshiftDatabaseUse1Prod, redshiftDatabaseUnknownStatus},
 		},
 		{
-			name: "ElastiCache",
-			awsMatchers: []services.AWSMatcher{
-				{
-					Types:   []string{services.AWSMatcherElastiCache},
-					Regions: []string{"us-east-1"},
-					Tags:    types.Labels{"env": []string{"prod", "qa"}},
-				},
-			},
-			clients: &common.TestCloudClients{
-				ElastiCache: &cloud.ElastiCacheMock{
-					ReplicationGroups: []*elasticache.ReplicationGroup{
-						elasticacheProd, // labels match
-						elasticacheQA,   // labels match
-						elasticacheTest, // labels do not match
-						elasticacheUnavailable,
-						elasticacheUnsupported,
-					},
-					TagsByARN: elasticacheTagsByARN,
-				},
-			},
-			expectedDatabases: types.Databases{elasticacheDatabaseProd, elasticacheDatabaseQA},
-		},
-		{
-			name: "MemoryDB",
-			awsMatchers: []services.AWSMatcher{
-				{
-					Types:   []string{services.AWSMatcherMemoryDB},
-					Regions: []string{"us-east-1"},
-					Tags:    types.Labels{"env": []string{"prod"}},
-				},
-			},
-			clients: &common.TestCloudClients{
-				MemoryDB: &cloud.MemoryDBMock{
-					Clusters: []*memorydb.Cluster{
-						memorydbProd, // labels match
-						memorydbTest, // labels do not match
-						memorydbUnavailable,
-						memorydbUnsupported,
-					},
-					TagsByARN: memorydbTagsByARN,
-				},
-			},
-			expectedDatabases: types.Databases{memorydbDatabaseProd},
-		},
-		{
 			name: "matcher with multiple types",
 			awsMatchers: []services.AWSMatcher{
 				{
-					Types: []string{
-						services.AWSMatcherRedshift,
-						services.AWSMatcherRDS,
-						services.AWSMatcherElastiCache,
-						services.AWSMatcherMemoryDB,
-					},
+					Types:   []string{services.AWSMatcherRedshift, services.AWSMatcherRDS},
 					Regions: []string{"us-east-1"},
 					Tags:    types.Labels{"env": []string{"prod"}},
 				},
@@ -278,21 +194,8 @@ func TestWatcher(t *testing.T) {
 				Redshift: &cloud.RedshiftMock{
 					Clusters: []*redshift.Cluster{redshiftUse1Prod},
 				},
-				ElastiCache: &cloud.ElastiCacheMock{
-					ReplicationGroups: []*elasticache.ReplicationGroup{elasticacheProd},
-					TagsByARN:         elasticacheTagsByARN,
-				},
-				MemoryDB: &cloud.MemoryDBMock{
-					Clusters:  []*memorydb.Cluster{memorydbProd},
-					TagsByARN: memorydbTagsByARN,
-				},
 			},
-			expectedDatabases: types.Databases{
-				auroraDatabase1,
-				redshiftDatabaseUse1Prod,
-				elasticacheDatabaseProd,
-				memorydbDatabaseProd,
-			},
+			expectedDatabases: types.Databases{auroraDatabase1, redshiftDatabaseUse1Prod},
 		},
 	}
 
@@ -304,9 +207,7 @@ func TestWatcher(t *testing.T) {
 			go watcher.fetchAndSend()
 			select {
 			case databases := <-watcher.DatabasesC():
-				// makeFetchers function uses a map for matcher types so
-				// databases can come in random orders.
-				require.ElementsMatch(t, test.expectedDatabases, databases)
+				require.Equal(t, test.expectedDatabases, databases)
 			case <-time.After(time.Second):
 				t.Fatal("didn't receive databases after 1 second")
 			}
@@ -411,71 +312,6 @@ func makeRDSClusterWithExtraEndpoints(t *testing.T, name, region string, labels 
 	return cluster, append(types.Databases{primaryDatabase, readerDatabase}, customDatabases...)
 }
 
-func makeElastiCacheCluster(t *testing.T, name, region, env string, opts ...func(*elasticache.ReplicationGroup)) (*elasticache.ReplicationGroup, types.Database, []*elasticache.Tag) {
-	cluster := &elasticache.ReplicationGroup{
-		ARN:                      aws.String(fmt.Sprintf("arn:aws:elasticache:%s:123456789:replicationgroup:%s", region, name)),
-		ReplicationGroupId:       aws.String(name),
-		Status:                   aws.String("available"),
-		TransitEncryptionEnabled: aws.Bool(true),
-
-		// Default has one primary endpoint in the only node group.
-		NodeGroups: []*elasticache.NodeGroup{{
-			PrimaryEndpoint: &elasticache.Endpoint{
-				Address: aws.String("primary.localhost"),
-				Port:    aws.Int64(6379),
-			},
-		}},
-	}
-
-	for _, opt := range opts {
-		opt(cluster)
-	}
-
-	tags := []*elasticache.Tag{{
-		Key:   aws.String("env"),
-		Value: aws.String(env),
-	}}
-	extraLabels := services.ExtraElastiCacheLabels(cluster, tags, nil, nil)
-
-	if aws.BoolValue(cluster.ClusterEnabled) {
-		database, err := services.NewDatabaseFromElastiCacheConfigurationEndpoint(cluster, extraLabels)
-		require.NoError(t, err)
-		return cluster, database, tags
-	}
-
-	databases, err := services.NewDatabasesFromElastiCacheNodeGroups(cluster, extraLabels)
-	require.NoError(t, err)
-	require.Len(t, databases, 1)
-	return cluster, databases[0], tags
-}
-
-func makeMemoryDBCluster(t *testing.T, name, region, env string, opts ...func(*memorydb.Cluster)) (*memorydb.Cluster, types.Database, []*memorydb.Tag) {
-	cluster := &memorydb.Cluster{
-		ARN:        aws.String(fmt.Sprintf("arn:aws:memorydb:%s:123456789:cluster:%s", region, name)),
-		Name:       aws.String(name),
-		Status:     aws.String("available"),
-		TLSEnabled: aws.Bool(true),
-		ClusterEndpoint: &memorydb.Endpoint{
-			Address: aws.String("memorydb.localhost"),
-			Port:    aws.Int64(6379),
-		},
-	}
-
-	for _, opt := range opts {
-		opt(cluster)
-	}
-
-	tags := []*memorydb.Tag{{
-		Key:   aws.String("env"),
-		Value: aws.String(env),
-	}}
-	extraLabels := services.ExtraMemoryDBLabels(cluster, tags, nil)
-
-	database, err := services.NewDatabaseFromMemoryDBCluster(cluster, extraLabels)
-	require.NoError(t, err)
-	return cluster, database, tags
-}
-
 // withRDSInstanceStatus returns an option function for makeRDSInstance to overwrite status.
 func withRDSInstanceStatus(status string) func(*rds.DBInstance) {
 	return func(instance *rds.DBInstance) {
@@ -501,18 +337,6 @@ func withRDSClusterStatus(status string) func(*rds.DBCluster) {
 func withRedshiftStatus(status string) func(*redshift.Cluster) {
 	return func(cluster *redshift.Cluster) {
 		cluster.ClusterStatus = aws.String(status)
-	}
-}
-
-// withElastiCacheConfigurationEndpoint returns an option function for
-// makeElastiCacheCluster to set a configuration endpoint.
-func withElastiCacheConfigurationEndpoint() func(*elasticache.ReplicationGroup) {
-	return func(cluster *elasticache.ReplicationGroup) {
-		cluster.ClusterEnabled = aws.Bool(true)
-		cluster.ConfigurationEndpoint = &elasticache.Endpoint{
-			Address: aws.String("configuration.localhost"),
-			Port:    aws.Int64(6379),
-		}
 	}
 }
 

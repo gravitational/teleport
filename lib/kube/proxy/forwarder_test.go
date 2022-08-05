@@ -1,18 +1,16 @@
-/*
-Copyright 2021 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package proxy
 
@@ -32,6 +30,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
+	"github.com/jonboulle/clockwork"
+	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/check.v1"
+	"k8s.io/client-go/transport"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -44,19 +53,15 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/gravitational/ttlmap"
-
-	"k8s.io/client-go/transport"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/jonboulle/clockwork"
-	"github.com/julienschmidt/httprouter"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 )
+
+type ForwarderSuite struct{}
+
+var _ = check.Suite(ForwarderSuite{})
+
+func Test(t *testing.T) {
+	check.TestingT(t)
+}
 
 var (
 	identity = auth.WrapIdentity(tlsca.Identity{
@@ -77,9 +82,9 @@ var (
 	})
 )
 
-func TestRequestCertificate(t *testing.T) {
+func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 	cl, err := newMockCSRClient()
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	f := &Forwarder{
 		cfg: ForwarderConfig{
 			Keygen:     testauthority.New(),
@@ -88,7 +93,7 @@ func TestRequestCertificate(t *testing.T) {
 		log: logrus.New(),
 	}
 	user, err := types.NewUser("bob")
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	ctx := authContext{
 		teleportCluster: teleportClusterClient{
 			name: "site a",
@@ -101,22 +106,23 @@ func TestRequestCertificate(t *testing.T) {
 	}
 
 	b, err := f.requestCertificate(ctx)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	// All fields except b.key are predictable.
-	require.Empty(t, cmp.Diff(b.Certificates[0].Certificate[0], cl.lastCert.Raw))
+	c.Assert(b.Certificates[0].Certificate[0], check.DeepEquals, cl.lastCert.Raw)
+	c.Assert(len(b.RootCAs.Subjects()), check.Equals, 1)
 
 	// Check the KubeCSR fields.
-	require.Empty(t, cmp.Diff(cl.gotCSR.Username, ctx.User.GetName()))
-	require.Empty(t, cmp.Diff(cl.gotCSR.ClusterName, ctx.teleportCluster.name))
+	c.Assert(cl.gotCSR.Username, check.DeepEquals, ctx.User.GetName())
+	c.Assert(cl.gotCSR.ClusterName, check.DeepEquals, ctx.teleportCluster.name)
 
 	// Parse x509 CSR and check the subject.
 	csrBlock, _ := pem.Decode(cl.gotCSR.CSR)
-	require.NotNil(t, csrBlock)
+	c.Assert(csrBlock, check.NotNil)
 	csr, err := x509.ParseCertificateRequest(csrBlock.Bytes)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	idFromCSR, err := tlsca.FromSubject(csr.Subject, time.Time{})
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(*idFromCSR, ctx.UnmappedIdentity.GetIdentity()))
+	c.Assert(err, check.IsNil)
+	c.Assert(*idFromCSR, check.DeepEquals, ctx.UnmappedIdentity.GetIdentity())
 }
 
 func TestAuthenticate(t *testing.T) {
@@ -184,11 +190,6 @@ func TestAuthenticate(t *testing.T) {
 				Spec: types.ServerSpecV2{
 					KubernetesClusters: []*types.KubernetesCluster{{
 						Name: "local",
-						StaticLabels: map[string]string{
-							"static_label1": "static_value1",
-							"static_label2": "static_value2",
-						},
-						DynamicLabels: map[string]types.CommandLabelV2{},
 					}},
 				},
 			}},
@@ -197,10 +198,6 @@ func TestAuthenticate(t *testing.T) {
 				kubeUsers:   utils.StringsSet([]string{"user-a"}),
 				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
 				kubeCluster: "local",
-				kubeClusterLabels: map[string]string{
-					"static_label1": "static_value1",
-					"static_label2": "static_value2",
-				},
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -223,10 +220,9 @@ func TestAuthenticate(t *testing.T) {
 			}},
 
 			wantCtx: &authContext{
-				kubeUsers:         utils.StringsSet([]string{"user-a"}),
-				kubeGroups:        utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
-				kubeCluster:       "local",
-				kubeClusterLabels: make(map[string]string),
+				kubeUsers:   utils.StringsSet([]string{"user-a"}),
+				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeCluster: "local",
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -248,10 +244,9 @@ func TestAuthenticate(t *testing.T) {
 				},
 			}},
 			wantCtx: &authContext{
-				kubeUsers:         utils.StringsSet([]string{"user-a"}),
-				kubeGroups:        utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
-				kubeCluster:       "local",
-				kubeClusterLabels: make(map[string]string),
+				kubeUsers:   utils.StringsSet([]string{"user-a"}),
+				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeCluster: "local",
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -340,10 +335,9 @@ func TestAuthenticate(t *testing.T) {
 			}},
 
 			wantCtx: &authContext{
-				kubeUsers:         utils.StringsSet([]string{"kube-user-a", "kube-user-b"}),
-				kubeGroups:        utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
-				kubeCluster:       "local",
-				kubeClusterLabels: make(map[string]string),
+				kubeUsers:   utils.StringsSet([]string{"kube-user-a", "kube-user-b"}),
+				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeCluster: "local",
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -382,10 +376,9 @@ func TestAuthenticate(t *testing.T) {
 			}},
 
 			wantCtx: &authContext{
-				kubeUsers:         utils.StringsSet([]string{"user-a"}),
-				kubeGroups:        utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
-				kubeCluster:       "local",
-				kubeClusterLabels: make(map[string]string),
+				kubeUsers:   utils.StringsSet([]string{"user-a"}),
+				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeCluster: "local",
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -424,10 +417,6 @@ func TestAuthenticate(t *testing.T) {
 				Spec: types.ServerSpecV2{
 					KubernetesClusters: []*types.KubernetesCluster{{
 						Name: "foo",
-						StaticLabels: map[string]string{
-							"static_label1": "static_value1",
-							"static_label2": "static_value2",
-						},
 					}},
 				},
 			}},
@@ -436,10 +425,6 @@ func TestAuthenticate(t *testing.T) {
 				kubeUsers:   utils.StringsSet([]string{"user-a"}),
 				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
 				kubeCluster: "foo",
-				kubeClusterLabels: map[string]string{
-					"static_label1": "static_value1",
-					"static_label2": "static_value2",
-				},
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -471,19 +456,16 @@ func TestAuthenticate(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			f.cfg.ReverseTunnelSrv = tt.tunnel
 			ap.kubeServices = tt.kubeServices
-			roles, err := services.RoleSetFromSpec("ops", types.RoleSpecV5{
+			roles, err := services.FromSpec("ops", types.RoleSpecV5{
 				Allow: types.RoleConditions{
-					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-					KubeUsers:        tt.roleKubeUsers,
-					KubeGroups:       tt.roleKubeGroups,
+					KubeUsers:  tt.roleKubeUsers,
+					KubeGroups: tt.roleKubeGroups,
 				},
 			})
 			require.NoError(t, err)
 			authCtx := auth.Context{
-				User: user,
-				Checker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
-					Roles: roles.RoleNames(),
-				}, "local", roles),
+				User:    user,
+				Checker: roles,
 				Identity: auth.WrapIdentity(tlsca.Identity{
 					RouteToCluster:    tt.routeToCluster,
 					KubernetesCluster: tt.kubernetesCluster,
@@ -530,7 +512,7 @@ func TestAuthenticate(t *testing.T) {
 	}
 }
 
-func TestSetupImpersonationHeaders(t *testing.T) {
+func (s ForwarderSuite) TestSetupImpersonationHeaders(c *check.C) {
 	tests := []struct {
 		desc          string
 		kubeUsers     []string
@@ -538,7 +520,7 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 		remoteCluster bool
 		inHeaders     http.Header
 		wantHeaders   http.Header
-		errAssertion  require.ErrorAssertionFunc
+		wantErr       bool
 	}{
 		{
 			desc:       "no existing impersonation headers",
@@ -552,20 +534,19 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 				ImpersonateUserHeader:  []string{"kube-user-a"},
 				ImpersonateGroupHeader: []string{"kube-group-a", "kube-group-b"},
 			},
-			errAssertion: require.NoError,
 		},
 		{
-			desc:         "no existing impersonation headers, no default kube users",
-			kubeGroups:   []string{"kube-group-a", "kube-group-b"},
-			inHeaders:    http.Header{},
-			errAssertion: require.Error,
+			desc:       "no existing impersonation headers, no default kube users",
+			kubeGroups: []string{"kube-group-a", "kube-group-b"},
+			inHeaders:  http.Header{},
+			wantErr:    true,
 		},
 		{
-			desc:         "no existing impersonation headers, multiple default kube users",
-			kubeUsers:    []string{"kube-user-a", "kube-user-b"},
-			kubeGroups:   []string{"kube-group-a", "kube-group-b"},
-			inHeaders:    http.Header{},
-			errAssertion: require.Error,
+			desc:       "no existing impersonation headers, multiple default kube users",
+			kubeUsers:  []string{"kube-user-a", "kube-user-b"},
+			kubeGroups: []string{"kube-group-a", "kube-group-b"},
+			inHeaders:  http.Header{},
+			wantErr:    true,
 		},
 		{
 			desc:          "no existing impersonation headers, remote cluster",
@@ -574,7 +555,6 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 			remoteCluster: true,
 			inHeaders:     http.Header{},
 			wantHeaders:   http.Header{},
-			errAssertion:  require.NoError,
 		},
 		{
 			desc:       "existing user and group headers",
@@ -588,7 +568,6 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 				ImpersonateUserHeader:  []string{"kube-user-a"},
 				ImpersonateGroupHeader: []string{"kube-group-b"},
 			},
-			errAssertion: require.NoError,
 		},
 		{
 			desc:       "existing user headers not allowed",
@@ -598,7 +577,7 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 				ImpersonateUserHeader:  []string{"kube-user-other"},
 				ImpersonateGroupHeader: []string{"kube-group-b"},
 			},
-			errAssertion: require.Error,
+			wantErr: true,
 		},
 		{
 			desc:       "existing group headers not allowed",
@@ -607,7 +586,7 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 			inHeaders: http.Header{
 				ImpersonateGroupHeader: []string{"kube-group-other"},
 			},
-			errAssertion: require.Error,
+			wantErr: true,
 		},
 		{
 			desc:       "multiple existing user headers",
@@ -616,7 +595,7 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 			inHeaders: http.Header{
 				ImpersonateUserHeader: []string{"kube-user-a", "kube-user-b"},
 			},
-			errAssertion: require.Error,
+			wantErr: true,
 		},
 		{
 			desc:       "unrecognized impersonation header",
@@ -625,11 +604,11 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 			inHeaders: http.Header{
 				"Impersonate-ev": []string{"evil-ev"},
 			},
-			errAssertion: require.Error,
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
-		t.Log(tt.desc)
+		c.Log(tt.desc)
 
 		err := setupImpersonationHeaders(
 			logrus.NewEntry(logrus.New()),
@@ -640,15 +619,14 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 			},
 			tt.inHeaders,
 		)
-		t.Log("got error:", err)
-		tt.errAssertion(t, err)
-
+		c.Log("got error:", err)
+		c.Assert(err != nil, check.Equals, tt.wantErr)
 		if err == nil {
 			// Sort header values to get predictable ordering.
 			for _, vals := range tt.inHeaders {
 				sort.Strings(vals)
 			}
-			require.Empty(t, cmp.Diff(tt.inHeaders, tt.wantHeaders))
+			c.Assert(tt.inHeaders, check.DeepEquals, tt.wantHeaders)
 		}
 	}
 }
@@ -697,14 +675,14 @@ func TestNewClusterSessionLocal(t *testing.T) {
 	authCtx.kubeCluster = ""
 	_, err := f.newClusterSession(authCtx)
 	require.Error(t, err)
-	require.True(t, trace.IsNotFound(err))
+	require.Equal(t, trace.IsNotFound(err), true)
 	require.Empty(t, 0, f.clientCredentials.Len())
 
 	// Fail when creds aren't available
 	authCtx.kubeCluster = "other"
 	_, err = f.newClusterSession(authCtx)
 	require.Error(t, err)
-	require.True(t, trace.IsNotFound(err))
+	require.Equal(t, trace.IsNotFound(err), true)
 	require.Empty(t, 0, f.clientCredentials.Len())
 
 	// Succeed when creds are available
@@ -732,7 +710,6 @@ func TestNewClusterSessionRemote(t *testing.T) {
 
 	// Make sure newClusterSession obtained a new client cert instead of using f.creds.
 	require.Equal(t, f.cfg.AuthClient.(*mockCSRClient).lastCert.Raw, sess.tlsConfig.Certificates[0].Certificate[0])
-	//lint:ignore SA1019 there's no non-deprecated public API for testing the contents of the RootCAs pool
 	require.Equal(t, [][]byte{f.cfg.AuthClient.(*mockCSRClient).ca.Cert.RawSubject}, sess.tlsConfig.RootCAs.Subjects())
 	require.Equal(t, 1, f.clientCredentials.Len())
 }
@@ -780,7 +757,6 @@ func TestNewClusterSessionDirect(t *testing.T) {
 
 	// Make sure newClusterSession obtained a new client cert instead of using f.creds.
 	require.Equal(t, f.cfg.AuthClient.(*mockCSRClient).lastCert.Raw, sess.tlsConfig.Certificates[0].Certificate[0])
-	//lint:ignore SA1019 there's no non-deprecated public API for testing the contents of the RootCAs pool
 	require.Equal(t, [][]byte{f.cfg.AuthClient.(*mockCSRClient).ca.Cert.RawSubject}, sess.tlsConfig.RootCAs.Subjects())
 	require.Equal(t, 1, f.clientCredentials.Len())
 }
@@ -790,8 +766,8 @@ func TestClusterSessionDial(t *testing.T) {
 	sess := &clusterSession{
 		authContext: authContext{
 			teleportCluster: teleportClusterClient{
-				dial: func(_ context.Context, _ string, endpoint kubeClusterEndpoint) (net.Conn, error) {
-					if endpoint.addr == "" {
+				dial: func(_ context.Context, _, addr, _ string) (net.Conn, error) {
+					if addr == "" {
 						return nil, trace.BadParameter("no addr")
 					}
 					return &net.TCPConn{}, nil
@@ -846,7 +822,7 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 		atomic.AddUint32(&kubeAPICallCount, 1)
 	}))
 
-	authCtx.teleportCluster.dial = func(ctx context.Context, network string, endpoint kubeClusterEndpoint) (net.Conn, error) {
+	authCtx.teleportCluster.dial = func(ctx context.Context, network, addr, _ string) (net.Conn, error) {
 		return new(net.Dialer).DialContext(ctx, mockKubeAPI.Listener.Addr().Network(), mockKubeAPI.Listener.Addr().String())
 	}
 
@@ -1091,8 +1067,7 @@ func newTestForwarder(ctx context.Context, cfg ForwarderConfig) *Forwarder {
 
 type mockSemaphoreClient struct {
 	auth.ClientI
-	sem   types.Semaphores
-	roles map[string]types.Role
+	sem types.Semaphores
 }
 
 func (m *mockSemaphoreClient) AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
@@ -1101,15 +1076,6 @@ func (m *mockSemaphoreClient) AcquireSemaphore(ctx context.Context, params types
 
 func (m *mockSemaphoreClient) CancelSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
 	return m.sem.CancelSemaphoreLease(ctx, lease)
-}
-
-func (m *mockSemaphoreClient) GetRole(ctx context.Context, name string) (types.Role, error) {
-	role, ok := m.roles[name]
-	if !ok {
-		return nil, trace.NotFound("role %q not found", name)
-	}
-
-	return role, nil
 }
 
 func TestKubernetesConnectionLimit(t *testing.T) {
@@ -1164,28 +1130,13 @@ func TestKubernetesConnectionLimit(t *testing.T) {
 			require.NoError(t, err)
 
 			sem := local.NewPresenceService(backend)
-			client := &mockSemaphoreClient{
-				sem:   sem,
-				roles: map[string]types.Role{testCase.role.GetName(): testCase.role},
-			}
-
+			client := &mockSemaphoreClient{sem: sem}
 			forwarder := newTestForwarder(ctx, ForwarderConfig{
-				AuthClient:        client,
-				CachingAuthClient: client,
+				AuthClient: client,
 			})
 
-			identity := &authContext{
-				Context: auth.Context{
-					User: user,
-					Identity: auth.WrapIdentity(tlsca.Identity{
-						Username: user.GetName(),
-						Groups:   []string{testCase.role.GetName()},
-					}),
-				},
-			}
-
 			for i := 0; i < testCase.connections; i++ {
-				err = forwarder.acquireConnectionLockWithIdentity(ctx, identity)
+				err = forwarder.AcquireConnectionLock(ctx, user.GetName(), services.NewRoleSet(testCase.role))
 				if i == testCase.connections-1 {
 					testCase.assert(t, err)
 				}

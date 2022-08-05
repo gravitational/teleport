@@ -66,7 +66,7 @@ func MakeTestServerTLSConfig(config TestServerConfig) (*tls.Config, error) {
 	if cn == "" {
 		cn = "localhost"
 	}
-	privateKey, _, err := testauthority.New().GenerateKeyPair()
+	privateKey, _, err := testauthority.New().GenerateKeyPair("")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -150,7 +150,7 @@ func MakeTestClientTLSConfig(config TestClientConfig) (*tls.Config, error) {
 		return nil, trace.Wrap(err)
 	}
 	ca, err := config.AuthClient.GetCertAuthority(context.Background(), types.CertAuthID{
-		Type:       types.DatabaseCA,
+		Type:       types.HostCA,
 		DomainName: config.Cluster,
 	}, false)
 	if err != nil {

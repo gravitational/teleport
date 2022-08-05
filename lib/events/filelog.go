@@ -21,7 +21,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -58,8 +58,6 @@ type FileLogConfig struct {
 	// SearchDirs is a function that returns
 	// search directories, if not set, only Dir is used
 	SearchDirs func() ([]string, error)
-	// MaxScanTokenSize define maximum line entry size.
-	MaxScanTokenSize int
 }
 
 // CheckAndSetDefaults checks and sets config defaults
@@ -87,9 +85,6 @@ func (cfg *FileLogConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.UIDGenerator == nil {
 		cfg.UIDGenerator = utils.NewRealUID()
-	}
-	if cfg.MaxScanTokenSize == 0 {
-		cfg.MaxScanTokenSize = bufio.MaxScanTokenSize
 	}
 	return nil
 }
@@ -158,49 +153,50 @@ func (l *FileLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent
 		return trace.NotFound(
 			"file log is not found due to permission or disk issue")
 	}
-
-	if len(line) > l.MaxScanTokenSize {
-		switch {
-		case canReduceMessageSize(event):
-			line, err = l.trimSizeAndMarshal(event)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		default:
-			fields := log.Fields{"event_type": event.GetType(), "event_size": len(line)}
-			l.WithFields(fields).Warnf("Got a event that exeeded max allowed size.")
-			return trace.BadParameter("event size %q exceeds max entry size %q", len(line), l.MaxScanTokenSize)
-		}
-	}
-
 	// log it to the main log file:
 	_, err = fmt.Fprintln(l.file, string(line))
 	return trace.ConvertSystemError(err)
 }
 
-func canReduceMessageSize(event apievents.AuditEvent) bool {
-	_, ok := event.(messageSizeTrimmer)
-	return ok
-}
+// EmitAuditEventLegacy adds a new event to the log. Part of auth.IFileLog interface.
+func (l *FileLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
+	l.rw.RLock()
+	defer l.rw.RUnlock()
 
-func (l *FileLog) trimSizeAndMarshal(event apievents.AuditEvent) ([]byte, error) {
-	s, ok := event.(messageSizeTrimmer)
-	if !ok {
-		return nil, trace.BadParameter("invalid event type %T", event)
+	// see if the log needs to be rotated
+	if l.mightNeedRotation() {
+		// log might need rotation; switch to write-lock
+		// to avoid rotating during concurrent event emission.
+		l.rw.RUnlock()
+		l.rw.Lock()
+
+		// perform rotation if still necessary (rotateLog rechecks the
+		// requirements internally, since rotation may have been performed
+		// during our switch from read to write locks)
+		err := l.rotateLog()
+
+		// switch back to read lock
+		l.rw.Unlock()
+		l.rw.RLock()
+		if err != nil {
+			log.Error(err)
+		}
 	}
-	sEvent := s.TrimToMaxSize(l.MaxScanTokenSize)
-	line, err := utils.FastMarshal(sEvent)
+
+	err := UpdateEventFields(event, fields, l.Clock, l.UIDGenerator)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		log.Error(err)
 	}
-	if len(line) > l.MaxScanTokenSize {
-		return nil, trace.BadParameter("event %T reached max FileLog entry size limit", event.Size())
+	// line is the text to be logged
+	line, err := json.Marshal(fields)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	return line, nil
-}
-
-type messageSizeTrimmer interface {
-	TrimToMaxSize(int) apievents.AuditEvent
+	// log it to the main log file:
+	if l.file != nil {
+		fmt.Fprintln(l.file, string(line))
+	}
+	return nil
 }
 
 // SearchEvents is a flexible way to find events.
@@ -395,6 +391,46 @@ func (l *FileLog) Close() error {
 	return err
 }
 
+func (l *FileLog) WaitForDelivery(context.Context) error {
+	return nil
+}
+
+func (l *FileLog) UploadSessionRecording(SessionRecording) error {
+	return trace.NotImplemented("not implemented")
+}
+
+func (l *FileLog) PostSessionSlice(slice SessionSlice) error {
+	if slice.Namespace == "" {
+		return trace.BadParameter("missing parameter Namespace")
+	}
+	if len(slice.Chunks) == 0 {
+		return trace.BadParameter("missing session chunks")
+	}
+	if slice.Version < V3 {
+		return trace.BadParameter("audit log rejected V%v log entry, upgrade your components.", slice.Version)
+	}
+	// V3 API does not write session log to local session directory,
+	// instead it writes locally, this internal method captures
+	// non-print events to the global audit log
+	return l.processSlice(nil, &slice)
+}
+
+func (l *FileLog) processSlice(sl SessionLogger, slice *SessionSlice) error {
+	for _, chunk := range slice.Chunks {
+		if chunk.EventType == SessionPrintEvent || chunk.EventType == "" {
+			continue
+		}
+		fields, err := EventFromChunk(slice.SessionID, chunk)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := l.EmitAuditEventLegacy(Event{Name: chunk.EventType}, fields); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
 func (l *FileLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
 	return nil, trace.NotImplemented("not implemented")
 }
@@ -549,17 +585,10 @@ func (l *FileLog) findInFile(path string, filter searchEventsFilter) ([]EventFie
 	}
 	defer lf.Close()
 
-	lineNo := 0
 	// for each line...
-	var retval []EventFields
+	retval := []EventFields{}
 	scanner := bufio.NewScanner(lf)
-
-	// If custom MaxScanTokenSize was used allocate a custom buffer with a new size.
-	if l.MaxScanTokenSize != bufio.MaxScanTokenSize {
-		buf := make([]byte, 0, l.MaxScanTokenSize)
-		scanner.Buffer(buf, l.MaxScanTokenSize)
-	}
-	for ; scanner.Scan(); lineNo++ {
+	for lineNo := 0; scanner.Scan(); lineNo++ {
 		// Optimization: to avoid parsing JSON unnecessarily, we filter out lines
 		// that don't contain the event type.
 		match := len(filter.eventTypes) == 0
@@ -576,7 +605,7 @@ func (l *FileLog) findInFile(path string, filter searchEventsFilter) ([]EventFie
 		// parse JSON on the line and compare event type field to what's
 		// in the query:
 		var ef EventFields
-		if err := utils.FastUnmarshal(scanner.Bytes(), &ef); err != nil {
+		if err = json.Unmarshal(scanner.Bytes(), &ef); err != nil {
 			l.Warnf("invalid JSON in %s line %d", path, lineNo)
 			continue
 		}
@@ -597,18 +626,6 @@ func (l *FileLog) findInFile(path string, filter searchEventsFilter) ([]EventFie
 
 		if accepted {
 			retval = append(retval, ef)
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		switch {
-		case errors.Is(err, bufio.ErrTooLong):
-			fields := log.Fields{"path": path, "line": lineNo}
-			l.WithFields(fields).
-				Warnf("FileLog contains very large entries. Scan operation will return partial result.")
-		default:
-			l.WithError(err).Errorf("Failed to scan AuditLog.")
-
 		}
 	}
 

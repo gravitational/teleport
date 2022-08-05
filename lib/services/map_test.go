@@ -17,20 +17,19 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
-	"testing"
-
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/stretchr/testify/require"
+
+	"gopkg.in/check.v1"
 
 	"github.com/gravitational/trace"
 )
 
-func TestRoleParsing(t *testing.T) {
-	t.Parallel()
+type RoleMapSuite struct{}
 
+var _ = check.Suite(&RoleMapSuite{})
+
+func (s *RoleMapSuite) TestRoleParsing(c *check.C) {
 	testCases := []struct {
 		roleMap types.RoleMap
 		err     error
@@ -65,20 +64,18 @@ func TestRoleParsing(t *testing.T) {
 	}
 
 	for i, tc := range testCases {
-		comment := fmt.Sprintf("test case '%v'", i)
+		comment := check.Commentf("test case '%v'", i)
 		_, err := parseRoleMap(tc.roleMap)
 		if tc.err != nil {
-			require.NotNilf(t, err, comment)
-			require.IsTypef(t, err, tc.err, comment)
+			c.Assert(err, check.NotNil, comment)
+			c.Assert(err, check.FitsTypeOf, tc.err)
 		} else {
-			require.NoError(t, err)
+			c.Assert(err, check.IsNil)
 		}
 	}
 }
 
-func TestRoleMap(t *testing.T) {
-	t.Parallel()
-
+func (s *RoleMapSuite) TestRoleMap(c *check.C) {
 	testCases := []struct {
 		remote  []string
 		local   []string
@@ -186,14 +183,14 @@ func TestRoleMap(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		comment := fmt.Sprintf("test case '%v'", tc.name)
+		comment := check.Commentf("test case '%v'", tc.name)
 		local, err := MapRoles(tc.roleMap, tc.remote)
 		if tc.err != nil {
-			require.NotNilf(t, err, comment)
-			require.IsTypef(t, err, tc.err, comment)
+			c.Assert(err, check.NotNil, comment)
+			c.Assert(err, check.FitsTypeOf, tc.err)
 		} else {
-			require.NoError(t, err, comment)
-			require.Empty(t, cmp.Diff(local, tc.local), comment)
+			c.Assert(err, check.IsNil, comment)
+			c.Assert(local, check.DeepEquals, tc.local, comment)
 		}
 	}
 }

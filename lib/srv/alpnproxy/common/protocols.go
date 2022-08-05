@@ -41,22 +41,12 @@ const (
 	// ProtocolSQLServer is the TLS ALPN protocol value used to indicate SQL Server protocol.
 	ProtocolSQLServer Protocol = "teleport-sqlserver"
 
-	// ProtocolSnowflake is TLS ALPN protocol value used to indicate Snowflake protocol.
-	ProtocolSnowflake Protocol = "teleport-snowflake"
-
 	// ProtocolProxySSH is TLS ALPN protocol value used to indicate Proxy SSH protocol.
 	ProtocolProxySSH Protocol = "teleport-proxy-ssh"
 
 	// ProtocolReverseTunnel is TLS ALPN protocol value used to indicate Proxy reversetunnel protocol.
 	ProtocolReverseTunnel Protocol = "teleport-reversetunnel"
 
-	// ProtocolReverseTunnelV2 is TLS ALPN protocol value used to indicate reversetunnel clients
-	// that are aware of proxy peering. This is only used on the client side to allow intermediate
-	// load balancers to make decisions based on the ALPN header. ProtocolReverseTunnel should still
-	// be included in the list of ALPN header for the proxy server to handle the connection properly.
-	ProtocolReverseTunnelV2 Protocol = "teleport-reversetunnelv2"
-
-	// ProtocolHTTP is TLS ALPN protocol value used to indicate HTTP2 protocol
 	// ProtocolHTTP is TLS ALPN protocol value used to indicate HTTP 1.1 protocol
 	ProtocolHTTP Protocol = "http/1.1"
 
@@ -76,9 +66,6 @@ const (
 	// ProtocolMySQLWithVerPrefix is TLS ALPN prefix used by tsh to carry
 	// MySQL server version.
 	ProtocolMySQLWithVerPrefix = Protocol(string(ProtocolMySQL) + "-")
-
-	// ProtocolTCP is TLS ALPN protocol value used to indicate plain TCP connection.
-	ProtocolTCP Protocol = "teleport-tcp"
 )
 
 // SupportedProtocols is the list of supported ALPN protocols.
@@ -90,11 +77,9 @@ var SupportedProtocols = []Protocol{
 	ProtocolMongoDB,
 	ProtocolRedisDB,
 	ProtocolSQLServer,
-	ProtocolSnowflake,
 	ProtocolProxySSH,
 	ProtocolReverseTunnel,
 	ProtocolAuth,
-	ProtocolTCP,
 }
 
 // ProtocolsToString converts the list of Protocols to the list of strings.
@@ -119,8 +104,6 @@ func ToALPNProtocol(dbProtocol string) (Protocol, error) {
 		return ProtocolRedisDB, nil
 	case defaults.ProtocolSQLServer:
 		return ProtocolSQLServer, nil
-	case defaults.ProtocolSnowflake:
-		return ProtocolSnowflake, nil
 	default:
 		return "", trace.NotImplemented("%q protocol is not supported", dbProtocol)
 	}
@@ -133,7 +116,7 @@ func ToALPNProtocol(dbProtocol string) (Protocol, error) {
 // to terminated DB connection.
 func IsDBTLSProtocol(protocol Protocol) bool {
 	switch protocol {
-	case ProtocolMongoDB, ProtocolRedisDB, ProtocolSQLServer, ProtocolSnowflake:
+	case ProtocolMongoDB, ProtocolRedisDB, ProtocolSQLServer:
 		return true
 	default:
 		return false

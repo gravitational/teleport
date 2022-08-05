@@ -21,9 +21,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -152,18 +152,6 @@ func MakeKubeClusters(clusters []types.KubeCluster) []KubeCluster {
 	return uiKubeClusters
 }
 
-// ConnectionDiagnostic describes a connection diagnostic.
-type ConnectionDiagnostic struct {
-	// ID is the identifier of the connection diagnostic.
-	ID string `json:"id"`
-	// Labels is a map of static and dynamic labels associated with the connection diagnostic.
-	Labels []Label `json:"labels"`
-	// Success is whether the connection was successful
-	Success bool `json:"success"`
-	// Message is the diagnostic summary
-	Message string `json:"message"`
-}
-
 // Database describes a database server.
 type Database struct {
 	// Name is the name of the database.
@@ -229,7 +217,7 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop) Desktop {
 	// stripRdpPort strips the default rdp port from an ip address since it is unimportant to display
 	stripRdpPort := func(addr string) string {
 		splitAddr := strings.Split(addr, ":")
-		if len(splitAddr) > 1 && splitAddr[1] == strconv.Itoa(defaults.RDPListenPort) {
+		if len(splitAddr) > 1 && splitAddr[1] == strconv.Itoa(teleport.StandardRDPPort) {
 			return splitAddr[0]
 		}
 		return addr

@@ -25,20 +25,13 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth/native"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -51,6 +44,10 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 )
 
 // TestAuthServerConfig is auth server test config
@@ -73,8 +70,6 @@ type TestAuthServerConfig struct {
 	Streamer events.Streamer
 	// AuditLog allows a test to configure its own audit log.
 	AuditLog events.IAuditLog
-	// TraceClient allows a test to configure the trace client
-	TraceClient otlptrace.Client
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -96,8 +91,17 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 
 // CreateUploaderDir creates directory for file uploader service
 func CreateUploaderDir(dir string) error {
-	if err := os.MkdirAll(filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingLogsDir, apidefaults.Namespace), teleport.SharedDirMode); err != nil {
+	// DELETE IN(5.1.0)
+	// this folder is no longer used past 5.0 upgrade
+	err := os.MkdirAll(filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload,
+		events.SessionLogsDir, apidefaults.Namespace), teleport.SharedDirMode)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+
+	err = os.MkdirAll(filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload,
+		events.StreamingLogsDir, apidefaults.Namespace), teleport.SharedDirMode)
+	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
 
@@ -164,14 +168,6 @@ func (a *TestServer) Shutdown(ctx context.Context) error {
 	)
 }
 
-// WithClock is a functional server option that sets the server's clock
-func WithClock(clock clockwork.Clock) ServerOption {
-	return func(s *Server) error {
-		s.clock = clock
-		return nil
-	}
-}
-
 // TestAuthServer is auth server using local filesystem backend
 // and test certificate authority key generation that speeds up
 // keygen by using the same private key
@@ -182,7 +178,7 @@ type TestAuthServer struct {
 	AuthServer *Server
 	// AuditLog is an event audit log
 	AuditLog events.IAuditLog
-	// SessionServer is a session service
+	// SessionLogger is a session logger
 	SessionServer session.Service
 	// Backend is a backend for auth server
 	Backend backend.Backend
@@ -220,7 +216,6 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		localLog, err := events.NewAuditLog(events.AuditLogConfig{
 			DataDir:       cfg.Dir,
 			ServerID:      cfg.ClusterName,
-			Clock:         cfg.Clock,
 			UploadHandler: events.NewMemoryUploader(),
 		})
 		if err != nil {
@@ -237,14 +232,6 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	access := local.NewAccessService(srv.Backend)
 	identity := local.NewIdentityService(srv.Backend)
 
-	emitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
-		Inner: srv.AuditLog,
-		Clock: cfg.Clock,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	srv.AuthServer, err = NewServer(&InitConfig{
 		Backend:                srv.Backend,
 		Authority:              authority.NewWithClock(cfg.Clock),
@@ -253,8 +240,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		AuditLog:               srv.AuditLog,
 		Streamer:               cfg.Streamer,
 		SkipPeriodicOperations: true,
-		Emitter:                emitter,
-		TraceClient:            cfg.TraceClient,
+		Emitter:                srv.AuditLog,
 	}, WithClock(cfg.Clock))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -322,14 +308,26 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 
 	// Setup certificate and signing authorities.
-	for _, caType := range types.CertAuthTypes {
-		if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
-			Type:        caType,
-			ClusterName: srv.ClusterName,
-			Clock:       cfg.Clock,
-		})); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
+		Type:        types.HostCA,
+		ClusterName: srv.ClusterName,
+		Clock:       cfg.Clock,
+	})); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
+		Type:        types.UserCA,
+		ClusterName: srv.ClusterName,
+		Clock:       cfg.Clock,
+	})); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
+		Type:        types.JWTSigner,
+		ClusterName: srv.ClusterName,
+		Clock:       cfg.Clock,
+	})); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	srv.LockWatcher, err = services.NewLockWatcher(ctx, services.LockWatcherConfig{
@@ -369,8 +367,7 @@ func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessInfo := services.AccessInfoFromUser(user)
-	checker, err := services.NewAccessChecker(accessInfo, a.ClusterName, a.AuthServer)
+	checker, err := services.FetchRoles(user.GetRoles(), a.AuthServer, user.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -406,17 +403,12 @@ func PrivateKeyToPublicKeyTLS(privateKey []byte) (tlsPublicKey []byte, err error
 // generateCertificate generates certificate for identity,
 // returns private public key pair
 func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []byte, error) {
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := authServer.GenerateKeyPair("")
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
 	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(priv)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	clusterName, err := authServer.GetClusterName()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -427,8 +419,7 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		accessInfo := services.AccessInfoFromUser(user)
-		checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), authServer)
+		checker, err := services.FetchRoles(user.GetRoles(), authServer, user.GetTraits())
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -513,17 +504,6 @@ func (a *TestAuthServer) Trust(ctx context.Context, remote *TestAuthServer, role
 		return trace.Wrap(err)
 	}
 	remoteCA, err = remote.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.DatabaseCA,
-		DomainName: remote.ClusterName,
-	}, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = a.AuthServer.UpsertCertAuthority(remoteCA)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	remoteCA, err = remote.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: remote.ClusterName,
 	}, false)
@@ -576,7 +556,6 @@ func (a *TestAuthServer) NewRemoteClient(identity TestIdentity, addr net.Addr, p
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
-		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 }
 
@@ -781,7 +760,6 @@ func (t *TestTLSServer) NewClientFromWebSession(sess types.WebSession) (*Client,
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
-		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 }
 
@@ -823,7 +801,6 @@ func (t *TestTLSServer) CloneClient(clt *Client) *Client {
 		Credentials: []client.Credentials{
 			client.LoadTLS(clt.Config()),
 		},
-		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 	if err != nil {
 		panic(err)
@@ -844,7 +821,6 @@ func (t *TestTLSServer) NewClientWithCert(clientCert tls.Certificate) *Client {
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
-		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 	if err != nil {
 		panic(err)
@@ -865,7 +841,6 @@ func (t *TestTLSServer) NewClient(identity TestIdentity) (*Client, error) {
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
-		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -919,7 +894,7 @@ func (t *TestTLSServer) Stop() error {
 
 // NewServerIdentity generates new server identity, used in tests
 func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*Identity, error) {
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := clt.GenerateKeyPair("")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

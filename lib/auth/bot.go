@@ -26,13 +26,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -72,7 +71,7 @@ func createBotRole(ctx context.Context, s *Server, botName string, resourceName 
 	meta.Labels[types.BotLabel] = botName
 	role.SetMetadata(meta)
 
-	err = s.CreateRole(ctx, role)
+	err = s.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -99,9 +98,9 @@ func createBotUser(ctx context.Context, s *Server, botName string, resourceName 
 
 	// Traits need to be set to silence "failed to find roles or traits" warning
 	user.SetTraits(map[string][]string{
-		constants.TraitLogins:     {},
-		constants.TraitKubeUsers:  {},
-		constants.TraitKubeGroups: {},
+		teleport.TraitLogins:     {},
+		teleport.TraitKubeUsers:  {},
+		teleport.TraitKubeGroups: {},
 	})
 
 	if err := s.CreateUser(ctx, user); err != nil {
@@ -113,11 +112,6 @@ func createBotUser(ctx context.Context, s *Server, botName string, resourceName 
 
 // createBot creates a new certificate renewal bot from a bot request.
 func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*proto.CreateBotResponse, error) {
-	if !modules.GetModules().Features().MachineID {
-		return nil, trace.AccessDenied(
-			"this Teleport cluster is not licensed for Machine ID, please contact the cluster administrator")
-	}
-
 	if req.Name == "" {
 		return nil, trace.BadParameter("bot name must not be empty")
 	}
@@ -125,16 +119,15 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 	resourceName := BotResourceName(req.Name)
 
 	// Ensure conflicting resources don't already exist.
-	// We skip the cache here to allow for bot recreation shortly after bot
-	// deletion.
-	_, err := s.Services.GetRole(ctx, resourceName)
+	_, err := s.GetRole(ctx, resourceName)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
 	if roleExists := (err == nil); roleExists {
 		return nil, trace.AlreadyExists("cannot add bot: role %q already exists", resourceName)
 	}
-	_, err = s.Services.GetUser(resourceName, false)
+
+	_, err = s.GetUser(resourceName, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -318,7 +311,7 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, certReq *certRequest, currentIdentityGeneration uint64) error {
 	// Fetch the user, bypassing the cache. We might otherwise fetch a stale
 	// value in case of a rapid certificate renewal.
-	user, err := s.Services.GetUser(user.GetName(), false)
+	user, err := s.Identity.GetUser(user.GetName(), false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -368,7 +361,7 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 		// There's a tiny chance the underlying user is mutated between calls
 		// to GetUser() but we're comparing with an older value so it'll fail
 		// safely.
-		newUser, err := s.Services.GetUser(user.GetName(), false)
+		newUser, err := s.Identity.GetUser(user.GetName(), false)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -429,7 +422,7 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 	newGeneration := currentIdentityGeneration + 1
 
 	// As above, commit some crimes to clone the User.
-	newUser, err := s.Services.GetUser(user.GetName(), false)
+	newUser, err := s.Identity.GetUser(user.GetName(), false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -460,11 +453,6 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 func (s *Server) generateInitialBotCerts(ctx context.Context, username string, pubKey []byte, expires time.Time, renewable bool) (*proto.Certs, error) {
 	var err error
 
-	if !modules.GetModules().Features().MachineID {
-		return nil, trace.AccessDenied(
-			"this Teleport cluster is not licensed for Machine ID, please contact the cluster administrator")
-	}
-
 	// Extract the user and role set for whom the certificate will be generated.
 	// This should be safe since this is typically done against a local user.
 	//
@@ -489,15 +477,15 @@ func (s *Server) generateInitialBotCerts(ctx context.Context, username string, p
 	}
 
 	// Inherit the user's roles and traits verbatim.
-	accessInfo := services.AccessInfoFromUser(user)
-	clusterName, err := s.GetClusterName()
+	roles := user.GetRoles()
+	traits := user.GetTraits()
+
+	parsedRoles, err := services.FetchRoleList(roles, s, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), s)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// add implicit roles to the set and build a checker
+	checker := services.NewRoleSet(parsedRoles...)
 
 	// renewable cert request must include a generation
 	var generation uint64
@@ -511,7 +499,7 @@ func (s *Server) generateInitialBotCerts(ctx context.Context, username string, p
 		ttl:           expires.Sub(s.GetClock().Now()),
 		publicKey:     pubKey,
 		checker:       checker,
-		traits:        accessInfo.Traits,
+		traits:        user.GetTraits(),
 		renewable:     renewable,
 		includeHostCA: true,
 		generation:    generation,

@@ -20,12 +20,12 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"os"
 	"path"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -65,28 +64,28 @@ var testConfigs testConfigFiles
 func writeTestConfigs() error {
 	var err error
 
-	testConfigs.tempDir, err = os.MkdirTemp("", "teleport-config")
+	testConfigs.tempDir, err = ioutil.TempDir("", "teleport-config")
 	if err != nil {
 		return err
 	}
 	// create a good config file fixture
 	testConfigs.configFile = filepath.Join(testConfigs.tempDir, "good-config.yaml")
-	if err = os.WriteFile(testConfigs.configFile, []byte(makeConfigFixture()), 0o660); err != nil {
+	if err = os.WriteFile(testConfigs.configFile, []byte(makeConfigFixture()), 0660); err != nil {
 		return err
 	}
 	// create a static config file fixture
 	testConfigs.configFileStatic = filepath.Join(testConfigs.tempDir, "static-config.yaml")
-	if err = os.WriteFile(testConfigs.configFileStatic, []byte(StaticConfigString), 0o660); err != nil {
+	if err = os.WriteFile(testConfigs.configFileStatic, []byte(StaticConfigString), 0660); err != nil {
 		return err
 	}
 	// create an empty config file
 	testConfigs.configFileNoContent = filepath.Join(testConfigs.tempDir, "empty-config.yaml")
-	if err = os.WriteFile(testConfigs.configFileNoContent, []byte(""), 0o660); err != nil {
+	if err = os.WriteFile(testConfigs.configFileNoContent, []byte(""), 0660); err != nil {
 		return err
 	}
 	// create a bad config file fixture
 	testConfigs.configFileBadContent = filepath.Join(testConfigs.tempDir, "bad-config.yaml")
-	return os.WriteFile(testConfigs.configFileBadContent, []byte("bad-data!"), 0o660)
+	return os.WriteFile(testConfigs.configFileBadContent, []byte("bad-data!"), 0660)
 }
 
 func (tc testConfigFiles) cleanup() {
@@ -196,7 +195,7 @@ func TestSampleConfig(t *testing.T) {
 			require.NotNil(t, sfc)
 
 			fn := filepath.Join(t.TempDir(), "default-config.yaml")
-			err = os.WriteFile(fn, []byte(sfc.DebugDumpToYAML()), 0o660)
+			err = os.WriteFile(fn, []byte(sfc.DebugDumpToYAML()), 0660)
 			require.NoError(t, err)
 
 			// make sure it could be parsed:
@@ -609,6 +608,21 @@ teleport:
 `,
 			outError: true,
 		},
+		{
+			desc: "change CA signature alg, valid",
+			inConfig: `
+teleport:
+  ca_signature_algo: ssh-rsa
+`,
+		},
+		{
+			desc: "invalid CA signature alg, not valid",
+			inConfig: `
+teleport:
+  ca_signature_algo: foobar
+`,
+			outError: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -646,7 +660,6 @@ func TestApplyConfig(t *testing.T) {
 		authTokenPath,
 		caPinPath,
 		staticTokenPath,
-		pkcs11LibPath,
 	)))
 	require.NoError(t, err)
 	require.NotNil(t, conf)
@@ -682,10 +695,6 @@ func TestApplyConfig(t *testing.T) {
 	require.Equal(t, "magadan", cfg.Auth.ClusterName.GetClusterName())
 	require.True(t, cfg.Auth.Preference.GetAllowLocalAuth())
 	require.Equal(t, "10.10.10.1", cfg.AdvertiseIP)
-	tunnelStrategyType, err := cfg.Auth.NetworkingConfig.GetTunnelStrategyType()
-	require.NoError(t, err)
-	require.Equal(t, types.AgentMesh, tunnelStrategyType)
-	require.Equal(t, types.DefaultAgentMeshTunnelStrategy(), cfg.Auth.NetworkingConfig.GetAgentMeshTunnelStrategy())
 
 	require.True(t, cfg.Proxy.Enabled)
 	require.Equal(t, "tcp://webhost:3080", cfg.Proxy.WebAddr.FullAddress())
@@ -698,11 +707,10 @@ func TestApplyConfig(t *testing.T) {
 	require.Equal(t, "tcp://mysql.example:3306", cfg.Proxy.MySQLPublicAddrs[0].FullAddress())
 	require.Len(t, cfg.Proxy.MongoPublicAddrs, 1)
 	require.Equal(t, "tcp://mongo.example:27017", cfg.Proxy.MongoPublicAddrs[0].FullAddress())
-	require.Equal(t, "tcp://peerhost:1234", cfg.Proxy.PeerAddr.FullAddress())
 
 	require.Equal(t, "tcp://127.0.0.1:3000", cfg.DiagnosticAddr.FullAddress())
 
-	u2fCAFromFile, err := os.ReadFile("testdata/u2f_attestation_ca.pem")
+	u2fCAFromFile, err := ioutil.ReadFile("testdata/u2f_attestation_ca.pem")
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(cfg.Auth.Preference, &types.AuthPreferenceV2{
 		Kind:    types.KindClusterAuthPreference,
@@ -716,7 +724,8 @@ func TestApplyConfig(t *testing.T) {
 			Type:         constants.Local,
 			SecondFactor: constants.SecondFactorOTP,
 			U2F: &types.U2F{
-				AppID: "app-id",
+				AppID:  "app-id",
+				Facets: []string{"https://localhost:3080"},
 				DeviceAttestationCAs: []string{
 					string(u2fCAFromFile),
 					`-----BEGIN CERTIFICATE-----
@@ -744,11 +753,10 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			AllowLocalAuth:        types.NewBoolOption(true),
 			DisconnectExpiredCert: types.NewBoolOption(false),
 			LockingMode:           constants.LockingModeBestEffort,
-			AllowPasswordless:     types.NewBoolOption(false),
 		},
 	}))
 
-	require.Equal(t, pkcs11LibPath, cfg.Auth.KeyStore.Path)
+	require.Equal(t, "/usr/local/lib/example/path.so", cfg.Auth.KeyStore.Path)
 	require.Equal(t, "example_token", cfg.Auth.KeyStore.TokenLabel)
 	require.Equal(t, 1, *cfg.Auth.KeyStore.SlotNumber)
 	require.Equal(t, "example_pin", cfg.Auth.KeyStore.Pin)
@@ -906,87 +914,6 @@ func TestBackendDefaults(t *testing.T) {
      data_dir: /var/lib/teleport
 `)
 	require.False(t, cfg.Proxy.Kube.Enabled)
-}
-
-func TestTunnelStrategy(t *testing.T) {
-	tests := []struct {
-		desc           string
-		config         string
-		readErr        require.ErrorAssertionFunc
-		applyErr       require.ErrorAssertionFunc
-		tunnelStrategy interface{}
-	}{
-		{
-			desc: "Ensure default is used when no tunnel strategy is given",
-			config: strings.Join([]string{
-				"auth_service:",
-				"  enabled: yes",
-			}, "\n"),
-			readErr:        require.NoError,
-			applyErr:       require.NoError,
-			tunnelStrategy: types.DefaultAgentMeshTunnelStrategy(),
-		},
-		{
-			desc: "Ensure default parameters are used for proxy peering strategy",
-			config: strings.Join([]string{
-				"auth_service:",
-				"  enabled: yes",
-				"  tunnel_strategy:",
-				"    type: proxy_peering",
-			}, "\n"),
-			readErr:        require.NoError,
-			applyErr:       require.NoError,
-			tunnelStrategy: types.DefaultProxyPeeringTunnelStrategy(),
-		},
-		{
-			desc: "Ensure proxy peering strategy parameters are set",
-			config: strings.Join([]string{
-				"auth_service:",
-				"  enabled: yes",
-				"  tunnel_strategy:",
-				"    type: proxy_peering",
-				"    agent_connection_count: 2",
-			}, "\n"),
-			readErr:  require.NoError,
-			applyErr: require.NoError,
-			tunnelStrategy: &types.ProxyPeeringTunnelStrategy{
-				AgentConnectionCount: 2,
-			},
-		},
-		{
-			desc: "Ensure tunnel strategy cannot take unknown parameters",
-			config: strings.Join([]string{
-				"auth_service:",
-				"  enabled: yes",
-				"  tunnel_strategy:",
-				"    type: agent_mesh",
-				"    agent_connection_count: 2",
-			}, "\n"),
-			readErr:        require.Error,
-			applyErr:       require.NoError,
-			tunnelStrategy: types.DefaultAgentMeshTunnelStrategy(),
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.desc, func(t *testing.T) {
-			conf, err := ReadConfig(bytes.NewBufferString(tc.config))
-			tc.readErr(t, err)
-
-			cfg := service.MakeDefaultConfig()
-			err = ApplyFileConfig(conf, cfg)
-			tc.applyErr(t, err)
-
-			var actualStrategy interface{}
-			if cfg.Auth.NetworkingConfig == nil {
-			} else if s := cfg.Auth.NetworkingConfig.GetAgentMeshTunnelStrategy(); s != nil {
-				actualStrategy = s
-			} else if s := cfg.Auth.NetworkingConfig.GetProxyPeeringTunnelStrategy(); s != nil {
-				actualStrategy = s
-			}
-			require.Equal(t, tc.tunnelStrategy, actualStrategy)
-		})
-	}
 }
 
 // TestParseKey ensures that keys are parsed correctly if they are in
@@ -1757,6 +1684,13 @@ func TestWindowsDesktopService(t *testing.T) {
 				}
 			},
 		},
+		{
+			desc:        "NOK - uses deprecated password_file field",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.LDAP.PasswordFile = "/path/to/some/file"
+			},
+		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			fc := &FileConfig{}
@@ -2011,7 +1945,7 @@ db_service:
 func TestDatabaseCLIFlags(t *testing.T) {
 	// Prepare test CA certificate used to configure some databases.
 	testCertPath := filepath.Join(t.TempDir(), "cert.pem")
-	err := os.WriteFile(testCertPath, fixtures.LocalhostCert, 0o644)
+	err := os.WriteFile(testCertPath, fixtures.LocalhostCert, 0644)
 	require.NoError(t, err)
 	tests := []struct {
 		inFlags     CommandLineFlags
@@ -2031,10 +1965,8 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				Name:     "foo",
 				Protocol: defaults.ProtocolPostgres,
 				URI:      "localhost:5432",
-				StaticLabels: map[string]string{
-					"env":             "test",
-					types.OriginLabel: types.OriginConfigFile,
-				},
+				StaticLabels: map[string]string{"env": "test",
+					types.OriginLabel: types.OriginConfigFile},
 				DynamicLabels: services.CommandLabels{
 					"hostname": &types.CommandLabelV2{
 						Period:  types.Duration(time.Hour),
@@ -2088,8 +2020,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					Region: "us-east-1",
 				},
 				StaticLabels: map[string]string{
-					types.OriginLabel: types.OriginConfigFile,
-				},
+					types.OriginLabel: types.OriginConfigFile},
 				DynamicLabels: services.CommandLabels{},
 				TLS: service.DatabaseTLS{
 					Mode: service.VerifyFull,
@@ -2116,8 +2047,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					},
 				},
 				StaticLabels: map[string]string{
-					types.OriginLabel: types.OriginConfigFile,
-				},
+					types.OriginLabel: types.OriginConfigFile},
 				DynamicLabels: services.CommandLabels{},
 				TLS: service.DatabaseTLS{
 					Mode: service.VerifyFull,
@@ -2147,8 +2077,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					InstanceID: "gcp-instance-1",
 				},
 				StaticLabels: map[string]string{
-					types.OriginLabel: types.OriginConfigFile,
-				},
+					types.OriginLabel: types.OriginConfigFile},
 				DynamicLabels: services.CommandLabels{},
 			},
 		},
@@ -2176,8 +2105,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					SPN:        "MSSQLSvc/sqlserver.example.com:1433",
 				},
 				StaticLabels: map[string]string{
-					types.OriginLabel: types.OriginConfigFile,
-				},
+					types.OriginLabel: types.OriginConfigFile},
 				DynamicLabels: services.CommandLabels{},
 			},
 		},
@@ -2200,8 +2128,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					Mode: service.VerifyFull,
 				},
 				StaticLabels: map[string]string{
-					types.OriginLabel: types.OriginConfigFile,
-				},
+					types.OriginLabel: types.OriginConfigFile},
 				DynamicLabels: services.CommandLabels{},
 			},
 		},
@@ -2287,7 +2214,7 @@ func TestTLSCert(t *testing.T) {
 	tmpDir := t.TempDir()
 	tmpCA := path.Join(tmpDir, "ca.pem")
 
-	err := os.WriteFile(tmpCA, fixtures.LocalhostCert, 0o644)
+	err := os.WriteFile(tmpCA, fixtures.LocalhostCert, 0644)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -2343,138 +2270,6 @@ func TestTLSCert(t *testing.T) {
 
 			require.Len(t, cfg.Databases.Databases, 1)
 			require.Equal(t, fixtures.LocalhostCert, cfg.Databases.Databases[0].TLS.CACert)
-		})
-	}
-}
-
-func TestApplyKeyStoreConfig(t *testing.T) {
-	slotNumber := 1
-
-	tempDir := t.TempDir()
-
-	worldReadablePinFilePath := filepath.Join(tempDir, "world-readable-pin-file")
-	err := os.WriteFile(worldReadablePinFilePath, []byte("world-readable-pin-file"), 0o644)
-	require.NoError(t, err)
-	securePinFilePath := filepath.Join(tempDir, "secure-pin-file")
-	err = os.WriteFile(securePinFilePath, []byte("secure-pin-file"), 0o600)
-	require.NoError(t, err)
-
-	worldWritablePKCS11LibPath := filepath.Join(tempDir, "world-writable-pkcs1")
-	err = os.WriteFile(worldWritablePKCS11LibPath, []byte("pkcs11"), 0o666)
-	require.NoError(t, err)
-	require.NoError(t, os.Chmod(worldWritablePKCS11LibPath, 0o666))
-	securePKCS11LibPath := filepath.Join(tempDir, "secure-pkcs11")
-	err = os.WriteFile(securePKCS11LibPath, []byte("pkcs11"), 0o600)
-	require.NoError(t, err)
-
-	tests := []struct {
-		name string
-
-		auth Auth
-
-		want       keystore.Config
-		errMessage string
-	}{
-		{
-			name: "handle nil configuration",
-			auth: Auth{
-				CAKeyParams: nil,
-			},
-			want: service.MakeDefaultConfig().Auth.KeyStore,
-		},
-		{
-			name: "correct config",
-			auth: Auth{
-				CAKeyParams: &CAKeyParams{
-					PKCS11: PKCS11{
-						ModulePath: securePKCS11LibPath,
-						TokenLabel: "foo",
-						SlotNumber: &slotNumber,
-						Pin:        "pin",
-					},
-				},
-			},
-			want: keystore.Config{
-				TokenLabel: "foo",
-				SlotNumber: &slotNumber,
-				Pin:        "pin",
-				Path:       securePKCS11LibPath,
-			},
-		},
-		{
-			name: "correct config with pin file",
-			auth: Auth{
-				CAKeyParams: &CAKeyParams{
-					PKCS11: PKCS11{
-						ModulePath: securePKCS11LibPath,
-						TokenLabel: "foo",
-						SlotNumber: &slotNumber,
-						PinPath:    securePinFilePath,
-					},
-				},
-			},
-			want: keystore.Config{
-				TokenLabel: "foo",
-				SlotNumber: &slotNumber,
-				Pin:        "secure-pin-file",
-				Path:       securePKCS11LibPath,
-			},
-		},
-		{
-			name: "err when pin and pin path configured",
-			auth: Auth{
-				CAKeyParams: &CAKeyParams{
-					PKCS11: PKCS11{
-						Pin:     "oops",
-						PinPath: securePinFilePath,
-					},
-				},
-			},
-			errMessage: "can not set both pin and pin_path",
-		},
-		{
-			name: "err when pkcs11 world writable",
-			auth: Auth{
-				CAKeyParams: &CAKeyParams{
-					PKCS11: PKCS11{
-						ModulePath: worldWritablePKCS11LibPath,
-					},
-				},
-			},
-			errMessage: fmt.Sprintf(
-				"PKCS11 library (%s) must not be world-writable",
-				worldWritablePKCS11LibPath,
-			),
-		},
-		{
-			name: "err when pin file world-readable",
-			auth: Auth{
-				CAKeyParams: &CAKeyParams{
-					PKCS11: PKCS11{
-						PinPath: worldReadablePinFilePath,
-					},
-				},
-			},
-			errMessage: fmt.Sprintf(
-				"HSM pin file (%s) must not be world-readable",
-				worldReadablePinFilePath,
-			),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := service.MakeDefaultConfig()
-
-			err := applyKeyStoreConfig(&FileConfig{
-				Auth: tt.auth,
-			}, cfg)
-			if tt.errMessage != "" {
-				require.EqualError(t, err, tt.errMessage)
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, tt.want, cfg.Auth.KeyStore)
-			}
 		})
 	}
 }

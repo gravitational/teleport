@@ -60,6 +60,8 @@ type Config struct {
 	// ExtraHeaders is a map of extra HTTP headers to be included in
 	// requests.
 	ExtraHeaders map[string]string
+	// IgnoreHTTPProxy disables support for HTTP proxying when true.
+	IgnoreHTTPProxy bool
 	// Timeout is a timeout for requests.
 	Timeout time.Duration
 }
@@ -89,9 +91,11 @@ func newWebClient(cfg *Config) (*http.Client, error) {
 			InsecureSkipVerify: cfg.Insecure,
 			RootCAs:            cfg.Pool,
 		},
-		Proxy: func(req *http.Request) (*url.URL, error) {
+	}
+	if !cfg.IgnoreHTTPProxy {
+		transport.Proxy = func(req *http.Request) (*url.URL, error) {
 			return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
-		},
+		}
 	}
 	return &http.Client{
 		Transport: otelhttp.NewTransport(proxy.NewHTTPFallbackRoundTripper(&transport, cfg.Insecure)),
@@ -285,8 +289,6 @@ type PingResponse struct {
 	MinClientVersion string `json:"min_client_version"`
 	// ClusterName contains the name of the Teleport cluster.
 	ClusterName string `json:"cluster_name"`
-	// LicenseWarnings contains a list of license compliance warning messages
-	LicenseWarnings []string `json:"license_warnings,omitempty"`
 }
 
 // PingErrorResponse contains the error message if the requested connector
@@ -369,15 +371,12 @@ type AuthenticationSettings struct {
 	// Type is the type of authentication, can be either local or oidc.
 	Type string `json:"type"`
 	// SecondFactor is the type of second factor to use in authentication.
+	// Supported options are: off, otp, and u2f.
 	SecondFactor constants.SecondFactorType `json:"second_factor,omitempty"`
 	// PreferredLocalMFA is a server-side hint for clients to pick an MFA method
 	// when various options are available.
 	// It is empty if there is nothing to suggest.
 	PreferredLocalMFA constants.SecondFactorType `json:"preferred_local_mfa,omitempty"`
-	// AllowPasswordless is true if passwordless logins are allowed.
-	AllowPasswordless bool `json:"allow_passwordless,omitempty"`
-	// Local contains settings for local authentication.
-	Local *LocalSettings `json:"local,omitempty"`
 	// Webauthn contains MFA settings for Web Authentication.
 	Webauthn *Webauthn `json:"webauthn,omitempty"`
 	// U2F contains the Universal Second Factor settings needed for authentication.
@@ -393,12 +392,6 @@ type AuthenticationSettings struct {
 	// banner text that must be retrieved, displayed and acknowledged by
 	// the user.
 	HasMessageOfTheDay bool `json:"has_motd"`
-}
-
-// LocalSettings holds settings for local authentication.
-type LocalSettings struct {
-	// Name is the name of the local connector.
-	Name string `json:"name"`
 }
 
 // Webauthn holds MFA settings for Web Authentication.

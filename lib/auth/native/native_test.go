@@ -18,23 +18,22 @@ package native
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/test"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/require"
 
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
+	"gopkg.in/check.v1"
 )
 
 func TestMain(m *testing.M) {
@@ -42,57 +41,53 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-type nativeContext struct {
+func TestNative(t *testing.T) { check.TestingT(t) }
+
+type NativeSuite struct {
 	suite *test.AuthSuite
 }
 
-func setupNativeContext(ctx context.Context, t *testing.T) *nativeContext {
-	var tt nativeContext
+var _ = check.Suite(&NativeSuite{})
 
-	clock := clockwork.NewFakeClockAt(time.Date(2016, 9, 8, 7, 6, 5, 0, time.UTC))
+func (s *NativeSuite) SetUpSuite(c *check.C) {
+	fakeClock := clockwork.NewFakeClockAt(time.Date(2016, 9, 8, 7, 6, 5, 0, time.UTC))
 
-	tt.suite = &test.AuthSuite{
-		A:      New(context.Background(), SetClock(clock)),
-		Keygen: GenerateKeyPair,
-		Clock:  clock,
-	}
+	a := New(
+		context.TODO(),
+		PrecomputeKeys(1),
+		SetClock(fakeClock),
+	)
 
-	return &tt
-}
-
-// TestPrecomputeMode verifies that package enters precompute mode when
-// PrecomputeKeys is called.
-func TestPrecomputeMode(t *testing.T) {
-	t.Parallel()
-
-	PrecomputeKeys()
-
-	select {
-	case <-precomputedKeys:
-	case <-time.After(time.Second * 10):
-		t.Fatal("Key precompute routine failed to start.")
+	s.suite = &test.AuthSuite{
+		A:     a,
+		Clock: fakeClock,
 	}
 }
 
-func TestGenerateKeypairEmptyPass(t *testing.T) {
-	t.Parallel()
-
-	tt := setupNativeContext(context.Background(), t)
-	tt.suite.GenerateKeypairEmptyPass(t)
+func (s *NativeSuite) TestGenerateKeypairEmptyPass(c *check.C) {
+	s.suite.GenerateKeypairEmptyPass(c)
 }
 
-func TestGenerateHostCert(t *testing.T) {
-	t.Parallel()
-
-	tt := setupNativeContext(context.Background(), t)
-	tt.suite.GenerateHostCert(t)
+func (s *NativeSuite) TestGenerateKeypairPass(c *check.C) {
+	s.suite.GenerateKeypairPass(c)
 }
 
-func TestGenerateUserCert(t *testing.T) {
-	t.Parallel()
+func (s *NativeSuite) TestGenerateHostCert(c *check.C) {
+	s.suite.GenerateHostCert(c)
+}
 
-	tt := setupNativeContext(context.Background(), t)
-	tt.suite.GenerateUserCert(t)
+func (s *NativeSuite) TestGenerateUserCert(c *check.C) {
+	s.suite.GenerateUserCert(c)
+}
+
+// TestDisablePrecompute makes sure that keygen works
+// when no keys are precomputed
+func (s *NativeSuite) TestDisablePrecompute(c *check.C) {
+	a := New(context.TODO(), PrecomputeKeys(0))
+
+	caPrivateKey, _, err := a.GenerateKeyPair("")
+	c.Assert(err, check.IsNil)
+	c.Assert(caPrivateKey, check.NotNil)
 }
 
 // TestBuildPrincipals makes sure that the list of principals for a host
@@ -104,19 +99,15 @@ func TestGenerateUserCert(t *testing.T) {
 //   * If both host ID and node name are given, then both should be included
 //     on the certificate.
 //   * If the host ID and node name are the same, only list one.
-func TestBuildPrincipals(t *testing.T) {
-	t.Parallel()
-
-	tt := setupNativeContext(context.Background(), t)
-
-	caPrivateKey, _, err := GenerateKeyPair()
-	require.NoError(t, err)
+func (s *NativeSuite) TestBuildPrincipals(c *check.C) {
+	caPrivateKey, _, err := s.suite.A.GenerateKeyPair("")
+	c.Assert(err, check.IsNil)
 
 	caSigner, err := ssh.ParsePrivateKey(caPrivateKey)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
-	_, hostPublicKey, err := GenerateKeyPair()
-	require.NoError(t, err)
+	_, hostPublicKey, err := s.suite.A.GenerateKeyPair("")
+	c.Assert(err, check.IsNil)
 
 	tests := []struct {
 		desc               string
@@ -181,39 +172,36 @@ func TestBuildPrincipals(t *testing.T) {
 	}
 
 	// run tests
-	for _, tc := range tests {
-		t.Logf("Running test case: %q", tc.desc)
-		hostCertificateBytes, err := tt.suite.A.GenerateHostCert(
+	for _, tt := range tests {
+		c.Logf("Running test case: %q", tt.desc)
+		hostCertificateBytes, err := s.suite.A.GenerateHostCert(
 			services.HostCertParams{
 				CASigner:      caSigner,
+				CASigningAlg:  defaults.CASignatureAlgorithm,
 				PublicHostKey: hostPublicKey,
-				HostID:        tc.inHostID,
-				NodeName:      tc.inNodeName,
-				ClusterName:   tc.inClusterName,
-				Role:          tc.inRole,
+				HostID:        tt.inHostID,
+				NodeName:      tt.inNodeName,
+				ClusterName:   tt.inClusterName,
+				Role:          tt.inRole,
 				TTL:           time.Hour,
 			})
-		require.NoError(t, err)
+		c.Assert(err, check.IsNil)
 
 		hostCertificate, err := sshutils.ParseCertificate(hostCertificateBytes)
-		require.NoError(t, err)
+		c.Assert(err, check.IsNil)
 
-		require.Empty(t, cmp.Diff(hostCertificate.ValidPrincipals, tc.outValidPrincipals))
+		c.Assert(hostCertificate.ValidPrincipals, check.DeepEquals, tt.outValidPrincipals)
 	}
 }
 
 // TestUserCertCompatibility makes sure the compatibility flag can be used to
 // add to remove roles from certificate extensions.
-func TestUserCertCompatibility(t *testing.T) {
-	t.Parallel()
-
-	tt := setupNativeContext(context.Background(), t)
-
-	priv, pub, err := GenerateKeyPair()
-	require.NoError(t, err)
+func (s *NativeSuite) TestUserCertCompatibility(c *check.C) {
+	priv, pub, err := s.suite.A.GenerateKeyPair("")
+	c.Assert(err, check.IsNil)
 
 	caSigner, err := ssh.ParsePrivateKey(priv)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	tests := []struct {
 		inCompatibility string
@@ -232,11 +220,12 @@ func TestUserCertCompatibility(t *testing.T) {
 	}
 
 	// run tests
-	for i, tc := range tests {
-		comment := fmt.Sprintf("Test %v", i)
+	for i, tt := range tests {
+		comment := check.Commentf("Test %v", i)
 
-		userCertificateBytes, err := tt.suite.A.GenerateUserCert(services.UserCertParams{
+		userCertificateBytes, err := s.suite.A.GenerateUserCert(services.UserCertParams{
 			CASigner:      caSigner,
+			CASigningAlg:  defaults.CASignatureAlgorithm,
 			PublicUserKey: pub,
 			Username:      "user",
 			AllowedLogins: []string{"centos", "root"},
@@ -249,21 +238,21 @@ func TestUserCertCompatibility(t *testing.T) {
 				Value: "hello",
 			},
 			},
-			CertificateFormat:     tc.inCompatibility,
+			CertificateFormat:     tt.inCompatibility,
 			PermitAgentForwarding: true,
 			PermitPortForwarding:  true,
 		})
-		require.NoError(t, err, comment)
+		c.Assert(err, check.IsNil, comment)
 
 		userCertificate, err := sshutils.ParseCertificate(userCertificateBytes)
-		require.NoError(t, err, comment)
-
-		// Check if we added the roles extension.
+		c.Assert(err, check.IsNil, comment)
+		// Check that the signature algorithm is correct.
+		c.Assert(userCertificate.Signature.Format, check.Equals, defaults.CASignatureAlgorithm)
+		// check if we added the roles extension
 		_, ok := userCertificate.Extensions[teleport.CertExtensionTeleportRoles]
-		require.Equal(t, ok, tc.outHasRoles, comment)
-
-		// Check if users custom extension was added.
+		c.Assert(ok, check.Equals, tt.outHasRoles, comment)
+		// check if users custom extension was added
 		extVal := userCertificate.Extensions["login@github.com"]
-		require.Equal(t, extVal, "hello")
+		c.Assert(extVal, check.Equals, "hello")
 	}
 }

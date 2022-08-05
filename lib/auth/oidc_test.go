@@ -23,12 +23,18 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/coreos/go-oidc/jose"
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	authority "github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/services"
+
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/gravitational/trace"
@@ -37,16 +43,6 @@ import (
 	directory "google.golang.org/api/admin/directory/v1"
 	"google.golang.org/api/cloudidentity/v1"
 	"google.golang.org/api/option"
-
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/types"
-	authority "github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 type OIDCSuite struct {
@@ -57,14 +53,13 @@ type OIDCSuite struct {
 
 func setUpSuite(t *testing.T) *OIDCSuite {
 	s := OIDCSuite{}
-
-	ctx := context.Background()
 	s.c = clockwork.NewFakeClockAt(time.Now())
 
 	var err error
-	s.b, err = memory.New(memory.Config{
-		Context: ctx,
-		Clock:   s.c,
+	s.b, err = lite.NewWithConfig(context.Background(), lite.Config{
+		Path:             t.TempDir(),
+		PollStreamPeriod: 200 * time.Millisecond,
+		Clock:            s.c,
 	})
 	require.NoError(t, err)
 
@@ -101,31 +96,15 @@ func createInsecureOIDCClient(t *testing.T, connector types.OIDCConnector) *oidc
 }
 
 func TestCreateOIDCUser(t *testing.T) {
-	t.Parallel()
-
 	s := setUpSuite(t)
-
-	// Dry-run creation of OIDC user.
-	user, err := s.a.createOIDCUser(&createUserParams{
-		connectorName: "oidcService",
-		username:      "foo@example.com",
-		roles:         []string{"admin"},
-		sessionTTL:    1 * time.Minute,
-	}, true)
-	require.NoError(t, err)
-	require.Equal(t, "foo@example.com", user.GetName())
-
-	// Dry-run must not create a user.
-	_, err = s.a.GetUser("foo@example.com", false)
-	require.Error(t, err)
-
 	// Create OIDC user with 1 minute expiry.
-	_, err = s.a.createOIDCUser(&createUserParams{
+	_, err := s.a.createOIDCUser(&createUserParams{
 		connectorName: "oidcService",
 		username:      "foo@example.com",
+		logins:        []string{"foo"},
 		roles:         []string{"admin"},
 		sessionTTL:    1 * time.Minute,
-	}, false)
+	})
 	require.NoError(t, err)
 
 	// Within that 1 minute period the user should still exist.
@@ -143,8 +122,6 @@ func TestCreateOIDCUser(t *testing.T) {
 // all claim information is already within the token and additional claim
 // information does not need to be fetched.
 func TestUserInfoBlockHTTP(t *testing.T) {
-	t.Parallel()
-
 	ctx := context.Background()
 	s := setUpSuite(t)
 	// Create configurable IdP to use in tests.
@@ -171,8 +148,6 @@ func TestUserInfoBlockHTTP(t *testing.T) {
 // TestUserInfoBadStatus asserts that a 4xx response from userinfo results
 // in AccessDenied.
 func TestUserInfoBadStatus(t *testing.T) {
-	t.Parallel()
-
 	// Create configurable IdP to use in tests.
 	idp := newFakeIDP(t, true /* tls */)
 
@@ -192,183 +167,9 @@ func TestUserInfoBadStatus(t *testing.T) {
 	fixtures.AssertAccessDenied(t, err)
 }
 
-func TestSSODiagnostic(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name            string
-		claimsToRoles   []types.ClaimMapping
-		wantValidateErr error
-	}{
-		{
-			name: "success",
-			claimsToRoles: []types.ClaimMapping{
-				{
-					Claim: "groups",
-					Value: "idp-admin",
-					Roles: []string{"access"},
-				},
-			},
-		},
-		{
-			name: "fail to map claims to roles",
-			claimsToRoles: []types.ClaimMapping{
-				{
-					Claim: "groups",
-					Value: "nonexistant",
-					Roles: []string{"access"},
-				},
-			},
-			wantValidateErr: ErrOIDCNoRoles,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
-			s := setUpSuite(t)
-			// Create configurable IdP to use in tests.
-			idp := newFakeIDP(t, false /* tls */)
-
-			// create role referenced in request.
-			role, err := types.NewRole("access", types.RoleSpecV5{
-				Allow: types.RoleConditions{
-					Logins: []string{"dummy"},
-				},
-			})
-			require.NoError(t, err)
-			err = s.a.CreateRole(ctx, role)
-			require.NoError(t, err)
-
-			// connector spec
-			spec := types.OIDCConnectorSpecV3{
-				IssuerURL:     idp.s.URL,
-				ClientID:      "00000000000000000000000000000000",
-				ClientSecret:  "0000000000000000000000000000000000000000000000000000000000000000",
-				Display:       "Test",
-				Scope:         []string{"groups"},
-				ClaimsToRoles: tc.claimsToRoles,
-				RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
-			}
-
-			oidcRequest := types.OIDCAuthRequest{
-				ConnectorID:   "-sso-test-okta",
-				Type:          constants.OIDC,
-				CertTTL:       defaults.OIDCAuthRequestTTL,
-				SSOTestFlow:   true,
-				ConnectorSpec: &spec,
-			}
-
-			request, err := s.a.CreateOIDCAuthRequest(ctx, oidcRequest)
-			require.NoError(t, err)
-			require.NotNil(t, request)
-
-			values := url.Values{
-				"code":  []string{"XXX-code"},
-				"state": []string{request.StateToken},
-			}
-
-			// override getClaimsFun.
-			s.a.getClaimsFun = func(closeCtx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error) {
-				cc := map[string]interface{}{
-					"email_verified": true,
-					"groups":         []string{"everyone", "idp-admin", "idp-dev"},
-					"email":          "superuser@example.com",
-					"sub":            "00001234abcd",
-					"exp":            1652091713.0,
-				}
-				return cc, nil
-			}
-
-			resp, err := s.a.ValidateOIDCAuthCallback(ctx, values)
-			if tc.wantValidateErr != nil {
-				require.ErrorIs(t, err, tc.wantValidateErr)
-				return
-			}
-
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-			require.Equal(t, &OIDCAuthResponse{
-				Username: "superuser@example.com",
-				Identity: types.ExternalIdentity{
-					ConnectorID: "-sso-test-okta",
-					Username:    "superuser@example.com",
-				},
-				Req: *request,
-			}, resp)
-
-			diagCtx := ssoDiagContext{}
-
-			resp, err = s.a.validateOIDCAuthCallback(ctx, &diagCtx, values)
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-			require.Equal(t, &OIDCAuthResponse{
-				Username: "superuser@example.com",
-				Identity: types.ExternalIdentity{
-					ConnectorID: "-sso-test-okta",
-					Username:    "superuser@example.com",
-				},
-				Req: *request,
-			}, resp)
-			require.Equal(t, types.SSODiagnosticInfo{
-				TestFlow: true,
-				Success:  true,
-				CreateUserParams: &types.CreateUserParams{
-					ConnectorName: "-sso-test-okta",
-					Username:      "superuser@example.com",
-					Logins:        nil,
-					KubeGroups:    nil,
-					KubeUsers:     nil,
-					Roles:         []string{"access"},
-					Traits: map[string][]string{
-						"email":  {"superuser@example.com"},
-						"groups": {"everyone", "idp-admin", "idp-dev"},
-						"sub":    {"00001234abcd"},
-					},
-					SessionTTL: 600000000000,
-				},
-				OIDCClaimsToRoles: []types.ClaimMapping{
-					{
-						Claim: "groups",
-						Value: "idp-admin",
-						Roles: []string{"access"},
-					},
-				},
-				OIDCClaimsToRolesWarnings: nil,
-				OIDCClaims: map[string]interface{}{
-					"email_verified": true,
-					"groups":         []string{"everyone", "idp-admin", "idp-dev"},
-					"email":          "superuser@example.com",
-					"sub":            "00001234abcd",
-					"exp":            1652091713.0,
-				},
-				OIDCIdentity: &types.OIDCIdentity{
-					ID:        "00001234abcd",
-					Name:      "",
-					Email:     "superuser@example.com",
-					ExpiresAt: diagCtx.info.OIDCIdentity.ExpiresAt,
-				},
-				OIDCTraitsFromClaims: map[string][]string{
-					"email":  {"superuser@example.com"},
-					"groups": {"everyone", "idp-admin", "idp-dev"},
-					"sub":    {"00001234abcd"},
-				},
-				OIDCConnectorTraitMapping: []types.TraitMapping{
-					{
-						Trait: "groups",
-						Value: "idp-admin",
-						Roles: []string{"access"},
-					},
-				},
-			}, diagCtx.info)
-		})
-	}
-}
-
 // TestPingProvider confirms that the client_secret_post auth
 // method was set for a oauthclient.
 func TestPingProvider(t *testing.T) {
-	t.Parallel()
-
 	ctx := context.Background()
 	s := setUpSuite(t)
 	// Create configurable IdP to use in tests.
@@ -384,41 +185,21 @@ func TestPingProvider(t *testing.T) {
 		RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
 	})
 	require.NoError(t, err)
-	err = s.a.UpsertOIDCConnector(ctx, connector)
+	err = s.a.Identity.UpsertOIDCConnector(ctx, connector)
 	require.NoError(t, err)
 
-	for _, req := range []types.OIDCAuthRequest{
-		{
-			ConnectorID: "test-connector",
-		}, {
-			SSOTestFlow: true,
-			ConnectorID: "test-connector",
-			ConnectorSpec: &types.OIDCConnectorSpecV3{
-				IssuerURL:     idp.s.URL,
-				ClientID:      "00000000000000000000000000000000",
-				ClientSecret:  "0000000000000000000000000000000000000000000000000000000000000000",
-				Provider:      teleport.Ping,
-				ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
-				RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
-			},
-		},
-	} {
-		t.Run(fmt.Sprintf("Test SSOFlow: %v", req.SSOTestFlow), func(t *testing.T) {
-			oidcConnector, oidcClient, err := s.a.getOIDCConnectorAndClient(ctx, req)
-			require.NoError(t, err)
+	req := services.OIDCAuthRequest{ConnectorID: "test-connector"}
+	oidcConnector, oidcClient, err := s.a.getOIDCConnectorAndClient(ctx, req)
+	require.NoError(t, err)
 
-			oac, err := getOAuthClient(oidcClient, oidcConnector)
-			require.NoError(t, err)
+	oac, err := s.a.getOAuthClient(oidcClient, oidcConnector)
+	require.NoError(t, err)
 
-			// authMethod should be client secret post now
-			require.Equal(t, oauth2.AuthMethodClientSecretPost, oac.GetAuthMethod())
-		})
-	}
+	// authMethod should be client secret post now
+	require.Equal(t, oauth2.AuthMethodClientSecretPost, oac.GetAuthMethod())
 }
 
 func TestOIDCClientProviderSync(t *testing.T) {
-	t.Parallel()
-
 	ctx := context.Background()
 	// Create configurable IdP to use in tests.
 	idp := newFakeIDP(t, false /* tls */)
@@ -477,8 +258,6 @@ func TestOIDCClientProviderSync(t *testing.T) {
 }
 
 func TestOIDCClientCache(t *testing.T) {
-	t.Parallel()
-
 	ctx := context.Background()
 	s := setUpSuite(t)
 	// Create configurable IdP to use in tests.
@@ -610,8 +389,6 @@ func (s *fakeIDP) configurationHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func TestOIDCGoogle(t *testing.T) {
-	t.Parallel()
-
 	directGroups := map[string][]string{
 		"alice@foo.example":  {"group1@foo.example", "group2@sub.foo.example", "group3@bar.example"},
 		"bob@foo.example":    {"group1@foo.example"},
@@ -700,20 +477,17 @@ func TestOIDCGoogle(t *testing.T) {
 		email, domain                string
 		transitive, direct, filtered []string
 	}{
-		{
-			"alice@foo.example", "foo.example",
+		{"alice@foo.example", "foo.example",
 			[]string{"group1@foo.example", "group2@sub.foo.example", "group3@bar.example", "group4@bar.example"},
 			[]string{"group1@foo.example", "group2@sub.foo.example", "group3@bar.example"},
 			[]string{"group1@foo.example"},
 		},
-		{
-			"bob@foo.example", "foo.example",
+		{"bob@foo.example", "foo.example",
 			[]string{"group1@foo.example"},
 			[]string{"group1@foo.example"},
 			[]string{"group1@foo.example"},
 		},
-		{
-			"carlos@bar.example", "bar.example",
+		{"carlos@bar.example", "bar.example",
 			[]string{"group1@foo.example", "group2@sub.foo.example", "group3@bar.example", "group4@bar.example"},
 			[]string{"group1@foo.example", "group2@sub.foo.example", "group3@bar.example"},
 			[]string{"group3@bar.example"},

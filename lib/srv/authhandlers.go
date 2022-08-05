@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -136,21 +135,11 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 	}
 	identity.CertAuthority = certAuthority
 
-	identity.UnmappedRoles, err = services.ExtractRolesFromCert(certificate)
+	roleSet, origRoles, err := h.fetchRoleSet(certificate, certAuthority, identity.TeleportUser, clusterName.GetClusterName())
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)
 	}
-
-	accessInfo, err := h.fetchAccessInfo(certificate, certAuthority, identity.TeleportUser, clusterName.GetClusterName())
-	if err != nil {
-		return IdentityContext{}, trace.Wrap(err)
-	}
-	identity.AllowedResourceIDs = accessInfo.AllowedResourceIDs
-	identity.AccessChecker, err = services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), h.c.AccessPoint)
-	if err != nil {
-		return IdentityContext{}, trace.Wrap(err)
-	}
-
+	identity.RoleSet, identity.UnmappedRoles = roleSet, origRoles
 	identity.Impersonator = certificate.Extensions[teleport.CertExtensionImpersonator]
 	accessRequestIDs, err := parseAccessRequestIDs(certificate.Extensions[teleport.CertExtensionTeleportActiveRequests])
 	if err != nil {
@@ -170,19 +159,12 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		}
 		identity.Generation = generation
 	}
-	if allowedResourcesStr, ok := certificate.Extensions[teleport.CertExtensionAllowedResources]; ok {
-		allowedResourceIDs, err := types.ResourceIDsFromString(allowedResourcesStr)
-		if err != nil {
-			return IdentityContext{}, trace.Wrap(err)
-		}
-		identity.AllowedResourceIDs = allowedResourceIDs
-	}
 	return identity, nil
 }
 
 // CheckAgentForward checks if agent forwarding is allowed for the users RoleSet.
 func (h *AuthHandlers) CheckAgentForward(ctx *ServerContext) error {
-	if err := ctx.Identity.AccessChecker.CheckAgentForward(ctx.Identity.Login); err != nil {
+	if err := ctx.Identity.RoleSet.CheckAgentForward(ctx.Identity.Login); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -191,7 +173,7 @@ func (h *AuthHandlers) CheckAgentForward(ctx *ServerContext) error {
 
 // CheckX11Forward checks if X11 forwarding is permitted for the user's RoleSet.
 func (h *AuthHandlers) CheckX11Forward(ctx *ServerContext) error {
-	if !ctx.Identity.AccessChecker.PermitX11Forwarding() {
+	if !ctx.Identity.RoleSet.PermitX11Forwarding() {
 		return trace.AccessDenied("x11 forwarding not permitted")
 	}
 	return nil
@@ -199,8 +181,8 @@ func (h *AuthHandlers) CheckX11Forward(ctx *ServerContext) error {
 
 // CheckPortForward checks if port forwarding is allowed for the users RoleSet.
 func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext) error {
-	if ok := ctx.Identity.AccessChecker.CanPortForward(); !ok {
-		systemErrorMessage := fmt.Sprintf("port forwarding not allowed by role set: %v", ctx.Identity.AccessChecker.RoleNames())
+	if ok := ctx.Identity.RoleSet.CanPortForward(); !ok {
+		systemErrorMessage := fmt.Sprintf("port forwarding not allowed by role set: %v", ctx.Identity.RoleSet)
 		userErrorMessage := "port forwarding not allowed"
 
 		// Emit port forward failure event
@@ -446,18 +428,9 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 	}
 
 	// get roles assigned to this user
-	accessInfo, err := h.fetchAccessInfo(cert, ca, teleportUser, clusterName)
+	roles, _, err := h.fetchRoleSet(cert, ca, teleportUser, clusterName)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName, h.c.AccessPoint)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// we don't need to check the RBAC for the node if they are only allowed to join sessions
-	if osUser == teleport.SSHSessionJoinPrincipal && auth.HasV5Role(accessChecker.Roles()) {
-		return nil
 	}
 
 	ap, err := h.c.AccessPoint.GetAuthPreference(ctx)
@@ -471,7 +444,7 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 	}
 
 	// check if roles allow access to server
-	if err := accessChecker.CheckAccess(
+	if err := roles.CheckAccess(
 		h.c.Server.GetInfo(),
 		mfaParams,
 		services.NewLoginMatcher(osUser),
@@ -483,18 +456,52 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 	return nil
 }
 
-// fetchAccessInfo fetches the services.AccessChecker (after role mapping)
-// together with the original roles (prior to role mapping) assigned to a
-// Teleport user.
-func (h *AuthHandlers) fetchAccessInfo(cert *ssh.Certificate, ca types.CertAuthority, teleportUser string, clusterName string) (*services.AccessInfo, error) {
-	var accessInfo *services.AccessInfo
-	var err error
+// fetchRoleSet fetches the services.RoleSet (after role mapping) together with
+// the original roles (prior to role mapping) assigned to a Teleport user.
+func (h *AuthHandlers) fetchRoleSet(cert *ssh.Certificate, ca types.CertAuthority, teleportUser string, clusterName string) (mapped services.RoleSet, unmapped []string, err error) {
+	// For local users, go and check their individual permissions.
 	if clusterName == ca.GetClusterName() {
-		accessInfo, err = services.AccessInfoFromLocalCertificate(cert)
-	} else {
-		accessInfo, err = services.AccessInfoFromRemoteCertificate(cert, ca.CombinedMapping())
+		// Extract roles and traits either from the certificate or from
+		// services.User and create a services.RoleSet with all runtime roles.
+		roles, traits, err := services.ExtractFromCertificate(cert)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		roleSet, err := services.FetchRoles(roles, h.c.AccessPoint, traits)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		return roleSet, roles, nil
 	}
-	return accessInfo, trace.Wrap(err)
+
+	// Old-style SSH certificates don't have roles in metadata.
+	origRoles, err := services.ExtractRolesFromCert(cert)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, nil, trace.AccessDenied("failed to parse certificate roles")
+	}
+	mappedRoles, err := services.MapRoles(ca.CombinedMapping(), origRoles)
+	if err != nil {
+		return nil, nil, trace.AccessDenied("failed to map roles")
+	}
+	// Old-style SSH certificates don't have traits in metadata.
+	traits, err := services.ExtractTraitsFromCert(cert)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, nil, trace.AccessDenied("failed to parse certificate traits")
+	}
+	if traits == nil {
+		traits = make(map[string][]string)
+	}
+	// Prior to Teleport 6.2 the only trait passed to the remote cluster
+	// was the "logins" trait set to the SSH certificate principals.
+	//
+	// Keep backwards-compatible behavior and set it in addition to the
+	// traits extracted from the certificate.
+	traits[teleport.TraitLogins] = cert.ValidPrincipals
+	mappedRoleSet, err := services.FetchRoles(mappedRoles, h.c.AccessPoint, traits)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return mappedRoleSet, origRoles, nil
 }
 
 // authorityForCert checks if the certificate was signed by a Teleport

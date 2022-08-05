@@ -105,8 +105,6 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			}
 		case types.KindWebSession:
 			switch kind.SubKind {
-			case types.KindSnowflakeSession:
-				parser = newSnowflakeSessionParser()
 			case types.KindAppSession:
 				parser = newAppSessionParser()
 			case types.KindWebSession:
@@ -229,7 +227,7 @@ func (w *watcher) Events() <-chan types.Event {
 	return w.eventsC
 }
 
-// Done returns the channel signaling the closure
+// Done returns the channel signalling the closure
 func (w *watcher) Done() <-chan struct{} {
 	return w.backendWatcher.Done()
 }
@@ -863,17 +861,6 @@ func (p *appServerV2Parser) parse(event backend.Event) (types.Resource, error) {
 	return parseServer(event, types.KindAppServer)
 }
 
-func newSnowflakeSessionParser() *webSessionParser {
-	return &webSessionParser{
-		baseParser: newBaseParser(backend.Key(snowflakePrefix, sessionsPrefix)),
-		hdr: types.ResourceHeader{
-			Kind:    types.KindWebSession,
-			SubKind: types.KindSnowflakeSession,
-			Version: types.V2,
-		},
-	}
-}
-
 func newAppSessionParser() *webSessionParser {
 	return &webSessionParser{
 		baseParser: newBaseParser(backend.Key(appsPrefix, sessionsPrefix)),
@@ -1164,7 +1151,7 @@ func (p *networkRestrictionsParser) parse(event backend.Event) (types.Resource, 
 
 func newWindowsDesktopServicesParser() *windowsDesktopServicesParser {
 	return &windowsDesktopServicesParser{
-		baseParser: newBaseParser(backend.Key(windowsDesktopServicesPrefix, "")),
+		baseParser: newBaseParser(backend.Key(windowsDesktopServicesPrefix)),
 	}
 }
 
@@ -1189,7 +1176,7 @@ func (p *windowsDesktopServicesParser) parse(event backend.Event) (types.Resourc
 
 func newWindowsDesktopsParser() *windowsDesktopsParser {
 	return &windowsDesktopsParser{
-		baseParser: newBaseParser(backend.Key(windowsDesktopsPrefix, "")),
+		baseParser: newBaseParser(backend.Key(windowsDesktopsPrefix)),
 	}
 }
 

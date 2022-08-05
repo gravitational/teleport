@@ -17,7 +17,6 @@ limitations under the License.
 package service
 
 import (
-	"crypto/tls"
 	"crypto/x509"
 	"fmt"
 	"io"
@@ -31,8 +30,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/breaker"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
+	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/net/http/httpguts"
+	"k8s.io/apimachinery/pkg/util/validation"
+
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -44,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/plugin"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
@@ -59,12 +61,6 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"go.mongodb.org/mongo-driver/mongo/readpref"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
-	"go.opentelemetry.io/otel/attribute"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/net/http/httpguts"
-	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 // Rate describes a rate ratio, i.e. the number of "events" that happen over
@@ -138,6 +134,9 @@ type Config struct {
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
 
+	// KeyStore configuration. Handles CA private keys which may be held in a HSM.
+	KeyStore keystore.Config
+
 	// HostUUID is a unique UUID of this host (it will be known via this UUID within
 	// a teleport cluster). It's automatically generated on 1st start
 	HostUUID string
@@ -192,6 +191,11 @@ type Config struct {
 	// the server supports. If omitted the defaults will be used.
 	MACAlgorithms []string
 
+	// CASignatureAlgorithm is an SSH Certificate Authority (CA) signature
+	// algorithm that the server uses for signing user and host certificates.
+	// If omitted, the default will be used.
+	CASignatureAlgorithm *string
+
 	// DiagnosticAddr is an address for diagnostic and healthz endpoint service
 	DiagnosticAddr utils.NetAddr
 
@@ -224,15 +228,8 @@ type Config struct {
 	// Clock is used to control time in tests.
 	Clock clockwork.Clock
 
-	// TeleportVersion is used to control the Teleport version in tests.
-	TeleportVersion string
-
 	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
 	FIPS bool
-
-	// SkipVersionCheck means the version checking between server and client
-	// will be skipped.
-	SkipVersionCheck bool
 
 	// BPFConfig holds configuration for the BPF service.
 	BPFConfig *bpf.Config
@@ -250,6 +247,11 @@ type Config struct {
 	// attempts as used by the rotation state service
 	RotationConnectionInterval time.Duration
 
+	// RestartThreshold describes the number of connection failures per
+	// unit time that the node can sustain before restarting itself, as
+	// measured by the rotation state service.
+	RestartThreshold Rate
+
 	// MaxRetryPeriod is the maximum period between reconnection attempts to auth
 	MaxRetryPeriod time.Duration
 
@@ -259,9 +261,6 @@ type Config struct {
 	// TeleportHome is the path to tsh configuration and data, used
 	// for loading profiles when TELEPORT_HOME is set
 	TeleportHome string
-
-	// CircuitBreakerConfig configures the auth client circuit breaker.
-	CircuitBreakerConfig breaker.Config
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
@@ -393,9 +392,6 @@ type ProxyConfig struct {
 	// MongoAddr is address of Mongo proxy.
 	MongoAddr utils.NetAddr
 
-	// PeerAddr is the proxy peering address.
-	PeerAddr utils.NetAddr
-
 	Limiter limiter.Config
 
 	// PublicAddrs is a list of the public addresses the proxy advertises
@@ -509,8 +505,8 @@ type AuthConfig struct {
 	// EnableProxyProtocol enables proxy protocol support
 	EnableProxyProtocol bool
 
-	// ListenAddr is the listening address of the auth service
-	ListenAddr utils.NetAddr
+	// SSHAddr is the listening address of SSH tunnel to HTTP service
+	SSHAddr utils.NetAddr
 
 	// Authorities is a set of trusted certificate authorities
 	// that will be added by this auth server on the first start
@@ -597,13 +593,6 @@ type SSHConfig struct {
 
 	// X11 holds x11 forwarding configuration for Teleport.
 	X11 *x11.ServerConfig
-
-	// DisableCreateHostUser disables automatic user provisioning on this
-	// SSH node.
-	DisableCreateHostUser bool
-
-	// AWSMatchers are used to match EC2 instances for auto enrollment.
-	AWSMatchers []services.AWSMatcher
 }
 
 // KubeConfig specifies configuration for kubernetes service
@@ -745,12 +734,6 @@ type DatabaseAWS struct {
 	Redshift DatabaseAWSRedshift
 	// RDS contains RDS specific settings.
 	RDS DatabaseAWSRDS
-	// ElastiCache contains ElastiCache specific settings.
-	ElastiCache DatabaseAWSElastiCache
-	// MemoryDB contains MemoryDB specific settings.
-	MemoryDB DatabaseAWSMemoryDB
-	// SecretStore contains settings for managing secrets.
-	SecretStore DatabaseAWSSecretStore
 }
 
 // DatabaseAWSRedshift contains AWS Redshift specific settings.
@@ -765,26 +748,6 @@ type DatabaseAWSRDS struct {
 	InstanceID string
 	// ClusterID is the RDS cluster (Aurora) identifier.
 	ClusterID string
-}
-
-// DatabaseAWSElastiCache contains settings for ElastiCache databases.
-type DatabaseAWSElastiCache struct {
-	// ReplicationGroupID is the ElastiCache replication group ID.
-	ReplicationGroupID string
-}
-
-// DatabaseAWSMemoryDB contains settings for MemoryDB databases.
-type DatabaseAWSMemoryDB struct {
-	// ClusterName is the MemoryDB cluster name.
-	ClusterName string
-}
-
-// DatabaseAWSSecretStore contains secret store configurations.
-type DatabaseAWSSecretStore struct {
-	// KeyPrefix specifies the secret key prefix.
-	KeyPrefix string
-	// KMSKeyID specifies the AWS KMS key for encryption.
-	KMSKeyID string
 }
 
 // DatabaseGCP contains GCP specific settings for Cloud SQL databases.
@@ -865,10 +828,6 @@ func (d *Database) CheckAndSetDefaults() error {
 		_, err := redis.ParseRedisAddress(d.URI)
 		if err != nil {
 			return trace.BadParameter("invalid Redis database %q address: %q, error: %v", d.Name, d.URI, err)
-		}
-	} else if d.Protocol == defaults.ProtocolSnowflake {
-		if !strings.Contains(d.URI, defaults.SnowflakeURL) {
-			return trace.BadParameter("Snowflake address should contain " + defaults.SnowflakeURL)
 		}
 	} else if _, _, err := net.SplitHostPort(d.URI); err != nil {
 		return trace.BadParameter("invalid database %q address %q: %v",
@@ -1044,51 +1003,6 @@ type TracingConfig struct {
 	// SamplingRate is the sampling rate for the exporter.
 	// 1.0 will record and export all spans and 0.0 won't record any spans.
 	SamplingRate float64
-}
-
-// Config generates a tracing.Config that is populated from the values
-// provided to the tracing_service
-func (t TracingConfig) Config(attrs ...attribute.KeyValue) (*tracing.Config, error) {
-	traceConf := &tracing.Config{
-		Service:      teleport.ComponentTeleport,
-		Attributes:   attrs,
-		ExporterURL:  t.ExporterURL,
-		SamplingRate: t.SamplingRate,
-	}
-
-	tlsConfig := &tls.Config{}
-	// if a custom CA is specified, use a custom cert pool
-	if len(t.CACerts) > 0 {
-		pool := x509.NewCertPool()
-		for _, caCertPath := range t.CACerts {
-			caCert, err := os.ReadFile(caCertPath)
-			if err != nil {
-				return nil, trace.Wrap(err, "failed to read tracing CA certificate %+v", caCertPath)
-			}
-
-			if !pool.AppendCertsFromPEM(caCert) {
-				return nil, trace.BadParameter("failed to parse tracing CA certificate: %+v", caCertPath)
-			}
-		}
-		tlsConfig.ClientCAs = pool
-		tlsConfig.RootCAs = pool
-	}
-
-	// add any custom certificates for mTLS
-	if len(t.KeyPairs) > 0 {
-		for _, pair := range t.KeyPairs {
-			certificate, err := tls.LoadX509KeyPair(pair.Certificate, pair.PrivateKey)
-			if err != nil {
-				return nil, trace.Wrap(err, "failed to read keypair: %+v", err)
-			}
-			tlsConfig.Certificates = append(tlsConfig.Certificates, certificate)
-		}
-	}
-
-	if len(t.CACerts) > 0 || len(t.KeyPairs) > 0 {
-		traceConf.TLSConfig = tlsConfig
-	}
-	return traceConf, nil
 }
 
 // WindowsDesktopConfig specifies the configuration for the Windows Desktop
@@ -1271,7 +1185,7 @@ func ApplyDefaults(cfg *Config) {
 
 	// Auth service defaults.
 	cfg.Auth.Enabled = true
-	cfg.Auth.ListenAddr = *defaults.AuthListenAddr()
+	cfg.Auth.SSHAddr = *defaults.AuthListenAddr()
 	cfg.Auth.StorageConfig.Type = lite.GetName()
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens = types.DefaultStaticTokens()
@@ -1317,9 +1231,12 @@ func ApplyDefaults(cfg *Config) {
 	defaults.ConfigureLimiter(&cfg.WindowsDesktop.ConnLimiter)
 
 	cfg.RotationConnectionInterval = defaults.HighResPollingPeriod
+	cfg.RestartThreshold = Rate{
+		Amount: defaults.MaxConnectionErrorsBeforeRestart,
+		Time:   defaults.ConnectionErrorMeasurementPeriod,
+	}
 	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
 	cfg.ConnectFailureC = make(chan time.Duration, 1)
-	cfg.CircuitBreakerConfig = breaker.DefaultBreakerConfig(cfg.Clock)
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2

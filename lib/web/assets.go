@@ -26,6 +26,8 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+
+	"github.com/kardianos/osext"
 )
 
 // NewDebugFileSystem returns the HTTP file system implementation rooted
@@ -33,7 +35,7 @@ import (
 func NewDebugFileSystem(assetsPath string) (http.FileSystem, error) {
 	assetsToCheck := []string{"index.html", "/app"}
 	if assetsPath == "" {
-		exePath, err := executableFolder()
+		exePath, err := osext.ExecutableFolder()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -58,14 +60,6 @@ func NewDebugFileSystem(assetsPath string) (http.FileSystem, error) {
 	}
 	log.Infof("Using filesystem for serving web assets: %s.", assetsPath)
 	return http.Dir(assetsPath), nil
-}
-
-func executableFolder() (string, error) {
-	p, err := os.Executable()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return filepath.Dir(filepath.Clean(p)), nil
 }
 
 const (

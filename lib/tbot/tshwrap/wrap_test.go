@@ -101,9 +101,8 @@ func TestGetEnvForTSH(t *testing.T) {
 		client.VirtualPathEnvName(client.VirtualPathDatabase, nil): filepath.Join(p, identity.TLSCertKey),
 		client.VirtualPathEnvName(client.VirtualPathApp, nil):      filepath.Join(p, identity.TLSCertKey),
 
-		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.UserCA)):     filepath.Join(p, tlsCAs.UserCAPath),
-		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.HostCA)):     filepath.Join(p, tlsCAs.HostCAPath),
-		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.DatabaseCA)): filepath.Join(p, tlsCAs.DatabaseCAPath),
+		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.UserCA)): filepath.Join(p, tlsCAs.UserCAPath),
+		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.HostCA)): filepath.Join(p, tlsCAs.HostCAPath),
 	}
 
 	env, err := GetEnvForTSH(&destination)

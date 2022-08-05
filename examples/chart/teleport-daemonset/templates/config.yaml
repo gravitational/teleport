@@ -1,0 +1,138 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "teleport.fullname" . }}
+  labels:
+{{ include "teleport.labels" . | indent 4 }}
+data:
+  teleport.yaml: |
+{{ toYaml .Values.config | indent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "teleport.fullname" . }}-daemonset-config
+  labels:
+{{ include "teleport.labels" . | indent 4 }}
+data:
+  teleport.yaml: |
+{{ toYaml .Values.daemonset.config | indent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "teleport.fullname" . }}-bootstrap-scripts
+  labels:
+{{ include "teleport.labels" . | indent 4 }}
+data:
+  bootstrap.sh: |
+    #!/bin/bash
+    set -euo pipefail
+    SLEEP_TIME=5
+    OUTPUT_FILE="/tmp/teleport-trustedcluster.yaml"
+    cat << EOF > ${OUTPUT_FILE}
+    ---
+    kind: trusted_cluster
+    metadata:
+      name: root-cluster
+    spec:
+      enabled: true
+      role_map:
+      - local: ['admin']
+        remote: ${ROOT_CLUSTER_ADMIN_ROLE}
+      token: ${ROOT_CLUSTER_JOIN_TOKEN}
+      tunnel_addr: ${ROOT_CLUSTER_TUNNEL_ADDRESS}
+      web_proxy_addr: ${ROOT_CLUSTER_WEB_ADDRESS}
+    version: v2
+    EOF
+    echo "[sidecar] Trusted cluster definition:"
+    cat ${OUTPUT_FILE}
+    echo "[sidecar] Adding trusted cluster definition to Teleport"
+    until tctl create -f ${OUTPUT_FILE}; do
+      echo "[sidecar] Adding trusted cluster failed. Waiting ${SLEEP_TIME} seconds and trying again."
+      sleep ${SLEEP_TIME}
+    done
+    echo "[sidecar] Trusted cluster added. Tailing a never-ending file to keep the sidecar pod running..."
+    tail -F /dev/null
+  get-kubelet-labels.sh:
+    #!/bin/bash
+    ps -ef | grep bin/kubelet | tr ' ' '\n' | grep node-labels | cut -d= -f2- | tr ',' '|'
+  install-teleport-systemd.sh: |
+    #!/bin/bash
+    set -euo pipefail
+    echo "[install-teleport-systemd] Installing systemd binaries inside container"
+    apt-get -y update && apt-get -y install systemd
+
+    HOST_SYSTEMD_UNIT_PATH=/etc/systemd/system/teleport.service
+    echo "[install-teleport-systemd] Writing ${HOST_SYSTEMD_UNIT_PATH} to host filesystem"
+    cat << EOF > ${HOST_SYSTEMD_UNIT_PATH}
+    [Unit]
+    Description=Teleport SSH Service
+    After=network.target
+
+    [Service]
+    Type=simple
+    Restart=on-failure
+    ExecStart=/usr/local/bin/teleport start -c /etc/teleport/teleport.yaml --pid-file=/run/teleport.pid
+    ExecReload=/bin/kill -HUP \$MAINPID
+    PIDFile=/run/teleport.pid
+
+    [Install]
+    WantedBy=multi-user.target
+    EOF
+
+    echo "[install-teleport-systemd] ${HOST_SYSTEMD_UNIT_PATH}:"
+    cat ${HOST_SYSTEMD_UNIT_PATH}
+
+    echo "[install-teleport-systemd] systemctl daemon-reload"
+    systemctl daemon-reload
+
+    CONTAINER_TELEPORT_BINARY_PATH=/usr/local/bin/teleport
+    HOST_TELEPORT_BINARY_PATH=/host/usr/local/bin/teleport
+    if [ -f /host/usr/local/bin/teleport ]; then
+      echo "[install-teleport-systemd] systemctl stop teleport.service"
+      systemctl stop teleport.service
+      echo "[install-teleport-systemd] rm -f ${HOST_TELEPORT_BINARY_PATH}"
+      rm -f ${HOST_TELEPORT_BINARY_PATH}
+    fi
+    echo "[install-teleport-systemd] cp ${CONTAINER_TELEPORT_BINARY_PATH} ${HOST_TELEPORT_BINARY_PATH}"
+    cp ${CONTAINER_TELEPORT_BINARY_PATH} ${HOST_TELEPORT_BINARY_PATH}
+    echo "[install-teleport-systemd] ${HOST_TELEPORT_BINARY_PATH}:"
+    ls -l ${HOST_TELEPORT_BINARY_PATH}
+    echo "[install-teleport-systemd] ${HOST_TELEPORT_BINARY_PATH} version:"
+    ${HOST_TELEPORT_BINARY_PATH} version
+
+    CONTAINER_TELEPORT_CONFIG_PATH=/etc/teleport/teleport.yaml
+    HOST_TELEPORT_CONFIG_PATH=/host/etc/teleport/teleport.yaml
+    echo "[install-teleport-systemd] Writing Teleport config (${HOST_TELEPORT_CONFIG_PATH}) to host filesystem"
+    cp ${CONTAINER_TELEPORT_CONFIG_PATH} ${HOST_TELEPORT_CONFIG_PATH}
+    echo "[install-teleport-systemd] Teleport config:"
+    cat ${HOST_TELEPORT_CONFIG_PATH}
+
+    HOST_TELEPORT_STORAGE_PATH=/host/var/lib/teleport
+    echo "[install-teleport-systemd] ${HOST_TELEPORT_STORAGE_PATH}:"
+    ls -l ${HOST_TELEPORT_STORAGE_PATH}
+    if [ -d ${HOST_TELEPORT_STORAGE_PATH}/cache ]; then
+      echo "[install-teleport-systemd] Found cached credentials on the node, removing"
+      echo "[install-teleport-systemd] rm -rf ${HOST_TELEPORT_STORAGE_PATH}/*"
+      rm -rf ${HOST_TELEPORT_STORAGE_PATH}/*
+      echo "[install-teleport-systemd] mkdir -p ${HOST_TELEPORT_STORAGE_PATH}"
+      mkdir -p ${HOST_TELEPORT_STORAGE_PATH}
+    fi
+
+    CONTAINER_LABELS_SCRIPT_PATH=/usr/local/bin/teleport-scripts/get-kubelet-labels.sh
+    HOST_LABELS_SCRIPT_PATH=/host/usr/local/bin/get-kubelet-labels.sh
+    echo "[install-teleport-systemd] cp ${CONTAINER_LABELS_SCRIPT_PATH} ${HOST_LABELS_SCRIPT_PATH}"
+    cp ${CONTAINER_LABELS_SCRIPT_PATH} ${HOST_LABELS_SCRIPT_PATH}
+
+    echo "[install-teleport-systemd] systemctl enable teleport.service"
+    systemctl enable teleport.service
+
+    echo "[install-teleport-systemd] systemctl start teleport.service"
+    systemctl start teleport.service
+
+    echo "[install-teleport-systemd] systemctl status teleport.service:"
+    systemctl status teleport.service
+
+    echo "[install-teleport-systemd] Teleport started. Tailing log..."
+    tail -F /var/log/teleport.log

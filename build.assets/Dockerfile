@@ -6,72 +6,7 @@
 # runtime requirement for the host to have newer glibc too. For example,
 # teleport built on any newer Ubuntu version will not run on Centos 7 because
 # of this.
-
-ARG RUST_VERSION
-
-## LIBFIDO2 ###################################################################
-
-# Build libfido2 separately for isolation, speed and flexibility.
-FROM buildpack-deps:18.04 AS libfido2
-
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends cmake && \
-    rm -rf /var/lib/apt/lists/*
-
-# Install libudev-zero.
-# libudev-zero replaces systemd's libudev
-RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 && \
-    cd libudev-zero && \
-    [ "$(git rev-parse HEAD)" = "4154cf252c17297f98a8ca33693ead003b4509da" ] && \
-    make install-static && \
-    make clean
-
-# Install libcbor.
-RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
-    cd libcbor && \
-    [ "$(git rev-parse HEAD)" = "58b3319b8c3ec15171cb00f01a3a1e9d400899e1" ] && \
-    cmake \
-        -DCBOR_CUSTOM_ALLOC=ON \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-        -DWITH_EXAMPLES=OFF . && \
-    make && \
-    make install && \
-    make clean
-
-# Install libfido2.
-# Depends on libcbor, libssl-dev, zlib1g-dev and libudev.
-RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.11.0 && \
-    cd libfido2 && \
-    [ "$(git rev-parse HEAD)" = "e61379ff0a27277fbe0aca29ccc34ff93c57b359" ] && \    
-    CFLAGS=-pthread cmake \
-        -DBUILD_EXAMPLES=OFF \
-        -DBUILD_MANPAGES=OFF \
-        -DBUILD_TOOLS=OFF \
-        -DCMAKE_BUILD_TYPE=Release . && \
-    make && \
-    make install && \
-    make clean
-
-## LIBBPF #####################################################################
-
-FROM buildpack-deps:18.04 AS libbpf
-
-# Install libbpf
-RUN apt-get update -y --fix-missing && \
-    apt-get -q -y upgrade && \
-    apt-get install -q -y --no-install-recommends \
-        libelf-dev
-
-ARG LIBBPF_VERSION
-RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
-    cd /opt/libbpf-${LIBBPF_VERSION}/src && \
-    make && \
-    make install
-
-## BUILDBOX ###################################################################
-
-FROM ubuntu:18.04 AS buildbox
+FROM ubuntu:18.04
 
 COPY locale.gen /etc/locale.gen
 COPY profile /etc/profile
@@ -93,12 +28,12 @@ RUN apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
     apt-get install -q -y --no-install-recommends \
         apt-utils \
-        build-essential \
-        ca-certificates \
         clang-10 \
         clang-format-10 \
+        ca-certificates \
         curl \
         default-jre \
+        gcc \
         `if [ "$BUILDARCH" = "amd64" ] ; then echo gcc-multilib; fi`  \
         git \
         gnupg \
@@ -107,10 +42,9 @@ RUN apt-get update -y --fix-missing && \
         libelf-dev \
         libpam-dev \
         libsqlite3-0 \
-        libssl-dev \
-        libudev-dev \
         llvm-10 \
         locales \
+        make \
         mingw-w64 \
         mingw-w64-x86-64-dev \
         net-tools \
@@ -122,7 +56,7 @@ RUN apt-get update -y --fix-missing && \
         pkg-config \
         shellcheck \
         softhsm2 \
-        sudo \
+        tar \
         tree \
         unzip \
         zip \
@@ -135,10 +69,10 @@ RUN apt-get update -y --fix-missing && \
     rm -rf /var/lib/apt/lists/*
 
 # Install gcloud SDK and Firestore emulator.
+RUN curl -sSL https://sdk.cloud.google.com | bash -s -- --install-dir=/opt --disable-prompts
 ENV PATH="$PATH:/opt/google-cloud-sdk/bin"
-RUN (curl -sSL https://sdk.cloud.google.com | bash -s -- --install-dir=/opt --disable-prompts) && \
-    gcloud components install cloud-firestore-emulator beta && \
-    rm -rf /opt/google-cloud-sdk/.install/.backup
+# beta component is required by firestore emulator: https://cloud.google.com/sdk/gcloud/reference/beta/emulators/firestore/start
+RUN gcloud components install cloud-firestore-emulator beta
 
 ARG UID
 ARG GID
@@ -147,8 +81,7 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
 
 # Install etcd.
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-${BUILDARCH}.tar.gz | tar -xz && \
-     cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/ && \
-     rm -rf etcd-v3.3.9-linux-${BUILDARCH})
+     cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/)
 
 # Install Go.
 ARG GOLANG_VERSION
@@ -157,6 +90,14 @@ RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$GOLA
     chmod a+w /go && \
     chmod a+w /var/lib && \
     chmod a-w /
+
+# Install libbpf
+ARG LIBBPF_VERSION
+RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
+    cd /opt/libbpf-${LIBBPF_VERSION}/src && \
+    make && \
+    make install
+
 ENV GOPATH="/go" \
     GOROOT="/opt/go" \
     PATH="$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
@@ -165,19 +106,14 @@ ENV GOPATH="/go" \
 RUN go install github.com/google/addlicense@v1.0.0
 
 # Install golangci-lint.
-RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.46.0/golangci-lint-1.46.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
-     cp golangci-lint-1.46.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ && \
+RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.44.0/golangci-lint-1.44.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
+     cp golangci-lint-1.44.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ && \
      rm -r golangci-lint*)
 
 # Install helm.
 RUN (mkdir -p helm-tarball && curl -L https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
      cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
      rm -r helm-tarball*)
-RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
-    mkdir -p /home/ci/.local/share/helm && \
-    cp -r /root/.local/share/helm/plugins /home/ci/.local/share/helm && \
-    chown -R ci /home/ci/.local/share/helm && \
-    HELM_PLUGINS=/home/ci/.local/share/helm/plugins helm plugin list
 
 # Install bats.
 RUN (curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \
@@ -193,12 +129,11 @@ RUN (export PROTOC_TARBALL=protoc-${PROTOC_VER}-linux-$(if [ "$BUILDARCH" = "amd
      curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
      cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
      chmod -R a+r /usr/local/include/google/protobuf && \
-     chmod -R a+xr /usr/local/bin/protoc && \
      rm /tmp/${PROTOC_TARBALL})
-RUN (git clone https://github.com/gogo/protobuf.git --branch ${GOGO_PROTO_TAG} --depth 1 ${GOPATH}/src/github.com/gogo/protobuf && \
+RUN (git clone https://github.com/gogo/protobuf.git ${GOPATH}/src/github.com/gogo/protobuf && \
      cd ${GOPATH}/src/github.com/gogo/protobuf && \
-     make install && \
-     make clean)
+     git reset --hard ${GOGO_PROTO_TAG} && \
+     make install)
 
 ENV PROTO_INCLUDE "/usr/local/include":"/go/src":"/go/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf"
 
@@ -230,29 +165,6 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --pr
     rustup component add rustfmt clippy && \
     if [ "$BUILDARCH" = "amd64" ]; then rustup target add i686-unknown-linux-gnu arm-unknown-linux-gnueabihf aarch64-unknown-linux-gnu; fi
 
-# Switch back to root for the remaining instructions and keep it as the default
-# user.
 USER root
-
-COPY --from=libbpf /usr/include/bpf /usr/include/bpf
-COPY --from=libbpf /usr/lib64/ /usr/lib64/
-RUN cd /usr/local/lib && ldconfig
-
-# Copy libfido2 libraries.
-# Do this last to take better advantage of the multi-stage build.
-COPY --from=libfido2 /usr/local/include/ /usr/local/include/
-COPY --from=libfido2 /usr/local/lib/pkgconfig/ /usr/local/lib/pkgconfig/
-COPY --from=libfido2 \
-    /usr/local/lib/libcbor.a \
-    /usr/local/lib/libfido2.a \
-    /usr/local/lib/libfido2.so.1.11.0 \
-    /usr/local/lib/libudev.a \
-    /usr/local/lib/
-RUN cd /usr/local/lib && \
-    ln -s libfido2.so.1.11.0 libfido2.so.1 && \
-    ln -s libfido2.so.1 libfido2.so && \
-    ldconfig
-COPY pkgconfig/buildbox/ /
-
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380

@@ -157,32 +157,13 @@ type Role interface {
 	SetSessionJoinPolicies([]*SessionJoinPolicy)
 	// GetSessionPolicySet returns the RBAC policy set for a role.
 	GetSessionPolicySet() SessionTrackerPolicySet
-
-	// GetSearchAsRoles returns the list of roles which the user should be able
-	// to "assume" while searching for resources, and should be able to request
-	// with a search-based access request.
-	GetSearchAsRoles() []string
-	// SetSearchAsRoles sets the list of roles which the user should be able
-	// to "assume" while searching for resources, and should be able to request
-	// with a search-based access request.
-	SetSearchAsRoles([]string)
-
-	// GetHostGroups gets the list of groups this role is put in when users are provisioned
-	GetHostGroups(RoleConditionType) []string
-	// SetHostGroups sets the list of groups this role is put in when users are provisioned
-	SetHostGroups(RoleConditionType, []string)
-
-	// GetHostSudoers gets the list of sudoers entries for the role
-	GetHostSudoers(RoleConditionType) []string
-	// SetHostSudoers sets the list of sudoers entries for the role
-	SetHostSudoers(RoleConditionType, []string)
 }
 
-// NewRole constructs new standard V5 role.
-// This creates a V5 role with V4+ RBAC semantics.
+// NewRole constructs new standard V3 role.
+// This is mostly a legacy function and will create a role with V3 RBAC semantics.
 func NewRole(name string, spec RoleSpecV5) (Role, error) {
 	role := RoleV5{
-		Version: V5,
+		Version: V3,
 		Metadata: Metadata{
 			Name: name,
 		},
@@ -194,11 +175,11 @@ func NewRole(name string, spec RoleSpecV5) (Role, error) {
 	return &role, nil
 }
 
-// NewRoleV3 constructs new standard V3 role.
-// This is mostly a legacy function and will create a role with V3 RBAC semantics.
-func NewRoleV3(name string, spec RoleSpecV5) (Role, error) {
+// NewRoleV5 constructs new standard V5 role.
+// This creates a V5 role with V4+ RBAC semantics. This should be preferred over `NewRole`.
+func NewRoleV5(name string, spec RoleSpecV5) (Role, error) {
 	role := RoleV5{
-		Version: V3,
+		Version: V5,
 		Metadata: Metadata{
 			Name: name,
 		},
@@ -620,49 +601,14 @@ func (r *RoleV5) SetRules(rct RoleConditionType, in []Rule) {
 	}
 }
 
-// GetGroups gets all groups for provisioned user
-func (r *RoleV5) GetHostGroups(rct RoleConditionType) []string {
-	if rct == Allow {
-		return r.Spec.Allow.HostGroups
-	}
-	return r.Spec.Deny.HostGroups
-
-}
-
-// SetHostGroups sets all groups for provisioned user
-func (r *RoleV5) SetHostGroups(rct RoleConditionType, groups []string) {
-	ncopy := utils.CopyStrings(groups)
-	if rct == Allow {
-		r.Spec.Allow.HostGroups = ncopy
-	} else {
-		r.Spec.Deny.HostGroups = ncopy
-	}
-}
-
-// GetHostSudoers gets the list of sudoers entries for the role
-func (r *RoleV5) GetHostSudoers(rct RoleConditionType) []string {
-	if rct == Allow {
-		return r.Spec.Allow.HostSudoers
-	}
-	return r.Spec.Deny.HostSudoers
-
-}
-
-// GetHostSudoers sets the list of sudoers entries for the role
-func (r *RoleV5) SetHostSudoers(rct RoleConditionType, sudoers []string) {
-	ncopy := utils.CopyStrings(sudoers)
-	if rct == Allow {
-		r.Spec.Allow.HostSudoers = ncopy
-	} else {
-		r.Spec.Deny.HostSudoers = ncopy
-	}
-}
-
 // setStaticFields sets static resource header and metadata fields.
 func (r *RoleV5) setStaticFields() {
 	r.Kind = KindRole
-	if r.Version != V3 && r.Version != V4 {
-		r.Version = V5
+	// TODO(Joerger/nklaassen) Role should default to V4
+	// but shouldn't overwrite V3. For now, this does the
+	// opposite due to an internal reliance on V3 defaults.
+	if r.Version != V4 && r.Version != V5 {
+		r.Version = V3
 	}
 }
 
@@ -692,7 +638,6 @@ func (r *RoleV5) CheckAndSetDefaults() error {
 	if r.Spec.Options.RecordSession == nil {
 		r.Spec.Options.RecordSession = &RecordSession{
 			Desktop: NewBoolOption(true),
-			Default: constants.SessionRecordingModeBestEffort,
 		}
 	}
 	if r.Spec.Options.DesktopClipboard == nil {
@@ -700,9 +645,6 @@ func (r *RoleV5) CheckAndSetDefaults() error {
 	}
 	if r.Spec.Options.DesktopDirectorySharing == nil {
 		r.Spec.Options.DesktopDirectorySharing = NewBoolOption(true)
-	}
-	if r.Spec.Options.CreateHostUser == nil {
-		r.Spec.Options.CreateHostUser = NewBoolOption(false)
 	}
 
 	switch r.Version {
@@ -1203,24 +1145,4 @@ func (r *RoleV5) GetSessionJoinPolicies() []*SessionJoinPolicy {
 // SetSessionJoinPolicies sets the RBAC join policies for a role.
 func (r *RoleV5) SetSessionJoinPolicies(policies []*SessionJoinPolicy) {
 	r.Spec.Allow.JoinSessions = policies
-}
-
-// GetSearchAsRoles returns the list of roles which the user should be able to
-// "assume" while searching for resources, and should be able to request with a
-// search-based access request.
-func (r *RoleV5) GetSearchAsRoles() []string {
-	if r.Spec.Allow.Request == nil {
-		return nil
-	}
-	return r.Spec.Allow.Request.SearchAsRoles
-}
-
-// SetSearchAsRoles sets the list of roles which the user should be able to
-// "assume" while searching for resources, and should be able to request with a
-// search-based access request.
-func (r *RoleV5) SetSearchAsRoles(roles []string) {
-	if r.Spec.Allow.Request == nil {
-		r.Spec.Allow.Request = &AccessRequestConditions{}
-	}
-	r.Spec.Allow.Request.SearchAsRoles = roles
 }

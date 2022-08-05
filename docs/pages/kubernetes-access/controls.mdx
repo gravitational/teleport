@@ -19,7 +19,7 @@ Enterprise Edition:
 
 <Tabs>
   <TabItem label="Open Source">
-    GitHub's `teams_to_roles` section maps users to roles based on users' teams.
+    GitHub's `teams_to_logins` section maps users to roles based on users' teams.
 
     ```yaml
     kind: github
@@ -37,11 +37,11 @@ Enterprise Edition:
       # Change tele.example.com to your domain name
       redirect_url: https://tele.example.com:443/v1/webapi/github/callback
       # Map github teams to teleport roles
-      teams_to_roles:
+      teams_to_logins:
         - organization: octocats # GitHub organization name
           team: admin            # GitHub team name within that organization
           # keep this field as is for now
-          roles: ["admin"]
+          logins: ["admin"]
     ```
   </TabItem>
 
@@ -161,12 +161,12 @@ Assign this role to a user in OIDC or SAML connector:
       # Change tele.example.com to your domain name
       redirect_url: https://tele.example.com:443/v1/webapi/github/callback
       # Map github teams to kubernetes groups
-      teams_to_roles:
+      teams_to_logins:
         - organization: octocats # GitHub organization name
           team: admin            # GitHub team name within that organization
           # List of Kubernetes groups this GitHub team is allowed to connect to
           # Keep this field as is for now
-          roles: ["admins"]
+          logins: ["admins"]
     ```
   </TabItem>
 

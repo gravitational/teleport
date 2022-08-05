@@ -18,7 +18,7 @@ import (
 	"bytes"
 	"crypto/rsa"
 	"crypto/x509/pkix"
-	"os"
+	"io/ioutil"
 	"path/filepath"
 	"testing"
 
@@ -59,7 +59,7 @@ func newSelfSignedCA(privateKey []byte) (*tlsca.CertAuthority, auth.TrustedCerts
 }
 
 func newClientKey(t *testing.T) *client.Key {
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair("")
 	require.NoError(t, err)
 
 	ff, tc, err := newSelfSignedCA(privateKey)
@@ -86,13 +86,14 @@ func newClientKey(t *testing.T) *client.Key {
 	require.NoError(t, err)
 
 	ta := testauthority.New()
-	priv, _, err := ta.GenerateKeyPair()
+	priv, _, err := ta.GenerateKeyPair("")
 	require.NoError(t, err)
 	caSigner, err := ssh.ParsePrivateKey(priv)
 	require.NoError(t, err)
 
 	certificate, err := keygen.GenerateUserCert(services.UserCertParams{
 		CASigner:      caSigner,
+		CASigningAlg:  defaults.CASignatureAlgorithm,
 		PublicUserKey: publicKey,
 		Username:      "testuser",
 	})
@@ -127,12 +128,12 @@ func TestWrite(t *testing.T) {
 	require.NoError(t, err)
 
 	// key is OK:
-	out, err := os.ReadFile(cfg.OutputPath)
+	out, err := ioutil.ReadFile(cfg.OutputPath)
 	require.NoError(t, err)
 	require.Equal(t, string(out), string(key.Priv))
 
 	// cert is OK:
-	out, err = os.ReadFile(keypaths.IdentitySSHCertPath(cfg.OutputPath))
+	out, err = ioutil.ReadFile(keypaths.IdentitySSHCertPath(cfg.OutputPath))
 	require.NoError(t, err)
 	require.Equal(t, string(out), string(key.Cert))
 
@@ -143,7 +144,7 @@ func TestWrite(t *testing.T) {
 	require.NoError(t, err)
 
 	// key+cert are OK:
-	out, err = os.ReadFile(cfg.OutputPath)
+	out, err = ioutil.ReadFile(cfg.OutputPath)
 	require.NoError(t, err)
 
 	wantArr := [][]byte{

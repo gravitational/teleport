@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/build.assets/tooling
 
-go 1.18
+go 1.17
 
 require (
 	github.com/aws/aws-sdk-go v1.42.30

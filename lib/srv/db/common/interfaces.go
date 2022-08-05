@@ -79,8 +79,3 @@ type Engine interface {
 	// the particular database instance.
 	HandleConnection(context.Context, *Session) error
 }
-
-// Users defines an interface for managing database users.
-type Users interface {
-	GetPassword(ctx context.Context, database types.Database, userName string) (string, error)
-}

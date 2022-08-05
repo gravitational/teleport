@@ -17,12 +17,12 @@ limitations under the License.
 package events
 
 import (
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-
 	"github.com/gravitational/teleport/api/types/events"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"encoding/json"
 )
@@ -32,7 +32,7 @@ import (
 //
 // This is mainly used to convert from the backend format used by
 // our various event backends.
-func FromEventFields(fields EventFields) (events.AuditEvent, error) {
+func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 	data, err := json.Marshal(fields)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -87,8 +87,6 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AccessRequestCreate{}
 	case AccessRequestUpdateEvent:
 		e = &events.AccessRequestCreate{}
-	case AccessRequestResourceSearch:
-		e = &events.AccessRequestResourceSearch{}
 	case BillingCardCreateEvent:
 		e = &events.BillingCardCreate{}
 	case BillingCardUpdateEvent:
@@ -145,8 +143,6 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SessionReject{}
 	case AppSessionStartEvent:
 		e = &events.AppSessionStart{}
-	case AppSessionEndEvent:
-		e = &events.AppSessionEnd{}
 	case AppSessionChunkEvent:
 		e = &events.AppSessionChunk{}
 	case AppSessionRequestEvent:
@@ -169,8 +165,6 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.DatabaseSessionEnd{}
 	case DatabaseSessionQueryEvent, DatabaseSessionQueryFailedEvent:
 		e = &events.DatabaseSessionQuery{}
-	case DatabaseSessionMalformedPacketEvent:
-		e = &events.DatabaseSessionMalformedPacket{}
 	case DatabaseSessionPostgresParseEvent:
 		e = &events.PostgresParse{}
 	case DatabaseSessionPostgresBindEvent:
@@ -209,8 +203,6 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.MySQLDebug{}
 	case DatabaseSessionMySQLRefreshEvent:
 		e = &events.MySQLRefresh{}
-	case DatabaseSessionSQLServerRPCRequestEvent:
-		e = &events.SQLServerRPCRequest{}
 	case KubeRequestEvent:
 		e = &events.KubeRequest{}
 	case MFADeviceAddEvent:
@@ -247,8 +239,6 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.RenewableCertificateGenerationMismatch{}
 	case SFTPEvent:
 		e = &events.SFTP{}
-	case UpgradeWindowStartUpdateEvent:
-		e = &events.UpgradeWindowStartUpdate{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 	default:
@@ -275,7 +265,7 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 
 // GetSessionID pulls the session ID from the events that have a
 // SessionMetadata. For other events an empty string is returned.
-func GetSessionID(event events.AuditEvent) string {
+func GetSessionID(event apievents.AuditEvent) string {
 	var sessionID string
 
 	if g, ok := event.(SessionMetadataGetter); ok {
@@ -288,7 +278,7 @@ func GetSessionID(event events.AuditEvent) string {
 // ToEventFields converts from the typed interface-style event representation
 // to the old dynamic map style representation in order to provide outer compatibility
 // with existing public API routes when the backend is updated with the typed events.
-func ToEventFields(event events.AuditEvent) (EventFields, error) {
+func ToEventFields(event apievents.AuditEvent) (EventFields, error) {
 	var fields EventFields
 	if err := apiutils.ObjectToStruct(event, &fields); err != nil {
 		return nil, trace.Wrap(err)

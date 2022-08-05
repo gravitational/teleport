@@ -51,11 +51,47 @@ type MultiLog struct {
 	*MultiEmitter
 }
 
+// WaitForDelivery waits for resources to be released and outstanding requests to
+// complete after calling Close method
+func (m *MultiLog) WaitForDelivery(ctx context.Context) error {
+	return nil
+}
+
 // Close releases connections and resources associated with logs if any
 func (m *MultiLog) Close() error {
 	var errors []error
 	for _, log := range m.loggers {
 		errors = append(errors, log.Close())
+	}
+	return trace.NewAggregate(errors...)
+}
+
+// EmitAuditEventLegacy emits audit event
+func (m *MultiLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
+	var errors []error
+	for _, log := range m.loggers {
+		errors = append(errors, log.EmitAuditEventLegacy(event, fields))
+	}
+	return trace.NewAggregate(errors...)
+}
+
+// UploadSessionRecording uploads session recording to the audit server
+func (m *MultiLog) UploadSessionRecording(rec SessionRecording) error {
+	var errors []error
+	for _, log := range m.loggers {
+		errors = append(errors, log.UploadSessionRecording(rec))
+	}
+	return trace.NewAggregate(errors...)
+}
+
+// DELETE IN: 2.7.0
+// This method is no longer necessary as nodes and proxies >= 2.7.0
+// use UploadSessionRecording method.
+// PostSessionSlice sends chunks of recorded session to the event log
+func (m *MultiLog) PostSessionSlice(slice SessionSlice) error {
+	var errors []error
+	for _, log := range m.loggers {
+		errors = append(errors, log.PostSessionSlice(slice))
 	}
 	return trace.NewAggregate(errors...)
 }

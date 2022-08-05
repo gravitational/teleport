@@ -23,6 +23,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -36,7 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
@@ -57,17 +58,18 @@ func TestRootBPF(t *testing.T) {
 }
 
 func (s *Suite) TestWatch(c *check.C) {
-	// TODO(jakule): Find a way to run this test in CI. Disable for now to not block all BPF tests.
-	c.Skip("this test always fails when running inside a CGroup/Docker")
-
 	// This test must be run as root and the host has to be capable of running
 	// BPF programs.
 	if !isRoot() {
 		c.Skip("Tests for package bpf can only be run as root.")
 	}
+	err := IsHostCompatible()
+	if err != nil {
+		c.Skip(fmt.Sprintf("Tests for package bpf can not be run: %v.", err))
+	}
 
 	// Create temporary directory where cgroup2 hierarchy will be mounted.
-	dir, err := os.MkdirTemp("", "cgroup-test")
+	dir, err := ioutil.TempDir("", "cgroup-test")
 	c.Assert(err, check.IsNil)
 	defer os.RemoveAll(dir)
 
@@ -79,7 +81,7 @@ func (s *Suite) TestWatch(c *check.C) {
 	defer service.Close()
 
 	// Create a fake audit log that can be used to capture the events emitted.
-	emitter := &eventstest.MockEmitter{}
+	emitter := &events.MockEmitter{}
 
 	// Create and start a program that does nothing. Since sleep will run longer
 	// than we wait below, nothing should be emit to the Audit Log.
@@ -144,6 +146,11 @@ func (s *Suite) TestObfuscate(c *check.C) {
 		c.Skip("Tests for package bpf can only be run as root.")
 		return
 	}
+	err := IsHostCompatible()
+	if err != nil {
+		c.Skip(fmt.Sprintf("Tests for package bpf can not be run: %v.", err))
+		return
+	}
 
 	// Find the programs needed to run these tests on the host.
 	decoderPath, err := os_exec.LookPath("base64")
@@ -164,7 +171,7 @@ func (s *Suite) TestObfuscate(c *check.C) {
 	// has been executed.
 	go func() {
 		// Create temporary file.
-		file, err := os.CreateTemp("", "test-script")
+		file, err := ioutil.TempFile("", "test-script")
 		c.Assert(err, check.IsNil)
 		defer os.Remove(file.Name())
 
@@ -223,6 +230,10 @@ func (s *Suite) TestScript(c *check.C) {
 	if !isRoot() {
 		c.Skip("Tests for package bpf can only be run as root.")
 	}
+	err := IsHostCompatible()
+	if err != nil {
+		c.Skip(fmt.Sprintf("Tests for package bpf can not be run: %v.", err))
+	}
 
 	// Start execsnoop.
 	execsnoop, err := startExec(8192)
@@ -237,7 +248,7 @@ func (s *Suite) TestScript(c *check.C) {
 	// has been executed.
 	go func() {
 		// Create temporary file.
-		file, err := os.CreateTemp("", "test-script")
+		file, err := ioutil.TempFile("", "test-script")
 		c.Assert(err, check.IsNil)
 		defer os.Remove(file.Name())
 
@@ -291,6 +302,12 @@ func (s *Suite) TestPrograms(c *check.C) {
 	// This test must be run as root. Only root can create cgroups.
 	if !isRoot() {
 		c.Skip("Tests for package bpf can only be run as root.")
+	}
+
+	// Check that the host is capable of running BPF programs.
+	err := IsHostCompatible()
+	if err != nil {
+		c.Skip(fmt.Sprintf("Tests for package bpf can not be run: %v.", err))
 	}
 
 	// Start a debug server that tcpconnect will connect to.
@@ -377,6 +394,12 @@ func (s *Suite) TestBPFCounter(c *check.C) {
 	// This test must be run as root. Only root can create cgroups.
 	if !isRoot() {
 		c.Skip("Tests for package bpf can only be run as root.")
+	}
+
+	// Check that the host is capable of running BPF programs.
+	err := IsHostCompatible()
+	if err != nil {
+		c.Skip(fmt.Sprintf("Tests for package bpf can not be run: %v.", err))
 	}
 
 	counterTestBPF, err := embedFS.ReadFile("bytecode/counter_test.bpf.o")

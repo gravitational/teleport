@@ -23,17 +23,13 @@ import (
 	"net"
 
 	"github.com/go-redis/redis/v8"
-	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 func init() {
@@ -171,7 +167,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
 
-	if err := e.process(ctx, sessionCtx); err != nil {
+	if err := e.process(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -185,57 +181,19 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 		return nil, trace.Wrap(err)
 	}
 
-	// Set default mode. Default mode can be overridden by URI parameters.
-	defaultMode := Standalone
-	switch sessionCtx.Database.GetType() {
-	case types.DatabaseTypeElastiCache:
-		if sessionCtx.Database.GetAWS().ElastiCache.EndpointType == apiawsutils.ElastiCacheConfigurationEndpoint {
-			defaultMode = Cluster
-		}
-
-	case types.DatabaseTypeMemoryDB:
-		if sessionCtx.Database.GetAWS().MemoryDB.EndpointType == apiawsutils.MemoryDBClusterEndpoint {
-			defaultMode = Cluster
-		}
-	}
-
-	connectionOptions, err := ParseRedisAddressWithDefaultMode(sessionCtx.Database.GetURI(), defaultMode)
+	connectionOptions, err := ParseRedisAddress(sessionCtx.Database.GetURI())
 	if err != nil {
 		return nil, trace.BadParameter("Redis connection string is incorrect %q: %v", sessionCtx.Database.GetURI(), err)
 	}
 
 	return func(username, password string) (redis.UniversalClient, error) {
-		onConnect := e.createOnClientConnectFunc(sessionCtx, username, password)
-
-		redisClient, err := newClient(ctx, connectionOptions, tlsConfig, onConnect)
+		redisClient, err := newClient(ctx, connectionOptions, tlsConfig, username, password)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		return redisClient, nil
 	}, nil
-}
-
-// createOnClientConnectFunc creates a callback function that is called after a
-// successful client connection with the Redis server.
-func (e *Engine) createOnClientConnectFunc(sessionCtx *common.Session, username, password string) onClientConnectFunc {
-	switch {
-	// If password is provided by client.
-	case password != "":
-		return authWithPasswordOnConnect(username, password)
-
-	// If database user is one of managed users.
-	//
-	// Teleport managed users can have their passwords rotated during a
-	// database session. Fetching an user's password on each new connection
-	// ensures the correct password is used for each shard connection when
-	// Redis is in cluster mode.
-	case apiutils.SliceContainsStr(sessionCtx.Database.GetManagedUsers(), sessionCtx.DatabaseUser):
-		return fetchUserPasswordOnConnect(sessionCtx, e.Users, e.Audit)
-
-	default:
-		return nil
-	}
 }
 
 // reconnect closes the current Redis server connection and creates a new one pre-authenticated
@@ -256,7 +214,7 @@ func (e *Engine) reconnect(username, password string) (redis.UniversalClient, er
 
 // process is the main processing function for Redis. It reads commands from connected client and passes them to
 // a Redis instance. This function returns when a server closes a connection or in case of connection error.
-func (e *Engine) process(ctx context.Context, sessionCtx *common.Session) error {
+func (e *Engine) process(ctx context.Context) error {
 	for {
 		// Read commands from connected client.
 		cmd, err := e.readClientCmd(ctx)
@@ -270,7 +228,7 @@ func (e *Engine) process(ctx context.Context, sessionCtx *common.Session) error 
 		// Function below maps errors that should be returned to the
 		// client as value or return them as err if we should terminate
 		// the session.
-		value, err := processServerResponse(cmd, err, sessionCtx)
+		value, err := processSeverResponse(cmd, err)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -297,11 +255,11 @@ func (e *Engine) readClientCmd(ctx context.Context) (*redis.Cmd, error) {
 	return redis.NewCmd(ctx, val...), nil
 }
 
-// processServerResponse takes server response and an error returned from go-redis and returns
+// processSeverResponse takes server response and an error returned from go-redis and returns
 // "terminal" errors as second value (connection should be terminated when this happens)
 // or returns error/value as the first value. Then value should be sent back to
 // the client without terminating the connection.
-func processServerResponse(cmd *redis.Cmd, err error, sessionCtx *common.Session) (interface{}, error) {
+func processSeverResponse(cmd *redis.Cmd, err error) (interface{}, error) {
 	value, cmdErr := cmd.Result()
 	if err == nil {
 		// If the server didn't return any error use cmd.Err() as server error.
@@ -316,20 +274,6 @@ func processServerResponse(cmd *redis.Cmd, err error, sessionCtx *common.Session
 		// Teleport errors should be returned to the client.
 		return err, nil
 	case errors.Is(err, context.DeadlineExceeded):
-		switch sessionCtx.Database.GetType() {
-		// Special message for ElastiCache servers without TLS enabled.
-		case types.DatabaseTypeElastiCache:
-			if !sessionCtx.Database.GetAWS().ElastiCache.TransitEncryptionEnabled {
-				return nil, trace.ConnectionProblem(err, "Connection timeout on ElastiCache database. Please verify if in-transit encryption is enabled on the server.")
-			}
-
-		// Special message for MemoryDB servers without TLS enabled.
-		case types.DatabaseTypeMemoryDB:
-			if !sessionCtx.Database.GetAWS().MemoryDB.TLSEnabled {
-				return nil, trace.ConnectionProblem(err, "Connection timeout on MemoryDB database. Please verify if in-transit encryption is enabled on the server.")
-			}
-		}
-
 		// Do not return Deadline Exceeded to the client as it's not very self-explanatory.
 		// Return "connection timeout" as this is what most likely happened.
 		return nil, trace.ConnectionProblem(err, "connection timeout")

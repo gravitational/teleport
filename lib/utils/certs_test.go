@@ -17,38 +17,29 @@ limitations under the License.
 package utils
 
 import (
-	"os"
-	"runtime"
-	"testing"
-
-	"github.com/gravitational/teleport/api/constants"
+	"io/ioutil"
 
 	"github.com/gravitational/trace"
 
-	"github.com/stretchr/testify/require"
+	"gopkg.in/check.v1"
 )
 
-func TestRejectsInvalidPEMData(t *testing.T) {
-	t.Parallel()
+type CertsSuite struct{}
 
+var _ = check.Suite(&CertsSuite{})
+
+func (s *CertsSuite) TestRejectsInvalidPEMData(c *check.C) {
 	_, err := ReadCertificateChain([]byte("no data"))
-	require.IsType(t, trace.Unwrap(err), &trace.NotFoundError{})
+	c.Assert(trace.Unwrap(err), check.FitsTypeOf, &trace.NotFoundError{})
 }
 
-func TestRejectsSelfSignedCertificate(t *testing.T) {
-	t.Parallel()
-
-	certificateChainBytes, err := os.ReadFile("../../fixtures/certs/ca.pem")
-	require.NoError(t, err)
+func (s *CertsSuite) TestRejectsSelfSignedCertificate(c *check.C) {
+	certificateChainBytes, err := ioutil.ReadFile("../../fixtures/certs/ca.pem")
+	c.Assert(err, check.IsNil)
 
 	certificateChain, err := ReadCertificateChain(certificateChainBytes)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	err = VerifyCertificateChain(certificateChain)
-	switch runtime.GOOS {
-	case constants.DarwinOS:
-		require.ErrorContains(t, err, "certificate is not standards compliant")
-	default:
-		require.ErrorContains(t, err, "x509: certificate signed by unknown authority")
-	}
+	c.Assert(err, check.ErrorMatches, "x509: certificate signed by unknown authority")
 }

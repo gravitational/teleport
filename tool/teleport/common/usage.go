@@ -103,6 +103,7 @@ Examples:
 const (
 	sampleConfComment = `#
 # A Sample Teleport configuration file.
+# Creates a single proxy, auth and node server.
 #
 # Things to update:
 #  1. license.pem: You only need a license from https://dashboard.goteleport.com

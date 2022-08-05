@@ -19,6 +19,7 @@ package gcssessions
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"os"
 	"testing"
@@ -72,8 +73,9 @@ func TestStreams(t *testing.T) {
 	ctx := context.Background()
 	uri := os.Getenv(teleport.GCSTestURI)
 	if uri == "" {
-		t.Skipf("Skipping GCS tests, set env var %q, details here: https://goteleport.com/teleport/docs/gcp-guide/",
-			teleport.GCSTestURI)
+		t.Skip(
+			fmt.Sprintf("Skipping GCS tests, set env var %q, details here: https://goteleport.com/teleport/docs/gcp-guide/",
+				teleport.GCSTestURI))
 	}
 	u, err := url.Parse(uri)
 	require.Nil(t, err)

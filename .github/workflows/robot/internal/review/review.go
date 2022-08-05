@@ -120,12 +120,9 @@ func (r *Assignments) IsInternal(author string) bool {
 	return code || docs
 }
 
-// Get will return a list of code reviewers for a given author.
+// Get will return a list of code reviewers a given author.
 func (r *Assignments) Get(author string, docs bool, code bool) []string {
 	var reviewers []string
-
-	// TODO: consider existing review assignments here
-	// https://github.com/gravitational/teleport/issues/10420
 
 	switch {
 	case docs && code:
@@ -198,7 +195,7 @@ func (r *Assignments) getCodeReviewerSets(author string) ([]string, []string) {
 }
 
 // CheckExternal requires two admins have approved.
-func (r *Assignments) CheckExternal(author string, reviews []github.Review) error {
+func (r *Assignments) CheckExternal(author string, reviews map[string]*github.Review) error {
 	log.Printf("Check: Found external author %v.", author)
 
 	reviewers := r.getAdminReviewers(author)
@@ -212,19 +209,12 @@ func (r *Assignments) CheckExternal(author string, reviews []github.Review) erro
 // CheckInternal will verify if required reviewers have approved. Checks if
 // docs and if each set of code reviews have approved. Admin approvals bypass
 // all checks.
-func (r *Assignments) CheckInternal(author string, reviews []github.Review, docs bool, code bool, large bool) error {
+func (r *Assignments) CheckInternal(author string, reviews map[string]*github.Review, docs bool, code bool) error {
 	log.Printf("Check: Found internal author %v.", author)
 
 	// Skip checks if admins have approved.
 	if check(r.getAdminReviewers(author), reviews) {
 		return nil
-	}
-
-	if code && large {
-		log.Println("Check: Detected large PR, requiring admin approval")
-		if !check(r.getAdminReviewers(author), reviews) {
-			return trace.BadParameter("this PR is large and requires admin approval to merge")
-		}
 	}
 
 	switch {
@@ -257,7 +247,7 @@ func (r *Assignments) CheckInternal(author string, reviews []github.Review, docs
 	return nil
 }
 
-func (r *Assignments) checkDocsReviews(author string, reviews []github.Review) error {
+func (r *Assignments) checkDocsReviews(author string, reviews map[string]*github.Review) error {
 	reviewers := r.getDocsReviewers(author)
 
 	if check(reviewers, reviews) {
@@ -267,7 +257,7 @@ func (r *Assignments) checkDocsReviews(author string, reviews []github.Review) e
 	return trace.BadParameter("requires at least one approval from %v", reviewers)
 }
 
-func (r *Assignments) checkCodeReviews(author string, reviews []github.Review) error {
+func (r *Assignments) checkCodeReviews(author string, reviews map[string]*github.Review) error {
 	// External code reviews should never hit this path, if they do, fail and
 	// return an error.
 	v, ok := r.c.CodeReviewers[author]
@@ -324,44 +314,25 @@ func getReviewerSets(author string, team string, reviewers map[string]Reviewer, 
 	return setA, setB
 }
 
-func check(reviewers []string, reviews []github.Review) bool {
+func check(reviewers []string, reviews map[string]*github.Review) bool {
 	return checkN(reviewers, reviews) > 0
 }
 
-func checkN(reviewers []string, reviews []github.Review) int {
-	r := reviewsByAuthor(reviews)
-
+func checkN(reviewers []string, reviews map[string]*github.Review) int {
 	var n int
 	for _, reviewer := range reviewers {
-		if state, ok := r[reviewer]; ok && state == Approved {
-			n++
+		if review, ok := reviews[reviewer]; ok {
+			if review.State == approved && review.Author == reviewer {
+				n++
+			}
 		}
 	}
 	return n
 }
 
-func reviewsByAuthor(reviews []github.Review) map[string]string {
-	m := map[string]string{}
-
-	for _, review := range reviews {
-		// Always pick up the last submitted review from each reviewer.
-		if state, ok := m[review.Author]; ok {
-			// If the reviewer left comments after approval, skip this review.
-			if review.State == Commented && state == Approved {
-				continue
-			}
-		}
-		m[review.Author] = review.State
-	}
-
-	return m
-}
-
 const (
-	// Commented is a code review where the reviewer has left comments only.
-	Commented = "COMMENTED"
-	// Approved is a code review where the reviewer has approved changes.
-	Approved = "APPROVED"
-	// ChangesRequested is a code review where the reviewer has requested changes.
-	ChangesRequested = "CHANGES_REQUESTED"
+	// approved is a code review where the reviewer has approved changes.
+	approved = "APPROVED"
+	// changesRequested is a code review where the reviewer has requested changes.
+	changesRequested = "CHANGES_REQUESTED"
 )

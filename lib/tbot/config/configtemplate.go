@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/destination"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
@@ -53,10 +53,6 @@ const (
 	// TemplateCockroachName is the config name for CockroachDB-formatted
 	// certificates.
 	TemplateCockroachName = "cockroach"
-
-	// TemplateKubernetesName is the config name for generating Kubernetes
-	// client config files
-	TemplateKubernetesName = "kubernetes"
 )
 
 // AllConfigTemplates lists all valid config templates, intended for help
@@ -68,7 +64,6 @@ var AllConfigTemplates = [...]string{
 	TemplateTLSCAsName,
 	TemplateMongoName,
 	TemplateCockroachName,
-	TemplateKubernetesName,
 }
 
 // FileDescription is a minimal spec needed to create an empty end-user-owned
@@ -93,22 +88,21 @@ type Template interface {
 	// statically as this must be callable without any auth clients (or any
 	// secrets) for use with `tbot init`. If an arbitrary number of files must
 	// be generated, they should be placed in a subdirectory.
-	Describe(destination bot.Destination) []FileDescription
+	Describe(destination destination.Destination) []FileDescription
 
 	// Render writes the config template to the destination.
-	Render(ctx context.Context, bot Bot, currentIdentity *identity.Identity, destination *DestinationConfig) error
+	Render(ctx context.Context, authClient auth.ClientI, currentIdentity *identity.Identity, destination *DestinationConfig) error
 }
 
 // TemplateConfig contains all possible config template variants. Exactly one
 // variant must be set to be considered valid.
 type TemplateConfig struct {
-	SSHClient  *TemplateSSHClient  `yaml:"ssh_client,omitempty"`
-	Identity   *TemplateIdentity   `yaml:"identity,omitempty"`
-	TLS        *TemplateTLS        `yaml:"tls,omitempty"`
-	TLSCAs     *TemplateTLSCAs     `yaml:"tls_cas,omitempty"`
-	Mongo      *TemplateMongo      `yaml:"mongo,omitempty"`
-	Cockroach  *TemplateCockroach  `yaml:"cockroach,omitempty"`
-	Kubernetes *TemplateKubernetes `yaml:"kubernetes,omitempty"`
+	SSHClient *TemplateSSHClient `yaml:"ssh_client,omitempty"`
+	Identity  *TemplateIdentity  `yaml:"identity,omitempty"`
+	TLS       *TemplateTLS       `yaml:"tls,omitempty"`
+	TLSCAs    *TemplateTLSCAs    `yaml:"tls_cas,omitempty"`
+	Mongo     *TemplateMongo     `yaml:"mongo,omitempty"`
+	Cockroach *TemplateCockroach `yaml:"cockroach,omitempty"`
 }
 
 func (c *TemplateConfig) UnmarshalYAML(node *yaml.Node) error {
@@ -133,8 +127,6 @@ func (c *TemplateConfig) UnmarshalYAML(node *yaml.Node) error {
 			c.Mongo = &TemplateMongo{}
 		case TemplateCockroachName:
 			c.Cockroach = &TemplateCockroach{}
-		case TemplateKubernetesName:
-			c.Kubernetes = &TemplateKubernetes{}
 		default:
 			return trace.BadParameter(
 				"invalid config template '%s' on line %d, expected one of: %s",
@@ -158,7 +150,6 @@ func (c *TemplateConfig) CheckAndSetDefaults() error {
 		c.TLSCAs,
 		c.Mongo,
 		c.Cockroach,
-		c.Kubernetes,
 	}
 
 	notNilCount := 0
@@ -198,7 +189,6 @@ func (c *TemplateConfig) GetConfigTemplate() (Template, error) {
 		c.TLSCAs,
 		c.Mongo,
 		c.Cockroach,
-		c.Kubernetes,
 	}
 
 	for _, template := range templates {
@@ -217,7 +207,7 @@ func (c *TemplateConfig) GetConfigTemplate() (Template, error) {
 // bot destinations.
 type BotConfigWriter struct {
 	// dest is the destination that will handle writing of files.
-	dest bot.Destination
+	dest destination.Destination
 
 	// subpath is the subdirectory within the destination to which the files
 	// should be written.

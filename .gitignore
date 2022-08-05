@@ -67,14 +67,8 @@ ssh.config
 # Code signing certificate for Windows binaries
 /windows-signing-cert.pfx
 
-# Build cache and tooling
-/build.assets/.cache
-/build.assets/tooling/bin/**
-
-# Teleport binaries
-/tctl
-/teleport
-/tsh
+# build tooling
+build.assets/tooling/bin/** 
 
 # Go workspace files
 go.work

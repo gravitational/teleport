@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use super::errors::try_error;
 use crate::errors::invalid_data_error;
 use crate::util;
 use crate::{vchan, Payload};
@@ -21,7 +20,8 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use num_traits::FromPrimitive;
 use rdp::core::{mcs, tpkt};
 use rdp::model::error::*;
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::io::{Read, Write};
 
 pub const CHANNEL_NAME: &str = "cliprdr";
@@ -31,9 +31,9 @@ pub const CHANNEL_NAME: &str = "cliprdr";
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeclip/fb9b7e0b-6db4-41c2-b83c-f889c1ee7688
 pub struct Client {
     clipboard: HashMap<u32, Vec<u8>>,
+    incoming_paste_formats: VecDeque<ClipboardFormat>,
     on_remote_copy: Box<dyn Fn(Vec<u8>) -> RdpResult<()>>,
     vchan: vchan::Client,
-    incoming_paste_formats: VecDeque<ClipboardFormat>,
 }
 
 impl Default for Client {
@@ -47,8 +47,8 @@ impl Client {
         Client {
             clipboard: HashMap::new(),
             on_remote_copy,
-            vchan: vchan::Client::new(),
             incoming_paste_formats: VecDeque::new(),
+            vchan: vchan::Client::new(),
         }
     }
     /// Reads raw RDP messages sent on the cliprdr virtual channel and replies as necessary.
@@ -280,7 +280,9 @@ impl Client {
         let resp = FormatDataResponsePDU::decode(payload, length)?;
         let data_len = resp.data.len();
         let format = self.incoming_paste_formats.pop_front().ok_or_else(|| {
-            try_error("no expected format found, possibly received too many format data responses")
+            invalid_data_error(
+                "no expected format found, possibly received too many format data responses",
+            )
         })?;
 
         debug!(
@@ -593,7 +595,7 @@ fn decode_clipboard(mut data: Vec<u8>, format: ClipboardFormat) -> RdpResult<Vec
 
             Ok(String::from_utf16_lossy(&units).into_bytes())
         }
-        _ => Err(try_error(
+        _ => Err(invalid_data_error(
             "attempted to decode unsupported clipboard format",
         )),
     }

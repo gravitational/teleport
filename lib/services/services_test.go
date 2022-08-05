@@ -23,10 +23,12 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/check.v1"
 )
 
 func TestMain(m *testing.M) {
@@ -34,56 +36,57 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// TestOptions tests command options operations
-func TestOptions(t *testing.T) {
-	t.Parallel()
+type ServicesSuite struct {
+}
 
+func TestServices(t *testing.T) { check.TestingT(t) }
+
+var _ = check.Suite(&ServicesSuite{})
+
+// TestOptions tests command options operations
+func (s *ServicesSuite) TestOptions(c *check.C) {
 	// test empty scenario
 	out := AddOptions(nil)
-	require.Len(t, out, 0)
+	c.Assert(out, check.HasLen, 0)
 
 	// make sure original option list is not affected
 	in := []MarshalOption{}
 	out = AddOptions(in, WithResourceID(1))
-	require.Len(t, out, 1)
-	require.Len(t, in, 0)
+	c.Assert(out, check.HasLen, 1)
+	c.Assert(in, check.HasLen, 0)
 	cfg, err := CollectOptions(out)
-	require.NoError(t, err)
-	require.Equal(t, cfg.ID, int64(1))
+	c.Assert(err, check.IsNil)
+	c.Assert(cfg.ID, check.Equals, int64(1))
 
 	// Add a couple of other parameters
 	out = AddOptions(in, WithResourceID(2), WithVersion(types.V2))
-	require.Len(t, out, 2)
-	require.Len(t, in, 0)
+	c.Assert(out, check.HasLen, 2)
+	c.Assert(in, check.HasLen, 0)
 	cfg, err = CollectOptions(out)
-	require.NoError(t, err)
-	require.Equal(t, cfg.ID, int64(2))
-	require.Equal(t, cfg.Version, types.V2)
+	c.Assert(err, check.IsNil)
+	c.Assert(cfg.ID, check.Equals, int64(2))
+	c.Assert(cfg.Version, check.Equals, types.V2)
 }
 
 // TestCommandLabels tests command labels
-func TestCommandLabels(t *testing.T) {
-	t.Parallel()
-
+func (s *ServicesSuite) TestCommandLabels(c *check.C) {
 	var l CommandLabels
 	out := l.Clone()
-	require.Len(t, out, 0)
+	c.Assert(out, check.HasLen, 0)
 
 	label := &types.CommandLabelV2{Command: []string{"ls", "-l"}, Period: types.Duration(time.Second)}
 	l = CommandLabels{"a": label}
 	out = l.Clone()
 
-	require.Len(t, out, 1)
-	require.Empty(t, cmp.Diff(out["a"], label))
+	c.Assert(out, check.HasLen, 1)
+	fixtures.DeepCompare(c, out["a"], label)
 
 	// make sure it's not a shallow copy
 	label.Command[0] = "/bin/ls"
-	require.NotEqual(t, label.Command[0], out["a"].GetCommand())
+	c.Assert(label.Command[0], check.Not(check.Equals), out["a"].GetCommand())
 }
 
 func TestLabelKeyValidation(t *testing.T) {
-	t.Parallel()
-
 	tts := []struct {
 		label string
 		ok    bool
@@ -104,7 +107,6 @@ func TestLabelKeyValidation(t *testing.T) {
 
 func TestServerDeepCopy(t *testing.T) {
 	t.Parallel()
-
 	// setup
 	now := time.Date(1984, time.April, 4, 0, 0, 0, 0, time.UTC)
 	expires := now.Add(1 * time.Hour)

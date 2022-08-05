@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package sshutils contains the implementations of the base SSH
+// Package sshutils contains contains the implementations of the base SSH
 // server used throughout Teleport.
 package sshutils
 
@@ -22,28 +22,24 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"io"
 	"net"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/gravitational/trace"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
-	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/observability/tracing"
-	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/trace"
+
+	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 )
 
 var proxyConnectionLimitHitCount = prometheus.NewCounter(
@@ -58,7 +54,7 @@ var proxyConnectionLimitHitCount = prometheus.NewCounter(
 type Server struct {
 	sync.RWMutex
 
-	log logrus.FieldLogger
+	log log.FieldLogger
 	// component is a name of the facility which uses this server,
 	// used for logging/debugging. typically it's "proxy" or "auth api", etc
 	component string
@@ -91,10 +87,6 @@ type Server struct {
 	// fips means Teleport started in a FedRAMP/FIPS 140-2 compliant
 	// configuration.
 	fips bool
-
-	// tracerProvider is used to create tracers capable
-	// of starting spans.
-	tracerProvider oteltrace.TracerProvider
 }
 
 const (
@@ -102,6 +94,11 @@ const (
 	// every SSH handshake. It MUST start with "SSH-2.0" according to
 	// https://tools.ietf.org/html/rfc4253#page-4
 	SSHVersionPrefix = "SSH-2.0-Teleport"
+
+	// ProxyHelloSignature is a string which Teleport proxy will send
+	// right after the initial SSH "handshake/version" message if it detects
+	// talking to a Teleport server.
+	ProxyHelloSignature = "Teleport-Proxy"
 
 	// MaxVersionStringBytes is the maximum number of bytes allowed for a
 	// SSH version string
@@ -117,7 +114,7 @@ const (
 type ServerOption func(cfg *Server) error
 
 // SetLogger sets the logger for the server
-func SetLogger(logger logrus.FieldLogger) ServerOption {
+func SetLogger(logger log.FieldLogger) ServerOption {
 	return func(s *Server) error {
 		s.log = logger.WithField(trace.Component, "ssh:"+s.component)
 		return nil
@@ -148,14 +145,6 @@ func SetInsecureSkipHostValidation() ServerOption {
 	}
 }
 
-// SetTracerProvider sets the tracer provider for the server.
-func SetTracerProvider(provider oteltrace.TracerProvider) ServerOption {
-	return func(s *Server) error {
-		s.tracerProvider = provider
-		return nil
-	}
-}
-
 func NewServer(
 	component string,
 	a utils.NetAddr,
@@ -171,7 +160,7 @@ func NewServer(
 
 	closeContext, cancel := context.WithCancel(context.TODO())
 	s := &Server{
-		log: logrus.WithFields(logrus.Fields{
+		log: log.WithFields(log.Fields{
 			trace.Component: "ssh:" + component,
 		}),
 		addr:           a,
@@ -193,11 +182,6 @@ func NewServer(
 	if s.shutdownPollPeriod == 0 {
 		s.shutdownPollPeriod = defaults.ShutdownPollPeriod
 	}
-
-	if s.tracerProvider == nil {
-		s.tracerProvider = tracing.DefaultProvider()
-	}
-
 	err = s.checkArguments(a, h, hostSigners, ah)
 	if err != nil {
 		return nil, err
@@ -350,8 +334,8 @@ func (s *Server) Shutdown(ctx context.Context) error {
 				lastReport = time.Now()
 			}
 		case <-ctx.Done():
-			s.log.Infof("Context canceled wait, returning.")
-			return trace.ConnectionProblem(err, "context canceled")
+			s.log.Infof("Context cancelled wait, returning.")
+			return trace.ConnectionProblem(err, "context cancelled")
 		}
 	}
 }
@@ -367,7 +351,7 @@ func (s *Server) Close() error {
 		if utils.IsUseOfClosedNetworkError(err) {
 			return nil
 		}
-		return trace.Wrap(err)
+		return err
 	}
 
 	return nil
@@ -412,13 +396,13 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// in case of error as ssh server takes care of this
 	remoteAddr, _, err := net.SplitHostPort(conn.RemoteAddr().String())
 	if err != nil {
-		s.log.Errorf(err.Error())
+		log.Errorf(err.Error())
 	}
 	if err := s.limiter.AcquireConnection(remoteAddr); err != nil {
 		if trace.IsLimitExceeded(err) {
 			proxyConnectionLimitHitCount.Inc()
 		}
-		s.log.Errorf(err.Error())
+		log.Errorf(err.Error())
 		conn.Close()
 		return
 	}
@@ -436,21 +420,11 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// create a new SSH server which handles the handshake (and pass the custom
 	// payload structure which will be populated only when/if this connection
 	// comes from another Teleport proxy):
-	wrappedConn := wrapConnection(wconn, s.log)
-	sconn, chans, reqs, err := ssh.NewServerConn(wrappedConn, &s.cfg)
+	sconn, chans, reqs, err := ssh.NewServerConn(wrapConnection(wconn), &s.cfg)
 	if err != nil {
-		// Ignore EOF as these are triggered by loadbalancer health checks
-		if !errors.Is(err, io.EOF) {
-			s.log.
-				WithError(err).
-				WithField("remote_addr", conn.RemoteAddr()).
-				Warn("Error occurred in handshake for new SSH conn")
-		}
 		conn.SetDeadline(time.Time{})
 		return
 	}
-
-	ctx := tracing.WithPropagationContext(context.Background(), wrappedConn.traceContext)
 
 	certType := "unknown"
 	if sconn.Permissions != nil {
@@ -464,7 +438,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 
 	user := sconn.User()
 	if err := s.limiter.RegisterRequest(user); err != nil {
-		s.log.Errorf(err.Error())
+		log.Errorf(err.Error())
 		sconn.Close()
 		conn.Close()
 		return
@@ -488,7 +462,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// closeContext field is used to trigger starvation on cancellation by halting
 	// the acceptance of new connections; it is not intended to halt in-progress
 	// connection handling, and is therefore orthogonal to the role of ConnectionContext.
-	ctx, ccx := NewConnectionContext(ctx, wconn, sconn)
+	ctx, ccx := NewConnectionContext(context.Background(), wconn, sconn)
 	defer ccx.Close()
 
 	if s.newConnHandler != nil {
@@ -526,26 +500,8 @@ func (s *Server) HandleConnection(conn net.Conn) {
 				return
 			}
 			s.log.Debugf("Received out-of-band request: %+v.", req)
-
-			reqCtx := tracessh.ContextFromRequest(req)
-			ctx, span := s.tracerProvider.Tracer("ssh").Start(
-				oteltrace.ContextWithRemoteSpanContext(ctx, oteltrace.SpanContextFromContext(reqCtx)),
-				fmt.Sprintf("ssh.GlobalRequest/%s", req.Type),
-				oteltrace.WithSpanKind(oteltrace.SpanKindServer),
-				oteltrace.WithAttributes(
-					semconv.RPCServiceKey.String("ssh.Server"),
-					semconv.RPCMethodKey.String("GlobalRequest"),
-					semconv.RPCSystemKey.String("ssh"),
-				),
-			)
-
 			if s.reqHandler != nil {
-				go func(span oteltrace.Span) {
-					defer span.End()
-					s.reqHandler.HandleRequest(ctx, req)
-				}(span)
-			} else {
-				span.End()
+				go s.reqHandler.HandleRequest(req)
 			}
 			// handle channels:
 		case nch := <-chans:
@@ -553,47 +509,13 @@ func (s *Server) HandleConnection(conn net.Conn) {
 				connClosed()
 				return
 			}
-
-			// This is a request from clients to determine if tracing is enabled.
-			// Handle here so that we always alert clients that we can handle tracing envelopes.
-			if nch.ChannelType() == tracessh.TracingChannel {
-				ch, _, err := nch.Accept()
-				if err != nil {
-					s.log.Warnf("Unable to accept channel: %v", err)
-					if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err)); err != nil {
-						s.log.Warnf("Failed to reject channel: %v", err)
-					}
-					continue
-				}
-
-				if err := ch.Close(); err != nil {
-					s.log.Warnf("Unable to close %q channel: %v", nch.ChannelType(), err)
-				}
-				continue
-			}
-
-			chanCtx, nch := tracessh.ContextFromNewChannel(nch)
-			ctx, span := s.tracerProvider.Tracer("ssh").Start(
-				oteltrace.ContextWithRemoteSpanContext(ctx, oteltrace.SpanContextFromContext(chanCtx)),
-				fmt.Sprintf("ssh.OpenChannel/%s", nch.ChannelType()),
-				oteltrace.WithSpanKind(oteltrace.SpanKindServer),
-				oteltrace.WithAttributes(
-					semconv.RPCServiceKey.String("ssh.Server"),
-					semconv.RPCMethodKey.String("OpenChannel"),
-					semconv.RPCSystemKey.String("ssh"),
-				),
-			)
-
-			go func(span oteltrace.Span) {
-				defer span.End()
-				s.newChanHandler.HandleNewChan(ctx, ccx, nch)
-			}(span)
+			go s.newChanHandler.HandleNewChan(ctx, ccx, nch)
 			// send keepalive pings to the clients
 		case <-keepAliveTick.C:
 			const wantReply = true
 			_, _, err = sconn.SendRequest(teleport.KeepAliveReqType, wantReply, keepAlivePayload[:])
 			if err != nil {
-				s.log.Errorf("Failed sending keepalive request: %v", err)
+				log.Errorf("Failed sending keepalive request: %v", err)
 			}
 		case <-ctx.Done():
 			s.log.Debugf("Connection context canceled: %v -> %v", conn.RemoteAddr(), conn.LocalAddr())
@@ -603,7 +525,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 }
 
 type RequestHandler interface {
-	HandleRequest(ctx context.Context, r *ssh.Request)
+	HandleRequest(r *ssh.Request)
 }
 
 type NewChanHandler interface {
@@ -686,15 +608,23 @@ type (
 	PasswordFunc  func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error)
 )
 
+// HandshakePayload structure is sent as a JSON blob by the teleport
+// proxy to every SSH server who identifies itself as Teleport server
+//
+// It allows teleport proxies to communicate additional data to server
+type HandshakePayload struct {
+	// ClientAddr is the IP address of the remote client
+	ClientAddr string `json:"clientAddr,omitempty"`
+}
+
 // connectionWrapper allows the SSH server to perform custom handshake which
 // lets teleport proxy servers to relay a true remote client IP address
 // to the SSH server.
 //
 // (otherwise connection.RemoteAddr (client IP) will always point to a proxy IP
-// instead of a true client IP)
+// instead of oa true client IP)
 type connectionWrapper struct {
 	net.Conn
-	logger logrus.FieldLogger
 
 	// upstreamReader reads from the underlying (wrapped) connection
 	upstreamReader io.Reader
@@ -703,10 +633,6 @@ type connectionWrapper struct {
 	// a proxy). Keeping this address is the entire point of the
 	// connection wrapper.
 	clientAddr net.Addr
-
-	// traceContext is the tracing context that was passed across the
-	// connection, used to correlate spans.
-	traceContext tracing.PropagationContext
 }
 
 // RemoteAddr returns the behind-the-proxy client address
@@ -728,7 +654,7 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 	if err != nil {
 		// EOF happens quite often, don't pollute the logs with it
 		if !trace.IsEOF(err) {
-			c.logger.Error(err)
+			log.Error(err)
 		}
 		return n, err
 	}
@@ -737,29 +663,23 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 	skip := 0
 
 	// are we reading from a Teleport proxy?
-	if bytes.HasPrefix(buff, []byte(sshutils.ProxyHelloSignature)) {
-		// the JSON payload ends with a binary zero:
+	if bytes.HasPrefix(buff, []byte(ProxyHelloSignature)) {
+		// the JSON paylaod ends with a binary zero:
 		payloadBoundary := bytes.IndexByte(buff, 0x00)
 		if payloadBoundary > 0 {
-			var hp sshutils.HandshakePayload
-			payload := buff[len(sshutils.ProxyHelloSignature):payloadBoundary]
+			var hp HandshakePayload
+			payload := buff[len(ProxyHelloSignature):payloadBoundary]
 			if err = json.Unmarshal(payload, &hp); err != nil {
-				c.logger.Error(err)
+				log.Error(err)
 			} else {
-				if ca, err := utils.ParseAddr(hp.ClientAddr); err == nil {
+				ca, err := utils.ParseAddr(hp.ClientAddr)
+				if err != nil {
+					log.Error(err)
+				} else {
 					// replace proxy's client addr with a real client address
 					// we just got from the custom payload:
 					c.clientAddr = ca
-					if ca.AddrNetwork == "tcp" {
-						// source-address check in SSH server requires TCPAddr
-						c.clientAddr = &net.TCPAddr{
-							IP:   net.ParseIP(ca.Host()),
-							Port: ca.Port(0),
-						}
-					}
 				}
-
-				c.traceContext = hp.TracingContext
 			}
 			skip = payloadBoundary + 1
 		}
@@ -770,10 +690,9 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 
 // wrapConnection takes a network connection, wraps it into connectionWrapper
 // object (which overrides Read method) and returns the wrapper.
-func wrapConnection(conn net.Conn, logger logrus.FieldLogger) *connectionWrapper {
+func wrapConnection(conn net.Conn) net.Conn {
 	return &connectionWrapper{
 		Conn:       conn,
 		clientAddr: conn.RemoteAddr(),
-		logger:     logger,
 	}
 }

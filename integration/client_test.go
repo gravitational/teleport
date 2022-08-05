@@ -23,7 +23,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/stretchr/testify/require"
@@ -34,14 +33,13 @@ import (
 // using an expired user identity
 // We should receive an error message which contains the real cause (ssh: handshake)
 func TestClientWithExpiredCredentialsAndDetailedErrorMessage(t *testing.T) {
-	cfg := helpers.InstanceConfig{
+	rc := NewInstance(InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Loopback,
-		Log:         utils.NewLoggerForTests(),
-	}
-	cfg.Listeners = helpers.SingleProxyPortSetup(t, &cfg.Fds)
-	rc := helpers.NewInstance(t, cfg)
+		log:         utils.NewLoggerForTests(),
+		Ports:       singleProxyPortSetup(),
+	})
 
 	rcConf := service.MakeDefaultConfig()
 	rcConf.DataDir = t.TempDir()
@@ -61,12 +59,12 @@ func TestClientWithExpiredCredentialsAndDetailedErrorMessage(t *testing.T) {
 	defer rc.StopAll()
 
 	// Create an expired identity file: ttl is 1 second in the past
-	identityFilePath := MustCreateUserIdentityFile(t, rc, username, -time.Second)
+	identityFilePath := mustCreateUserIdentityFile(t, rc, username, -time.Second)
 
 	ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
 	defer cancelFunc()
 	_, err = client.New(ctx, client.Config{
-		Addrs:       []string{rc.Auth},
+		Addrs:       []string{rc.GetAuthAddr()},
 		Credentials: []client.Credentials{client.LoadIdentityFile(identityFilePath)},
 		DialOpts: []grpc.DialOption{
 			// ask for underlying errors

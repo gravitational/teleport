@@ -32,7 +32,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 )
 
 // This provides wrapper functions for the Aptly command. Aptly is written in Go but it doesn't appear
@@ -210,7 +209,7 @@ func (a *Aptly) DoesRepoExist(r *Repo) (bool, error) {
 		return false, trace.Wrap(err, "failed to get existing repo names")
 	}
 
-	return slices.Contains(existingRepoNames, r.Name()), nil
+	return doesSliceContainString(existingRepoNames, r.Name()), nil
 }
 
 // Gets a list of the name of Aptly repos that already exists.
@@ -464,7 +463,7 @@ func (a *Aptly) getRepoSlicePublishedState(repos []*Repo) (bool, bool, error) {
 	containsPublishedRepo := false
 	for _, repo := range repos {
 		repoName := repo.Name()
-		hasRepoBeenPublished := slices.Contains(publishedRepoNames, repoName)
+		hasRepoBeenPublished := doesSliceContainString(publishedRepoNames, repoName)
 		logrus.Debugf("Repo %q has been published: %v", repoName, hasRepoBeenPublished)
 		containsUnpublishedRepo = containsUnpublishedRepo || !hasRepoBeenPublished
 		containsPublishedRepo = containsPublishedRepo || hasRepoBeenPublished
@@ -697,4 +696,16 @@ func buildAndRunCommand(command string, args ...string) (string, error) {
 
 	logrus.Debugln("Command exited successfully")
 	return string(output), nil
+}
+
+// Change to make tool golang v1.17 compatible.
+// This is a replacement for `slices.Contains`.
+func doesSliceContainString(slice []string, str string) bool {
+	for _, element := range slice {
+		if element == str {
+			return true
+		}
+	}
+
+	return false
 }

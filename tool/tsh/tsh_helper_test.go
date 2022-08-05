@@ -26,7 +26,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
@@ -75,7 +74,6 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	}
 
 	cfg := service.MakeDefaultConfig()
-	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	err = config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 
@@ -93,7 +91,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	require.NoError(t, err)
 
 	s.connector = mockConnector(t)
-	sshLoginRole, err := types.NewRoleV3("ssh-login", types.RoleSpecV5{
+	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{user.Username},
 		},
@@ -145,7 +143,6 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	}
 
 	cfg := service.MakeDefaultConfig()
-	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	err := config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 
@@ -153,7 +150,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	require.NoError(t, err)
 
 	cfg.Proxy.DisableWebInterface = true
-	sshLoginRole, err := types.NewRoleV3("ssh-login", types.RoleSpecV5{
+	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{user.Username},
 		},
@@ -262,8 +259,15 @@ func localListenerAddr() string {
 
 func waitForEvents(t *testing.T, svc service.Supervisor, events ...string) {
 	for _, event := range events {
-		_, err := svc.WaitForEventTimeout(30*time.Second, event)
-		require.NoError(t, err, "service server didn't receved %v event after 30s", event)
+		eventCh := make(chan service.Event, 1)
+		svc.WaitForEvent(svc.ExitContext(), event, eventCh)
+		select {
+		case <-eventCh:
+		case <-time.After(30 * time.Second):
+			// in reality, the auth server should start *much* sooner than this.  we use a very large
+			// timeout here because this isn't the kind of problem that this test is meant to catch.
+			t.Fatalf("service server didn't receved %v event after 30s", event)
+		}
 	}
 }
 

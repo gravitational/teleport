@@ -18,29 +18,22 @@ import (
 	"bytes"
 	"context"
 	"encoding/base32"
-	"errors"
+	"encoding/base64"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jonboulle/clockwork"
-	"github.com/pquerna/otp/totp"
-	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -48,9 +41,18 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/pquerna/otp/totp"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	u2flib "github.com/gravitational/teleport/lib/auth/u2f"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	log "github.com/sirupsen/logrus"
 )
 
-func TestTeleportClient_Login_local(t *testing.T) {
+func TestTeleportClient_Login_localMFALogin(t *testing.T) {
 	// Silence logging during this test.
 	lvl := log.GetLevel()
 	t.Cleanup(func() {
@@ -64,7 +66,6 @@ func TestTeleportClient_Login_local(t *testing.T) {
 	sa := newStandaloneTeleport(t, clock)
 	username := sa.Username
 	password := sa.Password
-	webID := sa.WebAuthnID
 	device := sa.Device
 	otpKey := sa.OTPKey
 
@@ -82,18 +83,48 @@ func TestTeleportClient_Login_local(t *testing.T) {
 	cfg.KeysDir = t.TempDir()
 	cfg.InsecureSkipVerify = true
 
-	// Reset functions after tests.
-	oldStdin, oldWebauthn := prompt.Stdin(), *client.PromptWebauthn
+	// Replace (and later reset) user-prompting functions.
+	oldPwd, oldOTP, oldU2F, oldWAN := *client.PasswordFromConsoleFn, *client.PromptOTP, *client.PromptU2F, *client.PromptWebauthn
 	t.Cleanup(func() {
-		prompt.SetStdin(oldStdin)
-		*client.PromptWebauthn = oldWebauthn
+		*client.PasswordFromConsoleFn = oldPwd
+		*client.PromptOTP = oldOTP
+		*client.PromptU2F = oldU2F
+		*client.PromptWebauthn = oldWAN
 	})
+	*client.PasswordFromConsoleFn = func() (string, error) {
+		return password, nil
+	}
 
-	waitForCancelFn := func(ctx context.Context) (string, error) {
+	// The loginMocks setup below is used to avoid data races when reading or
+	// writing client.Prompt* pointers.
+	// Tests are supposed to replace loginMocks functions instead.
+	loginMocks := struct {
+		promptOTP      func(ctx context.Context) (string, error)
+		promptU2F      func(ctx context.Context, facet string, challenges ...u2flib.AuthenticateChallenge) (*u2flib.AuthenticateChallengeResponse, error)
+		promptWebauthn func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error)
+	}{}
+	var loginMocksMU sync.RWMutex
+	*client.PromptOTP = func(ctx context.Context, out io.Writer, in prompt.Reader, question string) (string, error) {
+		loginMocksMU.RLock()
+		defer loginMocksMU.RUnlock()
+		return loginMocks.promptOTP(ctx)
+	}
+	*client.PromptU2F = func(ctx context.Context, facet string, challenges ...u2flib.AuthenticateChallenge) (*u2flib.AuthenticateChallengeResponse, error) {
+		loginMocksMU.RLock()
+		defer loginMocksMU.RUnlock()
+		return loginMocks.promptU2F(ctx, facet, challenges...)
+	}
+	*client.PromptWebauthn = func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
+		loginMocksMU.RLock()
+		defer loginMocksMU.RUnlock()
+		return loginMocks.promptWebauthn(ctx, origin, assertion)
+	}
+
+	promptOTPNoop := func(ctx context.Context) (string, error) {
 		<-ctx.Done() // wait for timeout
 		return "", ctx.Err()
 	}
-	noopWebauthnFn := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+	promptWebauthnNoop := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
 		<-ctx.Done() // wait for timeout
 		return nil, ctx.Err()
 	}
@@ -101,7 +132,16 @@ func TestTeleportClient_Login_local(t *testing.T) {
 	solveOTP := func(ctx context.Context) (string, error) {
 		return totp.GenerateCode(otpKey, clock.Now())
 	}
-	solveWebauthn := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+	solveU2F := func(ctx context.Context, facet string, challenges ...u2flib.AuthenticateChallenge) (*u2flib.AuthenticateChallengeResponse, error) {
+		kh := base64.RawURLEncoding.EncodeToString(device.KeyHandle)
+		for _, c := range challenges {
+			if kh == c.KeyHandle {
+				return device.SignResponse(&c)
+			}
+		}
+		return nil, trace.BadParameter("key handle now found")
+	}
+	solveWebauthn := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
 		car, err := device.SignAssertion(origin, assertion)
 		if err != nil {
 			return nil, err
@@ -112,103 +152,81 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			},
 		}, nil
 	}
-	solvePwdless := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
-		resp, err := solveWebauthn(ctx, origin, assertion, prompt)
-		if err == nil {
-			resp.GetWebauthn().Response.UserHandle = webID
-		}
-		return resp, err
-	}
-
-	const pin = "pin123"
-	userPINFn := func(ctx context.Context) (string, error) {
-		return pin, nil
-	}
-	solvePIN := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
-		// Ask and verify the PIN. Usually the authenticator would verify the PIN,
-		// but we are faking it here.
-		got, err := prompt.PromptPIN()
-		switch {
-		case err != nil:
-			return nil, err
-		case got != pin:
-			return nil, errors.New("invalid PIN")
-		}
-		prompt.PromptTouch() // Realistically, this would happen too.
-		return solveWebauthn(ctx, origin, assertion, prompt)
-	}
 
 	ctx := context.Background()
 	tests := []struct {
 		name             string
 		secondFactor     constants.SecondFactorType
-		inputReader      *prompt.FakeReader
-		solveWebauthn    func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
-		authConnector    string
+		solveOTP         func(context.Context) (string, error)
+		solveU2F         func(ctx context.Context, facet string, challenges ...u2flib.AuthenticateChallenge) (*u2flib.AuthenticateChallengeResponse, error)
+		solveWebauthn    func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error)
 		allowStdinHijack bool
 		preferOTP        bool
 	}{
 		{
-			name:             "OTP device login with hijack",
-			secondFactor:     constants.SecondFactorOptional,
-			inputReader:      prompt.NewFakeReader().AddString(password).AddReply(solveOTP),
-			solveWebauthn:    noopWebauthnFn,
+			name:         "OK OTP device login with hijack",
+			secondFactor: constants.SecondFactorOptional,
+			solveOTP:     solveOTP,
+			solveU2F: func(context.Context, string, ...u2flib.AuthenticateChallenge) (*u2flib.AuthenticateChallengeResponse, error) {
+				panic("unused")
+			},
+			solveWebauthn:    promptWebauthnNoop,
 			allowStdinHijack: true,
 		},
 		{
-			name:             "Webauthn device login with hijack",
-			secondFactor:     constants.SecondFactorOptional,
-			inputReader:      prompt.NewFakeReader().AddString(password).AddReply(waitForCancelFn),
+			name:         "OK Webauthn device login with hijack",
+			secondFactor: constants.SecondFactorOptional,
+			solveOTP:     promptOTPNoop,
+			solveU2F: func(context.Context, string, ...u2flib.AuthenticateChallenge) (*u2flib.AuthenticateChallengeResponse, error) {
+				panic("unused")
+			},
 			solveWebauthn:    solveWebauthn,
 			allowStdinHijack: true,
 		},
 		{
-			name:             "Webauthn device with PIN and hijack", // a bit hypothetical, but _could_ happen.
-			secondFactor:     constants.SecondFactorOptional,
-			inputReader:      prompt.NewFakeReader().AddString(password).AddReply(waitForCancelFn).AddReply(userPINFn),
-			solveWebauthn:    solvePIN,
+			name:         "OK U2F device login with hijack",
+			secondFactor: constants.SecondFactorU2F,
+			solveOTP:     promptOTPNoop,
+			solveU2F:     solveU2F,
+			solveWebauthn: func(context.Context, string, *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
+				panic("unused")
+			},
 			allowStdinHijack: true,
 		},
 		{
 			name:         "OTP preferred",
 			secondFactor: constants.SecondFactorOptional,
-			inputReader:  prompt.NewFakeReader().AddString(password).AddReply(solveOTP),
-			solveWebauthn: func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
-				panic("this should not be called")
+			solveOTP:     solveOTP,
+			solveU2F: func(context.Context, string, ...u2flib.AuthenticateChallenge) (*u2flib.AuthenticateChallengeResponse, error) {
+				panic("unused")
+			},
+			solveWebauthn: func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, error) {
+				panic("unused")
 			},
 			preferOTP: true,
 		},
 		{
 			name:         "Webauthn device login",
 			secondFactor: constants.SecondFactorOptional,
-			inputReader: prompt.NewFakeReader().
-				AddString(password).
-				AddReply(func(ctx context.Context) (string, error) {
-					panic("this should not be called")
-				}),
+			solveOTP: func(ctx context.Context) (string, error) {
+				panic("unused")
+			},
+			solveU2F: func(context.Context, string, ...u2flib.AuthenticateChallenge) (*u2flib.AuthenticateChallengeResponse, error) {
+				panic("unused")
+			},
 			solveWebauthn: solveWebauthn,
-		},
-		{
-			name:          "passwordless login",
-			secondFactor:  constants.SecondFactorOptional,
-			inputReader:   prompt.NewFakeReader(), // no inputs
-			solveWebauthn: solvePwdless,
-			authConnector: constants.PasswordlessConnector,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 
-			prompt.SetStdin(test.inputReader)
-			*client.PromptWebauthn = func(
-				ctx context.Context,
-				origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts,
-			) (*proto.MFAAuthenticateResponse, string, error) {
-				resp, err := test.solveWebauthn(ctx, origin, assertion, prompt)
-				return resp, "", err
-			}
+			loginMocksMU.Lock()
+			loginMocks.promptOTP = test.solveOTP
+			loginMocks.promptU2F = test.solveU2F
+			loginMocks.promptWebauthn = test.solveWebauthn
+			loginMocksMU.Unlock()
 
 			authServer := sa.Auth.GetAuthServer()
 			pref, err := authServer.GetAuthPreference(ctx)
@@ -221,7 +239,6 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			tc, err := client.NewClient(cfg)
 			require.NoError(t, err)
 			tc.AllowStdinHijack = test.allowStdinHijack
-			tc.AuthConnector = test.authConnector
 			tc.PreferOTP = test.preferOTP
 
 			clock.Advance(30 * time.Second)
@@ -247,8 +264,7 @@ func TestTeleportClient_PromptMFAChallenge(t *testing.T) {
 		Config: client.Config{
 			WebProxyAddr: proxy1,
 			// MFA opts.
-			AuthenticatorAttachment: wancli.AttachmentAuto,
-			PreferOTP:               false,
+			PreferOTP: false,
 		},
 	}
 
@@ -257,8 +273,7 @@ func TestTeleportClient_PromptMFAChallenge(t *testing.T) {
 		Config: client.Config{
 			WebProxyAddr: proxy1,
 			// MFA opts.
-			AuthenticatorAttachment: wancli.AttachmentCrossPlatform,
-			PreferOTP:               true,
+			PreferOTP: true,
 		},
 	}
 
@@ -266,11 +281,10 @@ func TestTeleportClient_PromptMFAChallenge(t *testing.T) {
 	challenge := &proto.MFAAuthenticateChallenge{}
 
 	customizedOpts := &client.PromptMFAChallengeOpts{
-		PromptDevicePrefix:      "llama",
-		Quiet:                   true,
-		AllowStdinHijack:        true,
-		AuthenticatorAttachment: wancli.AttachmentPlatform,
-		PreferOTP:               true,
+		PromptDevicePrefix: "llama",
+		Quiet:              true,
+		AllowStdinHijack:   true,
+		PreferOTP:          true,
 	}
 
 	ctx := context.Background()
@@ -287,8 +301,7 @@ func TestTeleportClient_PromptMFAChallenge(t *testing.T) {
 			tc:        defaultClient,
 			wantProxy: defaultClient.WebProxyAddr,
 			wantOpts: &client.PromptMFAChallengeOpts{
-				AuthenticatorAttachment: defaultClient.AuthenticatorAttachment,
-				PreferOTP:               defaultClient.PreferOTP,
+				PreferOTP: defaultClient.PreferOTP,
 			},
 		},
 		{
@@ -296,8 +309,7 @@ func TestTeleportClient_PromptMFAChallenge(t *testing.T) {
 			tc:        opinionatedClient,
 			wantProxy: opinionatedClient.WebProxyAddr,
 			wantOpts: &client.PromptMFAChallengeOpts{
-				AuthenticatorAttachment: opinionatedClient.AuthenticatorAttachment,
-				PreferOTP:               opinionatedClient.PreferOTP,
+				PreferOTP: opinionatedClient.PreferOTP,
 			},
 		},
 		{
@@ -316,8 +328,7 @@ func TestTeleportClient_PromptMFAChallenge(t *testing.T) {
 			promptCalled := false
 			*client.PromptMFAStandalone = func(
 				gotCtx context.Context, gotChallenge *proto.MFAAuthenticateChallenge, gotProxy string,
-				gotOpts *client.PromptMFAChallengeOpts,
-			) (*proto.MFAAuthenticateResponse, error) {
+				gotOpts *client.PromptMFAChallengeOpts) (*proto.MFAAuthenticateResponse, error) {
 				promptCalled = true
 				assert.Equal(t, ctx, gotCtx, "ctx mismatch")
 				assert.Equal(t, challenge, gotChallenge, "challenge mismatch")
@@ -336,7 +347,6 @@ func TestTeleportClient_PromptMFAChallenge(t *testing.T) {
 type standaloneBundle struct {
 	AuthAddr, ProxyWebAddr string
 	Username, Password     string
-	WebAuthnID             []byte
 	Device                 *mocku2f.Key
 	OTPKey                 string
 	Auth, Proxy            *service.TeleportProcess
@@ -357,7 +367,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 
 	user, err := types.NewUser("llama")
 	require.NoError(t, err)
-	role, err := types.NewRoleV3(user.GetName(), types.RoleSpecV5{
+	role, err := types.NewRole(user.GetName(), types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{user.GetName()},
 		},
@@ -375,8 +385,9 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg.Auth.Preference, err = types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
-		Webauthn: &types.Webauthn{
-			RPID: "localhost",
+		U2F: &types.U2F{
+			AppID:  "localhost",
+			Facets: []string{"https://localhost", "localhost"},
 		},
 	})
 	require.NoError(t, err)
@@ -392,13 +403,12 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	})
 	require.NoError(t, err)
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
-	cfg.Auth.ListenAddr = randomAddr
+	cfg.Auth.SSHAddr = randomAddr
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = false
-	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	authProcess := startAndWait(t, cfg, service.AuthTLSReady)
 	t.Cleanup(func() { authProcess.Close() })
-	authAddr, err := authProcess.AuthAddr()
+	authAddr, err := authProcess.AuthSSHAddr()
 	require.NoError(t, err)
 
 	// Use the same clock on AuthServer, it doesn't appear to cascade from
@@ -416,25 +426,27 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	require.NoError(t, err)
 	tokenID := token.GetName()
 	res, err := authServer.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
-		TokenID:     tokenID,
-		DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
-		DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+		TokenID:    tokenID,
+		DeviceType: proto.DeviceType_DEVICE_TYPE_U2F,
 	})
 	require.NoError(t, err)
-	cc := wanlib.CredentialCreationFromProto(res.GetWebauthn())
-	webID := cc.Response.User.ID
 	device, err := mocku2f.Create()
 	require.NoError(t, err)
-	device.SetPasswordless()
-	const origin = "https://localhost"
-	ccr, err := device.SignCredentialCreation(origin, cc)
+	registerResp, err := device.RegisterResponse(&u2f.RegisterChallenge{
+		Version:   res.GetU2F().GetVersion(),
+		Challenge: res.GetU2F().GetChallenge(),
+		AppID:     res.GetU2F().GetAppID(),
+	})
 	require.NoError(t, err)
 	_, err = authServer.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
 		TokenID:     tokenID,
 		NewPassword: []byte(password),
 		NewMFARegisterResponse: &proto.MFARegisterResponse{
-			Response: &proto.MFARegisterResponse_Webauthn{
-				Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+			Response: &proto.MFARegisterResponse_U2F{
+				U2F: &proto.U2FRegisterResponse{
+					RegistrationData: registerResp.RegistrationData,
+					ClientData:       registerResp.ClientData,
+				},
 			},
 		},
 	})
@@ -462,7 +474,6 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg.Proxy.ReverseTunnelListenAddr = randomAddr
 	cfg.Proxy.DisableWebInterface = true
 	cfg.SSH.Enabled = false
-	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	proxyProcess := startAndWait(t, cfg, service.ProxyWebServerReady)
 	t.Cleanup(func() { proxyProcess.Close() })
 	proxyWebAddr, err := proxyProcess.ProxyWebAddr()
@@ -473,7 +484,6 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 		ProxyWebAddr: proxyWebAddr.String(),
 		Username:     username,
 		Password:     password,
-		WebAuthnID:   webID,
 		Device:       device,
 		OTPKey:       otpKey,
 		Auth:         authProcess,
@@ -486,8 +496,13 @@ func startAndWait(t *testing.T, cfg *service.Config, eventName string) *service.
 	require.NoError(t, err)
 	require.NoError(t, instance.Start())
 
-	_, err = instance.WaitForEventTimeout(30*time.Second, eventName)
-	require.NoError(t, err, "timed out waiting for teleport")
+	eventC := make(chan service.Event, 1)
+	instance.WaitForEvent(instance.ExitContext(), eventName, eventC)
+	select {
+	case <-eventC:
+	case <-time.After(30 * time.Second):
+		t.Fatal("Timed out waiting for teleport")
+	}
 
 	return instance
 }

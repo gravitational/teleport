@@ -177,7 +177,12 @@ func TestMatchApplicationServers(t *testing.T) {
 	}
 
 	// Create a fake remote site and tunnel.
-	fakeRemoteSite := reversetunnel.NewFakeRemoteSite(clusterName, authClient)
+	fakeRemoteSiteConnCh := make(chan net.Conn)
+	fakeRemoteSite := &reversetunnel.FakeRemoteSite{
+		Name:        clusterName,
+		ConnCh:      fakeRemoteSiteConnCh,
+		AccessPoint: authClient,
+	}
 	tunnel := &reversetunnel.FakeServer{
 		Sites: []reversetunnel.RemoteSite{
 			fakeRemoteSite,
@@ -202,7 +207,7 @@ func TestMatchApplicationServers(t *testing.T) {
 
 	// Teardown the remote site and the httptest server.
 	t.Cleanup(func() {
-		require.NoError(t, fakeRemoteSite.Close())
+		close(fakeRemoteSiteConnCh)
 		server.Close()
 	})
 
@@ -338,7 +343,7 @@ type fakeRemoteListener struct {
 }
 
 func (r *fakeRemoteListener) Accept() (net.Conn, error) {
-	conn, ok := <-r.fakeRemote.ProxyConn()
+	conn, ok := <-r.fakeRemote.ConnCh
 	if !ok {
 		return nil, fmt.Errorf("remote closed")
 	}

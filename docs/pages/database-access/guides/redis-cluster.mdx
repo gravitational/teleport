@@ -25,7 +25,6 @@ This guide will help you to:
 ![Teleport Database Access Redis Cluster Self-Hosted](../../../img/database-access/guides/rediscluster_selfhosted.png)
 </ScopedBlock>
 
-
 <ScopedBlock scope={["cloud"]}>
 ![Teleport Database Access Redis Cluster Cloud](../../../img/database-access/guides/rediscluster_cloud.png)
 </ScopedBlock>
@@ -34,7 +33,7 @@ This guide will help you to:
 
 - Redis version `6.0` or newer.
 
-- `redis-cli` version `6.2` or newer installed and added to your system's `PATH` environment variable.
+- `redis-cli` installed and added to your system's `PATH` environment variable.
 
 - A host where you will run the Teleport Database Service. Teleport version 9.0
   or newer must be installed.
@@ -47,15 +46,9 @@ This guide will help you to:
   Redis `7.0` and RESP3 (REdis Serialization Protocol) are currently not supported.
 </Admonition>
 
-## Step 1/6. Install and configure Teleport
-
-### Set up the Teleport Auth and Proxy Services
+## Step 1/6. Set up Teleport Auth and Proxy
 
 (!docs/pages/includes/database-access/start-auth-proxy.mdx!)
-
-### Set up the Teleport Database Service
-
-(!docs/pages/includes/database-access/token.mdx!)
 
 Install Teleport on the host where you will run the Teleport Database Service:
 
@@ -121,6 +114,7 @@ $ teleport db start \
 
 We will show you how to use the `tctl auth sign` command below.
 
+
 When connecting to Redis Cluster, sign certificates for each member
 using their hostnames and IP addresses.
 For example, if the first member is accessible at `redis1.example.com` with IP `10.0.0.1` and
@@ -167,7 +161,7 @@ from clients that do not present a certificate.
 See [TLS Support](https://redis.io/topics/encryption)
 in the Redis documentation for more details.
 
-## Step 5/6. Create a cluster
+## Step 5/6. Create cluster
 
 Use the following command to create the cluster. Please note `redis-cli --cluster create` accepts only IP addresses.
 ```sh

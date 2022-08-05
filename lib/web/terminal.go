@@ -26,25 +26,30 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
-	"github.com/gorilla/websocket"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/unicode"
 
 	"github.com/gravitational/teleport"
 	authproto "github.com/gravitational/teleport/api/client/proto"
-	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/trace"
+
+	"github.com/gogo/protobuf/proto"
+	"github.com/gorilla/websocket"
+	"github.com/sirupsen/logrus"
 )
 
 // TerminalRequest describes a request to create a web-based terminal
@@ -82,9 +87,8 @@ type TerminalRequest struct {
 
 // AuthProvider is a subset of the full Auth API.
 type AuthProvider interface {
-	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
+	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
 	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]events.EventFields, error)
-	GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error)
 }
 
 // NewTerminal creates a web-based terminal based on WebSockets and returns a
@@ -117,17 +121,6 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		return nil, trace.BadParameter("invalid server name %q: %v", req.Server, err)
 	}
 
-	var join bool
-	_, err = authProvider.GetSessionTracker(ctx, string(req.SessionID))
-	switch {
-	case trace.IsNotFound(err):
-		join = false
-	case err != nil:
-		return nil, trace.Wrap(err)
-	default:
-		join = true
-	}
-
 	return &TerminalHandler{
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentWebsocket,
@@ -141,7 +134,6 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		encoder:      unicode.UTF8.NewEncoder(),
 		decoder:      unicode.UTF8.NewDecoder(),
 		wsLock:       &sync.Mutex{},
-		join:         join,
 	}, nil
 }
 
@@ -191,9 +183,6 @@ type TerminalHandler struct {
 	closeOnce sync.Once
 
 	wsLock *sync.Mutex
-
-	// join is set if we're joining an existing session
-	join bool
 }
 
 // Serve builds a connect to the remote node and then pumps back two types of
@@ -317,13 +306,8 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*clie
 	// communicate over the websocket.
 	stream := t.asTerminalStream(ws)
 
-	if t.join {
-		clientConfig.HostLogin = teleport.SSHSessionJoinPrincipal
-	} else {
-		clientConfig.HostLogin = t.params.Login
-	}
-
 	clientConfig.ForwardAgent = client.ForwardAgentLocal
+	clientConfig.HostLogin = t.params.Login
 	clientConfig.Namespace = t.params.Namespace
 	clientConfig.Stdout = stream
 	clientConfig.Stderr = stream
@@ -349,7 +333,7 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*clie
 	// Save the *ssh.Session after the shell has been created. The session is
 	// used to update all other parties window size to that of the web client and
 	// to allow future window changes.
-	tc.OnShellCreated = func(s *ssh.Session, c *tracessh.Client, _ io.ReadWriteCloser) (bool, error) {
+	tc.OnShellCreated = func(s *ssh.Session, c *ssh.Client, _ io.ReadWriteCloser) (bool, error) {
 		t.sshSession = s
 		t.windowChange(&t.params.Term)
 
@@ -403,15 +387,37 @@ func promptMFAChallenge(
 	codec mfaCodec,
 ) client.PromptMFAChallengeHandler {
 	return func(ctx context.Context, proxyAddr string, c *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
-		var chal *client.MFAAuthenticateChallenge
+		var chal *auth.MFAAuthenticateChallenge
 		var envelopeType string
 
 		// Convert from proto to JSON types.
 		switch {
+		// Webauthn takes precedence.
 		case c.GetWebauthnChallenge() != nil:
 			envelopeType = defaults.WebsocketWebauthnChallenge
-			chal = &client.MFAAuthenticateChallenge{
+			chal = &auth.MFAAuthenticateChallenge{
 				WebauthnChallenge: wanlib.CredentialAssertionFromProto(c.WebauthnChallenge),
+			}
+		case len(c.U2F) > 0:
+			u2fChals := make([]u2f.AuthenticateChallenge, 0, len(c.U2F))
+			envelopeType = defaults.WebsocketU2FChallenge
+			for _, uc := range c.U2F {
+				u2fChals = append(u2fChals, u2f.AuthenticateChallenge{
+					Version:   uc.Version,
+					Challenge: uc.Challenge,
+					KeyHandle: uc.KeyHandle,
+					AppID:     uc.AppID,
+				})
+			}
+			chal = &auth.MFAAuthenticateChallenge{
+				AuthenticateChallenge: &u2f.AuthenticateChallenge{
+					// Get the common challenge fields from the first item.
+					// All of these fields should be identical for all u2fChals.
+					Challenge: u2fChals[0].Challenge,
+					AppID:     u2fChals[0].AppID,
+					Version:   u2fChals[0].Version,
+				},
+				U2FChallenges: u2fChals,
 			}
 		default:
 			return nil, trace.AccessDenied("only hardware keys are supported on the web terminal, please register a hardware device to connect to this server")
@@ -581,7 +587,7 @@ func (t *TerminalHandler) writeError(err error, ws *websocket.Conn) error {
 // and port.
 func resolveServerHostPort(servername string, existingServers []types.Server) (string, int, error) {
 	// If port is 0, client wants us to figure out which port to use.
-	defaultPort := 0
+	var defaultPort = 0
 
 	if servername == "" {
 		return "", defaultPort, trace.BadParameter("empty server name")

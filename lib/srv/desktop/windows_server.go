@@ -51,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -169,8 +168,6 @@ type WindowsServiceConfig struct {
 	DiscoveryLDAPAttributeLabels []string
 	// Hostname of the windows desktop service
 	Hostname string
-	// ConnectedProxyGetter gets the proxies teleport is connected to.
-	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 }
 
 // LDAPConfig contains parameters for connecting to an LDAP server.
@@ -283,9 +280,6 @@ func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 	}
 	if err := cfg.checkAndSetDiscoveryDefaults(); err != nil {
 		return trace.Wrap(err)
-	}
-	if cfg.ConnectedProxyGetter == nil {
-		cfg.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
 	}
 
 	return nil
@@ -965,7 +959,6 @@ func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {
 			Addr:            s.cfg.Heartbeat.PublicAddr,
 			TeleportVersion: teleport.Version,
 			Hostname:        s.cfg.Hostname,
-			ProxyIDs:        s.cfg.ConnectedProxyGetter.GetProxyIDs(),
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1296,16 +1289,14 @@ func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, w
 
 	s.cfg.Log.Debugf("Creating tracker for session %v", sessionID)
 	tracker, err := srv.NewSessionTracker(ctx, trackerSpec, s.cfg.AuthClient)
-	switch {
-	case err == nil:
-	case trace.IsAccessDenied(err):
-		// Ignore access denied errors, which we may get if the auth
-		// server is v9.2.3 or earlier, since only node, proxy, and
+	if err != nil {
+		// Ignore access denied errors, which we will get if the auth
+		// server is v9.2.1 or earlier, since only node, proxy, and
 		// kube roles had permission to create session trackers.
-		// DELETE IN 11.0.0
-		s.cfg.Log.Debugf("Insufficient permissions to create session tracker, skipping session tracking for session %v", sessionID)
-		return nil
-	default: // aka err != nil
+		if trace.IsAccessDenied(err) {
+			s.cfg.Log.Debugf("Insufficient permissions to create session tracker, skipping session tracking for session %v", sessionID)
+			return nil
+		}
 		return trace.Wrap(err)
 	}
 

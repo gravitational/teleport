@@ -19,13 +19,12 @@ package utils
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
 )
-
-// OpenFileWithFlagsFunc defines a function used to open files providing options.
-type OpenFileWithFlagsFunc func(name string, flag int, perm os.FileMode) (*os.File, error)
 
 // EnsureLocalPath makes sure the path exists, or, if omitted results in the subpath in
 // default gravity config directory, e.g.
@@ -36,9 +35,9 @@ type OpenFileWithFlagsFunc func(name string, flag int, perm os.FileMode) (*os.Fi
 // It also makes sure that base dir exists
 func EnsureLocalPath(customPath string, defaultLocalDir, defaultLocalPath string) (string, error) {
 	if customPath == "" {
-		homeDir, err := os.UserHomeDir()
-		if err != nil || homeDir == "" {
-			return "", trace.BadParameter("could not get user home dir: %v", err)
+		homeDir := getHomeDir()
+		if homeDir == "" {
+			return "", trace.BadParameter("no path provided and environment variable %v is not not set", teleport.EnvHome)
 		}
 		customPath = filepath.Join(homeDir, defaultLocalDir, defaultLocalPath)
 	}
@@ -143,4 +142,17 @@ func StatDir(path string) (os.FileInfo, error) {
 		return nil, trace.BadParameter("%v is not a directory", path)
 	}
 	return fi, nil
+}
+
+// getHomeDir returns the home directory based off the OS.
+func getHomeDir() string {
+	switch runtime.GOOS {
+	case constants.LinuxOS:
+		return os.Getenv(teleport.EnvHome)
+	case constants.DarwinOS:
+		return os.Getenv(teleport.EnvHome)
+	case constants.WindowsOS:
+		return os.Getenv(teleport.EnvUserProfile)
+	}
+	return ""
 }

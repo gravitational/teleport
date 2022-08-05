@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	libevents "github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -208,7 +207,7 @@ func TestEmitsRecordingEventsOnSend(t *testing.T) {
 			Clock: clock,
 		},
 	}
-	emitter := &eventstest.MockEmitter{}
+	emitter := &libevents.MockEmitter{}
 
 	// a fake PNG Frame message
 	encoded := []byte{byte(tdp.TypePNGFrame), 0x01, 0x02}
@@ -237,7 +236,7 @@ func TestSkipsExtremelyLargePNGs(t *testing.T) {
 			Log:   &logrus.Logger{Out: io.Discard},
 		},
 	}
-	emitter := &eventstest.MockEmitter{}
+	emitter := &libevents.MockEmitter{}
 
 	// a fake PNG Frame message, which is way too big to be legitimate
 	maliciousPNG := make([]byte, libevents.MaxProtoMessageSizeBytes+1)
@@ -263,7 +262,7 @@ func TestEmitsRecordingEventsOnReceive(t *testing.T) {
 			Clock: clock,
 		},
 	}
-	emitter := &eventstest.MockEmitter{}
+	emitter := &libevents.MockEmitter{}
 
 	delay := func() int64 { return 0 }
 	handler := s.makeTDPReceiveHandler(context.Background(), emitter, delay,

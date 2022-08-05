@@ -24,11 +24,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -38,7 +33,6 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/keystore"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -46,6 +40,10 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -100,7 +98,7 @@ type InitConfig struct {
 	// Trust is a service that manages users and credentials
 	Trust services.Trust
 
-	// Presence service is a discovery and heartbeat tracker
+	// Presence service is a discovery and hearbeat tracker
 	Presence services.Presence
 
 	// Provisioner is a service that keeps track of provisioning tokens
@@ -138,7 +136,7 @@ type InitConfig struct {
 	StaticTokens types.StaticTokens
 
 	// AuthPreference defines the authentication type (local, oidc) and second
-	// factor passed in from a configuration file.
+	// factor (off, otp, u2f) passed in from a configuration file.
 	AuthPreference types.AuthPreference
 
 	// AuditLog is used for emitting events to audit log.
@@ -154,11 +152,16 @@ type InitConfig struct {
 	SessionRecordingConfig types.SessionRecordingConfig
 
 	// SkipPeriodicOperations turns off periodic operations
-	// used in tests that don't need periodic operations.
+	// used in tests that don't need periodc operations.
 	SkipPeriodicOperations bool
 
 	// CipherSuites is a list of ciphersuites that the auth server supports.
 	CipherSuites []uint16
+
+	// CASigningAlg is a signing algorithm used for SSH (certificate and
+	// handshake) signatures for both host and user CAs. This option only
+	// affects newly-created CAs.
+	CASigningAlg *string
 
 	// Emitter is events emitter, used to submit discrete events
 	Emitter apievents.Emitter
@@ -171,15 +174,6 @@ type InitConfig struct {
 	WindowsDesktops services.WindowsDesktops
 
 	SessionTrackerService services.SessionTrackerService
-
-	// Enforcer is used to enforce Teleport Enterprise license compliance.
-	Enforcer services.Enforcer
-
-	// ConnectionsDiagnostic is a service that manages Connection Diagnostics resources.
-	ConnectionsDiagnostic services.ConnectionsDiagnostic
-
-	// TraceClient is used to forward spans to the upstream telemetry collector
-	TraceClient otlptrace.Client
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -246,10 +240,11 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 			ca = ca.Clone()
 			types.RemoveCASecrets(ca)
 		}
+
 		// Don't re-create CA if it already exists, otherwise
 		// the existing cluster configuration will be corrupted;
 		// this part of code is only used in tests.
-		if err := asrv.CreateCertAuthority(ca); err != nil {
+		if err := asrv.Trust.CreateCertAuthority(ca); err != nil {
 			if !trace.IsAlreadyExists(err) {
 				return nil, trace.Wrap(err)
 			}
@@ -295,7 +290,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	// is trying to change the name.
 	if trace.IsAlreadyExists(err) {
 		// Get current name of cluster from the backend.
-		cn, err := asrv.Services.GetClusterName()
+		cn, err := asrv.ClusterConfiguration.GetClusterName()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -327,16 +322,10 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	log.Infof("Created namespace: %q.", apidefaults.Namespace)
 
-	// Migrate Host CA as Database CA before certificates generation. Otherwise, the Database CA will be
-	// generated which we don't want for existing installations.
-	if err := migrateDBAuthority(ctx, asrv); err != nil {
-		return nil, trace.Wrap(err, "failed to migrate database CA")
-	}
-
 	// generate certificate authorities if they don't exist
-	for _, caType := range types.CertAuthTypes {
+	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.JWTSigner} {
 		caID := types.CertAuthID{Type: caType, DomainName: cfg.ClusterName.GetClusterName()}
-		ca, err := asrv.Services.GetCertAuthority(ctx, caID, true)
+		ca, err := asrv.GetCertAuthority(ctx, caID, true)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
@@ -365,7 +354,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 						return nil, trace.Wrap(err)
 					}
 					// reload updated CA for below checks
-					if ca, err = asrv.Services.GetCertAuthority(ctx, caID, true); err != nil {
+					if ca, err = asrv.GetCertAuthority(ctx, caID, true); err != nil {
 						return nil, trace.Wrap(err)
 					}
 				}
@@ -403,7 +392,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	// Create presets - convenience and example resources.
-	err = createPresets(ctx, asrv)
+	err = createPresets(asrv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -419,7 +408,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 }
 
 func initSetAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
-	storedAuthPref, err := asrv.Services.GetAuthPreference(ctx)
+	storedAuthPref, err := asrv.GetAuthPreference(ctx)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -437,7 +426,7 @@ func initSetAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.
 }
 
 func initSetClusterNetworkingConfig(ctx context.Context, asrv *Server, newNetConfig types.ClusterNetworkingConfig) error {
-	storedNetConfig, err := asrv.Services.GetClusterNetworkingConfig(ctx)
+	storedNetConfig, err := asrv.GetClusterNetworkingConfig(ctx)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -455,7 +444,7 @@ func initSetClusterNetworkingConfig(ctx context.Context, asrv *Server, newNetCon
 }
 
 func initSetSessionRecordingConfig(ctx context.Context, asrv *Server, newRecConfig types.SessionRecordingConfig) error {
-	storedRecConfig, err := asrv.Services.GetSessionRecordingConfig(ctx)
+	storedRecConfig, err := asrv.GetSessionRecordingConfig(ctx)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -514,14 +503,14 @@ func migrateLegacyResources(ctx context.Context, asrv *Server) error {
 }
 
 // createPresets creates preset resources (eg, roles).
-func createPresets(ctx context.Context, asrv *Server) error {
+func createPresets(asrv *Server) error {
 	roles := []types.Role{
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
 		services.NewPresetAuditorRole(),
 	}
 	for _, role := range roles {
-		err := asrv.CreateRole(ctx, role)
+		err := asrv.CreateRole(role)
 		if err != nil {
 			if !trace.IsAlreadyExists(err) {
 				return trace.WrapWithMessage(err, "failed to create preset role %v", role.GetName())
@@ -535,7 +524,7 @@ func createPresets(ctx context.Context, asrv *Server) error {
 // on this server.
 func isFirstStart(ctx context.Context, authServer *Server, cfg InitConfig) (bool, error) {
 	// check if the CA exists?
-	_, err := authServer.Services.GetCertAuthority(
+	_, err := authServer.GetCertAuthority(
 		ctx,
 		types.CertAuthID{
 			DomainName: cfg.ClusterName.GetClusterName(),
@@ -565,8 +554,6 @@ func checkResourceConsistency(keyStore keystore.KeyStore, clusterName string, re
 			switch r.GetType() {
 			case types.HostCA, types.UserCA:
 				_, signerErr = keyStore.GetSSHSigner(r)
-			case types.DatabaseCA:
-				_, _, signerErr = keyStore.GetTLSCertAndSigner(r)
 			case types.JWTSigner:
 				_, signerErr = keyStore.GetJWTSigner(r)
 			default:
@@ -605,7 +592,7 @@ func checkResourceConsistency(keyStore keystore.KeyStore, clusterName string, re
 
 // GenerateIdentity generates identity for the auth server
 func GenerateIdentity(a *Server, id IdentityID, additionalPrincipals, dnsNames []string) (*Identity, error) {
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := a.GenerateKeyPair("")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -793,8 +780,12 @@ type IdentityID struct {
 }
 
 // HostID is host ID part of the host UUID that consists cluster name
-func (id *IdentityID) HostID() string {
-	return strings.SplitN(id.HostUUID, ".", 2)[0]
+func (id *IdentityID) HostID() (string, error) {
+	parts := strings.Split(id.HostUUID, ".")
+	if len(parts) < 2 {
+		return "", trace.BadParameter("expected 2 parts in %q", id.HostUUID)
+	}
+	return parts[0], nil
 }
 
 // Equals returns true if two identities are equal
@@ -858,7 +849,7 @@ func ReadTLSIdentityFromKeyPair(keyBytes, certBytes []byte, caCertsBytes [][]byt
 
 	clusterName := cert.Issuer.Organization[0]
 	if clusterName == "" {
-		return nil, trace.BadParameter("missing cluster name")
+		return nil, trace.BadParameter("misssing cluster name")
 	}
 	identity := &Identity{
 		ID:              IdentityID{HostUUID: id.Username, Role: types.SystemRole(id.Groups[0])},
@@ -915,7 +906,7 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 
 	// check permissions on certificate
 	if len(cert.Permissions.Extensions) == 0 {
-		return nil, trace.BadParameter("extensions: missing needed extensions for host roles")
+		return nil, trace.BadParameter("extensions: misssing needed extensions for host roles")
 	}
 	roleString := cert.Permissions.Extensions[utils.CertExtensionRole]
 	if roleString == "" {
@@ -966,11 +957,11 @@ func ReadLocalIdentity(dataDir string, id IdentityID) (*Identity, error) {
 // where the presence of remote cluster was identified only by presence
 // of host certificate authority with cluster name not equal local cluster name
 func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
-	clusterName, err := asrv.Services.GetClusterName()
+	clusterName, err := asrv.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	certAuthorities, err := asrv.Services.GetCertAuthorities(ctx, types.HostCA, false)
+	certAuthorities, err := asrv.GetCertAuthorities(ctx, types.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -982,7 +973,7 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 			continue
 		}
 		// remote cluster already exists
-		_, err = asrv.Services.GetRemoteCluster(certAuthority.GetName())
+		_, err = asrv.GetRemoteCluster(certAuthority.GetName())
 		if err == nil {
 			log.Debugf("Migrations: remote cluster already exists for cert authority %q.", certAuthority.GetName())
 			continue
@@ -991,7 +982,7 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 			return trace.Wrap(err)
 		}
 		// the cert authority is associated with trusted cluster
-		_, err = asrv.Services.GetTrustedCluster(ctx, certAuthority.GetName())
+		_, err = asrv.GetTrustedCluster(ctx, certAuthority.GetName())
 		if err == nil {
 			log.Debugf("Migrations: trusted cluster resource exists for cert authority %q.", certAuthority.GetName())
 			continue
@@ -1021,7 +1012,7 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 func migrateCertAuthorities(ctx context.Context, asrv *Server) error {
 	var errors []error
 	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.JWTSigner} {
-		cas, err := asrv.Services.GetCertAuthorities(ctx, caType, true)
+		cas, err := asrv.GetCertAuthorities(ctx, caType, true)
 		if err != nil {
 			errors = append(errors, trace.Wrap(err, "fetching %v CAs", caType))
 			continue
@@ -1041,87 +1032,6 @@ func migrateCertAuthorities(ctx context.Context, asrv *Server) error {
 		}
 		return trace.Errorf("fail to migrate certificate authorities to the v7 storage format")
 	}
-	return nil
-}
-
-// migrateDBAuthority copies Host CA as Database CA. Before v9.0 database access was using host CA to sign all
-// DB certificates. In order to support existing installations Teleport copies Host CA as Database CA on
-// the first run after update to v9.0+.
-// Function does nothing for databases created with Teleport v9.0+.
-// https://github.com/gravitational/teleport/issues/5029
-//
-// DELETE IN 11.0
-func migrateDBAuthority(ctx context.Context, asrv *Server) error {
-	localClusterName, err := asrv.Services.GetClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	trustedClusters, err := asrv.Services.GetTrustedClusters(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	allClusters := []string{
-		localClusterName.GetClusterName(),
-	}
-
-	for _, tr := range trustedClusters {
-		allClusters = append(allClusters, tr.GetName())
-	}
-
-	for _, clusterName := range allClusters {
-		dbCaID := types.CertAuthID{Type: types.DatabaseCA, DomainName: clusterName}
-		_, err = asrv.Services.GetCertAuthority(ctx, dbCaID, false)
-		if err == nil {
-			continue // no migration needed. DB cert already exists.
-		}
-		if err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-		// Database CA doesn't exist, check for Host.
-		hostCaID := types.CertAuthID{Type: types.HostCA, DomainName: clusterName}
-		hostCA, err := asrv.Services.GetCertAuthority(ctx, hostCaID, true)
-		if trace.IsNotFound(err) {
-			// DB CA and Host CA are missing. Looks like the first start. No migration needed.
-			continue
-		}
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// Database CA is missing, but Host CA has been found. Database was created with pre v9.
-		// Copy the Host CA as Database CA.
-		log.Infof("Migrating Database CA cluster: %s", clusterName)
-
-		cav2, ok := hostCA.(*types.CertAuthorityV2)
-		if !ok {
-			return trace.BadParameter("expected host CA to be of *types.CertAuthorityV2 type, got: %T", hostCA)
-		}
-
-		dbCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-			Type:        types.DatabaseCA,
-			ClusterName: clusterName,
-			ActiveKeys: types.CAKeySet{
-				// Copy only TLS keys as SSH are not needed.
-				TLS: cav2.Spec.ActiveKeys.TLS,
-			},
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		err = asrv.CreateCertAuthority(dbCA)
-		switch {
-		case trace.IsAlreadyExists(err):
-			// Probably another auth server have created the DB CA since we last check.
-			// This shouldn't be a problem, but let's log it to know when it happens.
-			log.Warn("DB CA has already been created by a different Auth server instance")
-		case err != nil:
-			return trace.Wrap(err)
-		}
-	}
-
 	return nil
 }
 

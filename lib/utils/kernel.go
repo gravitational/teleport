@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"runtime"
 	"strings"
@@ -54,7 +55,7 @@ func KernelVersion() (*semver.Version, error) {
 // kernelVersion reads in the kernel version from the reader and returns
 // a *semver.Version.
 func kernelVersion(reader io.Reader) (*semver.Version, error) {
-	buf, err := io.ReadAll(reader)
+	buf, err := ioutil.ReadAll(reader)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

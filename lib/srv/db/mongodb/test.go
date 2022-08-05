@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
@@ -53,8 +52,7 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ..
 				// interval and server selection timeout so access errors are
 				// returned to the client quicker.
 				SetHeartbeatInterval(500 * time.Millisecond).
-				// Setting load balancer disables the topology selection logic.
-				SetLoadBalanced(true),
+				SetServerSelectionTimeout(5 * time.Second),
 		}, opts...)...)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -294,7 +292,6 @@ func makeIsMasterReply(wireVersion int) ([]byte, error) {
 		"ok":             1,
 		"maxWireVersion": wireVersion,
 		"compression":    []string{"zlib"},
-		"serviceId":      primitive.NewObjectID(),
 	})
 }
 

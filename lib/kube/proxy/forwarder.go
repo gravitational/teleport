@@ -40,7 +40,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
@@ -264,7 +263,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	fwd.router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", fwd.withAuth(fwd.portForward))
 	fwd.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", fwd.withAuth(fwd.portForward))
 
-	fwd.router.GET("/api/:ver/teleport/join/:session", fwd.withAuthPassthrough(fwd.join))
+	fwd.router.GET("/api/:ver/teleport/join/:session", fwd.withAuth(fwd.join))
 
 	fwd.router.NotFound = fwd.withAuthStd(fwd.catchAll)
 
@@ -292,7 +291,7 @@ type Forwarder struct {
 	activeRequests map[string]context.Context
 	// close is a close function
 	close context.CancelFunc
-	// ctx is a global context signaling exit
+	// ctx is a global context signalling exit
 	ctx context.Context
 	// creds contain kubernetes credentials for multiple clusters.
 	// map key is cluster name.
@@ -318,12 +317,11 @@ func (f *Forwarder) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 // contains information about user, target cluster and authenticated groups
 type authContext struct {
 	auth.Context
-	kubeGroups        map[string]struct{}
-	kubeUsers         map[string]struct{}
-	kubeClusterLabels map[string]string
-	kubeCluster       string
-	teleportCluster   teleportClusterClient
-	recordingConfig   types.SessionRecordingConfig
+	kubeGroups      map[string]struct{}
+	kubeUsers       map[string]struct{}
+	kubeCluster     string
+	teleportCluster teleportClusterClient
+	recordingConfig types.SessionRecordingConfig
 	// clientIdleTimeout sets information on client idle timeout
 	clientIdleTimeout time.Duration
 	// disconnectExpiredCert if set, controls the time when the connection
@@ -348,7 +346,6 @@ func (c *authContext) eventClusterMeta() apievents.KubernetesClusterMetadata {
 		KubernetesCluster: c.kubeCluster,
 		KubernetesUsers:   utils.StringsSliceFromSet(c.kubeUsers),
 		KubernetesGroups:  utils.StringsSliceFromSet(c.kubeGroups),
-		KubernetesLabels:  c.kubeClusterLabels,
 	}
 }
 
@@ -360,7 +357,7 @@ func (c *authContext) eventUserMeta() apievents.UserMetadata {
 	return meta
 }
 
-type dialFunc func(ctx context.Context, network string, endpoint kubeClusterEndpoint) (net.Conn, error)
+type dialFunc func(ctx context.Context, network, addr, serverID string) (net.Conn, error)
 
 // teleportClusterClient is a client for either a k8s endpoint in local cluster or a
 // proxy endpoint in a remote cluster.
@@ -374,7 +371,7 @@ type teleportClusterClient struct {
 
 // dialEndpoint dials a connection to a kube cluster using the given kube cluster endpoint
 func (c *teleportClusterClient) dialEndpoint(ctx context.Context, network string, endpoint kubeClusterEndpoint) (net.Conn, error) {
-	return c.dial(ctx, network, endpoint)
+	return c.dial(ctx, network, endpoint.addr, endpoint.serverID)
 }
 
 // handlerWithAuthFunc is http handler with passed auth context
@@ -453,21 +450,6 @@ func (f *Forwarder) withAuthStd(handler handlerWithAuthFuncStd) http.HandlerFunc
 	}, f.formatResponseError)
 }
 
-// acquireConnectionLockWithIdentity acquires a connection lock under a given identity.
-func (f *Forwarder) acquireConnectionLockWithIdentity(ctx context.Context, identity *authContext) error {
-	user := identity.Identity.GetIdentity().Username
-	roles, err := getRolesByName(f, identity.Identity.GetIdentity().Groups)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := f.acquireConnectionLock(ctx, user, roles); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 func (f *Forwarder) withAuth(handler handlerWithAuthFunc) httprouter.Handle {
 	return httplib.MakeHandlerWithErrorWriter(func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (interface{}, error) {
 		authContext, err := f.authenticate(req)
@@ -477,26 +459,14 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc) httprouter.Handle {
 		if err := f.authorize(req.Context(), authContext); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		err = f.acquireConnectionLockWithIdentity(req.Context(), authContext)
+
+		user := authContext.Identity.GetIdentity().Username
+		roles, err := getRolesByName(f, authContext.Identity.GetIdentity().Groups)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return handler(authContext, w, req, p)
-	}, f.formatResponseError)
-}
 
-// withAuthPassthrough authenticates the request and fetches information but doesn't deny if the user
-// doesn't have RBAC access to the Kubernetes cluster.
-func (f *Forwarder) withAuthPassthrough(handler handlerWithAuthFunc) httprouter.Handle {
-	return httplib.MakeHandlerWithErrorWriter(func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (interface{}, error) {
-		authContext, err := f.authenticate(req)
-		if err != nil {
-			if !trace.IsAccessDenied(err) && !trace.IsNotFound(err) {
-				return nil, trace.Wrap(err)
-			}
-		}
-		err = f.acquireConnectionLockWithIdentity(req.Context(), authContext)
-		if err != nil {
+		if err := f.AcquireConnectionLock(req.Context(), user, roles); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return handler(authContext, w, req, p)
@@ -544,7 +514,6 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	if teleportClusterName == "" {
 		teleportClusterName = f.cfg.ClusterName
 	}
-
 	isRemoteCluster := f.cfg.ClusterName != teleportClusterName
 
 	if isRemoteCluster && isRemoteUser {
@@ -566,23 +535,18 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		}
 	}
 
-	var (
-		kubeUsers, kubeGroups []string
-		kubeLabels            map[string]string
-	)
+	var kubeUsers, kubeGroups []string
 	// Only check k8s principals for local clusters.
 	//
 	// For remote clusters, everything will be remapped to new roles on the
 	// leaf and checked there.
 	if !isRemoteCluster {
+		var err error
 		// check signing TTL and return a list of allowed logins for local cluster based on Kubernetes service labels.
-		kubeAccessDetails, err := f.getKubeAccessDetails(roles, kubeCluster, sessionTTL)
+		kubeGroups, kubeUsers, err = f.getKubeGroupsAndUsers(roles, kubeCluster, sessionTTL)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		kubeUsers = kubeAccessDetails.kubeUsers
-		kubeGroups = kubeAccessDetails.kubeGroups
-		kubeLabels = kubeAccessDetails.clusterLabels
 	}
 
 	// By default, if no kubernetes_users is set (which will be a majority),
@@ -615,13 +579,12 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 			return nil, trace.Wrap(err)
 		}
 
-		dialFn = func(ctx context.Context, network string, endpoint kubeClusterEndpoint) (net.Conn, error) {
+		dialFn = func(ctx context.Context, network, addr, serverID string) (net.Conn, error) {
 			return targetCluster.DialTCP(reversetunnel.DialParams{
 				From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
-				To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: endpoint.addr},
+				To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: addr},
 				ConnType: types.KubeTunnel,
-				ServerID: endpoint.serverID,
-				ProxyIDs: endpoint.proxyIDs,
+				ServerID: serverID,
 			})
 		}
 		isRemoteClosed = targetCluster.IsClosed
@@ -635,20 +598,19 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 			return nil, trace.Wrap(err)
 		}
 
-		dialFn = func(ctx context.Context, network string, endpoint kubeClusterEndpoint) (net.Conn, error) {
+		dialFn = func(ctx context.Context, network, addr, serverID string) (net.Conn, error) {
 			return localCluster.DialTCP(reversetunnel.DialParams{
 				From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
-				To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: endpoint.addr},
+				To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: addr},
 				ConnType: types.KubeTunnel,
-				ServerID: endpoint.serverID,
-				ProxyIDs: endpoint.proxyIDs,
+				ServerID: serverID,
 			})
 		}
 		isRemoteClosed = localCluster.IsClosed
 	} else {
 		// Don't have a reverse tunnel server, so we can only dial directly.
-		dialFn = func(ctx context.Context, network string, endpoint kubeClusterEndpoint) (net.Conn, error) {
-			return new(net.Dialer).DialContext(ctx, network, endpoint.addr)
+		dialFn = func(ctx context.Context, network, addr, _ string) (net.Conn, error) {
+			return new(net.Dialer).DialContext(ctx, network, addr)
 		}
 		isRemoteClosed = func() bool { return false }
 	}
@@ -668,7 +630,6 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		Context:           ctx,
 		kubeGroups:        utils.StringsSet(kubeGroups),
 		kubeUsers:         utils.StringsSet(kubeUsers),
-		kubeClusterLabels: kubeLabels,
 		recordingConfig:   recordingConfig,
 		kubeCluster:       kubeCluster,
 		teleportCluster: teleportClusterClient{
@@ -693,24 +654,14 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	return authCtx, nil
 }
 
-// kubeAccessDetails holds the allowed kube groups/users names and the cluster labels for a local kube cluster.
-type kubeAccessDetails struct {
-	// list of allowed kube users
-	kubeUsers []string
-	// list of allowed kube groups
-	kubeGroups []string
-	// kube cluster labels
-	clusterLabels map[string]string
-}
-
-// getKubeAccessDetails returns the allowed kube groups/users names and the cluster labels for a local kube cluster.
-func (f *Forwarder) getKubeAccessDetails(
+// getKubeGroupsAndUsers returns the allowed kube groups/users names for a local kube cluster.
+func (f *Forwarder) getKubeGroupsAndUsers(
 	roles services.AccessChecker,
 	kubeClusterName string,
-	sessionTTL time.Duration) (kubeAccessDetails, error) {
+	sessionTTL time.Duration) (groups, users []string, err error) {
 	kubeServices, err := f.cfg.CachingAuthClient.GetKubeServices(f.ctx)
 	if err != nil {
-		return kubeAccessDetails{}, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	// Find requested kubernetes cluster name and get allowed kube users/groups names.
@@ -723,23 +674,15 @@ func (f *Forwarder) getKubeAccessDetails(
 			// Get list of allowed kube user/groups based on kubernetes service labels.
 			labels := types.CombineLabels(c.StaticLabels, c.DynamicLabels)
 			labelsMatcher := services.NewKubernetesClusterLabelMatcher(labels)
-			groups, users, err := roles.CheckKubeGroupsAndUsers(sessionTTL, false, labelsMatcher)
+			groups, users, err = roles.CheckKubeGroupsAndUsers(sessionTTL, false, labelsMatcher)
 			if err != nil {
-				return kubeAccessDetails{}, trace.Wrap(err)
+				return nil, nil, trace.Wrap(err)
 			}
-			return kubeAccessDetails{
-				kubeGroups:    groups,
-				kubeUsers:     users,
-				clusterLabels: labels,
-			}, nil
+			return groups, users, nil
 		}
 	}
 	// kubeClusterName not found. Empty list of allowed kube users/groups is returned.
-	return kubeAccessDetails{
-		kubeGroups:    []string{},
-		kubeUsers:     []string{},
-		clusterLabels: map[string]string{},
-	}, nil
+	return []string{}, []string{}, nil
 }
 
 func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
@@ -963,10 +906,10 @@ func wsProxy(wsSource *websocket.Conn, wsTarget *websocket.Conn) error {
 	return trace.Wrap(err)
 }
 
-// acquireConnectionLock acquires a semaphore used to limit connections to the Kubernetes agent.
+// AcquireConnectionLock acquires a semaphore used to limit connections to the Kubernetes agent.
 // The semaphore is releasted when the request is returned/connection is closed.
 // Returns an error if a semaphore could not be acquired.
-func (f *Forwarder) acquireConnectionLock(ctx context.Context, user string, roles services.RoleSet) error {
+func (f *Forwarder) AcquireConnectionLock(ctx context.Context, user string, roles services.RoleSet) error {
 	maxConnections := roles.MaxKubernetesConnections()
 	if maxConnections == 0 {
 		return nil
@@ -1011,7 +954,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 		policySets = append(policySets, &policySet)
 	}
 
-	authorizer := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, ctx.User.GetName())
+	authorizer := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind)
 	canStart, _, err := authorizer.FulfilledFor(nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1527,11 +1470,12 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 
 func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
 	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(roundTripperConfig{
-		ctx:        req.Context(),
-		authCtx:    ctx,
-		dial:       sess.DialWithContext,
-		tlsConfig:  sess.tlsConfig,
-		pingPeriod: f.cfg.ConnPingPeriod,
+		ctx:             req.Context(),
+		authCtx:         ctx,
+		dial:            sess.DialWithContext,
+		tlsConfig:       sess.tlsConfig,
+		followRedirects: true,
+		pingPeriod:      f.cfg.ConnPingPeriod,
 	})
 	rt := http.RoundTripper(upgradeRoundTripper)
 	if sess.creds != nil {
@@ -1546,11 +1490,12 @@ func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http
 
 func (f *Forwarder) getDialer(ctx authContext, sess *clusterSession, req *http.Request) (httpstream.Dialer, error) {
 	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(roundTripperConfig{
-		ctx:        req.Context(),
-		authCtx:    ctx,
-		dial:       sess.DialWithContext,
-		tlsConfig:  sess.tlsConfig,
-		pingPeriod: f.cfg.ConnPingPeriod,
+		ctx:             req.Context(),
+		authCtx:         ctx,
+		dial:            sess.DialWithContext,
+		tlsConfig:       sess.tlsConfig,
+		followRedirects: true,
+		pingPeriod:      f.cfg.ConnPingPeriod,
 	})
 	rt := http.RoundTripper(upgradeRoundTripper)
 	if sess.creds != nil {
@@ -1594,9 +1539,6 @@ type kubeClusterEndpoint struct {
 	// serverID is the server:cluster ID of the endpoint,
 	// which is used to find its corresponding reverse tunnel.
 	serverID string
-	// proxyIDs is the list of proxy ids that the cluster is
-	// connected to.
-	proxyIDs []string
 }
 
 func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error) {
@@ -1725,7 +1667,6 @@ outer:
 			endpoints = append(endpoints, kubeClusterEndpoint{
 				serverID: fmt.Sprintf("%s.%s", s.GetName(), ctx.teleportCluster.name),
 				addr:     s.GetAddr(),
-				proxyIDs: s.GetProxyIDs(),
 			})
 			continue outer
 		}
@@ -1933,7 +1874,7 @@ func (f *Forwarder) serializedRequestClientCreds(authContext authContext) (*tls.
 
 func (f *Forwarder) requestCertificate(ctx authContext) (*tls.Config, error) {
 	f.log.Debugf("Requesting K8s cert for %v.", ctx)
-	keyPEM, _, err := native.GenerateKeyPair()
+	keyPEM, _, err := f.cfg.Keygen.GetNewKeyPairFromPool()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

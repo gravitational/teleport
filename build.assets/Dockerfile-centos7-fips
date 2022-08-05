@@ -1,32 +1,3 @@
-FROM centos:7 AS libbpf
-
-# Install required dependencies.
-RUN yum groupinstall -y 'Development Tools' && \
-    yum install -y epel-release && \
-    yum update -y && \
-    yum -y install centos-release-scl-rh && \
-    yum install -y \
-    # required by libbpf
-    centos-release-scl \
-    # required by libbpf
-    devtoolset-11-gcc* \
-    # required by libbpf
-    devtoolset-11-make \
-    # required by libbpf
-    elfutils-libelf-devel-static \
-    git \
-    # required by libbpf
-    scl-utils \
-    yum clean all
-
-# Install libbpf - compile with a newer GCC. The one installed by default is not able to compile it.
-# BUILD_STATIC_ONLY disables libbpf.so build as we don't need it.
-ARG LIBBPF_VERSION
-RUN mkdir -p /opt && cd /opt && \
-    curl -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
-    cd /opt/libbpf-${LIBBPF_VERSION}/src && \
-    scl enable devtoolset-11 "make && BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install"
-
 FROM centos:7
 
 ENV LANGUAGE=en_US.UTF-8 \
@@ -34,6 +5,7 @@ ENV LANGUAGE=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \
     LC_CTYPE=en_US.UTF-8
 
+ARG RUST_VERSION
 ARG BORINGCRYPTO_RUNTIME
 ARG GO_BOOTSTRAP_RUNTIME=go1.9.7
 
@@ -42,28 +14,9 @@ ARG GID
 RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
      mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
 
-RUN yum groupinstall -y 'Development Tools' && \
-    yum install -y epel-release && \
-    yum update -y && \
-    yum -y install centos-release-scl-rh && \
-    yum install -y \
-    #required by libbpf
-    centos-release-scl \
-    # required by libbpf
-    devtoolset-11-* \
-    # required by libbpf
-    elfutils-libelf-devel-static \
-    git \
-    net-tools \
-    # required by Teleport PAM support
-    pam-devel \
-    perl-IPC-Cmd \
-    tree \
-    # used by our Makefile
-    which \
-    zip \
-    # required by libbpf
-    zlib-static && \
+# Install dev tools (make, etc) and a Perl package needed to build OpenSSL.
+RUN yum groupinstall -y "Development Tools"
+RUN yum install -y pam-devel net-tools tree git zip libatomic perl-IPC-Cmd && \
     yum clean all
 
 # Install etcd.
@@ -85,22 +38,32 @@ RUN mkdir -p /go-bootstrap && cd /go-bootstrap && curl https://dl.google.com/go/
     chmod a-w / && \
     /opt/go/bin/go version
 
-ENV GOPATH="/go" \
-    GOROOT="/opt/go" \
-    PATH="/opt/llvm/bin:$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
-
 # Install PAM module and policies for testing.
 COPY pam/ /opt/pam_teleport/
 RUN make -C /opt/pam_teleport install
 
+# Install Rust.
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH \
+    RUST_VERSION=$RUST_VERSION
+
+RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
+    mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
+
 RUN chmod a-w /
 
-# Download pre-built CentOS 7 assets with clang needed to build BPF tools.
-RUN cd / && curl -L https://s3.amazonaws.com/clientbuilds.gravitational.io/go/centos7-assets.tar.gz | tar -xz
-
-# Copy libbpf into the final image.
-COPY --from=libbpf /opt/libbpf/usr /usr
-
 USER ci
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
+    rustup --version && \
+    cargo --version && \
+    rustc --version && \
+    rustup component add --toolchain $RUST_VERSION-x86_64-unknown-linux-gnu rustfmt clippy && \
+    cargo install cbindgen
+
+ENV GOPATH="/go" \
+    GOROOT="/opt/go" \
+    PATH="/opt/bin:$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
+
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380

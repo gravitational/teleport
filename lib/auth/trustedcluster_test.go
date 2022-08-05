@@ -19,15 +19,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRemoteClusterStatus(t *testing.T) {
@@ -119,148 +119,110 @@ func TestValidateTrustedCluster(t *testing.T) {
 		}},
 	})
 	require.NoError(t, err)
+	a.SetStaticTokens(tks)
 
-	err = a.SetStaticTokens(tks)
+	_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
+		Token: "invalidtoken",
+		CAs:   []types.CertAuthority{},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid cluster token")
+
+	_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
+		Token: validToken,
+		CAs:   []types.CertAuthority{},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "expected exactly one")
+
+	_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
+		Token: validToken,
+		CAs: []types.CertAuthority{
+			suite.NewTestCA(types.HostCA, "rc1"),
+			suite.NewTestCA(types.HostCA, "rc2"),
+		},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "expected exactly one")
+
+	_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
+		Token: validToken,
+		CAs: []types.CertAuthority{
+			suite.NewTestCA(types.UserCA, "rc3"),
+		},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "expected host certificate authority")
+
+	_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
+		Token: validToken,
+		CAs: []types.CertAuthority{
+			suite.NewTestCA(types.HostCA, localClusterName),
+		},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "same name as this cluster")
+
+	trustedCluster, err := types.NewTrustedCluster("trustedcluster",
+		types.TrustedClusterSpecV2{Roles: []string{"nonempty"}})
+	require.NoError(t, err)
+	// use the UpsertTrustedCluster in Presence as we just want the resource in
+	// the backend, we don't want to actually connect
+	_, err = a.Presence.UpsertTrustedCluster(ctx, trustedCluster)
 	require.NoError(t, err)
 
-	t.Run("invalid cluster token", func(t *testing.T) {
-		_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
-			Token: "invalidtoken",
-			CAs:   []types.CertAuthority{},
-		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "invalid cluster token")
+	_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
+		Token: validToken,
+		CAs: []types.CertAuthority{
+			suite.NewTestCA(types.HostCA, trustedCluster.GetName()),
+		},
 	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "same name as trusted cluster")
 
-	t.Run("missing CA", func(t *testing.T) {
-		_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
-			Token: validToken,
-			CAs:   []types.CertAuthority{},
-		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "expected exactly one")
+	leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "leafcluster"))
+	resp, err := a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
+		Token: validToken,
+		CAs:   []types.CertAuthority{leafClusterCA},
 	})
+	require.NoError(t, err)
 
-	t.Run("more than one CA", func(t *testing.T) {
-		_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
-			Token: validToken,
-			CAs: []types.CertAuthority{
-				suite.NewTestCA(types.HostCA, "rc1"),
-				suite.NewTestCA(types.HostCA, "rc2"),
-			},
-		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "expected exactly one")
-	})
+	require.Len(t, resp.CAs, 2)
+	require.ElementsMatch(t,
+		[]types.CertAuthType{types.HostCA, types.UserCA},
+		[]types.CertAuthType{resp.CAs[0].GetType(), resp.CAs[1].GetType()},
+	)
 
-	t.Run("wrong CA type", func(t *testing.T) {
-		_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
-			Token: validToken,
-			CAs: []types.CertAuthority{
-				suite.NewTestCA(types.UserCA, "rc3"),
-			},
-		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "expected host certificate authority")
-	})
-
-	t.Run("wrong CA name", func(t *testing.T) {
-		_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
-			Token: validToken,
-			CAs: []types.CertAuthority{
-				suite.NewTestCA(types.HostCA, localClusterName),
-			},
-		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "same name as this cluster")
-	})
-
-	t.Run("wrong remote CA name", func(t *testing.T) {
-		trustedCluster, err := types.NewTrustedCluster("trustedcluster",
-			types.TrustedClusterSpecV2{Roles: []string{"nonempty"}})
+	for _, returnedCA := range resp.CAs {
+		localCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
+			Type:       returnedCA.GetType(),
+			DomainName: localClusterName,
+		}, false)
 		require.NoError(t, err)
-		// use the UpsertTrustedCluster in Uncached as we just want the resource
-		// in the backend, we don't want to actually connect
-		_, err = a.Services.UpsertTrustedCluster(ctx, trustedCluster)
-		require.NoError(t, err)
+		require.True(t, services.CertAuthoritiesEquivalent(localCA, returnedCA))
+	}
 
-		_, err = a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
-			Token: validToken,
-			CAs: []types.CertAuthority{
-				suite.NewTestCA(types.HostCA, trustedCluster.GetName()),
-			},
-		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "same name as trusted cluster")
-	})
+	rcs, err := a.GetRemoteClusters()
+	require.NoError(t, err)
+	require.Len(t, rcs, 1)
+	require.Equal(t, leafClusterCA.GetName(), rcs[0].GetName())
 
-	t.Run("all CAs are returned when v10+", func(t *testing.T) {
-		leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "leafcluster"))
-		resp, err := a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
-			Token:           validToken,
-			CAs:             []types.CertAuthority{leafClusterCA},
-			TeleportVersion: teleport.Version,
-		})
-		require.NoError(t, err)
+	hostCAs, err := a.GetCertAuthorities(ctx, types.HostCA, false)
+	require.NoError(t, err)
+	require.Len(t, hostCAs, 2)
+	require.ElementsMatch(t,
+		[]string{localClusterName, leafClusterCA.GetName()},
+		[]string{hostCAs[0].GetName(), hostCAs[1].GetName()},
+	)
+	require.Empty(t, hostCAs[0].GetRoles())
+	require.Empty(t, hostCAs[0].GetRoleMap())
+	require.Empty(t, hostCAs[1].GetRoles())
+	require.Empty(t, hostCAs[1].GetRoleMap())
 
-		require.Len(t, resp.CAs, 3)
-		require.ElementsMatch(t,
-			[]types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
-			[]types.CertAuthType{resp.CAs[0].GetType(), resp.CAs[1].GetType(), resp.CAs[2].GetType()},
-		)
-
-		for _, returnedCA := range resp.CAs {
-			localCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
-				Type:       returnedCA.GetType(),
-				DomainName: localClusterName,
-			}, false)
-			require.NoError(t, err)
-			require.True(t, services.CertAuthoritiesEquivalent(localCA, returnedCA))
-		}
-
-		rcs, err := a.GetRemoteClusters()
-		require.NoError(t, err)
-		require.Len(t, rcs, 1)
-		require.Equal(t, leafClusterCA.GetName(), rcs[0].GetName())
-
-		hostCAs, err := a.GetCertAuthorities(ctx, types.HostCA, false)
-		require.NoError(t, err)
-		require.Len(t, hostCAs, 2)
-		require.ElementsMatch(t,
-			[]string{localClusterName, leafClusterCA.GetName()},
-			[]string{hostCAs[0].GetName(), hostCAs[1].GetName()},
-		)
-		require.Empty(t, hostCAs[0].GetRoles())
-		require.Empty(t, hostCAs[0].GetRoleMap())
-		require.Empty(t, hostCAs[1].GetRoles())
-		require.Empty(t, hostCAs[1].GetRoleMap())
-
-		userCAs, err := a.GetCertAuthorities(ctx, types.UserCA, false)
-		require.NoError(t, err)
-		require.Len(t, userCAs, 1)
-		require.Equal(t, localClusterName, userCAs[0].GetName())
-
-		dbCAs, err := a.GetCertAuthorities(ctx, types.DatabaseCA, false)
-		require.NoError(t, err)
-		require.Len(t, dbCAs, 1)
-		require.Equal(t, localClusterName, dbCAs[0].GetName())
-	})
-
-	t.Run("only Host and User CA are returned for v9", func(t *testing.T) {
-		leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "leafcluster"))
-		resp, err := a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
-			Token:           validToken,
-			CAs:             []types.CertAuthority{leafClusterCA},
-			TeleportVersion: "",
-		})
-		require.NoError(t, err)
-
-		require.Len(t, resp.CAs, 2)
-		require.ElementsMatch(t,
-			[]types.CertAuthType{types.HostCA, types.UserCA},
-			[]types.CertAuthType{resp.CAs[0].GetType(), resp.CAs[1].GetType()},
-		)
-	})
+	userCAs, err := a.GetCertAuthorities(ctx, types.UserCA, false)
+	require.NoError(t, err)
+	require.Len(t, userCAs, 1)
+	require.Equal(t, localClusterName, userCAs[0].GetName())
 }
 
 func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Server {
@@ -291,48 +253,4 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Serve
 	require.NoError(t, a.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig()))
 	require.NoError(t, a.SetAuthPreference(ctx, types.DefaultAuthPreference()))
 	return a
-}
-
-func TestRemoteDBCAMigration(t *testing.T) {
-	const (
-		localClusterName  = "localcluster"
-		remoteClusterName = "trustedcluster"
-	)
-	ctx := context.Background()
-
-	testAuth, err := NewTestAuthServer(TestAuthServerConfig{
-		ClusterName: localClusterName,
-		Dir:         t.TempDir(),
-	})
-	require.NoError(t, err)
-	a := testAuth.AuthServer
-
-	trustedCluster, err := types.NewTrustedCluster(remoteClusterName,
-		types.TrustedClusterSpecV2{Roles: []string{"nonempty"}})
-	require.NoError(t, err)
-	// use the UpsertTrustedCluster in Uncached as we just want the resource in
-	// the backend, we don't want to actually connect
-	_, err = a.Services.UpsertTrustedCluster(ctx, trustedCluster)
-	require.NoError(t, err)
-
-	// Generate remote HostCA and remove private key as remote CA should have only public cert.
-	remoteHostCA := suite.NewTestCA(types.HostCA, remoteClusterName)
-	types.RemoveCASecrets(remoteHostCA)
-
-	err = a.UpsertCertAuthority(remoteHostCA)
-	require.NoError(t, err)
-
-	// Run the migration
-	err = migrateDBAuthority(ctx, a)
-	require.NoError(t, err)
-
-	dbCAs, err := a.GetCertAuthority(context.Background(), types.CertAuthID{
-		Type:       types.DatabaseCA,
-		DomainName: remoteClusterName,
-	}, true)
-	require.NoError(t, err)
-	// Certificate should be copied.
-	require.Equal(t, remoteHostCA.Spec.ActiveKeys.TLS[0].Cert, dbCAs.GetActiveKeys().TLS[0].Cert)
-	// Private key should be empty.
-	require.Nil(t, dbCAs.GetActiveKeys().TLS[0].Key)
 }

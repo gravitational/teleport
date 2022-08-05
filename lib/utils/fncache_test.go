@@ -28,8 +28,6 @@ import (
 )
 
 func TestFnCache_New(t *testing.T) {
-	t.Parallel()
-
 	cases := []struct {
 		desc      string
 		config    FnCacheConfig
@@ -58,8 +56,6 @@ func TestFnCache_New(t *testing.T) {
 
 // TestFnCacheSanity runs basic FnCache test cases.
 func TestFnCacheSanity(t *testing.T) {
-	t.Parallel()
-
 	tts := []struct {
 		ttl   time.Duration
 		delay time.Duration
@@ -116,7 +112,7 @@ func testFnCacheSimple(t *testing.T, ttl time.Duration, delay time.Duration) {
 				case <-done:
 					return
 				}
-				vi, err := cache.Get(ctx, "key", func(context.Context) (interface{}, error) {
+				vi, err := cache.Get(ctx, "key", func() (interface{}, error) {
 					if delay > 0 {
 						<-time.After(delay)
 					}
@@ -155,71 +151,35 @@ func testFnCacheSimple(t *testing.T, ttl time.Duration, delay time.Duration) {
 // in-progress loading continues, and the entry is correctly updated, even if the call to Get
 // which happened to trigger the load needs to be unblocked early.
 func TestFnCacheCancellation(t *testing.T) {
-	t.Parallel()
-
-	const longTimeout = time.Second * 10 // should never be hit
+	const timeout = time.Millisecond * 10
 
 	cache, err := NewFnCache(FnCacheConfig{TTL: time.Minute})
 	require.NoError(t, err)
 
-	// used to artificially block the load function
-	blocker := make(chan struct{})
-
-	// set up a context that we can cancel from within the load function to
-	// simulate a scenario where the calling context is canceled or times out.
-	// if we actually hit the timeout, that is a bug.
-	ctx, cancel := context.WithTimeout(context.Background(), longTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	v, err := cache.Get(ctx, "key", func(context.Context) (interface{}, error) {
-		cancel()
+	blocker := make(chan struct{})
+
+	v, err := cache.Get(ctx, "key", func() (interface{}, error) {
 		<-blocker
 		return "val", nil
 	})
 
 	require.Nil(t, v)
-	require.Equal(t, context.Canceled, trace.Unwrap(err), "context should have been canceled immediately")
+	require.Equal(t, context.DeadlineExceeded, trace.Unwrap(err))
 
 	// unblock the loading operation which is still in progress
 	close(blocker)
 
-	// since we unblocked the loadfn, we expect the next Get to return almost
-	// immediately.  we still use a fairly long timeout just to ensure that failure
-	// is due to an actual bug and not due to resource constraints in the test env.
-	ctx, cancel = context.WithTimeout(context.Background(), longTimeout)
+	ctx, cancel = context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	loadFnWasRun := atomic.NewBool(false)
-	v, err = cache.Get(ctx, "key", func(context.Context) (interface{}, error) {
-		loadFnWasRun.Store(true)
+	v, err = cache.Get(ctx, "key", func() (interface{}, error) {
+		t.Fatal("this should never run!")
 		return nil, nil
 	})
 
-	require.False(t, loadFnWasRun.Load(), "loadfn should not have been run")
-
 	require.NoError(t, err)
 	require.Equal(t, "val", v.(string))
-}
-
-func TestFnCacheContext(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cache, err := NewFnCache(FnCacheConfig{
-		TTL:     time.Minute,
-		Context: ctx,
-	})
-	require.NoError(t, err)
-
-	_, err = cache.Get(context.Background(), "key", func(context.Context) (interface{}, error) {
-		return "val", nil
-	})
-	require.NoError(t, err)
-
-	cancel()
-
-	_, err = cache.Get(context.Background(), "key", func(context.Context) (interface{}, error) {
-		return "val", nil
-	})
-	require.ErrorIs(t, err, ErrFnCacheClosed)
 }

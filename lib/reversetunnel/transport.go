@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"strings"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -86,21 +85,15 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 		proxy.WithInsecureSkipTLSVerify(t.InsecureSkipTLSVerify),
 	}
 
-	addr, err := t.Resolver(ctx)
+	addr, err := t.Resolver()
 	if err != nil {
-		if strings.Contains(err.Error(), "certificate is not trusted") {
-			err = trace.Wrap(
-				err,
-				"Your proxy certificate is not trusted or expired. Please update the certificate or follow this guide for self-signed certs: https://goteleport.com/docs/setup/admin/self-signed-certs",
-			)
-		}
-		t.Log.Errorf("Failed to resolve tunnel address: %v", err)
+		t.Log.Errorf("Failed to resolve tunnel address %v", err)
 		return nil, trace.Wrap(err)
 	}
 
 	// Check if t.ProxyAddr is ProxyWebPort and remote Proxy supports TLS ALPNSNIListener.
 	resp, err := webclient.Find(
-		&webclient.Config{Context: ctx, ProxyAddr: addr.Addr, Insecure: t.InsecureSkipTLSVerify})
+		&webclient.Config{Context: ctx, ProxyAddr: addr.Addr, Insecure: t.InsecureSkipTLSVerify, IgnoreHTTPProxy: true})
 	if err != nil {
 		// If TLS Routing is disabled the address is the proxy reverse tunnel
 		// address thus the ping call will always fail.
@@ -112,7 +105,7 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 	}
 
 	dialer := proxy.DialerFromEnvironment(addr.Addr, opts...)
-	sconn, err := dialer.Dial(ctx, addr.AddrNetwork, addr.Addr, t.ClientConfig)
+	sconn, err := dialer.Dial(addr.AddrNetwork, addr.Addr, t.ClientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -162,7 +155,7 @@ type transport struct {
 	kubeDialAddr utils.NetAddr
 
 	// sconn is a SSH connection to the remote host. Used for dial back nodes.
-	sconn sshutils.Conn
+	sconn ssh.Conn
 
 	// reverseTunnelServer holds all reverse tunnel connections.
 	reverseTunnelServer Server
@@ -312,9 +305,6 @@ func (p *transport) start() {
 	// Dial was successful.
 	if err := req.Reply(true, []byte("Connected.")); err != nil {
 		p.log.Errorf("Failed responding OK to %q request: %v", req.Type, err)
-		if err := conn.Close(); err != nil {
-			p.log.Errorf("Failed closing connection: %v", err)
-		}
 		return
 	}
 	p.log.Debugf("Successfully dialed to %v %q, start proxying.", dreq.Address, dreq.ServerID)

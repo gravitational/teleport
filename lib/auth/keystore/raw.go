@@ -20,6 +20,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -30,7 +31,7 @@ type rawKeyStore struct {
 }
 
 // RSAKeyPairSource is a function type which returns new RSA keypairs.
-type RSAKeyPairSource func() (priv []byte, pub []byte, err error)
+type RSAKeyPairSource func(string) (priv []byte, pub []byte, err error)
 
 type RawConfig struct {
 	RSAKeyPairSource RSAKeyPairSource
@@ -47,7 +48,7 @@ func NewRawKeyStore(config *RawConfig) KeyStore {
 // private key, and can be passed to GetSigner later to get the same
 // crypto.Signer.
 func (c *rawKeyStore) GenerateRSA() ([]byte, crypto.Signer, error) {
-	priv, _, err := c.rsaKeyPairSource()
+	priv, _, err := c.rsaKeyPairSource("")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -106,6 +107,7 @@ func (c *rawKeyStore) GetSSHSigner(ca types.CertAuthority) (ssh.Signer, error) {
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			signer = sshutils.AlgSigner(signer, sshutils.GetSigningAlgName(ca))
 			return signer, nil
 		}
 	}
@@ -122,6 +124,7 @@ func (c *rawKeyStore) GetAdditionalTrustedSSHSigner(ca types.CertAuthority) (ssh
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			signer = sshutils.AlgSigner(signer, sshutils.GetSigningAlgName(ca))
 			return signer, nil
 		}
 	}

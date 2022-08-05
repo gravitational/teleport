@@ -85,14 +85,14 @@ Created symlink /etc/systemd/system/multi-user.target.wants/teleport.service →
 Start the unit:
 
 ```code
-$ sudo systemctl start teleport.service
+$ sudo systemctl start teleport
 ```
 
 You can confirm that Teleport is running as a systemd service with the following
 command, which should show an `Active` status of `active (running)`:
 
 ```code
-$ sudo systemctl status teleport.service
+$ sudo systemctl status teleport
 ● teleport.service - Teleport SSH Service
      Loaded: loaded (/lib/systemd/system/teleport.service; enabled; vendor preset: enabled)
      Active: active (running) since Mon 2022-04-18 18:33:41 UTC; 41s ago

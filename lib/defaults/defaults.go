@@ -30,6 +30,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"gopkg.in/square/go-jose.v2"
+
+	"golang.org/x/crypto/ssh"
 )
 
 // Default port numbers used by all teleport tools
@@ -77,12 +79,11 @@ const (
 	// implemented.
 	WindowsDesktopListenPort = 3028
 
-	// ProxyPeeringListenPort is the default port proxies will listen on when
-	// proxy peering is enabled.
-	ProxyPeeringListenPort = 3021
-
 	// RDPListenPort is the standard port for RDP servers.
 	RDPListenPort = 3389
+
+	// Default DB to use for persisting state. Another options is "etcd"
+	BackendType = "bolt"
 
 	// BackendDir is a default backend subdirectory
 	BackendDir = "backend"
@@ -90,11 +91,20 @@ const (
 	// BackendPath is a default backend path parameter
 	BackendPath = "path"
 
+	// Name of events bolt database file stored in DataDir
+	EventsBoltFile = "events.db"
+
 	// By default SSH server (and SSH proxy) will bind to this IP
 	BindIP = "0.0.0.0"
 
 	// By default all users use /bin/bash
 	DefaultShell = "/bin/bash"
+
+	// CacheTTL is a default cache TTL for persistent node cache
+	CacheTTL = 20 * time.Hour
+
+	// RecentCacheTTL is a default cache TTL for recently accessed items
+	RecentCacheTTL = 2 * time.Second
 
 	// InviteTokenTTL sets the lifespan of tokens used for adding nodes and users
 	// to a cluster
@@ -112,8 +122,8 @@ const (
 	// HTTPIdleTimeout is a default timeout for idle HTTP connections
 	HTTPIdleTimeout = 30 * time.Second
 
-	// HTTPRequestTimeout is a default timeout for HTTP requests
-	HTTPRequestTimeout = 30 * time.Second
+	// DefaultThrottleTimeout is a timemout used to throttle failed auth servers
+	DefaultThrottleTimeout = 10 * time.Second
 
 	// WebHeadersTimeout is a timeout that is set for web requests
 	// before browsers raise "Timeout waiting web headers" error in
@@ -189,6 +199,9 @@ const (
 	// for sync purposes
 	HOTPFirstTokensRange = 4
 
+	// HOTPTokenDigits is the number of digits in each token
+	HOTPTokenDigits = 6
+
 	// MinPasswordLength is minimum password length
 	MinPasswordLength = 6
 
@@ -210,6 +223,9 @@ const (
 	// ActiveSessionTTL is a TTL when session is marked as inactive
 	ActiveSessionTTL = 30 * time.Second
 
+	// ActivePartyTTL is a TTL when party is marked as inactive
+	ActivePartyTTL = 30 * time.Second
+
 	// OIDCAuthRequestTTL is TTL of internally stored auth request created by client
 	OIDCAuthRequestTTL = 10 * 60 * time.Second
 
@@ -219,8 +235,12 @@ const (
 	// GithubAuthRequestTTL is TTL of internally stored Github auth request
 	GithubAuthRequestTTL = 10 * 60 * time.Second
 
+	// OAuth2TTL is the default TTL for objects created during OAuth 2.0 flow
+	// such as web sessions, certificates or dynamically created users
+	OAuth2TTL = 60 * 60 * time.Second // 1 hour
+
 	// LogRotationPeriod defines how frequently to rotate the audit log file
-	LogRotationPeriod = time.Hour * 24
+	LogRotationPeriod = (time.Hour * 24)
 
 	// UploaderScanPeriod is a default uploader scan period
 	UploaderScanPeriod = 5 * time.Second
@@ -243,6 +263,16 @@ const (
 	// AttemptTTL is TTL for login attempt
 	AttemptTTL = time.Minute * 30
 
+	// AuditLogSessions is the default expected amount of concurrent sessions
+	// supported by Audit logger, this number limits the possible
+	// amount of simultaneously processes concurrent sessions by the
+	// Audit log server, and 16K is OK for now
+	AuditLogSessions = 16384
+
+	// AccessPointCachedValues is the default maximum amount of cached values
+	// in access point
+	AccessPointCachedValues = 16384
+
 	// AuditLogTimeFormat is the format for the timestamp on audit log files.
 	AuditLogTimeFormat = "2006-01-02.15:04:05"
 
@@ -255,6 +285,9 @@ const (
 
 	// ClientCacheSize is the size of the RPC clients expiring cache
 	ClientCacheSize = 1024
+
+	// CSRSignTimeout is a default timeout for CSR request to be processed by K8s
+	CSRSignTimeout = 30 * time.Second
 
 	// Localhost is the address of localhost. Used for the default binding
 	// address for port forwarding.
@@ -300,6 +333,10 @@ const (
 var (
 	// ResyncInterval is how often tunnels are resynced.
 	ResyncInterval = 5 * time.Second
+
+	// AuthServersRefreshPeriod is a period for clients to refresh their
+	// their stored list of auth servers
+	AuthServersRefreshPeriod = 30 * time.Second
 
 	// TerminalResizePeriod is how long tsh waits before updating the size of the
 	// terminal window.
@@ -354,6 +391,9 @@ var (
 	// DiskAlertInterval is disk space check interval.
 	DiskAlertInterval = 5 * time.Minute
 
+	// TopRequestsCapacity sets up default top requests capacity
+	TopRequestsCapacity = 128
+
 	// AuthQueueSize is auth service queue size
 	AuthQueueSize = 8192
 
@@ -375,13 +415,35 @@ var (
 	// WindowsDesktopQueueSize is windows_desktop service watch queue size.
 	WindowsDesktopQueueSize = 128
 
+	// CASignatureAlgorithm is the default signing algorithm to use when
+	// creating new SSH CAs.
+	CASignatureAlgorithm = ssh.SigAlgoRSASHA2512
+
 	// SessionControlTimeout is the maximum amount of time a controlled session
 	// may persist after contact with the auth server is lost (sessctl semaphore
 	// leases are refreshed at a rate of ~1/2 this duration).
 	SessionControlTimeout = time.Minute * 2
 
+	// SPDYPingPeriod is the period for sending out SPDY ping frames on inbound
+	// and outbound connections. SPDY is used for interactive Kubernetes
+	// connections. These pings are needed to avoid timeouts on load balancers
+	// that don't respect TCP keep-alives.
+	SPDYPingPeriod = 30 * time.Second
+
 	// AsyncBufferSize is a default buffer size for async emitters
 	AsyncBufferSize = 1024
+
+	// ConnectionErrorMeasurementPeriod is the maximum age of a connection error
+	// to be considered when deciding to restart the process. The process will
+	// restart if there has been more than `MaxConnectionErrorsBeforeRestart`
+	// errors in the preceding `ConnectionErrorMeasurementPeriod`
+	ConnectionErrorMeasurementPeriod = 2 * time.Minute
+
+	// MaxConnectionErrorsBeforeRestart is the number or allowable network errors
+	// in the previous `ConnectionErrorMeasurementPeriod`. The process will
+	// restart if there has been more than `MaxConnectionErrorsBeforeRestart`
+	// errors in the preceding `ConnectionErrorMeasurementPeriod`
+	MaxConnectionErrorsBeforeRestart = 5
 
 	// MaxWatcherBackoff is the maximum retry time a watcher should use in
 	// the event of connection issues
@@ -405,17 +467,6 @@ const (
 	LimiterMaxConcurrentSignatures = 10
 )
 
-// Default rate limits for unauthenticated passwordless endpoints.
-const (
-	// LimiterPasswordlessPeriod is the default period for passwordless limiters.
-	LimiterPasswordlessPeriod = 1 * time.Minute
-	// LimiterPasswordlessAverage is the default average for passwordless
-	// limiters.
-	LimiterPasswordlessAverage = 10
-	// LimiterPasswordlessBurst is the default burst for passwordless limiters.
-	LimiterPasswordlessBurst = 20
-)
-
 const (
 	// HostCertCacheSize is the number of host certificates to cache at any moment.
 	HostCertCacheSize = 4000
@@ -425,6 +476,9 @@ const (
 )
 
 const (
+	// MinCertDuration specifies minimum duration of validity of issued certificate
+	MinCertDuration = time.Minute
+
 	// RotationGracePeriod is a default rotation period for graceful
 	// certificate rotations, by default to set to maximum allowed user
 	// cert duration
@@ -472,8 +526,6 @@ const (
 	ProtocolCockroachDB = "cockroachdb"
 	// ProtocolSQLServer is the Microsoft SQL Server database protocol.
 	ProtocolSQLServer = "sqlserver"
-	// ProtocolSnowflake is the Snowflake REST database protocol.
-	ProtocolSnowflake = "snowflake"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
@@ -483,7 +535,6 @@ var DatabaseProtocols = []string{
 	ProtocolMongoDB,
 	ProtocolCockroachDB,
 	ProtocolRedis,
-	ProtocolSnowflake,
 	ProtocolSQLServer,
 }
 
@@ -499,6 +550,10 @@ const (
 
 	// CgroupPath is where the cgroupv2 hierarchy will be mounted.
 	CgroupPath = "/cgroup2"
+
+	// ArgsCacheSize is the number of args events to store before dropping args
+	// events.
+	ArgsCacheSize = 1024
 )
 
 var (
@@ -511,6 +566,9 @@ var (
 
 	// StartRoles is default roles teleport assumes when started via 'start' command
 	StartRoles = []string{RoleProxy, RoleNode, RoleAuthService, RoleApp, RoleDatabase}
+
+	// ETCDPrefix is default key in ETCD clustered configurations
+	ETCDPrefix = "/teleport"
 
 	// ConfigEnvar is a name of teleport's configuration environment variable
 	ConfigEnvar = "TELEPORT_CONFIG"
@@ -540,6 +598,8 @@ const (
 )
 
 const (
+	// U2FChallengeTimeout is hardcoded in the U2F library
+	U2FChallengeTimeout = 5 * time.Minute
 	// WebauthnChallengeTimeout is the timeout for ongoing Webauthn authentication
 	// or registration challenges.
 	WebauthnChallengeTimeout = 5 * time.Minute
@@ -564,11 +624,6 @@ const (
 	SelfSignedPubPath = "webproxy_pub.pem"
 	// path to a self-signed TLS cert file for HTTPS connection for the web proxy
 	SelfSignedCertPath = "webproxy_cert.pem"
-)
-
-const (
-	// SnowflakeURL is the Snowflake URL used for address validation.
-	SnowflakeURL = "snowflakecomputing.com"
 )
 
 // ConfigureLimiter assigns the default parameters to a connection throttler (AKA limiter)
@@ -619,10 +674,6 @@ func MetricsServiceListenAddr() *utils.NetAddr {
 	return makeAddr(BindIP, MetricsListenPort)
 }
 
-func ProxyPeeringListenAddr() *utils.NetAddr {
-	return makeAddr(BindIP, ProxyPeeringListenPort)
-}
-
 func makeAddr(host string, port int16) *utils.NetAddr {
 	addrSpec := fmt.Sprintf("tcp://%s:%d", host, port)
 	retval, err := utils.ParseAddr(addrSpec)
@@ -652,6 +703,9 @@ const (
 	// WebsocketResize is receiving a resize request.
 	WebsocketResize = "w"
 
+	// WebsocketU2FChallenge is sending a U2F challenge.
+	WebsocketU2FChallenge = "u"
+
 	// WebsocketWebauthnChallenge is sending a webauthn challenge.
 	WebsocketWebauthnChallenge = "n"
 )
@@ -673,6 +727,10 @@ const (
 	// application access tokens.
 	ApplicationTokenAlgorithm = jose.RS256
 )
+
+// WindowsOpenSSHNamedPipe is the address of the named pipe that the
+// OpenSSH agent is on.
+const WindowsOpenSSHNamedPipe = `\\.\pipe\openssh-ssh-agent`
 
 var (
 	// FIPSCipherSuites is a list of supported FIPS compliant TLS cipher suites.

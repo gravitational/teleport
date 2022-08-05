@@ -19,6 +19,7 @@ package alpnproxy
 import (
 	"bytes"
 	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -37,7 +38,6 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 	var (
 		firstAWSCred  = credentials.NewStaticCredentials("userID", "firstSecret", "")
 		secondAWSCred = credentials.NewStaticCredentials("userID", "secondSecret", "")
-		thirdAWSCred  = credentials.NewStaticCredentials("userID2", "firstSecret", "")
 
 		awsRegion  = "s3"
 		awsService = "eu-central-1"
@@ -58,15 +58,9 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 			wantStatus: http.StatusOK,
 		},
 		{
-			name:       "different aws secret access key",
+			name:       "different aws credential",
 			originCred: firstAWSCred,
 			proxyCred:  secondAWSCred,
-			wantStatus: http.StatusForbidden,
-		},
-		{
-			name:       "different aws access key ID",
-			originCred: firstAWSCred,
-			proxyCred:  thirdAWSCred,
 			wantStatus: http.StatusForbidden,
 		},
 		{
@@ -105,9 +99,13 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 
 func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *LocalProxy {
 	hs := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {}))
+	listener := mustCreateListener(t)
+	t.Cleanup(func() {
+		listener.Close()
+	})
 
 	lp, err := NewLocalProxy(LocalProxyConfig{
-		Listener:           mustCreateLocalListener(t),
+		Listener:           listener,
 		RemoteProxyAddr:    hs.Listener.Addr().String(),
 		Protocols:          []common.Protocol{common.ProtocolHTTP},
 		ParentContext:      context.Background(),
@@ -118,11 +116,16 @@ func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *Loc
 	t.Cleanup(func() {
 		err := lp.Close()
 		require.NoError(t, err)
-		hs.Close()
 	})
 	go func() {
 		err := lp.StartAWSAccessProxy(context.Background())
 		require.NoError(t, err)
 	}()
 	return lp
+}
+
+func mustCreateListener(t *testing.T) net.Listener {
+	listener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	return listener
 }

@@ -20,7 +20,6 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 
 	"github.com/gravitational/trace"
@@ -36,25 +35,16 @@ type Kube struct {
 
 // GetKubes returns kube services
 func (c *Cluster) GetKubes(ctx context.Context) ([]Kube, error) {
-	var authClient auth.ClientI
-	err := addMetadataToRetryableError(ctx, func() error {
-		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
-	})
+	proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer proxyClient.Close()
 
+	authClient, err := proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	defer authClient.Close()
 
 	services, err := authClient.GetKubeServices(ctx)

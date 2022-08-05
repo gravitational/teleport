@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -29,7 +30,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"syscall"
-	"time"
 
 	"github.com/gravitational/trace"
 
@@ -232,8 +232,8 @@ func RunCommand() (errw io.Writer, code int, err error) {
 			stderr = tty
 		} else {
 			stdin = os.Stdin
-			stdout = io.Discard
-			stderr = io.Discard
+			stdout = ioutil.Discard
+			stderr = ioutil.Discard
 		}
 
 		// Open the PAM context.
@@ -281,25 +281,6 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	err = waitForContinue(contfd)
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-	}
-
-	// If we're planning on changing credentials, we should first park an
-	// innocuous process with the same UID and then check the user database
-	// again, to avoid it getting deleted under our nose.
-	parkerCtx, parkerCancel := context.WithCancel(context.Background())
-	defer parkerCancel()
-	if cmd.SysProcAttr.Credential != nil {
-		if err := newParker(parkerCtx, *cmd.SysProcAttr.Credential); err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
-
-		localUserCheck, err := user.Lookup(c.Login)
-		if err != nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-		}
-		if localUser.Uid != localUserCheck.Uid || localUser.Gid != localUserCheck.Gid {
-			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("user %q has been changed", c.Login)
-		}
 	}
 
 	if c.X11Config.XServerUnixSocket != "" {
@@ -366,8 +347,6 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	parkerCancel()
-
 	// Wait for the command to exit. It doesn't make sense to print an error
 	// message here because the shell has successfully started. If an error
 	// occurred during shell execution or the shell exits with an error (like
@@ -382,7 +361,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		}
 	}
 
-	return io.Discard, exitCode(err), trace.Wrap(err)
+	return ioutil.Discard, exitCode(err), trace.Wrap(err)
 }
 
 // RunForward reads in the command to run from the parent process (over a
@@ -419,8 +398,8 @@ func RunForward() (errw io.Writer, code int, err error) {
 			ServiceName: c.PAMConfig.ServiceName,
 			Login:       c.Login,
 			Stdin:       os.Stdin,
-			Stdout:      io.Discard,
-			Stderr:      io.Discard,
+			Stdout:      ioutil.Discard,
+			Stderr:      ioutil.Discard,
 			// Set Teleport specific environment variables that PAM modules
 			// like pam_script.so can pick up to potentially customize the
 			// account/session.
@@ -465,26 +444,19 @@ func RunForward() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	return io.Discard, teleport.RemoteCommandSuccess, nil
+	return ioutil.Discard, teleport.RemoteCommandSuccess, nil
 }
 
 // runCheckHomeDir check's if the active user's $HOME dir exists.
 func runCheckHomeDir() (errw io.Writer, code int, err error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return io.Discard, teleport.HomeDirNotFound, nil
+		return ioutil.Discard, teleport.HomeDirNotFound, nil
 	}
 	if !utils.IsDir(home) {
-		return io.Discard, teleport.HomeDirNotFound, nil
+		return ioutil.Discard, teleport.HomeDirNotFound, nil
 	}
-	return io.Discard, teleport.RemoteCommandSuccess, nil
-}
-
-// runPark does nothing, forever.
-func runPark() (errw io.Writer, code int, err error) {
-	for {
-		time.Sleep(time.Hour)
-	}
+	return ioutil.Discard, teleport.RemoteCommandSuccess, nil
 }
 
 // RunAndExit will run the requested command and then exit. This wrapper
@@ -502,8 +474,6 @@ func RunAndExit(commandType string) {
 		w, code, err = RunForward()
 	case teleport.CheckHomeDirSubCommand:
 		w, code, err = runCheckHomeDir()
-	case teleport.ParkSubCommand:
-		w, code, err = runPark()
 	default:
 		w, code, err = os.Stderr, teleport.RemoteCommandFailure, fmt.Errorf("unknown command type: %v", commandType)
 	}
@@ -519,8 +489,7 @@ func RunAndExit(commandType string) {
 func IsReexec() bool {
 	if len(os.Args) == 2 {
 		switch os.Args[1] {
-		case teleport.ExecSubCommand, teleport.ForwardSubCommand, teleport.CheckHomeDirSubCommand,
-			teleport.ParkSubCommand, teleport.SFTPSubCommand:
+		case teleport.ExecSubCommand, teleport.ForwardSubCommand, teleport.CheckHomeDirSubCommand, teleport.SFTPSubCommand:
 			return true
 		}
 	}
@@ -809,32 +778,6 @@ func checkHomeDir(localUser *user.User) (bool, error) {
 		return false, trace.Wrap(err)
 	}
 	return true, nil
-}
-
-// Spawns a process with the given credentials, outliving the context.
-func newParker(ctx context.Context, credential syscall.Credential) error {
-	executable, err := os.Executable()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	cmd := exec.CommandContext(ctx, executable, teleport.ParkSubCommand)
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Credential: &credential,
-	}
-
-	// Perform OS-specific tweaks to the command.
-	reexecCommandOSTweaks(cmd)
-
-	if err := cmd.Start(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// the process will get killed when the context ends but we still need to
-	// Wait on it
-	go cmd.Wait()
-
-	return nil
 }
 
 // getCmdCredentials parses the uid, gid, and groups of the

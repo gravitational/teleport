@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -34,7 +35,7 @@ func write(t *testing.T, data []byte, path ...string) string {
 	t.Helper()
 	filePath := filepath.Join(path...)
 	require.NoError(t, os.MkdirAll(filepath.Dir(filePath), 0777))
-	require.NoError(t, os.WriteFile(filePath, data, 0644))
+	require.NoError(t, ioutil.WriteFile(filePath, data, 0644))
 	return filePath
 }
 
@@ -165,14 +166,14 @@ func TestUpload(t *testing.T) {
 		return src, dst
 	}
 
-	// Given a configured artifact list and a mocked-out upload receiver...
+	// Given a configured artefact list and a mocked-out upload receiver...
 	const alphaContent = "I am the very model of a modern major-general"
 	alphaSrc, alphaDst := mockArtifact([]byte(alphaContent), workspace, "nested", "alpha.txt")
 
 	const betaContent = "I've information vegetable, animal, and mineral"
 	betaSrc, betaDst := mockArtifact([]byte(betaContent), workspace, "beta.txt")
 
-	// When I upload artifact files...
+	// When I upload artefact files...
 	files := []string{alphaSrc, betaSrc}
 	err := upload(ctx, bucket, "artifacts", files)
 
@@ -214,7 +215,7 @@ func TestFailedUpload(t *testing.T) {
 		return src, dst
 	}
 
-	// Given a configured artifact list and a mocked-out upload receiver...
+	// Given a configured artefact list and a mocked-out upload receiver...
 	const alphaContent = "I am the very model of a modern major-general"
 	alphaSrc, alphaDst := mockHappyPath([]byte(alphaContent), workspace, "nested", "alpha.txt")
 

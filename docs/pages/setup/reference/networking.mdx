@@ -50,15 +50,12 @@ following use cases:
 
 Some networks funnel all connections through a proxy server where they can be
 audited and access control rules can be applied. For these scenarios, Teleport
-supports HTTP CONNECT tunneling. HTTP CONNECT applies to:
-
-- `tsh` in all cases.
-- Teleport services, such as the SSH Service and Database Service, that dial back to the Teleport Proxy Service.
+supports HTTP CONNECT tunneling.
 
 To use HTTP CONNECT tunneling, set the `HTTPS_PROXY` and `HTTP_PROXY`
 environment variables when running Teleport. You can also optionally set the
 `NO_PROXY` environment variable to avoid use of the proxy when accessing
-specified hosts/netmasks/ports.
+specified hosts/netmasks.
 
 For example, when launching Teleport with `systemd`, you can add
 the following lines to your `systemd` unit file, replacing `proxy.example.com` with
@@ -72,17 +69,9 @@ Environment="NO_PROXY=localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,10.0.0.0/
 ```
 
 When Teleport builds and establishes the reverse tunnel to the main cluster, it will funnel all traffic through the proxy. Specifically, if using the default configuration, Teleport will tunnel ports `3024` (SSH, reverse tunnel) and `3080` (HTTPS, establishing trust) through the proxy.
-If you don't want to proxy some of this traffic (for example, proxying HTTPS but not SSH), assign `NO_PROXY` to the address of the Teleport Proxy Service endpoint you want to exclude from HTTP_CONNECT tunneling in `host:port` format:
-
-```
-[Service]
-Environment="HTTP_PROXY=http://httpproxy.example.com:8080/"
-Environment="HTTPS_PROXY=http://httpproxy.example.com:8080/"
-Environment="NO_PROXY=teleportproxy.example.com:3024"
-```
 
 The value of `HTTPS_PROXY` or `HTTP_PROXY` should be in the format
-`scheme://[user[:password]@]host:port` where scheme is either `https` or `http` . If the value is
+`scheme://host:port` where scheme is either `https` or `http` . If the value is
 `host:port` , Teleport will prepend `http` .
 
 <Admonition
@@ -90,13 +79,6 @@ The value of `HTTPS_PROXY` or `HTTP_PROXY` should be in the format
   title="Note"
 >
   `localhost` and `127.0.0.1` are invalid values for the proxy host. If for some reason your proxy runs locally, you'll need to provide some other DNS name or a private IP address for it.
-</Admonition>
-
-<Admonition
-  type="warning"
-  title="Note"
->
-  The proxy service also respects `HTTPS_PROXY` and `HTTP_PROXY` when connecting to a local kubernetes cluster, which may not work. To fix this, add `kube.teleport.cluster.local` to `NO_PROXY`.
 </Admonition>
 
 ## Ports
@@ -125,37 +107,17 @@ numbers for each service.
 
 </Admonition>
 
-### Ports with TLS routing
-
-TLS routing is enabled by default. In this mode, all connections to a Teleport service (e.g., the Teleport
-SSH Service or Kubernetes) are routed through the Proxy Service's public web address.
-
-Read more in our [TLS Routing](../../architecture/tls-routing.mdx) guide.
-
-| Port | Service | Description |
-| - | - | - |
-| 443 | Proxy | In TLS Routing mode, the Proxy handles all protocols, including Web UI, HTTPS, Kubernetes, SSH, and all databases on a single port. |
-| 3022 | Node | SSH port. This is Teleport's equivalent of port `#22` for SSH. Only used when Teleport Node is replacing SSH.|
-| 3025 | Auth | TLS port used by the Auth Service to serve its API to other Nodes in a cluster.|
-| 3028 | Desktop | When using Desktop Service `windows_desktop_service.listen_addr` |
-
-### Ports without TLS routing
-
-In some cases, administrators may want to use separate ports for different services.
-In those cases, they can set up separate listeners in the config file.
-
 | Port | Service | Description |
 | - | - | - |
 | 3022 | Node | SSH port. This is Teleport's equivalent of port `#22` for SSH. |
 | 3023 | Proxy | SSH port clients connect to. The Proxy Service will forward this connection to port `#3022` on the destination Node. |
 | 3024 | Proxy | SSH port used to create "reverse SSH tunnels" from behind-firewall environments into a trusted proxy server. |
-| 3025 | Auth | TLS port used by the Auth Service to serve its API to other Nodes in a cluster. |
-| 3080 or 443 | Proxy | HTTPS connection to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
+| 3025 | Auth | SSH port used by the Auth Service to serve its API to other Nodes in a cluster. |
+| 3080 | Proxy | HTTPS connection to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
 | 3026 | Kubernetes | HTTPS Kubernetes proxy `proxy_service.kube_listen_addr` |
 | 3027 | Kubernetes | Kubernetes Service `kubernetes_service.listen_addr` |
 | 3028 | Desktop | Desktop Service `windows_desktop_service.listen_addr` |
 | 3036 | MySQL | MySQL port `proxy_service.mysql_addr` |
-
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Cloud">
 

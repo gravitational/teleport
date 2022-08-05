@@ -1,6 +1,6 @@
 ---
 title: Teleport Enterprise Quick Start
-description: How to set up and configure Teleport Enterprise for SSH
+description: How to set up and configure Teleport Enterprise for SSH and Kubernetes access
 h1: Teleport Enterprise Quick Start
 ---
 
@@ -13,8 +13,8 @@ There are three types of services Teleport can run:
 - **Proxy Service** routes client connection requests to the appropriate agent
   and serves a Web UI that can also be used to access resources.
 - **Agents** provide access to resources including SSH servers, Kubernetes
-  clusters, web applications and databases.
-
+  clusters, web applications and databases. 
+  
 In this guide, we will highlight the Teleport SSH Service. The SSH Service is
 similar to the `sshd` daemon you may be familiar with. SSH Service instances are
 called **Teleport Nodes**. When a Teleport Node receives a connection request,
@@ -77,7 +77,7 @@ and save it as `/var/lib/teleport/license.pem` on the auth server.
 
 ### Systemd Unit File
 
-Download the systemd unit file for Teleport from the [examples directory](https://github.com/gravitational/teleport/tree/v(=teleport.version=)/examples/systemd)
+  Download the systemd unit file for Teleport from the [examples directory](https://github.com/gravitational/teleport/tree/v(=teleport.version=)/examples/systemd)
 on GitHub and save it as `/etc/systemd/system/teleport.service` on both servers.
 
 ```code
@@ -302,7 +302,7 @@ in Teleport always must to go through an SSH proxy, sometimes called an "SSH bas
 
   Never use `--insecure` in production unless you terminate SSL at a load balancer. This will
   apply to most cloud providers (AWS, GCP and Azure). You must configure a HTTP/TLS certificate for the Proxy.
-  This process has been made easier with Let's Encrypt. [We've instructions here](https://goteleport.com/blog/letsencrypt-teleport-ssh/).
+  This process has been made easier with Let's Encrypt. [We've instructions here](https://gravitational.com/blog/letsencrypt-teleport-ssh/).
 </Admonition>
 
 If successful, `tsh login` command will receive Joe's user certificate and will
@@ -377,7 +377,7 @@ The easiest way to start Teleport Enterprise quickly is to use `docker-compose` 
 # Download your license file from the Gravitational dashboard and put it in the correct directory.
 # The file needs to be named "license.pem".
 $ cp ~/downloads/license.pem .
-
+  
 # Download the quickstart file from our GitHub repo
 $ curl -Lso teleport-ent-quickstart.yml https://raw.githubusercontent.com/gravitational/teleport/v(=teleport.version=)/docker/teleport-ent-quickstart.yml
 

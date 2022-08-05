@@ -1,15 +1,8 @@
-.version: &version "11.0.0-dev"
-
 name: teleport-cluster
 apiVersion: v2
-version: *version
-appVersion: *version
+version: "9.3.14"
+appVersion: "9.3.14"
 description: Teleport is a unified access plane for your infrastructure
 icon: https://goteleport.com/images/logos/logo-teleport-square.svg
 keywords:
   - Teleport
-
-dependencies:
-  - name: teleport-operator
-    version: *version
-    condition: installCRDs,operator.enabled

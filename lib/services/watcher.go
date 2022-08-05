@@ -278,9 +278,6 @@ type ProxyWatcherConfig struct {
 	ResourceWatcherConfig
 	// ProxyGetter is used to directly fetch the list of active proxies.
 	ProxyGetter
-	// ProxyDiffer is used to decide whether a put operation on an existing proxy should
-	// trigger a event.
-	ProxyDiffer func(old, new types.Server) bool
 	// ProxiesC is a channel used to report the current proxy set. It receives
 	// a fresh list at startup and subsequently a list of all known proxies
 	// whenever an addition or deletion is detected.
@@ -391,9 +388,10 @@ func (p *proxyCollector) processEventAndUpdateCurrent(ctx context.Context, event
 			p.Log.Warningf("Unexpected type %T.", event.Resource)
 			return
 		}
-		current, exists := p.current[server.GetName()]
+		_, known := p.current[server.GetName()]
 		p.current[server.GetName()] = server
-		if !exists || (p.ProxyDiffer != nil && p.ProxyDiffer(current, server)) {
+		// Broadcast only creation of new proxies (not known before).
+		if !known {
 			p.broadcastUpdate(ctx)
 		}
 	default:
@@ -928,6 +926,16 @@ func (cfg *CertAuthorityWatcherConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// IsWatched return true if the given certificate auth type is being observer by the watcher.
+func (cfg *CertAuthorityWatcherConfig) IsWatched(certType types.CertAuthType) bool {
+	for _, observedType := range cfg.Types {
+		if observedType == certType {
+			return true
+		}
+	}
+	return false
+}
+
 // NewCertAuthorityWatcher returns a new instance of CertAuthorityWatcher.
 func NewCertAuthorityWatcher(ctx context.Context, cfg CertAuthorityWatcherConfig) (*CertAuthorityWatcher, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
@@ -970,17 +978,21 @@ type caCollector struct {
 	cas map[types.CertAuthType]map[string]types.CertAuthority
 }
 
+// CertAuthorityTarget lists the attributes of interactions to be disabled.
+type CertAuthorityTarget struct {
+	// ClusterName specifies the name of the cluster to watch.
+	ClusterName string
+	// Type specifies the ca types to watch for.
+	Type types.CertAuthType
+}
+
 // Subscribe is used to subscribe to the lock updates.
-func (c *caCollector) Subscribe(ctx context.Context, filter types.CertAuthorityFilter) (types.Watcher, error) {
-	watch := types.Watch{
-		Kinds: []types.WatchKind{
-			{
-				Kind:   c.resourceKind(),
-				Filter: filter.IntoMap(),
-			},
-		},
+func (c *caCollector) Subscribe(ctx context.Context, targets ...CertAuthorityTarget) (types.Watcher, error) {
+	watchKinds, err := caTargetToWatchKinds(targets)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	sub, err := c.fanout.NewWatcher(ctx, watch)
+	sub, err := c.fanout.NewWatcher(ctx, types.Watch{Kinds: watchKinds})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -993,6 +1005,31 @@ func (c *caCollector) Subscribe(ctx context.Context, filter types.CertAuthorityF
 		return nil, trace.Wrap(sub.Error())
 	}
 	return sub, nil
+}
+
+func caTargetToWatchKinds(targets []CertAuthorityTarget) ([]types.WatchKind, error) {
+	watchKinds := make([]types.WatchKind, 0, len(targets))
+	for _, target := range targets {
+		kind := types.WatchKind{
+			Kind: types.KindCertAuthority,
+			// Note that watching SubKind doesn't work for types.WatchKind - to do so it would
+			// require a custom filter, which was recently added but - we can't use yet due to
+			// older clients not supporting the filter.
+			SubKind: string(target.Type),
+		}
+
+		if target.ClusterName != "" {
+			kind.Name = target.ClusterName
+		}
+
+		watchKinds = append(watchKinds, kind)
+	}
+
+	if len(watchKinds) == 0 {
+		watchKinds = []types.WatchKind{{Kind: types.KindCertAuthority}}
+	}
+
+	return watchKinds, nil
 }
 
 // resourceKind specifies the resource kind to watch.
@@ -1155,8 +1192,6 @@ type Node interface {
 	GetRotation() types.Rotation
 	// GetUseTunnel gets if a reverse tunnel should be used to connect to this node.
 	GetUseTunnel() bool
-	// GetProxyID returns a list of proxy ids this server is connected to.
-	GetProxyIDs() []string
 }
 
 // GetNodes allows callers to retrieve a subset of nodes that match the filter provided. The

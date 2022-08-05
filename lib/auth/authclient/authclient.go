@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/tls"
 
-	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -43,8 +42,6 @@ type Config struct {
 	AuthServers []utils.NetAddr
 	// Log sets the logger for the client to use.
 	Log logrus.FieldLogger
-	// CircuitBreakerConfig is the configuration for the auth client circuit breaker.
-	CircuitBreakerConfig breaker.Config
 }
 
 // Connect creates a valid client connection to the auth service.  It may
@@ -58,7 +55,8 @@ func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(cfg.TLS),
 		},
-		CircuitBreakerConfig: cfg.CircuitBreakerConfig,
+		// Deliberately ignore HTTP proxies for backwards compatibility.
+		IgnoreHTTPProxy: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "failed direct dial to auth server: %v", err)
@@ -81,8 +79,8 @@ func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 		// TODO(nic): this logic should be implemented once and reused in IoT
 		// nodes.
 
-		resolver := reversetunnel.WebClientResolver(cfg.AuthServers, lib.IsInsecureDevMode())
-		resolver, err = reversetunnel.CachingResolver(ctx, resolver, nil /* clock */)
+		resolver := reversetunnel.WebClientResolver(ctx, cfg.AuthServers, lib.IsInsecureDevMode())
+		resolver, err = reversetunnel.CachingResolver(resolver, nil /* clock */)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

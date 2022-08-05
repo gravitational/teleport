@@ -31,7 +31,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
@@ -189,7 +188,7 @@ func NewProxyServer(ctx context.Context, config ProxyServerConfig) (*ProxyServer
 	}
 	server.cfg.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	server.cfg.TLSConfig.GetConfigForClient = getConfigForClient(
-		server.cfg.TLSConfig, server.cfg.AccessPoint, server.log, types.UserCA)
+		server.cfg.TLSConfig, server.cfg.AccessPoint, server.log)
 	return server, nil
 }
 
@@ -328,7 +327,7 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 		return s.PostgresProxyNoTLS().HandleConnection(s.closeCtx, tlsConn)
 	case defaults.ProtocolMySQL:
 		version := getMySQLVersionFromServer(proxyCtx.Servers)
-		// Set the version in the context to match a behavior in other handlers.
+		// Set the version in the context to match a behaviour in other handlers.
 		ctx := context.WithValue(s.closeCtx, dbutils.ContextMySQLServerVersion, version)
 		return s.MySQLProxyNoTLS().HandleConnection(ctx, tlsConn)
 	case defaults.ProtocolSQLServer:
@@ -429,7 +428,6 @@ func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext
 			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
 			ServerID: fmt.Sprintf("%v.%v", server.GetHostID(), proxyCtx.Cluster.GetName()),
 			ConnType: types.DatabaseTunnel,
-			ProxyIDs: server.GetProxyIDs(),
 		})
 		if err != nil {
 			// If an agent is down, we'll retry on the next one (if available).
@@ -646,7 +644,7 @@ func (s *ProxyServer) getDatabaseServers(ctx context.Context, identity tlsca.Ide
 // getConfigForServer returns TLS config used for establishing connection
 // to a remote database server over reverse tunnel.
 func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Identity, server types.DatabaseServer) (*tls.Config, error) {
-	privateKeyBytes, _, err := native.GenerateKeyPair()
+	privateKeyBytes, _, err := native.GenerateKeyPair("")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -658,19 +656,9 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// DatabaseCA was introduced in Teleport 10. Older versions require database certificate signed
-	// with UserCA where Teleport 10+ uses DatabaseCA.
-	ver10orAbove, err := utils.MinVerWithoutPreRelease(server.GetTeleportVersion(), constants.DatabaseCAMinVersion)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse Teleport version: %q", server.GetTeleportVersion())
-	}
-
 	response, err := s.cfg.AuthClient.SignDatabaseCSR(ctx, &proto.DatabaseCSRRequest{
 		CSR:         csr,
 		ClusterName: identity.RouteToCluster,
-		// TODO: Remove in Teleport 11.
-		SignWithDatabaseCA: ver10orAbove,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -693,7 +681,7 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 	}, nil
 }
 
-func getConfigForClient(conf *tls.Config, ap auth.ReadDatabaseAccessPoint, log logrus.FieldLogger, caTypes ...types.CertAuthType) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+func getConfigForClient(conf *tls.Config, ap auth.ReadDatabaseAccessPoint, log logrus.FieldLogger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		var clusterName string
 		var err error
@@ -703,7 +691,7 @@ func getConfigForClient(conf *tls.Config, ap auth.ReadDatabaseAccessPoint, log l
 				log.Debugf("Ignoring unsupported cluster name %q.", info.ServerName)
 			}
 		}
-		pool, _, err := auth.ClientCertPool(ap, clusterName, caTypes...)
+		pool, err := auth.ClientCertPool(ap, clusterName)
 		if err != nil {
 			log.WithError(err).Error("Failed to retrieve client CA pool.")
 			return nil, nil // Fall back to the default config.

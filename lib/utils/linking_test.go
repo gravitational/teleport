@@ -18,14 +18,16 @@ package utils
 
 import (
 	"net/http"
-	"testing"
 
-	"github.com/stretchr/testify/require"
+	"gopkg.in/check.v1"
 )
 
-func TestWebLinks(t *testing.T) {
-	t.Parallel()
+type WebLinksSuite struct {
+}
 
+var _ = check.Suite(&WebLinksSuite{})
+
+func (s *WebLinksSuite) TestWebLinks(c *check.C) {
 	var tests = []struct {
 		inResponse *http.Response
 		outNext    string
@@ -82,9 +84,9 @@ func TestWebLinks(t *testing.T) {
 
 	for _, tt := range tests {
 		wls := ParseWebLinks(tt.inResponse)
-		require.Equal(t, wls.NextPage, tt.outNext)
-		require.Equal(t, wls.PrevPage, tt.outPrev)
-		require.Equal(t, wls.FirstPage, tt.outFirst)
-		require.Equal(t, wls.LastPage, tt.outLast)
+		c.Assert(wls.NextPage, check.Equals, tt.outNext)
+		c.Assert(wls.PrevPage, check.Equals, tt.outPrev)
+		c.Assert(wls.FirstPage, check.Equals, tt.outFirst)
+		c.Assert(wls.LastPage, check.Equals, tt.outLast)
 	}
 }

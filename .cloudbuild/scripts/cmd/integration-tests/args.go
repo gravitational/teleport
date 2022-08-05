@@ -68,15 +68,13 @@ func (args *commandlineArgs) validate() error {
 
 		args.artifactSearchPatterns, err = artifacts.ValidatePatterns(args.workspace, args.artifactSearchPatterns)
 		if err != nil {
-			return trace.Wrap(err, "Bad artifact search path")
+			return trace.Wrap(err, "Bad artefact search path")
 		}
 	}
 
 	return nil
 }
 
-// NOTE: changing the interface to this build script may require follow-up
-// changes in the cloudbuild yaml for both `teleport` and `teleport.e`
 func parseCommandLine() (*commandlineArgs, error) {
 	args := &commandlineArgs{}
 

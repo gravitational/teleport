@@ -26,7 +26,6 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/gravitational/teleport/api/breaker"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -98,7 +97,6 @@ func Run(commands []CLICommand) {
 	// cfg (teleport auth server configuration) is going to be shared by all
 	// commands
 	cfg := service.MakeDefaultConfig()
-	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	// each command will add itself to the CLI parser:
 	for i := range commands {
@@ -143,7 +141,6 @@ func Run(commands []CLICommand) {
 	app.HelpFlag.Short('h')
 
 	// parse CLI commands+flags:
-	utils.UpdateAppUsageTemplate(app, os.Args[1:])
 	selectedCmd, err := app.Parse(os.Args[1:])
 	if err != nil {
 		app.Usage(os.Args[1:])

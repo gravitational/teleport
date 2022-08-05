@@ -93,7 +93,7 @@ func (s *SessionTracker) updateExpirationLoop(ctx context.Context, ticker clockw
 				return trace.Wrap(err)
 			}
 		case <-ctx.Done():
-			return nil
+			return trace.Wrap(ctx.Err())
 		case <-s.closeC:
 			return nil
 		}
@@ -178,30 +178,6 @@ func (s *SessionTracker) WaitForStateUpdate(initialState types.SessionState) typ
 			return state
 		}
 		s.trackerCond.Wait()
-	}
-}
-
-// WaitOnState waits until the desired state is reached or the context is canceled.
-func (s *SessionTracker) WaitOnState(ctx context.Context, wanted types.SessionState) error {
-	go func() {
-		<-ctx.Done()
-		s.trackerCond.Broadcast()
-	}()
-
-	s.trackerCond.L.Lock()
-	defer s.trackerCond.L.Unlock()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			if s.tracker.GetState() == wanted {
-				return nil
-			}
-
-			s.trackerCond.Wait()
-		}
 	}
 }
 

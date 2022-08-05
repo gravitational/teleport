@@ -37,13 +37,13 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 )
 
 const (
@@ -92,8 +92,6 @@ type SSOLoginConsoleResponse struct {
 type MFAChallengeRequest struct {
 	User string `json:"user"`
 	Pass string `json:"pass"`
-	// Passwordless explicitly requests a passwordless/usernameless challenge.
-	Passwordless bool `json:"passwordless"`
 }
 
 // CreateSSHCertReq are passed by web client
@@ -132,6 +130,8 @@ type AuthenticateSSHUserRequest struct {
 	// Password for the user, to authenticate in case no MFA check was
 	// performed.
 	Password string `json:"password"`
+	// U2FSignResponse is the signature from the U2F device
+	U2FSignResponse *u2f.AuthenticateChallengeResponse `json:"u2f_sign_response"`
 	// WebauthnChallengeResponse is a signed WebAuthn credential assertion.
 	WebauthnChallengeResponse *wanlib.CredentialAssertionResponse `json:"webauthn_challenge_response"`
 	// TOTPCode is a code from the TOTP device.
@@ -154,6 +154,8 @@ type AuthenticateSSHUserRequest struct {
 type AuthenticateWebUserRequest struct {
 	// User is a teleport username.
 	User string `json:"user"`
+	// U2FSignResponse is the signature from the U2F device.
+	U2FSignResponse *u2f.AuthenticateChallengeResponse `json:"u2f_sign_response,omitempty"`
 	// WebauthnAssertionResponse is a signed WebAuthn credential assertion.
 	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse,omitempty"`
 }
@@ -219,8 +221,6 @@ type SSHLoginMFA struct {
 	// AllowStdinHijack allows stdin hijack during MFA prompts.
 	// Do not set this options unless you deeply understand what you are doing.
 	AllowStdinHijack bool
-	// AuthenticatorAttachment is the authenticator attachment for MFA prompts.
-	AuthenticatorAttachment wancli.AuthenticatorAttachment
 	// PreferOTP prefers OTP in favor of other MFA methods.
 	PreferOTP bool
 }
@@ -266,8 +266,8 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool) (*WebClien
 }
 
 // SSHAgentSSOLogin is used by tsh to fetch user credentials using OpenID Connect (OIDC) or SAML.
-func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *RedirectorConfig) (*auth.SSHLoginResponse, error) {
-	rd, err := NewRedirector(ctx, login, config)
+func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO) (*auth.SSHLoginResponse, error) {
+	rd, err := NewRedirector(ctx, login)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -330,7 +330,7 @@ func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *Redirector
 		return nil, trace.Wrap(trace.Errorf("timed out waiting for callback"))
 	case <-rd.Done():
 		log.Debugf("Canceled by user.")
-		return nil, trace.Wrap(ctx.Err(), "canceled by user")
+		return nil, trace.Wrap(ctx.Err(), "cancelled by user")
 	}
 }
 
@@ -364,10 +364,10 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginRes
 	return out, nil
 }
 
-// SSHAgentMFALogin requests a MFA challenge via the proxy.
-// If the credentials are valid, the proxy will return a challenge. We then
-// prompt the user to provide 2nd factor and pass the response to the proxy.
-// If the authentication succeeds, we will get a temporary certificate back.
+// SSHAgentMFALogin requests a MFA challenge (U2F or OTP) via the proxy. If the
+// credentials are valid, the proxy wiil return a challenge. We then prompt the
+// user to provide 2nd factor and pass the response to the proxy. If the
+// authentication succeeds, we will get a temporary certificate back.
 func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginResponse, error) {
 	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
 	if err != nil {
@@ -378,14 +378,26 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 		User: login.User,
 		Pass: login.Password,
 	}
+	// TODO(codingllama): Decide endpoints based on the Ping server version, once
+	//  we have a known version for Webauthn.
 	challengeJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "begin"), beginReq)
+	// DELETE IN 9.x, fallback not necessary after U2F is removed (codingllama)
+	if trace.IsNotImplemented(err) {
+		challengeJSON, err = clt.PostJSON(ctx, clt.Endpoint("webapi", "u2f", "signrequest"), beginReq)
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	challenge := &MFAAuthenticateChallenge{}
+	challenge := &auth.MFAAuthenticateChallenge{}
 	if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	// DELETE IN 9.x, fallback not necessary after U2F is removed (codingllama)
+	if len(challenge.U2FChallenges) == 0 && challenge.AuthenticateChallenge != nil {
+		// Challenge sent by a pre-6.0 auth server, fall back to the old
+		// single-device format.
+		challenge.U2FChallenges = []u2f.AuthenticateChallenge{*challenge.AuthenticateChallenge}
 	}
 
 	// Convert to auth gRPC proto challenge.
@@ -393,14 +405,20 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 	if challenge.TOTPChallenge {
 		challengePB.TOTP = &proto.TOTPChallenge{}
 	}
+	for _, c := range challenge.U2FChallenges {
+		challengePB.U2F = append(challengePB.U2F, &proto.U2FChallenge{
+			KeyHandle: c.KeyHandle,
+			Challenge: c.Challenge,
+			AppID:     c.AppID,
+		})
+	}
 	if challenge.WebauthnChallenge != nil {
 		challengePB.WebauthnChallenge = wanlib.CredentialAssertionToProto(challenge.WebauthnChallenge)
 	}
 
 	respPB, err := PromptMFAChallenge(ctx, challengePB, login.ProxyAddr, &PromptMFAChallengeOpts{
-		AllowStdinHijack:        login.AllowStdinHijack,
-		AuthenticatorAttachment: login.AuthenticatorAttachment,
-		PreferOTP:               login.PreferOTP,
+		AllowStdinHijack: login.AllowStdinHijack,
+		PreferOTP:        login.PreferOTP,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -419,6 +437,12 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 	switch r := respPB.Response.(type) {
 	case *proto.MFAAuthenticateResponse_TOTP:
 		challengeResp.TOTPCode = r.TOTP.Code
+	case *proto.MFAAuthenticateResponse_U2F:
+		challengeResp.U2FSignResponse = &u2f.AuthenticateChallengeResponse{
+			KeyHandle:     r.U2F.KeyHandle,
+			SignatureData: r.U2F.Signature,
+			ClientData:    r.U2F.ClientData,
+		}
 	case *proto.MFAAuthenticateResponse_Webauthn:
 		challengeResp.WebauthnChallengeResponse = wanlib.CredentialAssertionResponseFromProto(r.Webauthn)
 	default:
@@ -426,6 +450,10 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 	}
 
 	loginRespJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "finish"), challengeResp)
+	// DELETE IN 9.x, fallback not necessary after U2F is removed (codingllama)
+	if trace.IsNotImplemented(err) {
+		loginRespJSON, err = clt.PostJSON(ctx, clt.Endpoint("webapi", "u2f", "certs"), challengeResp)
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -451,7 +479,14 @@ func HostCredentials(ctx context.Context, proxyAddr string, insecure bool, req t
 		return nil, trace.Wrap(err)
 	}
 
-	return &certs, nil
+	// If we got certs, we're done, however, we may be talking to a Teleport 9 or earlier server,
+	// which still sends back the legacy JSON format.
+	if len(certs.SSH) > 0 && len(certs.TLS) > 0 {
+		return &certs, nil
+	}
+
+	// DELETE IN 10.0.0 (zmb3)
+	return auth.UnmarshalLegacyCerts(resp.Bytes())
 }
 
 // GetWebConfig is used by teleterm to fetch webconfig.js from proxies

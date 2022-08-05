@@ -59,7 +59,7 @@ db_service:
   resources:
   - labels:
       "*": "*"
-  {{- if or .RDSDiscoveryRegions .RedshiftDiscoveryRegions .ElastiCacheDiscoveryRegions}}
+  {{- if or .RDSDiscoveryRegions .RedshiftDiscoveryRegions }}
   # Matchers for registering AWS-hosted databases.
   aws:
   {{- end }}
@@ -89,73 +89,12 @@ db_service:
     tags:
       "*": "*"
   {{- end }}
-  {{- if .ElastiCacheDiscoveryRegions }}
-  # ElastiCache databases auto-discovery.
-  # For more information about ElastiCache auto-discovery: https://goteleport.com/docs/database-access/guides/redis-aws/
-  - types: ["elasticache"]
-    # AWS regions to register databases from.
-    regions:
-    {{- range .ElastiCacheDiscoveryRegions }}
-    - {{ . }}
-    {{- end }}
-    # AWS resource tags to match when registering databases.
-    tags:
-      "*": "*"
-  {{- end }}
-  {{- if .MemoryDBDiscoveryRegions }}
-  # MemoryDB databases auto-discovery.
-  # For more information about MemoryDB auto-discovery: https://goteleport.com/docs/database-access/guides/redis-aws/
-  - types: ["memorydb"]
-    # AWS regions to register databases from.
-    regions:
-    {{- range .MemoryDBDiscoveryRegions }}
-    - {{ . }}
-    {{- end }}
-    # AWS resource tags to match when registering databases.
-    tags:
-      "*": "*"
-  {{- end }}
   # Lists statically registered databases proxied by this agent.
   {{- if .StaticDatabaseName }}
   databases:
   - name: {{ .StaticDatabaseName }}
     protocol: {{ .StaticDatabaseProtocol }}
     uri: {{ .StaticDatabaseURI }}
-    {{- if .DatabaseCACertFile }}
-    tls:
-      ca_cert_file: {{ .DatabaseCACertFile }}
-    {{- end }}
-    {{- if or .DatabaseAWSRegion .DatabaseAWSRedshiftClusterID }}
-    aws:
-      {{- if .DatabaseAWSRegion }}
-      region: {{ .DatabaseAWSRegion }}
-      {{- end }}
-      {{- if .DatabaseAWSRedshiftClusterID }}
-      redshift:
-        cluster_id: {{ .DatabaseAWSRedshiftClusterID }}
-      {{- end }}
-    {{- end }}
-    {{- if or .DatabaseADDomain .DatabaseADSPN .DatabaseADKeytabFile }}
-    ad:
-      {{- if .DatabaseADKeytabFile }}
-      keytab_file: {{ .DatabaseADKeytabFile }}
-      {{- end }}
-      {{- if .DatabaseADDomain }}
-      domain: {{ .DatabaseADDomain }}
-      {{- end }}
-      {{- if .DatabaseADSPN }}
-      spn: {{ .DatabaseADSPN }}
-      {{- end }}
-    {{- end }}
-    {{- if or .DatabaseGCPProjectID .DatabaseGCPInstanceID }}
-    gcp:
-      {{- if .DatabaseGCPProjectID }}
-      project_id: {{ .DatabaseGCPProjectID }}
-      {{- end }}
-      {{- if .DatabaseGCPInstanceID }}
-      instance_id: {{ .DatabaseGCPInstanceID }}
-      {{- end }}
-    {{- end }}
     {{- if .StaticDatabaseStaticLabels }}
     static_labels:
     {{- range $name, $value := .StaticDatabaseStaticLabels }}
@@ -223,34 +162,6 @@ db_service:
   #     redshift:
   #       # Redshift Cluster ID.
   #       cluster_id: redshift-cluster-example-1
-  # # ElastiCache database static configuration.
-  # - name: elasticache
-  #   description: AWS ElastiCache cluster configuration example.
-  #   protocol: redis
-  #   # Database connection endpoint. Must be reachable from Database service.
-  #   uri: master.redis-cluster-example.abcdef.usw1.cache.amazonaws.com:6379
-  #   # AWS specific configuration.
-  #   aws:
-  #     # Region the database is deployed in.
-  #     region: us-west-1
-  #     # ElastiCache specific configuration.
-  #     elasticache:
-  #       # ElastiCache replication group ID.
-  #       replication_group_id: redis-cluster-example
-  # # MemoryDB database static configuration.
-  # - name: memorydb
-  #   description: AWS MemoryDB cluster configuration example.
-  #   protocol: redis
-  #   # Database connection endpoint. Must be reachable from Database service.
-  #   uri: clustercfg.my-memorydb.xxxxxx.memorydb.us-east-1.amazonaws.com:6379
-  #   # AWS specific configuration.
-  #   aws:
-  #     # Region the database is deployed in.
-  #     region: us-west-1
-  #     # MemoryDB specific configuration.
-  #     memorydb:
-  #       # MemoryDB cluster name.
-  #       cluster_name: my-memorydb
   # # Self-hosted static configuration.
   # - name: self-hosted
   #   description: Self-hosted database configuration.
@@ -294,36 +205,14 @@ type DatabaseSampleFlags struct {
 	AuthToken string
 	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
 	CAPins []string
-	// RDSDiscoveryRegions is a list of regions the RDS auto-discovery is
+	// RDSDiscoveryRegions list of regions the RDS auto-discovery is
 	// configured.
 	RDSDiscoveryRegions []string
-	// RedshiftDiscoveryRegions is a list of regions the Redshift
-	// auto-discovery is configured.
+	// RedshiftDiscoveryRegions list of regions the Redshift auto-discovery is
+	// configured.
 	RedshiftDiscoveryRegions []string
-	// ElastiCacheDiscoveryRegions is a list of regions the ElastiCache
-	// auto-discovery is configured.
-	ElastiCacheDiscoveryRegions []string
-	// MemoryDBDiscoveryRegions is a list of regions the MemoryDB
-	// auto-discovery is configured.
-	MemoryDBDiscoveryRegions []string
-	// DatabaseProtocols is a list of database protocols supported.
+	// DatabaseProtocols list of database protocols supported.
 	DatabaseProtocols []string
-	// DatabaseAWSRegion is an optional database cloud region e.g. when using AWS RDS.
-	DatabaseAWSRegion string
-	// DatabaseAWSRedshiftClusterID is Redshift cluster identifier.
-	DatabaseAWSRedshiftClusterID string
-	// DatabaseADDomain is the Active Directory domain for authentication.
-	DatabaseADDomain string
-	// DatabaseADSPN is the database Service Principal Name.
-	DatabaseADSPN string
-	// DatabaseADKeytabFile is the path to Kerberos keytab file.
-	DatabaseADKeytabFile string
-	// DatabaseGCPProjectID is GCP Cloud SQL project identifier.
-	DatabaseGCPProjectID string
-	// DatabaseGCPInstanceID is GCP Cloud SQL instance identifier.
-	DatabaseGCPInstanceID string
-	// DatabaseCACertFile is the database CA cert path.
-	DatabaseCACertFile string
 }
 
 // CheckAndSetDefaults checks and sets default values for the flags.

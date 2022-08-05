@@ -26,23 +26,22 @@ import (
 )
 
 // Resolver looks up reverse tunnel addresses
-type Resolver func(ctx context.Context) (*utils.NetAddr, error)
+type Resolver func() (*utils.NetAddr, error)
 
 // CachingResolver wraps the provided Resolver with one that will cache the previous result
 // for 3 seconds to reduce the number of resolutions in an effort to mitigate potentially
 // overwhelming the Resolver source.
-func CachingResolver(ctx context.Context, resolver Resolver, clock clockwork.Clock) (Resolver, error) {
+func CachingResolver(resolver Resolver, clock clockwork.Clock) (Resolver, error) {
 	cache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:     3 * time.Second,
-		Clock:   clock,
-		Context: ctx,
+		TTL:   3 * time.Second,
+		Clock: clock,
 	})
 	if err != nil {
 		return nil, err
 	}
-	return func(ctx context.Context) (*utils.NetAddr, error) {
-		a, err := cache.Get(ctx, "resolver", func(ctx context.Context) (interface{}, error) {
-			return resolver(ctx)
+	return func() (*utils.NetAddr, error) {
+		a, err := cache.Get(context.TODO(), "resolver", func() (interface{}, error) {
+			return resolver()
 		})
 		if err != nil {
 			return nil, err
@@ -53,14 +52,15 @@ func CachingResolver(ctx context.Context, resolver Resolver, clock clockwork.Clo
 
 // WebClientResolver returns a Resolver which uses the web proxy to
 // discover where the SSH reverse tunnel server is running.
-func WebClientResolver(addrs []utils.NetAddr, insecureTLS bool) Resolver {
-	return func(ctx context.Context) (*utils.NetAddr, error) {
+func WebClientResolver(ctx context.Context, addrs []utils.NetAddr, insecureTLS bool) Resolver {
+	return func() (*utils.NetAddr, error) {
 		var errs []error
 		for _, addr := range addrs {
 			// In insecure mode, any certificate is accepted. In secure mode the hosts
 			// CAs are used to validate the certificate on the proxy.
+			// Ignore HTTP proxy for backwards compatibility.
 			tunnelAddr, err := webclient.GetTunnelAddr(
-				&webclient.Config{Context: ctx, ProxyAddr: addr.String(), Insecure: insecureTLS})
+				&webclient.Config{Context: ctx, ProxyAddr: addr.String(), Insecure: insecureTLS, IgnoreHTTPProxy: true})
 
 			if err != nil {
 				errs = append(errs, err)
@@ -88,7 +88,7 @@ func StaticResolver(address string) Resolver {
 		addr.Addr = utils.ReplaceUnspecifiedHost(addr, defaults.HTTPListenPort)
 	}
 
-	return func(context.Context) (*utils.NetAddr, error) {
+	return func() (*utils.NetAddr, error) {
 		return addr, err
 	}
 }

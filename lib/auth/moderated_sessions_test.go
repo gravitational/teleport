@@ -20,14 +20,13 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 )
 
 // TestUnmoderatedSessionsAllowed tests that we allow creating unmoderated sessions even if the
@@ -38,8 +37,7 @@ func TestUnmoderatedSessionsAllowed(t *testing.T) {
 	}})
 
 	srv := &Server{
-		clock:    clockwork.NewRealClock(),
-		Services: &Services{},
+		clock: clockwork.NewRealClock(),
 	}
 
 	bk, err := memory.New(memory.Config{})
@@ -67,8 +65,7 @@ func TestModeratedSessionsDisabled(t *testing.T) {
 	}})
 
 	srv := &Server{
-		clock:    clockwork.NewRealClock(),
-		Services: &Services{},
+		clock: clockwork.NewRealClock(),
 	}
 
 	bk, err := memory.New(memory.Config{})
@@ -109,8 +106,7 @@ func TestModeratedSesssionsEnabled(t *testing.T) {
 	}})
 
 	srv := &Server{
-		clock:    clockwork.NewRealClock(),
-		Services: &Services{},
+		clock: clockwork.NewRealClock(),
 	}
 
 	bk, err := memory.New(memory.Config{})

@@ -19,14 +19,12 @@ package db
 import (
 	"context"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"net/http"
-	"os"
 	"path/filepath"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -45,8 +43,6 @@ func (s *Server) initCACert(ctx context.Context, database types.Database) error 
 	switch database.GetType() {
 	case types.DatabaseTypeRDS,
 		types.DatabaseTypeRedshift,
-		types.DatabaseTypeElastiCache,
-		types.DatabaseTypeMemoryDB,
 		types.DatabaseTypeCloudSQL,
 		types.DatabaseTypeAzure:
 	default:
@@ -85,7 +81,7 @@ func (s *Server) getCACert(ctx context.Context, database types.Database) ([]byte
 	// It's already downloaded.
 	if err == nil {
 		s.log.Debugf("Loaded CA certificate %v.", filePath)
-		return os.ReadFile(filePath)
+		return ioutil.ReadFile(filePath)
 	}
 	// Otherwise download it.
 	s.log.Debugf("Downloading CA certificate for %v.", database)
@@ -94,7 +90,7 @@ func (s *Server) getCACert(ctx context.Context, database types.Database) ([]byte
 		return nil, trace.Wrap(err)
 	}
 	// Save to the filesystem.
-	err = os.WriteFile(filePath, bytes, teleport.FileMaskOwnerOnly)
+	err = ioutil.WriteFile(filePath, bytes, teleport.FileMaskOwnerOnly)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -105,33 +101,16 @@ func (s *Server) getCACert(ctx context.Context, database types.Database) ([]byte
 // getCACertPath returns the path where automatically downloaded root certificate
 // for the provided database is stored in the filesystem.
 func (s *Server) getCACertPath(database types.Database) (string, error) {
+	// All RDS and Redshift instances share the same root CA which can be
+	// downloaded from a well-known URL (sometimes region-specific). Each
+	// Cloud SQL instance has its own CA.
 	switch database.GetType() {
-	// All RDS instances share the same root CA (per AWS region) which can be
-	// downloaded from a well-known URL.
 	case types.DatabaseTypeRDS:
 		return filepath.Join(s.cfg.DataDir, filepath.Base(rdsCAURLForDatabase(database))), nil
-
-	// All Redshift instances share the same root CA which can be downloaded
-	// from a well-known URL.
 	case types.DatabaseTypeRedshift:
 		return filepath.Join(s.cfg.DataDir, filepath.Base(redshiftCAURLForDatabase(database))), nil
-
-	// ElastiCache databases are signed with Amazon root CA. In most cases,
-	// x509.SystemCertPool should be sufficient to verify ElastiCache servers.
-	// However, x509.SystemCertPool does not support windows for go versions
-	// older than 1.18. In addition, system cert path can be overridden by
-	// environment variables on many OSes. Therefore, Amazon root CA is
-	// downloaded here to be safe.
-	//
-	// AWS MemoryDB uses same CA as ElastiCache.
-	case types.DatabaseTypeElastiCache,
-		types.DatabaseTypeMemoryDB:
-		return filepath.Join(s.cfg.DataDir, filepath.Base(amazonRootCA1URL)), nil
-
-	// Each Cloud SQL instance has its own CA.
 	case types.DatabaseTypeCloudSQL:
 		return filepath.Join(s.cfg.DataDir, fmt.Sprintf("%v-root.pem", database.GetName())), nil
-
 	case types.DatabaseTypeAzure:
 		return filepath.Join(s.cfg.DataDir, filepath.Base(azureCAURL)), nil
 	}
@@ -160,9 +139,6 @@ func (d *realDownloader) Download(ctx context.Context, database types.Database) 
 		return d.downloadFromURL(rdsCAURLForDatabase(database))
 	case types.DatabaseTypeRedshift:
 		return d.downloadFromURL(redshiftCAURLForDatabase(database))
-	case types.DatabaseTypeElastiCache,
-		types.DatabaseTypeMemoryDB:
-		return d.downloadFromURL(amazonRootCA1URL)
 	case types.DatabaseTypeCloudSQL:
 		return d.downloadForCloudSQL(ctx, database)
 	case types.DatabaseTypeAzure:
@@ -182,7 +158,7 @@ func (d *realDownloader) downloadFromURL(downloadURL string) ([]byte, error) {
 		return nil, trace.BadParameter("status code %v when fetching from %q",
 			resp.StatusCode, downloadURL)
 	}
-	bytes, err := io.ReadAll(resp.Body)
+	bytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -218,24 +194,18 @@ func (d *realDownloader) downloadForCloudSQL(ctx context.Context, database types
 // https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html
 func rdsCAURLForDatabase(database types.Database) string {
 	region := database.GetAWS().Region
-
-	switch {
-	case awsutils.IsCNRegion(region):
-		return fmt.Sprintf(rdsCNRegionCAURLTemplate, region, region)
-
-	case awsutils.IsUSGovRegion(region):
-		return fmt.Sprintf(rdsUSGovRegionCAURLTemplate, region, region)
-
-	default:
-		return fmt.Sprintf(rdsDefaultCAURLTemplate, region, region)
+	if u, ok := rdsGovCloudCAURLs[region]; ok {
+		return u
 	}
+
+	return fmt.Sprintf(rdsDefaultCAURLTemplate, region, region)
 }
 
 // redshiftCAURLForDatabase returns root certificate download URL based on the region
 // of the provided RDS server instance.
 func redshiftCAURLForDatabase(database types.Database) string {
-	if awsutils.IsCNRegion(database.GetAWS().Region) {
-		return redshiftCNRegionCAURL
+	if u, ok := redshiftCAURLs[database.GetAWS().Region]; ok {
+		return u
 	}
 	return redshiftDefaultCAURL
 }
@@ -246,30 +216,10 @@ const (
 	//
 	// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html
 	rdsDefaultCAURLTemplate = "https://truststore.pki.rds.amazonaws.com/%s/%s-bundle.pem"
-	// rdsUSGovRegionCAURLTemplate is the string format template that creates URLs
-	// for region based RDS CA bundles for AWS US GovCloud regions
-	//
-	// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html
-	rdsUSGovRegionCAURLTemplate = "https://truststore.pki.us-gov-west-1.rds.amazonaws.com/%s/%s-bundle.pem"
-	// rdsCNRegionCAURLTemplate is the string format template that creates URLs
-	// for region based RDS CA bundles for AWS China regions.
-	//
-	// https://docs.amazonaws.cn/en_us/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html
-	rdsCNRegionCAURLTemplate = "https://rds-truststore.s3.cn-north-1.amazonaws.com.cn/%s/%s-bundle.pem"
 	// redshiftDefaultCAURL is the Redshift CA bundle download URL.
 	//
 	// https://docs.aws.amazon.com/redshift/latest/mgmt/connecting-ssl-support.html
 	redshiftDefaultCAURL = "https://s3.amazonaws.com/redshift-downloads/amazon-trust-ca-bundle.crt"
-	// redshiftDefaultCAURL is the Redshift CA bundle download URL for AWS
-	// China regions.
-	//
-	// https://docs.amazonaws.cn/redshift/latest/mgmt/connecting-ssl-support.html
-	redshiftCNRegionCAURL = "https://s3.cn-north-1.amazonaws.com.cn/redshift-downloads-cn/amazon-trust-ca-bundle.crt"
-	// amazonRootCA1URL is the root CA for many Amazon websites and services.
-	//
-	// https://www.amazontrust.com/repository/
-	amazonRootCA1URL = "https://www.amazontrust.com/repository/AmazonRootCA1.pem"
-
 	// azureCAURL is the URL of the CA certificate for validating certificates
 	// presented by Azure hosted databases. See:
 	//
@@ -290,3 +240,18 @@ To correct the error you can try the following:
   * Download root certificate for your Cloud SQL instance %q manually and set
     it in the database configuration using "ca_cert_file" configuration field.`
 )
+
+// rdsGovCloudCAURLs maps AWS regions to URLs of their RDS root certificates.
+//
+// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html
+var rdsGovCloudCAURLs = map[string]string{
+	"us-gov-east-1": "https://truststore.pki.us-gov-west-1.rds.amazonaws.com/us-gov-east-1/us-gov-east-1-bundle.pem",
+	"us-gov-west-1": "https://truststore.pki.us-gov-west-1.rds.amazonaws.com/us-gov-west-1/us-gov-west-1-bundle.pem",
+}
+
+// redshiftCAURLs maps opt-in AWS regions to URLs of their Redshift root certificates.
+//
+// https://docs.aws.amazon.com/redshift/latest/mgmt/connecting-ssl-support.html
+var redshiftCAURLs = map[string]string{
+	"cn-north-1": "https://s3.cn-north-1.amazonaws.com.cn/redshift-downloads-cn/amazon-trust-ca-bundle.crt",
+}

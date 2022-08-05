@@ -21,9 +21,10 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/trace"
 
@@ -31,22 +32,14 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 )
 
-// promptWebauthn provides indirection for tests.
+// promptOTP allows tests to override the OTP prompt function.
+var promptOTP = prompt.Input
+
+// promptU2F allows tests to override the U2F prompt function.
+var promptU2F = u2f.AuthenticateSignChallenge
+
+// promptWebauthn allows tests to override the Webauthn prompt function.
 var promptWebauthn = wancli.Login
-
-// mfaPrompt implements wancli.LoginPrompt for MFA logins.
-// In most cases authenticators shouldn't require PINs or additional touches for
-// MFA, but the implementation exists in case we find some unusual
-// authenticators out there.
-type mfaPrompt struct {
-	wancli.LoginPrompt
-	otpCancelAndWait func()
-}
-
-func (p *mfaPrompt) PromptPIN() (string, error) {
-	p.otpCancelAndWait()
-	return p.LoginPrompt.PromptPIN()
-}
 
 // PromptMFAChallengeOpts groups optional settings for PromptMFAChallenge.
 type PromptMFAChallengeOpts struct {
@@ -62,8 +55,6 @@ type PromptMFAChallengeOpts struct {
 	// Do not set this options unless you deeply understand what you are doing.
 	// If false then only the strongest auth method is prompted.
 	AllowStdinHijack bool
-	// AuthenticatorAttachment specifies the desired authenticator attachment.
-	AuthenticatorAttachment wancli.AuthenticatorAttachment
 	// PreferOTP favors OTP challenges, if applicable.
 	// Takes precedence over AuthenticatorAttachment settings.
 	PreferOTP bool
@@ -85,8 +76,8 @@ func (tc *TeleportClient) PromptMFAChallenge(
 	}
 
 	opts := &PromptMFAChallengeOpts{
-		AuthenticatorAttachment: tc.AuthenticatorAttachment,
-		PreferOTP:               tc.PreferOTP,
+		AllowStdinHijack: tc.AllowStdinHijack,
+		PreferOTP:        tc.PreferOTP,
 	}
 	if applyOpts != nil {
 		applyOpts(opts)
@@ -99,7 +90,7 @@ func (tc *TeleportClient) PromptMFAChallenge(
 // challenges.
 func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, proxyAddr string, opts *PromptMFAChallengeOpts) (*proto.MFAAuthenticateResponse, error) {
 	// Is there a challenge present?
-	if c.TOTP == nil && c.WebauthnChallenge == nil {
+	if c.TOTP == nil && len(c.U2F) == 0 && c.WebauthnChallenge == nil {
 		return &proto.MFAAuthenticateResponse{}, nil
 	}
 	if opts == nil {
@@ -108,8 +99,10 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 	promptDevicePrefix := opts.PromptDevicePrefix
 	quiet := opts.Quiet
 
+	// We have three maximum challenges, from which we only pick two: TOTP and
+	// either Webauthn (preferred) or U2F.
 	hasTOTP := c.TOTP != nil
-	hasWebauthn := c.WebauthnChallenge != nil
+	hasNonTOTP := len(c.U2F) > 0 || c.WebauthnChallenge != nil
 
 	// Does the current platform support hardware MFA? Adjust accordingly.
 	switch {
@@ -117,23 +110,20 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 		return nil, trace.BadParameter("hardware device MFA not supported by your platform, please register an OTP device")
 	case !wancli.HasPlatformSupport():
 		// Do not prompt for hardware devices, it won't work.
-		hasWebauthn = false
+		hasNonTOTP = false
 	}
 
 	// Tweak enabled/disabled methods according to opts.
 	switch {
 	case hasTOTP && opts.PreferOTP:
-		hasWebauthn = false
-	case hasWebauthn && opts.AuthenticatorAttachment != wancli.AttachmentAuto:
-		// Prefer Webauthn if an specific attachment was requested.
-		hasTOTP = false
-	case hasWebauthn && !opts.AllowStdinHijack:
+		hasNonTOTP = false
+	case hasNonTOTP && !opts.AllowStdinHijack:
 		// Use strongest auth if hijack is not allowed.
 		hasTOTP = false
 	}
 
 	var numGoroutines int
-	if hasTOTP && hasWebauthn {
+	if hasTOTP && hasNonTOTP {
 		numGoroutines = 2
 	} else {
 		numGoroutines = 1
@@ -146,36 +136,19 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 	}
 	respC := make(chan response, numGoroutines)
 
-	// Use ctx and wg to clean up after ourselves.
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	var wg sync.WaitGroup
-	cancelAndWait := func() {
-		cancel()
-		wg.Wait()
-	}
-
-	// Use variables below to cancel OTP reads and make sure the goroutine exited.
-	otpWait := &sync.WaitGroup{}
-	otpCtx, otpCancel := context.WithCancel(ctx)
-	defer otpCancel()
-
 	// Fire TOTP goroutine.
 	if hasTOTP {
-		otpWait.Add(1)
-		wg.Add(1)
 		go func() {
-			defer otpWait.Done()
-			defer wg.Done()
 			const kind = "TOTP"
-
-			// Let Webauthn take the prompt, it knows better if it's necessary.
 			var msg string
-			if !quiet && !hasWebauthn {
-				msg = fmt.Sprintf("Enter an OTP code from a %sdevice", promptDevicePrefix)
+			if !quiet {
+				if hasNonTOTP {
+					msg = fmt.Sprintf("Tap any %[1]ssecurity key or enter a code from a %[1]sOTP device", promptDevicePrefix, promptDevicePrefix)
+				} else {
+					msg = fmt.Sprintf("Enter an OTP code from a %sdevice", promptDevicePrefix)
+				}
 			}
-
-			otp, err := prompt.Password(otpCtx, os.Stderr, prompt.Stdin(), msg)
+			code, err := promptOTP(ctx, os.Stderr, prompt.Stdin(), msg)
 			if err != nil {
 				respC <- response{kind: kind, err: err}
 				return
@@ -184,46 +157,35 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 				kind: kind,
 				resp: &proto.MFAAuthenticateResponse{
 					Response: &proto.MFAAuthenticateResponse_TOTP{
-						TOTP: &proto.TOTPResponse{Code: otp},
+						TOTP: &proto.TOTPResponse{Code: code},
 					},
 				},
 			}
 		}()
+	} else if !quiet {
+		fmt.Fprintf(os.Stderr, "Tap any %ssecurity key\n", promptDevicePrefix)
 	}
 
-	// Fire Webauthn goroutine.
-	if hasWebauthn {
+	// Fire Webauthn or U2F goroutine.
+	if hasNonTOTP {
 		origin := proxyAddr
 		if !strings.HasPrefix(origin, "https://") {
 			origin = "https://" + origin
 		}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			log.Debugf("WebAuthn: prompting devices with origin %q", origin)
-
-			prompt := wancli.NewDefaultPrompt(ctx, os.Stderr)
-			prompt.SecondTouchMessage = fmt.Sprintf("Tap your %ssecurity key to complete login", promptDevicePrefix)
-			switch {
-			case quiet:
-				// Do not prompt.
-				prompt.FirstTouchMessage = ""
-				prompt.SecondTouchMessage = ""
-			case hasTOTP: // Webauthn + OTP
-				prompt.FirstTouchMessage = fmt.Sprintf("Tap any %ssecurity key or enter a code from a %sOTP device", promptDevicePrefix, promptDevicePrefix)
-			default: // Webauthn only
-				prompt.FirstTouchMessage = fmt.Sprintf("Tap any %ssecurity key", promptDevicePrefix)
-			}
-			mfaPrompt := &mfaPrompt{LoginPrompt: prompt, otpCancelAndWait: func() {
-				otpCancel()
-				otpWait.Wait()
-			}}
-
-			resp, _, err := promptWebauthn(ctx, origin, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge), mfaPrompt, &wancli.LoginOpts{
-				AuthenticatorAttachment: opts.AuthenticatorAttachment,
-			})
-			respC <- response{kind: "WEBAUTHN", resp: resp, err: err}
-		}()
+		switch {
+		case c.WebauthnChallenge != nil:
+			go func() {
+				log.Debugf("WebAuthn: prompting U2F devices with origin %q", origin)
+				resp, err := promptWebauthn(ctx, origin, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge))
+				respC <- response{kind: "WEBAUTHN", resp: resp, err: err}
+			}()
+		case len(c.U2F) > 0:
+			go func() {
+				log.Debugf("prompting U2F devices with facet %q", origin)
+				resp, err := promptU2FChallenges(ctx, proxyAddr, c.U2F)
+				respC <- response{kind: "U2F", resp: resp, err: err}
+			}()
+		}
 	}
 
 	for i := 0; i < numGoroutines; i++ {
@@ -234,37 +196,67 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 				continue
 			}
 
-			// Cleanup in-flight goroutines.
-			cancelAndWait()
+			if hasTOTP {
+				fmt.Fprintln(os.Stderr) // Print a new line after the prompt
+			}
+
+			// Exiting cancels the context via defer, which makes the remaining
+			// goroutines stop.
 			return resp.resp, nil
 		case <-ctx.Done():
-			cancelAndWait()
 			return nil, trace.Wrap(ctx.Err())
 		}
 	}
-	cancelAndWait()
 	return nil, trace.BadParameter(
 		"failed to authenticate using all MFA devices, rerun the command with '-d' to see error details for each device")
 }
 
-// MFAAuthenticateChallenge is an MFA authentication challenge sent on user
-// login / authentication ceremonies.
-type MFAAuthenticateChallenge struct {
-	// WebauthnChallenge contains a WebAuthn credential assertion used for
-	// login/authentication ceremonies.
-	WebauthnChallenge *wanlib.CredentialAssertion `json:"webauthn_challenge"`
-	// TOTPChallenge specifies whether TOTP is supported for this user.
-	TOTPChallenge bool `json:"totp_challenge"`
+func promptU2FChallenges(ctx context.Context, origin string, challenges []*proto.U2FChallenge) (*proto.MFAAuthenticateResponse, error) {
+	u2fChallenges := make([]u2f.AuthenticateChallenge, 0, len(challenges))
+	for _, chal := range challenges {
+		u2fChallenges = append(u2fChallenges, u2f.AuthenticateChallenge{
+			Challenge: chal.Challenge,
+			KeyHandle: chal.KeyHandle,
+			AppID:     chal.AppID,
+		})
+	}
+
+	resp, err := promptU2F(ctx, origin, u2fChallenges...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_U2F{
+		U2F: &proto.U2FResponse{
+			KeyHandle:  resp.KeyHandle,
+			ClientData: resp.ClientData,
+			Signature:  resp.SignatureData,
+		},
+	}}, nil
 }
 
 // MakeAuthenticateChallenge converts proto to JSON format.
-func MakeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge) *MFAAuthenticateChallenge {
-	chal := &MFAAuthenticateChallenge{
+func MakeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge) *auth.MFAAuthenticateChallenge {
+	chal := &auth.MFAAuthenticateChallenge{
 		TOTPChallenge: protoChal.GetTOTP() != nil,
 	}
+
+	for _, u2fChal := range protoChal.GetU2F() {
+		ch := u2f.AuthenticateChallenge{
+			Version:   u2fChal.Version,
+			Challenge: u2fChal.Challenge,
+			KeyHandle: u2fChal.KeyHandle,
+			AppID:     u2fChal.AppID,
+		}
+		if chal.AuthenticateChallenge == nil {
+			chal.AuthenticateChallenge = &ch
+		}
+		chal.U2FChallenges = append(chal.U2FChallenges, ch)
+	}
+
 	if protoChal.GetWebauthnChallenge() != nil {
 		chal.WebauthnChallenge = wanlib.CredentialAssertionFromProto(protoChal.WebauthnChallenge)
 	}
+
 	return chal
 }
 
@@ -274,6 +266,8 @@ type TOTPRegisterChallenge struct {
 
 // MFARegisterChallenge is an MFA register challenge sent on new MFA register.
 type MFARegisterChallenge struct {
+	// U2F contains U2F register challenge.
+	U2F *u2f.RegisterChallenge `json:"u2f"`
 	// Webauthn contains webauthn challenge.
 	Webauthn *wanlib.CredentialCreation `json:"webauthn"`
 	// TOTP contains TOTP challenge.
@@ -289,10 +283,21 @@ func MakeRegisterChallenge(protoChal *proto.MFARegisterChallenge) *MFARegisterCh
 				QRCode: protoChal.GetTOTP().GetQRCode(),
 			},
 		}
+
+	case *proto.MFARegisterChallenge_U2F:
+		return &MFARegisterChallenge{
+			U2F: &u2f.RegisterChallenge{
+				Version:   protoChal.GetU2F().GetVersion(),
+				Challenge: protoChal.GetU2F().GetChallenge(),
+				AppID:     protoChal.GetU2F().GetAppID(),
+			},
+		}
+
 	case *proto.MFARegisterChallenge_Webauthn:
 		return &MFARegisterChallenge{
 			Webauthn: wanlib.CredentialCreationFromProto(protoChal.GetWebauthn()),
 		}
 	}
+
 	return nil
 }

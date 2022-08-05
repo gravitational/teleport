@@ -17,8 +17,6 @@ limitations under the License.
 package service
 
 import (
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -29,6 +27,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/trace"
 )
 
 func (process *TeleportProcess) shouldInitDatabases() bool {
@@ -49,11 +49,22 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	log := process.log.WithField(trace.Component, teleport.Component(
 		teleport.ComponentDatabase, process.id))
 
-	conn, err := process.waitForConnector(DatabasesIdentityEvent, log)
-	if conn == nil {
-		return trace.Wrap(err)
+	eventsCh := make(chan Event)
+	process.WaitForEvent(process.ExitContext(), DatabasesIdentityEvent, eventsCh)
+
+	var event Event
+	select {
+	case event = <-eventsCh:
+		log.Debugf("Received event %q.", event.Name)
+	case <-process.ExitContext().Done():
+		log.Debug("Process is exiting.")
+		return nil
 	}
 
+	conn, ok := (event.Payload).(*Connector)
+	if !ok {
+		return trace.BadParameter("unsupported event payload type %q", event.Payload)
+	}
 	accessPoint, err := process.newLocalCacheForDatabase(conn.Client, []string{teleport.ComponentDatabase})
 	if err != nil {
 		return trace.Wrap(err)
@@ -68,7 +79,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		tunnelAddrResolver = process.singleProcessModeResolver(resp.GetProxyListenerMode())
 
 		// run the resolver. this will check configuration for errors.
-		_, err := tunnelAddrResolver(process.ExitContext())
+		_, err := tunnelAddrResolver()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -117,16 +128,6 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 					RDS: types.RDS{
 						InstanceID: db.AWS.RDS.InstanceID,
 						ClusterID:  db.AWS.RDS.ClusterID,
-					},
-					ElastiCache: types.ElastiCache{
-						ReplicationGroupID: db.AWS.ElastiCache.ReplicationGroupID,
-					},
-					MemoryDB: types.MemoryDB{
-						ClusterName: db.AWS.MemoryDB.ClusterName,
-					},
-					SecretStore: types.SecretStore{
-						KeyPrefix: db.AWS.SecretStore.KeyPrefix,
-						KMSKeyID:  db.AWS.SecretStore.KMSKeyID,
 					},
 				},
 				GCP: types.GCPCloudSQL{
@@ -193,8 +194,6 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		return trace.Wrap(err)
 	}
 
-	proxyGetter := reversetunnel.NewConnectedProxyGetter()
-
 	// Create and start the database service.
 	dbService, err := db.New(process.ExitContext(), db.Config{
 		Clock:       process.Clock,
@@ -205,19 +204,18 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 			Emitter:  asyncEmitter,
 			Streamer: streamer,
 		},
-		Authorizer:           authorizer,
-		TLSConfig:            tlsConfig,
-		Limiter:              connLimiter,
-		GetRotation:          process.getRotation,
-		Hostname:             process.Config.Hostname,
-		HostID:               process.Config.HostUUID,
-		Databases:            databases,
-		CloudLabels:          process.cloudLabels,
-		ResourceMatchers:     process.Config.Databases.ResourceMatchers,
-		AWSMatchers:          process.Config.Databases.AWSMatchers,
-		OnHeartbeat:          process.onHeartbeat(teleport.ComponentDatabase),
-		LockWatcher:          lockWatcher,
-		ConnectedProxyGetter: proxyGetter,
+		Authorizer:       authorizer,
+		TLSConfig:        tlsConfig,
+		Limiter:          connLimiter,
+		GetRotation:      process.getRotation,
+		Hostname:         process.Config.Hostname,
+		HostID:           process.Config.HostUUID,
+		Databases:        databases,
+		CloudLabels:      process.cloudLabels,
+		ResourceMatchers: process.Config.Databases.ResourceMatchers,
+		AWSMatchers:      process.Config.Databases.AWSMatchers,
+		OnHeartbeat:      process.onHeartbeat(teleport.ComponentDatabase),
+		LockWatcher:      lockWatcher,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -235,16 +233,15 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	agentPool, err := reversetunnel.NewAgentPool(
 		process.ExitContext(),
 		reversetunnel.AgentPoolConfig{
-			Component:            teleport.ComponentDatabase,
-			HostUUID:             conn.ServerIdentity.ID.HostUUID,
-			Resolver:             tunnelAddrResolver,
-			Client:               conn.Client,
-			Server:               dbService,
-			AccessPoint:          conn.Client,
-			HostSigner:           conn.ServerIdentity.KeySigner,
-			Cluster:              clusterName,
-			FIPS:                 process.Config.FIPS,
-			ConnectedProxyGetter: proxyGetter,
+			Component:   teleport.ComponentDatabase,
+			HostUUID:    conn.ServerIdentity.ID.HostUUID,
+			Resolver:    tunnelAddrResolver,
+			Client:      conn.Client,
+			Server:      dbService,
+			AccessPoint: conn.Client,
+			HostSigner:  conn.ServerIdentity.KeySigner,
+			Cluster:     clusterName,
+			FIPS:        process.Config.FIPS,
 		})
 	if err != nil {
 		return trace.Wrap(err)

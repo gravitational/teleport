@@ -1,4 +1,0 @@
-clusterName: test-cluster-name
-operator:
-  enabled: true
-installCRDs: true

@@ -19,6 +19,8 @@ package ui
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"testing"
 	"time"
 
@@ -27,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -76,8 +79,12 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 				bk, err = memory.New(memory.Config{})
 				require.NoError(b, err)
 			} else {
-				bk, err = memory.New(memory.Config{
-					Context: ctx,
+				dir, err := ioutil.TempDir("", "teleport")
+				require.NoError(b, err)
+				defer os.RemoveAll(dir)
+
+				bk, err = lite.NewWithConfig(context.TODO(), lite.Config{
+					Path: dir,
 				})
 				require.NoError(b, err)
 			}
@@ -181,8 +188,8 @@ type mockAccessPoint struct {
 	presence *local.PresenceService
 }
 
-func (m *mockAccessPoint) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
-	return m.presence.GetNodes(ctx, namespace)
+func (m *mockAccessPoint) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
+	return m.presence.GetNodes(ctx, namespace, opts...)
 }
 
 func (m *mockAccessPoint) GetProxies() ([]types.Server, error) {

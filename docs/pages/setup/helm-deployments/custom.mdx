@@ -3,7 +3,7 @@ title: Running Teleport with a Custom Configuration using Helm
 description: Install and configure a Teleport cluster with a custom configuration using Helm
 ---
 
-In this guide, we'll explain how to set up a Teleport cluster in Kubernetes using a custom [`teleport.yaml`](../reference/config.mdx)
+In this guide, we'll go through how to set up a Teleport cluster in Kubernetes using a custom [`teleport.yaml`](../reference/config.mdx)
 config file using Teleport Helm charts.
 
 This setup can be useful when you already have an existing Teleport cluster and would like to start running it in Kubernetes, or when
@@ -251,7 +251,7 @@ $ helm upgrade teleport teleport/teleport-cluster \
 <Admonition type="warning">
   When using `custom` mode, you **must** use highly-available storage (e.g. etcd, DynamoDB, or Firestore) for multiple replicas to be supported.
 
-  [Information on supported Teleport storage backends](../../setup/reference/backends.mdx)
+  [Information on supported Teleport storage backends](../../architecture/authentication.mdx#storage-back-ends)
 
   Manually configuring NFS-based storage or `ReadWriteMany` volume claims is **NOT** supported for an HA deployment and will result in errors.
 </Admonition>

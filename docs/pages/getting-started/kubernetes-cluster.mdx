@@ -63,7 +63,7 @@ Let's start with a single-pod Teleport deployment using a persistent volume as a
     ```
   </TabItem>
 
-  <TabItem label="Enterprise" scope={["enterprise"]}>
+  <TabItem label="Enterprise"  scope={["enterprise"]}>
     ```code
     $ CLUSTER_NAME="tele.example.com"
     $ EMAIL="mail@example.com"
@@ -199,7 +199,7 @@ For other install options, check out the [installation guide](../installation.md
     ```
   </TabItem>
 
-  <TabItem label="Enterprise" scope={["enterprise"]}>
+  <TabItem label="Enterprise">
     ```code
     $ curl -L -O https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
     $ tar -xzf teleport-ent-v(=teleport.version=)-linux-amd64-bin.tar.gz
@@ -260,11 +260,11 @@ In this step, we will set up the GitHub Single Sign-On connector for the OSS ver
       # Change tele.example.com to your domain name
       redirect_url: https://tele.example.com:443/v1/webapi/github/callback
       # Map github teams to teleport roles
-      teams_to_roles:
+      teams_to_logins:
         - organization: octocats # GitHub organization name
           team: admin            # GitHub team name within that organization
           # map GitHub's "admin" team to Teleport's "access" role
-          roles: ["access"]
+          logins: ["access"]
     ```
   </TabItem>
 
@@ -324,7 +324,7 @@ the default one in case there is a problem.
     ```
   </TabItem>
 
-  <TabItem label="Enterprise" scope={["enterprise"]}>
+  <TabItem label="Enterprise"  scope={["enterprise"]}>
     ```code
     $ KUBECONFIG=${HOME?}/teleport.yaml tsh login --proxy=tele.example.com --auth=okta
     ```
@@ -350,3 +350,4 @@ the default one in case there is a problem.
 - [Setup CI/CD Access with Teleport](../kubernetes-access/guides/cicd.mdx)
 - [Federated Access using Trusted Clusters](../kubernetes-access/guides/federation.mdx)
 - [Single-Sign On and Kubernetes Access Control](../kubernetes-access/controls.mdx)
+

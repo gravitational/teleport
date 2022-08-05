@@ -18,15 +18,15 @@ package utils
 
 import (
 	"archive/tar"
-	"fmt"
-	"testing"
 
-	"github.com/stretchr/testify/require"
+	"gopkg.in/check.v1"
 )
 
-func TestSanitizeTarPath(t *testing.T) {
-	t.Parallel()
+type UnpackSuite struct{}
 
+var _ = check.Suite(&UnpackSuite{})
+
+func (s *UnpackSuite) TestSanitizeTarPath(c *check.C) {
 	cases := []struct {
 		header      *tar.Header
 		expectError bool
@@ -140,8 +140,8 @@ func TestSanitizeTarPath(t *testing.T) {
 	}
 
 	for _, tt := range cases {
-		comment := fmt.Sprintf("Name: %v LinkName: %v", tt.header.Name, tt.header.Linkname)
+		comment := check.Commentf("Name: %v LinkName: %v", tt.header.Name, tt.header.Linkname)
 		err := sanitizeTarPath(tt.header, "/tmp")
-		require.Equal(t, err != nil, tt.expectError, comment)
+		c.Assert(err != nil, check.Equals, tt.expectError, comment)
 	}
 }

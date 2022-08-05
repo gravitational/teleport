@@ -116,7 +116,7 @@ func (u *UploadCompleter) Close() {
 	close(u.closeC)
 }
 
-// Serve runs the upload completer until closed or until ctx is canceled.
+// Serve runs the upload completer until closed or until ctx is cancelled.
 func (u *UploadCompleter) Serve(ctx context.Context) error {
 	periodic := interval.New(interval.Config{
 		Duration:      u.cfg.CheckPeriod,
@@ -167,17 +167,15 @@ func (u *UploadCompleter) checkUploads(ctx context.Context) error {
 			}
 		}
 
-		switch _, err := u.cfg.SessionTracker.GetSessionTracker(ctx, upload.SessionID.String()); {
-		case err == nil: // session is still in progress, continue to other uploads
+		if _, err := u.cfg.SessionTracker.GetSessionTracker(ctx, upload.SessionID.String()); err == nil {
 			continue
-		case trace.IsNotFound(err): // upload abandoned, complete upload
-		case trace.IsAccessDenied(err): // upload abandoned, complete upload
-			// Treat access denied errors as not found errors, since we expect
-			// to get them if the auth server is v9.2.3 or earlier, since only
-			// node, proxy, and kube roles had permissions to create trackers.
-			// DELETE IN 11.0.0
-		default: // aka err != nil
-			return trace.Wrap(err)
+		} else if !trace.IsNotFound(err) {
+			// Ignore access denied errors, which we may get if the auth
+			// server is v9.2.1 or earlier, since only node, proxy, and
+			// kube roles had permission to create session trackers.
+			if !trace.IsAccessDenied(err) {
+				return trace.Wrap(err)
+			}
 		}
 
 		parts, err := u.cfg.Uploader.ListParts(ctx, upload)

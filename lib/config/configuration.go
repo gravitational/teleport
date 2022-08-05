@@ -24,13 +24,13 @@ import (
 	"bufio"
 	"crypto/x509"
 	"io"
+	"io/ioutil"
 	stdlog "log"
 	"net"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"time"
 	"unicode"
@@ -111,10 +111,6 @@ type CommandLineFlags struct {
 	// configuration.
 	FIPS bool
 
-	// SkipVersionCheck allows Teleport to connect to auth servers that
-	// have an earlier major version number.
-	SkipVersionCheck bool
-
 	// AppName is the name of the application to proxy.
 	AppName string
 
@@ -138,7 +134,7 @@ type CommandLineFlags struct {
 	DatabaseAWSRegion string
 	// DatabaseAWSRedshiftClusterID is Redshift cluster identifier.
 	DatabaseAWSRedshiftClusterID string
-	// DatabaseAWSRDSInstanceID is RDS instance identifier.
+	// DatabaseAWSRDSClusterID is RDS instance identifier.
 	DatabaseAWSRDSInstanceID string
 	// DatabaseAWSRDSClusterID is RDS cluster (Aurora) cluster identifier.
 	DatabaseAWSRDSClusterID string
@@ -346,7 +342,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.MACAlgorithms = fc.MACAlgorithms
 	}
 	if fc.CASignatureAlgorithm != nil {
-		log.Warn("ca_signing_algo config option is deprecated and will be removed in a future release, Teleport defaults to rsa-sha2-512.")
+		cfg.CASignatureAlgorithm = fc.CASignatureAlgorithm
 	}
 
 	// Read in how nodes will validate the CA. A single empty string in the file
@@ -538,7 +534,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cfg.Auth.ListenAddr = *addr
+		cfg.Auth.SSHAddr = *addr
 		cfg.AuthServers = append(cfg.AuthServers, *addr)
 	}
 	for _, t := range fc.Auth.ReverseTunnels {
@@ -612,7 +608,6 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		SessionControlTimeout:    fc.Auth.SessionControlTimeout,
 		ProxyListenerMode:        fc.Auth.ProxyListenerMode,
 		RoutingStrategy:          fc.Auth.RoutingStrategy,
-		TunnelStrategy:           fc.Auth.TunnelStrategy,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -651,46 +646,14 @@ func applyKeyStoreConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.Auth.CAKeyParams == nil {
 		return nil
 	}
-
-	if fc.Auth.CAKeyParams.PKCS11.ModulePath != "" {
-		fi, err := utils.StatFile(fc.Auth.CAKeyParams.PKCS11.ModulePath)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		const worldWritableBits = 0o002
-		if fi.Mode().Perm()&worldWritableBits != 0 {
-			return trace.Errorf(
-				"PKCS11 library (%s) must not be world-writable",
-				fc.Auth.CAKeyParams.PKCS11.ModulePath,
-			)
-		}
-
-		cfg.Auth.KeyStore.Path = fc.Auth.CAKeyParams.PKCS11.ModulePath
-	}
-
+	cfg.Auth.KeyStore.Path = fc.Auth.CAKeyParams.PKCS11.ModulePath
 	cfg.Auth.KeyStore.TokenLabel = fc.Auth.CAKeyParams.PKCS11.TokenLabel
 	cfg.Auth.KeyStore.SlotNumber = fc.Auth.CAKeyParams.PKCS11.SlotNumber
-
 	cfg.Auth.KeyStore.Pin = fc.Auth.CAKeyParams.PKCS11.Pin
 	if fc.Auth.CAKeyParams.PKCS11.PinPath != "" {
 		if fc.Auth.CAKeyParams.PKCS11.Pin != "" {
 			return trace.BadParameter("can not set both pin and pin_path")
 		}
-
-		fi, err := utils.StatFile(fc.Auth.CAKeyParams.PKCS11.PinPath)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		const worldReadableBits = 0o004
-		if fi.Mode().Perm()&worldReadableBits != 0 {
-			return trace.Errorf(
-				"HSM pin file (%s) must not be world-readable",
-				fc.Auth.CAKeyParams.PKCS11.PinPath,
-			)
-		}
-
 		pinBytes, err := os.ReadFile(fc.Auth.CAKeyParams.PKCS11.PinPath)
 		if err != nil {
 			return trace.Wrap(err)
@@ -750,13 +713,6 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.MongoAddr = *addr
-	}
-	if fc.Proxy.PeerAddr != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.PeerAddr, int(defaults.ProxyPeeringListenPort))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cfg.Proxy.PeerAddr = *addr
 	}
 
 	// This is the legacy format. Continue to support it forever, but ideally
@@ -995,12 +951,6 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	if fc.SSH.PermitUserEnvironment {
 		cfg.SSH.PermitUserEnvironment = true
 	}
-	if fc.SSH.DisableCreateHostUser || runtime.GOOS != constants.LinuxOS {
-		cfg.SSH.DisableCreateHostUser = true
-		if runtime.GOOS != constants.LinuxOS {
-			log.Debugln("Disabling host user creation as this feature is only available on Linux")
-		}
-	}
 	if fc.SSH.PAM != nil {
 		cfg.SSH.PAM = fc.SSH.PAM.Parse()
 
@@ -1045,16 +995,6 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	cfg.SSH.X11, err = fc.SSH.X11ServerConfig()
 	if err != nil {
 		return trace.Wrap(err)
-	}
-
-	for _, matcher := range fc.SSH.AWSMatchers {
-		cfg.SSH.AWSMatchers = append(cfg.SSH.AWSMatchers,
-			services.AWSMatcher{
-				Types:       matcher.Types,
-				Regions:     matcher.Regions,
-				Tags:        matcher.Tags,
-				SSMDocument: matcher.SSMDocument,
-			})
 	}
 
 	return nil
@@ -1169,16 +1109,6 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				RDS: service.DatabaseAWSRDS{
 					InstanceID: database.AWS.RDS.InstanceID,
 					ClusterID:  database.AWS.RDS.ClusterID,
-				},
-				ElastiCache: service.DatabaseAWSElastiCache{
-					ReplicationGroupID: database.AWS.ElastiCache.ReplicationGroupID,
-				},
-				MemoryDB: service.DatabaseAWSMemoryDB{
-					ClusterName: database.AWS.MemoryDB.ClusterName,
-				},
-				SecretStore: service.DatabaseAWSSecretStore{
-					KeyPrefix: database.AWS.SecretStore.KeyPrefix,
-					KMSKeyID:  database.AWS.SecretStore.KMSKeyID,
 				},
 			},
 			GCP: service.DatabaseGCP{
@@ -1383,6 +1313,15 @@ func applyMetricsConfig(fc *FileConfig, cfg *service.Config) error {
 func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.WindowsDesktop.Enabled = true
 
+	// Support for reading an LDAP password from a file was dropped for Teleport 9.
+	// Check if this old option is still set and issue a clear error for one major version.
+	// DELETE IN 10.0 (zmb3)
+	if len(fc.WindowsDesktop.LDAP.PasswordFile) > 0 {
+		return trace.BadParameter("Support for password_file was deprecated in Teleport 9 " +
+			"in favor of certificate-based authentication. Remove the password_file field from " +
+			"teleport.yaml to fix this error.")
+	}
+
 	if fc.WindowsDesktop.ListenAddress != "" {
 		listenAddr, err := utils.ParseHostPortAddr(fc.WindowsDesktop.ListenAddress, int(defaults.WindowsDesktopListenPort))
 		if err != nil {
@@ -1528,6 +1467,8 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (types.CertAuthor
 				PublicKey: ssh.MarshalAuthorizedKey(pubkey),
 			}},
 		},
+		Roles:      nil,
+		SigningAlg: types.CertAuthoritySpecV2_UNKNOWN,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1882,11 +1823,6 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		}
 	}
 
-	// apply --skip-version-check flag.
-	if clf.SkipVersionCheck {
-		cfg.SkipVersionCheck = clf.SkipVersionCheck
-	}
-
 	// Apply diagnostic address flag.
 	if clf.DiagnosticAddr != "" {
 		addr, err := utils.ParseAddr(clf.DiagnosticAddr)
@@ -1903,7 +1839,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 
 	// apply --debug flag to config:
 	if clf.Debug {
-		cfg.Console = io.Discard
+		cfg.Console = ioutil.Discard
 		cfg.Debug = clf.Debug
 	}
 
@@ -1980,7 +1916,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 
 	// auth_servers not configured, but the 'auth' is enabled (auth is on localhost)?
 	if len(cfg.AuthServers) == 0 && cfg.Auth.Enabled {
-		cfg.AuthServers = append(cfg.AuthServers, cfg.Auth.ListenAddr)
+		cfg.AuthServers = append(cfg.AuthServers, cfg.Auth.SSHAddr)
 	}
 
 	// add data_dir to the backend config:
@@ -2087,8 +2023,8 @@ func isCmdLabelSpec(spec string) (types.CommandLabel, error) {
 // a given IP
 func applyListenIP(ip net.IP, cfg *service.Config) {
 	listeningAddresses := []*utils.NetAddr{
-		&cfg.Auth.ListenAddr,
-		&cfg.Auth.ListenAddr,
+		&cfg.Auth.SSHAddr,
+		&cfg.Auth.SSHAddr,
 		&cfg.Proxy.SSHAddr,
 		&cfg.Proxy.WebAddr,
 		&cfg.SSH.Addr,
@@ -2142,15 +2078,12 @@ func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 		if cfg.Token != "" {
 			return trace.BadParameter("only one of auth_token or join_params should be set")
 		}
-		_, err := cfg.ApplyToken(fc.JoinParams.TokenName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		cfg.Token = fc.JoinParams.TokenName
 		switch fc.JoinParams.Method {
-		case types.JoinMethodEC2, types.JoinMethodIAM, types.JoinMethodToken:
+		case types.JoinMethodEC2, types.JoinMethodIAM:
 			cfg.JoinMethod = fc.JoinParams.Method
 		default:
-			return trace.BadParameter(`unknown value for join_params.method: %q, expected one of %v`, fc.JoinParams.Method, []types.JoinMethod{types.JoinMethodEC2, types.JoinMethodIAM, types.JoinMethodToken})
+			return trace.BadParameter(`unknown value for join_params.method: %q, expected one of %v`, fc.JoinParams.Method, []types.JoinMethod{types.JoinMethodEC2, types.JoinMethodIAM})
 		}
 	}
 	return nil

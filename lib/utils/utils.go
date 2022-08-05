@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"io/ioutil"
 	"math/rand"
 	"net"
 	"net/url"
@@ -329,7 +330,7 @@ func ReadPath(path string) ([]byte, error) {
 		}
 		return nil, trace.ConvertSystemError(err)
 	}
-	bytes, err := os.ReadFile(abs)
+	bytes, err := ioutil.ReadFile(abs)
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			//do not convert to system error as this loses the ability to compare that it is a permission error
@@ -387,21 +388,16 @@ func OpaqueAccessDenied(err error) error {
 	return trace.Wrap(err)
 }
 
-// PortList is a list of TCP ports.
-type PortList struct {
-	ports []string
-	sync.Mutex
-}
+// PortList is a list of TCP port
+type PortList []string
 
 // Pop returns a value from the list, it panics if the value is not there
 func (p *PortList) Pop() string {
-	p.Lock()
-	defer p.Unlock()
-	if len(p.ports) == 0 {
+	if len(*p) == 0 {
 		panic("list is empty")
 	}
-	val := p.ports[len(p.ports)-1]
-	p.ports = p.ports[:len(p.ports)-1]
+	val := (*p)[len(*p)-1]
+	*p = (*p)[:len(*p)-1]
 	return val
 }
 
@@ -430,7 +426,7 @@ const PortStartingNumber = 20000
 
 // GetFreeTCPPorts returns n ports starting from port 20000.
 func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
-	list := make([]string, 0, n)
+	list := make(PortList, 0, n)
 	start := PortStartingNumber
 	if len(offset) != 0 {
 		start = offset[0]
@@ -438,7 +434,7 @@ func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
 	for i := start; i < start+n; i++ {
 		list = append(list, strconv.Itoa(i))
 	}
-	return PortList{ports: list}, nil
+	return list, nil
 }
 
 // ReadHostUUID reads host UUID from the file in the data dir
@@ -460,7 +456,7 @@ func ReadHostUUID(dataDir string) (string, error) {
 
 // WriteHostUUID writes host UUID into a file
 func WriteHostUUID(dataDir string, id string) error {
-	err := os.WriteFile(filepath.Join(dataDir, HostUUIDFile), []byte(id), os.ModeExclusive|0400)
+	err := ioutil.WriteFile(filepath.Join(dataDir, HostUUIDFile), []byte(id), os.ModeExclusive|0400)
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			//do not convert to system error as this loses the ability to compare that it is a permission error
@@ -611,7 +607,7 @@ func StoreErrorOf(f func() error, err *error) {
 // when limit bytes are read.
 func ReadAtMost(r io.Reader, limit int64) ([]byte, error) {
 	limitedReader := &io.LimitedReader{R: r, N: limit}
-	data, err := io.ReadAll(limitedReader)
+	data, err := ioutil.ReadAll(limitedReader)
 	if err != nil {
 		return data, err
 	}

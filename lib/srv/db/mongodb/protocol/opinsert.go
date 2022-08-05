@@ -97,7 +97,7 @@ func readOpInsert(header MessageHeader, payload []byte) (*MessageOpInsert, error
 	for len(rem) > 0 {
 		var document bsoncore.Document
 		document, rem, ok = bsoncore.ReadDocument(rem)
-		if !ok || len(document) == 0 {
+		if !ok {
 			return nil, trace.BadParameter("malformed OP_INSERT: missing document %v", payload)
 		}
 		documents = append(documents, document)

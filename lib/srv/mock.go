@@ -27,13 +27,12 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/bpf"
-	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
@@ -41,6 +40,7 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -60,7 +60,6 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 	sshConn.remoteAddr, _ = utils.ParseAddr("10.0.0.5:4817")
 
 	ctx, cancel := context.WithCancel(context.Background())
-	clusterName := "localhost"
 	scx := &ServerContext{
 		Entry: logrus.NewEntry(logrus.StandardLogger()),
 		ConnectionContext: &sshutils.ConnectionContext{
@@ -69,16 +68,13 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 		env:                    make(map[string]string),
 		SessionRecordingConfig: types.DefaultSessionRecordingConfig(),
 		IsTestStub:             true,
-		ClusterName:            clusterName,
+		ClusterName:            "localhost",
 		srv:                    srv,
 		Identity: IdentityContext{
 			Login:        usr.Username,
 			TeleportUser: "teleportUser",
 			Certificate:  cert,
-			// roles do not actually exist in mock backend, just need a non-nil
-			// access checker to avoid panic
-			AccessChecker: services.NewAccessCheckerWithRoleSet(
-				&services.AccessInfo{Roles: roleSet.RoleNames()}, clusterName, roleSet),
+			RoleSet:      roleSet,
 		},
 		cancelContext: ctx,
 		cancel:        cancel,
@@ -129,13 +125,13 @@ func newMockServer(t *testing.T) *mockServer {
 
 	return &mockServer{
 		auth:        authServer,
-		MockEmitter: &eventstest.MockEmitter{},
+		MockEmitter: &events.MockEmitter{},
 		clock:       clock,
 	}
 }
 
 type mockServer struct {
-	*eventstest.MockEmitter
+	*events.MockEmitter
 	auth      *auth.Server
 	component string
 	clock     clockwork.FakeClock
@@ -143,23 +139,23 @@ type mockServer struct {
 
 // ID is the unique ID of the server.
 func (m *mockServer) ID() string {
-	return "testID"
+	return "test"
 }
 
 // HostUUID is the UUID of the underlying host. For the forwarding
 // server this is the proxy the forwarding server is running in.
 func (m *mockServer) HostUUID() string {
-	return "testHostUUID"
+	return "test"
 }
 
 // GetNamespace returns the namespace the server was created in.
 func (m *mockServer) GetNamespace() string {
-	return "testNamespace"
+	return "test"
 }
 
 // AdvertiseAddr is the publicly addressable address of this server.
 func (m *mockServer) AdvertiseAddr() string {
-	return "testAdvertiseAddr"
+	return "test"
 }
 
 // Component is the type of server, forwarding or regular.
@@ -185,7 +181,7 @@ func (m *mockServer) GetSessionServer() rsession.Service {
 
 // GetDataDir returns data directory of the server
 func (m *mockServer) GetDataDir() string {
-	return "testDataDir"
+	return "test"
 }
 
 // GetPAM returns PAM configuration for this server.
@@ -226,10 +222,6 @@ func (m *mockServer) GetInfo() types.Server {
 	}
 }
 
-func (m *mockServer) TargetMetadata() apievents.ServerMetadata {
-	return apievents.ServerMetadata{}
-}
-
 // UseTunnel used to determine if this node has connected to this cluster
 // using reverse tunnel.
 func (m *mockServer) UseTunnel() bool {
@@ -259,17 +251,6 @@ func (m *mockServer) GetUtmpPath() (utmp, wtmp string) {
 
 // GetLockWatcher gets the server's lock watcher.
 func (m *mockServer) GetLockWatcher() *services.LockWatcher {
-	return nil
-}
-
-// GetCreateHostUser gets whether the server allows host user creation
-// or not
-func (m *mockServer) GetCreateHostUser() bool {
-	return false
-}
-
-// GetHostUsers
-func (m *mockServer) GetHostUsers() HostUsers {
 	return nil
 }
 

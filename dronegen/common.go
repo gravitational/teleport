@@ -69,7 +69,7 @@ var (
 	}
 )
 
-var buildboxVersion value
+var buildboxVersion value = value{raw: "teleport9"}
 
 var goRuntime value
 
@@ -79,15 +79,9 @@ func init() {
 		log.Fatalf("could not get Go version: %v", err)
 	}
 	goRuntime = value{raw: string(bytes.TrimSpace(v))}
-
-	v, err = exec.Command("make", "-s", "-C", "build.assets", "print-buildbox-version").Output()
-	if err != nil {
-		log.Fatalf("could not get buildbox version: %v", err)
-	}
-	buildboxVersion = value{raw: string(bytes.TrimSpace(v))}
 }
 
-func pushTriggerForBranch(branches ...string) trigger {
+func pushTriggerFor(branches ...string) trigger {
 	t := trigger{
 		Event: triggerRef{Include: []string{"push"}},
 		Repo:  triggerRef{Include: []string{"gravitational/teleport"}},
@@ -179,10 +173,6 @@ func (b *buildType) Description(packageType string, extraQualifications ...strin
 	return result
 }
 
-func (b *buildType) hasTeleportConnect() bool {
-	return b.os == "darwin" && b.arch == "amd64"
-}
-
 // dockerService generates a docker:dind service
 // It includes the Docker socket volume by default, plus any extra volumes passed in
 func dockerService(v ...volumeRef) service {
@@ -209,23 +199,15 @@ func dockerVolumeRefs(v ...volumeRef) []volumeRef {
 // releaseMakefileTarget gets the correct Makefile target for a given arch/fips/centos combo
 func releaseMakefileTarget(b buildType) string {
 	makefileTarget := fmt.Sprintf("release-%s", b.arch)
-	// All x86_64 binaries are built on CentOS 7 now for better glibc compatibility.
-	if b.centos7 || b.arch == "amd64" {
+	if b.centos7 {
 		makefileTarget += "-centos7"
 	}
 	if b.fips {
 		makefileTarget += "-fips"
 	}
-
-	// Override Windows targets.
-	if b.os == "windows" {
-		if b.windowsUnsigned {
-			makefileTarget = "release-windows-unsigned"
-		} else {
-			makefileTarget = "release-windows"
-		}
+	if b.os == "windows" && b.windowsUnsigned {
+		makefileTarget = "release-windows-unsigned"
 	}
-
 	return makefileTarget
 }
 

@@ -29,6 +29,9 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/escape"
@@ -39,10 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 )
 
 const (
@@ -101,13 +101,13 @@ type NodeSession struct {
 // newSession creates a new Teleport session with the given remote node
 // if 'joinSession' is given, the session will join the existing session
 // of another user
-func newSession(ctx context.Context,
-	client *NodeClient,
-	joinSession types.SessionTracker,
+func newSession(client *NodeClient,
+	joinSession *session.Session,
 	env map[string]string,
 	stdin io.Reader,
 	stdout io.Writer,
 	stderr io.Writer,
+	legacyID bool,
 	enableEscapeSequences bool,
 ) (*NodeSession, error) {
 	// Initialize the terminal. Note that at this point, we don't know if this
@@ -134,17 +134,12 @@ func newSession(ctx context.Context,
 	// if we're joining an existing session, we need to assume that session's
 	// existing/current terminal size:
 	if joinSession != nil {
-		sessionID := joinSession.GetSessionID()
-		terminalSize, err := client.GetRemoteTerminalSize(ctx, sessionID)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		ns.id = session.ID(sessionID)
-		ns.namespace = joinSession.GetMetadata().Namespace
+		ns.id = joinSession.ID
+		ns.namespace = joinSession.Namespace
+		tsize := joinSession.TerminalParams.Winsize()
 
 		if ns.terminal.IsAttached() {
-			err = ns.terminal.Resize(int16(terminalSize.Width), int16(terminalSize.Height))
+			err = ns.terminal.Resize(int16(tsize.Width), int16(tsize.Height))
 			if err != nil {
 				log.Error(err)
 			}
@@ -154,7 +149,15 @@ func newSession(ctx context.Context,
 	} else {
 		sid, ok := ns.env[sshutils.SessionEnvVar]
 		if !ok {
-			sid = string(session.NewID())
+			// DELETE IN: 4.1.0.
+			//
+			// Always send UUIDv4 after 4.1.
+			if legacyID {
+				sid = string(session.NewLegacyID())
+			} else {
+				sid = string(session.NewID())
+			}
+
 		}
 		ns.id = session.ID(sid)
 	}
@@ -164,7 +167,7 @@ func newSession(ctx context.Context,
 	// Determine if terminal should clear on exit.
 	ns.shouldClearOnExit = isFIPS()
 	if client.Proxy != nil {
-		boring, err := client.Proxy.isAuthBoring(ctx)
+		boring, err := client.Proxy.isAuthBoring(context.TODO())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -207,7 +210,7 @@ func (ns *NodeSession) regularSession(ctx context.Context, callback func(s *ssh.
 type interactiveCallback func(serverSession *ssh.Session, shell io.ReadWriteCloser) error
 
 func (ns *NodeSession) createServerSession(ctx context.Context) (*ssh.Session, error) {
-	sess, err := ns.nodeClient.Client.NewSession(ctx)
+	sess, err := ns.nodeClient.Client.NewSession()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -244,7 +247,7 @@ func (ns *NodeSession) createServerSession(ctx context.Context) (*ssh.Session, e
 
 	if targetAgent != nil {
 		log.Debugf("Forwarding Selected Key Agent")
-		err = agent.ForwardToAgent(ns.nodeClient.Client.Client, targetAgent)
+		err = agent.ForwardToAgent(ns.nodeClient.Client, targetAgent)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -496,7 +499,7 @@ func (ns *NodeSession) runShell(ctx context.Context, mode types.SessionParticipa
 		}
 		// call the client-supplied callback
 		if callback != nil {
-			exit, err := callback(s, ns.nodeClient.Client, shell)
+			exit, err := callback(s, ns.NodeClient().Client, shell)
 			if exit {
 				return trace.Wrap(err)
 			}

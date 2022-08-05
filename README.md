@@ -1,11 +1,11 @@
 <div align="center">
-   <img src="./assets/img/readme-header.png" width=750/>
+   <img src="https://goteleport.com/blog/images/2020/gravitational-is-teleport-header.png" width=750/>
    <div align="center" style="padding: 25px">
-      <a href="https://goteleport.com/teleport/download">
-      <img src="https://img.shields.io/github/v/release/gravitational/teleport?sort=semver&label=Release&color=651FFF" />
+      <a href="https://goteleport.com/docs/">
+      <img src="https://img.shields.io/badge/Teleport-8.0-651FFF.svg" />
       </a>
       <a href="https://golang.org/">
-      <img src="https://img.shields.io/github/go-mod/go-version/gravitational/teleport?color=7fd5ea" />
+      <img src="https://img.shields.io/badge/Go-1.17-7fd5ea.svg" />
       </a>
       <a href="https://github.com/gravitational/teleport/blob/master/CODE_OF_CONDUCT.md">
       <img src="https://img.shields.io/badge/Contribute-🙌-green.svg" />
@@ -27,7 +27,7 @@
 1. [Installing and Running](#installing-and-running)
 1. [Docker](#docker)
 1. [Building Teleport](#building-teleport)
-1. [Why Did We Build Teleport?](#why-did-we-build-teleport)
+1. [Why did We Build Teleport?](#why-did-we-build-teleport)
 1. [More Information](#more-information)
 1. [Support and Contributing](#support-and-contributing)
 1. [Is Teleport Secure and Production Ready?](#is-teleport-secure-and-production-ready)
@@ -122,32 +122,9 @@ Follow the instructions in the [docker/README](docker/README.md) file.
 
 ## Building Teleport
 
-The `teleport` repository contains the Teleport daemon binary (written in Go)
-and a web UI written in Javascript (a git submodule located in the `webassets/`
-directory).
+The Teleport source code contains the Teleport daemon binary written in Golang and a web UI written in Javascript (a git submodule located in the `/webassets` directory).
 
-If your intention is to build and deploy for use in a production infrastructure
-a released tag should be used.  The default branch, `master`, is the current
-development branch for an upcoming major version.  Get the latest release tags
-listed at https://goteleport.com/download/ and then use that tag in the `git clone`.
-For example `git clone https://github.com/gravitational/teleport.git -b v9.1.2` gets release v9.1.2.
-
-### Dockerized Build
-
-It is often easiest to build with Docker, which ensures that all required
-tooling is available for the build. To execute a dockerized build, ensure
-that docker is installed and running, and execute:
-
-```
-$ make -C build.assets build-binaries
-```
-
-### Local Build
-
-To perform a build on your host, ensure you have installed Go. In order to
-include the Rust-powered features like Desktop Access, you'll
-also need `cargo` and `rustc`. The current versions of these tools can be found
-in `build.assets/Makefile`.
+Make sure you have Golang `v1.17` or newer, then run:
 
 ```bash
 # get the source & build:
@@ -163,14 +140,8 @@ $ sudo chown $USER /var/lib/teleport
 If the build succeeds, the installer will place the binaries in the `build` directory.
 
 **Important:**
-
-* The Go compiler is somewhat sensitive to the amount of memory: you will need
-  **at least** 1GB of virtual memory to compile Teleport. A 512MB instance
-  without swap will **not** work.
-* This will build the latest version of Teleport, **regardless** of whether it
-  is stable. If you want to build the latest stable release, run `git checkout`
-  to the corresponding tag (for example, run `git checkout v8.0.0`) **before**
-  running `make full`.
+* The Go compiler is somewhat sensitive to the amount of memory: you will need **at least** 1GB of virtual memory to compile Teleport. A 512MB instance without swap will **not** work.
+* This will build the latest version of Teleport, **regardless** of whether it is stable. If you want to build the latest stable release, run `git checkout` to the corresponding tag (for example, run `git checkout v8.0.0`) **before** running `make full`.
 
 ### Web UI
 
@@ -200,7 +171,7 @@ $ DEBUG=1 ./build/teleport start -d
 ```
 
 Keep the server running in this mode, and make your UI changes in `/dist` directory.
-For instructions about how to update the Web UI, read [the `webapps` README](https://github.com/gravitational/webapps/blob/master/README.md) file.
+For instructions about how to update the Web UI, read [the `webapps` README](https://github.com/gravitational/webapps/blob/master/README.md.) file.
 
 #### Updating Web UI assets
 
@@ -213,6 +184,17 @@ Run `make update-webassets` to update the `webassets` repo and create a PR for
 
 You will need to have the `gh` utility installed on your system for the script
 to work. For installation instructions, read the [GitHub CLI installation](https://github.com/cli/cli/releases/latest) documentation.
+
+### Updating Documentation
+
+TL;DR version:
+
+```bash
+make docs
+make run-docs
+```
+
+For more details, read the [docs/README](docs/README.md) file.
 
 ### Managing dependencies
 
@@ -274,7 +256,7 @@ We had a choice, either start a security consulting business or build a solution
 * [Teleport Getting Started](https://goteleport.com/docs/getting-started/)
 * [Teleport Architecture](https://goteleport.com/teleport/docs/architecture)
 * [Reference](https://goteleport.com/docs/setup/reference/)
-* [FAQ](https://goteleport.com/docs/faq)
+* [FAQ](https://goteleport.com/teleport/docs/faq)
 
 ## Support and Contributing
 

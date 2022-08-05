@@ -328,10 +328,12 @@ Spec contains parameters of a resource.
 | `client_secret`                     | string      | GitHub OAuth app client secret                                  |
 | `display`                           | string      | Connector display name                                          |
 | `redirect_url`                      | string      | Authorization callback URL                                      |
-| `teams_to_roles`                    | set         | Maps GitHub team memberships onto allowed roles                 |
-| `teams_to_roles.roles`              | string list | List of allowed roles for this org/team                         |
-| `teams_to_roles.organization`       | string      | GitHub organization a user belongs to                           |
-| `teams_to_roles.team`               | string      | Team within the organization a user belongs to                  |
+| `teams_to_logins`                   | set         | Maps GitHub team memberships onto allowed logins/roles.         |
+| `teams_to_logins.kubernetes_groups` | string list | List of allowed kubernetes groups for this org/team             |
+| `teams_to_logins.kubernetes_users`  | string list | List of allowed kubernetes users to impersonate for this org/team |
+| `teams_to_logins.logins`            | string list | List of allowed logins for this org/team                        |
+| `teams_to_logins.organization`      | string      | GitHub organization a user belongs to                           |
+| `teams_to_logins.team`              | string      | Team within the organization a user belongs to                  |
 
 ## teleport_oidc_connector
 

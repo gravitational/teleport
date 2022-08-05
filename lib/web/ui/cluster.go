@@ -92,7 +92,7 @@ func GetClusterDetails(ctx context.Context, site reversetunnel.RemoteSite, opts 
 		return nil, trace.Wrap(err)
 	}
 
-	nodes, err := clt.GetNodes(ctx, apidefaults.Namespace)
+	nodes, err := clt.GetNodes(ctx, apidefaults.Namespace, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

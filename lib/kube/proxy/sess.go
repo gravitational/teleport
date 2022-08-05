@@ -319,7 +319,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	}
 
 	q := req.URL.Query()
-	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, ctx.User.GetName())
+	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind)
 
 	io := srv.NewTermManager()
 
@@ -794,7 +794,6 @@ func (s *session) join(p *party) error {
 			KubernetesCluster: s.ctx.kubeCluster,
 			KubernetesUsers:   []string{},
 			KubernetesGroups:  []string{},
-			KubernetesLabels:  s.ctx.kubeClusterLabels,
 		},
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: s.id.String(),

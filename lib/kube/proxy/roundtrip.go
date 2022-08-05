@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -65,6 +66,10 @@ type SpdyRoundTripper struct {
 	// dialWithContext is the function used connect to remote address
 	dialWithContext func(context context.Context, network, address string) (net.Conn, error)
 
+	// followRedirects indicates if the round tripper should examine responses for redirects and
+	// follow them.
+	followRedirects bool
+
 	// ctx is a context for this round tripper
 	ctx context.Context
 
@@ -79,17 +84,18 @@ var _ utilnet.Dialer = &SpdyRoundTripper{}
 type DialWithContext func(context context.Context, network, address string) (net.Conn, error)
 
 type roundTripperConfig struct {
-	ctx        context.Context
-	authCtx    authContext
-	dial       DialWithContext
-	tlsConfig  *tls.Config
-	pingPeriod time.Duration
+	ctx             context.Context
+	authCtx         authContext
+	dial            DialWithContext
+	tlsConfig       *tls.Config
+	followRedirects bool
+	pingPeriod      time.Duration
 }
 
 // NewSpdyRoundTripperWithDialer creates a new SpdyRoundTripper that will use
 // the specified tlsConfig. This function is mostly meant for unit tests.
 func NewSpdyRoundTripperWithDialer(cfg roundTripperConfig) *SpdyRoundTripper {
-	return &SpdyRoundTripper{tlsConfig: cfg.tlsConfig, dialWithContext: cfg.dial, ctx: cfg.ctx, authCtx: cfg.authCtx, pingPeriod: cfg.pingPeriod}
+	return &SpdyRoundTripper{tlsConfig: cfg.tlsConfig, followRedirects: cfg.followRedirects, dialWithContext: cfg.dial, ctx: cfg.ctx, authCtx: cfg.authCtx, pingPeriod: cfg.pingPeriod}
 }
 
 // TLSClientConfig implements pkg/util/net.TLSClientConfigHolder for proper TLS checking during
@@ -165,9 +171,13 @@ func (s *SpdyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 		err         error
 	)
 
-	clone := utilnet.CloneRequest(req)
-	clone.Header = header
-	conn, err = s.Dial(clone)
+	if s.followRedirects {
+		conn, rawResponse, err = utilnet.ConnectWithRedirects(req.Method, req.URL, header, req.Body, s, false)
+	} else {
+		clone := utilnet.CloneRequest(req)
+		clone.Header = header
+		conn, err = s.Dial(clone)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +210,7 @@ func (s *SpdyRoundTripper) NewConnection(resp *http.Response) (httpstream.Connec
 	if (resp.StatusCode != http.StatusSwitchingProtocols) || !strings.Contains(connectionHeader, strings.ToLower(httpstream.HeaderUpgrade)) || !strings.Contains(upgradeHeader, strings.ToLower(streamspdy.HeaderSpdy31)) {
 		defer resp.Body.Close()
 		responseError := ""
-		responseErrorBytes, err := io.ReadAll(resp.Body)
+		responseErrorBytes, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			responseError = "unable to read error from server response"
 		} else {

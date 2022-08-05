@@ -57,13 +57,11 @@ const (
 	redisBin = "redis-cli"
 	// mssqlBin is the SQL Server client program name.
 	mssqlBin = "mssql-cli"
-	// snowsqlBin is the Snowflake client program name.
-	snowsqlBin = "snowsql"
 )
 
-// Execer is an abstraction of Go's exec module, as this one doesn't specify any interfaces.
+// execer is an abstraction of Go's exec module, as this one doesn't specify any interfaces.
 // This interface exists only to enable mocking.
-type Execer interface {
+type execer interface {
 	// RunCommand runs a system command.
 	RunCommand(name string, arg ...string) ([]byte, error)
 	// LookPath returns a full path to a binary if this one is found in system PATH,
@@ -73,21 +71,21 @@ type Execer interface {
 	Command(name string, arg ...string) *exec.Cmd
 }
 
-// SystemExecer implements execer interface by using Go exec module.
-type SystemExecer struct{}
+// systemExecer implements execer interface by using Go exec module.
+type systemExecer struct{}
 
 // RunCommand is a wrapper for exec.Command(...).Output()
-func (s SystemExecer) RunCommand(name string, arg ...string) ([]byte, error) {
+func (s systemExecer) RunCommand(name string, arg ...string) ([]byte, error) {
 	return exec.Command(name, arg...).Output()
 }
 
 // LookPath is a wrapper for exec.LookPath(...)
-func (s SystemExecer) LookPath(file string) (string, error) {
+func (s systemExecer) LookPath(file string) (string, error) {
 	return exec.LookPath(file)
 }
 
 // Command is a wrapper for exec.Command(...)
-func (s SystemExecer) Command(name string, arg ...string) *exec.Cmd {
+func (s systemExecer) Command(name string, arg ...string) *exec.Cmd {
 	return exec.Command(name, arg...)
 }
 
@@ -103,6 +101,8 @@ type CLICommandBuilder struct {
 	port        int
 	options     connectionCommandOpts
 	uid         utils.UID
+
+	exe execer
 }
 
 func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
@@ -124,10 +124,6 @@ func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 		options.log = logrus.NewEntry(logrus.StandardLogger())
 	}
 
-	if options.exe == nil {
-		options.exe = &SystemExecer{}
-	}
-
 	return &CLICommandBuilder{
 		tc:          tc,
 		profile:     profile,
@@ -137,6 +133,8 @@ func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 		options:     options,
 		rootCluster: rootClusterName,
 		uid:         utils.NewRealUID(),
+
+		exe: &systemExecer{},
 	}
 }
 
@@ -170,9 +168,6 @@ func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 
 	case defaults.ProtocolSQLServer:
 		return c.getSQLServerCommand(), nil
-
-	case defaults.ProtocolSnowflake:
-		return c.getSnowflakeCommand(), nil
 	}
 
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
@@ -198,17 +193,17 @@ func (c *CLICommandBuilder) GetConnectCommandNoAbsPath() (*exec.Cmd, error) {
 }
 
 func (c *CLICommandBuilder) getPostgresCommand() *exec.Cmd {
-	return c.options.exe.Command(postgresBin, c.getPostgresConnString())
+	return c.exe.Command(postgresBin, c.getPostgresConnString())
 }
 
 func (c *CLICommandBuilder) getCockroachCommand() *exec.Cmd {
 	// If cockroach CLI client is not available, fallback to psql.
-	if _, err := c.options.exe.LookPath(cockroachBin); err != nil {
+	if _, err := c.exe.LookPath(cockroachBin); err != nil {
 		c.options.log.Debugf("Couldn't find %q client in PATH, falling back to %q: %v.",
 			cockroachBin, postgresBin, err)
 		return c.getPostgresCommand()
 	}
-	return c.options.exe.Command(cockroachBin, "sql", "--url", c.getPostgresConnString())
+	return c.exe.Command(cockroachBin, "sql", "--url", c.getPostgresConnString())
 }
 
 // getPostgresConnString returns the connection string for postgres.
@@ -274,7 +269,7 @@ func (c *CLICommandBuilder) getMySQLOracleCommand() *exec.Cmd {
 	args := c.getMySQLCommonCmdOpts()
 
 	if c.options.noTLS {
-		return c.options.exe.Command(mysqlBin, args...)
+		return c.exe.Command(mysqlBin, args...)
 	}
 
 	// defaults-group-suffix must be first.
@@ -286,7 +281,7 @@ func (c *CLICommandBuilder) getMySQLOracleCommand() *exec.Cmd {
 		args = append(args, fmt.Sprintf("--ssl-mode=%s", mysql.MySQLSSLModeVerifyCA))
 	}
 
-	return c.options.exe.Command(mysqlBin, args...)
+	return c.exe.Command(mysqlBin, args...)
 }
 
 // getMySQLCommand returns mariadb command if the binary is on the path. Otherwise,
@@ -295,7 +290,7 @@ func (c *CLICommandBuilder) getMySQLCommand() (*exec.Cmd, error) {
 	// Check if mariadb client is available. Prefer it over mysql client even if connecting to MySQL server.
 	if c.isMariaDBBinAvailable() {
 		args := c.getMariaDBArgs()
-		return c.options.exe.Command(mariadbBin, args...), nil
+		return c.exe.Command(mariadbBin, args...), nil
 	}
 
 	// Check for mysql binary. In case the caller doesn't tolerate a missing CLI client, return with
@@ -313,7 +308,7 @@ func (c *CLICommandBuilder) getMySQLCommand() (*exec.Cmd, error) {
 	mySQLMariaDBFlavor, err := c.isMySQLBinMariaDBFlavor()
 	if mySQLMariaDBFlavor && err == nil {
 		args := c.getMariaDBArgs()
-		return c.options.exe.Command(mysqlBin, args...), nil
+		return c.exe.Command(mysqlBin, args...), nil
 	}
 
 	// Either we failed to check the flavor or binary comes from Oracle. Regardless return mysql/Oracle command.
@@ -322,19 +317,19 @@ func (c *CLICommandBuilder) getMySQLCommand() (*exec.Cmd, error) {
 
 // isMariaDBBinAvailable returns true if "mariadb" binary is found in the system PATH.
 func (c *CLICommandBuilder) isMariaDBBinAvailable() bool {
-	_, err := c.options.exe.LookPath(mariadbBin)
+	_, err := c.exe.LookPath(mariadbBin)
 	return err == nil
 }
 
 // isMySQLBinAvailable returns true if "mysql" binary is found in the system PATH.
 func (c *CLICommandBuilder) isMySQLBinAvailable() bool {
-	_, err := c.options.exe.LookPath(mysqlBin)
+	_, err := c.exe.LookPath(mysqlBin)
 	return err == nil
 }
 
 // isMongoshBinAvailable returns true if "mongosh" binary is found in the system PATH.
 func (c *CLICommandBuilder) isMongoshBinAvailable() bool {
-	_, err := c.options.exe.LookPath(mongoshBin)
+	_, err := c.exe.LookPath(mongoshBin)
 	return err == nil
 }
 
@@ -342,7 +337,7 @@ func (c *CLICommandBuilder) isMongoshBinAvailable() bool {
 // true is returned when binary comes from MariaDB, false when from Oracle.
 func (c *CLICommandBuilder) isMySQLBinMariaDBFlavor() (bool, error) {
 	// Check if mysql comes from Oracle or MariaDB
-	mysqlVer, err := c.options.exe.RunCommand(mysqlBin, "--version")
+	mysqlVer, err := c.exe.RunCommand(mysqlBin, "--version")
 	if err != nil {
 		// Looks like incorrect mysql installation.
 		return false, trace.Wrap(err)
@@ -405,11 +400,11 @@ func (c *CLICommandBuilder) getMongoCommand() *exec.Cmd {
 
 	// use `mongosh` if available
 	if hasMongosh {
-		return c.options.exe.Command(mongoshBin, args...)
+		return c.exe.Command(mongoshBin, args...)
 	}
 
 	// fall back to `mongo` if `mongosh` isn't found
-	return c.options.exe.Command(mongoBin, args...)
+	return c.exe.Command(mongoBin, args...)
 }
 
 func (c *CLICommandBuilder) getMongoAddress() string {
@@ -467,7 +462,7 @@ func (c *CLICommandBuilder) getRedisCommand() *exec.Cmd {
 		args = append(args, []string{"-n", c.db.Database}...)
 	}
 
-	return c.options.exe.Command(redisBin, args...)
+	return c.exe.Command(redisBin, args...)
 }
 
 func (c *CLICommandBuilder) getSQLServerCommand() *exec.Cmd {
@@ -484,25 +479,7 @@ func (c *CLICommandBuilder) getSQLServerCommand() *exec.Cmd {
 		args = append(args, "-d", c.db.Database)
 	}
 
-	return c.options.exe.Command(mssqlBin, args...)
-}
-
-func (c *CLICommandBuilder) getSnowflakeCommand() *exec.Cmd {
-	args := []string{
-		"-a", "teleport", // Account name doesn't matter as it will be overridden in the backend anyway.
-		"-u", c.db.Username,
-		"-h", c.host,
-		"-p", strconv.Itoa(c.port),
-	}
-
-	if c.db.Database != "" {
-		args = append(args, "-w", c.db.Database)
-	}
-
-	cmd := exec.Command(snowsqlBin, args...)
-	cmd.Env = append(cmd.Env, fmt.Sprintf("SNOWSQL_PWD=%s", c.uid.New()))
-
-	return cmd
+	return c.exe.Command(mssqlBin, args...)
 }
 
 type connectionCommandOpts struct {
@@ -513,7 +490,6 @@ type connectionCommandOpts struct {
 	printFormat              bool
 	tolerateMissingCLIClient bool
 	log                      *logrus.Entry
-	exe                      Execer
 }
 
 // ConnectCommandFunc is a type for functions returned by the "With*" functions in this package.
@@ -572,11 +548,11 @@ func WithLogger(log *logrus.Entry) ConnectCommandFunc {
 }
 
 // WithTolerateMissingCLIClient is the connect command option that makes CLICommandBuilder not
-// return an error in case a specific binary couldn't be found in the system. Instead, it should
+// return an error in case a specific binary couldn't be found in the system. Instead it should
 // return the command with just a base version of the binary name, without an absolute path.
 //
 // In general CLICommandBuilder doesn't return an error in that scenario as it uses exec.Command
-// underneath. However, there are some specific situations where we need to execute some
+// underneath. However, there are some specific situations where we need to execute some of the
 // binaries before returning the final command.
 //
 // The flag is mostly for scenarios where the caller doesn't care that the final command might not
@@ -584,14 +560,6 @@ func WithLogger(log *logrus.Entry) ConnectCommandFunc {
 func WithTolerateMissingCLIClient() ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
 		opts.tolerateMissingCLIClient = true
-	}
-}
-
-// WithExecer allows to provide a different Execer than the default SystemExecer. Useful in contexts
-// where there's a place that wants to use dbcmd with the ability to mock out SystemExecer in tests.
-func WithExecer(exe Execer) ConnectCommandFunc {
-	return func(opts *connectionCommandOpts) {
-		opts.exe = exe
 	}
 }
 

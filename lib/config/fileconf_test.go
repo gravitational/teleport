@@ -24,7 +24,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/trace"
@@ -33,7 +32,7 @@ import (
 )
 
 // minimalConfigFile is a minimal subset of a teleport config file that can be
-// mutated programatically by test cases and then re-serialized to test the
+// mutated programatically by test cases and then re-serialised to test the
 // config file loader
 const minimalConfigFile string = `
 teleport:
@@ -50,9 +49,9 @@ ssh_service:
 // representation of a parsed YAML file.
 type cfgMap map[interface{}]interface{}
 
-// editConfig takes the minimal YAML configuration file, de-serializes it into a
+// editConfig takes the minimal YAML configuration file, de-serialises it into a
 // nested key-value dictionary suitable for manipulation by a test case,
-// passes that dictionary to the caller-supplied mutator and then re-serializes
+// passes that dictionary to the caller-supplied mutator and then re-serialises
 // it ready to be injected into the config loader.
 func editConfig(t *testing.T, mutate func(cfg cfgMap)) []byte {
 	var cfg cfgMap
@@ -126,6 +125,7 @@ func TestAuthSection(t *testing.T) {
 			desc: "Web idle timeout",
 			mutate: func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["web_idle_timeout"] = "10m"
+
 			},
 			expectError:          require.NoError,
 			expectWebIdleTimeout: requireEqual(types.Duration(10 * time.Minute)),
@@ -133,6 +133,7 @@ func TestAuthSection(t *testing.T) {
 			desc: "Web idle timeout (invalid)",
 			mutate: func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["web_idle_timeout"] = "potato"
+
 			},
 			expectError: require.Error,
 		},
@@ -174,7 +175,7 @@ func TestAuthenticationSection(t *testing.T) {
 		expected    *AuthenticationConfig
 	}{
 		{
-			desc: "Local auth with OTP",
+			desc: "local auth with OTP",
 			mutate: func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
 					"type":          "local",
@@ -187,7 +188,7 @@ func TestAuthenticationSection(t *testing.T) {
 				SecondFactor: "otp",
 			},
 		}, {
-			desc: "Local auth without OTP",
+			desc: "local auth without OTP",
 			mutate: func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
 					"type":          "local",
@@ -278,7 +279,7 @@ func TestAuthenticationSection(t *testing.T) {
 						},
 					},
 					"webauthn": cfgMap{
-						"disabled": true, // Kept for backwards compatibility, has no effect.
+						"disabled": true,
 					},
 				}
 			},
@@ -293,29 +294,6 @@ func TestAuthenticationSection(t *testing.T) {
 				Webauthn: &Webauthn{
 					Disabled: true,
 				},
-			},
-		}, {
-			desc: "Local auth with passwordless connector",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"type":          "local",
-					"second_factor": "on",
-					"webauthn": cfgMap{
-						"rp_id": "example.com",
-					},
-					"passwordless":   "true",
-					"connector_name": "passwordless",
-				}
-			},
-			expectError: require.NoError,
-			expected: &AuthenticationConfig{
-				Type:         "local",
-				SecondFactor: "on",
-				Webauthn: &Webauthn{
-					RPID: "example.com",
-				},
-				Passwordless:  types.NewBoolOption(true),
-				ConnectorName: "passwordless",
 			},
 		},
 	}
@@ -444,6 +422,42 @@ func TestSSHSection(t *testing.T) {
 				cfg["ssh_service"].(cfgMap)["port_forwarding"] = "banana"
 			},
 			expectError: require.Error,
+		}, {
+			desc: "X11 enabled",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled": "yes",
+				}
+			},
+			expectError: require.NoError,
+		}, {
+			desc: "X11 disabled",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled": "no",
+				}
+			},
+			expectError: require.NoError,
+		}, {
+			desc:        "X11 display offset default",
+			mutate:      func(cfg cfgMap) {},
+			expectError: require.NoError,
+		}, {
+			desc: "X11 display offset 100",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"display_offset": 100,
+				}
+			},
+			expectError: require.NoError,
+		}, {
+			desc: "X11 display offset invalid value",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"display_offset": -100,
+				}
+			},
+			expectError: require.Error,
 		},
 	}
 
@@ -463,60 +477,88 @@ func TestSSHSection(t *testing.T) {
 			}
 		})
 	}
+
 }
 
 func TestX11Config(t *testing.T) {
-	testCases := []struct {
-		desc              string
-		mutate            func(cfgMap)
-		expectReadError   require.ErrorAssertionFunc
-		expectConfigError require.ErrorAssertionFunc
-		expectX11Config   *x11.ServerConfig
+	for _, tc := range []struct {
+		desc            string
+		mutate          func(cfgMap)
+		expectError     require.ErrorAssertionFunc
+		expectX11Config *x11.ServerConfig
 	}{
 		{
 			desc:            "default",
 			mutate:          func(cfg cfgMap) {},
+			expectError:     require.NoError,
 			expectX11Config: &x11.ServerConfig{},
-		},
-		// Test x11 enabled
-		{
-			desc: "x11 disabled",
+		}, {
+			desc: "disabled",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
 					"enabled": "no",
 				}
 			},
+			expectError:     require.NoError,
 			expectX11Config: &x11.ServerConfig{},
-		},
-		{
+		}, {
 			desc: "x11 enabled",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
 					"enabled": "yes",
 				}
 			},
+			expectError: require.NoError,
 			expectX11Config: &x11.ServerConfig{
 				Enabled:       true,
 				DisplayOffset: x11.DefaultDisplayOffset,
-				MaxDisplay:    x11.DefaultDisplayOffset + x11.DefaultMaxDisplays,
+				MaxDisplay:    x11.DefaultMaxDisplay,
 			},
-		},
-		// Test display offset
-		{
+		}, {
+			desc: "enabled value invalid",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled":        "no",
+					"display_offset": "100",
+				}
+			},
+			expectError: require.Error,
+		}, {
 			desc: "display offset set",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
 					"enabled":        "yes",
-					"display_offset": 100,
+					"display_offset": "100",
 				}
 			},
+			expectError: require.NoError,
 			expectX11Config: &x11.ServerConfig{
 				Enabled:       true,
 				DisplayOffset: 100,
-				MaxDisplay:    100 + x11.DefaultMaxDisplays,
+				MaxDisplay:    x11.DefaultMaxDisplay,
 			},
-		},
-		{
+		}, {
+			desc: "not enabled, display offset set",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled":        "no",
+					"display_offset": "100",
+				}
+			},
+			expectError: require.NoError,
+			expectX11Config: &x11.ServerConfig{
+				Enabled: false,
+			},
+		}, {
+			desc: "display offset value invalid",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled":        "yes",
+					"display_offset": "banana",
+				}
+			},
+			expectError: require.Error,
+		}, {
 			desc: "display offset value capped",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
@@ -524,76 +566,72 @@ func TestX11Config(t *testing.T) {
 					"display_offset": math.MaxUint32,
 				}
 			},
+			expectError: require.Error,
 			expectX11Config: &x11.ServerConfig{
 				Enabled:       true,
-				DisplayOffset: x11.MaxDisplayNumber,
-				MaxDisplay:    x11.MaxDisplayNumber,
+				DisplayOffset: x11.DefaultDisplayOffset,
 			},
-		},
-		// Test max display
-		{
-			desc: "max display set",
+		}, {
+			desc: "max displays set",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
-					"enabled":     "yes",
-					"max_display": 100,
+					"enabled":      "yes",
+					"max_displays": "100",
 				}
 			},
+			expectError: require.NoError,
 			expectX11Config: &x11.ServerConfig{
 				Enabled:       true,
 				DisplayOffset: x11.DefaultDisplayOffset,
 				MaxDisplay:    100,
 			},
-		},
-		{
-			desc: "max display value capped",
+		}, {
+			desc: "not enabled, max displays set",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
-					"enabled":     "yes",
-					"max_display": math.MaxUint32,
+					"enabled":      "no",
+					"max_displays": "100",
 				}
 			},
+			expectError: require.NoError,
+			expectX11Config: &x11.ServerConfig{
+				Enabled: false,
+			},
+		}, {
+			desc: "max displays value invalid",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled":      "yes",
+					"max_displays": "banana",
+				}
+			},
+			expectError: require.Error,
+		}, {
+			desc: "max displays value capped",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
+					"enabled":      "yes",
+					"max_displays": math.MaxUint32,
+				}
+			},
+			expectError: require.Error,
 			expectX11Config: &x11.ServerConfig{
 				Enabled:       true,
 				DisplayOffset: x11.DefaultDisplayOffset,
-				MaxDisplay:    x11.MaxDisplayNumber,
+				MaxDisplay:    x11.MaxDisplayNumber - x11.DefaultDisplayOffset,
 			},
 		},
-		{
-			desc: "max display smaller than display offset",
-			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
-					"enabled":        "maybe",
-					"display_offset": 1000,
-					"max_display":    100,
-				}
-			},
-			expectConfigError: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err)
-				require.True(t, trace.IsBadParameter(err), "got err = %v, want BadParameter", err)
-			},
-		},
-	}
+	} {
+		text := bytes.NewBuffer(editConfig(t, tc.mutate))
+		cfg, err := ReadConfig(text)
+		tc.expectError(t, err)
+		if err != nil {
+			return
+		}
 
-	for _, tc := range testCases {
-		t.Run(tc.desc, func(t *testing.T) {
-			text := bytes.NewBuffer(editConfig(t, tc.mutate))
-
-			cfg, err := ReadConfig(text)
-			if tc.expectReadError != nil {
-				tc.expectReadError(t, err)
-				return
-			}
-			require.NoError(t, err)
-
-			serverCfg, err := cfg.SSH.X11ServerConfig()
-			if tc.expectConfigError != nil {
-				tc.expectConfigError(t, err)
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, tc.expectX11Config, serverCfg)
-		})
+		serverCfg, err := cfg.SSH.X11ServerConfig()
+		require.NoError(t, err)
+		require.Equal(t, tc.expectX11Config, serverCfg)
 	}
 }
 
@@ -719,21 +757,10 @@ func TestMakeSampleFileConfig(t *testing.T) {
 
 	t.Run("Token", func(t *testing.T) {
 		fc, err := MakeSampleFileConfig(SampleFlags{
-			AuthToken:  "auth-token",
-			JoinMethod: "token",
-		})
-		require.NoError(t, err)
-		require.Equal(t, "auth-token", fc.JoinParams.TokenName)
-		require.Equal(t, types.JoinMethodToken, fc.JoinParams.Method)
-	})
-
-	t.Run("Token, method not specified", func(t *testing.T) {
-		fc, err := MakeSampleFileConfig(SampleFlags{
 			AuthToken: "auth-token",
 		})
 		require.NoError(t, err)
-		require.Equal(t, "auth-token", fc.JoinParams.TokenName)
-		require.Equal(t, types.JoinMethodToken, fc.JoinParams.Method)
+		require.Equal(t, "auth-token", fc.AuthToken)
 	})
 
 	t.Run("App name and URI", func(t *testing.T) {
@@ -744,36 +771,5 @@ func TestMakeSampleFileConfig(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "app-name", fc.Apps.Apps[0].Name)
 		require.Equal(t, "https://localhost:8080", fc.Apps.Apps[0].URI)
-	})
-
-	t.Run("Node labels", func(t *testing.T) {
-		fc, err := MakeSampleFileConfig(SampleFlags{
-			NodeLabels: "foo=bar,baz=bax",
-		})
-		require.NoError(t, err)
-		require.Equal(t, map[string]string{
-			"foo": "bar",
-			"baz": "bax",
-		}, fc.SSH.Labels)
-	})
-
-	t.Run("Node labels - invalid", func(t *testing.T) {
-		_, err := MakeSampleFileConfig(SampleFlags{
-			NodeLabels: "foo=bar,baz",
-		})
-		require.Error(t, err)
-	})
-
-	t.Run("CAPin", func(t *testing.T) {
-		fc, err := MakeSampleFileConfig(SampleFlags{
-			CAPin: "sha256:7e12c17c20d9cb",
-		})
-		require.NoError(t, err)
-		require.Equal(t, apiutils.Strings{"sha256:7e12c17c20d9cb"}, fc.CAPin)
-		fc, err = MakeSampleFileConfig(SampleFlags{
-			CAPin: "sha256:7e12c17c20d9cb,sha256:7e12c17c20d9cb",
-		})
-		require.NoError(t, err)
-		require.Equal(t, apiutils.Strings{"sha256:7e12c17c20d9cb", "sha256:7e12c17c20d9cb"}, fc.CAPin)
 	})
 }

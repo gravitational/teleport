@@ -22,13 +22,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/utils"
-	awsutils "github.com/gravitational/teleport/api/utils/aws"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // Database represents a database proxied by a database server.
@@ -88,12 +85,6 @@ type Database interface {
 	GetIAMAction() string
 	// GetIAMResources returns AWS IAM resources that provide access to the database.
 	GetIAMResources() []string
-	// GetSecretStore returns secret store configurations.
-	GetSecretStore() SecretStore
-	// GetManagedUsers returns a list of database users that are managed by Teleport.
-	GetManagedUsers() []string
-	// SetManagedUsers sets a list of database users that are managed by Teleport.
-	SetManagedUsers(users []string)
 	// IsRDS returns true if this is an RDS/Aurora database.
 	IsRDS() bool
 	// IsRedshift returns true if this is a Redshift database.
@@ -102,13 +93,7 @@ type Database interface {
 	IsCloudSQL() bool
 	// IsAzure returns true if this is an Azure database.
 	IsAzure() bool
-	// IsElastiCache returns true if this is an AWS ElastiCache database.
-	IsElastiCache() bool
-	// IsMemoryDB returns true if this is an AWS MemoryDB database.
-	IsMemoryDB() bool
-	// IsAWSHosted returns true if database is hosted by AWS.
-	IsAWSHosted() bool
-	// IsCloudHosted returns true if database is hosted in the cloud (AWS, Azure or Cloud SQL).
+	// IsCloudHosted returns true if database is hosted in the cloud (AWS RDS/Aurora/Redshift, Azure or Cloud SQL).
 	IsCloudHosted() bool
 	// Copy returns a copy of this database resource.
 	Copy() *DatabaseV3
@@ -345,37 +330,15 @@ func (d *DatabaseV3) IsAzure() bool {
 	return d.GetType() == DatabaseTypeAzure
 }
 
-// IsElastiCache returns true if this is an AWS ElastiCache database.
-func (d *DatabaseV3) IsElastiCache() bool {
-	return d.GetType() == DatabaseTypeElastiCache
-}
-
-// IsMemoryDB returns true if this is an AWS MemoryDB database.
-func (d *DatabaseV3) IsMemoryDB() bool {
-	return d.GetType() == DatabaseTypeMemoryDB
-}
-
-// IsAWSHosted returns true if database is hosted by AWS.
-func (d *DatabaseV3) IsAWSHosted() bool {
-	return d.IsRDS() || d.IsRedshift() || d.IsElastiCache() || d.IsMemoryDB()
-}
-
-// IsCloudHosted returns true if database is hosted in the cloud (AWS, Azure or
-// Cloud SQL).
+// IsCloudHosted returns true if database is hosted in the cloud (AWS RDS/Aurora/Redshift, Azure or Cloud SQL).
 func (d *DatabaseV3) IsCloudHosted() bool {
-	return d.IsAWSHosted() || d.IsCloudSQL() || d.IsAzure()
+	return d.IsRDS() || d.IsRedshift() || d.IsCloudSQL() || d.IsAzure()
 }
 
 // GetType returns the database type.
 func (d *DatabaseV3) GetType() string {
 	if d.GetAWS().Redshift.ClusterID != "" {
 		return DatabaseTypeRedshift
-	}
-	if d.GetAWS().ElastiCache.ReplicationGroupID != "" {
-		return DatabaseTypeElastiCache
-	}
-	if d.GetAWS().MemoryDB.ClusterName != "" {
-		return DatabaseTypeMemoryDB
 	}
 	if d.GetAWS().Region != "" || d.GetAWS().RDS.InstanceID != "" || d.GetAWS().RDS.ClusterID != "" {
 		return DatabaseTypeRDS
@@ -445,8 +408,8 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	// In case of RDS, Aurora or Redshift, AWS information such as region or
 	// cluster ID can be extracted from the endpoint if not provided.
 	switch {
-	case awsutils.IsRDSEndpoint(d.Spec.URI):
-		instanceID, region, err := awsutils.ParseRDSEndpoint(d.Spec.URI)
+	case strings.Contains(d.Spec.URI, RDSEndpointSuffix):
+		instanceID, region, err := parseRDSEndpoint(d.Spec.URI)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -456,8 +419,8 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		if d.Spec.AWS.Region == "" {
 			d.Spec.AWS.Region = region
 		}
-	case awsutils.IsRedshiftEndpoint(d.Spec.URI):
-		clusterID, region, err := awsutils.ParseRedshiftEndpoint(d.Spec.URI)
+	case strings.Contains(d.Spec.URI, RedshiftEndpointSuffix):
+		clusterID, region, err := parseRedshiftEndpoint(d.Spec.URI)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -467,34 +430,6 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		if d.Spec.AWS.Region == "" {
 			d.Spec.AWS.Region = region
 		}
-	case awsutils.IsElastiCacheEndpoint(d.Spec.URI):
-		endpointInfo, err := awsutils.ParseElastiCacheEndpoint(d.Spec.URI)
-		if err != nil {
-			logrus.WithError(err).Warnf("Failed to parse %v as ElastiCache endpoint", d.Spec.URI)
-			break
-		}
-		if d.Spec.AWS.ElastiCache.ReplicationGroupID == "" {
-			d.Spec.AWS.ElastiCache.ReplicationGroupID = endpointInfo.ID
-		}
-		if d.Spec.AWS.Region == "" {
-			d.Spec.AWS.Region = endpointInfo.Region
-		}
-		d.Spec.AWS.ElastiCache.TransitEncryptionEnabled = endpointInfo.TransitEncryptionEnabled
-		d.Spec.AWS.ElastiCache.EndpointType = endpointInfo.EndpointType
-	case awsutils.IsMemoryDBEndpoint(d.Spec.URI):
-		endpointInfo, err := awsutils.ParseMemoryDBEndpoint(d.Spec.URI)
-		if err != nil {
-			logrus.WithError(err).Warnf("Failed to parse %v as MemoryDB endpoint", d.Spec.URI)
-			break
-		}
-		if d.Spec.AWS.MemoryDB.ClusterName == "" {
-			d.Spec.AWS.MemoryDB.ClusterName = endpointInfo.ID
-		}
-		if d.Spec.AWS.Region == "" {
-			d.Spec.AWS.Region = endpointInfo.Region
-		}
-		d.Spec.AWS.MemoryDB.TLSEnabled = endpointInfo.TransitEncryptionEnabled
-		d.Spec.AWS.MemoryDB.EndpointType = endpointInfo.EndpointType
 	case strings.Contains(d.Spec.URI, AzureEndpointSuffix):
 		name, err := parseAzureEndpoint(d.Spec.URI)
 		if err != nil {
@@ -505,6 +440,36 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		}
 	}
 	return nil
+}
+
+// parseRDSEndpoint extracts region from the provided RDS endpoint.
+func parseRDSEndpoint(endpoint string) (instanceID, region string, err error) {
+	host, _, err := net.SplitHostPort(endpoint)
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+	// RDS/Aurora endpoint looks like this:
+	// aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com
+	parts := strings.Split(host, ".")
+	if !strings.HasSuffix(host, RDSEndpointSuffix) || len(parts) != 6 {
+		return "", "", trace.BadParameter("failed to parse %v as RDS endpoint", endpoint)
+	}
+	return parts[0], parts[2], nil
+}
+
+// parseRedshiftEndpoint extracts cluster ID and region from the provided Redshift endpoint.
+func parseRedshiftEndpoint(endpoint string) (clusterID, region string, err error) {
+	host, _, err := net.SplitHostPort(endpoint)
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+	// Redshift endpoint looks like this:
+	// redshift-cluster-1.abcdefghijklmnop.us-east-1.rds.amazonaws.com
+	parts := strings.Split(host, ".")
+	if !strings.HasSuffix(host, RedshiftEndpointSuffix) || len(parts) != 6 {
+		return "", "", trace.BadParameter("failed to parse %v as Redshift endpoint", endpoint)
+	}
+	return parts[0], parts[2], nil
 }
 
 // parseAzureEndpoint extracts database server name from Azure endpoint.
@@ -567,21 +532,6 @@ func (d *DatabaseV3) GetIAMResources() []string {
 	return nil
 }
 
-// GetSecretStore returns secret store configurations.
-func (d *DatabaseV3) GetSecretStore() SecretStore {
-	return d.Spec.AWS.SecretStore
-}
-
-// GetManagedUsers returns a list of database users that are managed by Teleport.
-func (d *DatabaseV3) GetManagedUsers() []string {
-	return d.Status.ManagedUsers
-}
-
-// SetManagedUsers sets a list of database users that are managed by Teleport.
-func (d *DatabaseV3) SetManagedUsers(users []string) {
-	d.Status.ManagedUsers = users
-}
-
 // getRDSPolicy returns IAM policy document for this RDS database.
 func (d *DatabaseV3) getRDSPolicy() string {
 	region := d.GetAWS().Region
@@ -629,10 +579,6 @@ const (
 	DatabaseTypeCloudSQL = "gcp"
 	// DatabaseTypeAzure is Azure-hosted database.
 	DatabaseTypeAzure = "azure"
-	// DatabaseTypeElastiCache is AWS-hosted ElastiCache database.
-	DatabaseTypeElastiCache = "elasticache"
-	// DatabaseTypeMemoryDB is AWS-hosted MemoryDB database.
-	DatabaseTypeMemoryDB = "memorydb"
 )
 
 // DeduplicateDatabases deduplicates databases by name.
@@ -678,6 +624,10 @@ func (d Databases) Less(i, j int) bool { return d[i].GetName() < d[j].GetName() 
 func (d Databases) Swap(i, j int) { d[i], d[j] = d[j], d[i] }
 
 const (
+	// RDSEndpointSuffix is the RDS/Aurora endpoint suffix.
+	RDSEndpointSuffix = ".rds.amazonaws.com"
+	// RedshiftEndpointSuffix is the Redshift endpoint suffix.
+	RedshiftEndpointSuffix = ".redshift.amazonaws.com"
 	// AzureEndpointSuffix is the Azure database endpoint suffix.
 	AzureEndpointSuffix = ".database.azure.com"
 )

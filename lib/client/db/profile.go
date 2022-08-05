@@ -25,7 +25,6 @@ limitations under the License.
 package db
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/gravitational/teleport/lib/client"
@@ -39,7 +38,7 @@ import (
 )
 
 // Add updates database connection profile file.
-func Add(ctx context.Context, tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile client.ProfileStatus) error {
+func Add(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile client.ProfileStatus) error {
 	// Out of supported databases, only Postgres and MySQL have a concept
 	// of the connection options file.
 	switch db.Protocol {
@@ -52,7 +51,7 @@ func Add(ctx context.Context, tc *client.TeleportClient, db tlsca.RouteToDatabas
 		return trace.Wrap(err)
 	}
 
-	rootClusterName, err := tc.RootClusterName(ctx)
+	rootClusterName, err := tc.RootClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}

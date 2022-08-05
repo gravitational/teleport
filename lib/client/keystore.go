@@ -22,15 +22,14 @@ import (
 	"fmt"
 	"io"
 	osfs "io/fs"
+	"io/ioutil"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth"
@@ -142,11 +141,6 @@ func (fs *FSLocalKeyStore) AddKey(key *Key) error {
 	if err := fs.writeBytes(key.TLSCert, fs.tlsCertPath(key.KeyIndex)); err != nil {
 		return trace.Wrap(err)
 	}
-	if runtime.GOOS == constants.WindowsOS {
-		if err := fs.writeBytes(key.PPK, fs.PPKFilePath(key.KeyIndex)); err != nil {
-			return trace.Wrap(err)
-		}
-	}
 
 	// Store per-cluster key data.
 	if len(key.Cert) > 0 {
@@ -190,7 +184,7 @@ func (fs *FSLocalKeyStore) writeBytes(bytes []byte, fp string) error {
 		fs.log.Error(err)
 		return trace.ConvertSystemError(err)
 	}
-	err := os.WriteFile(fp, bytes, keyFilePerms)
+	err := ioutil.WriteFile(fp, bytes, keyFilePerms)
 	if err != nil {
 		fs.log.Error(err)
 	}
@@ -208,12 +202,6 @@ func (fs *FSLocalKeyStore) DeleteKey(idx KeyIndex) error {
 		if err := os.Remove(fn); err != nil {
 			return trace.ConvertSystemError(err)
 		}
-	}
-	// we also need to delete the extra PuTTY-formatted .ppk file when running on Windows,
-	// but it may not exist when upgrading from v9 -> v10 and logging into an existing cluster.
-	// as such, deletion should be best-effort and not generate an error if it fails.
-	if runtime.GOOS == constants.WindowsOS {
-		os.Remove(fs.PPKFilePath(idx))
 	}
 
 	// Clear ClusterName to delete the user certs stored for all clusters.
@@ -272,22 +260,22 @@ func (fs *FSLocalKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error
 		}
 	}
 
-	if _, err := os.ReadDir(fs.KeyDir); err != nil && trace.IsNotFound(err) {
+	if _, err := ioutil.ReadDir(fs.KeyDir); err != nil && trace.IsNotFound(err) {
 		return nil, trace.Wrap(err, "no session keys for %+v", idx)
 	}
 
-	priv, err := os.ReadFile(fs.UserKeyPath(idx))
+	priv, err := ioutil.ReadFile(fs.UserKeyPath(idx))
 	if err != nil {
 		fs.log.Error(err)
 		return nil, trace.ConvertSystemError(err)
 	}
-	pub, err := os.ReadFile(fs.sshCAsPath(idx))
+	pub, err := ioutil.ReadFile(fs.sshCAsPath(idx))
 	if err != nil {
 		fs.log.Error(err)
 		return nil, trace.ConvertSystemError(err)
 	}
 	tlsCertFile := fs.tlsCertPath(idx)
-	tlsCert, err := os.ReadFile(tlsCertFile)
+	tlsCert, err := ioutil.ReadFile(tlsCertFile)
 	if err != nil {
 		fs.log.Error(err)
 		return nil, trace.ConvertSystemError(err)
@@ -343,14 +331,14 @@ func (fs *FSLocalKeyStore) updateKeyWithCerts(o CertOption, key *Key) error {
 
 	if info.IsDir() {
 		certDataMap := map[string][]byte{}
-		certFiles, err := os.ReadDir(certPath)
+		certFiles, err := ioutil.ReadDir(certPath)
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}
 		for _, certFile := range certFiles {
 			name := keypaths.TrimCertPathSuffix(certFile.Name())
 			if isCert := name != certFile.Name(); isCert {
-				data, err := os.ReadFile(filepath.Join(certPath, certFile.Name()))
+				data, err := ioutil.ReadFile(filepath.Join(certPath, certFile.Name()))
 				if err != nil {
 					return trace.ConvertSystemError(err)
 				}
@@ -360,7 +348,7 @@ func (fs *FSLocalKeyStore) updateKeyWithCerts(o CertOption, key *Key) error {
 		return o.updateKeyWithMap(key, certDataMap)
 	}
 
-	certBytes, err := os.ReadFile(certPath)
+	certBytes, err := ioutil.ReadFile(certPath)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
@@ -543,11 +531,6 @@ func (fs *fsLocalNonSessionKeyStore) sshCertPath(idx KeyIndex) string {
 	return keypaths.SSHCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
 }
 
-// PPKFilePath returns the PPK (PuTTY-formatted) keypair path for the given KeyIndex.
-func (fs *fsLocalNonSessionKeyStore) PPKFilePath(idx KeyIndex) string {
-	return keypaths.PPKFilePath(fs.KeyDir, idx.ProxyHost, idx.Username)
-}
-
 // sshCAsPath returns the SSH CA certificates path for the given KeyIndex.
 func (fs *fsLocalNonSessionKeyStore) sshCAsPath(idx KeyIndex) string {
 	return keypaths.SSHCAsPath(fs.KeyDir, idx.ProxyHost, idx.Username)
@@ -660,7 +643,7 @@ func matchesWildcard(hostname, pattern string) bool {
 
 // GetKnownHostKeys returns all known public keys from `known_hosts`.
 func (fs *fsLocalNonSessionKeyStore) GetKnownHostKeys(hostname string) ([]ssh.PublicKey, error) {
-	bytes, err := os.ReadFile(fs.knownHostsPath())
+	bytes, err := ioutil.ReadFile(fs.knownHostsPath())
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
@@ -800,7 +783,7 @@ func (fs *fsLocalNonSessionKeyStore) GetTrustedCertsPEM(proxyHost string) ([][]b
 			return nil
 		}
 
-		data, err := os.ReadFile(path)
+		data, err := ioutil.ReadFile(path)
 		for len(data) > 0 {
 			if err != nil {
 				return trace.Wrap(err)

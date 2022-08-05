@@ -145,22 +145,22 @@ You'll need to replace these values in the policy example below:
 }
 ```
 
-## Step 4/7. Configure TLS certificates for Teleport
+## Step 4/7. TLS certificates for Teleport
 
 The `teleport-cluster` chart deploys a Kubernetes `LoadBalancer` to handle incoming connections to the Teleport Proxy Service.
 
 We now need to configure TLS certificates for Teleport to secure its communications and allow external clients to connect.
 
 There are two supported options when using AWS:
-- Use `cert-manager` to provision and automatically renew ACME certs (described in [Step 4a](#step-4a7-install-and-configure-cert-manager-to-handle-tls)).
-  - This approach is recommended if you require CLI access to web applications using client certificates via Teleport Application Access.
-- Use AWS Certificate Manager to handle TLS termination with AWS-managed certificates (described in [Step 4b](#step-4b7-configure-teleport-to-use-acm-to-handle-tls)).
-  - This will prevent Teleport Application Access from working via CLI using client certificates. Application Access will still work via a browser.
+- Use `cert-manager` to provision and automatically renew ACME certs (described in [Step 4a](#step-4a-install-and-configure-cert-manager-to-handle-tls)).
+  - This approach is recommended if you require CLI access to web applications using client certificates via Teleport Application access.
+- Use AWS Certificate Manager to handle TLS termination with AWS-managed certificates (described in [Step 4b](#step-4b-configure-teleport-to-use-acm-to-handle-tls)).
+  - This will prevent Teleport Application access from working via CLI using client certificates. Application access will still work via a browser.
 
 You must choose only one of these options.
 
 
-## Step 4a/7. Install and configure cert-manager to handle TLS
+## Step 4a. Install and configure cert-manager to handle TLS
 
 In this example, we are using multiple pods to create a High Availability Teleport cluster. As such, we will be using
 `cert-manager` to centrally provision TLS certificates using Let's Encrypt. These certificates will be mounted into each
@@ -257,15 +257,14 @@ $ kubectl create namespace teleport
 $ kubectl --namespace teleport create -f aws-issuer.yaml
 ```
 
-## Step 4b/7. Configure Teleport to use ACM to handle TLS
+## Step 4b. Configure Teleport to use ACM to handle TLS
 
-<Admonition type="warning" title="Warning">
-  Command-line Teleport Application Access does not work with ACM. Using ACM will prevent Teleport
-  from facilitating Application Access via CLI (using client certificates), as Teleport
+<Admonition type="warning" title="Command-line Teleport Application Access does not work with ACM">
+  Using ACM will prevent Teleport from handling Application Access via CLI (using client certificates), as Teleport
   will not be handling its own TLS termination.
 
   If you need to use Teleport Application Access from the command line, you should use `cert-manager` instead (as described in
-  [Step 4a](#step-4a7-install-and-configure-cert-manager-to-handle-tls) above).
+  [Step 4a](#step-4a-install-and-configure-cert-manager-to-handle-tls) above).
 </Admonition>
 
 To use ACM to handle TLS, add annotations to the chart specifying the ACM certificate ARN to use and the port it should be served on.
@@ -343,7 +342,6 @@ aws:
   auditLogMirrorOnStdout: false                   # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
   sessionRecordingBucket: teleport-helm-sessions  # S3 bucket to use for Teleport session recordings
   backups: true                                   # Whether or not to turn on DynamoDB backups
-  dynamoAutoScaling: false                        # Whether Teleport should configure DynamoDB's autoscaling.
 highAvailability:
   replicaCount: 2                                 # Number of replicas to configure
   certManager:
@@ -364,7 +362,6 @@ aws:
   auditLogMirrorOnStdout: false                   # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
   sessionRecordingBucket: teleport-helm-sessions  # S3 bucket to use for Teleport session recordings
   backups: true                                   # Whether or not to turn on DynamoDB backups
-  dynamoAutoScaling: false                        # Whether Teleport should configure DynamoDB's autoscaling.
 highAvailability:
   replicaCount: 2                                 # Number of replicas to configure
   certManager:
@@ -531,41 +528,6 @@ Here's an example where we set the chart to use 3 replicas:
 <Admonition type="note">
   To change `chartMode`, `clusterName`, or any `aws` settings, you must first uninstall the existing chart and then install a new version with the appropriate values.
 </Admonition>
-
-### Autoscaling
-
-In order to reduce DynamoDB costs you might want to enable DynamoDB autoscaling.
-This step is usually done after a successful Teleport deployment, once you have gathered some data
-about Teleport's DynamoDB usage and know what regular usage looks like and how autoscaling should be tuned.
-You must know the desired read/write minimum, maximum and target capacity for your DynamoDB instance in order to enable autoscaling.
-
-You can delegate your autoscaling configuration to Teleport or manage it by creating an AWS Application Auto Scaling policy.
-The following steps will set up Teleport-configured DynamoDB autoscaling.
-
-You must grant autoscaling configuration rights to Teleport, as documented in
-[the DynamoDB autoscaling section](../reference/backends.mdx#dynamodb-autoscaling).
-
-Set the following fields in your existing `aws-values.yaml` file and replace the numeric values with yours:
-
-```yaml
-aws:
-  # [...] already present values under `aws`
-  dynamoAutoScaling: true
-  readMinCapacity: 5     # integer
-  readMaxCapacity: 100   # integer
-  readTargetValue: 50.0  # float
-  writeMinCapacity: 5    # integer
-  writeMaxCapacity: 100  # integer
-  writeTargetValue: 50.0 # float
-```
-
-Then perform a cluster upgrade with the new values:
-
-```code
-$ helm upgrade teleport teleport/teleport-cluster \
-  --namespace teleport \
-  -f aws-values.yaml
-```
 
 ## Uninstalling Teleport
 

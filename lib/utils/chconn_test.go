@@ -19,7 +19,7 @@ package utils
 import (
 	"crypto/rand"
 	"crypto/rsa"
-	"io"
+	"io/ioutil"
 	"net"
 	"os"
 	"testing"
@@ -35,8 +35,6 @@ import (
 // TestChConn validates that reads from the channel connection can be
 // canceled by setting a read deadline.
 func TestChConn(t *testing.T) {
-	t.Parallel()
-
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	t.Cleanup(func() { listener.Close() })
@@ -62,7 +60,7 @@ func TestChConn(t *testing.T) {
 		go func() {
 			// Nothing is sent on the channel so this will block until the
 			// read is canceled by the deadline set below.
-			_, err := io.ReadAll(chConn)
+			_, err := ioutil.ReadAll(chConn)
 			doneCh <- err
 		}()
 		// Set the read deadline in the past and make sure that the read

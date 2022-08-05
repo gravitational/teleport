@@ -29,5 +29,9 @@ func configureKnownHosts(hostname string, keys []ssh.PublicKey) (string, error) 
 		}
 	}
 
+	if err = knownHostsFile.Close(); err != nil {
+		return "", trace.Wrap(err, "failed writing known hosts")
+	}
+
 	return knownHostsFile.Name(), nil
 }

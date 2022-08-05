@@ -18,53 +18,34 @@ package services
 
 import (
 	"strings"
-	"testing"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/require"
+	"gopkg.in/check.v1"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
-func TestParseFromMetadata(t *testing.T) {
-	t.Parallel()
+type SAMLSuite struct{}
 
+var _ = check.Suite(&SAMLSuite{})
+
+func (s *SAMLSuite) TestParseFromMetadata(c *check.C) {
 	input := fixtures.SAMLOktaConnectorV2
 
 	decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(input), defaults.LookaheadBufSize)
 	var raw UnknownResource
 	err := decoder.Decode(&raw)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	oc, err := UnmarshalSAMLConnector(raw.Raw)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	err = ValidateSAMLConnector(oc)
-	require.NoError(t, err)
-	require.Equal(t, oc.GetIssuer(), "http://www.okta.com/exkafftca6RqPVgyZ0h7")
-	require.Equal(t, oc.GetSSO(), "https://dev-813354.oktapreview.com/app/gravitationaldev813354_teleportsaml_1/exkafftca6RqPVgyZ0h7/sso/saml")
-	require.Equal(t, oc.GetAssertionConsumerService(), "https://localhost:3080/v1/webapi/saml/acs")
-	require.Equal(t, oc.GetAudience(), "https://localhost:3080/v1/webapi/saml/acs")
-	require.NotNil(t, oc.GetSigningKeyPair())
-	require.Empty(t, cmp.Diff(oc.GetAttributes(), []string{"groups"}))
-}
-
-func TestCheckSAMLEntityDescriptor(t *testing.T) {
-	t.Parallel()
-
-	input := fixtures.SAMLOktaConnectorV2
-
-	decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(input), defaults.LookaheadBufSize)
-	var raw UnknownResource
-	err := decoder.Decode(&raw)
-	require.NoError(t, err)
-
-	oc, err := UnmarshalSAMLConnector(raw.Raw)
-	require.NoError(t, err)
-
-	ed := oc.GetEntityDescriptor()
-	certs, err := CheckSAMLEntityDescriptor(ed)
-	require.NoError(t, err)
-	require.Len(t, certs, 1)
+	c.Assert(err, check.IsNil)
+	c.Assert(oc.GetIssuer(), check.Equals, "http://www.okta.com/exkafftca6RqPVgyZ0h7")
+	c.Assert(oc.GetSSO(), check.Equals, "https://dev-813354.oktapreview.com/app/gravitationaldev813354_teleportsaml_1/exkafftca6RqPVgyZ0h7/sso/saml")
+	c.Assert(oc.GetAssertionConsumerService(), check.Equals, "https://localhost:3080/v1/webapi/saml/acs")
+	c.Assert(oc.GetAudience(), check.Equals, "https://localhost:3080/v1/webapi/saml/acs")
+	c.Assert(oc.GetSigningKeyPair(), check.NotNil)
+	c.Assert(oc.GetAttributes(), check.DeepEquals, []string{"groups"})
 }

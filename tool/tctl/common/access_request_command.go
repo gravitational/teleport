@@ -263,7 +263,7 @@ func (c *AccessRequestCommand) Create(ctx context.Context, client auth.ClientI) 
 	req.SetRequestReason(c.reason)
 
 	if c.dryRun {
-		err = services.ValidateAccessRequestForUser(ctx, client, req, services.ExpandVars(true))
+		err = services.ValidateAccessRequestForUser(client, req, services.ExpandVars(true))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -389,17 +389,7 @@ func (c *AccessRequestCommand) Review(ctx context.Context, client auth.ClientI) 
 func printRequestsOverview(reqs []types.AccessRequest, format string) error {
 	switch format {
 	case teleport.Text:
-		table := asciitable.MakeTable([]string{"Token", "Requestor", "Metadata"})
-		table.AddColumn(asciitable.Column{
-			Title:         "Resources",
-			MaxCellLength: 20,
-			FootnoteLabel: "[+]",
-		})
-		table.AddFootnote(
-			"[+]",
-			"Requested resources truncated, use the `tctl requests get` subcommand to view the full list")
-		table.AddColumn(asciitable.Column{Title: "Created At (UTC)"})
-		table.AddColumn(asciitable.Column{Title: "Status"})
+		table := asciitable.MakeTable([]string{"Token", "Requestor", "Metadata", "Created At (UTC)", "Status"})
 		table.AddColumn(asciitable.Column{
 			Title:         "Request Reason",
 			MaxCellLength: 75,
@@ -415,15 +405,10 @@ func printRequestsOverview(reqs []types.AccessRequest, format string) error {
 			"Full reason was truncated, use the `tctl requests get` subcommand to view the full reason.",
 		)
 		for _, req := range reqs {
-			resourceIDsString, err := types.ResourceIDsToString(req.GetRequestedResourceIDs())
-			if err != nil {
-				return trace.Wrap(err)
-			}
 			table.AddRow([]string{
 				req.GetName(),
 				req.GetUser(),
 				fmt.Sprintf("roles=%s", strings.Join(req.GetRoles(), ",")),
-				resourceIDsString,
 				req.GetCreationTime().Format(time.RFC822),
 				req.GetState().String(),
 				quoteOrDefault(req.GetRequestReason(), ""),
@@ -444,24 +429,16 @@ func printRequestsDetailed(reqs []types.AccessRequest, format string) error {
 	switch format {
 	case teleport.Text:
 		for _, req := range reqs {
-			resourceIDsString, err := types.ResourceIDsToString(req.GetRequestedResourceIDs())
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if resourceIDsString == "" {
-				resourceIDsString = "[none]"
-			}
 			table := asciitable.MakeHeadlessTable(2)
 			table.AddRow([]string{"Token: ", req.GetName()})
 			table.AddRow([]string{"Requestor: ", req.GetUser()})
 			table.AddRow([]string{"Metadata: ", fmt.Sprintf("roles=%s", strings.Join(req.GetRoles(), ","))})
-			table.AddRow([]string{"Resources: ", resourceIDsString})
 			table.AddRow([]string{"Created At (UTC): ", req.GetCreationTime().Format(time.RFC822)})
 			table.AddRow([]string{"Status: ", req.GetState().String()})
 			table.AddRow([]string{"Request Reason: ", quoteOrDefault(req.GetRequestReason(), "[none]")})
 			table.AddRow([]string{"Resolve Reason: ", quoteOrDefault(req.GetResolveReason(), "[none]")})
 
-			_, err = table.AsBuffer().WriteTo(os.Stdout)
+			_, err := table.AsBuffer().WriteTo(os.Stdout)
 			if err != nil {
 				return trace.Wrap(err)
 			}

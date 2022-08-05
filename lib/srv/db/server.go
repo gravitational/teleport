@@ -31,11 +31,9 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
-	"github.com/gravitational/teleport/lib/srv/db/cloud/users"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/utils"
@@ -46,8 +44,6 @@ import (
 	_ "github.com/gravitational/teleport/lib/srv/db/mysql"
 	// Import to register Postgres engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/postgres"
-	// Import to register Snowflake engine.
-	_ "github.com/gravitational/teleport/lib/srv/db/snowflake"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -108,10 +104,6 @@ type Config struct {
 	CloudMeta *cloud.Metadata
 	// CloudIAM configures IAM for cloud hosted databases.
 	CloudIAM *cloud.IAM
-	// ConnectedProxyGetter gets the proxies teleport is connected to.
-	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
-	// CloudUsers manage users for cloud hosted databases.
-	CloudUsers *users.Users
 }
 
 // NewAuditFn defines a function that creates an audit logger.
@@ -192,19 +184,6 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	if c.Limiter == nil {
 		// Use default limiter if nothing is provided. Connection limiting will be disabled.
 		c.Limiter, err = limiter.NewLimiter(limiter.Config{})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	if c.ConnectedProxyGetter == nil {
-		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
-	}
-
-	if c.CloudUsers == nil {
-		c.CloudUsers, err = users.NewUsers(users.Config{
-			Clients:    c.CloudClients,
-			UpdateMeta: c.CloudMeta.Update,
-		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -306,9 +285,7 @@ func New(ctx context.Context, config Config) (*Server, error) {
 	// Update TLS config to require client certificate.
 	server.cfg.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	server.cfg.TLSConfig.GetConfigForClient = getConfigForClient(
-		server.cfg.TLSConfig, server.cfg.AccessPoint, server.log,
-		// TODO: Remove UserCA in Teleport 11.
-		types.UserCA, types.DatabaseCA)
+		server.cfg.TLSConfig, server.cfg.AccessPoint, server.log)
 
 	return server, nil
 }
@@ -350,11 +327,6 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 	if err := s.startHeartbeat(ctx, database); err != nil {
 		return trace.Wrap(err)
 	}
-	// Setup managed users for database.
-	if err := s.cfg.CloudUsers.Setup(ctx, database); err != nil {
-		s.log.WithError(err).Warnf("Failed to setup users for %v.", database.GetName())
-	}
-
 	s.log.Debugf("Started %v.", database)
 	return nil
 }
@@ -562,7 +534,7 @@ func (s *Server) getServerInfo(database types.Database) (types.Resource, error) 
 		s.cfg.CloudLabels.Apply(copy)
 	}
 	expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
-	server, err := types.NewDatabaseServerV3(types.Metadata{
+	return types.NewDatabaseServerV3(types.Metadata{
 		Name:    copy.GetName(),
 		Expires: &expires,
 	}, types.DatabaseServerSpecV3{
@@ -571,13 +543,7 @@ func (s *Server) getServerInfo(database types.Database) (types.Resource, error) 
 		HostID:   s.cfg.HostID,
 		Rotation: s.getRotationState(),
 		Database: copy,
-		ProxyIDs: s.cfg.ConnectedProxyGetter.GetProxyIDs(),
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return server, nil
 }
 
 // getRotationState is a helper to return this server's CA rotation state.
@@ -598,9 +564,6 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	if err := s.cfg.CloudIAM.Start(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-
-	// Start cloud users that will be monitoring cloud users.
-	go s.cfg.CloudUsers.Start(ctx, s.getProxiedDatabases)
 
 	// Register all databases from static configuration.
 	for _, database := range s.cfg.Databases {
@@ -836,7 +799,6 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 		Context:      s.closeContext,
 		Clock:        s.cfg.Clock,
 		Log:          sessionCtx.Log,
-		Users:        s.cfg.CloudUsers,
 	})
 }
 
@@ -939,17 +901,15 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 	}
 
 	s.log.Debugf("Creating tracker for session %v", sessionCtx.ID)
-	tracker, err := srv.NewSessionTracker(ctx, trackerSpec, s.cfg.AuthClient)
-	switch {
-	case err == nil:
-	case trace.IsAccessDenied(err):
-		// Ignore access denied errors, which we may get if the auth
-		// server is v9.2.3 or earlier, since only node, proxy, and
+	tracker, err := srv.NewSessionTracker(s.closeContext, trackerSpec, s.cfg.AuthClient)
+	if err != nil {
+		// Ignore access denied errors, which we will get if the auth
+		// server is v9.2.1 or earlier, since only node, proxy, and
 		// kube roles had permission to create session trackers.
-		// DELETE IN 11.0.0
-		s.log.Debugf("Insufficient permissions to create session tracker, skipping session tracking for session %v", sessionCtx.ID)
-		return nil
-	default: // aka err != nil
+		if trace.IsAccessDenied(err) {
+			s.log.Debugf("Insufficient permissions to create session tracker, skipping session tracking for session %v", sessionCtx.ID)
+			return nil
+		}
 		return trace.Wrap(err)
 	}
 

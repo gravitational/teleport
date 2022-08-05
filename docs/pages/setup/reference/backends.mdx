@@ -216,7 +216,7 @@ running on an EC2 instance with an IAM role.
 You can add optional query parameters to the S3 URL. The Teleport Auth
 Service reads these parameters to configure its interactions with S3:
 
-`s3://bucket/path?region=us-east-1&endpoint=mys3.example.com&insecure=false&disablesse=false&acl=private&use_fips_endpoint=true`
+`s3://bucket/path?region=us-east-1&endpoint=mys3.example.com&insecure=false&disablesse=false&acl=private`
 
 - `region=us-east-1` - set the Amazon region to use.
 - `endpoint=mys3.example.com` - connect to a custom S3 endpoint.
@@ -224,7 +224,6 @@ Service reads these parameters to configure its interactions with S3:
 - `disablesse=true` - set to `true` or `false`. If `true`, S3 server-side encryption will be disabled. If `false`, aws:kms (Key Management Service) will be used for server-side encryption. Other SSE types are not supported at this time.
 - `sse_kms_key=kms_key_id` - If set to a valid AWS KMS CMK key ID all objects uploaded to S3 will be encrypted with this key. Details can be found below.
 - `acl=private` - set the [canned ACL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/acl-overview.html#canned-acl) to use. Must be one of the predefined ACL values.
-- `use_fips_endpoint=true` -  [Configure S3 FIPS endpoints](#configuring-aws-fips-endpoints)
 
 ### S3 Server Side Encryption
 
@@ -429,9 +428,9 @@ teleport:
     # This setting configures Teleport to save the recorded sessions in an S3 bucket:
     audit_sessions_uri: s3://Example_TELEPORT_S3_BUCKET/records
 
-    # By default, Teleport stores stores audit events with an AWS TTL of 1 year.
+    # Teleport by default stores stores audit events with an AWS TTL of 1 year.
     # This value can be configured as shown below. If set to 0 seconds, TTL is disabled.
-    audit_retention_period: 365d
+    audit_retention_period: 1y
 ```
 
 - Replace `us-east-1` and `Example_TELEPORT_DYNAMO_TABLE_NAME`
@@ -444,14 +443,6 @@ teleport:
   bucket, i.e. both `audit_xxx` settings must be present. If they are not set,
   Teleport will default to a local file system for the audit log, i.e.
   `/var/lib/teleport/log` on an auth server.
-
-The optional `GET` parameters shown below control how Teleport interacts with a DynamoDB endpoint.
-
-`dynamodb://events_table_name?region=us-east-1&endpoint=dynamo.example.com&use_fips_endpoint=true`
-
-- `region=us-east-1` - set the Amazon region to use.
-- `endpoint=dynamo.example.com` - connect to a custom S3 endpoint.
-- `use_fips_endpoint=true` -  [Configure DynamoDB FIPS endpoints](#configuring-aws-fips-endpoints).
 
 <Admonition
   type="warning"
@@ -483,11 +474,7 @@ The optional `GET` parameters shown below control how Teleport interacts with a 
 
 ### DynamoDB autoscaling
 
-When setting up DynamoDB it's important to set up backups. Autoscaling is optional with Teleport,
-and it is advised to collect some production usage data before enabling autoscaling.
-
-Autoscaling and backup can be configured on DynamoDB directly. We also make setup simpler by allowing AWS DynamoDB
-settings to be set automatically during Teleport startup. The configuration is described below.
+When setting up DynamoDB it's important to set up backup and autoscaling. We make setup simpler by allowing AWS DynamoDB settings to be set automatically during Teleport startup.
 
 **DynamoDB Continuous Backups**
 
@@ -521,7 +508,7 @@ teleport:
     write_target_value: float
 ```
 
-To enable these options you will need to update the IAM Policy for Teleport.
+To enable these options you will need to update the IAM Role for Teleport.
 
 ```json
 {
@@ -547,28 +534,6 @@ To enable these options you will need to update the IAM Policy for Teleport.
     "Resource": "*"
 }
 ```
-
-### Configuring AWS FIPS endpoints
-
-This config option applies to [AWS S3](#s3) and [AWS DynamoDB](#dynamodb).
-
-Set `use_fips_endpoint` to `true` or `false`. If `true`, [FIPS](https://aws.amazon.com/compliance/fips/) Dynamo endpoints will be used.
-If `false`, normal Dynamo endpoints will be used. If unset, the AWS Environment Variable `AWS_USE_FIPS_ENDPOINT` will determine which endpoint is used.
-FIPS endpoints will also be used if Teleport is run with the `--fips` flag.
-
-Config option priority is applied in the following order:
-
-- Setting the `use_fips_endpoint` query parameter as shown above
-- Using the `--fips` flag when running Teleport
-- Using the AWS environment variable
-
-<Admonition
-  type="warning"
-  title="A warning about AWS_USE_FIPS_ENDPOINT"
->
-  Setting this environment variable to true will enable FIPS endpoints for all AWS resource types. Some FIPS endpoints
-  are not supported in certain regions or environments or are only supported in GovCloud.
-</Admonition>
 
 ## GCS
 
@@ -771,7 +736,7 @@ teleport:
     sync: "OFF"
 ```
 
-When running on a filesystem that supports file locks (i.e. a local filesystem,
+Starting from version 9.0.4, when running on a filesystem that supports file locks (i.e. a local filesystem,
 not a networked one) it's possible to also configure the SQLite database to use
 Write-Ahead Logging (see [the official docs on WAL
 mode](https://www.sqlite.org/wal.html)) for significantly improved performance

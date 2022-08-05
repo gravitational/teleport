@@ -2,7 +2,17 @@
 # Warning to maintainers, any changes to this file that are not specific to the StatefulSet need to also be duplicated
 # in the deployment.yaml file.
 #
-{{- $replicaCount := (coalesce .Values.replicaCount .Values.highAvailability.replicaCount "1") }}
+{{- if .Values.storage.enabled }}
+{{- if .Values.teleportVersionOverride }}
+  {{- $_ := set . "teleportVersion" .Values.teleportVersionOverride }}
+{{- else }}
+  {{- $_ := set . "teleportVersion" .Chart.Version }}
+{{- end }}
+{{- if .Values.replicaCount }}
+  {{- $_ := set . "replicaCount" .Values.replicaCount }}
+{{- else }}
+  {{- $_ := set . "replicaCount" .Values.highAvailability.replicaCount }}
+{{- end }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -15,7 +25,7 @@ metadata:
   {{- end }}
 spec:
   serviceName: {{ .Release.Name }}
-  replicas: {{ $replicaCount }}
+  replicas: {{ .replicaCount }}
   selector:
     matchLabels:
       app: {{ .Release.Name }}
@@ -35,7 +45,7 @@ spec:
     spec:
       securityContext:
         fsGroup: 9807
-      {{- if or .Values.affinity (gt (int $replicaCount) 1) }}
+      {{- if or .Values.affinity (gt (int .replicaCount) 1) }}
       affinity:
         {{- if .Values.affinity }}
           {{- if .Values.highAvailability.requireAntiAffinity }}
@@ -53,7 +63,7 @@ spec:
                 values:
                 - {{ .Release.Name }}
             topologyKey: "kubernetes.io/hostname"
-        {{- else if gt (int $replicaCount) 1 }}
+        {{- else if gt (int .replicaCount) 1 }}
           preferredDuringSchedulingIgnoredDuringExecution:
           - weight: 50
             podAffinityTerm:
@@ -112,20 +122,10 @@ spec:
         {{- if .Values.imagePullPolicy }}
         imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}
         {{- end }}
+        {{- if .Values.extraEnv }}
         env:
-          - name: TELEPORT_REPLICA_NAME
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.name
-          - name: KUBE_NAMESPACE
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.namespace
-          - name: RELEASE_NAME
-            value: {{ .Release.Name }}
-          {{- if .Values.extraEnv }}
-            {{- toYaml .Values.extraEnv | nindent 10 }}
-          {{- end }}
+          {{- toYaml .Values.extraEnv | nindent 10 }}
+        {{- end }}
         args:
         - "--diag-addr=0.0.0.0:3000"
         {{- if .Values.insecureSkipProxyTLSVerify }}
@@ -148,7 +148,7 @@ spec:
           protocol: TCP
         livenessProbe:
           httpGet:
-            path: /healthz
+            path: /readyz
             port: diag
           initialDelaySeconds: 5 # wait 5s for agent to start
           periodSeconds: 5 # poll health every 5s
@@ -173,13 +173,8 @@ spec:
         - mountPath: /etc/teleport-secrets
           name: "auth-token"
           readOnly: true
-{{- if .Values.storage.enabled }}
         - mountPath: /var/lib/teleport
           name: "{{ .Release.Name }}-teleport-data"
-{{- else }}
-        - mountPath: /var/lib/teleport
-          name: "data"
-{{- end }}
 {{- if .Values.extraVolumeMounts }}
   {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
 {{- end }}
@@ -190,14 +185,9 @@ spec:
       - name: "auth-token"
         secret:
           secretName: {{ .Values.secretName }}
-{{- if not .Values.storage.enabled }}
-      - name: "data"
-        emptyDir: {}
-{{- end}}
 {{- if .Values.extraVolumes }}
   {{- toYaml .Values.extraVolumes | nindent 6 }}
 {{- end }}
-{{- if and .Values.storage.enabled }}
   volumeClaimTemplates:
   - metadata:
       name: "{{ .Release.Name }}-teleport-data"

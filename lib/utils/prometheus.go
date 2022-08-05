@@ -31,16 +31,15 @@ import (
 // - returns an error if a collector does not fulfill the consistency and
 //   uniqueness criteria
 func RegisterPrometheusCollectors(collectors ...prometheus.Collector) error {
-	var errs []error
 	for _, c := range collectors {
 		if err := prometheus.Register(c); err != nil {
 			if _, ok := err.(prometheus.AlreadyRegisteredError); ok {
 				continue
 			}
-			errs = append(errs, err)
+			return trace.Wrap(err)
 		}
 	}
-	return trace.NewAggregate(errs...)
+	return nil
 }
 
 // BuildCollector provides a Collector that contains build information gauge

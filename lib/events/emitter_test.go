@@ -22,19 +22,20 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 )
 
 // TestProtoStreamer tests edge cases of proto streamer implementation
@@ -138,13 +139,14 @@ func TestWriterEmitter(t *testing.T) {
 }
 
 func TestAsyncEmitter(t *testing.T) {
+	clock := clockwork.NewRealClock()
 	events := GenerateTestSession(SessionParams{PrintEvents: 20})
 
 	// Slow tests that async emitter does not block
 	// on slow emitters
 	t.Run("Slow", func(t *testing.T) {
 		emitter, err := NewAsyncEmitter(AsyncEmitterConfig{
-			Inner: eventstest.NewSlowEmitter(time.Hour),
+			Inner: &slowEmitter{clock: clock, timeout: time.Hour},
 		})
 		require.NoError(t, err)
 		defer emitter.Close()
@@ -159,7 +161,7 @@ func TestAsyncEmitter(t *testing.T) {
 
 	// Receive makes sure all events are recevied in the same order as they are sent
 	t.Run("Receive", func(t *testing.T) {
-		chanEmitter := eventstest.NewChannelEmitter(len(events))
+		chanEmitter := &channelEmitter{eventsCh: make(chan apievents.AuditEvent, len(events))}
 		emitter, err := NewAsyncEmitter(AsyncEmitterConfig{
 			Inner: chanEmitter,
 		})
@@ -175,7 +177,7 @@ func TestAsyncEmitter(t *testing.T) {
 
 		for i := 0; i < len(events); i++ {
 			select {
-			case event := <-chanEmitter.C():
+			case event := <-chanEmitter.eventsCh:
 				require.Equal(t, events[i], event)
 			case <-time.After(time.Second):
 				t.Fatalf("timeout at event %v", i)
@@ -185,7 +187,7 @@ func TestAsyncEmitter(t *testing.T) {
 
 	// Close makes sure that close cancels operations and context
 	t.Run("Close", func(t *testing.T) {
-		counter := eventstest.NewCountingEmitter()
+		counter := &counterEmitter{count: atomic.NewInt64(0)}
 		emitter, err := NewAsyncEmitter(AsyncEmitterConfig{
 			Inner:      counter,
 			BufferSize: len(events),
@@ -205,7 +207,7 @@ func TestAsyncEmitter(t *testing.T) {
 
 		// context will not wait until all events have been submitted
 		emitter.Close()
-		require.True(t, int(counter.Count()) <= len(events))
+		require.True(t, int(counter.count.Load()) <= len(events))
 
 		// make sure context is done to prevent context leaks
 		select {
@@ -223,6 +225,38 @@ func TestAsyncEmitter(t *testing.T) {
 			}
 		}
 	})
+}
+
+type slowEmitter struct {
+	clock   clockwork.Clock
+	timeout time.Duration
+}
+
+func (s *slowEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	<-s.clock.After(s.timeout)
+	return nil
+}
+
+type counterEmitter struct {
+	count *atomic.Int64
+}
+
+func (c *counterEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	c.count.Inc()
+	return nil
+}
+
+type channelEmitter struct {
+	eventsCh chan apievents.AuditEvent
+}
+
+func (c *channelEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case c.eventsCh <- event:
+		return nil
+	}
 }
 
 // TestExport tests export to JSON format.
@@ -251,7 +285,7 @@ func TestExport(t *testing.T) {
 	parts, err := uploader.GetParts(uploads[0].ID)
 	require.NoError(t, err)
 
-	f, err := os.CreateTemp("", "")
+	f, err := ioutil.TempFile("", "")
 	require.NoError(t, err)
 	defer os.Remove(f.Name())
 

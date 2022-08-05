@@ -80,33 +80,19 @@ spec:
   client_secret: ""
   display: ""
   redirect_url: ""
-  teams_to_logins:
-  - logins:
-    - dummy
-    organization: octocats
-    team: dummy
-  teams_to_roles: null
+  teams_to_logins: null
 version: v3
 `
-	githubConn, err := types.NewGithubConnector("githubName", types.GithubConnectorSpecV3{
-		TeamsToLogins: []types.TeamMapping{
-			{
-				Organization: "octocats",
-				Team:         "dummy",
-				Logins:       []string{"dummy"},
-			},
-		},
-	})
+	githubConn, err := types.NewGithubConnector("githubName", types.GithubConnectorSpecV3{})
 	require.NoError(t, err)
 	item, err := ui.NewResourceItem(githubConn)
-	require.NoError(t, err)
-
-	require.Equal(t, &ui.ResourceItem{
+	require.Nil(t, err)
+	require.Equal(t, item, &ui.ResourceItem{
 		ID:      "github:githubName",
 		Kind:    types.KindGithubConnector,
 		Name:    "githubName",
 		Content: contents,
-	}, item)
+	})
 }
 
 func TestNewResourceItemRole(t *testing.T) {
@@ -128,7 +114,6 @@ spec:
   deny: {}
   options:
     cert_format: standard
-    create_host_user: false
     desktop_clipboard: true
     desktop_directory_sharing: true
     enhanced_recording:
@@ -136,14 +121,12 @@ spec:
     - network
     forward_agent: false
     max_session_ttl: 30h0m0s
-    pin_source_ip: false
     port_forwarding: true
     record_session:
-      default: best_effort
       desktop: true
 version: v3
 `
-	role, err := types.NewRoleV3("roleName", types.RoleSpecV5{
+	role, err := types.NewRole("roleName", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins: []string{"test"},
 		},
@@ -188,7 +171,7 @@ func TestGetRoles(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
 
 	m.mockGetRoles = func(ctx context.Context) ([]types.Role, error) {
-		role, err := types.NewRoleV3("test", types.RoleSpecV5{
+		role, err := types.NewRole("test", types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Logins: []string{"test"},
 			},
@@ -249,15 +232,7 @@ func TestGetGithubConnectors(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
 
 	m.mockGetGithubConnectors = func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
-		connector, err := types.NewGithubConnector("test", types.GithubConnectorSpecV3{
-			TeamsToLogins: []types.TeamMapping{
-				{
-					Organization: "octocats",
-					Team:         "dummy",
-					Logins:       []string{"dummy"},
-				},
-			},
-		})
+		connector, err := types.NewGithubConnector("test", types.GithubConnectorSpecV3{})
 		require.NoError(t, err)
 
 		return []types.GithubConnector{connector}, nil
@@ -381,7 +356,7 @@ func TestListResources(t *testing.T) {
 		},
 		{
 			name: "all param defined and set",
-			url:  `https://dev:3080/login?searchAsRoles=yes&query=labels.env%20%3D%3D%20%22prod%22&limit=50&startKey=banana&sort=foo:desc&search=foo%2Bbar+baz+foo%2Cbar+%22some%20phrase%22`,
+			url:  `https://dev:3080/login?query=labels.env%20%3D%3D%20%22prod%22&limit=50&startKey=banana&sort=foo:desc&search=foo%2Bbar+baz+foo%2Cbar+%22some%20phrase%22`,
 			expected: proto.ListResourcesRequest{
 				ResourceType:        types.KindNode,
 				Limit:               50,
@@ -389,7 +364,6 @@ func TestListResources(t *testing.T) {
 				SearchKeywords:      []string{"foo+bar", "baz", "foo,bar", "some phrase"},
 				PredicateExpression: `labels.env == "prod"`,
 				SortBy:              types.SortBy{Field: "foo", IsDesc: true},
-				UseSearchAsRoles:    true,
 				NeedTotalCount:      true,
 			},
 		},

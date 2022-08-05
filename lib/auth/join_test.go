@@ -52,14 +52,14 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 	require.NoError(t, err)
 
 	// create a dynamic token
-	dynamicToken, err := a.GenerateToken(ctx, &proto.GenerateTokenRequest{
+	dynamicToken, err := a.GenerateToken(ctx, GenerateTokenRequest{
 		Roles: types.SystemRoles{types.RoleNode},
-		TTL:   proto.Duration(time.Hour),
+		TTL:   time.Hour,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, dynamicToken)
 
-	sshPrivateKey, sshPublicKey, err := native.GenerateKeyPair()
+	sshPrivateKey, sshPublicKey, err := a.GenerateKeyPair("")
 	require.NoError(t, err)
 
 	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
@@ -297,7 +297,7 @@ func TestRegister_Bot(t *testing.T) {
 	err = srv.Auth().UpsertToken(context.Background(), wrongUser)
 	require.NoError(t, err)
 
-	privateKey, publicKey, err := native.GenerateKeyPair()
+	privateKey, publicKey, err := native.GenerateKeyPair("")
 	require.NoError(t, err)
 	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
 	require.NoError(t, err)

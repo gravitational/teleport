@@ -23,11 +23,12 @@ import (
 
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/destination"
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,7 +36,7 @@ import (
 // if we tried importing renewal code from the config package.
 
 // validateTemplate loads and validates a config template from the destination
-func validateTemplate(t *testing.T, tplI config.Template, dest bot.Destination) {
+func validateTemplate(t *testing.T, tplI config.Template, dest destination.Destination) {
 	t.Helper()
 
 	// First, make sure all advertised files exist.
@@ -82,13 +83,12 @@ func validateTemplate(t *testing.T, tplI config.Template, dest bot.Destination) 
 // TestTemplateRendering performs a full renewal and ensures all expected
 // default config templates are present.
 func TestDefaultTemplateRendering(t *testing.T) {
-	t.Parallel()
+	utils.InitLogger(utils.LoggingForDaemon, logrus.DebugLevel)
 
 	// Make a new auth server.
-	log := utils.NewLoggerForTests()
-	fc, fds := testhelpers.DefaultConfig(t)
-	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
-	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
+	fc := testhelpers.DefaultConfig(t)
+	_ = testhelpers.MakeAndRunTestAuthServer(t, fc)
+	rootClient := testhelpers.MakeDefaultAuthClient(t, fc)
 
 	// Make and join a new bot instance.
 	const roleName = "dummy-role"
@@ -100,7 +100,7 @@ func TestDefaultTemplateRendering(t *testing.T) {
 	botConfig := testhelpers.MakeMemoryBotConfig(t, fc, botParams)
 	storage, err := botConfig.Storage.GetDestination()
 	require.NoError(t, err)
-	b := New(botConfig, log, nil)
+	b := New(botConfig, utils.NewLoggerForTests(), nil)
 
 	ident, err := b.getIdentityFromToken()
 	require.NoError(t, err)

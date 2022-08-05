@@ -17,6 +17,7 @@ package kubeconfig
 import (
 	"crypto/x509/pkix"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -38,7 +39,7 @@ import (
 )
 
 func setup(t *testing.T) (string, clientcmdapi.Config) {
-	f, err := os.CreateTemp("", "kubeconfig")
+	f, err := ioutil.TempFile("", "kubeconfig")
 	if err != nil {
 		t.Fatalf("failed to create temp kubeconfig file: %v", err)
 	}
@@ -405,7 +406,7 @@ func genUserKey() (*client.Key, []byte, error) {
 	}
 
 	keygen := testauthority.New()
-	priv, pub, err := keygen.GenerateKeyPair()
+	priv, pub, err := keygen.GenerateKeyPair("")
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

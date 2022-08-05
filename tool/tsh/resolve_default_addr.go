@@ -63,7 +63,7 @@ func raceRequest(ctx context.Context, cli *http.Client, addr string, waitgroup *
 	}
 	defer rsp.Body.Close()
 
-	// NB: `ReadAll()` will time out (or be canceled) according to the
+	// NB: `ReadAll()` will time out (or be cancelled) according to the
 	//     context originally supplied to the request that initiated this
 	//     response, so no need to have an independent reading timeout
 	//     here.
@@ -84,12 +84,12 @@ func raceRequest(ctx context.Context, cli *http.Client, addr string, waitgroup *
 		return
 	}
 
-	// Post the results back to the caller, so they can be aggregated.
+	// Post the results back to the caller so they can be aggregated.
 	results <- raceResult{addr: addr}
 }
 
 // startRacer starts the asynchronous execution of a single request, and keeps
-// all the associated bookkeeping up to date.
+// all the associated bookeeping up to date.
 func startRacer(ctx context.Context, cli *http.Client, host string, candidates []int, waitGroup *sync.WaitGroup, results chan<- raceResult) []int {
 	port, tail := candidates[0], candidates[1:]
 	addr := net.JoinHostPort(host, strconv.Itoa(port))
@@ -133,11 +133,11 @@ func pickDefaultAddr(ctx context.Context, insecure bool, host string, ports []in
 	}()
 
 	// Define an inner context that we'll give to the requests to cancel
-	// them regardless of if we exit successfully, or we are killed from above.
+	// them regardless of if we exit successfully or we are killed from above.
 	raceCtx, cancelRace := context.WithCancel(ctx)
 	defer cancelRace()
 
-	// Make the channel for the race results big enough, so we're guaranteed that a
+	// Make the channel for the race results big enough so we're guaranteed that a
 	// channel write will never block. Once we have a hit we will stop reading the
 	// channel, and we don't want to leak a bunch of goroutines while they're
 	// blocked on writing to a full reply channel
@@ -160,8 +160,8 @@ func pickDefaultAddr(ctx context.Context, insecure bool, host string, ports []in
 	for {
 		select {
 		case <-ctx.Done():
-			// We've timed out or been canceled. Bail out ASAP. Remember that returning
-			// will implicitly cancel all the already-started racers.
+			// We've timed out or been cancelled. Bail out ASAP. Remember that returning
+			// will implicitly cancel all of the already-started racers.
 			return "", ctx.Err()
 
 		case <-ticker.C:
@@ -178,7 +178,7 @@ func pickDefaultAddr(ctx context.Context, insecure bool, host string, ports []in
 				// Accept the winner as having the canonical web proxy address.
 				//
 				// Note that returning will implicitly cancel the inner context, telling
-				// any outstanding racers that there is no point trying anymore, and they
+				// any outstanding racers that there is no point trying any more and they
 				// should exit.
 				log.Debugf("Address %s succeeded. Selected as canonical proxy address", r.addr)
 				return r.addr, nil
@@ -187,7 +187,7 @@ func pickDefaultAddr(ctx context.Context, insecure bool, host string, ports []in
 
 			// the ping failed. This could be for any number of reasons. All we
 			// really care about is whether _all_ of the ping attempts have
-			// failed, and it's time to return with error
+			// failed and it's time to return with error
 			if unfinishedRacers == 0 {
 				// Context errors like cancellation or timeout take precedence over any
 				// underlying HTTP errors, as the caller is expected to interrogate them

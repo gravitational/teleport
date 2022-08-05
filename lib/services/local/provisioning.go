@@ -40,51 +40,27 @@ func NewProvisioningService(backend backend.Backend) *ProvisioningService {
 
 // UpsertToken adds provisioning tokens for the auth server
 func (s *ProvisioningService) UpsertToken(ctx context.Context, p types.ProvisionToken) error {
-	item, err := s.tokenToItem(p)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = s.Put(ctx, *item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// CreateToken creates a new token for the auth server
-func (s *ProvisioningService) CreateToken(ctx context.Context, p types.ProvisionToken) error {
-	item, err := s.tokenToItem(p)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = s.Create(ctx, *item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func (s *ProvisioningService) tokenToItem(p types.ProvisionToken) (*backend.Item, error) {
 	if err := p.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	if p.Expiry().IsZero() || p.Expiry().Sub(s.Clock().Now().UTC()) < time.Second {
 		p.SetExpiry(s.Clock().Now().UTC().Add(defaults.ProvisioningTokenTTL))
 	}
 	data, err := services.MarshalProvisionToken(p)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-	item := &backend.Item{
+	item := backend.Item{
 		Key:     backend.Key(tokensPrefix, p.GetName()),
 		Value:   data,
 		Expires: p.Expiry(),
 		ID:      p.GetResourceID(),
 	}
-	return item, nil
+	_, err = s.Put(ctx, item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // DeleteAllTokens deletes all provisioning tokens
@@ -121,7 +97,7 @@ func (s *ProvisioningService) DeleteToken(ctx context.Context, token string) err
 }
 
 // GetTokens returns all active (non-expired) provisioning tokens
-func (s *ProvisioningService) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
+func (s *ProvisioningService) GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]types.ProvisionToken, error) {
 	startKey := backend.Key(tokensPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
@@ -129,11 +105,8 @@ func (s *ProvisioningService) GetTokens(ctx context.Context) ([]types.ProvisionT
 	}
 	tokens := make([]types.ProvisionToken, len(result.Items))
 	for i, item := range result.Items {
-		t, err := services.UnmarshalProvisionToken(
-			item.Value,
-			services.WithResourceID(item.ID),
-			services.WithExpires(item.Expires),
-		)
+		t, err := services.UnmarshalProvisionToken(item.Value,
+			services.AddOptions(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -336,16 +336,14 @@ func (s *Server) createTracker(sess *sessionChunk, identity *tlsca.Identity) err
 
 	s.log.Debugf("Creating tracker for session chunk %v", sess.id)
 	tracker, err := srv.NewSessionTracker(s.closeContext, trackerSpec, s.c.AuthClient)
-	switch {
-	case err == nil:
-	case trace.IsAccessDenied(err):
-		// Ignore access denied errors, which we may get if the auth
-		// server is v9.2.3 or earlier, since only node, proxy, and
+	if err != nil {
+		// Ignore access denied errors, which we will get if the auth
+		// server is v9.2.1 or earlier, since only node, proxy, and
 		// kube roles had permission to create session trackers.
-		// DELETE IN 11.0.0
-		s.log.Debugf("Insufficient permissions to create session tracker, skipping session tracking for session chunk %v", sess.id)
-		return nil
-	default: // aka err != nil
+		if trace.IsAccessDenied(err) {
+			s.log.Debugf("Insufficient permissions to create session tracker, skipping session tracking for session chunk %v", sess.id)
+			return nil
+		}
 		return trace.Wrap(err)
 	}
 

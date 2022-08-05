@@ -28,7 +28,6 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -158,9 +157,9 @@ func (c *TokensCommand) Add(ctx context.Context, client auth.ClientI) error {
 	}
 
 	// Generate token.
-	token, err := client.GenerateToken(ctx, &proto.GenerateTokenRequest{
+	token, err := client.GenerateToken(ctx, auth.GenerateTokenRequest{
 		Roles:  roles,
-		TTL:    proto.Duration(c.ttl),
+		TTL:    c.ttl,
 		Token:  c.value,
 		Labels: labels,
 	})
@@ -200,7 +199,7 @@ func (c *TokensCommand) Add(ctx context.Context, client auth.ClientI) error {
 
 	// Calculate the CA pins for this cluster. The CA pins are used by the
 	// client to verify the identity of the Auth Server.
-	localCAResponse, err := client.GetClusterCACert(ctx)
+	localCAResponse, err := client.GetClusterCACert()
 	if err != nil {
 		return trace.Wrap(err)
 	}

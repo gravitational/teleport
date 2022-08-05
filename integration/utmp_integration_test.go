@@ -29,7 +29,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
@@ -145,7 +144,7 @@ func TestRootUsernameLimit(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// upack holds all ssh signing artifacts needed for signing and checking user keys
+// upack holds all ssh signing artefacts needed for signing and checking user keys
 type upack struct {
 	// key is a raw private user key
 	key []byte
@@ -207,7 +206,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	require.NoError(t, err)
 
 	// set up host private key and certificate
-	priv, pub, err := native.GenerateKeyPair()
+	priv, pub, err := s.server.Auth().GenerateKeyPair("")
 	require.NoError(t, err)
 
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
@@ -294,7 +293,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 
 func newUpack(ctx context.Context, s *SrvCtx, username string, allowedLogins []string, allowedLabels types.Labels) (*upack, error) {
 	auth := s.server.Auth()
-	upriv, upub, err := native.GenerateKeyPair()
+	upriv, upub, err := auth.GenerateKeyPair("")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

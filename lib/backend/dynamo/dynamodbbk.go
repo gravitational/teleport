@@ -206,13 +206,13 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		return nil, trace.BadParameter("DynamoDB configuration is invalid: %v", err)
 	}
 
+	l.Infof("Initializing backend. Table: %q, poll streams every %v.", cfg.TableName, cfg.PollStreamPeriod)
+
 	defer l.Debug("AWS session is created.")
 
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	l.Infof("Initializing backend. Table: %q, poll streams every %v.", cfg.TableName, cfg.PollStreamPeriod)
 
 	buf := backend.NewCircularBuffer(
 		backend.BufferCapacity(cfg.BufferSize),

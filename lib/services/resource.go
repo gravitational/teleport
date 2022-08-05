@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-// MarshalConfig specifies marshaling options
+// MarshalConfig specifies marshalling options
 type MarshalConfig struct {
 	// Version specifies particular version we should marshal resources with
 	Version string
@@ -52,7 +52,7 @@ func (m *MarshalConfig) GetVersion() string {
 	return m.Version
 }
 
-// MarshalOption sets marshaling option
+// MarshalOption sets marshalling option
 type MarshalOption func(c *MarshalConfig) error
 
 // CollectOptions collects all options from functional arg and returns config

@@ -22,27 +22,18 @@ kubeClusterName: ""
 # Values that must be provided if Application access is enabled.
 ################################################################
 
-# At least one of 'apps', 'appResources' must be provided
-# when application access is enabled. See the README for more details.
-
 # Details of at least one app to be proxied. Example:
 # apps:
 #  - name: grafana
 #    uri: http://localhost:3000
 apps: []
 
-# Dynamic application configuration mode. Example:
-# appResources:
-#  - labels:
-#      "*": "*"
-appResources: []
-
 ################################################################
 # Values that must be provided if Database access is enabled.
 ################################################################
 
-# At least one of 'databases', 'awsDatabases' or 'databaseResources' must be provided
-# when database access is enabled. See the README for more details.
+# At least one of 'databases' or 'awsDatabases' must be provided when database access
+# is enabled. See the README for more details.
 
 # Database auto-discovery mode (AWS only)
 # Details of at least one awsDatabase discovery pattern to be discovered
@@ -64,27 +55,12 @@ awsDatabases: []
 #      env: "prod"
 databases: []
 
-# Dynamic database configuration mode. Example:
-# databaseResources:
-#  - labels:
-#      "*": "*"
-databaseResources: []
-
 ################################################################
 # Values that you may need to change.
 ################################################################
 
 # Version of teleport image, if different from appVersion in Chart.yaml.
 teleportVersionOverride: ""
-
-# Optional CA pins of the auth server. This enables a more secure way of
-# adding new nodes to a cluster. See "Adding Nodes to the Cluster"
-# (https://goteleport.com/docs/admin-guide/#adding-nodes-to-the-cluster).
-# Each list element can be the pin itself (recommended), or a path to a file
-# containing the pin. For the latter it is your responsibility to mount
-# the file, using extraVolumes.
-caPin: []
-
 # When set to true, the agent will skip the verification of proxy TLS
 # certificate.
 insecureSkipProxyTLSVerify: false
@@ -118,14 +94,17 @@ highAvailability:
     minAvailable: 1
 
 ################################################################
-# Values that must be provided if using persistent storage for Teleport.
+# Values that must be provided if using persistent storage for Teleport state.
 #
-# Assigning a persistent volume to Teleport agent allows the agent to keep session recordings when the pod is restarted if `session_recording` is set to `node` or `proxy`. 
-# The security association between the agent and the Teleport is no longer stored in PV, instead it is stored in a Kubernetes Secret so that the agent does not require PV 
-# to survive restarts and rotations while using short-lived joining tokens.
+# Assigning a persistent volume to Teleport agent allows the agent to store its security association with the Teleport
+# cluster for re-use when the pod is restarted. Without a persistent storage for this state, every time Teleport agent
+# starts it must use the authToken to create a new registration with the cluster. By using the persistent volume the
+# authToken can be routinely rotated without breaking agents' ability to restart, as the token is only used on the first
+# startup. When persistent volumes are enabled, the agent will be deployed as a StatefulSet instead of a Deployment to
+# Kubernetes.
 #
 # Fields:
-#   enabled: Set to true to enable the use of Persistent volumes.
+#   enabled: Set to true to enable the use of StatefulSets and Persistent volumes.
 #   storageClassName: The name of the kubernetes storage class to use when creating volumes. See https://kubernetes.io/docs/concepts/storage/storage-classes/
 #   requests: The size of the volume to request from the persistent storage system
 ################################################################
@@ -151,10 +130,6 @@ imagePullSecrets: []
 clusterRoleName: ""
 # (optional) Override the name of the ClusterRoleBinding used by the agent's service account.
 clusterRoleBindingName: ""
-# (optional) Override the name of the Role used by the agent's service account for Secret access.
-roleName: ""
-# (optional) Override the name of the RoleBinding used by the agent's service account.
-roleBindingName: ""
 # (optional) Override the name of the service account used by the agent.
 serviceAccountName: ""
 # Name of the Secret to store the teleport join token.
@@ -197,10 +172,6 @@ extraLabels:
   clusterRole: {}
   # Labels for the Cluster Role Binding
   clusterRoleBinding: {}
-  # Labels for the  Role
-  role: {}
-  # Labels for the Role Binding
-  roleBinding: {}
   # Labels for the ConfigMap
   config: {}
   # Labels for the Deployment/StatefulSet

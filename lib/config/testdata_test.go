@@ -119,13 +119,15 @@ auth_service:
   - "auth:yyy"
   ca_key_params:
     pkcs11:
-      module_path: %s
+      module_path: /usr/local/lib/example/path.so
       token_label: "example_token"
       slot_number: 1
       pin: "example_pin"
   authentication:
     u2f:
       app_id: "app-id"
+      facets:
+      - https://localhost:3080
       device_attestation_cas:
       - "testdata/u2f_attestation_ca.pem"
       - |
@@ -156,7 +158,6 @@ proxy_service:
   enabled: yes
   web_listen_addr: webhost
   tunnel_listen_addr: tunnelhost:1001
-  peer_listen_addr: peerhost:1234
   public_addr: web3:443
   postgres_public_addr: postgres.example:5432
   mysql_listen_addr: webhost:3336
