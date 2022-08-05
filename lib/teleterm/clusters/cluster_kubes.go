@@ -31,7 +31,7 @@ type Kube struct {
 	// URI is the kube URI
 	URI uri.ResourceURI
 
-	types.KubernetesCluster
+	KubernetesCluster types.KubeCluster
 }
 
 // GetKubes returns kube services
@@ -57,19 +57,23 @@ func (c *Cluster) GetKubes(ctx context.Context) ([]Kube, error) {
 
 	defer authClient.Close()
 
-	services, err := authClient.GetKubeServices(ctx)
+	servers, err := authClient.GetKubernetesServers(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	kubeMap := map[string]Kube{}
-	for _, service := range services {
-		for _, kube := range service.GetKubernetesClusters() {
-			kubeMap[kube.Name] = Kube{
-				URI:               c.URI.AppendKube(kube.Name),
-				KubernetesCluster: *kube,
-			}
+	for _, server := range servers {
+		kube := server.GetCluster()
+		if kube == nil {
+			continue
 		}
+
+		kubeMap[kube.GetName()] = Kube{
+			URI:               c.URI.AppendKube(kube.GetName()),
+			KubernetesCluster: kube,
+		}
+
 	}
 
 	kubes := make([]Kube, 0, len(kubeMap))

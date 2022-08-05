@@ -58,7 +58,7 @@ func (t *TermHandlers) HandleExec(ctx context.Context, ch ssh.Channel, req *ssh.
 // HandlePTYReq handles requests of type "pty-req" which allocate a TTY for
 // "exec" or "shell" requests. The "pty-req" includes the size of the TTY as
 // well as the terminal type requested.
-func (t *TermHandlers) HandlePTYReq(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
+func (t *TermHandlers) HandlePTYReq(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *ServerContext) error {
 	// parse and extract the requested window size of the pty
 	ptyRequest, err := parsePTYReq(req)
 	if err != nil {
@@ -74,28 +74,28 @@ func (t *TermHandlers) HandlePTYReq(ch ssh.Channel, req *ssh.Request, ctx *Serve
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ctx.Debugf("Requested terminal %q of size %v", ptyRequest.Env, *params)
+	scx.Debugf("Requested terminal %q of size %v", ptyRequest.Env, *params)
 
 	// get an existing terminal or create a new one
-	term := ctx.GetTerm()
+	term := scx.GetTerm()
 	if term == nil {
 		// a regular or forwarding terminal will be allocated
-		term, err = NewTerminal(ctx)
+		term, err = NewTerminal(scx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		ctx.SetTerm(term)
-		ctx.termAllocated = true
+		scx.SetTerm(term)
+		scx.termAllocated = true
 	}
-	if err := term.SetWinSize(*params); err != nil {
-		ctx.Errorf("Failed setting window size: %v", err)
+	if err := term.SetWinSize(ctx, *params); err != nil {
+		scx.Errorf("Failed setting window size: %v", err)
 	}
 	term.SetTermType(ptyRequest.Env)
 	term.SetTerminalModes(termModes)
 
 	// update the session
-	if err := t.SessionRegistry.NotifyWinChange(*params, ctx); err != nil {
-		ctx.Errorf("Unable to update session: %v", err)
+	if err := t.SessionRegistry.NotifyWinChange(ctx, *params, scx); err != nil {
+		scx.Errorf("Unable to update session: %v", err)
 	}
 
 	return nil
@@ -124,7 +124,7 @@ func (t *TermHandlers) HandleShell(ctx context.Context, ch ssh.Channel, req *ssh
 // HandleWinChange handles requests of type "window-change" which update the
 // size of the PTY running on the server and update any other members in the
 // party.
-func (t *TermHandlers) HandleWinChange(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
+func (t *TermHandlers) HandleWinChange(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *ServerContext) error {
 	params, err := parseWinChange(req)
 	if err != nil {
 		return trace.Wrap(err)
@@ -132,7 +132,7 @@ func (t *TermHandlers) HandleWinChange(ch ssh.Channel, req *ssh.Request, ctx *Se
 
 	// Update any other members in the party that the window size has changed
 	// and to update their terminal windows accordingly.
-	err = t.SessionRegistry.NotifyWinChange(*params, ctx)
+	err = t.SessionRegistry.NotifyWinChange(ctx, *params, scx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

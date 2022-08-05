@@ -210,13 +210,13 @@ func sshProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxyPara
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = agent.RequestAgentForwarding(sess)
+	err = agent.RequestAgentForwarding(sess.Session)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	sshUserHost := fmt.Sprintf("%s:%s", sp.targetHost, sp.targetPort)
-	if err = sess.RequestSubsystem(proxySubsystemName(sshUserHost, sp.clusterName)); err != nil {
+	if err = sess.RequestSubsystem(ctx, proxySubsystemName(sshUserHost, sp.clusterName)); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := proxySession(ctx, sess); err != nil {
@@ -271,7 +271,7 @@ func makeSSHClient(ctx context.Context, conn net.Conn, addr string, cfg *ssh.Cli
 	return tracessh.NewClient(cc, chs, reqs), nil
 }
 
-func proxySession(ctx context.Context, sess *ssh.Session) error {
+func proxySession(ctx context.Context, sess *tracessh.Session) error {
 	stdout, err := sess.StdoutPipe()
 	if err != nil {
 		return trace.Wrap(err)

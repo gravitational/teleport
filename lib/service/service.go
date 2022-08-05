@@ -363,6 +363,10 @@ type TeleportProcess struct {
 	// clusterFeatures contain flags for supported and unsupported features.
 	clusterFeatures proto.Features
 
+	// authSubjectiveAddr is the peer address of this process as seen by the auth
+	// server during the most recent ping (may be empty).
+	authSubjectiveAddr string
+
 	// cloudLabels is a set of labels imported from a cloud provider and shared between
 	// services.
 	cloudLabels labels.Importer
@@ -543,6 +547,24 @@ func (process *TeleportProcess) getClusterFeatures() proto.Features {
 	defer process.Unlock()
 
 	return process.clusterFeatures
+}
+
+// setAuthSubjectiveAddr records the peer address that the auth server observed
+// for this process during the most recent ping.
+func (process *TeleportProcess) setAuthSubjectiveAddr(ip string) {
+	process.Lock()
+	defer process.Unlock()
+	if ip != "" {
+		process.authSubjectiveAddr = ip
+	}
+}
+
+// getAuthSubjectiveAddr accesses the peer address reported by the auth server
+// during the most recent ping. May be empty.
+func (process *TeleportProcess) getAuthSubjectiveAddr() string {
+	process.Lock()
+	defer process.Unlock()
+	return process.authSubjectiveAddr
 }
 
 // GetIdentity returns the process identity (credentials to the auth server) for a given
@@ -1190,7 +1212,10 @@ func (process *TeleportProcess) makeInventoryControlStreamWhenReady(ctx context.
 func (process *TeleportProcess) makeInventoryControlStream(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
 	// if local auth exists, create an in-memory control stream
 	if auth := process.getLocalAuth(); auth != nil {
-		return auth.MakeLocalInventoryControlStream(), nil
+		// we use getAuthSubjectiveAddr to guess our peer address even through we are
+		// using an in-memory pipe. this works because heartbeat operations don't start
+		// until after their respective services have successfully pinged the auth server.
+		return auth.MakeLocalInventoryControlStream(client.ICSPipePeerAddrFn(process.getAuthSubjectiveAddr)), nil
 	}
 
 	// fallback to using the instance client
@@ -1464,11 +1489,11 @@ func (process *TeleportProcess) initAuthService() error {
 			emitter = localLog
 		}
 	}
-
+	clusterName := cfg.Auth.ClusterName.GetClusterName()
 	checkingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
 		Inner:       events.NewMultiEmitter(events.NewLoggingEmitter(), emitter),
 		Clock:       process.Clock,
-		ClusterName: cfg.Auth.ClusterName.GetClusterName(),
+		ClusterName: clusterName,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1477,10 +1502,26 @@ func (process *TeleportProcess) initAuthService() error {
 	checkingStreamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{
 		Inner:       streamer,
 		Clock:       process.Clock,
-		ClusterName: cfg.Auth.ClusterName.GetClusterName(),
+		ClusterName: clusterName,
 	})
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	traceClt := tracing.NewNoopClient()
+	if cfg.Tracing.Enabled {
+		traceConf, err := process.Config.Tracing.Config()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		traceConf.Logger = process.log.WithField(trace.Component, teleport.ComponentTracing)
+
+		clt, err := tracing.NewStartedClient(process.ExitContext(), *traceConf)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		traceClt = clt
 	}
 
 	// first, create the AuthServer
@@ -1514,6 +1555,7 @@ func (process *TeleportProcess) initAuthService() error {
 		KeyStoreConfig:          cfg.Auth.KeyStore,
 		Emitter:                 checkingEmitter,
 		Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
+		TraceClient:             traceClt,
 	}, func(as *auth.Server) error {
 		if !process.Config.CachePolicy.Enabled {
 			return nil
@@ -1563,6 +1605,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Component:      teleport.ComponentAuth,
 			AuditLog:       process.auditLog,
 			SessionTracker: authServer.Services,
+			ClusterName:    clusterName,
 			// DELETE IN 11.0.0
 			// Provide a grace period so that Auth does not prematurely upload
 			// sessions which don't have a session tracker (v9.2 and earlier)
@@ -1585,7 +1628,7 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	authorizer, err := auth.NewAuthorizer(cfg.Auth.ClusterName.GetClusterName(), authServer, lockWatcher)
+	authorizer, err := auth.NewAuthorizer(clusterName, authServer, lockWatcher)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1641,22 +1684,6 @@ func (process *TeleportProcess) initAuthService() error {
 	go mux.Serve()
 	authMetrics := &auth.Metrics{GRPCServerLatency: cfg.Metrics.GRPCServerLatency}
 
-	traceClt := tracing.NewNoopClient()
-	if cfg.Tracing.Enabled {
-		traceConf, err := process.Config.Tracing.Config()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		traceConf.Logger = process.log.WithField(trace.Component, teleport.ComponentTracing)
-
-		clt, err := tracing.NewStartedClient(process.ExitContext(), *traceConf)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		traceClt = clt
-	}
-
 	tlsServer, err := auth.NewTLSServer(auth.TLSServerConfig{
 		TLS:           tlsConfig,
 		APIConfig:     *apiConf,
@@ -1666,7 +1693,6 @@ func (process *TeleportProcess) initAuthService() error {
 		ID:            process.id,
 		Listener:      mux.TLS(),
 		Metrics:       authMetrics,
-		TraceClient:   traceClt,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -2284,6 +2310,7 @@ func (process *TeleportProcess) initSSH() error {
 			completerCfg := events.UploadCompleterConfig{
 				SessionTracker: conn.Client,
 				GracePeriod:    defaults.UploadGracePeriod,
+				ClusterName:    conn.ServerIdentity.ClusterName,
 			}
 			if err := process.initUploaderService(uploaderCfg, completerCfg); err != nil {
 				return trace.Wrap(err)
@@ -3219,7 +3246,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		trace.Component: teleport.Component(teleport.ComponentReverseTunnelServer, process.id),
 	})
 
-	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
+	clusterName := conn.ServerIdentity.ClusterName
 
 	// asyncEmitter makes sure that sessions do not block
 	// in case if connections are slow
@@ -3575,7 +3602,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				StreamEmitter:                 streamEmitter,
 				DataDir:                       cfg.DataDir,
 				CachingAuthClient:             accessPoint,
-				ServerID:                      cfg.HostUUID,
+				HostID:                        cfg.HostUUID,
 				ClusterOverride:               cfg.Proxy.Kube.ClusterOverride,
 				KubeconfigPath:                cfg.Proxy.Kube.KubeconfigPath,
 				Component:                     component,
@@ -3586,6 +3613,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			TLS:           tlsConfig,
 			LimiterConfig: cfg.Proxy.Limiter,
 			AccessPoint:   accessPoint,
+			GetRotation:   process.getRotation,
 			OnHeartbeat:   process.onHeartbeat(component),
 		})
 		if err != nil {
@@ -3833,6 +3861,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 	completerCfg := events.UploadCompleterConfig{
 		SessionTracker: conn.Client,
+		ClusterName:    clusterName,
 	}
 	if err := process.initUploaderService(uploaderCfg, completerCfg); err != nil {
 		return trace.Wrap(err)
@@ -4127,6 +4156,8 @@ func (process *TeleportProcess) initApps() {
 			log.Debugf("Application service dependencies have started, continuing.")
 		}
 
+		clusterName := conn.ServerIdentity.ClusterName
+
 		// Start uploader that will scan a path on disk and upload completed
 		// sessions to the Auth Server.
 		uploaderCfg := filesessions.UploaderConfig{
@@ -4135,6 +4166,7 @@ func (process *TeleportProcess) initApps() {
 		}
 		completerCfg := events.UploadCompleterConfig{
 			SessionTracker: conn.Client,
+			ClusterName:    clusterName,
 		}
 		if err := process.initUploaderService(uploaderCfg, completerCfg); err != nil {
 			return trace.Wrap(err)
@@ -4207,8 +4239,6 @@ func (process *TeleportProcess) initApps() {
 
 			applications = append(applications, a)
 		}
-
-		clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
 		lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 			ResourceWatcherConfig: services.ResourceWatcherConfig{
