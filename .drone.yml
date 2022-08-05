@@ -1248,10 +1248,21 @@ steps:
       - git init && git remote add origin ${DRONE_REMOTE_URL}
       - git fetch origin
       - git checkout -qf ${DRONE_COMMIT_SHA}
-      # Build and push Teleport lab image
-      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
-      - docker build --build-arg TELEPORT_TAG=$TELEPORT_TAG -t $TELEPORT_LAB_IMAGE_NAME /go/src/github.com/gravitational/teleport/docker/sshd
-      - docker push $TELEPORT_LAB_IMAGE_NAME
+      # Authenticate to staging registry
+      - export AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID"
+      - export AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY"
+      - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
+      # Build and push image
+      - docker build --build-arg TELEPORT_TAG=$TELEPORT_TAG -t $TELEPORT_LAB_IMAGE_NAME_STAGING /go/src/github.com/gravitational/teleport/docker/sshd
+      - docker push $TELEPORT_LAB_IMAGE_NAME_STAGING
+      # Authenticate to production registry
+      - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
+      - export AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID"
+      - export AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY"
+      - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin public.ecr.aws
+      # Push to production registry
+      - docker tag $TELEPORT_LAB_IMAGE_NAME_STAGING $TELEPORT_LAB_IMAGE_NAME_PROD
+      - docker push $TELEPORT_LAB_IMAGE_NAME_PROD
 
 services:
   - name: Start Docker
@@ -6124,6 +6135,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: cfe9263c545d10b26f27dc10b8b5e5b833d0fca4333860550dae28113cef681a
+hmac: 5a99a9f645644212c0e1a1463742d43922b1ec2a529b23b6f4dbad30675f96ef
 
 ...
