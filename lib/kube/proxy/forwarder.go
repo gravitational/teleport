@@ -784,7 +784,9 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
+	f.mu.Lock()
 	session := f.sessions[sessionID]
+	f.mu.Unlock()
 	if session == nil {
 		return nil, trace.NotFound("session %v not found", sessionID)
 	}
