@@ -845,9 +845,9 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 }
 
 func (a *ServerWithRoles) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
-	// admin-only for now, but we'll eventually want to develop an RBAC syntax for
+	// only support builtin roles for now, but we'll eventually want to develop an RBAC syntax for
 	// the inventory APIs once they are more developed.
-	if !a.hasBuiltinRole(types.RoleAdmin) {
+	if !a.hasBuiltinRole(types.RoleAdmin, types.RoleProxy) {
 		return proto.InventoryStatusSummary{}, trace.AccessDenied("requires builtin admin role")
 	}
 	return a.authServer.GetInventoryStatus(ctx, req), nil

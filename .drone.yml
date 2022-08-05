@@ -5819,7 +5819,7 @@ steps:
   - docker push quay.io/gravitational/teleport:$${VERSION}
   - docker push quay.io/gravitational/teleport-ent:$${VERSION}
   - docker push quay.io/gravitational/teleport-ent:$${VERSION}-fips
-  -   ERSION}
+  - docker push quay.io/gravitational/teleport-operator:$${VERSION}
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY

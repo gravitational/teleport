@@ -363,6 +363,10 @@ type TeleportProcess struct {
 	// clusterFeatures contain flags for supported and unsupported features.
 	clusterFeatures proto.Features
 
+	// authSubjectiveAddr is the peer address of this process as seen by the auth
+	// server during the most recent ping (may be empty).
+	authSubjectiveAddr string
+
 	// cloudLabels is a set of labels imported from a cloud provider and shared between
 	// services.
 	cloudLabels labels.Importer
@@ -543,6 +547,24 @@ func (process *TeleportProcess) getClusterFeatures() proto.Features {
 	defer process.Unlock()
 
 	return process.clusterFeatures
+}
+
+// setAuthSubjectiveAddr records the peer address that the auth server observed
+// for this process during the most recent ping.
+func (process *TeleportProcess) setAuthSubjectiveAddr(ip string) {
+	process.Lock()
+	defer process.Unlock()
+	if ip != "" {
+		process.authSubjectiveAddr = ip
+	}
+}
+
+// getAuthSubjectiveAddr accesses the peer address reported by the auth server
+// during the most recent ping. May be empty.
+func (process *TeleportProcess) getAuthSubjectiveAddr() string {
+	process.Lock()
+	defer process.Unlock()
+	return process.authSubjectiveAddr
 }
 
 // GetIdentity returns the process identity (credentials to the auth server) for a given
@@ -1190,7 +1212,10 @@ func (process *TeleportProcess) makeInventoryControlStreamWhenReady(ctx context.
 func (process *TeleportProcess) makeInventoryControlStream(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
 	// if local auth exists, create an in-memory control stream
 	if auth := process.getLocalAuth(); auth != nil {
-		return auth.MakeLocalInventoryControlStream(), nil
+		// we use getAuthSubjectiveAddr to guess our peer address even through we are
+		// using an in-memory pipe. this works because heartbeat operations don't start
+		// until after their respective services have successfully pinged the auth server.
+		return auth.MakeLocalInventoryControlStream(client.ICSPipePeerAddrFn(process.getAuthSubjectiveAddr)), nil
 	}
 
 	// fallback to using the instance client
