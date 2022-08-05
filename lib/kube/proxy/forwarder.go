@@ -1178,7 +1178,9 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	}
 
 	<-party.closeC
+	f.mu.Lock()
 	delete(f.sessions, session.id)
+	f.mu.Unlock()
 	return nil, nil
 }
 
