@@ -324,7 +324,10 @@ func TestRetry(t *testing.T) {
 
 			backend, err := newBackend(
 				context.Background(),
-				Config{Tablename: fmt.Sprintf("teleport-test-%v", uuid.New().String())},
+				Config{
+					Region:    "eu-north-1",
+					Tablename: fmt.Sprintf("teleport-test-%v", uuid.New().String()),
+				},
 				nil,
 			)
 			require.NoError(t, err)
