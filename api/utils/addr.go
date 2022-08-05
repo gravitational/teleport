@@ -28,6 +28,18 @@ func IsLoopback(host string) bool {
 	return isLoopbackWithResolver(host, net.DefaultResolver)
 }
 
+// IsUnspecified returns true if the given host is an unspecified address.
+func IsUnspecified(host string) bool {
+	if strings.Contains(host, ":") {
+		var err error
+		host, _, err = net.SplitHostPort(host)
+		if err != nil {
+			return false
+		}
+	}
+	return net.ParseIP(host).IsUnspecified()
+}
+
 type nameResolver interface {
 	LookupIPAddr(ctx context.Context, host string) ([]net.IPAddr, error)
 }

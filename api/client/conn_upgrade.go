@@ -58,7 +58,7 @@ func isHTTPConnUpgradeRequired(proxyAddr string, tlsConfig *tls.Config) bool {
 		return result
 	}
 
-	upgradeRequired, err := alpnHandshakeTest(
+	upgradeRequired, _ := alpnHandshakeTest(
 		proxyAddr,
 		// Use an old but stable protocol for testing to reduce false
 		// positives in case remote is running a different version.
@@ -67,15 +67,15 @@ func isHTTPConnUpgradeRequired(proxyAddr string, tlsConfig *tls.Config) bool {
 	)
 	alpnTestResultsCache.Set(proxyAddr, upgradeRequired)
 
-	if err != nil {
-		logrus.Warn(err)
-	}
-
 	return upgradeRequired
 }
 
 func alpnHandshakeTest(addr string, protocol string, insecure bool) (bool, error) {
 	logrus.Debugf("-->> alpnHandshakeTest test for %v", addr)
+
+	if utils.IsLoopback(addr) || utils.IsUnspecified(addr) {
+		return false, nil
+	}
 
 	testConn, err := tls.Dial("tcp", addr, &tls.Config{
 		NextProtos:         []string{protocol},

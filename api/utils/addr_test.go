@@ -109,3 +109,29 @@ func TestIsLoopback(t *testing.T) {
 		})
 	}
 }
+
+func TestIsUnspecified(t *testing.T) {
+	tests := []struct {
+		host                string
+		expectIsUnspecified bool
+	}{
+		{
+			host:                "0.0.0.0:3025",
+			expectIsUnspecified: true,
+		},
+		{
+			host:                "0.0.0.0",
+			expectIsUnspecified: true,
+		},
+		{
+			host:                "a.com",
+			expectIsUnspecified: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.host, func(t *testing.T) {
+			require.Equal(t, test.expectIsUnspecified, IsUnspecified(test.host))
+		})
+	}
+}

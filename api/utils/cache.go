@@ -41,19 +41,22 @@ func (c *CacheConfig) SetDefaults() {
 	if c.CleanupInterval == 0 {
 		// 10 is an is an arbitrary multiplier used to derive the schedule for
 		// periodic lazy cleanup of expired items.
+		//
+		// If c.DefaultTTL is zero, c.CleanupInterval will also be zero,
+		// meaning items never expires and there won't be any cleanup routines.
 		c.CleanupInterval = c.DefaultTTL * 10
 	}
 }
 
-// cacheItem is a cache item.
+// cacheItem is a cached item.
 type cacheItem[V any] struct {
-	Value     V
-	ExpiresAt time.Time
+	value     V
+	expiresAt time.Time
 }
 
 // isExpired returns true if the item is expired.
 func (item cacheItem[V]) isExpired(now time.Time) bool {
-	return !item.ExpiresAt.IsZero() && item.ExpiresAt.Before(now)
+	return !item.expiresAt.IsZero() && item.expiresAt.Before(now)
 }
 
 // Cache is a cache map.
@@ -69,12 +72,13 @@ func NewCache[K comparable, V any](config CacheConfig) *Cache[K, V] {
 	config.SetDefaults()
 
 	return &Cache[K, V]{
-		cfg:   config,
-		items: make(map[K]cacheItem[V]),
+		cfg:         config,
+		items:       make(map[K]cacheItem[V]),
+		nextCleanup: config.Clock.Now().Add(config.CleanupInterval),
 	}
 }
 
-// Get retrieves item with provided key.
+// Get retrieves cached value with provided key.
 func (c *Cache[K, V]) Get(key K) (value V, found bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -92,7 +96,7 @@ func (c *Cache[K, V]) Get(key K) (value V, found bool) {
 		return value, false
 	}
 
-	return item.Value, true
+	return item.value, true
 }
 
 // Set updates cache with the provided key, the provided value, and the default TTL.
@@ -110,11 +114,11 @@ func (c *Cache[K, V]) SetWithTTL(key K, value V, ttl time.Duration) {
 	c.maybeCleanup(now)
 
 	item := cacheItem[V]{
-		Value: value,
+		value: value,
 	}
 
 	if ttl > 0 {
-		item.ExpiresAt = now.Add(ttl)
+		item.expiresAt = now.Add(ttl)
 	}
 
 	c.items[key] = item
@@ -139,7 +143,7 @@ func (c *Cache[K, V]) Len() int {
 	return len(c.items)
 }
 
-// maybeCleanup performs a cleanup when CleanupInterval has passed. This
+// maybeCleanup performs a lazy cleanup when CleanupInterval has passed. This
 // function assumes lock is already held outside.
 func (c *Cache[K, V]) maybeCleanup(now time.Time) {
 	if c.cfg.CleanupInterval <= 0 || now.Before(c.nextCleanup) {
