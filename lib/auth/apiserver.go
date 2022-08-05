@@ -232,7 +232,7 @@ func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 			authServer: s.AuthServer,
 			context:    *authContext,
 			sessions:   s.SessionService,
-			alog:       s.AuthServer.IAuditLog,
+			alog:       s.AuthServer,
 		}
 		version := p.ByName("version")
 		if version == "" {

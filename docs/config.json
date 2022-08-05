@@ -326,8 +326,12 @@
           "slug": "/application-access/guides/",
           "entries": [
             {
-              "title": "Connecting Apps",
+              "title": "Web App Access",
               "slug": "/application-access/guides/connecting-apps/"
+            },
+            {
+              "title": "TCP App Access (Preview)",
+              "slug": "/application-access/guides/tcp/"
             },
             {
               "title": "API Access",
@@ -886,7 +890,7 @@
           "forScopes": ["enterprise"]
         },
         {
-          "title": "SOC2",
+          "title": "SOC 2",
           "slug": "/enterprise/soc2/",
           "forScopes": ["enterprise", "cloud"]
         },
@@ -1046,14 +1050,14 @@
     },
     "teleport": {
       "major_version": "10",
-      "version": "10.0.2",
+      "version": "10.1.2",
       "golang": "1.18",
       "plugin": {
-        "version": "10.0.2"
+        "version": "10.1.2"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "quay.io/gravitational/teleport:10.0.2",
-      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:10.0.2"
+      "latest_oss_docker_image": "quay.io/gravitational/teleport:10.1.2",
+      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:10.1.2"
     }
   },
   "redirects": [
