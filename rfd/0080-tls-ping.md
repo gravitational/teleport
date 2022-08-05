@@ -4,6 +4,10 @@ state: draft
 ---
 
 # RFD 80 - TLS routing Ping
+## Required approvers
+
+Engineering: @smallinsky && @r0mant
+Product: @klizhentas || @xinding33
 
 ## What
 
