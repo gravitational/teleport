@@ -1029,7 +1029,11 @@ image-operator-ci:
 
 .PHONY: publish-operator-ci
 publish-operator-ci: image-operator-ci
-	docker push $(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION)
+	@if DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect $(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION) 2>&1 >/dev/null; then\
+		echo "$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION) already exists. ";     \
+	else                                                                         \
+		docker push $(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION);                 \
+	fi
 
 .PHONY: print-version
 print-version:
