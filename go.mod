@@ -95,6 +95,13 @@ require (
 	go.mozilla.org/pkcs7 v0.0.0-20210826202110-33d05740a352
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.31.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.31.0
+	go.opentelemetry.io/otel v1.7.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.7.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.7.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.7.0
+	go.opentelemetry.io/otel/sdk v1.7.0
+	go.opentelemetry.io/otel/trace v1.7.0
+	go.opentelemetry.io/proto/otlp v0.16.0
 	go.uber.org/atomic v1.7.0
 	golang.org/x/crypto v0.0.0-20220126234351-aa10faf2a1f8
 	golang.org/x/mod v0.4.2
@@ -107,8 +114,8 @@ require (
 	golang.org/x/tools v0.1.6-0.20210820212750-d4cc65f0b2ff
 	google.golang.org/api v0.65.0
 	google.golang.org/genproto v0.0.0-20220118154757-00ab72f36ad5
-	google.golang.org/grpc v1.45.0
-	google.golang.org/protobuf v1.27.1
+	google.golang.org/grpc v1.46.0
+	google.golang.org/protobuf v1.28.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/ini.v1 v1.62.0
 	gopkg.in/square/go-jose.v2 v2.5.1
@@ -140,6 +147,7 @@ require (
 	github.com/aws/smithy-go v1.8.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/boombuler/barcode v1.0.1 // indirect
+	github.com/cenkalti/backoff/v4 v4.1.3 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/cloudflare/cfssl v0.0.0-20190726000631-633726f6bcb7 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
@@ -166,6 +174,7 @@ require (
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/gregjones/httpcache v0.0.0-20180305231024-9cad4c3443a7 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.0.0-rc.2.0.20220308023801-e4a6915ea237 // indirect
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.7.0 // indirect
 	github.com/hashicorp/go-uuid v1.0.2 // indirect
 	github.com/imdario/mergo v0.3.5 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
@@ -179,7 +188,6 @@ require (
 	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
-	github.com/joshlf/go-acl v0.0.0-20200411065538-eae00ae38531
 	github.com/klauspost/compress v1.9.5 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
@@ -222,6 +230,9 @@ require (
 	github.com/yuin/gopher-lua v0.0.0-20200816102855-ee81675732da // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.1 // indirect
 	go.opencensus.io v0.23.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.7.0 // indirect
+	go.opentelemetry.io/otel/metric v0.28.0 // indirect
+	go.starlark.net v0.0.0-20200306205701-8dd3e2ee1dd5 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.19.0 // indirect
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
@@ -270,10 +281,6 @@ require (
 	github.com/russross/blackfriday v1.5.2 // indirect
 	github.com/spf13/cobra v1.2.1 // indirect
 	github.com/xlab/treeprint v1.0.0 // indirect
-	go.opentelemetry.io/otel v1.6.1 // indirect
-	go.opentelemetry.io/otel/metric v0.28.0 // indirect
-	go.opentelemetry.io/otel/trace v1.6.1 // indirect
-	go.starlark.net v0.0.0-20200306205701-8dd3e2ee1dd5 // indirect
 	k8s.io/component-base v0.23.3 // indirect
 	sigs.k8s.io/kustomize/api v0.10.1 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.13.0 // indirect

@@ -7,14 +7,28 @@ layout: tocless-doc
 These guides show you how to set up a full self-hosted Teleport deployment on
 the platform of your choice.
 
-<ul>
-  <li>
-    [AWS Terraform](./deployments/aws-terraform.mdx). Deploy HA Teleport with Terraform Provider on AWS.
-  </li>
-  <li>
-    [GCP](./deployments/gcp.mdx). Deploy HA Teleport on GCP.
-  </li>
-  <li>
-    [IBM Cloud](./deployments/ibm.mdx). Deploy HA Teleport on IBM cloud.
-  </li>
-</ul>
+<TileSet>
+  <Tile
+  title="DigitalOcean"
+  href="./deployments/digitalocean/"
+  >
+
+    Use our DigitalOcean 1-Click App to quickly spin up Teleport on a droplet.
+    
+  </Tile>
+  <Tile href="./deployments/aws-terraform.mdx" title="AWS Terraform">
+
+    Deploy HA Teleport with Terraform Provider on AWS.
+
+  </Tile>
+  <Tile href="./deployments/gcp.mdx" title="GCP">
+
+    Deploy HA Teleport on GCP.
+
+  </Tile>
+  <Tile href="./deployments/ibm.mdx" title="IBM Cloud">
+
+    Deploy HA Teleport on IBM cloud.
+
+  </Tile>
+</TileSet>
