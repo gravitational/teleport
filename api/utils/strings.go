@@ -71,9 +71,9 @@ func (s *Strings) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // if there is only one value in the list
 // to list otherwise
 func (s Strings) MarshalJSON() ([]byte, error) {
-	if len(s) == 1 {
-		return json.Marshal(s[0])
-	}
+	// if len(s) == 1 {
+	// 	return json.Marshal(s[0])
+	// }
 	return json.Marshal([]string(s))
 }
 
@@ -81,9 +81,9 @@ func (s Strings) MarshalJSON() ([]byte, error) {
 // if there is only one value in the list,
 // marshals to list otherwise
 func (s Strings) MarshalYAML() (interface{}, error) {
-	if len(s) == 1 {
-		return s[0], nil
-	}
+	// if len(s) == 1 {
+	// 	return s[0], nil
+	// }
 	return []string(s), nil
 }
 
