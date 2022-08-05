@@ -4,6 +4,7 @@ import apigateway from './v1/gateway_pb';
 import apiServer from './v1/server_pb';
 import apiKube from './v1/kube_pb';
 import apiApp from './v1/app_pb';
+import apiService from './v1/service_pb';
 import apiAuthSettings from './v1/auth_settings_pb';
 
 export type Application = apiApp.App.AsObject;
@@ -26,6 +27,26 @@ export type Cluster = apiCluster.Cluster.AsObject;
 export type LoggedInUser = apiCluster.LoggedInUser.AsObject;
 export type AuthProvider = apiAuthSettings.AuthProvider.AsObject;
 export type AuthSettings = apiAuthSettings.AuthSettings.AsObject;
+
+export type WebauthnCredentialInfo = apiService.CredentialInfo.AsObject;
+export type WebauthnLoginPrompt =
+  | WebauthnLoginTapPrompt
+  | WebauthnLoginRetapPrompt
+  | WebauthnLoginPinPrompt
+  | WebauthnLoginCredentialPrompt;
+export type WebauthnLoginTapPrompt = { type: 'tap' };
+export type WebauthnLoginRetapPrompt = { type: 'retap' };
+export type WebauthnLoginPinPrompt = {
+  type: 'pin';
+  onUserResponse(pin: string): void;
+};
+export type WebauthnLoginCredentialPrompt = {
+  type: 'credential';
+  data: { credentials: WebauthnCredentialInfo[] };
+  onUserResponse(index: number): void;
+};
+export type LoginPasswordlessRequest =
+  Partial<apiService.LoginPasswordlessRequest.AsObject>;
 
 export type TshClient = {
   listRootClusters: () => Promise<Cluster[]>;
@@ -54,7 +75,18 @@ export type TshClient = {
   getCluster: (clusterUri: string) => Promise<Cluster>;
   getAuthSettings: (clusterUri: string) => Promise<AuthSettings>;
   removeCluster: (clusterUri: string) => Promise<void>;
-  login: (params: LoginParams, abortSignal?: TshAbortSignal) => Promise<void>;
+  loginLocal: (
+    params: LoginLocalParams,
+    abortSignal?: TshAbortSignal
+  ) => Promise<void>;
+  loginSso: (
+    params: LoginSsoParams,
+    abortSignal?: TshAbortSignal
+  ) => Promise<void>;
+  loginPasswordless: (
+    params: LoginPasswordlessParams,
+    abortSignal?: TshAbortSignal
+  ) => Promise<void>;
   logout: (clusterUri: string) => Promise<void>;
 };
 
@@ -68,18 +100,24 @@ export type TshAbortSignal = {
   removeEventListener(cb: (...args: any[]) => void): void;
 };
 
-export type LoginParams = {
+interface LoginParamsBase {
   clusterUri: string;
-  sso?: {
-    providerType: string;
-    providerName: string;
-  };
-  local?: {
-    username: string;
-    password: string;
-    token?: string;
-  };
-};
+}
+
+export interface LoginLocalParams extends LoginParamsBase {
+  username: string;
+  password: string;
+  token?: string;
+}
+
+export interface LoginSsoParams extends LoginParamsBase {
+  providerType: string;
+  providerName: string;
+}
+
+export interface LoginPasswordlessParams extends LoginParamsBase {
+  onPromptCallback(res: WebauthnLoginPrompt): void;
+}
 
 export type CreateGatewayParams = {
   targetUri: string;

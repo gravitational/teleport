@@ -15,7 +15,9 @@ import {
   AuthSettings,
   ClustersServiceState,
   CreateGatewayParams,
-  LoginParams,
+  LoginLocalParams,
+  LoginSsoParams,
+  LoginPasswordlessParams,
   SyncStatus,
   tsh,
 } from './types';
@@ -63,16 +65,41 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     this.removeResources(clusterUri);
   }
 
-  async login(params: LoginParams, abortSignal: tsh.TshAbortSignal) {
-    await this.client.login(params, abortSignal);
+  async loginLocal(params: LoginLocalParams, abortSignal: tsh.TshAbortSignal) {
+    await this.client.loginLocal(params, abortSignal);
+    await this.syncRootClusterAndRestartClusterGatewaysAndCatchErrors(
+      params.clusterUri
+    );
+  }
+
+  async loginSso(params: LoginSsoParams, abortSignal: tsh.TshAbortSignal) {
+    await this.client.loginSso(params, abortSignal);
+    await this.syncRootClusterAndRestartClusterGatewaysAndCatchErrors(
+      params.clusterUri
+    );
+  }
+
+  async loginPasswordless(
+    params: LoginPasswordlessParams,
+    abortSignal: tsh.TshAbortSignal
+  ) {
+    await this.client.loginPasswordless(params, abortSignal);
+    await this.syncRootClusterAndRestartClusterGatewaysAndCatchErrors(
+      params.clusterUri
+    );
+  }
+
+  private async syncRootClusterAndRestartClusterGatewaysAndCatchErrors(
+    clusterUri: string
+  ) {
     await Promise.allSettled([
-      this.syncRootClusterAndCatchErrors(params.clusterUri),
+      this.syncRootClusterAndCatchErrors(clusterUri),
       // A temporary workaround until the gateways are able to refresh their own certs on incoming
       // connections.
       //
       // After logging in and obtaining fresh certs for the cluster, we need to make the gateways
       // obtain fresh certs as well. Currently, the only way to achieve that is to restart them.
-      this.restartClusterGatewaysAndCatchErrors(params.clusterUri).then(() =>
+      this.restartClusterGatewaysAndCatchErrors(clusterUri).then(() =>
         // Sync gateways to update their status, in case one of them failed to start back up.
         // In that case, that gateway won't be included in the gateway list in the tsh daemon.
         this.syncGateways()

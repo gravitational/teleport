@@ -20,16 +20,16 @@ import { useAsync } from 'shared/hooks/useAsync';
 
 import * as types from 'teleterm/ui/services/clusters/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { getClusterName } from 'teleterm/ui/utils';
+import { getClusterName, assertUnreachable } from 'teleterm/ui/utils';
 
 export default function useClusterLogin(props: Props) {
   const { onSuccess, clusterUri } = props;
   const { clustersService } = useAppContext();
   const cluster = clustersService.findCluster(clusterUri);
   const refAbortCtrl = useRef<types.tsh.TshAbortController>(null);
-  const [shouldPromptSsoStatus, promptSsoStatus] = useState(false);
-  const [shouldPromptHardwareKey, promptHardwareKey] = useState(false);
   const loggedInUserName = cluster.loggedInUser?.name || null;
+  const [shouldPromptSsoStatus, promptSsoStatus] = useState(false);
+  const [webauthnLogin, setWebauthnLogin] = useState<WebauthnLogin>();
 
   const [initAttempt, init] = useAsync(async () => {
     const authSettings = await clustersService.getAuthSettings(clusterUri);
@@ -43,24 +43,83 @@ export default function useClusterLogin(props: Props) {
     return authSettings;
   });
 
-  const [loginAttempt, login] = useAsync((opts: types.LoginParams) => {
-    refAbortCtrl.current = clustersService.client.createAbortController();
-    return clustersService.login(opts, refAbortCtrl.current.signal);
-  });
+  const [loginAttempt, login, setAttempt] = useAsync(
+    (params: types.LoginParams) => {
+      refAbortCtrl.current = clustersService.client.createAbortController();
+      switch (params.kind) {
+        case 'local':
+          return clustersService.loginLocal(
+            params,
+            refAbortCtrl.current.signal
+          );
+        case 'passwordless':
+          return clustersService.loginPasswordless(
+            params,
+            refAbortCtrl.current.signal
+          );
+        case 'sso':
+          return clustersService.loginSso(params, refAbortCtrl.current.signal);
+        default:
+          assertUnreachable(params);
+      }
+    }
+  );
 
   const onLoginWithLocal = (
-    username: '',
-    password: '',
-    token: '',
-    authType?: types.Auth2faType
+    username: string,
+    password: string,
+    token: string,
+    secondFactor?: types.Auth2faType
   ) => {
-    promptHardwareKey(authType === 'webauthn');
+    if (secondFactor === 'webauthn') {
+      setWebauthnLogin({ prompt: 'tap' });
+    }
+
     login({
+      kind: 'local',
       clusterUri,
-      local: {
-        username,
-        password,
-        token,
+      username,
+      password,
+      token,
+    });
+  };
+
+  const onLoginWithPasswordless = () => {
+    login({
+      kind: 'passwordless',
+      clusterUri,
+      onPromptCallback: (prompt: types.WebauthnLoginPrompt) => {
+        const newLogin: WebauthnLogin = {
+          prompt: prompt.type,
+          processing: false,
+        };
+
+        if (prompt.type === 'pin') {
+          newLogin.onUserResponse = (pin: string) => {
+            setWebauthnLogin({
+              ...newLogin,
+              // prevent user from clicking on submit buttons more than once
+              processing: true,
+            });
+            prompt.onUserResponse(pin);
+          };
+        }
+
+        if (prompt.type === 'credential') {
+          newLogin.loginUsernames = prompt.data.credentials.map(
+            c => c.username
+          );
+          newLogin.onUserResponse = (index: number) => {
+            setWebauthnLogin({
+              ...newLogin,
+              // prevent user from clicking on multiple usernames
+              processing: true,
+            });
+            prompt.onUserResponse(index);
+          };
+        }
+
+        setWebauthnLogin(newLogin);
       },
     });
   };
@@ -68,11 +127,10 @@ export default function useClusterLogin(props: Props) {
   const onLoginWithSso = (provider: types.AuthProvider) => {
     promptSsoStatus(true);
     login({
+      kind: 'sso',
       clusterUri,
-      sso: {
-        providerName: provider.name,
-        providerType: provider.type,
-      },
+      providerName: provider.name,
+      providerType: provider.type,
     });
   };
 
@@ -85,13 +143,19 @@ export default function useClusterLogin(props: Props) {
     props.onCancel();
   };
 
+  // Since the login form can have two views (primary and secondary)
+  // we need to clear any rendered error dialogs before switching.
+  const clearLoginAttempt = () => {
+    setAttempt({ status: '', statusText: '', data: null });
+  };
+
   useEffect(() => {
     init();
   }, []);
 
   useEffect(() => {
     if (loginAttempt.status !== 'processing') {
-      promptHardwareKey(false);
+      setWebauthnLogin(null);
       promptSsoStatus(false);
     }
 
@@ -102,15 +166,17 @@ export default function useClusterLogin(props: Props) {
 
   return {
     shouldPromptSsoStatus,
-    shouldPromptHardwareKey,
+    webauthnLogin,
     title: getClusterName(cluster),
     loggedInUserName,
     onLoginWithLocal,
+    onLoginWithPasswordless,
     onLoginWithSso,
     onCloseDialog,
     onAbort,
     loginAttempt,
     initAttempt,
+    clearLoginAttempt,
   };
 }
 
@@ -120,4 +186,12 @@ export type Props = {
   clusterUri: string;
   onCancel(): void;
   onSuccess?(): void;
+};
+
+export type WebauthnLogin = {
+  prompt: types.WebauthnLoginPrompt['type'];
+  // The below fields are only ever used for passwordless login flow.
+  processing?: boolean;
+  loginUsernames?: string[];
+  onUserResponse?(val: number | string): void;
 };

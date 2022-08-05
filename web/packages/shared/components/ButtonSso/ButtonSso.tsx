@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import Button from 'design/Button';
-import { fade } from 'design/theme/utils/colorManipulator';
+import { darken, lighten } from 'design/theme/utils/colorManipulator';
 import * as Icons from 'design/Icon';
 
 import { AuthProviderType } from 'shared/services';
@@ -102,10 +102,12 @@ const StyledButton = styled(Button)`
   background-color: ${props => props.color};
   display: block;
   width: 100%;
+  border: 1px solid transparent;
 
   &:hover,
   &:focus {
-    background: ${props => fade(props.color, 0.4)};
+    background: ${props => darken(props.color, 0.1)};
+    border: 1px solid ${props => lighten(props.color, 0.4)};
   }
   height: 40px;
   position: relative;

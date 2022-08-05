@@ -27,9 +27,10 @@ export default function PromptSsoStatus(props: Props) {
       flexDirection="column"
       justifyContent="space-between"
       alignItems="center"
+      p={5}
     >
       <Box mb={4} style={{ position: 'relative' }}>
-        <Text bold mb={2}>
+        <Text bold mb={2} textAlign="center">
           Please follow the steps in the new browser window to authenticate.
         </Text>
         <LinearProgress />

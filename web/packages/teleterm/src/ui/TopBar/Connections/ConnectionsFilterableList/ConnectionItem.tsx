@@ -4,6 +4,7 @@ import { Trash, Unlink } from 'design/Icon';
 
 import { ExtendedTrackedConnection } from 'teleterm/ui/services/connectionTracker';
 import { ListItem } from 'teleterm/ui/components/ListItem';
+import { assertUnreachable } from 'teleterm/ui/utils';
 
 import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
 
@@ -130,8 +131,4 @@ function getKindName(kind: ExtendedTrackedConnection['kind']): string {
     default:
       assertUnreachable(kind);
   }
-}
-
-function assertUnreachable(x: never): never {
-  throw new Error(`Unhandled case: ${x}`);
 }

@@ -28,7 +28,7 @@ export function ClusterConnect(props: ClusterConnectProps) {
       dialogCss={() => ({
         maxWidth: '480px',
         width: '100%',
-        padding: '20px',
+        padding: '0',
       })}
       disableEscapeKeyDown={false}
       onClose={props.onCancel}

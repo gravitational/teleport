@@ -31,9 +31,24 @@ export type Auth2faType = shared.Auth2faType;
 
 export type AuthProviderType = shared.AuthProviderType;
 
+export type PrimaryAuthType = shared.PrimaryAuthType;
+
+export type AuthType = shared.AuthType;
+
 export type AuthProvider = tsh.AuthProvider;
 
-export type LoginParams = tsh.LoginParams;
+export type LoginLocalParams = { kind: 'local' } & tsh.LoginLocalParams;
+
+export type LoginPasswordlessParams = {
+  kind: 'passwordless';
+} & tsh.LoginPasswordlessParams;
+
+export type LoginSsoParams = { kind: 'sso' } & tsh.LoginSsoParams;
+
+export type LoginParams =
+  | LoginLocalParams
+  | LoginPasswordlessParams
+  | LoginSsoParams;
 
 export type Application = tsh.Application;
 
@@ -49,9 +64,16 @@ export type Kube = tsh.Kube;
 
 export type Database = tsh.Database;
 
+export type LoginPasswordlessRequest = tsh.LoginPasswordlessRequest;
+
+export type WebauthnLoginPrompt = tsh.WebauthnLoginPrompt;
+
 export interface AuthSettings extends tsh.AuthSettings {
   secondFactor: Auth2faType;
   preferredMfa: PreferredMfaType;
+  authType: AuthType;
+  allowPasswordless: boolean;
+  localConnectorName: string;
 }
 
 export { tsh };

@@ -6,7 +6,9 @@ import {
   Database,
   Gateway,
   Kube,
-  LoginParams,
+  LoginLocalParams,
+  LoginPasswordlessParams,
+  LoginSsoParams,
   Server,
   TshAbortController,
   TshAbortSignal,
@@ -40,8 +42,16 @@ export class MockTshClient implements TshClient {
   getCluster: (clusterUri: string) => Promise<Cluster>;
   getAuthSettings: (clusterUri: string) => Promise<AuthSettings>;
   removeCluster: (clusterUri: string) => Promise<undefined>;
-  login: (
-    params: LoginParams,
+  loginLocal: (
+    params: LoginLocalParams,
+    abortSignal?: TshAbortSignal
+  ) => Promise<undefined>;
+  loginSso: (
+    params: LoginSsoParams,
+    abortSignal?: TshAbortSignal
+  ) => Promise<undefined>;
+  loginPasswordless: (
+    params: LoginPasswordlessParams,
     abortSignal?: TshAbortSignal
   ) => Promise<undefined>;
   logout: (clusterUri: string) => Promise<undefined>;

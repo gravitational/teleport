@@ -20,18 +20,26 @@ import ButtonSso, { guessProviderType } from 'shared/components/ButtonSso';
 
 import * as types from 'teleterm/ui/services/clusters/types';
 
-const SSOBtnList = ({ providers, prefixText, isDisabled, onClick }: Props) => {
+const SSOBtnList = ({
+  providers,
+  prefixText,
+  isDisabled,
+  onClick,
+  autoFocus = false,
+}: Props) => {
   const $btns = providers.map((item, index) => {
     let { name, type, displayName } = item;
     const title = displayName || `${prefixText} ${name}`;
     const ssoType = guessProviderType(title, type as types.AuthProviderType);
+    const isLastItem = providers.length - 1 === index;
     return (
       <ButtonSso
         key={index}
         title={title}
         ssoType={ssoType}
         disabled={isDisabled}
-        mt={3}
+        mb={isLastItem ? 0 : 3}
+        autoFocus={index === 0 && autoFocus}
         onClick={e => {
           e.preventDefault();
           onClick(item);
@@ -44,11 +52,7 @@ const SSOBtnList = ({ providers, prefixText, isDisabled, onClick }: Props) => {
     return <h4> You have no SSO providers configured </h4>;
   }
 
-  return (
-    <Box pt={2} mb={3}>
-      {$btns}
-    </Box>
-  );
+  return <Box>{$btns}</Box>;
 };
 
 type Props = {
@@ -56,6 +60,8 @@ type Props = {
   isDisabled: boolean;
   onClick(provider: types.AuthProvider): void;
   providers: types.AuthProvider[];
+  // autoFocus focuses on the first button in list.
+  autoFocus?: boolean;
 };
 
 export default SSOBtnList;

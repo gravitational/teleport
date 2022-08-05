@@ -99,7 +99,9 @@ function createService(
 
 function getClientMocks(): Partial<tsh.TshClient> {
   return {
-    login: jest.fn().mockResolvedValueOnce(undefined),
+    loginLocal: jest.fn().mockResolvedValueOnce(undefined),
+    loginSso: jest.fn().mockResolvedValueOnce(undefined),
+    loginPasswordless: jest.fn().mockResolvedValueOnce(undefined),
     logout: jest.fn().mockResolvedValueOnce(undefined),
     addRootCluster: jest.fn().mockResolvedValueOnce(clusterMock),
     removeCluster: jest.fn().mockResolvedValueOnce(undefined),
@@ -180,16 +182,19 @@ test('login into cluster and sync resources', async () => {
   const client = getClientMocks();
   const service = createService(client, new NotificationsServiceMock());
   const loginParams = {
+    kind: 'local' as const,
     clusterUri,
-    local: { username: 'admin', password: 'admin', token: '1234' },
+    username: 'admin',
+    password: 'admin',
+    token: '1234',
   };
 
   // Add mocked gateway to service state.
   await service.syncGateways();
 
-  await service.login(loginParams, undefined);
+  await service.loginLocal(loginParams, undefined);
 
-  expect(client.login).toHaveBeenCalledWith(loginParams, undefined);
+  expect(client.loginLocal).toHaveBeenCalledWith(loginParams, undefined);
   expect(client.listGateways).toHaveBeenCalledWith();
   expect(client.listDatabases).toHaveBeenCalledWith(clusterUri);
   expect(client.listServers).toHaveBeenCalledWith(clusterUri);
