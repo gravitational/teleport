@@ -130,7 +130,7 @@ data:
 ...
 ```
 
-For Teleport to be able to connect and operate the Kubernetes cluster, it is required that the `configmap/aws-auth` maps the AWS IAM role which Teleport Kubernetes Auto-Discovery agent is running into a Kubernetes group.
+If Teleport is running under the IAM identity of the cluster creator, it immediately has access to the cluster as `system:masters` RBAC group. AWS automatically grants this access level to EKS clusters for any user that shares the same IAM user/group or federated user as the user who created it. Otherwise, for Teleport to connect and operate the Kubernetes cluster, it is required that the `configmap/aws-auth` maps the AWS IAM role which Teleport Kubernetes Auto-Discovery agent is running into a Kubernetes group.
 
 ```yaml
 apiVersion: v1
@@ -224,6 +224,10 @@ kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: teleport-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: teleport-role
 subjects:
 - kind: Group
   name: system:teleport
@@ -258,7 +262,7 @@ With this method, Teleport does not install any agent in the cluster, but it req
 
 Teleport will only provide access to API and will not enroll, automatically, databases or applications like Prometheus or Grafana that easily configured in a situation where Teleport Agent is installed into the cluster.
 
-The IAM mapping between Teleport IAM Role and Kubernetes roles is a complex and tedious process that must be done by the operator. Without it, Teleport cannot enroll the cluster.
+The IAM mapping between Teleport IAM Role and Kubernetes roles is a complex and tedious process that must be done by the operator. Without it, Teleport cannot enroll the cluster. The AWS EKS team has a feature request to add an external API that allows configuring access to the cluster without manually editing the `configmap` that is on the cluster ([aws/containers-roadmap#185](https://github.com/aws/containers-roadmap/issues/185)).
 
 ### UX
 
@@ -329,7 +333,9 @@ Teleport Discovery Agent IAM role ARN:
 [%n+5%] Mapping `system:teleport` RBAC Group to Teleport Agent IAM Role for cluster %cluster[n].name%
 ```
 
-Where `n` is the number of clusters discovered based on rules provided.
+Where `n` is the number of clusters discovered based on rules provided. 
+
+The `kube configure` command also accepts the cloud and IAM role via flags: `--cloud` and `--iam-arn` in which case it will not ask the user for any data and will immediately start connecting to AWS.
 
 After the command finishes, the discovery agent can enroll the affected clusters. 
 
