@@ -16,8 +16,7 @@ controls that Teleport provides for human users.
 You will need Teleport Cloud 10.1.0 or later.
 </ScopedBlock>
 <ScopedBlock scope={["oss","enterprise"]}>
-You will need to be running the Teleport Proxy and Auth Services, version 10.1.0
-or later.
+You will need to be running Teleport version 10.1.0 or later.
 </ScopedBlock>
 
 If you have not already connected your Kubernetes cluster to Teleport, follow
@@ -33,7 +32,6 @@ Lastly, ensure both `tbot` and `kubectl` are installed on your Machine ID
 client system. Refer to our [Installation guide](../../installation.mdx) for
 `tbot`, and the [Kubernetes documentation](https://kubernetes.io/docs/tasks/tools/)
 for `kubectl`.
-
 
 ## Step 1/3. Create a Machine ID bot and assign permissions
 
@@ -64,12 +62,13 @@ Be sure to configure the `allow` fields to match your environment:
    to so that the bot user may be mapped to a Kubernetes user and/or group.
 
    If only `kubernetes_groups` is set, `kubernetes_users` will be set to the
-   bot's name by default.
+   bot's username by default.
 
-   Note that the specific user and group names are arbitrary and do not need to
-   be explicitly created on the Kubernetes cluster. The running Teleport agent
-   and matching Kubernetes RBAC rules are all that's needed to trust bot users
-   as configured here.
+   The user and group values entered here are relayed directly to the Kubernetes
+   cluster as incoming user and group names. Kubernetes users and groups do not
+   need to be created in advance, but do need to match one or more
+   `RoleBindings` for the bot user to have any permissions on the target
+   Kubernetes cluster.
 
 Once finished, create the role in Teleport:
 ```code
@@ -80,12 +79,19 @@ $ tctl create -f role.yaml
 title="Create a Kubernetes Role and RoleBinding"
 opened={true}
 >
-If you don't have an existing Kubernetes `Role` or `RoleBinding` to use, create
-one as follows.
+If you don't have an existing Kubernetes `Role` or `RoleBinding` to grant your
+Machine ID bot, create one as follows.
 
-First, create a role by running the following. If an existing
-role on the cluster will suffice, this step can be skipped.
+Kubernetes clusters often come with pre-made roles which may meet the needs of
+your application, such as `view` and `edit`. You may view these preexisting
+rules by running the following:
+```code
+$ kubectl get clusterrole
+```
 
+If you'd prefer to create a role of your own, the following command can be used
+to create a rule with narrow access to certain resources types in the
+`example-namespace` namespace:
 ```code
 ## This creates a role allowing `get` and `list` on pods and deployments.
 $ kubectl create role example-role \
@@ -94,9 +100,9 @@ $ kubectl create role example-role \
   --resource=pods,deployments
 ```
 
-Next, create a role binding to connect the bot to the new role. You may bind
-either the bot's mapped `User` or mapped `Group` to a role, however it must have
-been granted the matching `User` or `Group` via a Teleport role above.
+Next, create a role binding to connect the bot to your role. You may bind either
+the bot's mapped `User` or mapped `Group` to a role, however it must have been
+granted the matching `User` or `Group` via a Teleport role above.
 
 ```code
 ## This binds the new role to the group `example`
@@ -108,6 +114,11 @@ $ kubectl create rolebinding example-rolebinding-group \
 $ kubectl create rolebinding example-rolebinding-user \
   --namespace=demo \
   --role=example-role \
+  --user=alice
+## If binding to a ClusterRole like `view`, instead run the following:
+$ kubectl create rolebinding example-rolebinding-user \
+  --namespace=demo \
+  --clusterrole=view \
   --user=alice
 ```
 
