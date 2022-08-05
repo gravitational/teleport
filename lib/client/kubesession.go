@@ -19,6 +19,7 @@ package client
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io"
 	"time"
@@ -59,10 +60,25 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.SessionT
 	ws, resp, err := dialer.Dial(joinEndpoint, nil)
 	defer resp.Body.Close()
 	if err != nil {
-		body, _ := io.ReadAll(resp.Body)
-		fmt.Printf("Handshake failed with status %d\nand body: %v\n", resp.StatusCode, string(body))
 		cancel()
-		return nil, trace.Wrap(err)
+		body, _ := io.ReadAll(resp.Body)
+		var respString string
+		if err := json.Unmarshal(body, &respString); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		var respData map[string]interface{}
+		if err := json.Unmarshal([]byte(respString), &respData); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if message, ok := respData["message"]; ok {
+			if message, ok := message.(string); ok {
+				return nil, trace.Errorf("%v", message)
+			}
+		}
+
+		return nil, trace.BadParameter("failed to decode remote error: %v", string(body))
 	}
 
 	stream, err := streamproto.NewSessionStream(ws, streamproto.ClientHandshake{Mode: mode})
