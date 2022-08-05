@@ -24,7 +24,7 @@
             {
               "title": "Docker Compose",
               "slug": "/getting-started/docker-compose/",
-              "forScopes": "oss"
+              "forScopes": ["oss"]
             }
           ]
         },
@@ -108,7 +108,7 @@
             },
             {
               "title": "Digital Ocean",
-              "forScopes": "oss",
+              "forScopes": ["oss"],
               "slug": "/setup/deployments/digitalocean/"
             }
           ]
