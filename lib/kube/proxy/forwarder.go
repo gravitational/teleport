@@ -21,6 +21,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -838,7 +839,12 @@ func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *htt
 			return nil, trace.Wrap(err)
 		}
 
-		return string(msg), nil
+		var obj map[string]interface{}
+		if err := json.Unmarshal(msg, &obj); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return obj, trace.Wrap(err)
 	}
 	defer wsTarget.Close()
 	defer respTarget.Body.Close()
