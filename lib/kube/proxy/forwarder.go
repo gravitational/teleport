@@ -24,6 +24,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	mathrand "math/rand"
 	"net"
 	"net/http"
@@ -832,7 +833,12 @@ func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *htt
 
 	wsTarget, respTarget, err := dialer.Dial(url, nil)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		msg, err := io.ReadAll(respTarget.Body)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return string(msg), nil
 	}
 	defer wsTarget.Close()
 	defer respTarget.Body.Close()
