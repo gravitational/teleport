@@ -113,8 +113,8 @@ type ForwarderConfig struct {
 	DataDir string
 	// Namespace is a namespace of the proxy server (not a K8s namespace)
 	Namespace string
-	// ServerID is a unique ID of a proxy server
-	ServerID string
+	// HostID is a unique ID of a proxy server
+	HostID string
 	// ClusterOverride if set, routes all requests
 	// to the cluster name, used in tests
 	ClusterOverride string
@@ -176,7 +176,7 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	if f.DataDir == "" {
 		return trace.BadParameter("missing parameter DataDir")
 	}
-	if f.ServerID == "" {
+	if f.HostID == "" {
 		return trace.BadParameter("missing parameter ServerID")
 	}
 	if f.Namespace == "" {
@@ -708,31 +708,31 @@ func (f *Forwarder) getKubeAccessDetails(
 	roles services.AccessChecker,
 	kubeClusterName string,
 	sessionTTL time.Duration) (kubeAccessDetails, error) {
-	kubeServices, err := f.cfg.CachingAuthClient.GetKubeServices(f.ctx)
+	kubeServers, err := f.cfg.CachingAuthClient.GetKubernetesServers(f.ctx)
 	if err != nil {
 		return kubeAccessDetails{}, trace.Wrap(err)
 	}
 
 	// Find requested kubernetes cluster name and get allowed kube users/groups names.
-	for _, s := range kubeServices {
-		for _, c := range s.GetKubernetesClusters() {
-			if c.Name != kubeClusterName {
-				continue
-			}
-
-			// Get list of allowed kube user/groups based on kubernetes service labels.
-			labels := types.CombineLabels(c.StaticLabels, c.DynamicLabels)
-			labelsMatcher := services.NewKubernetesClusterLabelMatcher(labels)
-			groups, users, err := roles.CheckKubeGroupsAndUsers(sessionTTL, false, labelsMatcher)
-			if err != nil {
-				return kubeAccessDetails{}, trace.Wrap(err)
-			}
-			return kubeAccessDetails{
-				kubeGroups:    groups,
-				kubeUsers:     users,
-				clusterLabels: labels,
-			}, nil
+	for _, s := range kubeServers {
+		c := s.GetCluster()
+		if c.GetName() != kubeClusterName {
+			continue
 		}
+
+		// Get list of allowed kube user/groups based on kubernetes service labels.
+		labels := types.CombineLabels(c.GetStaticLabels(), types.LabelsToV2(c.GetDynamicLabels()))
+		labelsMatcher := services.NewKubernetesClusterLabelMatcher(labels)
+		groups, users, err := roles.CheckKubeGroupsAndUsers(sessionTTL, false, labelsMatcher)
+		if err != nil {
+			return kubeAccessDetails{}, trace.Wrap(err)
+		}
+		return kubeAccessDetails{
+			kubeGroups:    groups,
+			kubeUsers:     users,
+			clusterLabels: labels,
+		}, nil
+
 	}
 	// kubeClusterName not found. Empty list of allowed kube users/groups is returned.
 	return kubeAccessDetails{
@@ -755,7 +755,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		f.log.WithField("auth_context", actx.String()).Debug("Skipping authorization due to unknown kubernetes cluster name")
 		return nil
 	}
-	servers, err := f.cfg.CachingAuthClient.GetKubeServices(ctx)
+	servers, err := f.cfg.CachingAuthClient.GetKubernetesServers(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -773,19 +773,16 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	// mis-matched labels. If they do, expect weirdness.
 	clusterNotFound := trace.AccessDenied("kubernetes cluster %q not found", actx.kubeCluster)
 	for _, s := range servers {
-		for _, ks := range s.GetKubernetesClusters() {
-			if ks.Name != actx.kubeCluster {
-				continue
-			}
-			k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(s.GetNamespace(), ks)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if err := actx.Checker.CheckAccess(k8sV3, mfaParams); err != nil {
-				return clusterNotFound
-			}
-			return nil
+		ks := s.GetCluster()
+		if ks.GetName() != actx.kubeCluster {
+			continue
 		}
+
+		if err := actx.Checker.CheckAccess(ks, mfaParams); err != nil {
+			return clusterNotFound
+		}
+		return nil
+
 	}
 	if actx.kubeCluster == f.cfg.ClusterName {
 		f.log.WithField("auth_context", actx.String()).Debug("Skipping authorization for proxy-based kubernetes cluster,")
@@ -1025,7 +1022,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 	sessionStart := f.cfg.Clock.Now().UTC()
 
 	serverMetadata := apievents.ServerMetadata{
-		ServerID:        f.cfg.ServerID,
+		ServerID:        f.cfg.HostID,
 		ServerNamespace: f.cfg.Namespace,
 		ServerHostname:  sess.teleportCluster.name,
 		ServerAddr:      sess.kubeAddress,
@@ -1491,7 +1488,6 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 	if sess.noAuditEvents {
 		return nil, nil
 	}
-
 	// Emit audit event.
 	event := &apievents.KubeRequest{
 		Metadata: apievents.Metadata{
@@ -1505,7 +1501,7 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 			Protocol:   events.EventProtocolKube,
 		},
 		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        f.cfg.ServerID,
+			ServerID:        f.cfg.HostID,
 			ServerNamespace: f.cfg.Namespace,
 		},
 		RequestPath:               req.URL.Path,
@@ -1625,7 +1621,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 		Conn:                  tc,
 		Context:               ctx,
 		TeleportUser:          s.User.GetName(),
-		ServerID:              s.parent.cfg.ServerID,
+		ServerID:              s.parent.cfg.HostID,
 		Entry:                 s.parent.log,
 		Emitter:               s.parent.cfg.AuthClient,
 	})
@@ -1704,31 +1700,31 @@ func (f *Forwarder) newClusterSessionSameCluster(ctx authContext) (*clusterSessi
 		return sess, nil
 	}
 
-	kubeServices, err := f.cfg.CachingAuthClient.GetKubeServices(f.ctx)
+	kubeServers, err := f.cfg.CachingAuthClient.GetKubernetesServers(f.ctx)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
 
-	if len(kubeServices) == 0 && ctx.kubeCluster == ctx.teleportCluster.name {
+	if len(kubeServers) == 0 && ctx.kubeCluster == ctx.teleportCluster.name {
 		return nil, trace.Wrap(localErr)
 	}
 
 	// Validate that the requested kube cluster is registered.
 	var endpoints []kubeClusterEndpoint
-outer:
-	for _, s := range kubeServices {
-		for _, k := range s.GetKubernetesClusters() {
-			if k.Name != ctx.kubeCluster {
-				continue
-			}
-			// TODO(awly): check RBAC
-			endpoints = append(endpoints, kubeClusterEndpoint{
-				serverID: fmt.Sprintf("%s.%s", s.GetName(), ctx.teleportCluster.name),
-				addr:     s.GetAddr(),
-				proxyIDs: s.GetProxyIDs(),
-			})
-			continue outer
+	for _, s := range kubeServers {
+		kubeCluster := s.GetCluster()
+		if kubeCluster.GetName() != ctx.kubeCluster {
+			continue
 		}
+
+		// TODO(awly): check RBAC
+		endpoints = append(endpoints, kubeClusterEndpoint{
+			serverID: fmt.Sprintf("%s.%s", s.GetHostID(), ctx.teleportCluster.name),
+			addr:     s.GetHostname(),
+			proxyIDs: s.GetProxyIDs(),
+		})
+		continue
+
 	}
 	if len(endpoints) == 0 {
 		return nil, trace.NotFound("kubernetes cluster %q is not found in teleport cluster %q", ctx.kubeCluster, ctx.teleportCluster.name)
@@ -2010,19 +2006,30 @@ func (f *Forwarder) getStaticLabels() map[string]string {
 	return labels
 }
 
-func (f *Forwarder) kubeClusters() []*types.KubernetesCluster {
+func (f *Forwarder) kubeClusters() []*types.KubernetesClusterV3 {
 	var dynLabels map[string]types.CommandLabelV2
 	if f.cfg.DynamicLabels != nil {
 		dynLabels = types.LabelsToV2(f.cfg.DynamicLabels.Get())
 	}
 
-	res := make([]*types.KubernetesCluster, 0, len(f.creds))
+	res := make([]*types.KubernetesClusterV3, 0, len(f.creds))
 	for n := range f.creds {
-		res = append(res, &types.KubernetesCluster{
-			Name:          n,
-			StaticLabels:  f.getStaticLabels(),
-			DynamicLabels: dynLabels,
-		})
+		cluster, err := types.NewKubernetesClusterV3(
+			types.Metadata{
+				Name:   n,
+				Labels: f.getStaticLabels(),
+			},
+			types.KubernetesClusterSpecV3{
+				DynamicLabels: dynLabels,
+			},
+		)
+		if err != nil {
+			f.log.WithError(err).Warnf("Error while creating *types.KubernetesClusterV3 for cluster %q", n)
+			continue
+		}
+		res = append(res,
+			cluster,
+		)
 	}
 	return res
 }

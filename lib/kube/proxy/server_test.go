@@ -106,6 +106,7 @@ func TestMTLSClientCAs(t *testing.T) {
 				ClientAuth:   tls.RequireAndVerifyClientCert,
 				Certificates: []tls.Certificate{hostCert},
 			},
+			GetRotation: func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
 		},
 	}
 
@@ -192,10 +193,12 @@ func TestGetServerInfo(t *testing.T) {
 			ForwarderConfig: ForwarderConfig{
 				Clock:       clockwork.NewFakeClock(),
 				ClusterName: "kube-cluster",
+				HostID:      "server_uuid",
 			},
 			AccessPoint:          ap,
 			TLS:                  &tls.Config{},
 			ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
+			GetRotation:          func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
 		},
 		fwd: &Forwarder{
 			cfg: ForwarderConfig{},
@@ -204,24 +207,33 @@ func TestGetServerInfo(t *testing.T) {
 	}
 
 	t.Run("GetServerInfo gets listener addr with PublicAddr unset", func(t *testing.T) {
-		serverInfo, err := srv.GetServerInfo()
+		serverInfo, err := srv.getServerInfo(&types.KubernetesClusterV3{
+			Metadata: types.Metadata{
+				Name: "kube-cluster",
+			},
+			Spec: types.KubernetesClusterSpecV3{},
+		})
 		require.NoError(t, err)
 
-		kubeServer, ok := serverInfo.(*types.ServerV2)
+		kubeServer, ok := serverInfo.(types.KubeServer)
 		require.True(t, ok)
 
-		require.Equal(t, listener.Addr().String(), kubeServer.GetAddr())
+		require.Equal(t, listener.Addr().String(), kubeServer.GetHostname())
 	})
 
 	t.Run("GetServerInfo gets correct public addr with PublicAddr set", func(t *testing.T) {
 		srv.TLSServerConfig.ForwarderConfig.PublicAddr = "k8s.example.com"
 
-		serverInfo, err := srv.GetServerInfo()
+		serverInfo, err := srv.getServerInfo(&types.KubernetesClusterV3{
+			Metadata: types.Metadata{
+				Name: "kube-cluster",
+			},
+		})
 		require.NoError(t, err)
 
-		kubeServer, ok := serverInfo.(*types.ServerV2)
+		kubeServer, ok := serverInfo.(types.KubeServer)
 		require.True(t, ok)
 
-		require.Equal(t, "k8s.example.com", kubeServer.GetAddr())
+		require.Equal(t, "k8s.example.com", kubeServer.GetHostname())
 	})
 }
