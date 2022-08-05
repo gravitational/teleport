@@ -45,8 +45,8 @@ indicate that authentication has completed.
 
 Teleport authenticates users to your infrastructure by issuing short-lived
 certificates. After a user completes an SSO authentication flow, Teleport issues
-a short-lived certificate to the user. Teleport also creates a temporary `user`
-resource on the Auth Service backend.
+a short-lived certificate to the user. Teleport also creates a temporary user on
+the Auth Service backend.
 
 ### Temporary `user` resources
 
@@ -62,7 +62,7 @@ information about the temporary user.
 
 <Details title="How can I inspect a temporary user resource?">
 
-You can inspect the temporary `user` resource created via your SSO integration
+You can inspect a temporary `user` resource created via your SSO integration
 by using the `tctl` command:
 
 
@@ -71,7 +71,7 @@ by using the `tctl` command:
 ```code
 # Log in to your cluster with tsh so you can use tctl remotely
 $ tsh login --proxy=proxy.example.com --user=myuser
-$ tctl get users
+$ tctl get users/<username>
 ```
 
 </ScopedBlock>
@@ -131,15 +131,19 @@ version: v2
 
 ### Certificates for SSO users
 
-Along with creating a temporary `user` resource, Teleport issues an X.509
-certificate to a successfully authenticated SSO user. The certificate's
-`Subject` field contains the same information defined in the temporary `user`
-resource. This enables Teleport to enforce RBAC rules for the authenticated user
-when they access resources in your cluster.
+Along with creating a temporary user, Teleport issues SSH and X.509 certificates
+to a successfully authenticated SSO user's machine. This enables SSO users to
+authenticate to your cluster without Teleport needing to create a permanent
+record of them.
 
-For example, this is a `Subject` field for a certificate that Teleport issued
-for the GitHub user `myuser`, who signed in to a Teleport cluster via the GitHub
-SSO integration:
+In the X.509 certificate, for example, the `Subject` field contains the same
+information defined in the temporary `user` resource. This enables Teleport to
+enforce RBAC rules for the authenticated user when they access resources in your
+cluster.
+
+This is a `Subject` field for a certificate that Teleport issued for the GitHub
+user `myuser`, who signed in to a Teleport cluster via the GitHub SSO
+integration:
 
 ```
 Subject: L=myuser/street=teleport.example.com/postalCode={"github_teams":["my-team"],"kubernetes_groups":null,"kubernetes_users":null,"logins":["root"]}, O=access, O=editor, O=auditor, CN=myuser/1.3.9999.1.7=teleport.example.com
@@ -151,13 +155,20 @@ your SSO provider to determine how to configure role mapping.)
 
 <Details title="Inspecting your certificate subject">
 
-To inspect the contents of a certificate issued for your user after you sign in to Teleport via 
-SSO, run the following commands:
+To inspect the contents of an X.509 certificate issued for your user after you
+sign in to Teleport via SSO, run the following commands:
 
 ```code
 $ TELEPORT_CLUSTER=<your cluster>
 $ SSO_USER=<your username within your SSO provider>
-$ openssl x509 -text -in ~/.tsh/keys/${CLUSTER}/${SSO_USER}-x509.pem | grep "Subject:"
+$ openssl x509 -text -in ~/.tsh/keys/${TELEPORT_CLUSTER}/${SSO_USER}-x509.pem | grep "Subject:"
+```
+
+You can inspect an SSH certificate issued for your Teleport user with the
+following command:
+
+```code
+$ ssh-keygen -L -f ~/.tsh/keys/${TELEPORT_CLUSTER}/${SSO_USER}-ssh/${TELEPORT_CLUSTER}-cert.pub
 ```
 
 </Details>
@@ -174,6 +185,10 @@ needs to choose another SSO provider when signing in to Teleport. While the
 user may be locked out of their account with the first SSO provider, signing in
 via the second provider is sufficient for Teleport to issue a new certificate
 and grant the user access to your infrastructure.
+
+Note that if the username of an SSO user already belongs to a user registered
+locally with the Auth Service (i.e., created via `tctl users add`), the SSO
+login will fail.
 
 ## Logging in via SSO
 
