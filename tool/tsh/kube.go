@@ -130,7 +130,9 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 	}
 
 	meta, err := c.getSessionMeta(cf.Context, tc)
-	if err != nil {
+	if trace.IsNotFound(err) {
+		return trace.NotFound("Failed to find session %q. The ID may be incorrect.", c.session)
+	} else if err != nil {
 		return trace.Wrap(err)
 	}
 
