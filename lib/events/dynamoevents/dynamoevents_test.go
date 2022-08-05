@@ -18,8 +18,11 @@ package dynamoevents
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/rand"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"strconv"
@@ -27,6 +30,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/request"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -206,7 +212,8 @@ func TestLargeTableRetrieve(t *testing.T) {
 			UserMetadata: apievents.UserMetadata{User: "bob"},
 			Metadata: apievents.Metadata{
 				Type: events.UserLoginEvent,
-				Time: tt.suite.Clock.Now().UTC()},
+				Time: tt.suite.Clock.Now().UTC(),
+			},
 		})
 		require.NoError(t, err)
 	}
@@ -235,6 +242,101 @@ func TestLargeTableRetrieve(t *testing.T) {
 
 	// `check.HasLen` prints the entire array on failure, which pollutes the output.
 	require.Len(t, history, eventCount)
+}
+
+// TestRetry checks that we can trigger the retry mechanism
+// on throttled and retryable requests
+func TestRetry(t *testing.T) {
+	cases := []struct {
+		name      string
+		handler   func() http.HandlerFunc
+		assertion require.ErrorAssertionFunc
+	}{
+		{
+			name: "error not retriable",
+			handler: func() http.HandlerFunc {
+				var failed bool
+				// return a handler func that will fail on the first call
+				// and succeed for all subsequent calls.
+				// this particular handler will return a non-retriable error.
+				return func(w http.ResponseWriter, r *http.Request) {
+					if failed {
+						fmt.Println("success")
+						w.Write([]byte("{}"))
+						return
+					}
+
+					fmt.Println("request failed")
+					failed = true
+					errResp := struct {
+						Code    string `json:"__type"`
+						Message string `json:"message"`
+					}{
+						Code:    request.CanceledErrorCode,
+						Message: request.CanceledErrorCode,
+					}
+
+					b, err := json.Marshal(errResp)
+					require.NoError(t, err)
+					w.WriteHeader(http.StatusBadRequest)
+					w.Write(b)
+				}
+			},
+			assertion: require.Error,
+		},
+		{
+			name: "retriable error",
+			handler: func() http.HandlerFunc {
+				var failed bool
+				// return a handler func that will fail on the first call
+				// and succeed for all subsequent calls.
+				// this particular handler will return a retriable error.
+				return func(w http.ResponseWriter, r *http.Request) {
+					if failed {
+						fmt.Println("success")
+						w.Write([]byte("{}"))
+						return
+					}
+
+					fmt.Println("request failed")
+					failed = true
+					errResp := struct {
+						Code    string `json:"__type"`
+						Message string `json:"message"`
+					}{
+						Code:    "ThrottlingException",
+						Message: "ThrottlingException",
+					}
+
+					b, err := json.Marshal(errResp)
+					require.NoError(t, err)
+					w.WriteHeader(http.StatusBadRequest)
+					w.Write(b)
+				}
+			},
+			assertion: require.NoError,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(tt.handler())
+
+			backend, err := newBackend(
+				context.Background(),
+				Config{Tablename: fmt.Sprintf("teleport-test-%v", uuid.New().String())},
+				nil,
+			)
+			require.NoError(t, err)
+
+			backend.svc = dynamodb.New(backend.session, &aws.Config{
+				Endpoint: aws.String(server.URL),
+			})
+
+			_, err = backend.svc.ListTables(&dynamodb.ListTablesInput{})
+			tt.assertion(t, err)
+		})
+	}
 }
 
 func TestFromWhereExpr(t *testing.T) {
@@ -351,7 +453,6 @@ func TestConfig_SetFromURL(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-
 			uri, err := url.Parse(tt.url)
 			require.NoError(t, err)
 			require.NoError(t, tt.cfg.SetFromURL(uri))
