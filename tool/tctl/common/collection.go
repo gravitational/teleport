@@ -866,23 +866,32 @@ func (c *tokenCollection) writeText(w io.Writer) error {
 }
 
 type kubeServerCollection struct {
-	servers []types.Server
+	servers []types.KubeServer
 	verbose bool
+}
+
+func (c *kubeServerCollection) resources() (r []types.Resource) {
+	for _, resource := range c.servers {
+		r = append(r, resource)
+	}
+	return r
 }
 
 func (c *kubeServerCollection) writeText(w io.Writer) error {
 	var rows [][]string
 	for _, server := range c.servers {
-		kubes := server.GetKubernetesClusters()
-		for _, kube := range kubes {
-			labels := stripInternalTeleportLabels(c.verbose,
-				types.CombineLabels(kube.StaticLabels, kube.DynamicLabels))
-			rows = append(rows, []string{
-				kube.Name,
-				labels,
-				server.GetTeleportVersion(),
-			})
+		kube := server.GetCluster()
+		if kube == nil {
+			continue
 		}
+		labels := stripInternalTeleportLabels(c.verbose,
+			types.CombineLabels(kube.GetStaticLabels(), types.LabelsToV2(kube.GetDynamicLabels())))
+		rows = append(rows, []string{
+			kube.GetName(),
+			labels,
+			server.GetTeleportVersion(),
+		})
+
 	}
 	headers := []string{"Cluster", "Labels", "Version"}
 	var t asciitable.Table
