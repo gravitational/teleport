@@ -28,7 +28,7 @@
         # file for each major release of Teleport.
         # Note: if using a fork of RHEL/CentOS or Amazon Linux you may need to use '$ID_LIKE'
         # and the codename your distro was forked from instead of '$ID'
-        $ sudo yum-config-manager --add $(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/v10/teleport.repo")
+        $ sudo yum-config-manager --add-repo $(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/v(=teleport.major_version=)/teleport.repo")
         $ sudo yum install teleport
         ```
     </TabItem>
