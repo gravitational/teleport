@@ -22,12 +22,14 @@
     </TabItem>
     <TabItem label="Amazon Linux 2/RHEL (RPM)">
         ```code
-        $ sudo yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+        # Source variables about OS version
+        $ source /etc/os-release
+        # Add the Teleport YUM repository for v(=teleport.major_version=). You'll need to update this
+        # file for each major release of Teleport.
+        # Note: if using a fork of RHEL/CentOS or Amazon Linux you may need to use '$ID_LIKE'
+        # and the codename your distro was forked from instead of '$ID'
+        $ sudo yum-config-manager --add $(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/v10/teleport.repo")
         $ sudo yum install teleport
-
-        # Optional:  Using DNF on newer distributions
-        # $ sudo dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
-        # $ sudo dnf install teleport
         ```
     </TabItem>
 
@@ -84,6 +86,17 @@
 
         $ sudo apt-get update
         $ sudo apt-get install teleport
+        ```
+  </TabItem>
+
+  <TabItem label="Amazon Linux 2/RHEL Legacy (RPM)">
+        ```code
+        $ sudo yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+        $ sudo yum install teleport
+
+        # Optional:  Using DNF on newer distributions
+        # $ sudo dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+        # $ sudo dnf install teleport
         ```
   </TabItem>
 
