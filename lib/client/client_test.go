@@ -24,12 +24,14 @@ import (
 	"net"
 	"os"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 	"gopkg.in/check.v1"
 )
 
@@ -184,54 +186,75 @@ func (s *ClientTestSuite) TestProxyConnection(c *check.C) {
 	}
 }
 
-func (s *ClientTestSuite) TestListenAndForwardCancel(c *check.C) {
-	client := &NodeClient{
-		Client: &ssh.Client{
-			Conn: &fakeSSHConn{},
+func TestListenAndForwardCancel(t *testing.T) {
+	tests := []struct {
+		name    string
+		testFun func(client *NodeClient, ctx context.Context, listener *wrappedListener)
+	}{
+		{
+			name: "listenAndForward",
+			testFun: func(client *NodeClient, ctx context.Context, listener *wrappedListener) {
+				client.listenAndForward(ctx, listener, "localAddr", "remoteAddr")
+			},
+		},
+		{
+			name: "dynamicListenAndForward",
+			testFun: func(client *NodeClient, ctx context.Context, listener *wrappedListener) {
+				client.dynamicListenAndForward(ctx, listener, "localAddr")
+			},
 		},
 	}
 
-	// Create two anchors. An "accept" anchor that unblocks once the listener has
-	// accepted a connection and a "unblock" anchor that unblocks when Accept
-	// unblocks.
-	acceptCh := make(chan struct{})
-	unblockCh := make(chan struct{})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &NodeClient{
+				Client: &ssh.Client{
+					Conn: &fakeSSHConn{},
+				}}
 
-	// Create a new cancelable listener.
-	ctx, cancel := context.WithCancel(context.Background())
-	ln, err := newWrappedListener(acceptCh)
-	c.Assert(err, check.IsNil)
+			// Create two anchors. An "accept" anchor that unblocks once the listener has
+			// accepted a connection and an "unblock" anchor that unblocks when Accept
+			// unblocks.
+			acceptCh := make(chan struct{})
+			unblockCh := make(chan struct{})
 
-	// Start listenAndForward and close the unblock channel once "Accept" has
-	// unblocked.
-	go func() {
-		client.listenAndForward(ctx, ln, "")
-		close(unblockCh)
-	}()
+			// Create a new cancelable listener.
+			ctx, cancel := context.WithCancel(context.Background())
+			ln, err := newWrappedListener(acceptCh)
+			require.NoError(t, err)
 
-	// Block until "Accept" has been called. After this it is safe to assume the
-	// listener is accepting.
-	select {
-	case <-acceptCh:
-	case <-time.After(1 * time.Minute):
-		c.Fatal("Timed out waiting for Accept to be called.")
-	}
+			// Start testFun (listenAndForward or dynamicListenAndForward)
+			// and close the unblock channel once "Accept" has unblocked.
+			go func() {
+				tt.testFun(client, ctx, ln)
+				close(unblockCh)
+			}()
 
-	// At this point, "Accept" should still be blocking.
-	select {
-	case <-unblockCh:
-		c.Fatalf("Failed because Accept was unblocked.")
-	default:
-	}
+			// Block until "Accept" has been called. After this it is safe to assume the
+			// listener is accepting.
+			select {
+			case <-acceptCh:
+			case <-time.After(1 * time.Minute):
+				t.Fatal("Timed out waiting for Accept to be called.")
+			}
 
-	// Cancel "Accept" to unblock it.
-	cancel()
+			// At this point, "Accept" should still be blocking.
+			select {
+			case <-unblockCh:
+				t.Fatalf("Failed because Accept was unblocked.")
+			default:
+			}
 
-	// Verify that "Accept" has unblocked.
-	select {
-	case <-unblockCh:
-	case <-time.After(1 * time.Minute):
-		c.Fatal("Timed out waiting for Accept to unblock.")
+			// Cancel "Accept" to unblock it.
+			cancel()
+
+			// Verify that "Accept" has unblocked.
+			select {
+			case <-unblockCh:
+			case <-time.After(1 * time.Minute):
+				t.Fatal("Timed out waiting for Accept to unblock.")
+			}
+		})
 	}
 }
 
