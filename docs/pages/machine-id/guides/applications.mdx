@@ -3,8 +3,7 @@ title: Machine ID with Application Access
 description: Accessing web applications with Machine ID
 ---
 
-In this guide, we will demonstrate how to use Machine ID to access a web
-application protected by Teleport from an automated service.
+In this guide, we will demonstrate how to configure an automated service to use Machine ID to access a web application protected by Teleport.
 
 With Machine ID, Teleport issues short-lived certificates, tied to a machine
 identity, that can be rotated, audited, and managed with the same access
@@ -36,7 +35,7 @@ our [Installation guide](../../installation.mdx) for more information.
 In this example you'll start by creating a bot named "example" and assign it a
 role granting access to some set of apps by label.
 
-First, on a node with `tctl` access, create a file named `role.yaml` with the
+First, on a node with `tctl` access (such as your local machine), create a file named `role.yaml` with the
 following content:
 
 ```yaml
@@ -181,7 +180,7 @@ certificate files can be used:
 You may use these credentials with any client application that supports them.
 
 Per the [Application Access Getting Started Guide](../../application-access/getting-started.mdx),
-the Teleport Proxy makes apps available via a wildcard subdomain. Given an app
+the Teleport Proxy makes apps available via subdomains of its public web address. Given an app
 named `grafana-example` and a Teleport Proxy at
 `https://teleport.example.com:443`, the app may be accessed at
 `https://grafana-example.proxy.example.com:443`.
@@ -218,9 +217,9 @@ Note that if the certificates are invalid or otherwise misconfigured, clients
 will be redirected to the Teleport login page when attempting to access the app.
 
 <Admonition type="note" title="Proxy Note">
-While it's usually best to access Apps through the public Teleport Proxy
+While it's usually best to access apps through the public Teleport Proxy
 Service, it's also possible to open a local proxy to the app using
-`tbot proxy app ...` in situations where the public proxy's app endpoints are
+`tbot proxy app ...` in situations where the Teleport Proxy Service's app endpoints are
 unavailable:
 
 <ScopedBlock scope={["cloud"]}>
@@ -270,7 +269,7 @@ config templates are changed.
 ### Clients are redirected to the Teleport login page
 
 As with human users, scripted clients will be redirected to the Teleport login
-page when attempting to access an app through the public proxy without valid
+page when attempting to access an app through the Teleport Proxy Service without valid
 credentials.
 
 Ensure the bot's certificates have not expired and that the client application
