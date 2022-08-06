@@ -142,7 +142,7 @@ type Client struct {
 }
 
 // New creates and connects a new Client based on cfg.
-func New(ctx context.Context, cfg Config) (*Client, error) {
+func New(cfg Config) (*Client, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, err
 	}
