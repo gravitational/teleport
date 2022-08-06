@@ -23,16 +23,17 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
+	"strconv"
 	"sync"
 	"syscall"
 
+	"github.com/gravitational/trace"
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nlenc"
-
-	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 )
 
+// Client is auditd client.
 type Client struct {
 	conn NetlinkConnecter
 
@@ -48,6 +49,9 @@ type Client struct {
 	enabled bool
 }
 
+// auditStatus represent auditd status.
+// Struct comes https://github.com/linux-audit/audit-userspace/blob/222dbaf5de27ab85e7aafcc7ea2cb68af2eab9b9/docs/audit_request_status.3#L19
+// and has been updated to include fields added the kernel more recently.
 type auditStatus struct {
 	Mask                  uint32 /* Bit mask for valid entries */
 	Enabled               uint32 /* 1 = enabled, 0 = disabled */
@@ -57,14 +61,53 @@ type auditStatus struct {
 	BacklogLimit          uint32 /* waiting messages limit */
 	Lost                  uint32 /* messages lost */
 	Backlog               uint32 /* messages waiting in queue */
-	Version               uint32 /* audit api version number */ // feature bitmap
+	Version               uint32 /* audit api version number or feature bitmap */
 	BacklogWaitTime       uint32 /* message queue wait timeout */
 	BacklogWaitTimeActual uint32 /* message queue wait timeout */
 }
 
+// IsLoginUIDSet returns true if login UID is set, false otherwise.
+func IsLoginUIDSet() bool {
+	if !hasCapabilities() {
+		// Current process doesn't have system permissions to talk to auditd.
+		return false
+	}
+
+	client := NewClient(Message{})
+	if client.connect() != nil {
+		// connect returns an error when auditd is disabled,
+		// or when we were not able to talk to it.
+		return false
+	}
+
+	loginuid, err := getSelfLoginUID()
+	if err != nil {
+		log.WithError(err).Debug("failed to read login UID")
+		return false
+	}
+
+	// if value is not set, logind PAM module will set it to the correct value
+	// after fork.
+	// 4294967295 is -1 converted to uint32
+	return loginuid != 4294967295
+}
+
+func getSelfLoginUID() (int64, error) {
+	data, err := os.ReadFile("/proc/self/loginuid")
+	if err != nil {
+		return 0, trace.ConvertSystemError(err)
+	}
+
+	loginuid, err := strconv.ParseInt(string(data), 10, 64)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	return loginuid, nil
+}
+
 func SendEvent(event EventType, result ResultType, msg Message) error {
-	if os.Getuid() != 0 {
-		// Disable Auditd when not running as a root.
+	if !hasCapabilities() {
+		// Disable auditd when not running as a root.
 		return nil
 	}
 
@@ -100,9 +143,9 @@ func (c *Client) connect() error {
 
 	c.conn = conn
 
-	status, err := c.getAuditStatus()
+	status, err := getAuditStatus(c.conn)
 	if err != nil {
-		return trace.Errorf("failed to get audutd state: %v", trace.ConvertSystemError(err))
+		return trace.Errorf("failed to get auditd status: %v", trace.ConvertSystemError(err))
 	}
 
 	c.enabled = status.Enabled == 1
@@ -142,8 +185,8 @@ func NewClient(msg Message) *Client {
 	}
 }
 
-func (c *Client) getAuditStatus() (*auditStatus, error) {
-	_, err := c.conn.Execute(netlink.Message{
+func getAuditStatus(conn NetlinkConnecter) (*auditStatus, error) {
+	_, err := conn.Execute(netlink.Message{
 		Header: netlink.Header{
 			Type:  netlink.HeaderType(AUDIT_GET),
 			Flags: netlink.Request | netlink.Acknowledge,
@@ -154,7 +197,7 @@ func (c *Client) getAuditStatus() (*auditStatus, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	msgs, err := c.conn.Receive()
+	msgs, err := conn.Receive()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -217,4 +260,8 @@ func (c *Client) sendMsg(eventType netlink.HeaderType, MsgData []byte) error {
 
 func (c *Client) Close() error {
 	return c.conn.Close()
+}
+
+func hasCapabilities() bool {
+	return os.Getuid() == 0
 }
