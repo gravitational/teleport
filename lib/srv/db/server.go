@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -65,6 +66,8 @@ type Config struct {
 	AuthClient *auth.Client
 	// AccessPoint is a caching client connected to the Auth Server.
 	AccessPoint auth.DatabaseAccessPoint
+	// Emitter is used to emit audit events.
+	Emitter apievents.Emitter
 	// StreamEmitter is a non-blocking audit events emitter.
 	StreamEmitter events.StreamEmitter
 	// NewAudit allows to override audit logger in tests.
@@ -134,6 +137,9 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.StreamEmitter == nil {
 		return trace.BadParameter("missing StreamEmitter")
+	}
+	if c.Emitter == nil {
+		c.Emitter = c.AuthClient
 	}
 	if c.NewAudit == nil {
 		c.NewAudit = common.NewAudit
@@ -775,7 +781,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		serverID:     s.cfg.HostID,
 		authClient:   s.cfg.AuthClient,
 		teleportUser: sessionCtx.Identity.Username,
-		emitter:      s.cfg.AuthClient,
+		emitter:      s.cfg.Emitter,
 		log:          s.log,
 		ctx:          s.closeContext,
 	})
