@@ -70,6 +70,11 @@
             "type": "string",
             "default": ""
         },
+        "sessionRecording": {
+            "$id": "#/properties/sessionRecording",
+            "type": "string",
+            "default": ""
+        },
         "separatePostgresListener": {
             "$id": "#/properties/separatePostgresListener",
             "type": "boolean",
@@ -163,8 +168,7 @@
         },
         "installCRDs": {
             "$id": "#/properties/installCRDs",
-            "type": "boolean",
-            "default": false
+            "type": "boolean"
         },
         "operator": {
             "$id": "#/properties/operator",
@@ -295,6 +299,74 @@
                     "$id": "#/properties/aws/properties/backups",
                     "type": "boolean",
                     "default": false
+                },
+                "dynamoAutoScaling": {
+                    "$id": "#/properties/aws/properties/dynamoAutoScaling",
+                    "type": "boolean",
+                    "default": false
+                }
+            },
+            "if": {
+                "properties": {
+                    "dynamoAutoScaling": {
+                        "const": true
+                    }
+                }
+            },
+            "then": {
+                "properties": {
+                    "readMinCapacity": {
+                        "$id": "#/properties/aws/properties/readMinCapacity",
+                        "type": "integer"
+                    },
+                    "readMaxCapacity": {
+                        "$id": "#/properties/aws/properties/readMaxCapacity",
+                        "type": "integer"
+                    },
+                    "readTargetValue": {
+                        "$id": "#/properties/aws/properties/readTargetValue",
+                        "type": "number"
+                    },
+                    "writeMinCapacity": {
+                        "$id": "#/properties/aws/properties/writeMinCapacity",
+                        "type": "integer"
+                    },
+                    "writeMaxCapacity": {
+                        "$id": "#/properties/aws/properties/writeMaxCapacity",
+                        "type": "integer"
+                    },
+                    "writeTargetValue": {
+                        "$id": "#/properties/aws/properties/writeTargetValue",
+                        "type": "number"
+                    }
+                }
+            },
+            "else": {
+                "properties": {
+                    "readMinCapacity": {
+                        "$id": "#/properties/aws/properties/readMinCapacity",
+                        "type": "null"
+                    },
+                    "readMaxCapacity": {
+                        "$id": "#/properties/aws/properties/readMaxCapacity",
+                        "type": "null"
+                    },
+                    "readTargetValue": {
+                        "$id": "#/properties/aws/properties/readTargetValue",
+                        "type": "null"
+                    },
+                    "writeMinCapacity": {
+                        "$id": "#/properties/aws/properties/writeMinCapacity",
+                        "type": "null"
+                    },
+                    "writeMaxCapacity": {
+                        "$id": "#/properties/aws/properties/writeMaxCapacity",
+                        "type": "null"
+                    },
+                    "writeTargetValue": {
+                        "$id": "#/properties/aws/properties/writeTargetValue",
+                        "type": "null"
+                    }
                 }
             }
         },
