@@ -102,7 +102,7 @@ func TestSendEvent(t *testing.T) {
 		{
 			name: "send login",
 			args: args{
-				event:  AUDIT_USER_LOGIN,
+				event:  AuditUserLogin,
 				result: Success,
 			},
 			newMock: func(t *testing.T) NetlinkConnecter {
@@ -133,7 +133,7 @@ func TestSendEvent(t *testing.T) {
 		{
 			name: "send login failed",
 			args: args{
-				event:  AUDIT_USER_LOGIN,
+				event:  AuditUserLogin,
 				result: Failed,
 			},
 			newMock: func(t *testing.T) NetlinkConnecter {
@@ -164,7 +164,7 @@ func TestSendEvent(t *testing.T) {
 		{
 			name: "send session end",
 			args: args{
-				event:  AUDIT_USER_END,
+				event:  AuditUserEnd,
 				result: Success,
 			},
 			newMock: func(t *testing.T) NetlinkConnecter {
@@ -195,7 +195,7 @@ func TestSendEvent(t *testing.T) {
 		{
 			name: "send invalid user",
 			args: args{
-				event:  AUDIT_USER_ERR,
+				event:  AuditUserErr,
 				result: Success,
 			},
 			newMock: func(t *testing.T) NetlinkConnecter {
@@ -226,7 +226,7 @@ func TestSendEvent(t *testing.T) {
 		{
 			name: "auditd disabled",
 			args: args{
-				event:  AUDIT_USER_LOGIN,
+				event:  AuditUserLogin,
 				result: Success,
 			},
 			newMock: func(t *testing.T) NetlinkConnecter {

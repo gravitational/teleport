@@ -26,10 +26,10 @@ import (
 type EventType int
 
 const (
-	AUDIT_GET        EventType = 1000
-	AUDIT_USER_END   EventType = 1106
-	AUDIT_USER_LOGIN EventType = 1112
-	AUDIT_USER_ERR   EventType = 1109
+	AuditGet       EventType = 1000
+	AuditUserEnd   EventType = 1106
+	AuditUserLogin EventType = 1112
+	AuditUserErr   EventType = 1109
 )
 
 type ResultType string
@@ -72,11 +72,11 @@ func (m *Message) SetDefaults() {
 
 func eventToOp(event EventType) string {
 	switch event {
-	case AUDIT_USER_END:
+	case AuditUserEnd:
 		return "session_close"
-	case AUDIT_USER_LOGIN:
+	case AuditUserLogin:
 		return "login"
-	case AUDIT_USER_ERR:
+	case AuditUserErr:
 		return "invalid_user"
 	default:
 		return "?"

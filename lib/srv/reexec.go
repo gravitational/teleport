@@ -205,7 +205,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		TTYName:      c.TerminalName,
 	}
 
-	if err := auditd.SendEvent(auditd.AUDIT_USER_LOGIN, auditd.Success, auditdMsg); err != nil {
+	if err := auditd.SendEvent(auditd.AuditUserLogin, auditd.Success, auditdMsg); err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Errorf("failed to login user start: %v", err)
 	}
 
@@ -216,13 +216,13 @@ func RunCommand() (errw io.Writer, code int, err error) {
 			result = auditd.Failed
 			//fmt.Fprintf(errorWriter, "magic cmd: %v", *err)
 			if strings.Contains((*err).Error(), "unknown user") {
-				if err := auditd.SendEvent(auditd.AUDIT_USER_ERR, result, auditdMsg); err != nil {
+				if err := auditd.SendEvent(auditd.AuditUserErr, result, auditdMsg); err != nil {
 					log.WithError(err).Errorf("failed to login user end: %v", err)
 				}
 			}
 		}
 
-		if err := auditd.SendEvent(auditd.AUDIT_USER_END, result, auditdMsg); err != nil {
+		if err := auditd.SendEvent(auditd.AuditUserEnd, result, auditdMsg); err != nil {
 			log.WithError(err).Errorf("failed to login user end: %v", err)
 		}
 	}(&err)
