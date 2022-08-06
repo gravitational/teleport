@@ -21,9 +21,10 @@ import (
 	"crypto/rsa"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
-	"github.com/stretchr/testify/require"
 )
 
 func TestConvertToPPK(t *testing.T) {
@@ -217,8 +218,10 @@ Private-MAC: a9b12c6450e46fd7abbaaff5841f8a64f9597c7b2b59bd69d6fd3ceee0ca61ea
 			priv, err := keys.ParsePrivateKey(tc.priv)
 			require.NoError(t, err)
 
-			rsaPriv, ok := priv.GetBaseSigner().(*rsa.PrivateKey)
+			rsaPriv, ok := priv.Signer.(*rsa.PrivateKey)
 			require.True(t, ok)
+			// Without this line, the linter thinks that "crypto/rsa" is unused...
+			require.IsType(t, &rsa.PrivateKey{}, rsaPriv)
 
 			output, err := ppk.ConvertToPPK(rsaPriv, tc.pub)
 			require.NoError(t, err)

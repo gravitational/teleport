@@ -28,6 +28,7 @@ import (
 	"time"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -710,7 +711,7 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 			<-w.semUploads
 		}()
 
-		var retry utils.Retry
+		var retry retryutils.Retry
 		for i := 0; i < defaults.MaxIterationLimit; i++ {
 			reader, err := slice.reader()
 			if err != nil {
@@ -730,7 +731,7 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 			// retry is created on the first upload error
 			if retry == nil {
 				var rerr error
-				retry, rerr = utils.NewLinear(utils.LinearConfig{
+				retry, rerr = retryutils.NewLinear(retryutils.LinearConfig{
 					Step: defaults.NetworkRetryDuration,
 					Max:  defaults.NetworkBackoffDuration,
 				})
