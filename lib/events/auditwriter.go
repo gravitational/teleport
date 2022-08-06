@@ -24,6 +24,7 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -548,7 +549,7 @@ func (a *AuditWriter) completeStream(stream apievents.Stream) {
 }
 
 func (a *AuditWriter) tryResumeStream() (apievents.Stream, error) {
-	retry, err := utils.NewLinear(utils.LinearConfig{
+	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step: defaults.NetworkRetryDuration,
 		Max:  defaults.NetworkBackoffDuration,
 	})
