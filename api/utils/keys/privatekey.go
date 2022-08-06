@@ -34,9 +34,10 @@ import (
 )
 
 const (
-	PKCS1PrivateKeyType = "RSA PRIVATE KEY"
-	PKCS8PrivateKeyType = "PRIVATE KEY"
-	ECPrivateKeyType    = "EC PRIVATE KEY"
+	PKCS1PrivateKeyType      = "RSA PRIVATE KEY"
+	PKCS8PrivateKeyType      = "PRIVATE KEY"
+	ECPrivateKeyType         = "EC PRIVATE KEY"
+	pivYubikeyPrivateKeyType = "PIV YUBIKEY PRIVATE KEY"
 )
 
 // PrivateKey implements crypto.Signer with additional helper methods. The underlying
@@ -48,7 +49,7 @@ type PrivateKey struct {
 	sshPub ssh.PublicKey
 }
 
-// NewPrivateKey returns a new PrivateKey for the given crypto.Signer.
+// NewPrivateKey returns a new PrivateKey for the given Signer.
 func NewPrivateKey(signer Signer) (*PrivateKey, error) {
 	sshPub, err := ssh.NewPublicKey(signer.Public())
 	if err != nil {
@@ -189,6 +190,12 @@ func ParsePrivateKey(keyPEM []byte) (*PrivateKey, error) {
 			return nil, trace.BadParameter("x509.ParsePKCS8PrivateKey returned an invalid private key of type %T", priv)
 		}
 		return NewPrivateKey(newStandardSigner(cryptoSigner, keyPEM))
+	case pivYubikeyPrivateKeyType:
+		priv, err := parseYubikeyPrivateKeyData(block.Bytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return NewPrivateKey(newStandardSigner(priv, keyPEM))
 	default:
 		return nil, trace.BadParameter("unexpected private key PEM type %q", block.Type)
 	}

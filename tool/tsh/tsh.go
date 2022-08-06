@@ -46,6 +46,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -1439,6 +1440,7 @@ func onLogin(cf *CLIConf) error {
 		}
 		return trace.Wrap(err)
 	}
+
 	tc.AllowStdinHijack = false
 
 	// the login operation may update the username and should be considered the more
@@ -1447,7 +1449,6 @@ func onLogin(cf *CLIConf) error {
 
 	// TODO(fspmarshall): Refactor access request & cert reissue logic to allow
 	// access requests to be applied to identity files.
-
 	if makeIdentityFile {
 		if err := setupNoninteractiveClient(tc, key); err != nil {
 			return trace.Wrap(err)
