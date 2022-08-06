@@ -16,7 +16,15 @@ func TestServerConversion(t *testing.T) {
 		version  string
 		state    string
 		wantErr  error
-	}{}
+	}{
+		{
+			name: "one",
+			protocol: "mysql",
+			version: "5.7",
+			state: "Ready",
+			wantErr: nil,
+		},
+	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var (
@@ -31,6 +39,7 @@ func TestServerConversion(t *testing.T) {
 			dbName := "dbname"
 			typeFmt := "%v/servers"
 			idFmt := "/subscriptions/subid/resourceGroups/group/providers/%v/dbname"
+			tags := map[string]string{"foo": "bar", "baz": "qux"}
 			switch tt.protocol {
 			case defaults.ProtocolMySQL:
 				provider = "Microsoft.DBforMySQL"
@@ -46,9 +55,7 @@ func TestServerConversion(t *testing.T) {
 							UserVisibleState:         (*armmysql.ServerState)(&tt.state),
 							Version:                  (*armmysql.ServerVersion)(&tt.version),
 						},
-						Tags: makeAzureTags(map[string]string{
-							"foo": "bar",
-						}),
+						Tags: makeAzureTags(tags),
 						ID:   &id,
 						Name: &dbName,
 						Type: &serverType,
@@ -67,9 +74,7 @@ func TestServerConversion(t *testing.T) {
 							UserVisibleState:         (*armpostgresql.ServerState)(&tt.state),
 							Version:                  (*armpostgresql.ServerVersion)(&tt.version),
 						},
-						Tags: makeAzureTags(map[string]string{
-							"foo": "bar",
-						}),
+						Tags: makeAzureTags(tags),
 						ID:   &id,
 						Name: &dbName,
 						Type: &serverType,
@@ -79,8 +84,18 @@ func TestServerConversion(t *testing.T) {
 			}
 			require.ErrorIs(t, err, tt.wantErr)
 
+			require.Equal(t, tt.protocol, server.GetProtocol())
+			require.Equal(t, tt.state, server.GetState())
+			require.Equal(t, tt.version, server.GetVersion())
+			require.Equal(t, provider, server.GetID().ProviderNamespace)
+			require.Equal(t, "group", server.GetID().ResourceGroup)
+			require.Equal(t, "subid", server.GetID().SubscriptionID)
+			require.Equal(t, serverType, server.GetID().ResourceType)
+			require.Equal(t, dbName, server.GetID().ResourceName)
+			require.Equal(t, dbName, server.GetName())
 			require.Equal(t, fqdn+":"+port, server.GetEndpoint())
-			//TODO(gavin): test all the interface methods
+			require.Equal(t, region, server.GetRegion())
+			require.Equal(t, tags, server.GetTags())
 		})
 	}
 }

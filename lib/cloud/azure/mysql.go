@@ -204,7 +204,7 @@ func ParseID(id *string) (*types.AzureResourceID, error) {
 		SubscriptionID:    rid.SubscriptionID,
 		ResourceGroup:     rid.ResourceGroupName,
 		ProviderNamespace: rid.ResourceType.Namespace,
-		ResourceType:      rid.ResourceType.Type,
+		ResourceType:      rid.ResourceType.String(),
 		ResourceName:      rid.Name,
 	}, nil
 }
