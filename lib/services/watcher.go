@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -93,11 +94,11 @@ func (cfg *ResourceWatcherConfig) CheckAndSetDefaults() error {
 // It is the caller's responsibility to verify the inputs' validity
 // incl. cfg.CheckAndSetDefaults.
 func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg ResourceWatcherConfig) (*resourceWatcher, error) {
-	retry, err := utils.NewLinear(utils.LinearConfig{
+	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		First:  utils.HalfJitter(cfg.MaxRetryPeriod / 10),
 		Step:   cfg.MaxRetryPeriod / 5,
 		Max:    cfg.MaxRetryPeriod,
-		Jitter: utils.NewHalfJitter(),
+		Jitter: retryutils.NewHalfJitter(),
 		Clock:  cfg.Clock,
 	})
 	if err != nil {
@@ -130,7 +131,7 @@ type resourceWatcher struct {
 	cancel context.CancelFunc
 
 	// retry is used to manage backoff logic for watchers.
-	retry utils.Retry
+	retry retryutils.Retry
 
 	// failureStartedAt records when the current sync failures were first
 	// detected, zero if there are no failures present.
