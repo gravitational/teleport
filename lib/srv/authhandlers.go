@@ -294,7 +294,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 			ConnAddress:  conn.RemoteAddr().String(),
 		}
 
-		if err := auditd.SendEvent(auditd.AUDIT_USER_ERR, auditd.Failed, auditdMsg); err != nil {
+		if err := auditd.SendEvent(auditd.AuditUserErr, auditd.Failed, auditdMsg); err != nil {
 			log.Warnf("failed to send an event to auditd: %v", err)
 		}
 	}

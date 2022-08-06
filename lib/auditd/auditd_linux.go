@@ -188,7 +188,7 @@ func NewClient(msg Message) *Client {
 func getAuditStatus(conn NetlinkConnecter) (*auditStatus, error) {
 	_, err := conn.Execute(netlink.Message{
 		Header: netlink.Header{
-			Type:  netlink.HeaderType(AUDIT_GET),
+			Type:  netlink.HeaderType(AuditGet),
 			Flags: netlink.Request | netlink.Acknowledge,
 		},
 		Data: nil,
