@@ -37,9 +37,10 @@ use rdp::core::tpkt;
 use rdp::core::x224;
 use rdp::model::error::{Error as RdpError, RdpError as RdpProtocolError, RdpErrorKind, RdpResult};
 use rdp::model::link::{Link, Stream};
+use rdpdr::path::UnixPath;
 use rdpdr::ServerCreateDriveRequest;
 use std::convert::TryFrom;
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 use std::io::Error as IoError;
 use std::io::ErrorKind;
 use std::io::{Cursor, Read, Write};
@@ -306,7 +307,7 @@ fn connect_rdp_inner(
     let tdp_sd_info_request = Box::new(move |req: SharedDirectoryInfoRequest| -> RdpResult<()> {
         debug!("sending TDP SharedDirectoryInfoRequest: {:?}", req);
         // Create C compatible string from req.path
-        match CString::new(req.path.clone()) {
+        match req.path.to_cstring() {
             Ok(c_string) => {
                 unsafe {
                     let err = tdp_sd_info_request(
@@ -328,7 +329,7 @@ fn connect_rdp_inner(
             Err(_) => {
                 // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
                 return Err(RdpError::TryError(format!(
-                    "path contained characters that couldn't be converted to a C string: {}",
+                    "path contained characters that couldn't be converted to a C string: {:?}",
                     req.path
                 )));
             }
@@ -339,7 +340,7 @@ fn connect_rdp_inner(
         Box::new(move |req: SharedDirectoryCreateRequest| -> RdpResult<()> {
             debug!("sending TDP SharedDirectoryCreateRequest: {:?}", req);
             // Create C compatible string from req.path
-            match CString::new(req.path.clone()) {
+            match req.path.to_cstring() {
                 Ok(c_string) => {
                     unsafe {
                         let err = tdp_sd_create_request(
@@ -362,7 +363,7 @@ fn connect_rdp_inner(
                 Err(_) => {
                     // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
                     return Err(RdpError::TryError(format!(
-                        "path contained characters that couldn't be converted to a C string: {}",
+                        "path contained characters that couldn't be converted to a C string: {:?}",
                         req.path
                     )));
                 }
@@ -373,7 +374,7 @@ fn connect_rdp_inner(
         Box::new(move |req: SharedDirectoryDeleteRequest| -> RdpResult<()> {
             debug!("sending TDP SharedDirectoryDeleteRequest: {:?}", req);
             // Create C compatible string from req.path
-            match CString::new(req.path.clone()) {
+            match req.path.to_cstring() {
                 Ok(c_string) => {
                     unsafe {
                         let err = tdp_sd_delete_request(
@@ -395,7 +396,7 @@ fn connect_rdp_inner(
                 Err(_) => {
                     // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
                     return Err(RdpError::TryError(format!(
-                        "path contained characters that couldn't be converted to a C string: {}",
+                        "path contained characters that couldn't be converted to a C string: {:?}",
                         req.path
                     )));
                 }
@@ -405,7 +406,7 @@ fn connect_rdp_inner(
     let tdp_sd_list_request = Box::new(move |req: SharedDirectoryListRequest| -> RdpResult<()> {
         debug!("sending TDP SharedDirectoryListRequest: {:?}", req);
         // Create C compatible string from req.path
-        match CString::new(req.path.clone()) {
+        match req.path.to_cstring() {
             Ok(c_string) => {
                 unsafe {
                     let err = tdp_sd_list_request(
@@ -427,7 +428,7 @@ fn connect_rdp_inner(
             Err(_) => {
                 // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
                 return Err(RdpError::TryError(format!(
-                    "path contained characters that couldn't be converted to a C string: {}",
+                    "path contained characters that couldn't be converted to a C string: {:?}",
                     req.path
                 )));
             }
@@ -435,8 +436,8 @@ fn connect_rdp_inner(
     });
 
     let tdp_sd_read_request = Box::new(move |req: SharedDirectoryReadRequest| -> RdpResult<()> {
-        debug!("sending: {:?}", req);
-        match CString::new(req.path.clone()) {
+        debug!("sending TDP SharedDirectoryReadRequest: {:?}", req);
+        match req.path.to_cstring() {
             Ok(c_string) => {
                 unsafe {
                     let err = tdp_sd_read_request(
@@ -445,7 +446,7 @@ fn connect_rdp_inner(
                             completion_id: req.completion_id,
                             directory_id: req.directory_id,
                             path: c_string.as_ptr(),
-                            path_length: req.path.len() as u32,
+                            path_length: req.path.len(),
                             offset: req.offset,
                             length: req.length,
                         },
@@ -461,7 +462,7 @@ fn connect_rdp_inner(
             }
             Err(_) => {
                 return Err(RdpError::TryError(format!(
-                    "path contained characters that couldn't be converted to a C string: {}",
+                    "path contained characters that couldn't be converted to a C string: {:?}",
                     req.path
                 )));
             }
@@ -469,8 +470,8 @@ fn connect_rdp_inner(
     });
 
     let tdp_sd_write_request = Box::new(move |req: SharedDirectoryWriteRequest| -> RdpResult<()> {
-        debug!("sending: {:?}", req);
-        match CString::new(req.path.clone()) {
+        debug!("sending TDP SharedDirectoryWriteRequest: {:?}", req);
+        match req.path.to_cstring() {
             Ok(c_string) => {
                 unsafe {
                     let err = tdp_sd_write_request(
@@ -480,7 +481,7 @@ fn connect_rdp_inner(
                             directory_id: req.directory_id,
                             offset: req.offset,
                             path: c_string.as_ptr(),
-                            path_length: req.path.len() as u32,
+                            path_length: req.path.len(),
                             write_data_length: req.write_data.len() as u32,
                             write_data: req.write_data.as_ptr() as *mut u8,
                         },
@@ -496,7 +497,7 @@ fn connect_rdp_inner(
             }
             Err(_) => {
                 return Err(RdpError::TryError(format!(
-                    "path contained characters that couldn't be converted to a C string: {}",
+                    "path contained characters that couldn't be converted to a C string: {:?}",
                     req.path
                 )));
             }
@@ -1365,7 +1366,7 @@ pub type CGOSharedDirectoryAcknowledge = SharedDirectoryAcknowledge;
 pub struct SharedDirectoryInfoRequest {
     completion_id: u32,
     directory_id: u32,
-    path: String,
+    path: UnixPath,
 }
 
 #[repr(C)]
@@ -1380,7 +1381,7 @@ impl From<ServerCreateDriveRequest> for SharedDirectoryInfoRequest {
         SharedDirectoryInfoRequest {
             completion_id: req.device_io_request.completion_id,
             directory_id: req.device_io_request.device_id,
-            path: req.path,
+            path: UnixPath::from(&req.path),
         }
     }
 }
@@ -1423,12 +1424,12 @@ pub struct FileSystemObject {
     last_modified: u64,
     size: u64,
     file_type: FileType,
-    path: String,
+    path: UnixPath,
 }
 
 impl FileSystemObject {
     fn name(&self) -> RdpResult<String> {
-        if let Some(name) = self.path.split('/').last() {
+        if let Some(name) = self.path.last() {
             Ok(name.to_string())
         } else {
             Err(try_error(&format!(
@@ -1460,7 +1461,7 @@ impl From<CGOFileSystemObject> for FileSystemObject {
                 last_modified: cgo_fso.last_modified,
                 size: cgo_fso.size,
                 file_type: cgo_fso.file_type,
-                path: from_go_string(cgo_fso.path),
+                path: UnixPath::from(from_go_string(cgo_fso.path)),
             }
         }
     }
@@ -1493,7 +1494,7 @@ pub struct SharedDirectoryWriteRequest {
     completion_id: u32,
     directory_id: u32,
     offset: u64,
-    path: String,
+    path: UnixPath,
     write_data: Vec<u8>,
 }
 
@@ -1515,7 +1516,7 @@ pub struct CGOSharedDirectoryWriteRequest {
 pub struct SharedDirectoryReadRequest {
     completion_id: u32,
     directory_id: u32,
-    path: String,
+    path: UnixPath,
     offset: u64,
     length: u32,
 }
@@ -1580,7 +1581,7 @@ pub struct SharedDirectoryCreateRequest {
     completion_id: u32,
     directory_id: u32,
     file_type: FileType,
-    path: String,
+    path: UnixPath,
 }
 
 #[repr(C)]

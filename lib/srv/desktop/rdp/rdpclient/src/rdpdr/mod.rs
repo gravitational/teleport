@@ -14,8 +14,10 @@
 
 mod consts;
 mod flags;
+pub(crate) mod path;
 mod scard;
 
+use self::path::{UnixPath, WindowsPath};
 use crate::errors::{
     invalid_data_error, not_implemented_error, rejected_by_server_error, try_error, NTSTATUS_OK,
     SPECIAL_NO_RESPONSE,
@@ -462,7 +464,7 @@ impl Client {
                                 let file_id = cli.generate_file_id();
                                 cli.file_cache.insert(
                                     file_id,
-                                    FileCacheObject::new(rdp_req.path.clone(), res.fso),
+                                    FileCacheObject::new(UnixPath::from(&rdp_req.path), res.fso),
                                 );
                                 return cli.prep_device_create_response(
                                     &rdp_req,
@@ -495,7 +497,7 @@ impl Client {
                                 let file_id = cli.generate_file_id();
                                 cli.file_cache.insert(
                                     file_id,
-                                    FileCacheObject::new(rdp_req.path.clone(), res.fso),
+                                    FileCacheObject::new(UnixPath::from(&rdp_req.path), res.fso),
                                 );
                                 return cli.prep_device_create_response(
                                     &rdp_req,
@@ -1144,7 +1146,7 @@ impl Client {
             completion_id: rdp_req.device_io_request.completion_id,
             directory_id: rdp_req.device_io_request.device_id,
             file_type,
-            path: rdp_req.path.clone(),
+            path: UnixPath::from(&rdp_req.path),
         };
         (self.tdp_sd_create_request)(tdp_req)?;
 
@@ -1163,8 +1165,10 @@ impl Client {
                     }
 
                     let file_id = cli.generate_file_id();
-                    cli.file_cache
-                        .insert(file_id, FileCacheObject::new(rdp_req.path.clone(), fso));
+                    cli.file_cache.insert(
+                        file_id,
+                        FileCacheObject::new(UnixPath::from(&rdp_req.path), fso),
+                    );
                     cli.prep_device_create_response(&rdp_req, NTSTATUS::STATUS_SUCCESS, file_id)
                 },
             ),
@@ -1183,7 +1187,7 @@ impl Client {
         let tdp_req = SharedDirectoryDeleteRequest {
             completion_id: rdp_req.device_io_request.completion_id,
             directory_id: rdp_req.device_io_request.device_id,
-            path: rdp_req.path.clone(),
+            path: UnixPath::from(&rdp_req.path),
         };
         (self.tdp_sd_delete_request)(tdp_req)?;
         self.pending_sd_delete_resp_handlers.insert(
@@ -1369,7 +1373,7 @@ impl Client {
 /// | -------- | ------------- | ---------------------------------------------------------|
 #[derive(Debug)]
 struct FileCacheObject {
-    path: String,
+    path: UnixPath,
     delete_pending: bool,
     /// The FileSystemObject pertaining to the file or directory at path.
     fso: FileSystemObject,
@@ -1385,7 +1389,7 @@ struct FileCacheObject {
 }
 
 impl FileCacheObject {
-    fn new(path: String, fso: FileSystemObject) -> Self {
+    fn new(path: UnixPath, fso: FileSystemObject) -> Self {
         Self {
             path,
             delete_pending: false,
@@ -1427,7 +1431,7 @@ impl Iterator for FileCacheObject {
                 last_modified: self.fso.last_modified,
                 size: self.fso.size,
                 file_type: self.fso.file_type,
-                path: ".".to_string(),
+                path: UnixPath::from(".".to_string()),
             })
         } else if !self.dotdot_sent {
             // On the second call to next, return the ".." directory
@@ -1436,7 +1440,7 @@ impl Iterator for FileCacheObject {
                 last_modified: self.fso.last_modified,
                 size: 0,
                 file_type: FileType::Directory,
-                path: "..".to_string(),
+                path: UnixPath::from("..".to_string()),
             })
         } else {
             // "." and ".." have been sent, now start iterating through
@@ -2089,7 +2093,7 @@ pub struct DeviceCreateRequest {
     create_disposition: flags::CreateDisposition,
     create_options: flags::CreateOptions,
     path_length: u32,
-    pub path: String,
+    pub path: WindowsPath,
 }
 
 impl DeviceCreateRequest {
@@ -2114,7 +2118,7 @@ impl DeviceCreateRequest {
         // for a u32 will never panic on the machines that run teleport.
         let mut path = vec![0u8; path_length.try_into().unwrap()];
         payload.read_exact(&mut path)?;
-        let path = util::from_unicode(path)?;
+        let path = WindowsPath::from(util::from_unicode(path)?);
 
         Ok(Self {
             device_io_request,
@@ -3451,7 +3455,7 @@ struct ServerDriveQueryDirectoryRequest {
     /// A variable-length array of Unicode characters (we will store this as a regular rust String) that specifies the directory
     /// on which this operation will be performed. The Path field MUST be null-terminated. If the value of the InitialQuery field
     /// is zero, then the contents of the Path field MUST be ignored, irrespective of the value specified in the PathLength field.
-    path: String,
+    path: WindowsPath,
 }
 
 impl ServerDriveQueryDirectoryRequest {
@@ -3478,7 +3482,7 @@ impl ServerDriveQueryDirectoryRequest {
 
         let initial_query = payload.read_u8()?;
         let mut path_length: u32 = 0;
-        let mut path = String::from("");
+        let mut path = WindowsPath::from("".to_string());
         let mut padding: [u8; 23] = [0; 23];
         if initial_query != 0 {
             path_length = payload.read_u32::<LittleEndian>()?;
@@ -3489,7 +3493,7 @@ impl ServerDriveQueryDirectoryRequest {
             // TODO(isaiah): make a from_unicode_exact
             let mut path_as_vec = vec![0u8; path_length.try_into().unwrap()];
             payload.read_exact(&mut path_as_vec)?;
-            path = util::from_unicode(path_as_vec)?;
+            path = WindowsPath::from(util::from_unicode(path_as_vec)?);
         }
 
         Ok(Self {
