@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client/terminal"
@@ -3301,16 +3302,35 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	)
 	defer span.End()
 
+	// Get a new (or old) key to be signed via proxy on valid login.
+	var key *Key
+	var err error
+
+	// TODO (Joerger): Remove this env var check once we can pull server settings to decide whether
+	// or not to initiate PIV login - https://github.com/gravitational/teleport/pull/15336
+	if os.Getenv("PIV_LOGIN") != "" {
+		priv, err := keys.GetOrGenerateYubiKeyPrivateKey(ctx, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		key = NewKey(priv)
+	} else {
+		// If we find a valid key in the localAgent, reuse it instead of generating a new key.
+		// This is especially useful if the key is a hardware key, since they need to be reused
+		// between multiple login sessions and shouldn't be regenerated.
+		if key, err = tc.localAgent.GetCoreKey(); trace.IsNotFound(err) {
+			// No core key found, this is the first login for the proxy. Generate a new RSA key.
+			if key, err = GenerateRSAKey(); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		} else if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// Ping the endpoint to see if it's up and find the type of authentication
 	// supported, also show the message of the day if available.
 	pr, err := tc.PingAndShowMOTD(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// generate a new keypair. the public key will be signed via proxy if client's
-	// password+OTP are valid
-	key, err := GenerateRSAKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

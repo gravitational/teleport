@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package utils
+package retryutils
 
 import (
 	"testing"
@@ -23,7 +23,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_LinearRetryMax(t *testing.T) {
+// TestLinear tests retry logic
+func TestLinear(t *testing.T) {
+	t.Parallel()
+
+	r, err := NewLinear(LinearConfig{
+		Step: time.Second,
+		Max:  3 * time.Second,
+	})
+	require.NoError(t, err)
+	require.Equal(t, r.Duration(), time.Duration(0))
+	r.Inc()
+	require.Equal(t, r.Duration(), time.Second)
+	r.Inc()
+	require.Equal(t, r.Duration(), 2*time.Second)
+	r.Inc()
+	require.Equal(t, r.Duration(), 3*time.Second)
+	r.Inc()
+	require.Equal(t, r.Duration(), 3*time.Second)
+	r.Reset()
+	require.Equal(t, r.Duration(), time.Duration(0))
+}
+
+func TestLinearRetryMax(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -32,12 +54,22 @@ func Test_LinearRetryMax(t *testing.T) {
 		previousCompareFn require.ComparisonAssertionFunc
 	}{
 		{
+			desc: "FullJitter",
+			config: LinearConfig{
+				First:  time.Second * 45,
+				Step:   time.Second * 30,
+				Max:    time.Minute,
+				Jitter: NewFullJitter(),
+			},
+			previousCompareFn: require.NotEqual,
+		},
+		{
 			desc: "HalfJitter",
 			config: LinearConfig{
 				First:  time.Second * 45,
 				Step:   time.Second * 30,
 				Max:    time.Minute,
-				Jitter: NewJitter(),
+				Jitter: NewHalfJitter(),
 			},
 			previousCompareFn: require.NotEqual,
 		},
@@ -51,6 +83,7 @@ func Test_LinearRetryMax(t *testing.T) {
 			},
 			previousCompareFn: require.NotEqual,
 		},
+
 		{
 			desc: "NoJitter",
 			config: LinearConfig{
@@ -85,7 +118,6 @@ func Test_LinearRetryMax(t *testing.T) {
 
 				// ensure duration comparison to previous is satisfied
 				tc.previousCompareFn(t, duration, previous)
-
 			}
 		})
 	}

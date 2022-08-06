@@ -324,7 +324,7 @@ func (a *LocalKeyAgent) GetKey(clusterName string, opts ...CertOption) (*Key, er
 }
 
 // GetCoreKey returns the key without any cluster-dependent certificates,
-// i.e. including only the RSA keypair and the Teleport TLS certificate.
+// i.e. including only the private key and the Teleport TLS certificate.
 func (a *LocalKeyAgent) GetCoreKey() (*Key, error) {
 	return a.GetKey("")
 }
