@@ -22,11 +22,10 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -137,66 +136,40 @@ func setDBName(meta types.Metadata, firstNamePart string, extraNameParts ...stri
 	return meta
 }
 
-// NewDatabaseFromAzureMySQLServer creates a database resource from an AzureMySQL server.
-func NewDatabaseFromAzureMySQLServer(server *armmysql.Server) (types.Database, error) {
-	if server.Properties == nil || server.Properties.FullyQualifiedDomainName == nil {
+// NewDatabaseFromAzureDBServer creates a database resource from an AzureDB server.
+func NewDatabaseFromAzureDBServer(server azure.AzureDBServer) (types.Database, error) {
+	endpoint := server.GetEndpoint()
+	if endpoint == "" {
 		return nil, trace.BadParameter("empty endpoint")
 	}
-	endpoint := *server.Properties.FullyQualifiedDomainName
-	if server.Name == nil {
+
+	name := server.GetName()
+	if name == "" {
 		return nil, trace.BadParameter("empty server name")
 	}
-	name := *server.Name
 
-	metadata, err := MetadataFromAzureMySQLServer(server)
+	protocol := server.GetProtocol()
+	if protocol == "" {
+		return nil, trace.BadParameter("empty server protocol")
+	}
+
+	metadata, err := MetadataFromAzureDBServer(server)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var location string
-	if server.Location != nil {
-		location = *server.Location
-	}
-	return types.NewDatabaseV3(
-		setDBName(types.Metadata{
-			Description: fmt.Sprintf("Azure MySQL server in %v", location),
-			Labels:      labelsFromAzureMySQLServer(server, metadata),
-		}, name),
-		types.DatabaseSpecV3{
-			Protocol: defaults.ProtocolMySQL,
-			URI:      fmt.Sprintf("%v:%v", endpoint, AzureMySQLPort),
-			Azure:    *metadata,
-		})
-}
-
-// NewDatabaseFromAzurePostgresServer creates a database resource from an AzurePostgres server.
-func NewDatabaseFromAzurePostgresServer(server *armpostgresql.Server) (types.Database, error) {
-	if server.Properties == nil || server.Properties.FullyQualifiedDomainName == nil {
-		return nil, trace.BadParameter("empty endpoint")
-	}
-	endpoint := *server.Properties.FullyQualifiedDomainName
-	if server.Name == nil {
-		return nil, trace.BadParameter("empty server name")
-	}
-	name := *server.Name
-
-	metadata, err := MetadataFromAzurePostgresServer(server)
+	labels, err := labelsFromAzureDBServer(server, metadata)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	var location string
-	if server.Location != nil {
-		location = *server.Location
-	}
 	return types.NewDatabaseV3(
 		setDBName(types.Metadata{
-			Description: fmt.Sprintf("Azure Postgres server in %v", location),
-			Labels:      labelsFromAzurePostgresServer(server, metadata),
+			Description: fmt.Sprintf("Azure DB server in %v", server.GetRegion()),
+			Labels:      labels,
 		}, name),
 		types.DatabaseSpecV3{
-			Protocol: defaults.ProtocolPostgres,
-			URI:      fmt.Sprintf("%v:%v", endpoint, AzurePostgresPort),
+			Protocol: protocol,
+			URI:      fmt.Sprintf("%v", endpoint),
 			Azure:    *metadata,
 		})
 }
@@ -408,48 +381,16 @@ func NewDatabaseFromMemoryDBCluster(cluster *memorydb.Cluster, extraLabels map[s
 		})
 }
 
-// MetadataFromAzureMySQLServer creates Azure metadata from the provided AzureMySQL server.
-func MetadataFromAzureMySQLServer(server *armmysql.Server) (*types.Azure, error) {
-	var (
-		name   string
-		region string
-		id     string
-	)
-	if server.Name != nil {
-		name = *server.Name
-	}
-	if server.Location != nil {
-		region = *server.Location
-	}
-	if server.ID != nil {
-		id = *server.ID
+// MetadataFromAzureDBServer creates Azure metadata from the provided AzureDB server.
+func MetadataFromAzureDBServer(server azure.AzureDBServer) (*types.Azure, error) {
+	id := server.GetID()
+	_, err := arm.ParseResourceID(id)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	return &types.Azure{
-		Name:       name,
-		Region:     region,
-		ResourceID: id,
-	}, nil
-}
-
-// MetadataFromAzurePostgresServer creates Azure metadata from the provided AzurePostgres server.
-func MetadataFromAzurePostgresServer(server *armpostgresql.Server) (*types.Azure, error) {
-	var (
-		name   string
-		region string
-		id     string
-	)
-	if server.Name != nil {
-		name = *server.Name
-	}
-	if server.Location != nil {
-		region = *server.Location
-	}
-	if server.ID != nil {
-		id = *server.ID
-	}
-	return &types.Azure{
-		Name:       name,
-		Region:     region,
+		Name:       server.GetName(),
+		Region:     server.GetRegion(),
 		ResourceID: id,
 	}, nil
 }
@@ -625,46 +566,20 @@ func engineToProtocol(engine string) string {
 	return ""
 }
 
-// labelsFromAzureMySQLServer creates database labels for the provided Azure MySQL server.
-func labelsFromAzureMySQLServer(server *armmysql.Server, meta *types.Azure) map[string]string {
-	labels := azureTagsToLabels(server.Tags)
+// labelsFromAzureDBServer creates database labels for the provided Azure DB server.
+func labelsFromAzureDBServer(server azure.AzureDBServer, meta *types.Azure) (map[string]string, error) {
+	resourceID, err := arm.ParseResourceID(server.GetID())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	labels := azureTagsToLabels(server.GetTags())
 	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = meta.Region
-	if server.Type != nil {
-		labels[labelEngine] = *server.Type
-	}
-	if server.Properties != nil && server.Properties.Version != nil {
-		labels[labelEngineVersion] = string(*server.Properties.Version)
-	}
-	if server.ID != nil {
-		resourceID, err := arm.ParseResourceID(*server.ID)
-		if err == nil {
-			labels[labelResourceGroup] = resourceID.ResourceGroupName
-			labels[labelSubscriptionID] = resourceID.SubscriptionID
-		}
-	}
-	return labels
-}
-
-// labelsFromAzurePostgresServer creates database labels for the provided Azure Postgres server.
-func labelsFromAzurePostgresServer(server *armpostgresql.Server, meta *types.Azure) map[string]string {
-	labels := azureTagsToLabels(server.Tags)
-	labels[types.OriginLabel] = types.OriginCloud
-	labels[labelRegion] = meta.Region
-	if server.Type != nil {
-		labels[labelEngine] = *server.Type
-	}
-	if server.Properties != nil && server.Properties.Version != nil {
-		labels[labelEngineVersion] = string(*server.Properties.Version)
-	}
-	if server.ID != nil {
-		resourceID, err := arm.ParseResourceID(*server.ID)
-		if err == nil {
-			labels[labelResourceGroup] = resourceID.ResourceGroupName
-			labels[labelSubscriptionID] = resourceID.SubscriptionID
-		}
-	}
-	return labels
+	labels[labelEngine] = resourceID.ResourceType.Type
+	labels[labelEngineVersion] = server.GetVersion()
+	labels[labelResourceGroup] = resourceID.ResourceGroupName
+	labels[labelSubscriptionID] = resourceID.SubscriptionID
+	return labels, nil
 }
 
 // labelsFromRDSInstance creates database labels for the provided RDS instance.
@@ -722,15 +637,11 @@ func labelsFromMetaAndEndpointType(meta *types.AWS, endpointType string, extraLa
 }
 
 // azureTagsToLabels converts Azure tags to a labels map.
-func azureTagsToLabels(tags map[string]*string) map[string]string {
+func azureTagsToLabels(tags map[string]string) map[string]string {
 	labels := make(map[string]string)
 	for key, val := range tags {
-		if val == nil {
-			log.Debugf("Skipping Azure tag %q, missing a value.", key)
-			continue
-		}
 		if types.IsValidLabelKey(key) {
-			labels[key] = *val
+			labels[key] = val
 		} else {
 			log.Debugf("Skipping Azure tag %q, not a valid label key.", key)
 		}
@@ -755,32 +666,6 @@ func rdsTagsToLabels(tags []*rds.Tag) map[string]string {
 		}
 	}
 	return labels
-}
-
-// IsAzureMySQLVersionSupported returns true if database supports IAM authentication.
-// Only available for 5.7 and newer.
-func IsAzureMySQLVersionSupported(version armmysql.ServerVersion) bool {
-	switch version {
-	case armmysql.ServerVersionEight0, armmysql.ServerVersionFive7:
-		return true
-	case armmysql.ServerVersionFive6:
-		return false
-	default:
-		log.Warnf("Unknown Azure MySQL server version: %q", version)
-		return false
-	}
-}
-
-// IsAzurePostgresVersionSupported returns true if database supports IAM authentication.
-func IsAzurePostgresVersionSupported(version armpostgresql.ServerVersion) bool {
-	switch version {
-	case armpostgresql.ServerVersionNine5, armpostgresql.ServerVersionNine6, armpostgresql.ServerVersionTen,
-		armpostgresql.ServerVersionTen0, armpostgresql.ServerVersionTen2, armpostgresql.ServerVersionEleven:
-		return true
-	default:
-		log.Warnf("Unknown Azure Postgres server version: %q", version)
-		return false
-	}
 }
 
 // IsRDSInstanceSupported returns true if database supports IAM authentication.
@@ -837,34 +722,6 @@ func IsElastiCacheClusterSupported(cluster *elasticache.ReplicationGroup) bool {
 // IsMemoryDBClusterSupported checks whether the MemoryDB cluster is supported.
 func IsMemoryDBClusterSupported(cluster *memorydb.Cluster) bool {
 	return aws.BoolValue(cluster.TLSEnabled)
-}
-
-func IsAzureMySQLServerAvailable(state armmysql.ServerState) bool {
-	switch state {
-	case armmysql.ServerStateReady:
-		return true
-	case armmysql.ServerStateInaccessible,
-		armmysql.ServerStateDropping,
-		armmysql.ServerStateDisabled:
-		return false
-	default:
-		log.Warnf("Unknown Azure MySQL server state: %q", state)
-		return false
-	}
-}
-
-func IsAzurePostgresServerAvailable(state armpostgresql.ServerState) bool {
-	switch state {
-	case armpostgresql.ServerStateReady:
-		return true
-	case armpostgresql.ServerStateInaccessible,
-		armpostgresql.ServerStateDropping,
-		armpostgresql.ServerStateDisabled:
-		return false
-	default:
-		log.Warnf("Unknown Azure Postgres server state: %q", state)
-		return false
-	}
 }
 
 // IsRDSInstanceAvailable checks if the RDS instance is available.
@@ -1109,11 +966,4 @@ const (
 	labelSubscriptionID = "subscription-id"
 	// labelResourceGroup is the label key for the Azure resource group name.
 	labelResourceGroup = "resource-group"
-)
-
-const (
-	// Azure managed mysql server port is always 3306
-	AzureMySQLPort = "3306"
-	// Azure managed mysql server port is always 5432
-	AzurePostgresPort = "5432"
 )

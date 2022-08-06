@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
@@ -156,7 +157,8 @@ func TestDatabaseFromAzureMySQLServer(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	actual, err := NewDatabaseFromAzureMySQLServer(server)
+	azureDBServer := azure.AzureDBServerFromMySQL(server)
+	actual, err := NewDatabaseFromAzureDBServer(azureDBServer)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
@@ -214,7 +216,8 @@ func TestDatabaseFromAzurePostgresServer(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	actual, err := NewDatabaseFromAzurePostgresServer(server)
+	azureDBServer := azure.AzureDBServerFromPostgres(server)
+	actual, err := NewDatabaseFromAzureDBServer(azureDBServer)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
@@ -720,11 +723,11 @@ func TestIsRDSInstanceSupported(t *testing.T) {
 }
 
 func TestAzureTagsToLabels(t *testing.T) {
-	azureTags := makeAzureTags(map[string]string{
+	azureTags := map[string]string{
 		"Env":     "dev",
 		"foo:bar": "some-id",
 		"Name":    "test",
-	})
+	}
 	labels := azureTagsToLabels(azureTags)
 	require.Equal(t, map[string]string{"Name": "test", "Env": "dev",
 		"foo:bar": "some-id"}, labels)

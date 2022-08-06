@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
+	azurelib "github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/cloud/watchers/azure"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -211,18 +212,22 @@ func makeAzureFetchers(ctx context.Context, clients common.CloudClients, matcher
 			subscriptions = allSubscriptions
 		}
 		for _, matcherType := range matcher.Types {
-			for _, group := range matcher.ResourceGroups {
-				for _, sub := range subscriptions {
-					var fetcher Fetcher
-					var err error
-					switch matcherType {
-					case services.AzureMatcherMySQL:
-						fetcher, err = azure.NewAzureMySQLFetcher(clients, cred, sub, group, matcher.Regions, matcher.Tags)
-					case services.AzureMatcherPostgres:
-						fetcher, err = azure.NewAzurePostgresFetcher(clients, cred, sub, group, matcher.Regions, matcher.Tags)
-					default:
-						continue
-					}
+			for _, sub := range subscriptions {
+				var client azurelib.AzureClient
+				var err error
+				switch matcherType {
+				case services.AzureMatcherMySQL:
+					client, err = clients.GetAzureMySQLClient(sub, cred)
+				case services.AzureMatcherPostgres:
+					client, err = clients.GetAzurePostgresClient(sub, cred)
+				default:
+					continue
+				}
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				for _, group := range matcher.ResourceGroups {
+					fetcher, err := azure.NewAzureFetcher(client, group, matcher.Regions, matcher.Tags)
 					if err != nil {
 						return nil, trace.Wrap(err)
 					}

@@ -20,9 +20,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -31,13 +30,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// NewAzureMySQLFetcher returns a Azure MySQL server fetcher for the provided subscription, group, regions, and tags.
-func NewAzureMySQLFetcher(cs common.CloudClients, cred azcore.TokenCredential, sub, group string, regions []string, tags types.Labels) (*MySQLFetcher, error) {
-	client, err := cs.GetAzureMySQLClient(sub, cred)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	config := mySQLFetcherConfig{
+// NewAzureFetcher returns a Azure DB server fetcher for the provided subscription, group, regions, and tags.
+func NewAzureFetcher(client azure.AzureClient, group string, regions []string, tags types.Labels) (*azureFetcher, error) {
+	config := azureFetcherConfig{
 		Client:        client,
 		ResourceGroup: group,
 		Labels:        tags,
@@ -47,21 +42,24 @@ func NewAzureMySQLFetcher(cs common.CloudClients, cred azcore.TokenCredential, s
 		return nil, trace.Wrap(err)
 	}
 
-	fetcher := &MySQLFetcher{
+	fetcher := &azureFetcher{
 		cfg: config,
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: "watch:azuremysql",
+			trace.Component: fmt.Sprintf("watch:azure:%v", client.Kind()),
 			"labels":        config.Labels,
-			"regions":       config.Regions,
+			"regions":       utils.StringsSliceFromSet(config.Regions),
+			"group":         config.ResourceGroup,
+			"subscription":  client.Subscription(),
 		}),
 	}
+	fetcher.log.Errorf("HERE: testing logger")
 	return fetcher, nil
 }
 
-// mySQLFetcherConfig is the Azure MySQL databases fetcher configuration.
-type mySQLFetcherConfig struct {
+// azureFetcherConfig is the Azure MySQL databases fetcher configuration.
+type azureFetcherConfig struct {
 	// Client is the Azure API client.
-	Client common.AzureMySQLClient
+	Client azure.AzureClient
 	// ResourceGroup is a selector to match cloud resource group.
 	ResourceGroup string
 	// Labels is a selector to match cloud databases.
@@ -71,7 +69,7 @@ type mySQLFetcherConfig struct {
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
-func (c *mySQLFetcherConfig) CheckAndSetDefaults() error {
+func (c *azureFetcherConfig) CheckAndSetDefaults() error {
 	if len(c.ResourceGroup) == 0 {
 		return trace.BadParameter("missing parameter ResourceGroup")
 	}
@@ -87,14 +85,14 @@ func (c *mySQLFetcherConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// MySQLFetcher retrieves Azure MySQL single-server databases.
-type MySQLFetcher struct {
-	cfg mySQLFetcherConfig
+// azureFetcher retrieves Azure DB single-server databases.
+type azureFetcher struct {
+	cfg azureFetcherConfig
 	log logrus.FieldLogger
 }
 
-// Get returns Azure MySQL servers matching the watcher's selectors.
-func (f *MySQLFetcher) Get(ctx context.Context) (types.Databases, error) {
+// Get returns Azure DB servers matching the watcher's selectors.
+func (f *azureFetcher) Get(ctx context.Context) (types.Databases, error) {
 	databases, err := f.getDatabases(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -104,8 +102,8 @@ func (f *MySQLFetcher) Get(ctx context.Context) (types.Databases, error) {
 }
 
 // getDatabases returns a list of database resources representing Azure database servers.
-func (f *MySQLFetcher) getDatabases(ctx context.Context) (types.Databases, error) {
-	servers, err := f.cfg.Client.ListServers(ctx, f.cfg.ResourceGroup)
+func (f *azureFetcher) getDatabases(ctx context.Context) (types.Databases, error) {
+	servers, err := f.cfg.Client.ListServers(ctx, f.cfg.ResourceGroup, common.MaxPages)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -116,40 +114,29 @@ func (f *MySQLFetcher) getDatabases(ctx context.Context) (types.Databases, error
 			continue
 		}
 		// azure sdk provides no way to query by region, so we have to filter results
-		location := stringVal(server.Location)
-		if _, ok := f.cfg.Regions[location]; !ok {
+		region := server.GetRegion()
+		if _, ok := f.cfg.Regions[region]; !ok {
 			continue
 		}
 
-		name := stringVal(server.Name)
-		var version armmysql.ServerVersion
-		var state armmysql.ServerState
-		if server.Properties != nil {
-			if server.Properties.Version != nil {
-				version = *server.Properties.Version
-			}
-			if server.Properties.UserVisibleState != nil {
-				state = *server.Properties.UserVisibleState
-			}
-		}
-		if !services.IsAzureMySQLVersionSupported(version) {
+		if !server.IsVersionSupported() {
 			f.log.Debugf("Azure server %q (version %v) does not support AAD authentication. Skipping.",
-				name,
-				version)
+				server.GetName(),
+				server.GetVersion())
 			continue
 		}
 
-		if !services.IsAzureMySQLServerAvailable(state) {
+		if !server.IsAvailable() {
 			f.log.Debugf("The current status of Azure server %q is %q. Skipping.",
-				name,
-				state)
+				server.GetName(),
+				server.GetVersion())
 			continue
 		}
 
-		database, err := services.NewDatabaseFromAzureMySQLServer(server)
+		database, err := services.NewDatabaseFromAzureDBServer(server)
 		if err != nil {
 			f.log.Warnf("Could not convert Azure server %q to database resource: %v.",
-				name,
+				server.GetName(),
 				err)
 		} else {
 			databases = append(databases, database)
@@ -159,7 +146,7 @@ func (f *MySQLFetcher) getDatabases(ctx context.Context) (types.Databases, error
 }
 
 // String returns the fetcher's string description.
-func (f *MySQLFetcher) String() string {
-	return fmt.Sprintf("azureMySQLFetcher(Region=%v, Labels=%v)",
-		f.cfg.Regions, f.cfg.Labels)
+func (f *azureFetcher) String() string {
+	return fmt.Sprintf("azureFetcher(Kind=%v, Subscription=%v, ResourceGroup=%v, Region=%v, Labels=%v)",
+		f.cfg.Client.Kind(), f.cfg.Client.Subscription(), f.cfg.ResourceGroup, f.cfg.Regions, f.cfg.Labels)
 }
