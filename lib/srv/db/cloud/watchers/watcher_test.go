@@ -342,20 +342,20 @@ func TestWatcher(t *testing.T) {
 				},
 			},
 			clients: &common.TestCloudClients{
-				AzureMySQLPerSub: map[string]azure.AzureClient{
+				AzureMySQLPerSub: map[string]azure.ServersClient{
 					subscription1: &cloud.AzureClientMock{
-						DBServers: []azure.AzureDBServer{azMySQLServer1, azMySQLServer2, azMySQLServer3, azMySQLServer5},
+						DBServers: []azure.Server{azMySQLServer1, azMySQLServer2, azMySQLServer3, azMySQLServer5},
 					},
 					subscription2: &cloud.AzureClientMock{
-						DBServers: []azure.AzureDBServer{azMySQLServer4},
+						DBServers: []azure.Server{azMySQLServer4},
 					},
 				},
-				AzurePostgresPerSub: map[string]azure.AzureClient{
+				AzurePostgresPerSub: map[string]azure.ServersClient{
 					subscription1: &cloud.AzureClientMock{
-						DBServers: []azure.AzureDBServer{azPostgresServer1, azPostgresServer2, azPostgresServer3, azPostgresServer5},
+						DBServers: []azure.Server{azPostgresServer1, azPostgresServer2, azPostgresServer3, azPostgresServer5},
 					},
 					subscription2: &cloud.AzureClientMock{
-						DBServers: []azure.AzureDBServer{azPostgresServer4},
+						DBServers: []azure.Server{azPostgresServer4},
 					},
 				},
 			},
@@ -375,14 +375,14 @@ func TestWatcher(t *testing.T) {
 			},
 			clients: &common.TestCloudClients{
 				AzureMySQL: &cloud.AzureClientMock{
-					DBServers: []azure.AzureDBServer{
+					DBServers: []azure.Server{
 						azMySQLServer1,
 						azMySQLServerUnknownVersion,
 						azMySQLServerUnsupportedVersion,
 					},
 				},
 				AzurePostgres: &cloud.AzureClientMock{
-					DBServers: []azure.AzureDBServer{
+					DBServers: []azure.Server{
 						azPostgresServer1,
 						azPostgresServerUnknownVersion,
 						azPostgresServerUnsupportedVersion,
@@ -404,14 +404,14 @@ func TestWatcher(t *testing.T) {
 			},
 			clients: &common.TestCloudClients{
 				AzureMySQL: &cloud.AzureClientMock{
-					DBServers: []azure.AzureDBServer{
+					DBServers: []azure.Server{
 						azMySQLServer1,
 						azMySQLServerDisabledState,
 						azMySQLServerUnknownState,
 					},
 				},
 				AzurePostgres: &cloud.AzureClientMock{
-					DBServers: []azure.AzureDBServer{
+					DBServers: []azure.Server{
 						azPostgresServer1,
 						azPostgresServerDisabledState,
 						azPostgresServerUnknownState,
@@ -432,20 +432,20 @@ func TestWatcher(t *testing.T) {
 				},
 			},
 			clients: &common.TestCloudClients{
-				AzureMySQLPerSub: map[string]azure.AzureClient{
+				AzureMySQLPerSub: map[string]azure.ServersClient{
 					subscription1: &cloud.AzureClientMockUnauth{
-						DBServers: []azure.AzureDBServer{azMySQLServer1},
+						DBServers: []azure.Server{azMySQLServer1},
 					},
 					subscription2: &cloud.AzureClientMock{
-						DBServers: []azure.AzureDBServer{azMySQLServer4},
+						DBServers: []azure.Server{azMySQLServer4},
 					},
 				},
-				AzurePostgresPerSub: map[string]azure.AzureClient{
+				AzurePostgresPerSub: map[string]azure.ServersClient{
 					subscription1: &cloud.AzureClientMockUnauth{
-						DBServers: []azure.AzureDBServer{azPostgresServer1},
+						DBServers: []azure.Server{azPostgresServer1},
 					},
 					subscription2: &cloud.AzureClientMock{
-						DBServers: []azure.AzureDBServer{azPostgresServer4},
+						DBServers: []azure.Server{azPostgresServer4},
 					},
 				},
 			},
@@ -492,20 +492,20 @@ func TestWatcher(t *testing.T) {
 					Clusters:  []*memorydb.Cluster{memorydbProd},
 					TagsByARN: memorydbTagsByARN,
 				},
-				AzureMySQLPerSub: map[string]azure.AzureClient{
+				AzureMySQLPerSub: map[string]azure.ServersClient{
 					subscription1: &cloud.AzureClientMock{
-						DBServers: []azure.AzureDBServer{azMySQLServer1},
+						DBServers: []azure.Server{azMySQLServer1},
 					},
 					subscription2: &cloud.AzureClientMock{
-						DBServers: []azure.AzureDBServer{azMySQLServer4},
+						DBServers: []azure.Server{azMySQLServer4},
 					},
 				},
-				AzurePostgresPerSub: map[string]azure.AzureClient{
+				AzurePostgresPerSub: map[string]azure.ServersClient{
 					subscription1: &cloud.AzureClientMock{
-						DBServers: []azure.AzureDBServer{azPostgresServer1},
+						DBServers: []azure.Server{azPostgresServer1},
 					},
 					subscription2: &cloud.AzureClientMock{
-						DBServers: []azure.AzureDBServer{azPostgresServer4},
+						DBServers: []azure.Server{azPostgresServer4},
 					},
 				},
 			},
@@ -545,7 +545,7 @@ func TestWatcher(t *testing.T) {
 	}
 }
 
-func makeAzureMySQLServer(t *testing.T, name, subscription, group, region string, labels map[string]string, opts ...func(*armmysql.Server)) (azure.AzureDBServer, types.Database) {
+func makeAzureMySQLServer(t *testing.T, name, subscription, group, region string, labels map[string]string, opts ...func(*armmysql.Server)) (azure.Server, types.Database) {
 	resourceType := "Microsoft.DBForMySQL/servers"
 	id := fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/%v/%v",
 		subscription,
@@ -576,13 +576,15 @@ func makeAzureMySQLServer(t *testing.T, name, subscription, group, region string
 		opt(server)
 	}
 
-	azureDBServer := azure.AzureDBServerFromMySQL(server)
-	database, err := services.NewDatabaseFromAzureDBServer(azureDBServer)
+	azureDBServer, err:= azure.ServerFromMySQLServer(server)
+	require.NoError(t, err)
+
+	database, err := services.NewDatabaseFromAzureServer(azureDBServer)
 	require.NoError(t, err)
 	return azureDBServer, database
 }
 
-func makeAzurePostgresServer(t *testing.T, name, subscription, group, region string, labels map[string]string, opts ...func(*armpostgresql.Server)) (azure.AzureDBServer, types.Database) {
+func makeAzurePostgresServer(t *testing.T, name, subscription, group, region string, labels map[string]string, opts ...func(*armpostgresql.Server)) (azure.Server, types.Database) {
 	resourceType := "Microsoft.DBForPostgreSQL/servers"
 	id := fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/%v/%v",
 		subscription,
@@ -613,8 +615,10 @@ func makeAzurePostgresServer(t *testing.T, name, subscription, group, region str
 		opt(server)
 	}
 
-	azureDBServer := azure.AzureDBServerFromPostgres(server)
-	database, err := services.NewDatabaseFromAzureDBServer(azureDBServer)
+	azureDBServer, err := azure.ServerFromPostgresServer(server)
+	require.NoError(t, err)
+
+	database, err := services.NewDatabaseFromAzureServer(azureDBServer)
 	require.NoError(t, err)
 	return azureDBServer, database
 }

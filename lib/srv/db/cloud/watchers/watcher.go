@@ -22,9 +22,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
-	azurelib "github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/db/cloud/watchers/azure"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 
 	"github.com/gravitational/trace"
@@ -193,33 +192,28 @@ func makeAWSFetchers(clients common.CloudClients, matchers []services.AWSMatcher
 }
 
 func makeAzureFetchers(ctx context.Context, clients common.CloudClients, matchers []services.AzureMatcher) (result []Fetcher, err error) {
-	cred, err := clients.GetAzureCredential()
+	subClient, err := clients.GetAzureSubscriptionsClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	var allSubscriptions []string
 	for _, matcher := range matchers {
 		subscriptions := matcher.Subscriptions
 		if utils.SliceContainsStr(subscriptions, types.Wildcard) {
 			// hit the subscriptions API at most once
-			if allSubscriptions == nil {
-				allSubscriptions, err = azure.GetSubscriptions(ctx, cred)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
+			subscriptions, err = subClient.ListSubscriptions(ctx, common.MaxPages, true /*useCache*/)
+			if err != nil {
+				return nil, common.ConvertError(err)
 			}
-			subscriptions = allSubscriptions
 		}
 		for _, matcherType := range matcher.Types {
 			for _, sub := range subscriptions {
-				var client azurelib.AzureClient
+				var client azure.ServersClient
 				var err error
 				switch matcherType {
 				case services.AzureMatcherMySQL:
-					client, err = clients.GetAzureMySQLClient(sub, cred)
+					client, err = clients.GetAzureMySQLClient(sub)
 				case services.AzureMatcherPostgres:
-					client, err = clients.GetAzurePostgresClient(sub, cred)
+					client, err = clients.GetAzurePostgresClient(sub)
 				default:
 					continue
 				}
@@ -227,9 +221,9 @@ func makeAzureFetchers(ctx context.Context, clients common.CloudClients, matcher
 					return nil, trace.Wrap(err)
 				}
 				for _, group := range matcher.ResourceGroups {
-					fetcher, err := azure.NewAzureFetcher(client, group, matcher.Regions, matcher.Tags)
+					fetcher, err := newAzureFetcher(client, group, matcher.Regions, matcher.Tags)
 					if err != nil {
-						return nil, trace.Wrap(err)
+						return nil, common.ConvertError(err)
 					}
 					result = append(result, fetcher)
 				}

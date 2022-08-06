@@ -21,9 +21,6 @@ import (
 	"crypto/tls"
 	"sync"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/elasticache"
@@ -39,83 +36,59 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/trace"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 )
 
-// AzureMySQLMock implements AzureMySQLClient
-var _ common.AzureMySQLClient = (*AzureMySQLMock)(nil)
+// AzureClientMock implements AzureClient
+var _ azure.ServersClient = (*AzureClientMock)(nil)
 
-// AzureMySQLMock mocks AzureMySQLClient.
-type AzureMySQLMock struct {
-	DBServers []*armmysql.Server
+// AzureClientMock mocks AzureClient.
+type AzureClientMock struct {
+	DBServers []azure.Server
 }
 
-func (m *AzureMySQLMock) ListServers(ctx context.Context, group string) ([]*armmysql.Server, error) {
+func (m *AzureClientMock) ListServers(ctx context.Context, group string, _ int) ([]azure.Server, error) {
 	if group == types.Wildcard {
 		return m.DBServers, nil
 	}
-	var servers []*armmysql.Server
+	servers := make([]azure.Server, 0, len(m.DBServers))
 	for _, server := range m.DBServers {
-		resourceID, err := arm.ParseResourceID(*server.ID)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if resourceID.ResourceGroupName == group {
+		if server.GetID().ResourceGroup == group {
 			servers = append(servers, server)
 		}
 	}
 	return servers, nil
 }
 
-// AzureMySQLMockUnauth implements AzureMySQLClient
-var _ common.AzureMySQLClient = (*AzureMySQLMockUnauth)(nil)
-
-// AzureMySQLMockUnauth mocks AzureMySQLClient.
-type AzureMySQLMockUnauth struct {
-	DBServers []*armmysql.Server
+func (m *AzureClientMock) Kind() string {
+	return "mock"
 }
 
-func (m *AzureMySQLMockUnauth) ListServers(ctx context.Context, group string) ([]*armmysql.Server, error) {
+func (m *AzureClientMock) Subscription() string {
+	return "mocksub"
+}
+
+// AzureClientMockUnauth implements AzureClient
+var _ azure.ServersClient = (*AzureClientMockUnauth)(nil)
+
+// AzureClientMockUnauth mocks AzureClient.
+type AzureClientMockUnauth struct {
+	DBServers []azure.Server
+}
+
+func (m *AzureClientMockUnauth) ListServers(ctx context.Context, group string, _ int) ([]azure.Server, error) {
 	return nil, trace.AccessDenied("unauthorized")
 }
 
-// AzurePostgresMock implements AzurePostgresClient
-var _ common.AzurePostgresClient = (*AzurePostgresMock)(nil)
-
-// AzurePostgresMock mocks AzurePostgresClient.
-type AzurePostgresMock struct {
-	DBServers []*armpostgresql.Server
+func (m *AzureClientMockUnauth) Kind() string {
+	return "mock"
 }
 
-func (m *AzurePostgresMock) ListServers(ctx context.Context, group string) ([]*armpostgresql.Server, error) {
-	if group == types.Wildcard {
-		return m.DBServers, nil
-	}
-	var servers []*armpostgresql.Server
-	for _, server := range m.DBServers {
-		resourceID, err := arm.ParseResourceID(*server.ID)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if resourceID.ResourceGroupName == group {
-			servers = append(servers, server)
-		}
-	}
-	return servers, nil
-}
-
-// AzurePostgresMockUnauth implements AzurePostgresClient
-var _ common.AzurePostgresClient = (*AzurePostgresMockUnauth)(nil)
-
-// AzurePostgresMockUnauth mocks AzurePostgresClient.
-type AzurePostgresMockUnauth struct {
-	DBServers []*armpostgresql.Server
-}
-
-func (m *AzurePostgresMockUnauth) ListServers(ctx context.Context, group string) ([]*armpostgresql.Server, error) {
-	return nil, trace.AccessDenied("unauthorized")
+func (m *AzureClientMockUnauth) Subscription() string {
+	return "mocksub"
 }
 
 // STSMock mocks AWS STS API.

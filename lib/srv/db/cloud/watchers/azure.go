@@ -1,20 +1,4 @@
-/*
-Copyright 2022 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-package azure
+package watchers
 
 import (
 	"context"
@@ -30,8 +14,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// NewAzureFetcher returns a Azure DB server fetcher for the provided subscription, group, regions, and tags.
-func NewAzureFetcher(client azure.AzureClient, group string, regions []string, tags types.Labels) (*azureFetcher, error) {
+// newAzureFetcher returns a Azure DB server fetcher for the provided subscription, group, regions, and tags.
+func newAzureFetcher(client azure.ServersClient, group string, regions []string, tags types.Labels) (*azureFetcher, error) {
 	config := azureFetcherConfig{
 		Client:        client,
 		ResourceGroup: group,
@@ -56,10 +40,10 @@ func NewAzureFetcher(client azure.AzureClient, group string, regions []string, t
 	return fetcher, nil
 }
 
-// azureFetcherConfig is the Azure MySQL databases fetcher configuration.
+// azureFetcherConfig is the Azure database servers fetcher configuration.
 type azureFetcherConfig struct {
 	// Client is the Azure API client.
-	Client azure.AzureClient
+	Client azure.ServersClient
 	// ResourceGroup is a selector to match cloud resource group.
 	ResourceGroup string
 	// Labels is a selector to match cloud databases.
@@ -129,11 +113,11 @@ func (f *azureFetcher) getDatabases(ctx context.Context) (types.Databases, error
 		if !server.IsAvailable() {
 			f.log.Debugf("The current status of Azure server %q is %q. Skipping.",
 				server.GetName(),
-				server.GetVersion())
+				server.GetState())
 			continue
 		}
 
-		database, err := services.NewDatabaseFromAzureDBServer(server)
+		database, err := services.NewDatabaseFromAzureServer(server)
 		if err != nil {
 			f.log.Warnf("Could not convert Azure server %q to database resource: %v.",
 				server.GetName(),

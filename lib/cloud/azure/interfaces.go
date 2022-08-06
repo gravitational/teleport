@@ -18,13 +18,15 @@ package azure
 
 import (
 	"context"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
-// AzureClient provides an interface for getting MySQL servers.
-type AzureClient interface {
+// ServersClient provides an interface for getting MySQL servers.
+type ServersClient interface {
 	// ListServers lists all Azure MySQL servers within an Azure subscription by resource group.
 	// If the resource group is "*", then all resources are queried.
-	ListServers(ctx context.Context, group string, maxPages int) ([]AzureDBServer, error)
+	ListServers(ctx context.Context, group string, maxPages int) ([]Server, error)
 	// TODO(gavin)
 	Kind() string
 	// TODO(gavin)
@@ -32,25 +34,31 @@ type AzureClient interface {
 }
 
 // TODO(gavin)
-type AzureDBServer interface {
+type SubscriptionsClient interface {
 	// TODO(gavin)
-	IsVersionSupported() bool
+	ListSubscriptions(ctx context.Context, maxPages int, useCache bool) ([]string, error)
+}
+
+// TODO(gavin)
+type Server interface {
 	// TODO(gavin)
-	IsAvailable() bool
+	GetName() string
 	// TODO(gavin)
 	GetRegion() string
 	// TODO(gavin)
 	GetVersion() string
 	// TODO(gavin)
-	GetName() string
-	// TODO(gavin)
 	GetEndpoint() string
-	// TODO(gavin)
-	GetID() string
-	// TODO(gavin)
-	GetTags() map[string]string
 	// TODO(gavin)
 	GetProtocol() string
 	// TODO(gavin)
 	GetState() string
+	// TODO(gavin)
+	GetID() types.AzureResourceID
+	// TODO(gavin)
+	GetTags() map[string]string
+	// TODO(gavin)
+	IsVersionSupported() bool
+	// TODO(gavin)
+	IsAvailable() bool
 }

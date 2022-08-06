@@ -120,28 +120,31 @@ func TestDatabaseFromAzureMySQLServer(t *testing.T) {
 	fqdn := name + ".mysql" + types.AzureEndpointSuffix
 	state := armmysql.ServerStateReady
 	version := armmysql.ServerVersionFive7
-	server := &armmysql.Server{
-		Location: &region,
-		Properties: &armmysql.ServerProperties{
-			FullyQualifiedDomainName: &fqdn,
-			UserVisibleState:         &state,
-			Version:                  &version,
-		},
-		Tags: makeAzureTags(map[string]string{
-			"foo": "bar",
-		}),
-		ID:   &id,
-		Name: &name,
-		Type: &resourceType,
-	}
+
+	server, err := azure.ServerFromMySQLServer(
+		&armmysql.Server{
+			Location: &region,
+			Properties: &armmysql.ServerProperties{
+				FullyQualifiedDomainName: &fqdn,
+				UserVisibleState:         &state,
+				Version:                  &version,
+			},
+			Tags: makeAzureTags(map[string]string{
+				"foo": "bar",
+			}),
+			ID:   &id,
+			Name: &name,
+			Type: &resourceType,
+		})
+	require.NoError(t, err)
 
 	expected, err := types.NewDatabaseV3(types.Metadata{
 		Name:        "testdb",
-		Description: "Azure MySQL server in eastus",
+		Description: "Azure mysql server in eastus",
 		Labels: map[string]string{
 			types.OriginLabel:   types.OriginCloud,
 			labelRegion:         "eastus",
-			labelEngine:         "Microsoft.DBforMySQL/servers",
+			labelEngine:         "Microsoft.DBforMySQL",
 			labelEngineVersion:  "5.7",
 			labelResourceGroup:  "defaultRG",
 			labelSubscriptionID: "sub1",
@@ -151,14 +154,20 @@ func TestDatabaseFromAzureMySQLServer(t *testing.T) {
 		Protocol: defaults.ProtocolMySQL,
 		URI:      "testdb.mysql.database.azure.com:3306",
 		Azure: types.Azure{
-			Name:       "testdb",
-			Region:     "eastus",
-			ResourceID: "/subscriptions/sub1/resourceGroups/defaultRG/providers/Microsoft.DBforMySQL/servers/testdb",
+			Name:   "testdb",
+			Region: "eastus",
+			ResourceID: types.AzureResourceID{
+				SubscriptionID:    "sub1",
+				ResourceGroup:     "defaultRG",
+				ProviderNamespace: "Microsoft.DBforMySQL",
+				ResourceType:      "servers",
+				ResourceName:      "testdb",
+			},
 		},
 	})
 	require.NoError(t, err)
-	azureDBServer := azure.AzureDBServerFromMySQL(server)
-	actual, err := NewDatabaseFromAzureDBServer(azureDBServer)
+
+	actual, err := NewDatabaseFromAzureServer(server)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
@@ -179,28 +188,31 @@ func TestDatabaseFromAzurePostgresServer(t *testing.T) {
 	fqdn := name + ".postgres" + types.AzureEndpointSuffix
 	state := armpostgresql.ServerStateReady
 	version := armpostgresql.ServerVersionEleven
-	server := &armpostgresql.Server{
-		Location: &region,
-		Properties: &armpostgresql.ServerProperties{
-			FullyQualifiedDomainName: &fqdn,
-			UserVisibleState:         &state,
-			Version:                  &version,
-		},
-		Tags: makeAzureTags(map[string]string{
-			"foo": "bar",
-		}),
-		ID:   &id,
-		Name: &name,
-		Type: &resourceType,
-	}
+
+	server, err := azure.ServerFromPostgresServer(
+		&armpostgresql.Server{
+			Location: &region,
+			Properties: &armpostgresql.ServerProperties{
+				FullyQualifiedDomainName: &fqdn,
+				UserVisibleState:         &state,
+				Version:                  &version,
+			},
+			Tags: makeAzureTags(map[string]string{
+				"foo": "bar",
+			}),
+			ID:   &id,
+			Name: &name,
+			Type: &resourceType,
+		})
+	require.NoError(t, err)
 
 	expected, err := types.NewDatabaseV3(types.Metadata{
 		Name:        "testdb",
-		Description: "Azure Postgres server in eastus",
+		Description: "Azure postgres server in eastus",
 		Labels: map[string]string{
 			types.OriginLabel:   types.OriginCloud,
 			labelRegion:         "eastus",
-			labelEngine:         "Microsoft.DBforPostgreSQL/servers",
+			labelEngine:         "Microsoft.DBforPostgreSQL",
 			labelEngineVersion:  "11",
 			labelResourceGroup:  "defaultRG",
 			labelSubscriptionID: "sub1",
@@ -210,14 +222,20 @@ func TestDatabaseFromAzurePostgresServer(t *testing.T) {
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "testdb.postgres.database.azure.com:5432",
 		Azure: types.Azure{
-			Name:       "testdb",
-			Region:     "eastus",
-			ResourceID: "/subscriptions/sub1/resourceGroups/defaultRG/providers/Microsoft.DBforPostgreSQL/servers/testdb",
+			Name:   "testdb",
+			Region: "eastus",
+			ResourceID: types.AzureResourceID{
+				SubscriptionID:    "sub1",
+				ResourceGroup:     "defaultRG",
+				ProviderNamespace: "Microsoft.DBforPostgreSQL",
+				ResourceType:      "servers",
+				ResourceName:      "testdb",
+			},
 		},
 	})
 	require.NoError(t, err)
-	azureDBServer := azure.AzureDBServerFromPostgres(server)
-	actual, err := NewDatabaseFromAzureDBServer(azureDBServer)
+
+	actual, err := NewDatabaseFromAzureServer(server)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }

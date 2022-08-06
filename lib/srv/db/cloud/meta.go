@@ -80,8 +80,62 @@ func (m *Metadata) Update(ctx context.Context, database types.Database) error {
 		return m.updateAWS(ctx, database, m.fetchElastiCacheMetadata)
 	case types.DatabaseTypeMemoryDB:
 		return m.updateAWS(ctx, database, m.fetchMemoryDBMetadata)
+		// TODO(gavin)
+		// case types.DatabaseTypeAzure:
+		// return m.updateAzure(ctx, database, m.fetchAzureMetadata)
 	}
 	return nil
+}
+
+// updateAzure updates cloud metadata of the provided Azure database.
+func (m *Metadata) updateAzure(ctx context.Context, database types.Database, fetchFn func(context.Context, types.Database) (*types.Azure, error)) error {
+	metadata, err := fetchFn(ctx, database)
+	if err != nil {
+		if trace.IsAccessDenied(err) { // Permission errors are expected.
+			m.log.WithError(err).Debugf("No permissions to fetch metadata for %q.", database)
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+
+	m.log.Debugf("Fetched metadata for %q: %v.", database, metadata)
+	database.SetStatusAzure(*metadata)
+	return nil
+}
+
+// fetchAzureMetadata fetches metadata for the provided Azure or Aurora database.
+func (m *Metadata) fetchAzureMetadata(ctx context.Context, database types.Database) (*types.Azure, error) {
+	// subscription := database.GetAzure().ResourceID.SubscriptionID
+	// var client azure.ServersClient
+	// var err error
+	// switch database.GetProtocol() {
+	// case defaults.ProtocolMySQL:
+	// 	client, err = m.cfg.Clients.GetAzureMySQLClient(subscription)
+	// case defaults.ProtocolPostgres:
+	// 	client, err = m.cfg.Clients.GetAzurePostgresClient(subscription)
+	// }
+	// // First try to fetch the Azure instance metadata.
+	// metadata, err := fetchAzureInstanceMetadata(ctx, rds, database.GetAzure().Azure.InstanceID)
+	// if err != nil && !trace.IsNotFound(err) && !trace.IsAccessDenied(err) {
+	// 	return nil, trace.Wrap(err)
+	// }
+	// // If Azure instance metadata wasn't found, it may be an Aurora cluster.
+	// if metadata == nil {
+	// 	// Aurora cluster ID may be either explicitly specified or parsed
+	// 	// from endpoint in which case it will be in InstanceID field.
+	// 	clusterID := database.GetAzure().Azure.ClusterID
+	// 	if clusterID == "" {
+	// 		clusterID = database.GetAzure().Azure.InstanceID
+	// 	}
+	// 	return fetchAzureClusterMetadata(ctx, rds, clusterID)
+	// }
+	// // If instance was found, it may be a part of an Aurora cluster.
+	// if metadata.Azure.ClusterID != "" {
+	// 	return fetchAzureClusterMetadata(ctx, rds, metadata.Azure.ClusterID)
+	// }
+	// return metadata, nil
+	// TODO(gavin)
+	return nil, nil
 }
 
 // updateAWS updates cloud metadata of the provided AWS database.

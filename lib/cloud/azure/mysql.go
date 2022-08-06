@@ -13,32 +13,33 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// AzureMySQLClient implements AzureMySQLClient.
-var _ AzureClient = (*azureMySQLClient)(nil)
+// mySQLClient implements ServersClient
+var _ ServersClient = (*mySQLClient)(nil)
 
-// azureMySQLClient wraps armmysql.ServersClient so we can implement the AzureMySQLClient interface.
-type azureMySQLClient struct {
+// mySQLClient wraps armmysql.ServersClient so we can implement the ServersClient interface.
+type mySQLClient struct {
 	client       *armmysql.ServersClient
-	clientType   string
+	kind         string
 	subscription string
 }
 
-func NewAzureMySQLClient(subscription string, cred azcore.TokenCredential) (AzureClient, error) {
+// TODO(gavin)
+func NewMySQLClient(subscription string, cred azcore.TokenCredential) (ServersClient, error) {
 	// TODO(gavin): if/when we support AzureChina/AzureGovernment, we will need to specify the cloud in these options
 	options := &arm.ClientOptions{}
 	client, err := armmysql.NewServersClient(subscription, cred, options)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &azureMySQLClient{
+	return &mySQLClient{
 		client:       client,
-		clientType:   "mysql",
+		kind:         "mysql",
 		subscription: subscription,
 	}, nil
 }
 
-// ListServers lists all Azure MySQL servers within an Azure subscription, using a configured armmysql client.
-func (c *azureMySQLClient) ListServers(ctx context.Context, group string, maxPages int) ([]AzureDBServer, error) {
+// ListServers lists all database servers within an Azure subscription.
+func (c *mySQLClient) ListServers(ctx context.Context, group string, maxPages int) ([]Server, error) {
 	var servers []*armmysql.Server
 	var err error
 	if group == types.Wildcard {
@@ -50,24 +51,28 @@ func (c *azureMySQLClient) ListServers(ctx context.Context, group string, maxPag
 		return nil, trace.Wrap(err)
 	}
 
-	result := make([]AzureDBServer, 0, len(servers))
-	for _, server := range servers {
-		result = append(result, AzureDBServerFromMySQL(server))
+	result := make([]Server, 0, len(servers))
+	for _, s := range servers {
+		server, err := ServerFromMySQLServer(s)
+		if err != nil {
+			continue
+		}
+		result = append(result, server)
 	}
 	return result, nil
 }
 
 // TODO(gavin)
-func (c *azureMySQLClient) Kind() string {
-	return c.clientType
+func (c *mySQLClient) Kind() string {
+	return c.kind
 }
 
 // TODO(gavin)
-func (c *azureMySQLClient) Subscription() string {
+func (c *mySQLClient) Subscription() string {
 	return c.subscription
 }
 
-func (c *azureMySQLClient) listAll(ctx context.Context, maxPages int) ([]*armmysql.Server, error) {
+func (c *mySQLClient) listAll(ctx context.Context, maxPages int) ([]*armmysql.Server, error) {
 	var servers []*armmysql.Server
 	options := &armmysql.ServersClientListOptions{}
 	pager := c.client.NewListPager(options)
@@ -81,7 +86,7 @@ func (c *azureMySQLClient) listAll(ctx context.Context, maxPages int) ([]*armmys
 	return servers, nil
 }
 
-func (c *azureMySQLClient) listByGroup(ctx context.Context, group string, maxPages int) ([]*armmysql.Server, error) {
+func (c *mySQLClient) listByGroup(ctx context.Context, group string, maxPages int) ([]*armmysql.Server, error) {
 	var servers []*armmysql.Server
 	options := &armmysql.ServersClientListByResourceGroupOptions{}
 	pager := c.client.NewListByResourceGroupPager(group, options)
@@ -95,21 +100,33 @@ func (c *azureMySQLClient) listByGroup(ctx context.Context, group string, maxPag
 	return servers, nil
 }
 
-var _ AzureDBServer = (*azureMySQLServer)(nil)
+var _ Server = (*mySQLServer)(nil)
 
-type azureMySQLServer struct {
+type mySQLServer struct {
 	server *armmysql.Server
 	tags   map[string]string
+	id     types.AzureResourceID
 }
 
 // TODO(gavin)
-func AzureDBServerFromMySQL(server *armmysql.Server) AzureDBServer {
-	return &azureMySQLServer{server: server, tags: convertTags(server.Tags)}
+func ServerFromMySQLServer(server *armmysql.Server) (Server, error) {
+	if server == nil {
+		return nil, trace.BadParameter("nil server")
+	}
+	id, err := ParseID(server.ID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &mySQLServer{
+		server: server,
+		tags:   convertTags(server.Tags),
+		id:     *id,
+	}, nil
 }
 
 // IsVersionSupported returns true if database supports AAD authentication.
 // Only available for 5.7 and newer.
-func (s *azureMySQLServer) IsVersionSupported() bool {
+func (s *mySQLServer) IsVersionSupported() bool {
 	switch armmysql.ServerVersion(s.GetVersion()) {
 	case armmysql.ServerVersionEight0, armmysql.ServerVersionFive7:
 		return true
@@ -121,7 +138,7 @@ func (s *azureMySQLServer) IsVersionSupported() bool {
 }
 
 // TODO(gavin)
-func (s *azureMySQLServer) IsAvailable() bool {
+func (s *mySQLServer) IsAvailable() bool {
 	switch armmysql.ServerState(s.GetState()) {
 	case armmysql.ServerStateReady:
 		return true
@@ -134,45 +151,62 @@ func (s *azureMySQLServer) IsAvailable() bool {
 	}
 }
 
-func (s *azureMySQLServer) GetRegion() string {
+func (s *mySQLServer) GetRegion() string {
 	return stringVal(s.server.Location)
 }
 
-func (s *azureMySQLServer) GetVersion() string {
+func (s *mySQLServer) GetVersion() string {
 	if s.server.Properties != nil && s.server.Properties.Version != nil {
 		return string(*s.server.Properties.Version)
 	}
 	return ""
 }
 
-func (s *azureMySQLServer) GetName() string {
+func (s *mySQLServer) GetName() string {
 	return stringVal(s.server.Name)
 }
 
-func (s *azureMySQLServer) GetEndpoint() string {
+func (s *mySQLServer) GetEndpoint() string {
 	if s.server.Properties != nil && s.server.Properties.FullyQualifiedDomainName != nil {
-		return *s.server.Properties.FullyQualifiedDomainName + ":" + AzureMySQLPort
+		return *s.server.Properties.FullyQualifiedDomainName + ":" + MySQLPort
 	}
 	return ""
 }
 
-func (s *azureMySQLServer) GetID() string {
-	return stringVal(s.server.ID)
+func (s *mySQLServer) GetID() types.AzureResourceID {
+	return s.id
 }
 
-func (s *azureMySQLServer) GetProtocol() string {
+func (s *mySQLServer) GetProtocol() string {
 	return defaults.ProtocolMySQL
 }
 
-func (s *azureMySQLServer) GetState() string {
+func (s *mySQLServer) GetState() string {
 	if s.server.Properties != nil && s.server.Properties.UserVisibleState != nil {
 		return string(*s.server.Properties.UserVisibleState)
 	}
 	return ""
 }
 
-func (s *azureMySQLServer) GetTags() map[string]string {
+func (s *mySQLServer) GetTags() map[string]string {
 	return s.tags
+}
+
+func ParseID(id *string) (*types.AzureResourceID, error) {
+	if id == nil {
+		return nil, trace.BadParameter("nil server ID")
+	}
+	rid, err := arm.ParseResourceID(*id)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &types.AzureResourceID{
+		SubscriptionID:    rid.SubscriptionID,
+		ResourceGroup:     rid.ResourceGroupName,
+		ProviderNamespace: rid.ResourceType.Namespace,
+		ResourceType:      rid.ResourceType.Type,
+		ResourceName:      rid.Name,
+	}, nil
 }
 
 func stringVal(s *string) string {
@@ -191,7 +225,3 @@ func convertTags(azureTags map[string]*string) map[string]string {
 	}
 	return tags
 }
-
-// TODO(gavin): make the type private and provide a constructor
-// the constructor should make the type and check various properties for nil.
-// it should also initialize the tags to a map[string]string

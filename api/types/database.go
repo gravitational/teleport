@@ -78,6 +78,8 @@ type Database interface {
 	GetGCP() GCPCloudSQL
 	// GetAzure returns Azure database server metadata.
 	GetAzure() Azure
+	// SetStatusAzure sets the database Azure metadata in the status field.
+	SetStatusAzure(Azure)
 	// GetAD returns Active Directory database configuration.
 	GetAD() AD
 	// GetType returns the database authentication type: self-hosted, RDS, Redshift or Cloud SQL.
@@ -315,9 +317,22 @@ func (d *DatabaseV3) GetGCP() GCPCloudSQL {
 	return d.Spec.GCP
 }
 
+// IsEmpty returns true if Azure metadata is empty.
+func (a Azure) IsEmpty() bool {
+	return cmp.Equal(a, Azure{})
+}
+
 // GetAzure returns Azure database server metadata.
 func (d *DatabaseV3) GetAzure() Azure {
+	if !d.Status.Azure.IsEmpty() {
+		return d.Status.Azure
+	}
 	return d.Spec.Azure
+}
+
+// SetStatusAzure sets the database Azure metadata in the status field.
+func (d *DatabaseV3) SetStatusAzure(azure Azure) {
+	d.Status.Azure = azure
 }
 
 // GetAD returns Active Directory database configuration.

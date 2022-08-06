@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
@@ -136,8 +135,8 @@ func setDBName(meta types.Metadata, firstNamePart string, extraNameParts ...stri
 	return meta
 }
 
-// NewDatabaseFromAzureDBServer creates a database resource from an AzureDB server.
-func NewDatabaseFromAzureDBServer(server azure.AzureDBServer) (types.Database, error) {
+// NewDatabaseFromAzureServer creates a database resource from an AzureDB server.
+func NewDatabaseFromAzureServer(server azure.Server) (types.Database, error) {
 	endpoint := server.GetEndpoint()
 	if endpoint == "" {
 		return nil, trace.BadParameter("empty endpoint")
@@ -153,18 +152,18 @@ func NewDatabaseFromAzureDBServer(server azure.AzureDBServer) (types.Database, e
 		return nil, trace.BadParameter("empty server protocol")
 	}
 
-	metadata, err := MetadataFromAzureDBServer(server)
+	metadata, err := MetadataFromAzureServer(server)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	labels, err := labelsFromAzureDBServer(server, metadata)
+	labels, err := labelsFromAzureServer(server, metadata)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return types.NewDatabaseV3(
 		setDBName(types.Metadata{
-			Description: fmt.Sprintf("Azure DB server in %v", server.GetRegion()),
+			Description: fmt.Sprintf("Azure %v server in %v", protocol, server.GetRegion()),
 			Labels:      labels,
 		}, name),
 		types.DatabaseSpecV3{
@@ -381,17 +380,12 @@ func NewDatabaseFromMemoryDBCluster(cluster *memorydb.Cluster, extraLabels map[s
 		})
 }
 
-// MetadataFromAzureDBServer creates Azure metadata from the provided AzureDB server.
-func MetadataFromAzureDBServer(server azure.AzureDBServer) (*types.Azure, error) {
-	id := server.GetID()
-	_, err := arm.ParseResourceID(id)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+// MetadataFromAzureServer creates Azure metadata from the provided Azure Server.
+func MetadataFromAzureServer(server azure.Server) (*types.Azure, error) {
 	return &types.Azure{
 		Name:       server.GetName(),
 		Region:     server.GetRegion(),
-		ResourceID: id,
+		ResourceID: server.GetID(),
 	}, nil
 }
 
@@ -566,18 +560,15 @@ func engineToProtocol(engine string) string {
 	return ""
 }
 
-// labelsFromAzureDBServer creates database labels for the provided Azure DB server.
-func labelsFromAzureDBServer(server azure.AzureDBServer, meta *types.Azure) (map[string]string, error) {
-	resourceID, err := arm.ParseResourceID(server.GetID())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+// labelsFromAzureServer creates database labels for the provided Azure DB server.
+func labelsFromAzureServer(server azure.Server, meta *types.Azure) (map[string]string, error) {
 	labels := azureTagsToLabels(server.GetTags())
+	resourceID := server.GetID()
 	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = meta.Region
-	labels[labelEngine] = resourceID.ResourceType.Type
+	labels[labelEngine] = resourceID.ProviderNamespace
 	labels[labelEngineVersion] = server.GetVersion()
-	labels[labelResourceGroup] = resourceID.ResourceGroupName
+	labels[labelResourceGroup] = resourceID.ResourceGroup
 	labels[labelSubscriptionID] = resourceID.SubscriptionID
 	return labels, nil
 }

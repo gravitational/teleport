@@ -13,32 +13,33 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// AzurePostgresClient implements AzurePostgresClient.
-var _ AzureClient = (*azurePostgresClient)(nil)
+// postgresClient implements ServersClient
+var _ ServersClient = (*postgresClient)(nil)
 
-// azurePostgresClient wraps armpostgresql.ServersClient so we can implement the AzurePostgresClient interface.
-type azurePostgresClient struct {
+// postgresClient wraps armpostgresql.ServersClient so we can implement the ServersClient interface.
+type postgresClient struct {
 	client       *armpostgresql.ServersClient
 	kind         string
 	subscription string
 }
 
-func NewAzurePostgresClient(subscription string, cred azcore.TokenCredential) (AzureClient, error) {
+// TODO(gavin)
+func NewPostgresClient(subscription string, cred azcore.TokenCredential) (ServersClient, error) {
 	// TODO(gavin): if/when we support AzureChina/AzureGovernment, we will need to specify the cloud in these options
 	options := &arm.ClientOptions{}
 	client, err := armpostgresql.NewServersClient(subscription, cred, options)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &azurePostgresClient{
+	return &postgresClient{
 		client:       client,
 		kind:         "postgres",
 		subscription: subscription,
 	}, nil
 }
 
-// ListServers lists all Azure Postgres servers within an Azure subscription, using a configured armpostgresql client.
-func (c *azurePostgresClient) ListServers(ctx context.Context, group string, maxPages int) ([]AzureDBServer, error) {
+// ListServers lists all database servers within an Azure subscription.
+func (c *postgresClient) ListServers(ctx context.Context, group string, maxPages int) ([]Server, error) {
 	var servers []*armpostgresql.Server
 	var err error
 	if group == types.Wildcard {
@@ -50,24 +51,28 @@ func (c *azurePostgresClient) ListServers(ctx context.Context, group string, max
 		return nil, trace.Wrap(err)
 	}
 
-	result := make([]AzureDBServer, 0, len(servers))
-	for _, server := range servers {
-		result = append(result, AzureDBServerFromPostgres(server))
+	result := make([]Server, 0, len(servers))
+	for _, s := range servers {
+		server, err := ServerFromPostgresServer(s)
+		if err != nil {
+			continue
+		}
+		result = append(result, server)
 	}
 	return result, nil
 }
 
 // TODO(gavin)
-func (c *azurePostgresClient) Kind() string {
+func (c *postgresClient) Kind() string {
 	return c.kind
 }
 
 // TODO(gavin)
-func (c *azurePostgresClient) Subscription() string {
+func (c *postgresClient) Subscription() string {
 	return c.subscription
 }
 
-func (c *azurePostgresClient) listAll(ctx context.Context, maxPages int) ([]*armpostgresql.Server, error) {
+func (c *postgresClient) listAll(ctx context.Context, maxPages int) ([]*armpostgresql.Server, error) {
 	var servers []*armpostgresql.Server
 	options := &armpostgresql.ServersClientListOptions{}
 	pager := c.client.NewListPager(options)
@@ -81,7 +86,7 @@ func (c *azurePostgresClient) listAll(ctx context.Context, maxPages int) ([]*arm
 	return servers, nil
 }
 
-func (c *azurePostgresClient) listByGroup(ctx context.Context, group string, maxPages int) ([]*armpostgresql.Server, error) {
+func (c *postgresClient) listByGroup(ctx context.Context, group string, maxPages int) ([]*armpostgresql.Server, error) {
 	var servers []*armpostgresql.Server
 	options := &armpostgresql.ServersClientListByResourceGroupOptions{}
 	pager := c.client.NewListByResourceGroupPager(group, options)
@@ -95,20 +100,32 @@ func (c *azurePostgresClient) listByGroup(ctx context.Context, group string, max
 	return servers, nil
 }
 
-var _ AzureDBServer = (*azurePostgresServer)(nil)
+var _ Server = (*postgresServer)(nil)
 
-func AzureDBServerFromPostgres(server *armpostgresql.Server) AzureDBServer {
-	return &azurePostgresServer{server: server, tags: convertTags(server.Tags)}
+// TODO(gavin)
+func ServerFromPostgresServer(server *armpostgresql.Server) (Server, error) {
+	if server == nil {
+		return nil, trace.BadParameter("nil server")
+	}
+	id, err := ParseID(server.ID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &postgresServer{
+		server: server,
+		tags:   convertTags(server.Tags),
+		id:     *id,
+	}, nil
 }
 
-type azurePostgresServer struct {
+type postgresServer struct {
 	server *armpostgresql.Server
 	tags   map[string]string
+	id     types.AzureResourceID
 }
 
 // IsVersionSupported returns true if database supports AAD authentication.
-// Only available for 5.7 and newer.
-func (s *azurePostgresServer) IsVersionSupported() bool {
+func (s *postgresServer) IsVersionSupported() bool {
 	switch armpostgresql.ServerVersion(s.GetVersion()) {
 	case armpostgresql.ServerVersionNine5, armpostgresql.ServerVersionNine6, armpostgresql.ServerVersionTen,
 		armpostgresql.ServerVersionTen0, armpostgresql.ServerVersionTen2, armpostgresql.ServerVersionEleven:
@@ -118,7 +135,7 @@ func (s *azurePostgresServer) IsVersionSupported() bool {
 	}
 }
 
-func (s *azurePostgresServer) IsAvailable() bool {
+func (s *postgresServer) IsAvailable() bool {
 	switch armpostgresql.ServerState(s.GetState()) {
 	case armpostgresql.ServerStateReady:
 		return true
@@ -131,43 +148,43 @@ func (s *azurePostgresServer) IsAvailable() bool {
 	}
 }
 
-func (s *azurePostgresServer) GetRegion() string {
+func (s *postgresServer) GetRegion() string {
 	return stringVal(s.server.Location)
 }
 
-func (s *azurePostgresServer) GetVersion() string {
+func (s *postgresServer) GetVersion() string {
 	if s.server.Properties != nil && s.server.Properties.Version != nil {
 		return string(*s.server.Properties.Version)
 	}
 	return ""
 }
 
-func (s *azurePostgresServer) GetName() string {
+func (s *postgresServer) GetName() string {
 	return stringVal(s.server.Name)
 }
 
-func (s *azurePostgresServer) GetEndpoint() string {
+func (s *postgresServer) GetEndpoint() string {
 	if s.server.Properties != nil && s.server.Properties.FullyQualifiedDomainName != nil {
-		return *s.server.Properties.FullyQualifiedDomainName + ":" + AzurePostgresPort
+		return *s.server.Properties.FullyQualifiedDomainName + ":" + PostgresPort
 	}
 	return ""
 }
 
-func (s *azurePostgresServer) GetID() string {
-	return stringVal(s.server.ID)
+func (s *postgresServer) GetID() types.AzureResourceID {
+	return s.id
 }
 
-func (s *azurePostgresServer) GetProtocol() string {
+func (s *postgresServer) GetProtocol() string {
 	return defaults.ProtocolPostgres
 }
 
-func (s *azurePostgresServer) GetState() string {
+func (s *postgresServer) GetState() string {
 	if s.server.Properties != nil && s.server.Properties.UserVisibleState != nil {
 		return string(*s.server.Properties.UserVisibleState)
 	}
 	return ""
 }
 
-func (s *azurePostgresServer) GetTags() map[string]string {
+func (s *postgresServer) GetTags() map[string]string {
 	return s.tags
 }
