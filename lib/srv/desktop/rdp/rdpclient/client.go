@@ -426,9 +426,17 @@ func (c *Client) start() {
 				}
 			case tdp.SharedDirectoryCreateResponse:
 				if c.cfg.AllowDirectorySharing {
+					path := C.CString(m.Fso.Path)
+					defer C.free(unsafe.Pointer(path))
 					if errCode := C.handle_tdp_sd_create_response(c.rustClient, C.CGOSharedDirectoryCreateResponse{
 						completion_id: C.uint32_t(m.CompletionID),
 						err_code:      m.ErrCode,
+						fso: C.CGOFileSystemObject{
+							last_modified: C.uint64_t(m.Fso.LastModified),
+							size:          C.uint64_t(m.Fso.Size),
+							file_type:     m.Fso.FileType,
+							path:          path,
+						},
 					}); errCode != C.ErrCodeSuccess {
 						c.cfg.Log.Errorf("SharedDirectoryCreateResponse failed: %v", errCode)
 						return

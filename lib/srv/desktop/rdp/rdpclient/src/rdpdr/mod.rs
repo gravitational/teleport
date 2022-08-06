@@ -439,7 +439,6 @@ impl Client {
                                     return cli.tdp_sd_create(
                                         rdp_req,
                                         FileType::Directory,
-                                        res.fso,
                                     );
                                 } else {
                                     // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L258
@@ -459,9 +458,9 @@ impl Client {
                         flags::CreateDisposition::FILE_SUPERSEDE => {
                             // If the file already exists, replace it with the given file. If it does not, create the given file.
                             if res.err_code == TdpErrCode::Nil {
-                                return cli.tdp_sd_overwrite(rdp_req, res.fso);
+                                return cli.tdp_sd_overwrite(rdp_req);
                             } else if res.err_code == TdpErrCode::DoesNotExist {
-                                return cli.tdp_sd_create(rdp_req, FileType::File, res.fso);
+                                return cli.tdp_sd_create(rdp_req, FileType::File);
                             }
                         }
                         flags::CreateDisposition::FILE_OPEN => {
@@ -494,7 +493,7 @@ impl Client {
                                     0,
                                 );
                             } else if res.err_code == TdpErrCode::DoesNotExist {
-                                return cli.tdp_sd_create(rdp_req, FileType::File, res.fso);
+                                return cli.tdp_sd_create(rdp_req, FileType::File);
                             }
                         }
                         flags::CreateDisposition::FILE_OPEN_IF => {
@@ -511,13 +510,13 @@ impl Client {
                                     file_id,
                                 );
                             } else if res.err_code == TdpErrCode::DoesNotExist {
-                                return cli.tdp_sd_create(rdp_req, FileType::File, res.fso);
+                                return cli.tdp_sd_create(rdp_req, FileType::File);
                             }
                         }
                         flags::CreateDisposition::FILE_OVERWRITE => {
                             // If the file already exists, open it and overwrite it. If it does not, fail the request.
                             if res.err_code == TdpErrCode::Nil {
-                                return cli.tdp_sd_overwrite(rdp_req, res.fso);
+                                return cli.tdp_sd_overwrite(rdp_req);
                             } else if res.err_code == TdpErrCode::DoesNotExist {
                                 return cli.prep_device_create_response(
                                     &rdp_req,
@@ -529,9 +528,9 @@ impl Client {
                         flags::CreateDisposition::FILE_OVERWRITE_IF => {
                             // If the file already exists, open it and overwrite it. If it does not, create the given file.
                             if res.err_code == TdpErrCode::Nil {
-                                return cli.tdp_sd_overwrite(rdp_req, res.fso);
+                                return cli.tdp_sd_overwrite(rdp_req);
                             } else if res.err_code == TdpErrCode::DoesNotExist {
-                                return cli.tdp_sd_create(rdp_req, FileType::File, res.fso);
+                                return cli.tdp_sd_create(rdp_req, FileType::File);
                             }
                         }
                         _ => {
@@ -776,6 +775,7 @@ impl Client {
         payload: &mut Payload,
     ) -> RdpResult<Vec<Vec<u8>>> {
         let rdp_req = ServerDriveSetInformationRequest::decode(device_io_request, payload)?;
+        debug!("received RDP: {:?}", rdp_req);
 
         match rdp_req.file_information_class_level {
             FileInformationClassLevel::FileRenameInformation => match rdp_req.set_buffer {
@@ -1189,7 +1189,6 @@ impl Client {
         &mut self,
         rdp_req: DeviceCreateRequest,
         file_type: FileType,
-        fso: FileSystemObject,
     ) -> RdpResult<Vec<Vec<u8>>> {
         let tdp_req = SharedDirectoryCreateRequest {
             completion_id: rdp_req.device_io_request.completion_id,
@@ -1214,10 +1213,8 @@ impl Client {
                     }
 
                     let file_id = cli.generate_file_id();
-                    cli.file_cache.insert(
-                        file_id,
-                        FileCacheObject::new(UnixPath::from(rdp_req.path.clone()), fso),
-                    );
+                    cli.file_cache
+                        .insert(file_id, FileCacheObject::new(res.fso.path.clone(), res.fso));
                     cli.prep_device_create_response(&rdp_req, NTSTATUS::STATUS_SUCCESS, file_id)
                 },
             ),
@@ -1228,11 +1225,7 @@ impl Client {
     /// Helper function for combining a TDP SharedDirectoryDeleteRequest
     /// with a TDP SharedDirectoryCreateRequest to overwrite a file, based
     /// on an RDP DeviceCreateRequest.
-    fn tdp_sd_overwrite(
-        &mut self,
-        rdp_req: DeviceCreateRequest,
-        fso: FileSystemObject,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+    fn tdp_sd_overwrite(&mut self, rdp_req: DeviceCreateRequest) -> RdpResult<Vec<Vec<u8>>> {
         let tdp_req = SharedDirectoryDeleteRequest {
             completion_id: rdp_req.device_io_request.completion_id,
             directory_id: rdp_req.device_io_request.device_id,
@@ -1244,7 +1237,7 @@ impl Client {
             Box::new(
                 |cli: &mut Self, res: SharedDirectoryDeleteResponse| -> RdpResult<Vec<Vec<u8>>> {
                     match res.err_code {
-                        TdpErrCode::Nil => cli.tdp_sd_create(rdp_req, FileType::File, fso),
+                        TdpErrCode::Nil => cli.tdp_sd_create(rdp_req, FileType::File),
                         _ => cli.prep_device_create_response(
                             &rdp_req,
                             NTSTATUS::STATUS_UNSUCCESSFUL,

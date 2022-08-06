@@ -885,7 +885,7 @@ pub unsafe extern "C" fn handle_tdp_sd_create_response(
     // In other words, all pointer data that needs to persist after this function returns MUST
     // be copied into Rust-owned memory.
 
-    let res: SharedDirectoryCreateResponse = res;
+    let res = SharedDirectoryCreateResponse::from(res);
 
     let client = match Client::from_ptr(client_ptr) {
         Ok(client) => client,
@@ -1643,15 +1643,6 @@ pub struct CGOSharedDirectoryCreateRequest {
     pub path: *const c_char,
 }
 
-/// SharedDirectoryCreateResponse is sent by the TDP client to the server
-/// to acknowledge a SharedDirectoryCreateRequest was received and executed.
-#[derive(Debug, Clone)]
-#[repr(C)]
-pub struct SharedDirectoryCreateResponse {
-    pub completion_id: u32,
-    pub err_code: TdpErrCode,
-}
-
 /// SharedDirectoryListResponse is sent by the TDP client to the server
 /// in response to a SharedDirectoryInfoRequest.
 #[derive(Debug)]
@@ -1710,23 +1701,90 @@ pub struct CGOSharedDirectoryMoveRequest {
     pub new_path: *const c_char,
 }
 
-pub type CGOSharedDirectoryCreateResponse = SharedDirectoryCreateResponse;
+/// SharedDirectoryCreateResponse is sent by the TDP client to the server
+/// to acknowledge a SharedDirectoryCreateRequest was received and executed.
+#[derive(Debug)]
+pub struct SharedDirectoryCreateResponse {
+    completion_id: u32,
+    err_code: TdpErrCode,
+    fso: FileSystemObject,
+}
+
+#[repr(C)]
+pub struct CGOSharedDirectoryCreateResponse {
+    pub completion_id: u32,
+    pub err_code: TdpErrCode,
+    pub fso: CGOFileSystemObject,
+}
+
+impl From<CGOSharedDirectoryCreateResponse> for SharedDirectoryCreateResponse {
+    fn from(cgo_res: CGOSharedDirectoryCreateResponse) -> SharedDirectoryCreateResponse {
+        // # Safety
+        //
+        // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+        // In other words, all pointer data that needs to persist after this function returns MUST
+        // be copied into Rust-owned memory.
+        SharedDirectoryCreateResponse {
+            completion_id: cgo_res.completion_id,
+            err_code: cgo_res.err_code,
+            fso: FileSystemObject::from(cgo_res.fso),
+        }
+    }
+}
+
 /// SharedDirectoryDeleteRequest is sent by the TDP server to the client
 /// to request the deletion of a file or directory at path.
-pub type SharedDirectoryDeleteRequest = SharedDirectoryInfoRequest;
-pub type CGOSharedDirectoryDeleteRequest = CGOSharedDirectoryInfoRequest;
+#[derive(Debug)]
+pub struct SharedDirectoryDeleteRequest {
+    completion_id: u32,
+    directory_id: u32,
+    path: UnixPath,
+}
+
+#[repr(C)]
+pub struct CGOSharedDirectoryDeleteRequest {
+    pub completion_id: u32,
+    pub directory_id: u32,
+    pub path: *const c_char,
+}
+
 /// SharedDirectoryDeleteResponse is sent by the TDP client to the server
 /// to acknowledge a SharedDirectoryDeleteRequest was received and executed.
-pub type SharedDirectoryDeleteResponse = SharedDirectoryCreateResponse;
-pub type CGOSharedDirectoryDeleteResponse = SharedDirectoryCreateResponse;
-/// SharedDirectoryListRequest is sent by the TDP server to the client
-/// to request the contents of a directory.
-pub type SharedDirectoryListRequest = SharedDirectoryInfoRequest;
-pub type CGOSharedDirectoryListRequest = CGOSharedDirectoryInfoRequest;
+#[derive(Debug)]
+#[repr(C)]
+pub struct SharedDirectoryDeleteResponse {
+    completion_id: u32,
+    err_code: TdpErrCode,
+}
+
+pub type CGOSharedDirectoryDeleteResponse = SharedDirectoryDeleteResponse;
+
 /// SharedDirectoryMoveResponse is sent by the TDP client to the server
 /// to acknowledge a SharedDirectoryMoveRequest was received and expected.
-pub type SharedDirectoryMoveResponse = SharedDirectoryCreateResponse;
-pub type CGOSharedDirectoryMoveResponse = CGOSharedDirectoryCreateResponse;
+#[derive(Debug)]
+#[repr(C)]
+pub struct SharedDirectoryMoveResponse {
+    completion_id: u32,
+    err_code: TdpErrCode,
+}
+
+pub type CGOSharedDirectoryMoveResponse = SharedDirectoryMoveResponse;
+
+/// SharedDirectoryListRequest is sent by the TDP server to the client
+/// to request the contents of a directory.
+#[derive(Debug)]
+pub struct SharedDirectoryListRequest {
+    completion_id: u32,
+    directory_id: u32,
+    path: UnixPath,
+}
+
+#[repr(C)]
+pub struct CGOSharedDirectoryListRequest {
+    pub completion_id: u32,
+    pub directory_id: u32,
+    pub path: *const c_char,
+}
 
 // These functions are defined on the Go side. Look for functions with '//export funcname'
 // comments.

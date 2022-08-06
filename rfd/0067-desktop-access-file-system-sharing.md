@@ -256,7 +256,7 @@ response.
 #### 16 - Shared Directory Create Response
 
 ```
-| message type (16) | completion_id uint32 | err_code uint32 |
+| message type (16) | completion_id uint32 | err_code uint32 | file_system_object fso |
 ```
 
 This message is sent by the client to the server to acknowledge a `Shared Directory Create Request` was successfully executed. A `Shared Directory Create Request`
@@ -265,6 +265,8 @@ that fails should respond with an "operation failed" `Shared Directory Error`.
 `completion_id` must match the `completion_id` of the `Shared Directory Create Request` that this message is responding to.
 
 `err_code` is an error code. If a filesystem object at `path` already exists, this should be set to `3` ("resource already exists").
+
+`file_system_object` is the file system object that was created.
 
 #### 17 - Shared Directory Delete Request
 
