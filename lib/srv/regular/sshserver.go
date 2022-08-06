@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -692,7 +693,7 @@ func New(addr utils.NetAddr,
 	auth auth.ClientI,
 	options ...ServerOption,
 ) (*Server, error) {
-	err := utils.RegisterPrometheusCollectors(userSessionLimitHitCount)
+	err := metrics.RegisterPrometheusCollectors(userSessionLimitHitCount)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
