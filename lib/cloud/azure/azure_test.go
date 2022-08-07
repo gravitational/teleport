@@ -11,18 +11,22 @@ import (
 
 func TestServerConversion(t *testing.T) {
 	tests := []struct {
-		name     string
-		protocol string
-		version  string
-		state    string
-		wantErr  error
+		name    string
+		dbType  string
+		version string
+		state   string
 	}{
 		{
-			name: "one",
-			protocol: "mysql",
+			name:    "mysql conversion",
+			dbType:  "mysql",
 			version: "5.7",
-			state: "Ready",
-			wantErr: nil,
+			state:   "Ready",
+		},
+		{
+			name:    "postgres conversion",
+			dbType:  "postgres",
+			version: "11",
+			state:   "Ready",
 		},
 	}
 	for _, tt := range tests {
@@ -40,13 +44,13 @@ func TestServerConversion(t *testing.T) {
 			typeFmt := "%v/servers"
 			idFmt := "/subscriptions/subid/resourceGroups/group/providers/%v/dbname"
 			tags := map[string]string{"foo": "bar", "baz": "qux"}
-			switch tt.protocol {
+			switch tt.dbType {
 			case defaults.ProtocolMySQL:
 				provider = "Microsoft.DBforMySQL"
 				port = "3306"
 				serverType = fmt.Sprintf(typeFmt, provider)
 				id := fmt.Sprintf(idFmt, serverType)
-				fqdn = fmt.Sprintf("dbname.%v.database.azure.com", tt.protocol)
+				fqdn = fmt.Sprintf("dbname.%v.database.azure.com", tt.dbType)
 				server, err = ServerFromMySQLServer(
 					&armmysql.Server{
 						Location: &region,
@@ -65,7 +69,7 @@ func TestServerConversion(t *testing.T) {
 				port = "5432"
 				serverType = fmt.Sprintf(typeFmt, provider)
 				id := fmt.Sprintf(idFmt, serverType)
-				fqdn = fmt.Sprintf("dbname.%v.database.azure.com", tt.protocol)
+				fqdn = fmt.Sprintf("dbname.%v.database.azure.com", tt.dbType)
 				server, err = ServerFromPostgresServer(
 					&armpostgresql.Server{
 						Location: &region,
@@ -82,20 +86,20 @@ func TestServerConversion(t *testing.T) {
 			default:
 				require.FailNow(t, "unknown db protocol specified by test")
 			}
-			require.ErrorIs(t, err, tt.wantErr)
+			require.NoError(t, err)
 
-			require.Equal(t, tt.protocol, server.GetProtocol())
-			require.Equal(t, tt.state, server.GetState())
-			require.Equal(t, tt.version, server.GetVersion())
-			require.Equal(t, provider, server.GetID().ProviderNamespace)
-			require.Equal(t, "group", server.GetID().ResourceGroup)
-			require.Equal(t, "subid", server.GetID().SubscriptionID)
-			require.Equal(t, serverType, server.GetID().ResourceType)
-			require.Equal(t, dbName, server.GetID().ResourceName)
-			require.Equal(t, dbName, server.GetName())
-			require.Equal(t, fqdn+":"+port, server.GetEndpoint())
-			require.Equal(t, region, server.GetRegion())
-			require.Equal(t, tags, server.GetTags())
+			require.Equal(t, tt.dbType, server.Protocol())
+			require.Equal(t, tt.state, server.State())
+			require.Equal(t, tt.version, server.Version())
+			require.Equal(t, provider, server.ID().ProviderNamespace)
+			require.Equal(t, "group", server.ID().ResourceGroup)
+			require.Equal(t, "subid", server.ID().SubscriptionID)
+			require.Equal(t, "servers", server.ID().ResourceType)
+			require.Equal(t, dbName, server.ID().ResourceName)
+			require.Equal(t, dbName, server.Name())
+			require.Equal(t, fqdn+":"+port, server.Endpoint())
+			require.Equal(t, region, server.Region())
+			require.Equal(t, tags, server.Tags())
 		})
 	}
 }
