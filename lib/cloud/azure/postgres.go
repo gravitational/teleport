@@ -72,6 +72,16 @@ func (c *postgresClient) Subscription() string {
 	return c.subscription
 }
 
+func (c *postgresClient) Get(ctx context.Context, group, name string) (Server, error) {
+	res, err := c.client.Get(ctx, group, name, nil)
+	if err != nil {
+		// TODO(gavin) convert at call site?
+		return nil, trace.Wrap(err)
+	}
+	server, err := ServerFromPostgresServer(&res.Server)
+	return server, trace.Wrap(err)
+}
+
 func (c *postgresClient) listAll(ctx context.Context, maxPages int) ([]*armpostgresql.Server, error) {
 	var servers []*armpostgresql.Server
 	options := &armpostgresql.ServersClientListOptions{}
@@ -107,7 +117,7 @@ func ServerFromPostgresServer(server *armpostgresql.Server) (Server, error) {
 	if server == nil {
 		return nil, trace.BadParameter("nil server")
 	}
-	id, err := ParseID(server.ID)
+	id, err := parseID(server.ID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -126,7 +136,7 @@ type postgresServer struct {
 
 // IsVersionSupported returns true if database supports AAD authentication.
 func (s *postgresServer) IsVersionSupported() bool {
-	switch armpostgresql.ServerVersion(s.GetVersion()) {
+	switch armpostgresql.ServerVersion(s.Version()) {
 	case armpostgresql.ServerVersionNine5, armpostgresql.ServerVersionNine6, armpostgresql.ServerVersionTen,
 		armpostgresql.ServerVersionTen0, armpostgresql.ServerVersionTen2, armpostgresql.ServerVersionEleven:
 		return true
@@ -136,7 +146,7 @@ func (s *postgresServer) IsVersionSupported() bool {
 }
 
 func (s *postgresServer) IsAvailable() bool {
-	switch armpostgresql.ServerState(s.GetState()) {
+	switch armpostgresql.ServerState(s.State()) {
 	case armpostgresql.ServerStateReady:
 		return true
 	case armpostgresql.ServerStateInaccessible,
@@ -148,43 +158,43 @@ func (s *postgresServer) IsAvailable() bool {
 	}
 }
 
-func (s *postgresServer) GetRegion() string {
+func (s *postgresServer) Region() string {
 	return stringVal(s.server.Location)
 }
 
-func (s *postgresServer) GetVersion() string {
+func (s *postgresServer) Version() string {
 	if s.server.Properties != nil && s.server.Properties.Version != nil {
 		return string(*s.server.Properties.Version)
 	}
 	return ""
 }
 
-func (s *postgresServer) GetName() string {
+func (s *postgresServer) Name() string {
 	return stringVal(s.server.Name)
 }
 
-func (s *postgresServer) GetEndpoint() string {
+func (s *postgresServer) Endpoint() string {
 	if s.server.Properties != nil && s.server.Properties.FullyQualifiedDomainName != nil {
 		return *s.server.Properties.FullyQualifiedDomainName + ":" + PostgresPort
 	}
 	return ""
 }
 
-func (s *postgresServer) GetID() types.AzureResourceID {
+func (s *postgresServer) ID() types.AzureResourceID {
 	return s.id
 }
 
-func (s *postgresServer) GetProtocol() string {
+func (s *postgresServer) Protocol() string {
 	return defaults.ProtocolPostgres
 }
 
-func (s *postgresServer) GetState() string {
+func (s *postgresServer) State() string {
 	if s.server.Properties != nil && s.server.Properties.UserVisibleState != nil {
 		return string(*s.server.Properties.UserVisibleState)
 	}
 	return ""
 }
 
-func (s *postgresServer) GetTags() map[string]string {
+func (s *postgresServer) Tags() map[string]string {
 	return s.tags
 }

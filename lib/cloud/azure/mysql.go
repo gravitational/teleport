@@ -48,6 +48,7 @@ func (c *mySQLClient) ListServers(ctx context.Context, group string, maxPages in
 		servers, err = c.listByGroup(ctx, group, maxPages)
 	}
 	if err != nil {
+		// TODO(gavin) convert at call site?
 		return nil, trace.Wrap(err)
 	}
 
@@ -72,6 +73,17 @@ func (c *mySQLClient) Subscription() string {
 	return c.subscription
 }
 
+func (c *mySQLClient) Get(ctx context.Context, group, name string) (Server, error) {
+	res, err := c.client.Get(ctx, group, name, nil)
+	if err != nil {
+		// TODO(gavin) convert at call site?
+		return nil, trace.Wrap(err)
+	}
+	server, err := ServerFromMySQLServer(&res.Server)
+	return server, trace.Wrap(err)
+}
+
+// TODO(gavin)
 func (c *mySQLClient) listAll(ctx context.Context, maxPages int) ([]*armmysql.Server, error) {
 	var servers []*armmysql.Server
 	options := &armmysql.ServersClientListOptions{}
@@ -86,6 +98,7 @@ func (c *mySQLClient) listAll(ctx context.Context, maxPages int) ([]*armmysql.Se
 	return servers, nil
 }
 
+// TODO(gavin)
 func (c *mySQLClient) listByGroup(ctx context.Context, group string, maxPages int) ([]*armmysql.Server, error) {
 	var servers []*armmysql.Server
 	options := &armmysql.ServersClientListByResourceGroupOptions{}
@@ -113,7 +126,7 @@ func ServerFromMySQLServer(server *armmysql.Server) (Server, error) {
 	if server == nil {
 		return nil, trace.BadParameter("nil server")
 	}
-	id, err := ParseID(server.ID)
+	id, err := parseID(server.ID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -127,7 +140,7 @@ func ServerFromMySQLServer(server *armmysql.Server) (Server, error) {
 // IsVersionSupported returns true if database supports AAD authentication.
 // Only available for 5.7 and newer.
 func (s *mySQLServer) IsVersionSupported() bool {
-	switch armmysql.ServerVersion(s.GetVersion()) {
+	switch armmysql.ServerVersion(s.Version()) {
 	case armmysql.ServerVersionEight0, armmysql.ServerVersionFive7:
 		return true
 	case armmysql.ServerVersionFive6:
@@ -139,7 +152,7 @@ func (s *mySQLServer) IsVersionSupported() bool {
 
 // TODO(gavin)
 func (s *mySQLServer) IsAvailable() bool {
-	switch armmysql.ServerState(s.GetState()) {
+	switch armmysql.ServerState(s.State()) {
 	case armmysql.ServerStateReady:
 		return true
 	case armmysql.ServerStateInaccessible,
@@ -151,48 +164,57 @@ func (s *mySQLServer) IsAvailable() bool {
 	}
 }
 
-func (s *mySQLServer) GetRegion() string {
+// TODO(gavin)
+func (s *mySQLServer) Region() string {
 	return stringVal(s.server.Location)
 }
 
-func (s *mySQLServer) GetVersion() string {
+// TODO(gavin)
+func (s *mySQLServer) Version() string {
 	if s.server.Properties != nil && s.server.Properties.Version != nil {
 		return string(*s.server.Properties.Version)
 	}
 	return ""
 }
 
-func (s *mySQLServer) GetName() string {
+// TODO(gavin)
+func (s *mySQLServer) Name() string {
 	return stringVal(s.server.Name)
 }
 
-func (s *mySQLServer) GetEndpoint() string {
+// TODO(gavin)
+func (s *mySQLServer) Endpoint() string {
 	if s.server.Properties != nil && s.server.Properties.FullyQualifiedDomainName != nil {
 		return *s.server.Properties.FullyQualifiedDomainName + ":" + MySQLPort
 	}
 	return ""
 }
 
-func (s *mySQLServer) GetID() types.AzureResourceID {
+// TODO(gavin)
+func (s *mySQLServer) ID() types.AzureResourceID {
 	return s.id
 }
 
-func (s *mySQLServer) GetProtocol() string {
+// TODO(gavin)
+func (s *mySQLServer) Protocol() string {
 	return defaults.ProtocolMySQL
 }
 
-func (s *mySQLServer) GetState() string {
+// TODO(gavin)
+func (s *mySQLServer) State() string {
 	if s.server.Properties != nil && s.server.Properties.UserVisibleState != nil {
 		return string(*s.server.Properties.UserVisibleState)
 	}
 	return ""
 }
 
-func (s *mySQLServer) GetTags() map[string]string {
+// TODO(gavin)
+func (s *mySQLServer) Tags() map[string]string {
 	return s.tags
 }
 
-func ParseID(id *string) (*types.AzureResourceID, error) {
+// TODO(gavin)
+func parseID(id *string) (*types.AzureResourceID, error) {
 	if id == nil {
 		return nil, trace.BadParameter("nil server ID")
 	}
@@ -204,7 +226,7 @@ func ParseID(id *string) (*types.AzureResourceID, error) {
 		SubscriptionID:    rid.SubscriptionID,
 		ResourceGroup:     rid.ResourceGroupName,
 		ProviderNamespace: rid.ResourceType.Namespace,
-		ResourceType:      rid.ResourceType.String(),
+		ResourceType:      rid.ResourceType.Type,
 		ResourceName:      rid.Name,
 	}, nil
 }

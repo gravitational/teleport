@@ -137,17 +137,17 @@ func setDBName(meta types.Metadata, firstNamePart string, extraNameParts ...stri
 
 // NewDatabaseFromAzureServer creates a database resource from an AzureDB server.
 func NewDatabaseFromAzureServer(server azure.Server) (types.Database, error) {
-	endpoint := server.GetEndpoint()
+	endpoint := server.Endpoint()
 	if endpoint == "" {
 		return nil, trace.BadParameter("empty endpoint")
 	}
 
-	name := server.GetName()
+	name := server.Name()
 	if name == "" {
 		return nil, trace.BadParameter("empty server name")
 	}
 
-	protocol := server.GetProtocol()
+	protocol := server.Protocol()
 	if protocol == "" {
 		return nil, trace.BadParameter("empty server protocol")
 	}
@@ -163,7 +163,7 @@ func NewDatabaseFromAzureServer(server azure.Server) (types.Database, error) {
 	}
 	return types.NewDatabaseV3(
 		setDBName(types.Metadata{
-			Description: fmt.Sprintf("Azure %v server in %v", protocol, server.GetRegion()),
+			Description: fmt.Sprintf("Azure %v server in %v", protocol, server.Region()),
 			Labels:      labels,
 		}, name),
 		types.DatabaseSpecV3{
@@ -382,10 +382,11 @@ func NewDatabaseFromMemoryDBCluster(cluster *memorydb.Cluster, extraLabels map[s
 
 // MetadataFromAzureServer creates Azure metadata from the provided Azure Server.
 func MetadataFromAzureServer(server azure.Server) (*types.Azure, error) {
+	// TODO(gavin): check for missing info (this func returns error)
 	return &types.Azure{
-		Name:       server.GetName(),
-		Region:     server.GetRegion(),
-		ResourceID: server.GetID(),
+		Name:       server.Name(),
+		Region:     server.Region(),
+		ResourceID: server.ID(),
 	}, nil
 }
 
@@ -562,12 +563,12 @@ func engineToProtocol(engine string) string {
 
 // labelsFromAzureServer creates database labels for the provided Azure DB server.
 func labelsFromAzureServer(server azure.Server, meta *types.Azure) (map[string]string, error) {
-	labels := azureTagsToLabels(server.GetTags())
-	resourceID := server.GetID()
+	labels := azureTagsToLabels(server.Tags())
+	resourceID := server.ID()
 	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = meta.Region
 	labels[labelEngine] = resourceID.ProviderNamespace
-	labels[labelEngineVersion] = server.GetVersion()
+	labels[labelEngineVersion] = server.Version()
 	labels[labelResourceGroup] = resourceID.ResourceGroup
 	labels[labelSubscriptionID] = resourceID.SubscriptionID
 	return labels, nil

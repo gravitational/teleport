@@ -31,6 +31,8 @@ type ServersClient interface {
 	Kind() string
 	// TODO(gavin)
 	Subscription() string
+	// TODO(gavin)
+	Get(ctx context.Context, group, name string) (Server, error)
 }
 
 // TODO(gavin)
@@ -42,21 +44,21 @@ type SubscriptionsClient interface {
 // TODO(gavin)
 type Server interface {
 	// TODO(gavin)
-	GetName() string
+	Name() string
 	// TODO(gavin)
-	GetRegion() string
+	Region() string
 	// TODO(gavin)
-	GetVersion() string
+	Version() string
 	// TODO(gavin)
-	GetEndpoint() string
+	Endpoint() string
 	// TODO(gavin)
-	GetProtocol() string
+	Protocol() string
 	// TODO(gavin)
-	GetState() string
+	State() string
 	// TODO(gavin)
-	GetID() types.AzureResourceID
+	ID() types.AzureResourceID
 	// TODO(gavin)
-	GetTags() map[string]string
+	Tags() map[string]string
 	// TODO(gavin)
 	IsVersionSupported() bool
 	// TODO(gavin)

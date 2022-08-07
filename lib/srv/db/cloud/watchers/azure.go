@@ -36,7 +36,6 @@ func newAzureFetcher(client azure.ServersClient, group string, regions []string,
 			"subscription":  client.Subscription(),
 		}),
 	}
-	fetcher.log.Errorf("HERE: testing logger")
 	return fetcher, nil
 }
 
@@ -89,6 +88,7 @@ func (f *azureFetcher) Get(ctx context.Context) (types.Databases, error) {
 func (f *azureFetcher) getDatabases(ctx context.Context) (types.Databases, error) {
 	servers, err := f.cfg.Client.ListServers(ctx, f.cfg.ResourceGroup, common.MaxPages)
 	if err != nil {
+		// TODO(gavin) convert error?
 		return nil, trace.Wrap(err)
 	}
 
@@ -98,33 +98,33 @@ func (f *azureFetcher) getDatabases(ctx context.Context) (types.Databases, error
 			continue
 		}
 		// azure sdk provides no way to query by region, so we have to filter results
-		region := server.GetRegion()
+		region := server.Region()
 		if _, ok := f.cfg.Regions[region]; !ok {
 			continue
 		}
 
 		if !server.IsVersionSupported() {
 			f.log.Debugf("Azure server %q (version %v) does not support AAD authentication. Skipping.",
-				server.GetName(),
-				server.GetVersion())
+				server.Name(),
+				server.Version())
 			continue
 		}
 
 		if !server.IsAvailable() {
 			f.log.Debugf("The current status of Azure server %q is %q. Skipping.",
-				server.GetName(),
-				server.GetState())
+				server.Name(),
+				server.State())
 			continue
 		}
 
 		database, err := services.NewDatabaseFromAzureServer(server)
 		if err != nil {
 			f.log.Warnf("Could not convert Azure server %q to database resource: %v.",
-				server.GetName(),
+				server.Name(),
 				err)
-		} else {
-			databases = append(databases, database)
+			continue
 		}
+		databases = append(databases, database)
 	}
 	return databases, nil
 }

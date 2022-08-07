@@ -22,7 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 	"github.com/gravitational/teleport/api/types"
@@ -553,9 +552,6 @@ func makeAzureMySQLServer(t *testing.T, name, subscription, group, region string
 		resourceType,
 		name,
 	)
-	// ensure this mock ID is valid and parses
-	_, err := arm.ParseResourceID(id)
-	require.NoError(t, err)
 
 	fqdn := name + ".mysql" + types.AzureEndpointSuffix
 	state := armmysql.ServerStateReady
@@ -592,9 +588,6 @@ func makeAzurePostgresServer(t *testing.T, name, subscription, group, region str
 		resourceType,
 		name,
 	)
-	// ensure this mock ID is valid and parses
-	_, err := arm.ParseResourceID(id)
-	require.NoError(t, err)
 
 	fqdn := name + ".postgres" + types.AzureEndpointSuffix
 	state := armpostgresql.ServerStateReady
