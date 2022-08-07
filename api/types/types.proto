@@ -2807,7 +2807,7 @@ message OIDCAuthRequest {
     // find a redirect url from the OIDC connector which matches
     // the address. If there is no match, the default redirect
     // url will be used.
-    string ProxyAddress = 16 [ (gogoproto.jsontag) = "proxy_address,omitempt" ];
+    string ProxyAddress = 16 [ (gogoproto.jsontag) = "proxy_address,omitempty" ];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
