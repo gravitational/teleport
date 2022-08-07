@@ -205,19 +205,16 @@ $ tsh login --proxy=mytenant.teleport.sh --user=alice
 
 </ScopedBlock>
 
-Now we can inspect available databases and retrieve credentials for the
-configured Aurora instance:
+Now we can inspect available databases:
 
 ```code
 $ tsh db ls
-$ tsh db login aurora
 ```
 
-Finally, connect to the database using the `psql` command shown in the output of
-the `tsh db login` command, which looks similar to this:
+Finally, connect to the database:
 
 ```code
-$ psql "service=<cluster>-aurora user=alice dbname=postgres"
+$ tsh db connect --db-user=alice --db-name postgres aurora
 ```
 
 ## Next Steps

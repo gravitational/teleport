@@ -30,12 +30,14 @@ pub struct WindowsPath {
 }
 
 impl WindowsPath {
-    pub fn new(path: String) -> WindowsPath {
-        Self { path }
-    }
-
     pub fn len(&self) -> u32 {
         self.path.len() as u32
+    }
+}
+
+impl From<String> for WindowsPath {
+    fn from(path: String) -> WindowsPath {
+        Self { path }
     }
 }
 
@@ -49,17 +51,13 @@ pub struct UnixPath {
 }
 
 impl UnixPath {
-    pub fn new(path: String) -> UnixPath {
-        Self { path }
-    }
-
     /// This function will create a CString from a UnixPath.
     ///
     /// # Errors
     ///
     /// This function will return an error if the UnixPath contains
     /// any characters that can't be handled by CString::new().
-    pub fn as_cstring(&self) -> Result<CString, NulError> {
+    pub fn to_cstring(&self) -> Result<CString, NulError> {
         CString::new(self.path.clone())
     }
 
@@ -72,9 +70,15 @@ impl UnixPath {
     }
 }
 
-impl From<WindowsPath> for UnixPath {
-    fn from(p: WindowsPath) -> UnixPath {
-        Self::new(to_unix_path(&p.path))
+impl From<&WindowsPath> for UnixPath {
+    fn from(p: &WindowsPath) -> UnixPath {
+        Self::from(to_unix_path(&p.path))
+    }
+}
+
+impl From<String> for UnixPath {
+    fn from(path: String) -> UnixPath {
+        Self { path }
     }
 }
 

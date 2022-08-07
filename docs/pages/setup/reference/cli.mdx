@@ -696,6 +696,110 @@ registered devices using [`tsh mfa ls`](cli.mdx#tsh-mfa-ls).
 $ tsh mfa rm <device-name>
 ```
 
+### tsh request new
+
+Create a new Access Request.
+
+```code
+$ tsh request new [<flags>]
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--roles` | none | Comma-separated strings | List of Teleport roles to request |
+| `--resource` | none | String (flag can be repeated to request multiple resources) | Resource ID to be requested |
+| `--reason` | none | String | Reason for making the request (optional) |
+| `--reviewers` | none | Comma-separated strings | Suggested reviewers for the request (optional) |
+| `--nowait` | `false` | `true` or `false` | Finish without waiting for request resolution |
+
+### tsh request ls
+
+List Access Requests
+
+```code
+$ tsh request ls
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--format` | `text` | `text`, `json`, or `yaml` | Format output |
+| `--reviewable` | `false` | `true` or `false` | Only show requests reviewable by current user |
+| `--suggested` | `false` | `true` or `false` | Only show requests that suggest current user as reviewer |
+| `--my-requests` | `false` | `true` or `false` | Only show requests created by current user |
+
+### tsh request show
+
+Show Access Request details
+
+```code
+$ tsh request show <request-id>
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--format` | text | `text`, `json`, or `yaml` | Format output |
+
+#### Arguments
+
+- `<request-id>` - ID of the target request
+
+### tsh request review
+
+Review an Access Request
+
+```code
+$ tsh request review [<flags>] <request-id>
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--approve` | `false` | `true` or `false` | Review proposes approval |
+| `--deny` | `false` | `true` or `false` | Review proposes denial |
+| `--reason` | none | String | Review reason message |
+
+#### Arguments
+
+- `<request-id>` - ID of the target request
+
+### tsh request search
+
+Search for resources to request access to
+
+```code
+$ tsh request search [<flags>]
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--kind` | none | `node`, `kubernetes_cluster`, `db`, `app`, `windows_desktop` | Resource kind to search for (required) |
+| `--search` | none | Comma-separated strings | List of comma-separated search keywords or phrases enclosed in single quotes |
+| `--query` | none | String | Query by [predicate language](predicate-language.mdx#resource-filtering) enclosed in single quotes |
+| `--labels` | none | Comma-separated strings | List of comma-separated labels to filter by labels (e.g. `key=value1,key2=value2`) |
+
+### tsh request drop
+
+Drop one or more access requests from current identity
+
+```code
+$ tsh request drop [<request-id>...]
+```
+
+#### Arguments
+
+- `<request-id>` - IDs of requests to "drop" from the current identity so that
+  your certificate will lose elevated roles and/or resource restrictions.
+  If no request ID is given, the default is to drop all Access Requests.
+
 ### tsh environment variables
 
 Environment variables configure your tsh client and can help you avoid using flags repetitively.
