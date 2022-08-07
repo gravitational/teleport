@@ -2424,6 +2424,7 @@ func TestClusterKubesGet(t *testing.T) {
 		Kind:     types.KindKubeService,
 		Version:  types.V2,
 		Spec: types.ServerSpecV2{
+			Addr: "test",
 			KubernetesClusters: []*types.KubernetesCluster{
 				{
 					Name:         "test-kube-name",
