@@ -655,7 +655,7 @@ func (c *Client) sharedDirectoryCreateRequest(req tdp.SharedDirectoryCreateReque
 	}
 
 	if err := c.cfg.Conn.OutputMessage(req); err != nil {
-		c.cfg.Log.Errorf("failed to send SharedDirectoryAcknowledge: %v", err)
+		c.cfg.Log.Errorf("failed to send SharedDirectoryCreateRequest: %v", err)
 		return C.ErrCodeFailure
 	}
 	return C.ErrCodeSuccess
@@ -678,7 +678,7 @@ func (c *Client) sharedDirectoryDeleteRequest(req tdp.SharedDirectoryDeleteReque
 	}
 
 	if err := c.cfg.Conn.OutputMessage(req); err != nil {
-		c.cfg.Log.Errorf("failed to send SharedDirectoryAcknowledge: %v", err)
+		c.cfg.Log.Errorf("failed to send SharedDirectoryDeleteRequest: %v", err)
 		return C.ErrCodeFailure
 	}
 	return C.ErrCodeSuccess
@@ -701,7 +701,7 @@ func (c *Client) sharedDirectoryListRequest(req tdp.SharedDirectoryListRequest) 
 	}
 
 	if err := c.cfg.Conn.OutputMessage(req); err != nil {
-		c.cfg.Log.Errorf("failed to send SharedDirectoryAcknowledge: %v", err)
+		c.cfg.Log.Errorf("failed to send SharedDirectoryListRequest: %v", err)
 		return C.ErrCodeFailure
 	}
 	return C.ErrCodeSuccess

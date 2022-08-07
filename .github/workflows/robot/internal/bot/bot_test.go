@@ -113,6 +113,7 @@ func TestIsLargePR(t *testing.T) {
 				{Name: "file_pb.js", Additions: 10000, Deletions: 2000},
 				{Name: "file2_pb.d.ts", Additions: 10000, Deletions: 2000},
 				{Name: "webassets/12345/app.js", Additions: 10000, Deletions: 2000},
+				{Name: "vendor/golang.org/x/sys", Additions: 10000, Deletions: 2000},
 			},
 			isLarge: false,
 		},
@@ -181,6 +182,10 @@ func (f *fakeGithub) DeleteWorkflowRun(ctx context.Context, organization string,
 
 func (f *fakeGithub) CreateComment(ctx context.Context, organization string, repository string, number int, comment string) error {
 	return nil
+}
+
+func (f *fakeGithub) ListComments(ctx context.Context, organization string, repository string, number int) ([]string, error) {
+	return nil, nil
 }
 
 func (f *fakeGithub) CreatePullRequest(ctx context.Context, organization string, repository string, title string, head string, base string, body string, draft bool) (int, error) {

@@ -106,6 +106,7 @@ func fido2Login(
 	// Presence of any allowed credential is interpreted as the user identity
 	// being partially established, aka non-passwordless.
 	passwordless := len(allowedCreds) == 0
+	log.Debugf("FIDO2: assertion: passwordless=%v, uv=%v", passwordless, uv)
 
 	// Prepare challenge data for the device.
 	ccdJSON, err := json.Marshal(&CollectedClientData{
@@ -323,6 +324,7 @@ func fido2Register(
 	}
 
 	rrk := cc.Response.AuthenticatorSelection.RequireResidentKey != nil && *cc.Response.AuthenticatorSelection.RequireResidentKey
+	log.Debugf("FIDO2: registration: resident key=%v", rrk)
 	if rrk {
 		// Be more pedantic with resident keys, some of this info gets recorded with
 		// the credential.
@@ -387,8 +389,14 @@ func fido2Register(
 
 	filter := func(dev FIDODevice, info *deviceInfo) (bool, error) {
 		switch {
-		case (plat && !info.plat) || (rrk && !info.rk) || (uv && !info.uvCapable()):
-			log.Debugf("FIDO2: Device %v: filtered due to options", info.path)
+		case plat && !info.plat:
+			log.Debugf("FIDO2: Device %v: filtered due to plat mismatch (requested %v, device %v)", info.path, plat, info.plat)
+			return false, nil
+		case rrk && !info.rk:
+			log.Debugf("FIDO2: Device %v: filtered due to lack of resident keys", info.path)
+			return false, nil
+		case uv && !info.uvCapable():
+			log.Debugf("FIDO2: Device %v: filtered due to lack of UV", info.path)
 			return false, nil
 		case len(excludeList) == 0:
 			return true, nil
@@ -543,7 +551,9 @@ func runOnFIDO2Devices(
 	if errors.Is(err, errNoSuitableDevices) {
 		// No readily available devices means we need to prompt, otherwise the
 		// user gets no feedback whatsoever.
-		prompt.PromptTouch()
+		if err := prompt.PromptTouch(); err != nil {
+			return trace.Wrap(err)
+		}
 		prompted = true
 
 		devices, err = findSuitableDevicesOrTimeout(ctx, filter, knownPaths)
@@ -553,7 +563,10 @@ func runOnFIDO2Devices(
 	}
 
 	if !prompted {
-		prompt.PromptTouch() // about to select
+		// about to select
+		if err := prompt.PromptTouch(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	dev, requiresPIN, err := selectDevice(ctx, "" /* pin */, devices, deviceCallback)
 	switch {
@@ -574,7 +587,9 @@ func runOnFIDO2Devices(
 	}
 
 	// Prompt a second touch after reading the PIN.
-	prompt.PromptTouch()
+	if err := prompt.PromptTouch(); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Run the callback again with the informed PIN.
 	// selectDevice is used since it correctly deals with cancellation.

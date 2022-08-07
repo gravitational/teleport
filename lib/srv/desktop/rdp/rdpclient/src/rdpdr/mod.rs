@@ -469,7 +469,7 @@ impl Client {
                                 let file_id = cli.generate_file_id();
                                 cli.file_cache.insert(
                                     file_id,
-                                    FileCacheObject::new(UnixPath::from(rdp_req.path.clone()), res.fso),
+                                    FileCacheObject::new(UnixPath::from(&rdp_req.path), res.fso),
                                 );
                                 return cli.prep_device_create_response(
                                     &rdp_req,
@@ -502,7 +502,7 @@ impl Client {
                                 let file_id = cli.generate_file_id();
                                 cli.file_cache.insert(
                                     file_id,
-                                    FileCacheObject::new(UnixPath::from(rdp_req.path.clone()), res.fso),
+                                    FileCacheObject::new(UnixPath::from(&rdp_req.path), res.fso),
                                 );
                                 return cli.prep_device_create_response(
                                     &rdp_req,
@@ -1194,7 +1194,7 @@ impl Client {
             completion_id: rdp_req.device_io_request.completion_id,
             directory_id: rdp_req.device_io_request.device_id,
             file_type,
-            path: UnixPath::from(rdp_req.path.clone()),
+            path: UnixPath::from(&rdp_req.path),
         };
         (self.tdp_sd_create_request)(tdp_req)?;
 
@@ -1213,8 +1213,10 @@ impl Client {
                     }
 
                     let file_id = cli.generate_file_id();
-                    cli.file_cache
-                        .insert(file_id, FileCacheObject::new(res.fso.path.clone(), res.fso));
+                    cli.file_cache.insert(
+                        file_id,
+                        FileCacheObject::new(UnixPath::from(&rdp_req.path), res.fso),
+                    );
                     cli.prep_device_create_response(&rdp_req, NTSTATUS::STATUS_SUCCESS, file_id)
                 },
             ),
@@ -1229,7 +1231,7 @@ impl Client {
         let tdp_req = SharedDirectoryDeleteRequest {
             completion_id: rdp_req.device_io_request.completion_id,
             directory_id: rdp_req.device_io_request.device_id,
-            path: UnixPath::from(rdp_req.path.clone()),
+            path: UnixPath::from(&rdp_req.path),
         };
         (self.tdp_sd_delete_request)(tdp_req)?;
         self.pending_sd_delete_resp_handlers.insert(
@@ -1385,7 +1387,7 @@ impl Client {
         rdp_req: ServerDriveSetInformationRequest,
         rename_info: &FileRenameInformation,
     ) -> RdpResult<Vec<Vec<u8>>> {
-        let new_path = UnixPath::from(rename_info.file_name.clone());
+        let new_path = UnixPath::from(&rename_info.file_name);
         // If replace_if_exists is false, first check if the new_path exists.
         (self.tdp_sd_info_request)(SharedDirectoryInfoRequest {
             completion_id: rdp_req.device_io_request.completion_id,
@@ -1423,7 +1425,7 @@ impl Client {
                 completion_id: rdp_req.device_io_request.completion_id,
                 directory_id: rdp_req.device_io_request.device_id,
                 original_path: file.path.clone(),
-                new_path: UnixPath::from(rename_info.file_name.clone()),
+                new_path: UnixPath::from(&rename_info.file_name),
             })?;
 
             self.pending_sd_move_resp_handlers.insert(
@@ -1564,7 +1566,7 @@ impl Iterator for FileCacheObject {
                 last_modified: self.fso.last_modified,
                 size: self.fso.size,
                 file_type: self.fso.file_type,
-                path: UnixPath::new(".".to_string()),
+                path: UnixPath::from(".".to_string()),
             })
         } else if !self.dotdot_sent {
             // On the second call to next, return the ".." directory
@@ -1573,7 +1575,7 @@ impl Iterator for FileCacheObject {
                 last_modified: self.fso.last_modified,
                 size: 0,
                 file_type: FileType::Directory,
-                path: UnixPath::new("..".to_string()),
+                path: UnixPath::from("..".to_string()),
             })
         } else {
             // "." and ".." have been sent, now start iterating through
@@ -2251,7 +2253,7 @@ impl DeviceCreateRequest {
         // for a u32 will never panic on the machines that run teleport.
         let mut path = vec![0u8; path_length.try_into().unwrap()];
         payload.read_exact(&mut path)?;
-        let path = WindowsPath::new(util::from_unicode(path)?);
+        let path = WindowsPath::from(util::from_unicode(path)?);
 
         Ok(Self {
             device_io_request,
@@ -2369,9 +2371,8 @@ struct ServerDriveQueryInformationRequest {
 
 impl ServerDriveQueryInformationRequest {
     fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
-        if let Some(file_info_class_lvl) =
-            FileInformationClassLevel::from_u32(payload.read_u32::<LittleEndian>()?)
-        {
+        let n = payload.read_u32::<LittleEndian>()?;
+        if let Some(file_info_class_lvl) = FileInformationClassLevel::from_u32(n) {
             return Ok(Self {
                 device_io_request,
                 file_info_class_lvl,
@@ -2379,7 +2380,11 @@ impl ServerDriveQueryInformationRequest {
         }
 
         Err(invalid_data_error(
-            "received invalid FileInformationClass in ServerDriveQueryInformationRequest",
+            format!(
+                "received invalid FileInformationClass in ServerDriveQueryInformationRequest: {}",
+                n
+            )
+            .as_str(),
         ))
     }
 }
@@ -2884,7 +2889,7 @@ impl FileRenameInformation {
         let file_name_length = payload.read_u32::<LittleEndian>()?;
         let mut file_name = vec![0u8; file_name_length as usize];
         payload.read_exact(&mut file_name)?;
-        let file_name = WindowsPath::new(util::from_unicode(file_name)?);
+        let file_name = WindowsPath::from(util::from_unicode(file_name)?);
 
         Ok(Self {
             replace_if_exists: Boolean::from_u8(replace_if_exists).unwrap(),
@@ -3616,7 +3621,7 @@ impl ServerDriveQueryDirectoryRequest {
 
         let initial_query = payload.read_u8()?;
         let mut path_length: u32 = 0;
-        let mut path = WindowsPath::new("".to_string());
+        let mut path = WindowsPath::from("".to_string());
         let mut padding: [u8; 23] = [0; 23];
         if initial_query != 0 {
             path_length = payload.read_u32::<LittleEndian>()?;
@@ -3627,7 +3632,7 @@ impl ServerDriveQueryDirectoryRequest {
             // TODO(isaiah): make a from_unicode_exact
             let mut path_as_vec = vec![0u8; path_length.try_into().unwrap()];
             payload.read_exact(&mut path_as_vec)?;
-            path = WindowsPath::new(util::from_unicode(path_as_vec)?);
+            path = WindowsPath::from(util::from_unicode(path_as_vec)?);
         }
 
         Ok(Self {
