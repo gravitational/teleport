@@ -56,7 +56,7 @@ func (m *AzureClientMock) ListServers(ctx context.Context, group string, _ int) 
 	}
 	servers := make([]azure.Server, 0, len(m.DBServers))
 	for _, server := range m.DBServers {
-		if server.GetID().ResourceGroup == group {
+		if server.ID().ResourceGroup == group {
 			servers = append(servers, server)
 		}
 	}
@@ -71,6 +71,15 @@ func (m *AzureClientMock) Subscription() string {
 	return "mocksub"
 }
 
+func (m *AzureClientMock) Get(ctx context.Context, group, name string) (azure.Server, error) {
+	for _, server := range m.DBServers {
+		if server.ID().ResourceGroup == group && server.ID().ResourceName == name {
+			return server, nil
+		}
+	}
+	return nil, trace.NotFound("server %v in group %v not found.", name, group)
+}
+
 // AzureClientMockUnauth implements AzureClient
 var _ azure.ServersClient = (*AzureClientMockUnauth)(nil)
 
@@ -80,6 +89,10 @@ type AzureClientMockUnauth struct {
 }
 
 func (m *AzureClientMockUnauth) ListServers(ctx context.Context, group string, _ int) ([]azure.Server, error) {
+	return nil, trace.AccessDenied("unauthorized")
+}
+
+func (m *AzureClientMockUnauth) Get(ctx context.Context, group, name string) (azure.Server, error) {
 	return nil, trace.AccessDenied("unauthorized")
 }
 
