@@ -15,6 +15,7 @@
  */
 
 import React, { useState, useRef } from 'react';
+import styled from 'styled-components';
 import {
   Flex,
   ButtonPrimary,
@@ -41,10 +42,18 @@ export default function Container(props: AgentStepProps) {
   return <LoginTrait {...state} />;
 }
 
-export function LoginTrait({ attempt, nextStep, logins, addLogin }: State) {
+export function LoginTrait({
+  attempt,
+  nextStep,
+  dynamicLogins,
+  staticLogins,
+  addLogin,
+}: State) {
   const inputRefs = useRef<HTMLInputElement[]>([]);
   const [newLogin, setNewLogin] = useState('');
   const [showInputBox, setShowInputBox] = useState(false);
+
+  const hasLogins = staticLogins.length > 0 || dynamicLogins.length > 0;
 
   function onAddLogin() {
     addLogin(newLogin);
@@ -81,49 +90,40 @@ export function LoginTrait({ attempt, nextStep, logins, addLogin }: State) {
       $content = (
         <>
           <Text bold mb={2}>
-            Select or Add Linux Principles
+            Remove or Add OS Usernames
           </Text>
           <Box mb={6}>
-            {logins.map((login, index) => {
-              return (
-                <Flex
-                  key={index}
-                  p={2}
-                  mb={1}
-                  borderRadius={2}
-                  width="300px"
-                  alignItems="center"
-                  borderColor="colors.primary.light"
+            {!hasLogins && (
+              <CheckboxWrapper>
+                <Text
                   css={`
-                    border: 1px solid
-                      ${props => props.theme.colors.primary.light};
+                    font-style: italic;
                   `}
                 >
-                  <input
+                  No OS usernames defined
+                </Text>
+              </CheckboxWrapper>
+            )}
+            {/* static logins cannot be modified */}
+            {staticLogins.map((login, index) => {
+              return (
+                <CheckboxWrapper key={index} className="disabled">
+                  <CheckboxInput type="checkbox" name={login} defaultChecked />
+                  <Label htmlFor={login}>{login}</Label>
+                </CheckboxWrapper>
+              );
+            })}
+            {dynamicLogins.map((login, index) => {
+              return (
+                <CheckboxWrapper key={index}>
+                  <CheckboxInput
                     type="checkbox"
                     name={login}
-                    css={`
-                      margin-right: 10px;
-                      accent-color: ${props =>
-                        props.theme.colors.secondary.main};
-                      &:hover {
-                        cursor: pointer;
-                      }
-                    `}
                     ref={el => (inputRefs.current[index] = el)}
                     defaultChecked
                   />
-                  <label
-                    htmlFor={login}
-                    css={`
-                      width: 250px;
-                      overflow: hidden;
-                      text-overflow: ellipsis;
-                    `}
-                  >
-                    {login}
-                  </label>
-                </Flex>
+                  <Label htmlFor={login}>{login}</Label>
+                </CheckboxWrapper>
               );
             })}
             {showInputBox ? (
@@ -136,7 +136,7 @@ export function LoginTrait({ attempt, nextStep, logins, addLogin }: State) {
               <AddLoginButton setShowInputBox={setShowInputBox} />
             )}
           </Box>
-          <ActionButtons onProceed={onProceed} />
+          <ActionButtons onProceed={onProceed} disableProceed={!hasLogins} />
         </>
       );
       break;
@@ -213,6 +213,35 @@ const AddLoginButton = ({
         }
       `}
     />
-    Add New Principle
+    Add an OS Username
   </ButtonText>
 );
+
+const CheckboxWrapper = styled(Flex)`
+  padding: 8px;
+  margin-bottom: 4px;
+  width: 300px;
+  align-items: center;
+  border: 1px solid ${props => props.theme.colors.primary.light};
+  border-radius: 8px;
+
+  &.disabled {
+    pointer-events: none;
+    opacity: 0.5;
+  }
+`;
+
+const CheckboxInput = styled.input`
+  margin-right: 10px;
+  accent-color: ${props => props.theme.colors.secondary.main};
+
+  &:hover {
+    cursor: pointer;
+  }
+`;
+
+const Label = styled.label`
+  width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;

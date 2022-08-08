@@ -23,7 +23,15 @@ export default {
   title: 'Teleport/Discover/DownloadScript',
 };
 
-export const Loaded = () => <DownloadScript {...props} />;
+export const Polling = () => <DownloadScript {...props} />;
+
+export const PollingSuccess = () => (
+  <DownloadScript {...props} pollState="success" />
+);
+
+export const PollingError = () => (
+  <DownloadScript {...props} pollState="error" />
+);
 
 export const Processing = () => (
   <DownloadScript {...props} attempt={{ status: 'processing' }} />
@@ -41,10 +49,12 @@ const props: State = {
     status: 'success',
     statusText: '',
   },
+  pollState: 'polling',
   nextStep: () => null,
   joinToken: {
     id: 'some-join-token-hash',
     expiryText: '4 hours',
     expiry: new Date(),
   },
+  regenerateScriptAndRepoll: () => null,
 };

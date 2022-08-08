@@ -23,9 +23,19 @@ export default {
   title: 'Teleport/Discover/LoginTrait',
 };
 
-export const Loaded = () => <LoginTrait {...props} />;
+export const LoadedWithStatic = () => <LoginTrait {...props} />;
 
-export const Empty = () => <LoginTrait {...props} logins={[]} />;
+export const LoadedWithoutStatic = () => (
+  <LoginTrait {...props} staticLogins={[]} />
+);
+
+export const EmptyWithStatic = () => (
+  <LoginTrait {...props} dynamicLogins={[]} />
+);
+
+export const EmptyWithoutStatic = () => (
+  <LoginTrait {...props} dynamicLogins={[]} staticLogins={[]} />
+);
 
 export const Processing = () => (
   <LoginTrait {...props} attempt={{ status: 'processing' }} />
@@ -43,7 +53,12 @@ const props: State = {
     status: 'success',
     statusText: '',
   },
-  logins: ['root', 'llama', 'george_washington_really_long_name_testing'],
+  dynamicLogins: [
+    'root',
+    'llama',
+    'george_washington_really_long_name_testing',
+  ],
+  staticLogins: ['ubunutu', 'debian'],
   nextStep: () => null,
   addLogin: () => null,
 };

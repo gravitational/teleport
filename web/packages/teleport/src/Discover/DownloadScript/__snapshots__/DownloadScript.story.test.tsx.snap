@@ -53,7 +53,7 @@ exports[`failed 1`] = `
 </div>
 `;
 
-exports[`loaded 1`] = `
+exports[`polling error state 1`] = `
 .c0 {
   box-sizing: border-box;
 }
@@ -63,7 +63,7 @@ exports[`loaded 1`] = `
   margin-right: 4px;
 }
 
-.c9 {
+.c13 {
   box-sizing: border-box;
   margin-top: 24px;
 }
@@ -112,7 +112,49 @@ exports[`loaded 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c10 {
+.c11 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: none;
+  text-transform: none;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c11:active {
+  opacity: 0.56;
+}
+
+.c11:hover,
+.c11:focus {
+  background: none;
+  text-decoration: underline;
+}
+
+.c11:disabled {
+  background: none;
+  color: rgba(255,255,255,0.3);
+}
+
+.c14 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -140,25 +182,25 @@ exports[`loaded 1`] = `
   width: 165px;
 }
 
-.c10:active {
+.c14:active {
   opacity: 0.56;
 }
 
-.c10:hover,
-.c10:focus {
+.c14:hover,
+.c14:focus {
   background: #651FFF;
 }
 
-.c10:active {
+.c14:active {
   background: #354AA4;
 }
 
-.c10:disabled {
+.c14:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c11 {
+.c15 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -186,18 +228,26 @@ exports[`loaded 1`] = `
   width: 165px;
 }
 
-.c11:active {
+.c15:active {
   opacity: 0.56;
 }
 
-.c11:hover,
-.c11:focus {
+.c15:hover,
+.c15:focus {
   background: #2C3A73;
 }
 
-.c11:disabled {
+.c15:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+}
+
+.c10 {
+  display: inline-block;
+  transition: color 0.3s;
+  margin-left: 4px;
+  margin-right: 8px;
+  color: #f50057;
 }
 
 .c1 {
@@ -214,13 +264,7 @@ exports[`loaded 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-}
-
-.c3 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-top: 16px;
+  margin-bottom: 16px;
 }
 
 .c4 {
@@ -230,9 +274,15 @@ exports[`loaded 1`] = `
   margin: 0px;
 }
 
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+}
+
 .c5 {
   box-sizing: border-box;
-  max-width: 800px;
+  margin-bottom: 4px;
   margin-top: 8px;
   padding: 8px;
   background-color: #010B1C;
@@ -248,6 +298,22 @@ exports[`loaded 1`] = `
   display: flex;
 }
 
+.c3 {
+  box-sizing: border-box;
+  padding: 16px;
+  border-radius: 8px;
+  max-width: 800px;
+  background-color: rgba(255,255,255,0.05);
+  border: 2px solid #f50057;
+}
+
+.c12 {
+  color: #03a9f4;
+  font-weight: normal;
+  padding-left: 2px;
+  font-size: inherit;
+}
+
 <div
   class="c0"
 >
@@ -260,55 +326,649 @@ exports[`loaded 1`] = `
     class="c2"
   >
     Use below script to add a server to your cluster. This script will install the Teleport agent to provide secure access to your server.
-    <div
-      class="c3"
-    >
-      The script will be valid for
-       
-      <span
-        class="c4"
-      >
-        4 hours
-        .
-      </span>
-    </div>
   </div>
   <div
-    class="c5"
+    class="c3"
   >
     <div
-      class="c6"
-      style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
+      class="c4"
+    >
+      Script
+    </div>
+    <div
+      class="c5"
     >
       <div
-        class="c7"
+        class="c6"
+        style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
       >
-        $
+        <div
+          class="c7"
+        >
+          $
+        </div>
+        <div>
+          sudo bash -c "$(curl -fsSL http://localhost/scripts/some-join-token-hash/install-node.sh)"
+        </div>
       </div>
-      <div>
-        sudo bash -c "$(curl -fsSL http://localhost/scripts/some-join-token-hash/install-node.sh)"
-      </div>
+      <button
+        class="c8"
+        kind="primary"
+        style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
+      >
+        Copy
+      </button>
     </div>
-    <button
-      class="c8"
-      kind="primary"
-      style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
+    <div
+      class="c9"
     >
-      Copy
-    </button>
+      <span
+        class="c10 icon icon-warning "
+        color="danger"
+      />
+      Timed out, failed to discover resource.
+       
+      <button
+        class="c11 c12"
+        kind="text"
+      >
+        Generate a new script and try again.
+      </button>
+    </div>
   </div>
   <div
-    class="c9"
+    class="c13"
   >
     <button
-      class="c10"
+      class="c14"
+      disabled=""
       kind="primary"
       width="165px"
     >
       Proceed
     </button>
     <button
-      class="c11"
+      class="c15"
+      kind="secondary"
+      width="165px"
+    >
+      Exit
+    </button>
+  </div>
+</div>
+`;
+
+exports[`polling state 1`] = `
+.c0 {
+  box-sizing: border-box;
+}
+
+.c7 {
+  box-sizing: border-box;
+  margin-right: 4px;
+}
+
+.c11 {
+  box-sizing: border-box;
+  margin-top: 24px;
+}
+
+.c8 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c8:active {
+  opacity: 0.56;
+}
+
+.c8:hover,
+.c8:focus {
+  background: #651FFF;
+}
+
+.c8:active {
+  background: #354AA4;
+}
+
+.c8:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c12 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-right: 16px;
+  width: 165px;
+}
+
+.c12:active {
+  opacity: 0.56;
+}
+
+.c12:hover,
+.c12:focus {
+  background: #651FFF;
+}
+
+.c12:active {
+  background: #354AA4;
+}
+
+.c12:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c13 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-top: 16px;
+  width: 165px;
+}
+
+.c13:active {
+  opacity: 0.56;
+}
+
+.c13:hover,
+.c13:focus {
+  background: #2C3A73;
+}
+
+.c13:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c10 {
+  display: inline-block;
+  transition: color 0.3s;
+  margin-right: 8px;
+  color: #FFFFFF;
+  font-size: 18px;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+  margin-bottom: 24px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 16px;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+}
+
+.c5 {
+  box-sizing: border-box;
+  margin-bottom: 4px;
+  margin-top: 8px;
+  padding: 8px;
+  background-color: #010B1C;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c6 {
+  box-sizing: border-box;
+  margin-right: 8px;
+  display: flex;
+}
+
+.c3 {
+  box-sizing: border-box;
+  padding: 16px;
+  border-radius: 8px;
+  max-width: 800px;
+  background-color: rgba(255,255,255,0.05);
+  border: 2px solid #2F3659;
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  display: flex;
+  align-items: center;
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+  >
+    Configure Resource
+  </div>
+  <div
+    class="c2"
+  >
+    Use below script to add a server to your cluster. This script will install the Teleport agent to provide secure access to your server.
+  </div>
+  <div
+    class="c3"
+  >
+    <div
+      class="c4"
+    >
+      Script
+    </div>
+    <div
+      class="c5"
+    >
+      <div
+        class="c6"
+        style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
+      >
+        <div
+          class="c7"
+        >
+          $
+        </div>
+        <div>
+          sudo bash -c "$(curl -fsSL http://localhost/scripts/some-join-token-hash/install-node.sh)"
+        </div>
+      </div>
+      <button
+        class="c8"
+        kind="primary"
+        style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
+      >
+        Copy
+      </button>
+    </div>
+    <div
+      class="c9"
+    >
+      <span
+        class="c10 icon icon-restore "
+        color="light"
+        font-size="4"
+      />
+      Waiting for resource discovery...
+    </div>
+  </div>
+  <div
+    class="c11"
+  >
+    <button
+      class="c12"
+      disabled=""
+      kind="primary"
+      width="165px"
+    >
+      Proceed
+    </button>
+    <button
+      class="c13"
+      kind="secondary"
+      width="165px"
+    >
+      Exit
+    </button>
+  </div>
+</div>
+`;
+
+exports[`polling success state 1`] = `
+.c0 {
+  box-sizing: border-box;
+}
+
+.c7 {
+  box-sizing: border-box;
+  margin-right: 4px;
+}
+
+.c11 {
+  box-sizing: border-box;
+  margin-top: 24px;
+}
+
+.c8 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c8:active {
+  opacity: 0.56;
+}
+
+.c8:hover,
+.c8:focus {
+  background: #651FFF;
+}
+
+.c8:active {
+  background: #354AA4;
+}
+
+.c8:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c12 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-right: 16px;
+  width: 165px;
+}
+
+.c12:active {
+  opacity: 0.56;
+}
+
+.c12:hover,
+.c12:focus {
+  background: #651FFF;
+}
+
+.c12:active {
+  background: #354AA4;
+}
+
+.c12:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c13 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-top: 16px;
+  width: 165px;
+}
+
+.c13:active {
+  opacity: 0.56;
+}
+
+.c13:hover,
+.c13:focus {
+  background: #2C3A73;
+}
+
+.c13:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c10 {
+  display: inline-block;
+  transition: color 0.3s;
+  margin-left: 4px;
+  margin-right: 8px;
+  color: #00bfa5;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+  margin-bottom: 24px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 16px;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+}
+
+.c5 {
+  box-sizing: border-box;
+  margin-bottom: 4px;
+  margin-top: 8px;
+  padding: 8px;
+  background-color: #010B1C;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c6 {
+  box-sizing: border-box;
+  margin-right: 8px;
+  display: flex;
+}
+
+.c3 {
+  box-sizing: border-box;
+  padding: 16px;
+  border-radius: 8px;
+  max-width: 800px;
+  background-color: rgba(255,255,255,0.05);
+  border: 2px solid #00bfa5;
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+  >
+    Configure Resource
+  </div>
+  <div
+    class="c2"
+  >
+    Use below script to add a server to your cluster. This script will install the Teleport agent to provide secure access to your server.
+  </div>
+  <div
+    class="c3"
+  >
+    <div
+      class="c4"
+    >
+      Script
+    </div>
+    <div
+      class="c5"
+    >
+      <div
+        class="c6"
+        style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
+      >
+        <div
+          class="c7"
+        >
+          $
+        </div>
+        <div>
+          sudo bash -c "$(curl -fsSL http://localhost/scripts/some-join-token-hash/install-node.sh)"
+        </div>
+      </div>
+      <button
+        class="c8"
+        kind="primary"
+        style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
+      >
+        Copy
+      </button>
+    </div>
+    <div
+      class="c9"
+    >
+      <span
+        class="c10 icon icon-checkmark-circle "
+        color="success"
+      />
+      Successfully discovered resource
+    </div>
+  </div>
+  <div
+    class="c11"
+  >
+    <button
+      class="c12"
+      kind="primary"
+      width="165px"
+    >
+      Proceed
+    </button>
+    <button
+      class="c13"
       kind="secondary"
       width="165px"
     >

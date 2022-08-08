@@ -21,22 +21,47 @@ import { DiscoverContext } from '../discoverContext';
 
 import type { User } from 'teleport/services/user';
 import type { AgentStepProps } from '../types';
+import type { NodeMeta } from '../useDiscover';
 
 export function useLoginTrait({ ctx, props }: Props) {
   const [user, setUser] = useState<User>();
   const { attempt, run, setAttempt, handleError } = useAttempt('processing');
-  const [logins, setLogins] = useState<string[]>([]);
+  const [staticLogins, setStaticLogins] = useState<string[]>([]);
+  const [dynamicLogins, setDynamicLogins] = useState<string[]>([]);
 
   useEffect(() => {
     run(() =>
       ctx.userService.fetchUser(ctx.username).then(user => {
         setUser(user);
-        setLogins(user.traits.logins);
+
+        // Filter out dynamic logins from the node's 'sshLogins'
+        // which contain both dynamic and static logins.
+        const meta = props.agentMeta as NodeMeta;
+        const userDefinedLogins = user.traits.logins;
+        const filteredStaticLogins = meta.node.sshLogins.filter(
+          login => !userDefinedLogins.includes(login)
+        );
+
+        setStaticLogins(filteredStaticLogins);
+        setDynamicLogins(userDefinedLogins);
       })
     );
   }, []);
 
   function nextStep(logins: string[]) {
+    // Currently, fetching user for user traits does not
+    // include the statically defined OS usernames, so
+    // we combine it manually in memory with the logins
+    // we previously fetched through querying for the
+    // the newly added resource (which returns 'sshLogins' that
+    // includes both dynamic + static logins).
+    const meta = props.agentMeta as NodeMeta;
+    props.updateAgentMeta({
+      ...meta,
+      node: { ...meta.node, sshLogins: [...staticLogins, ...logins] },
+    });
+
+    // Update the dynamic logins for the user in backend.
     setAttempt({ status: 'processing' });
     ctx.userService
       .updateUser({
@@ -47,14 +72,15 @@ export function useLoginTrait({ ctx, props }: Props) {
       .catch(handleError);
   }
 
-  function addLogin(login: string) {
-    setLogins([...logins, login]);
+  function addLogin(newLogin: string) {
+    setDynamicLogins([...dynamicLogins, newLogin]);
   }
 
   return {
     attempt,
     nextStep,
-    logins,
+    dynamicLogins,
+    staticLogins,
     addLogin,
   };
 }

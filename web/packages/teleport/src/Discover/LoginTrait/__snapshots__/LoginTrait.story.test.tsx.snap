@@ -1,29 +1,155 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`failed 1`] = `
-.c2 {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 2px;
-  box-sizing: border-box;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
-  margin: 0 0 24px 0;
-  min-height: 40px;
-  padding: 8px 16px;
-  overflow: auto;
-  word-break: break-word;
-  line-height: 1.5;
-  background: #f50057;
-  color: #FFFFFF;
-}
-
-.c2 a {
-  color: #FFFFFF;
-}
-
+exports[`empty state 1`] = `
 .c0 {
   box-sizing: border-box;
+}
+
+.c3 {
+  box-sizing: border-box;
+  margin-bottom: 40px;
+}
+
+.c10 {
+  box-sizing: border-box;
+  margin-top: 24px;
+}
+
+.c6 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: none;
+  text-transform: none;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-top: 8px;
+}
+
+.c6:active {
+  opacity: 0.56;
+}
+
+.c6:hover,
+.c6:focus {
+  background: none;
+  text-decoration: underline;
+}
+
+.c6:disabled {
+  background: none;
+  color: rgba(255,255,255,0.3);
+}
+
+.c11 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-right: 16px;
+  width: 165px;
+}
+
+.c11:active {
+  opacity: 0.56;
+}
+
+.c11:hover,
+.c11:focus {
+  background: #651FFF;
+}
+
+.c11:active {
+  background: #354AA4;
+}
+
+.c11:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c12 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-top: 16px;
+  width: 165px;
+}
+
+.c12:active {
+  opacity: 0.56;
+}
+
+.c12:hover,
+.c12:focus {
+  background: #2C3A73;
+}
+
+.c12:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c8 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
 }
 
 .c1 {
@@ -36,6 +162,51 @@ exports[`failed 1`] = `
   margin-bottom: 24px;
 }
 
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+  margin-bottom: 8px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  display: flex;
+  padding: 8px;
+  margin-bottom: 4px;
+  width: 300px;
+  align-items: center;
+  border: 1px solid #222C59;
+  border-radius: 8px;
+}
+
+.c4.disabled {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  font-style: italic;
+}
+
+.c7 {
+  line-height: normal;
+  padding-left: 4px;
+}
+
+.c9 {
+  font-weight: bold;
+  letter-spacing: 4px;
+}
+
+.c9:after {
+  content: ' ';
+}
+
 <div
   class="c0"
 >
@@ -46,14 +217,55 @@ exports[`failed 1`] = `
   </div>
   <div
     class="c2"
-    kind="danger"
   >
-    some error message
+    Remove or Add OS Usernames
+  </div>
+  <div
+    class="c3"
+  >
+    <div
+      class="c4"
+    >
+      <div
+        class="c5"
+      >
+        No OS usernames defined
+      </div>
+    </div>
+    <button
+      class="c6 c7"
+      kind="text"
+    >
+      <span
+        class="c8 icon icon-add c9"
+        color="light"
+      />
+      Add an OS Username
+    </button>
+  </div>
+  <div
+    class="c10"
+  >
+    <button
+      class="c11"
+      disabled=""
+      kind="primary"
+      width="165px"
+    >
+      Proceed
+    </button>
+    <button
+      class="c12"
+      kind="secondary"
+      width="165px"
+    >
+      Exit
+    </button>
   </div>
 </div>
 `;
 
-exports[`loaded 1`] = `
+exports[`empty state with static logins 1`] = `
 .c0 {
   box-sizing: border-box;
 }
@@ -225,14 +437,18 @@ exports[`loaded 1`] = `
 
 .c4 {
   box-sizing: border-box;
-  margin-bottom: 4px;
-  padding: 8px;
-  width: 300px;
-  border-radius: 4px;
-  border-color: colors.primary.light;
   display: flex;
+  padding: 8px;
+  margin-bottom: 4px;
+  width: 300px;
   align-items: center;
   border: 1px solid #222C59;
+  border-radius: 8px;
+}
+
+.c4.disabled {
+  pointer-events: none;
+  opacity: 0.5;
 }
 
 .c5 {
@@ -275,60 +491,41 @@ exports[`loaded 1`] = `
   <div
     class="c2"
   >
-    Select or Add Linux Principles
+    Remove or Add OS Usernames
   </div>
   <div
     class="c3"
   >
     <div
-      class="c4"
-      width="300px"
+      class="c4 disabled"
     >
       <input
         checked=""
         class="c5"
-        name="root"
+        name="ubunutu"
         type="checkbox"
       />
       <label
         class="c6"
-        for="root"
+        for="ubunutu"
       >
-        root
+        ubunutu
       </label>
     </div>
     <div
-      class="c4"
-      width="300px"
+      class="c4 disabled"
     >
       <input
         checked=""
         class="c5"
-        name="llama"
+        name="debian"
         type="checkbox"
       />
       <label
         class="c6"
-        for="llama"
+        for="debian"
       >
-        llama
-      </label>
-    </div>
-    <div
-      class="c4"
-      width="300px"
-    >
-      <input
-        checked=""
-        class="c5"
-        name="george_washington_really_long_name_testing"
-        type="checkbox"
-      />
-      <label
-        class="c6"
-        for="george_washington_really_long_name_testing"
-      >
-        george_washington_really_long_name_testing
+        debian
       </label>
     </div>
     <button
@@ -339,7 +536,7 @@ exports[`loaded 1`] = `
         class="c9 icon icon-add c10"
         color="light"
       />
-      Add New Principle
+      Add an OS Username
     </button>
   </div>
   <div
@@ -363,7 +560,60 @@ exports[`loaded 1`] = `
 </div>
 `;
 
-exports[`loaded empty state 1`] = `
+exports[`failed 1`] = `
+.c2 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
+  margin: 0 0 24px 0;
+  min-height: 40px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-word;
+  line-height: 1.5;
+  background: #f50057;
+  color: #FFFFFF;
+}
+
+.c2 a {
+  color: #FFFFFF;
+}
+
+.c0 {
+  box-sizing: border-box;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+  margin-bottom: 24px;
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+  >
+    Set Up Access
+  </div>
+  <div
+    class="c2"
+    kind="danger"
+  >
+    some error message
+  </div>
+</div>
+`;
+
+exports[`loaded with static state 1`] = `
 .c0 {
   box-sizing: border-box;
 }
@@ -373,12 +623,12 @@ exports[`loaded empty state 1`] = `
   margin-bottom: 40px;
 }
 
-.c8 {
+.c11 {
   box-sizing: border-box;
   margin-top: 24px;
 }
 
-.c4 {
+.c7 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -406,22 +656,22 @@ exports[`loaded empty state 1`] = `
   margin-top: 8px;
 }
 
-.c4:active {
+.c7:active {
   opacity: 0.56;
 }
 
-.c4:hover,
-.c4:focus {
+.c7:hover,
+.c7:focus {
   background: none;
   text-decoration: underline;
 }
 
-.c4:disabled {
+.c7:disabled {
   background: none;
   color: rgba(255,255,255,0.3);
 }
 
-.c9 {
+.c12 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -449,25 +699,25 @@ exports[`loaded empty state 1`] = `
   width: 165px;
 }
 
-.c9:active {
+.c12:active {
   opacity: 0.56;
 }
 
-.c9:hover,
-.c9:focus {
+.c12:hover,
+.c12:focus {
   background: #651FFF;
 }
 
-.c9:active {
+.c12:active {
   background: #354AA4;
 }
 
-.c9:disabled {
+.c12:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c10 {
+.c13 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -495,21 +745,21 @@ exports[`loaded empty state 1`] = `
   width: 165px;
 }
 
-.c10:active {
+.c13:active {
   opacity: 0.56;
 }
 
-.c10:hover,
-.c10:focus {
+.c13:hover,
+.c13:focus {
   background: #2C3A73;
 }
 
-.c10:disabled {
+.c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c6 {
+.c9 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
@@ -533,17 +783,48 @@ exports[`loaded empty state 1`] = `
   margin-bottom: 8px;
 }
 
+.c4 {
+  box-sizing: border-box;
+  display: flex;
+  padding: 8px;
+  margin-bottom: 4px;
+  width: 300px;
+  align-items: center;
+  border: 1px solid #222C59;
+  border-radius: 8px;
+}
+
+.c4.disabled {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
 .c5 {
+  margin-right: 10px;
+  accent-color: #512FC9;
+}
+
+.c5:hover {
+  cursor: pointer;
+}
+
+.c6 {
+  width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.c8 {
   line-height: normal;
   padding-left: 4px;
 }
 
-.c7 {
+.c10 {
   font-weight: bold;
   letter-spacing: 4px;
 }
 
-.c7:after {
+.c10:after {
   content: ' ';
 }
 
@@ -558,34 +839,114 @@ exports[`loaded empty state 1`] = `
   <div
     class="c2"
   >
-    Select or Add Linux Principles
+    Remove or Add OS Usernames
   </div>
   <div
     class="c3"
   >
+    <div
+      class="c4 disabled"
+    >
+      <input
+        checked=""
+        class="c5"
+        name="ubunutu"
+        type="checkbox"
+      />
+      <label
+        class="c6"
+        for="ubunutu"
+      >
+        ubunutu
+      </label>
+    </div>
+    <div
+      class="c4 disabled"
+    >
+      <input
+        checked=""
+        class="c5"
+        name="debian"
+        type="checkbox"
+      />
+      <label
+        class="c6"
+        for="debian"
+      >
+        debian
+      </label>
+    </div>
+    <div
+      class="c4"
+    >
+      <input
+        checked=""
+        class="c5"
+        name="root"
+        type="checkbox"
+      />
+      <label
+        class="c6"
+        for="root"
+      >
+        root
+      </label>
+    </div>
+    <div
+      class="c4"
+    >
+      <input
+        checked=""
+        class="c5"
+        name="llama"
+        type="checkbox"
+      />
+      <label
+        class="c6"
+        for="llama"
+      >
+        llama
+      </label>
+    </div>
+    <div
+      class="c4"
+    >
+      <input
+        checked=""
+        class="c5"
+        name="george_washington_really_long_name_testing"
+        type="checkbox"
+      />
+      <label
+        class="c6"
+        for="george_washington_really_long_name_testing"
+      >
+        george_washington_really_long_name_testing
+      </label>
+    </div>
     <button
-      class="c4 c5"
+      class="c7 c8"
       kind="text"
     >
       <span
-        class="c6 icon icon-add c7"
+        class="c9 icon icon-add c10"
         color="light"
       />
-      Add New Principle
+      Add an OS Username
     </button>
   </div>
   <div
-    class="c8"
+    class="c11"
   >
     <button
-      class="c9"
+      class="c12"
       kind="primary"
       width="165px"
     >
       Proceed
     </button>
     <button
-      class="c10"
+      class="c13"
       kind="secondary"
       width="165px"
     >

@@ -14,10 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { AgentLabel } from '../agents';
+
 export type JoinToken = {
   id: string;
   expiry: Date;
   expiryText?: string;
+  // suggestedLabels are labels that the resource should add when adding
+  // itself to the cluster
+  suggestedLabels?: AgentLabel[];
+  // internalResourceId will be the unique id used to identify that
+  // a resource was added using this join token.
+  //
+  // Extracted from suggestedLabels.
+  internalResourceId?: string;
 };
 
 // JoinRole defines built-in system roles and are roles associated with

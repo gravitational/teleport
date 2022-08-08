@@ -18,8 +18,8 @@ import localStorage from './../localStorage';
 import parseError, { ApiError } from './parseError';
 
 const api = {
-  get(url) {
-    return api.fetchJson(url);
+  get(url, abortSignal) {
+    return api.fetchJson(url, { signal: abortSignal });
   },
 
   post(url, data) {

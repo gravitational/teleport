@@ -17,10 +17,25 @@
 import React from 'react';
 import { render } from 'design/utils/testing';
 
-import { Loaded, Failed } from './DownloadScript.story';
+import {
+  Polling,
+  PollingSuccess,
+  PollingError,
+  Failed,
+} from './DownloadScript.story';
 
-test('loaded', () => {
-  const { container } = render(<Loaded />);
+test('polling state', () => {
+  const { container } = render(<Polling />);
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('polling success state', () => {
+  const { container } = render(<PollingSuccess />);
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('polling error state', () => {
+  const { container } = render(<PollingError />);
   expect(container.firstChild).toMatchSnapshot();
 });
 

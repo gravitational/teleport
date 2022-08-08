@@ -34,6 +34,7 @@ export class DiscoverContext {
   // be connected by a user.
   connectableAgents: AgentIdKind[] = [];
   username = '';
+  clusterId = '';
 
   // user + token services
   userService = userService;
@@ -49,6 +50,7 @@ export class DiscoverContext {
   init() {
     return userService.fetchUserContext().then(user => {
       this.username = user.username;
+      this.clusterId = user.cluster.clusterId;
 
       const { users, tokens, nodes } = user.acl;
 

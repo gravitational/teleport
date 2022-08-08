@@ -16,16 +16,34 @@ limitations under the License.
 
 import { formatDistanceStrict } from 'date-fns';
 
-import { JoinToken } from './types';
+import type { JoinToken } from './types';
+
+export const INTERNAL_RESOURCE_ID_LABEL_KEY = 'teleport.internal/resource-id';
 
 export default function makeToken(json): JoinToken {
   json = json || {};
-  const { id, expiry } = json;
+  const { id, expiry, suggestedLabels } = json;
+
+  const labels = suggestedLabels || [];
+
   return {
     id,
+    suggestedLabels: labels,
+    internalResourceId: extractInternalResourceId(labels),
     expiry: expiry ? new Date(expiry) : null,
     expiryText: expiry
       ? formatDistanceStrict(new Date(), new Date(expiry))
       : '',
   };
+}
+
+function extractInternalResourceId(labels: any[]) {
+  let resourceId = '';
+  labels.forEach(l => {
+    if (l.name === INTERNAL_RESOURCE_ID_LABEL_KEY) {
+      resourceId = l.value;
+    }
+  });
+
+  return resourceId;
 }

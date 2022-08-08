@@ -17,15 +17,25 @@
 import React from 'react';
 import { render } from 'design/utils/testing';
 
-import { Loaded, Empty, Failed } from './LoginTrait.story';
+import {
+  LoadedWithStatic,
+  EmptyWithoutStatic,
+  EmptyWithStatic,
+  Failed,
+} from './LoginTrait.story';
 
-test('loaded', () => {
-  const { container } = render(<Loaded />);
+test('loaded with static state', () => {
+  const { container } = render(<LoadedWithStatic />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
-test('loaded empty state', () => {
-  const { container } = render(<Empty />);
+test('empty state', () => {
+  const { container } = render(<EmptyWithoutStatic />);
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('empty state with static logins', () => {
+  const { container } = render(<EmptyWithStatic />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
