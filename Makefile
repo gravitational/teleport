@@ -1013,26 +1013,31 @@ image-ci: clean docker-binaries
 	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_STAGING):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e image-ci; fi
 
+
+# DOCKER_CLI_EXPERIMENTAL=enabled is set to allow inspecting the manifest for present images.
+# https://docs.docker.com/engine/reference/commandline/cli/#experimental-features
 .PHONY: publish-ci
 publish-ci: image-ci
-	@if DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect $(DOCKER_IMAGE_STAGING):$(VERSION) 2>&1 >/dev/null; then\
+	@if DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect "$(DOCKER_IMAGE_STAGING):$(VERSION)" 2>&1 >/dev/null; then\
 		echo "$(DOCKER_IMAGE_STAGING):$(VERSION) already exists. ";     \
 	else                                                                \
-		docker push $(DOCKER_IMAGE_STAGING):$(VERSION);                 \
+		docker push "$(DOCKER_IMAGE_STAGING):$(VERSION)"";                 \
 	fi
 	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ci; fi
 
 # Docker image build for Teleport Operator
 .PHONY: image-operator-ci
 image-operator-ci:
-	make -C operator docker-build IMG=$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION)
+	make -C operator docker-build IMG="$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION)"
 
+# DOCKER_CLI_EXPERIMENTAL=enabled is set to allow inspecting the manifest for present images.
+# https://docs.docker.com/engine/reference/commandline/cli/#experimental-features
 .PHONY: publish-operator-ci
 publish-operator-ci: image-operator-ci
-	@if DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect $(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION) 2>&1 >/dev/null; then\
-		echo "$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION) already exists. ";     \
-	else                                                                         \
-		docker push $(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION);                 \
+	@if DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect "$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION)"" >/dev/null 2>&1; then \
+		echo "$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION) already exists. ";                                                         \
+	else                                                                                                                             \
+		docker push "$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION)";                                                                   \
 	fi
 
 .PHONY: print-version
