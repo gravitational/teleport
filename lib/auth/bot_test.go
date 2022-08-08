@@ -35,11 +35,11 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// TestServer_createBot_FeatureDisabled ensures that you cannot create a bot
-// when the appropriate license does not exist. It is a separate test from
-// TestServer_createBot as `modules.SetTestModules` does not work with parallel
+// TestServerCreateBotFeatureDisabled ensures that you cannot create a bot when
+// the appropriate license does not exist. It is a separate test from
+// TestServerCreateBot as `modules.SetTestModules` does not work with parallel
 // tests.
-func TestServer_createBot_FeatureDisabled(t *testing.T) {
+func TestServerCreateBotFeatureDisabled(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
 			MachineID: false,
@@ -59,12 +59,12 @@ func TestServer_createBot_FeatureDisabled(t *testing.T) {
 	require.Contains(t, err.Error(), "not licensed")
 }
 
-// TestServer_createBot ensures that the create bot RPC creates the appropriate
+// TestServerCreateBot ensures that the create bot RPC creates the appropriate
 // role and users.
 //
 // TODO: We should add more cases to this to properly exercise the token
 // creation elements of createBot.
-func TestServer_createBot(t *testing.T) {
+func TestServerCreateBot(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 
@@ -185,7 +185,7 @@ func TestBotResourceName(t *testing.T) {
 	require.Equal(t, "bot-name-with-spaces", BotResourceName("name with spaces"))
 }
 
-func TestRegister_BotOnboardFeatureDisabled(t *testing.T) {
+func TestRegisterBotOnboardFeatureDisabled(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
 			MachineID: false,
@@ -255,9 +255,9 @@ func renewBotCerts(
 	return client, certs, tlsCert, nil
 }
 
-// TestRegister_BotCertificateGenerationCheck ensures bot cert generation checks
+// TestRegisterBotCertificateGenerationCheck ensures bot cert generation checks
 // work in ordinary conditions, with several rapid renewals.
-func TestRegister_BotCertificateGenerationCheck(t *testing.T) {
+func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 
@@ -312,9 +312,9 @@ func TestRegister_BotCertificateGenerationCheck(t *testing.T) {
 	}
 }
 
-// TestRegister_BotCertificateGenerationStolen simulates a stolen renewable
+// TestRegisterBotCertificateGenerationStolen simulates a stolen renewable
 // certificate where a generation check is expected to fail.
-func TestRegister_BotCertificateGenerationStolen(t *testing.T) {
+func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 
