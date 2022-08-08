@@ -67,24 +67,36 @@ import (
 )
 
 type testPack struct {
-	bk              backend.Backend
-	clusterName     types.ClusterName
-	leafClusterName types.ClusterName
-	a               *Server
-	mockEmitter     *eventstest.MockEmitter
+	bk          backend.Backend
+	clusterName types.ClusterName
+	a           *Server
+	mockEmitter *eventstest.MockEmitter
 }
 
 type testPackOption func(*testPack) error
 
-func withLeafClusterCAs(name string) testPackOption {
+func withLeafCluster(name string) testPackOption {
 	return func(p *testPack) error {
+		// Register the leaf cluster.
+		leaf, err := types.NewRemoteCluster("leaf.localhost")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := p.a.CreateRemoteCluster(leaf); err != nil {
+			return trace.Wrap(err)
+		}
 		clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 			ClusterName: name,
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		p.leafClusterName = clusterName
+		if err := p.a.UpsertCertAuthority(suite.NewTestCA(types.UserCA, clusterName.GetClusterName())); err != nil {
+			return trace.Wrap(err)
+		}
+		if err := p.a.UpsertCertAuthority(suite.NewTestCA(types.HostCA, clusterName.GetClusterName())); err != nil {
+			return trace.Wrap(err)
+		}
 		return nil
 	}
 }
@@ -94,9 +106,6 @@ func newTestPack(ctx context.Context, dataDir string, opts ...testPackOption) (t
 		p   testPack
 		err error
 	)
-	for _, opt := range opts {
-		opt(&p)
-	}
 	p.bk, err = lite.NewWithConfig(ctx, lite.Config{Path: dataDir})
 	if err != nil {
 		return p, trace.Wrap(err)
@@ -175,21 +184,19 @@ func newTestPack(ctx context.Context, dataDir string, opts ...testPackOption) (t
 		return p, trace.Wrap(err)
 	}
 
-	if p.leafClusterName != nil {
-		if err := p.a.UpsertCertAuthority(suite.NewTestCA(types.UserCA, p.leafClusterName.GetClusterName())); err != nil {
-			return p, trace.Wrap(err)
-		}
-		if err := p.a.UpsertCertAuthority(suite.NewTestCA(types.HostCA, p.leafClusterName.GetClusterName())); err != nil {
-			return p, trace.Wrap(err)
-		}
-	}
-
 	if err := p.a.UpsertNamespace(types.DefaultNamespace()); err != nil {
 		return p, trace.Wrap(err)
 	}
 
 	p.mockEmitter = &eventstest.MockEmitter{}
 	p.a.emitter = p.mockEmitter
+
+	for _, opt := range opts {
+		if err := opt(&p); err != nil {
+			return p, trace.Wrap(err)
+		}
+	}
+
 	return p, nil
 }
 
@@ -258,292 +265,251 @@ func TestSessions(t *testing.T) {
 
 func TestAuthenticateSSHUser(t *testing.T) {
 	t.Parallel()
-	s := newAuthSuite(t, withLeafClusterCAs("leaf.localhost"))
-
 	ctx := context.Background()
-
-	// Register the leaf cluster.
-	leaf, err := types.NewRemoteCluster("leaf.localhost")
-	require.NoError(t, err)
-	require.NoError(t, s.a.CreateRemoteCluster(leaf))
 
 	user := "user1"
 	pass := []byte("abc123")
-
-	// Try to login as an unknown user.
-	_, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username: user,
-			Pass:     &PassCreds{Password: pass},
-		},
-	})
-	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err))
-
-	// Create the user.
-	_, role, err := CreateUserAndRole(s.a, user, []string{user})
-	require.NoError(t, err)
-	err = s.a.UpsertPassword(user, pass)
-	require.NoError(t, err)
-	// Give the role some k8s principals too.
-	role.SetKubeUsers(types.Allow, []string{user})
-	role.SetKubeGroups(types.Allow, []string{"system:masters"})
-	err = s.a.UpsertRole(ctx, role)
-	require.NoError(t, err)
 
 	kg := testauthority.New()
 	_, pub, err := kg.GetNewKeyPairFromPool()
 	require.NoError(t, err)
 
-	// Login to the root cluster.
-	resp, err := s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username: user,
-			Pass:     &PassCreds{Password: pass},
-		},
-		PublicKey:      pub,
-		TTL:            time.Hour,
-		RouteToCluster: s.clusterName.GetClusterName(),
-	})
-	require.NoError(t, err)
-	require.Equal(t, resp.Username, user)
-	// Verify the public key and principals in SSH cert.
-	inSSHPub, _, _, _, err := ssh.ParseAuthorizedKey(pub)
-	require.NoError(t, err)
-	gotSSHCert, err := sshutils.ParseCertificate(resp.Cert)
-	require.NoError(t, err)
-	require.Equal(t, gotSSHCert.Key, inSSHPub)
-	require.Equal(t, gotSSHCert.ValidPrincipals, []string{user, teleport.SSHSessionJoinPrincipal})
-	// Verify the public key and Subject in TLS cert.
-	inCryptoPub := inSSHPub.(ssh.CryptoPublicKey).CryptoPublicKey()
-	gotTLSCert, err := tlsca.ParseCertificatePEM(resp.TLSCert)
-	require.NoError(t, err)
-	require.Equal(t, gotTLSCert.PublicKey, inCryptoPub)
-	wantID := tlsca.Identity{
-		Username:         user,
-		Groups:           []string{role.GetName()},
-		Principals:       []string{user, teleport.SSHSessionJoinPrincipal},
-		KubernetesUsers:  []string{user},
-		KubernetesGroups: []string{"system:masters"},
-		Expires:          gotTLSCert.NotAfter,
-		RouteToCluster:   s.clusterName.GetClusterName(),
-		TeleportCluster:  s.clusterName.GetClusterName(),
+	createUser := func(t *testing.T, a *Server) types.Role {
+		// Create the user.
+		_, role, err := CreateUserAndRole(a, user, []string{user})
+		require.NoError(t, err)
+		err = a.UpsertPassword(user, pass)
+		require.NoError(t, err)
+		// Give the role some k8s principals too.
+		role.SetKubeUsers(types.Allow, []string{user})
+		role.SetKubeGroups(types.Allow, []string{"system:masters"})
+		err = a.UpsertRole(ctx, role)
+		require.NoError(t, err)
+		return role
 	}
-	gotID, err := tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
-	require.NoError(t, err)
-	require.Equal(t, *gotID, wantID)
 
-	// Login to the leaf cluster.
-	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username: user,
-			Pass:     &PassCreds{Password: pass},
-		},
-		PublicKey:         pub,
-		TTL:               time.Hour,
-		RouteToCluster:    "leaf.localhost",
-		KubernetesCluster: "leaf-kube-cluster",
-	})
-	require.NoError(t, err)
-	// Verify the TLS cert has the correct RouteToCluster set.
-	gotTLSCert, err = tlsca.ParseCertificatePEM(resp.TLSCert)
-	require.NoError(t, err)
-	wantID = tlsca.Identity{
-		Username:         user,
-		Groups:           []string{role.GetName()},
-		Principals:       []string{user, teleport.SSHSessionJoinPrincipal},
-		KubernetesUsers:  []string{user},
-		KubernetesGroups: []string{"system:masters"},
-		// It's OK to use a non-existent kube cluster for leaf teleport
-		// clusters. The leaf is responsible for validating those.
-		KubernetesCluster: "leaf-kube-cluster",
-		Expires:           gotTLSCert.NotAfter,
-		RouteToCluster:    "leaf.localhost",
-		TeleportCluster:   s.clusterName.GetClusterName(),
+	createKubeCluster := func(t *testing.T, a *Server) {
+		// Register a kubernetes cluster to verify the defaulting logic in TLS cert
+		// generation.
+		_, err := a.UpsertKubeServiceV2(ctx, &types.ServerV2{
+			Metadata: types.Metadata{Name: "kube-service"},
+			Kind:     types.KindKubeService,
+			Version:  types.V2,
+			Spec: types.ServerSpecV2{
+				KubernetesClusters: []*types.KubernetesCluster{{Name: "root-kube-cluster"}},
+			},
+		})
+		require.NoError(t, err)
 	}
-	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
-	require.NoError(t, err)
-	require.Equal(t, *gotID, wantID)
 
-	// Login to the root cluster, but include certs from leaf.
-	s.a.sendAllHostCAs = true
-	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username: user,
-			Pass:     &PassCreds{Password: pass},
-		},
-		PublicKey:      pub,
-		TTL:            time.Hour,
-		RouteToCluster: s.clusterName.GetClusterName(),
+	t.Run("Login as unknown user", func(t *testing.T) {
+		t.Parallel()
+		s := newAuthSuite(t)
+		// Try to login as an unknown user.
+		_, err := s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+			AuthenticateUserRequest: AuthenticateUserRequest{
+				Username: user,
+				Pass:     &PassCreds{Password: pass},
+			},
+		})
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err))
 	})
-	require.NoError(t, err)
-	require.Equal(t, resp.Username, user)
-	// Auth server should send leaf cluster's host CA in addition to the root cluster's.
-	require.Len(t, resp.HostSigners, 2)
-	s.a.sendAllHostCAs = false
 
-	// Register a kubernetes cluster to verify the defaulting logic in TLS cert
-	// generation.
-	_, err = s.a.UpsertKubeServiceV2(ctx, &types.ServerV2{
-		Metadata: types.Metadata{Name: "kube-service"},
-		Kind:     types.KindKubeService,
-		Version:  types.V2,
-		Spec: types.ServerSpecV2{
-			KubernetesClusters: []*types.KubernetesCluster{{Name: "root-kube-cluster"}},
-		},
+	t.Run("Login to root cluster", func(t *testing.T) {
+		t.Parallel()
+		s := newAuthSuite(t)
+		role := createUser(t, s.a)
+		// Login to the root cluster.
+		resp, err := s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+			AuthenticateUserRequest: AuthenticateUserRequest{
+				Username: user,
+				Pass:     &PassCreds{Password: pass},
+			},
+			PublicKey:      pub,
+			TTL:            time.Hour,
+			RouteToCluster: s.clusterName.GetClusterName(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, resp.Username, user)
+		// Verify the public key and principals in SSH cert.
+		inSSHPub, _, _, _, err := ssh.ParseAuthorizedKey(pub)
+		require.NoError(t, err)
+		gotSSHCert, err := sshutils.ParseCertificate(resp.Cert)
+		require.NoError(t, err)
+		require.Equal(t, gotSSHCert.Key, inSSHPub)
+		require.Equal(t, gotSSHCert.ValidPrincipals, []string{user, teleport.SSHSessionJoinPrincipal})
+		// Verify the public key and Subject in TLS cert.
+		inCryptoPub := inSSHPub.(ssh.CryptoPublicKey).CryptoPublicKey()
+		gotTLSCert, err := tlsca.ParseCertificatePEM(resp.TLSCert)
+		require.NoError(t, err)
+		require.Equal(t, gotTLSCert.PublicKey, inCryptoPub)
+		wantID := tlsca.Identity{
+			Username:         user,
+			Groups:           []string{role.GetName()},
+			Principals:       []string{user, teleport.SSHSessionJoinPrincipal},
+			KubernetesUsers:  []string{user},
+			KubernetesGroups: []string{"system:masters"},
+			Expires:          gotTLSCert.NotAfter,
+			RouteToCluster:   s.clusterName.GetClusterName(),
+			TeleportCluster:  s.clusterName.GetClusterName(),
+		}
+		gotID, err := tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
+		require.NoError(t, err)
+		require.Equal(t, *gotID, wantID)
 	})
-	require.NoError(t, err)
 
-	// Login specifying a valid kube cluster. It should appear in the TLS cert.
-	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username: user,
-			Pass:     &PassCreds{Password: pass},
-		},
-		PublicKey:         pub,
-		TTL:               time.Hour,
-		RouteToCluster:    s.clusterName.GetClusterName(),
-		KubernetesCluster: "root-kube-cluster",
+	t.Run("Login to leaf cluster", func(t *testing.T) {
+		t.Parallel()
+		s := newAuthSuite(t, withLeafCluster("leaf.localhost"))
+		role := createUser(t, s.a)
+		// Login to the leaf cluster.
+		resp, err := s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+			AuthenticateUserRequest: AuthenticateUserRequest{
+				Username: user,
+				Pass:     &PassCreds{Password: pass},
+			},
+			PublicKey:         pub,
+			TTL:               time.Hour,
+			RouteToCluster:    "leaf.localhost",
+			KubernetesCluster: "leaf-kube-cluster",
+		})
+		require.NoError(t, err)
+		// Verify the TLS cert has the correct RouteToCluster set.
+		gotTLSCert, err := tlsca.ParseCertificatePEM(resp.TLSCert)
+		require.NoError(t, err)
+		wantID := tlsca.Identity{
+			Username:         user,
+			Groups:           []string{role.GetName()},
+			Principals:       []string{user, teleport.SSHSessionJoinPrincipal},
+			KubernetesUsers:  []string{user},
+			KubernetesGroups: []string{"system:masters"},
+			// It's OK to use a non-existent kube cluster for leaf teleport
+			// clusters. The leaf is responsible for validating those.
+			KubernetesCluster: "leaf-kube-cluster",
+			Expires:           gotTLSCert.NotAfter,
+			RouteToCluster:    "leaf.localhost",
+			TeleportCluster:   s.clusterName.GetClusterName(),
+		}
+		gotID, err := tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
+		require.NoError(t, err)
+		require.Equal(t, *gotID, wantID)
 	})
-	require.NoError(t, err)
-	require.Equal(t, resp.Username, user)
-	gotTLSCert, err = tlsca.ParseCertificatePEM(resp.TLSCert)
-	require.NoError(t, err)
-	wantID = tlsca.Identity{
-		Username:          user,
-		Groups:            []string{role.GetName()},
-		Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
-		KubernetesUsers:   []string{user},
-		KubernetesGroups:  []string{"system:masters"},
-		KubernetesCluster: "root-kube-cluster",
-		Expires:           gotTLSCert.NotAfter,
-		RouteToCluster:    s.clusterName.GetClusterName(),
-		TeleportCluster:   s.clusterName.GetClusterName(),
-	}
-	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
-	require.NoError(t, err)
-	require.Equal(t, *gotID, wantID)
 
-	// Login without specifying kube cluster. A registered one should be picked
-	// automatically.
-	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username: user,
-			Pass:     &PassCreds{Password: pass},
-		},
-		PublicKey:      pub,
-		TTL:            time.Hour,
-		RouteToCluster: s.clusterName.GetClusterName(),
-		// Intentionally empty, auth server should default to a registered
-		// kubernetes cluster.
-		KubernetesCluster: "",
+	t.Run("Login to root, include leaf CAs", func(t *testing.T) {
+		t.Parallel()
+		s := newAuthSuite(t, withLeafCluster("leaf.localhost"))
+		createUser(t, s.a)
+		// Login to the root cluster, but include certs from leaf.
+		s.a.sendAllHostCAs = true
+		resp, err := s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+			AuthenticateUserRequest: AuthenticateUserRequest{
+				Username: user,
+				Pass:     &PassCreds{Password: pass},
+			},
+			PublicKey:      pub,
+			TTL:            time.Hour,
+			RouteToCluster: s.clusterName.GetClusterName(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, resp.Username, user)
+		// Auth server should send leaf cluster's host CA in addition to the root cluster's.
+		require.Len(t, resp.HostSigners, 2)
 	})
-	require.NoError(t, err)
-	require.Equal(t, resp.Username, user)
-	gotTLSCert, err = tlsca.ParseCertificatePEM(resp.TLSCert)
-	require.NoError(t, err)
-	wantID = tlsca.Identity{
-		Username:          user,
-		Groups:            []string{role.GetName()},
-		Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
-		KubernetesUsers:   []string{user},
-		KubernetesGroups:  []string{"system:masters"},
-		KubernetesCluster: "root-kube-cluster",
-		Expires:           gotTLSCert.NotAfter,
-		RouteToCluster:    s.clusterName.GetClusterName(),
-		TeleportCluster:   s.clusterName.GetClusterName(),
-	}
-	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
-	require.NoError(t, err)
-	require.Equal(t, *gotID, wantID)
 
-	// Register a kubernetes cluster to verify the defaulting logic in TLS cert
-	// generation.
-	err = s.a.UpsertKubeService(ctx, &types.ServerV2{
-		Metadata: types.Metadata{Name: "kube-service"},
-		Kind:     types.KindKubeService,
-		Version:  types.V2,
-		Spec: types.ServerSpecV2{
-			KubernetesClusters: []*types.KubernetesCluster{{Name: "root-kube-cluster"}},
-		},
+	t.Run("Login, specify valid kube cluster", func(t *testing.T) {
+		t.Parallel()
+		s := newAuthSuite(t)
+		role := createUser(t, s.a)
+		createKubeCluster(t, s.a)
+		// Login specifying a valid kube cluster. It should appear in the TLS cert.
+		resp, err := s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+			AuthenticateUserRequest: AuthenticateUserRequest{
+				Username: user,
+				Pass:     &PassCreds{Password: pass},
+			},
+			PublicKey:         pub,
+			TTL:               time.Hour,
+			RouteToCluster:    s.clusterName.GetClusterName(),
+			KubernetesCluster: "root-kube-cluster",
+		})
+		require.NoError(t, err)
+		require.Equal(t, resp.Username, user)
+		gotTLSCert, err := tlsca.ParseCertificatePEM(resp.TLSCert)
+		require.NoError(t, err)
+		wantID := tlsca.Identity{
+			Username:          user,
+			Groups:            []string{role.GetName()},
+			Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
+			KubernetesUsers:   []string{user},
+			KubernetesGroups:  []string{"system:masters"},
+			KubernetesCluster: "root-kube-cluster",
+			Expires:           gotTLSCert.NotAfter,
+			RouteToCluster:    s.clusterName.GetClusterName(),
+			TeleportCluster:   s.clusterName.GetClusterName(),
+		}
+		gotID, err := tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
+		require.NoError(t, err)
+		require.Equal(t, *gotID, wantID)
 	})
-	require.NoError(t, err)
 
-	// Login specifying a valid kube cluster. It should appear in the TLS cert.
-	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username: user,
-			Pass:     &PassCreds{Password: pass},
-		},
-		PublicKey:         pub,
-		TTL:               time.Hour,
-		RouteToCluster:    s.clusterName.GetClusterName(),
-		KubernetesCluster: "root-kube-cluster",
+	t.Run("Login, unspecified kube cluster", func(t *testing.T) {
+		t.Parallel()
+		s := newAuthSuite(t)
+		role := createUser(t, s.a)
+		createKubeCluster(t, s.a)
+		// Login without specifying kube cluster. A registered one should be picked
+		// automatically.
+		resp, err := s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+			AuthenticateUserRequest: AuthenticateUserRequest{
+				Username: user,
+				Pass:     &PassCreds{Password: pass},
+			},
+			PublicKey:      pub,
+			TTL:            time.Hour,
+			RouteToCluster: s.clusterName.GetClusterName(),
+			// Intentionally empty, auth server should default to a registered
+			// kubernetes cluster.
+			KubernetesCluster: "",
+		})
+		require.NoError(t, err)
+		require.Equal(t, resp.Username, user)
+		gotTLSCert, err := tlsca.ParseCertificatePEM(resp.TLSCert)
+		require.NoError(t, err)
+		wantID := tlsca.Identity{
+			Username:          user,
+			Groups:            []string{role.GetName()},
+			Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
+			KubernetesUsers:   []string{user},
+			KubernetesGroups:  []string{"system:masters"},
+			KubernetesCluster: "root-kube-cluster",
+			Expires:           gotTLSCert.NotAfter,
+			RouteToCluster:    s.clusterName.GetClusterName(),
+			TeleportCluster:   s.clusterName.GetClusterName(),
+		}
+		gotID, err := tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
+		require.NoError(t, err)
+		require.Equal(t, *gotID, wantID)
 	})
-	require.NoError(t, err)
-	require.Equal(t, resp.Username, user)
-	gotTLSCert, err = tlsca.ParseCertificatePEM(resp.TLSCert)
-	require.NoError(t, err)
-	wantID = tlsca.Identity{
-		Username:          user,
-		Groups:            []string{role.GetName()},
-		Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
-		KubernetesUsers:   []string{user},
-		KubernetesGroups:  []string{"system:masters"},
-		KubernetesCluster: "root-kube-cluster",
-		Expires:           gotTLSCert.NotAfter,
-		RouteToCluster:    s.clusterName.GetClusterName(),
-		TeleportCluster:   s.clusterName.GetClusterName(),
-	}
-	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
-	require.NoError(t, err)
-	require.Equal(t, *gotID, wantID)
 
-	// Login without specifying kube cluster. A registered one should be picked
-	// automatically.
-	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username: user,
-			Pass:     &PassCreds{Password: pass},
-		},
-		PublicKey:      pub,
-		TTL:            time.Hour,
-		RouteToCluster: s.clusterName.GetClusterName(),
-		// Intentionally empty, auth server should default to a registered
-		// kubernetes cluster.
-		KubernetesCluster: "",
+	t.Run("Login, invalid kube cluster", func(t *testing.T) {
+		t.Parallel()
+		s := newAuthSuite(t)
+		createUser(t, s.a)
+		createKubeCluster(t, s.a)
+		// Login specifying an invalid kube cluster. This should fail.
+		_, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+			AuthenticateUserRequest: AuthenticateUserRequest{
+				Username: user,
+				Pass:     &PassCreds{Password: pass},
+			},
+			PublicKey:         pub,
+			TTL:               time.Hour,
+			RouteToCluster:    s.clusterName.GetClusterName(),
+			KubernetesCluster: "invalid-kube-cluster",
+		})
+		require.Error(t, err)
 	})
-	require.NoError(t, err)
-	require.Equal(t, resp.Username, user)
-	gotTLSCert, err = tlsca.ParseCertificatePEM(resp.TLSCert)
-	require.NoError(t, err)
-	wantID = tlsca.Identity{
-		Username:          user,
-		Groups:            []string{role.GetName()},
-		Principals:        []string{user, teleport.SSHSessionJoinPrincipal},
-		KubernetesUsers:   []string{user},
-		KubernetesGroups:  []string{"system:masters"},
-		KubernetesCluster: "root-kube-cluster",
-		Expires:           gotTLSCert.NotAfter,
-		RouteToCluster:    s.clusterName.GetClusterName(),
-		TeleportCluster:   s.clusterName.GetClusterName(),
-	}
-	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
-	require.NoError(t, err)
-	require.Equal(t, *gotID, wantID)
-
-	// Login specifying an invalid kube cluster. This should fail.
-	_, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username: user,
-			Pass:     &PassCreds{Password: pass},
-		},
-		PublicKey:         pub,
-		TTL:               time.Hour,
-		RouteToCluster:    s.clusterName.GetClusterName(),
-		KubernetesCluster: "invalid-kube-cluster",
-	})
-	require.Error(t, err)
 }
 
 func TestUserLock(t *testing.T) {
