@@ -25,9 +25,8 @@ from being closed due to inactivity.
 Dropping the connections can directly impact user experience when they perform
 long-running commands such as database queries.
 
-**NOTE:** The connections are not dropped in those environments for protocols that
-already implement a mechanism like this (like [http2](https://httpwg.org/specs/rfc7540.html#PING)). However, not all protocols
-supported by Teleport provide such features.
+**NOTE:** Even protocols do implement a mechanism like this might need to be wrapped
+in the ping protocol. It will depend if the load balancer supports it or not.
 
 ## Details
 
@@ -265,6 +264,7 @@ use the already existent [Ping mechanism](https://httpwg.org/specs/rfc7540.html#
 We’ve tried doing a small PoC on this and ended up having some issues and
 unsolved questions:
 
+* [HTTP2 Pings are not supported by some load balancers](https://stackoverflow.com/questions/66818645/http2-ping-frames-over-aws-alb-grpc-keepalive-ping);
 * The [official package](https://pkg.go.dev/golang.org/x/net/http2) doesn’t
   provide a way to provide a `net.Conn` to be used. Instead, you have to:
     * Create a listener who will provide the server with the connections;
