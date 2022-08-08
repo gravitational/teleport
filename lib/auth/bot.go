@@ -106,11 +106,7 @@ func createBotUser(
 
 	// Traits need to be set to silence "failed to find roles or traits" warning
 	if traits == nil {
-		traits = map[string][]string{
-			constants.TraitLogins:     {},
-			constants.TraitKubeUsers:  {},
-			constants.TraitKubeGroups: {},
-		}
+		traits = map[string][]string{}
 	}
 	if _, ok := traits[constants.TraitLogins]; !ok {
 		traits[constants.TraitLogins] = []string{}
