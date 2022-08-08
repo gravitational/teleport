@@ -31,14 +31,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/scripts"
+	"github.com/gravitational/teleport/lib/web/ui"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -52,6 +55,8 @@ type nodeJoinToken struct {
 	Expiry time.Time `json:"expiry,omitempty"`
 	// Method is the join method that the token supports
 	Method types.JoinMethod `json:"method"`
+	// SuggestedLabels contains the set of labels we expect the node to set when using this token
+	SuggestedLabels []ui.Label `json:"suggestedLabels,omitempty"`
 }
 
 // scriptSettings is used to hold values which are passed into the function that
@@ -115,6 +120,20 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 		expires = time.Now().UTC().Add(defaults.NodeJoinTokenTTL)
 	}
 
+	// If using the automatic method to add a Node, the `install.sh` will add the token's suggested labels
+	//   as part of the initial Labels configuration for that Node
+	// Script install-node.sh:
+	//   ...
+	//   $ teleport configure ... --labels <suggested_label=value>,<suggested_label=value> ...
+	//   ...
+	//
+	// We create an ID and return it as part of the Token, so the UI can use this ID to query the Node that joined using this token
+	// WebUI can then query the resources by this id and answer the question:
+	//   - Which Node joined the cluster from this token Y?
+	req.SuggestedLabels = types.Labels{
+		types.InternalResourceIDLabel: apiutils.Strings{uuid.NewString()},
+	}
+
 	provisionToken, err := types.NewProvisionTokenFromSpec(tokenName, expires, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -125,10 +144,20 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 		return nil, trace.Wrap(err)
 	}
 
+	suggestedLabels := make([]ui.Label, 0, len(req.SuggestedLabels))
+
+	for labelKey, labelValues := range req.SuggestedLabels {
+		suggestedLabels = append(suggestedLabels, ui.Label{
+			Name:  labelKey,
+			Value: strings.Join(labelValues, " "),
+		})
+	}
+
 	return &nodeJoinToken{
-		ID:     tokenName,
-		Expiry: expires,
-		Method: provisionToken.GetJoinMethod(),
+		ID:              tokenName,
+		Expiry:          expires,
+		Method:          provisionToken.GetJoinMethod(),
+		SuggestedLabels: suggestedLabels,
 	}, nil
 }
 
@@ -247,7 +276,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 
 	// The provided token can be attacker controlled, so we must validate
 	// it with the backend before using it to generate the script.
-	_, err := m.GetToken(ctx, settings.token)
+	token, err := m.GetToken(ctx, settings.token)
 	if err != nil {
 		return "", trace.BadParameter("invalid token")
 	}
@@ -276,6 +305,12 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 	caPins, err := tlsca.CalculatePins(localCAResponse.TLSCA)
 	if err != nil {
 		return "", trace.Wrap(err)
+	}
+
+	labelsList := []string{}
+	for labelKey, labelValues := range token.GetSuggestedLabels() {
+		labels := strings.Join(labelValues, " ")
+		labelsList = append(labelsList, fmt.Sprintf("%s=%s", labelKey, labels))
 	}
 
 	var buf bytes.Buffer
@@ -307,6 +342,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		"appName":        settings.appName,
 		"appURI":         settings.appURI,
 		"joinMethod":     settings.joinMethod,
+		"labels":         strings.Join(labelsList, ","),
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
