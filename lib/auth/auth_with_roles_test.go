@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -765,10 +766,21 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	loginsTraitsRole, err := CreateRole(ctx, srv.Auth(), "test-access-traits", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Logins: []string{"{{internal.logins}}"},
+		},
+	})
+	require.NoError(t, err)
+
 	impersonatorRole, err := CreateRole(ctx, srv.Auth(), "test-impersonator", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Impersonate: &types.ImpersonateConditions{
-				Roles: []string{accessFooRole.GetName(), accessBarRole.GetName()},
+				Roles: []string{
+					accessFooRole.GetName(),
+					accessBarRole.GetName(),
+					loginsTraitsRole.GetName(),
+				},
 			},
 		},
 	})
@@ -802,6 +814,7 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 	tests := []struct {
 		desc             string
 		username         string
+		userTraits       wrappers.Traits
 		roles            []string
 		roleRequests     []string
 		useRoleRequests  bool
@@ -818,12 +831,32 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			expectPrincipals: []string{"foo", "bar"},
 		},
 		{
-			desc:             "requesting a subset of allowed roles",
-			username:         "bob",
+			desc:     "requesting a subset of allowed roles",
+			username: "bob",
+			userTraits: wrappers.Traits{
+				// We don't expect this login trait to appear in the principals
+				// as "test-access-foo" does not contain {{internal.logins}}
+				constants.TraitLogins: []string{"trait-login"},
+			},
 			roles:            []string{emptyRole.GetName(), impersonatorRole.GetName()},
 			roleRequests:     []string{accessFooRole.GetName()},
 			useRoleRequests:  true,
 			expectPrincipals: []string{"foo"},
+		},
+		{
+			// Users traits should be preserved in role impersonation
+			desc:     "requesting a role preserves user traits",
+			username: "ash",
+			userTraits: wrappers.Traits{
+				constants.TraitLogins: []string{"trait-login"},
+			},
+			roles: []string{
+				emptyRole.GetName(),
+				impersonatorRole.GetName(),
+			},
+			roleRequests:     []string{loginsTraitsRole.GetName()},
+			useRoleRequests:  true,
+			expectPrincipals: []string{"trait-login"},
 		},
 		{
 			// Users not using role requests should keep their own roles
@@ -904,6 +937,9 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			})
 			for _, role := range tt.roles {
 				user.AddRole(role)
+			}
+			if tt.userTraits != nil {
+				user.SetTraits(tt.userTraits)
 			}
 			err = srv.Auth().UpsertUser(user)
 			require.NoError(t, err)
