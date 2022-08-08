@@ -152,6 +152,13 @@ Now, future calls to `tsh login --piv --piv-slot=9a` can retrieve the certificat
 
 We will also provide the user with the `--piv-slot-overwrite` flag to skip the prompts above.
 
+Note that we do not give user's the option to reuse a specific slot for multiple `tsh` login sessions or other appliations. Doing so would increase the overall complexity of the system, and could lead to issues like:
+ - race conditions between reads/writes to a slot's login session certificate
+ - using the same key for clusters/users with differing PIN/touch policy requirements. This would require more granular error messages, prompts, etc. and would lead to a more complicated UX than desired
+ - a key's life cycle is not determinant, so its unclear how long to store a key's attestation
+
+If necessary we could overcome these issues, but it's unclear whether this would even improve UX.
+
 ##### logout
 
 When a user does `tsh logout` during a PIV login session, we cannot wipe the private key data on that slot. Instead, we will just remove the certificate stored on the slot so that future logins will see that the slot is not in use.
