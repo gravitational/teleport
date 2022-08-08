@@ -51,13 +51,15 @@ type UserInfo struct {
 }
 
 // LoginPrompt is the user interface for FIDO2Login.
+//
+// Prompts can have remote implementations, thus all methods may error.
 type LoginPrompt interface {
 	// PromptPIN prompts the user for their PIN.
 	PromptPIN() (string, error)
 	// PromptTouch prompts the user for a security key touch.
 	// In certain situations multiple touches may be required (PIN-protected
 	// devices, passwordless flows, etc).
-	PromptTouch()
+	PromptTouch() error
 	// PromptCredential prompts the user to choose a credential, in case multiple
 	// credentials are available.
 	// Callers are free to modify the slice, such as by sorting the credentials,
@@ -136,7 +138,9 @@ func crossPlatformLogin(
 		return FIDO2Login(ctx, origin, assertion, prompt, opts)
 	}
 
-	prompt.PromptTouch()
+	if err := prompt.PromptTouch(); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
 	resp, err := U2FLogin(ctx, origin, assertion)
 	return resp, "" /* credentialUser */, err
 }
@@ -154,13 +158,15 @@ func platformLogin(origin, user string, assertion *wanlib.CredentialAssertion, p
 }
 
 // RegisterPrompt is the user interface for FIDO2Register.
+//
+// Prompts can have remote implementations, thus all methods may error.
 type RegisterPrompt interface {
 	// PromptPIN prompts the user for their PIN.
 	PromptPIN() (string, error)
 	// PromptTouch prompts the user for a security key touch.
 	// In certain situations multiple touches may be required (eg, PIN-protected
 	// devices)
-	PromptTouch()
+	PromptTouch() error
 }
 
 // Register performs client-side, U2F-compatible, Webauthn registration.
@@ -178,6 +184,8 @@ func Register(
 		return FIDO2Register(ctx, origin, cc, prompt)
 	}
 
-	prompt.PromptTouch()
+	if err := prompt.PromptTouch(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return U2FRegister(ctx, origin, cc)
 }
