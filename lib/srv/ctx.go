@@ -164,6 +164,9 @@ type Server interface {
 
 	// GetLockWatcher gets the server's lock watcher.
 	GetLockWatcher() *services.LockWatcher
+
+	// TargetMetadata returns metadata about the session target node.
+	TargetMetadata() apievents.ServerMetadata
 }
 
 // IdentityContext holds all identity information associated with the user
