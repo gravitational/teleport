@@ -73,9 +73,9 @@ param(
     #>
     [string] $Workspace
 )
-begin {
-    Remove-Item -Recurse -Path "$Workspace/.ssh"
-}
+    begin {
+        Remove-Item -Recurse -Path "$Workspace/.ssh"
+    }
 }
 
 function Install-Go {
