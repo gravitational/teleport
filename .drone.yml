@@ -1240,7 +1240,7 @@ steps:
       - apk add --no-cache aws-cli
       - export CURRENT_DATE=$(date '+%Y%m%d%H%M')
       - export TELEPORT_TAG=$(cat /go/build/CURRENT_VERSION_TAG.txt | tr -d '^v')
-      - export TELEPORT_LAB_IMAGE_NAME_STAGING="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
+      - export TELEPORT_LAB_IMAGE_NAME_STAGING="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)-$CURRENT_DATE"
       - export TELEPORT_LAB_IMAGE_NAME_PROD="public.ecr.aws/gravitational/teleport-lab:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
        # Check out code
       - mkdir -p /go/src/github.com/gravitational/teleport
@@ -6369,6 +6369,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 565c2597c3369063458a174ef871e14b914ad1973da00844ac015ba4d1998512
+hmac: 5ad7d409cfda7e2ac8f877da88f7022e1ba1c7062368948cfbf9ccfaa348f183
 
 ...
