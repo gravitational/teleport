@@ -18,13 +18,15 @@ package resources
 
 import (
 	"fmt"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 const (
+	ConditionReasonFailedToDecode         = "FailedToDecode"
 	ConditionReasonOriginLabelNotMatching = "OriginLabelNotMatching"
 	ConditionReasonOriginLabelMatching    = "OriginLabelMatching"
 	ConditionReasonNewResource            = "NewResource"
@@ -32,6 +34,7 @@ const (
 	ConditionReasonTeleportError          = "TeleportError"
 	ConditionTypeTeleportResourceOwned    = "TeleportResourceOwned"
 	ConditionTypeSuccessfullyReconciled   = "SuccessfullyReconciled"
+	ConditionTypeValidStructure           = "ValidStructure"
 )
 
 // isResourceOriginKubernetes reads a teleport resource metadata, searches for the origin label and checks its
@@ -93,4 +96,30 @@ func getReconciliationCondition(err error) metav1.Condition {
 	}
 
 	return condition
+}
+
+func getValidStructureCondition(err error) metav1.Condition {
+	var condition metav1.Condition
+	if err == nil {
+		condition = metav1.Condition{
+			Type:    ConditionTypeValidStructure,
+			Status:  metav1.ConditionTrue,
+			Reason:  ConditionReasonNoError,
+			Message: "Kubernetes CR was sucessfully decoded.",
+		}
+	} else {
+		condition = metav1.Condition{
+			Type:    ConditionTypeValidStructure,
+			Status:  metav1.ConditionFalse,
+			Reason:  ConditionReasonFailedToDecode,
+			Message: fmt.Sprintf("Failed to decode Kubernetes CR: %s", err),
+		}
+	}
+	return condition
+}
+
+func getUnstructuredObjectFromGVK(gvk schema.GroupVersionKind) *unstructured.Unstructured {
+	obj := unstructured.Unstructured{}
+	obj.SetGroupVersionKind(gvk)
+	return &obj
 }

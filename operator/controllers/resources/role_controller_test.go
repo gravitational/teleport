@@ -17,12 +17,15 @@ limitations under the License.
 package resources
 
 import (
-	"bytes"
 	"context"
+	"encoding/json"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"reflect"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -35,22 +38,16 @@ import (
 	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
 )
 
+// When I create a TeleportRole CR in Kubernetes, the corresponding TeleportRole must be created in Teleport
+// When I delete a TeleportRole CR in Kubernetes, the corresponding TeleportRole must be deleted in Teleport
 func TestRoleCreation(t *testing.T) {
-	ctx := context.Background()
-
-	teleportServer, operatorName := defaultTeleportServiceConfig(t)
-
-	require.NoError(t, teleportServer.Start())
-
-	tClient := clientForTeleport(t, teleportServer, operatorName)
-	k8sClient := startKubernetesOperator(t, tClient)
-
-	ns := createNamespaceForTest(t, k8sClient)
+	ctx, tClient, k8sClient, ns := setupKubernetesAndTeleport(t)
 	roleName := validRandomResourceName("role-")
 
-	// The role is created in K8S
+	// End of setup, we create the role in Kubernetes
 	k8sCreateDummyRole(ctx, t, k8sClient, ns.Name, roleName)
 
+	// We wait for the role to be created in Teleport
 	fastEventually(t, func() bool {
 		tRole, err := tClient.GetRole(ctx, roleName)
 		if trace.IsNotFound(err) {
@@ -58,17 +55,18 @@ func TestRoleCreation(t *testing.T) {
 		}
 		require.NoError(t, err)
 
+		// Role should have the same name, and have the Kubernetes origin label
 		require.Equal(t, tRole.GetName(), roleName)
-
 		require.Contains(t, tRole.GetMetadata().Labels, types.OriginLabel)
 		require.Equal(t, tRole.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
 
 		return true
 	})
 
-	// The role is deleted in K8S
+	// Cleanup and test, we delete the role in Kubernetes```
 	k8sDeleteRole(ctx, t, k8sClient, roleName, ns.Name)
 
+	// We wait for the role to be deleted in Teleport
 	fastEventually(t, func() bool {
 		_, err := tClient.GetRole(ctx, roleName)
 		return trace.IsNotFound(err)
@@ -76,72 +74,152 @@ func TestRoleCreation(t *testing.T) {
 }
 
 func TestRoleCreationFromYAML(t *testing.T) {
-	ctx := context.Background()
+	ctx, tClient, k8sClient, ns := setupKubernetesAndTeleport(t)
+	tests := []struct {
+		name         string
+		roleSpecYAML []byte
+		shouldFail   bool
+		expectedSpec *types.RoleSpecV5
+	}{
+		{
+			"Valid login list",
+			[]byte(`
+allow:
+  logins:
+  - ubuntu
+  - root
+`),
+			false,
+			&types.RoleSpecV5{
+				Allow: types.RoleConditions{
+					Logins: []string{"ubuntu", "root"},
+				},
+			},
+		},
+		{
+			"Valid node_labels wildcard (list version)",
+			[]byte(`
+allow:
+  node_labels:
+    '*': ['*']
+`),
+			false,
+			&types.RoleSpecV5{
+				Allow: types.RoleConditions{
+					NodeLabels: map[string]apiutils.Strings{
+						"*": {"*"},
+					},
+				},
+			},
+		},
+		{
+			"Valid node_labels wildcard (string version)",
+			[]byte(`
+allow:
+  node_labels:
+    '*': '*'
+`),
+			false,
+			&types.RoleSpecV5{
+				Allow: types.RoleConditions{
+					NodeLabels: map[string]apiutils.Strings{
+						"*": {"*"},
+					},
+				},
+			},
+		},
+		{
+			"Invalid node_labels (label value is integer)",
+			[]byte(`
+allow:
+  node_labels:
+    'foo': 1
+`),
+			true,
+			nil,
+		},
+		{
+			"Invalid node_labels (label value is object)",
+			[]byte(`
+allow:
+  node_labels:
+    'foo':
+      'bar': 'baz'
+    'logins':
+      - 'ubuntu'
+`),
+			true,
+			nil,
+		},
+	}
 
-	teleportServer, operatorName := defaultTeleportServiceConfig(t)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Creating the Kubernetes resource. We are using an untyped client to be able to create invalid resources.
+			roleManifest := map[string]interface{}{}
+			err := yaml.Unmarshal(tc.roleSpecYAML, &roleManifest)
+			require.NoError(t, err)
 
-	require.NoError(t, teleportServer.Start())
+			roleName := validRandomResourceName("role-")
 
-	tClient := clientForTeleport(t, teleportServer, operatorName)
-	k8sClient := startKubernetesOperator(t, tClient)
+			obj := getUnstructuredObjectFromGVK(TeleportRoleGVK)
+			obj.Object["spec"] = roleManifest
+			obj.SetName(roleName)
+			obj.SetNamespace(ns.Name)
+			err = k8sClient.Create(ctx, obj)
+			require.NoError(t, err)
 
-	namespace := createNamespaceForTest(t, k8sClient)
-	roleName := "interns"
+			// If failure is expected we should not see the resource in Teleport
+			if tc.shouldFail {
+				// We wait 1 second to ensure reconciliation happened
+				time.Sleep(time.Second)
+				require.True(t, trace.IsNotFound(err), "The role should not be created in Teleport")
+			} else {
+				// We wait for Teleport resource creation
+				fastEventually(t, func() bool {
+					tRole, err := tClient.GetRole(ctx, roleName)
+					// If the resource creation should succeed we check the resource was found and validate ownership labels
+					if trace.IsNotFound(err) {
+						return false
+					}
+					require.NoError(t, err)
 
-	roleYAML := yaml.NewYAMLOrJSONDecoder(bytes.NewBuffer([]byte(`
-kind: role
-version: v5
-metadata:
-  name: interns
-spec:
-  allow:
-    node_labels:
-      '*': ['*']
-`)), 1024)
+					require.Equal(t, tRole.GetName(), roleName)
+					require.Contains(t, tRole.GetMetadata().Labels, types.OriginLabel)
+					require.Equal(t, tRole.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
+					expectedRole, _ := types.NewRole(roleName, *tc.expectedSpec)
+					compareRoleSpecs(t, expectedRole, tRole)
 
-	var roleX resourcesv5.TeleportRole
-	err := roleYAML.Decode(&roleX)
-	require.NoError(t, err)
+					return true
+				})
+			}
+			// Teardown
 
-	roleX.Namespace = namespace.Name
-	err = k8sClient.Create(ctx, &roleX)
-	require.NoError(t, err)
+			// The role is deleted in K8S
+			k8sDeleteRole(ctx, t, k8sClient, roleName, ns.Name)
 
-	fastEventually(t, func() bool {
-		tRole, err := tClient.GetRole(ctx, roleName)
-		if trace.IsNotFound(err) {
-			return false
-		}
-		require.NoError(t, err)
+			// We wait for the role deletion in Teleport
+			fastEventually(t, func() bool {
+				_, err := tClient.GetRole(ctx, roleName)
+				return trace.IsNotFound(err)
+			})
+		})
+	}
+}
 
-		require.Equal(t, tRole.GetName(), roleName)
+func compareRoleSpecs(t *testing.T, expectedRole, actualRole types.Role) {
+	expectedJSON, _ := json.Marshal(expectedRole)
+	expected := make(map[string]interface{})
+	_ = json.Unmarshal(expectedJSON, &expected)
+	actualJSON, _ := json.Marshal(actualRole)
+	actual := make(map[string]interface{})
+	_ = json.Unmarshal(actualJSON, &actual)
 
-		require.Contains(t, tRole.GetMetadata().Labels, types.OriginLabel)
-		require.Equal(t, tRole.GetMetadata().Labels[types.OriginLabel], types.OriginKubernetes)
-
-		return true
-	})
-
-	// The role is deleted in K8S
-	k8sDeleteRole(ctx, t, k8sClient, roleName, namespace.Name)
-
-	fastEventually(t, func() bool {
-		_, err := tClient.GetRole(ctx, roleName)
-		return trace.IsNotFound(err)
-	})
+	require.Equal(t, expected["spec"], actual["spec"])
 }
 
 func TestRoleDeletionDrift(t *testing.T) {
-	ctx := context.Background()
-
-	teleportServer, operatorName := defaultTeleportServiceConfig(t)
-
-	require.NoError(t, teleportServer.Start())
-
-	tClient := clientForTeleport(t, teleportServer, operatorName)
-	k8sClient := startKubernetesOperator(t, tClient)
-
-	ns := createNamespaceForTest(t, k8sClient)
+	ctx, tClient, k8sClient, ns := setupKubernetesAndTeleport(t)
 	roleName := validRandomResourceName("role-")
 
 	// The role is created in K8S
@@ -183,16 +261,7 @@ func TestRoleDeletionDrift(t *testing.T) {
 }
 
 func TestRoleUpdate(t *testing.T) {
-	ctx := context.Background()
-
-	teleportServer, operatorName := defaultTeleportServiceConfig(t)
-
-	require.NoError(t, teleportServer.Start())
-
-	tClient := clientForTeleport(t, teleportServer, operatorName)
-	k8sClient := startKubernetesOperator(t, tClient)
-
-	ns := createNamespaceForTest(t, k8sClient)
+	ctx, tClient, k8sClient, ns := setupKubernetesAndTeleport(t)
 	roleName := validRandomResourceName("role-")
 
 	// The role does not exist in K8S
@@ -253,6 +322,20 @@ func TestRoleUpdate(t *testing.T) {
 		sort.Strings(logins)
 		return reflect.DeepEqual(logins, []string{"admin", "root", "x", "z"})
 	})
+}
+
+func setupKubernetesAndTeleport(t *testing.T) (context.Context, auth.ClientI, kclient.Client, *v1.Namespace) {
+	ctx := context.Background()
+
+	teleportServer, operatorName := defaultTeleportServiceConfig(t)
+
+	require.NoError(t, teleportServer.Start())
+
+	tClient := clientForTeleport(t, teleportServer, operatorName)
+	k8sClient := startKubernetesOperator(t, tClient)
+
+	ns := createNamespaceForTest(t, k8sClient)
+	return ctx, tClient, k8sClient, ns
 }
 
 func teleportCreateDummyRole(ctx context.Context, t *testing.T, roleName string, tClient auth.ClientI) error {
