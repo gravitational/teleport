@@ -303,7 +303,7 @@ spec:
 
 Will likely switch to this trait method, possibly with different syntax.
 
-### Predicate language
+### Predicate language for variable assignment
 
 Instead of the proposed regex-based construct, variables (or traits) could be
 defined using the
@@ -377,6 +377,68 @@ Cons:
 - arguably more complex
 - the usual result of a `vulcand/predicate` expression is a boolean predicate,
   the UX for building lists of strings is not great
+
+### Predicate language for filtering only
+
+Instead of using predicate language to build and assign variables, we could use
+a syntax more similar to the proposed regex syntax and only use predicates for
+matching.
+
+```yaml
+vars:
+  # Each variable has a name it will be referenced by.
+  - name: "logins"
+    # values hold a list of possible values which will all be appended to
+    # form the complete list of values for the variable.
+    values:
+      # The simplest value is a list of static strings.
+      - out: [ubuntu]
+
+      # Values can also contain traits and transforms.
+      - out: ['{{regexp.replace(external.username, "-", "_")}}']
+
+      # Values can also take an input, which will usually be a trait.
+      - input: "external.email"
+        # filter is a predicate expression which must evaluate `true` in order
+        # for this value to be included. `item` will be used to refer to the
+        # current item of the input which is being checked.
+        filter: 'item == "nic@goteleport.com"'
+        out: [root]
+
+      - input: "external.email"
+        # `item` can be used in `out` as well.
+        filter: 'matches("@goteleport.com$", item)'
+        out: ['regexp.replace(item, "^(.*)@goteleport.com$", $1)']
+
+  - name: "allow-env"
+    values:
+      # An input will expand to a list of N inputs if the trait is a list of size N.
+      # Any input value which matches the `filter` expression will contribute one
+      # output value.
+      #
+      # `filter` and `out` will be evalauated for each item in the list, and
+      # `item` can be used to refer to that list item.
+      #
+      # Here [devs, env-staging, env-prod] maps to [staging, prod].
+      - input: "{{external.groups}}"
+        out: ['regexp.replace(item, "^env-(\w+)$", "$1")']
+
+      # Full traits are available in the filter.
+      # Here [devs] maps to [dev], but [devs, contractors] maps to []
+      - input: "{{external.groups}}"
+        filter: 'matches("^devs$") && !contains(external.groups, "contractors")'
+        out: ["dev"]
+```
+
+Pros:
+
+- predicate expressions are used as just that: predicates (rather than as they
+  are in alternative "Predicate language for variable assignment")
+- predicate expressions are more powerful than just regex's
+
+Cons:
+
+- may need to duplicate regex in `filter` and `out` to use capture groups
 
 ### Common Expression Language
 
