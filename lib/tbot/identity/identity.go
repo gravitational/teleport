@@ -412,7 +412,7 @@ func SaveIdentity(id *Identity, d bot.Destination, kinds ...ArtifactKind) error 
 
 		log.Debugf("Writing %s", artifact.Key)
 		if err := d.Write(artifact.Key, data); err != nil {
-			return trace.WrapWithMessage(err, "could not write to %v", artifact.Key)
+			return trace.Wrap(err, "could not write to %v", artifact.Key)
 		}
 	}
 
@@ -432,7 +432,7 @@ func LoadIdentity(d bot.Destination, kinds ...ArtifactKind) (*Identity, error) {
 
 		data, err := d.Read(artifact.Key)
 		if err != nil {
-			return nil, trace.WrapWithMessage(err, "could not read artifact %q from destination %s", artifact.Key, d)
+			return nil, trace.Wrap(err, "could not read artifact %q from destination %s", artifact.Key, d)
 		}
 
 		// Attempt to load from an old key if there was no data in the current
@@ -447,7 +447,7 @@ func LoadIdentity(d bot.Destination, kinds ...ArtifactKind) (*Identity, error) {
 			)
 			data, err = d.Read(artifact.OldKey)
 			if err != nil {
-				return nil, trace.WrapWithMessage(
+				return nil, trace.Wrap(
 					err,
 					"could not read artifact %q from destination %q",
 					artifact.OldKey,
