@@ -165,7 +165,7 @@ The `spec.allow.request.roles` field lists the names of other roles that a user 
 ## Automatically prevent some roles from requesting others
 A malicious Teleport user could request a more privileged role and trick a reviewer into granting access. You can prevent such a scenario by defining roles that prohibit users from even requesting access to particular roles.
 
-The `spec.deny` field has the same possible properties as the `spec.allow` field we described [earlier](#require-dual-authorization-for-role-requests) except, rather than enabling actions, this field disables them. For example, the `spec.deny.requests.roles` field is a list of roles that a user is prohibited from requesting. Teleport gives `deny` rules precedence over `allow` rules when executing access requests.
+The `spec.deny` field has the same possible properties as the `spec.allow` field we described [earlier](#require-dual-authorization-for-role-requests) except, rather than enabling actions, this field disables them. For example, the `spec.deny.requests.roles` field is a list of roles that a user is prohibited from requesting. Teleport gives `deny` rules precedence over `allow` rules when executing Access Requests.
 
 As an illustration, we have assigned user `myuser` to the `user` role, which we defined using the following template:
 
