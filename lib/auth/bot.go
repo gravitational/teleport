@@ -311,7 +311,7 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 	}
 
 	tokenSpec := types.ProvisionTokenSpecV2{
-		Roles:      []types.SystemRole{types.RoleBot},
+		Roles:      types.SystemRoles{types.RoleBot},
 		JoinMethod: types.JoinMethodToken,
 		BotName:    botName,
 	}

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -34,6 +35,10 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// TestServer_createBot_FeatureDisabled ensures that you cannot create a bot
+// when the appropriate license does not exist. It is a separate test from
+// TestServer_createBot as `modules.SetTestModules` does not work with parallel
+// tests.
 func TestServer_createBot_FeatureDisabled(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
@@ -54,16 +59,130 @@ func TestServer_createBot_FeatureDisabled(t *testing.T) {
 	require.Contains(t, err.Error(), "not licensed")
 }
 
-// TestServer_createBot_NoRoles attempts to create a bot with an empty role list.
-func TestServer_createBot_NoRoles(t *testing.T) {
+// TestServer_createBot ensures that the create bot RPC creates the appropriate
+// role and users.
+//
+// TODO: We should add more cases to this to properly exercise the token
+// creation elements of createBot.
+func TestServer_createBot(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
 
-	// Create a new bot without roles specified. This should fail.
-	_, err := srv.Auth().createBot(context.Background(), &proto.CreateBotRequest{
-		Name: "test",
-	})
-	require.True(t, trace.IsBadParameter(err))
+	testRole := "test-role"
+	_, err := CreateRole(context.Background(), srv.Auth(), testRole, types.RoleSpecV5{})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		request *proto.CreateBotRequest
+
+		checkErr func(*testing.T, error)
+
+		checkUser func(*testing.T, types.User)
+		checkRole func(*testing.T, types.Role)
+	}{
+		{
+			name: "no roles",
+			request: &proto.CreateBotRequest{
+				Name: "no-roles",
+			},
+			checkErr: func(t *testing.T, err error) {
+				require.ErrorContains(t, err, "at least one role is required")
+				require.True(t, trace.IsBadParameter(err))
+			},
+		},
+		{
+			name: "success",
+			request: &proto.CreateBotRequest{
+				Name:  "success",
+				Roles: []string{testRole},
+				Traits: wrappers.Traits{
+					constants.TraitLogins: []string{
+						"a-principal",
+					},
+				},
+			},
+			checkUser: func(t *testing.T, got types.User) {
+				require.Equal(t, []string{"bot-success"}, got.GetRoles())
+				require.Equal(t, map[string]string{
+					types.BotLabel:           "success",
+					types.BotGenerationLabel: "0",
+				}, got.GetMetadata().Labels)
+				// Ensure bot user receives requested traits
+				require.Equal(
+					t,
+					[]string{"a-principal"},
+					got.GetTraits()[constants.TraitLogins],
+				)
+			},
+			checkRole: func(t *testing.T, got types.Role) {
+				require.Equal(
+					t, "success", got.GetMetadata().Labels[types.BotLabel],
+				)
+				require.Equal(
+					t,
+					[]string{testRole},
+					got.GetImpersonateConditions(types.Allow).Roles,
+				)
+				require.Equal(
+					t,
+					types.Duration(12*time.Hour),
+					got.GetOptions().MaxSessionTTL,
+				)
+				// Ensure bot will be able to read the cert authorities
+				require.Equal(
+					t,
+					[]types.Rule{
+						types.NewRule(
+							types.KindCertAuthority,
+							[]string{types.VerbReadNoSecrets},
+						),
+					},
+					got.GetRules(types.Allow),
+				)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := context.Background()
+			res, err := srv.Auth().createBot(ctx, tt.request)
+			if tt.checkErr != nil {
+				tt.checkErr(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			// Ensure createBot produces the expected role and user.
+			resourceName := BotResourceName(tt.request.Name)
+			usr, err := srv.Auth().Services.GetUser(resourceName, false)
+			require.NoError(t, err)
+			tt.checkUser(t, usr)
+			role, err := srv.Auth().Services.GetRole(ctx, resourceName)
+			require.NoError(t, err)
+			tt.checkRole(t, role)
+
+			// Ensure response includes the correct details
+			require.Equal(t, resourceName, res.UserName)
+			require.Equal(t, resourceName, res.RoleName)
+			require.Equal(t, types.JoinMethodToken, res.JoinMethod)
+
+			// Check generated token exists
+			token, err := srv.Auth().Services.GetToken(ctx, res.TokenID)
+			require.NoError(t, err)
+			require.Equal(t, tt.request.Name, token.GetBotName())
+			require.Equal(t, types.JoinMethodToken, token.GetJoinMethod())
+			require.Equal(t, types.SystemRoles{types.RoleBot}, token.GetRoles())
+		})
+	}
+}
+
+func TestBotResourceName(t *testing.T) {
+	require.Equal(t, "bot-name", BotResourceName("name"))
+	require.Equal(t, "bot-name-with-spaces", BotResourceName("name with spaces"))
 }
 
 func TestRegister_BotOnboardFeatureDisabled(t *testing.T) {
