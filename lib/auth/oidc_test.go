@@ -509,3 +509,50 @@ func TestOIDCGoogle(t *testing.T) {
 		require.ElementsMatch(t, testCase.filtered, groups)
 	}
 }
+
+func TestEmailVerifiedClaim(t *testing.T) {
+	tests := []struct {
+		claims        map[string]interface{}
+		expectedError string
+	}{
+		{
+			claims: map[string]interface{}{
+				"email_verified": "true",
+			},
+			expectedError: "",
+		},
+		{
+			claims: map[string]interface{}{
+				"email_verified": "false",
+			},
+			expectedError: "email not verified by OIDC provider",
+		},
+		{
+			claims: map[string]interface{}{
+				"email_verified": false,
+			},
+			expectedError: "email not verified by OIDC provider",
+		},
+		{
+			claims: map[string]interface{}{
+				"email_verified": true,
+			},
+			expectedError: "",
+		},
+		{
+			claims: map[string]interface{}{
+				"email_verified": "random_value",
+			},
+			expectedError: "unable to parse oidc claim: \"email_verified\", must be either 'true' or 'false', got 'random_value'",
+		},
+	}
+
+	for _, test := range tests {
+		err := checkEmailVerifiedClaim(test.claims)
+		if test.expectedError == "" {
+			require.NoError(t, err)
+		} else {
+			require.ErrorContains(t, err, test.expectedError)
+		}
+	}
+}

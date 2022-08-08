@@ -152,6 +152,9 @@ const (
 	// ComponentSubsystemProxy is the proxy subsystem.
 	ComponentSubsystemProxy = "subsystem:proxy"
 
+	// ComponentSubsystemSFTP is the SFTP subsystem.
+	ComponentSubsystemSFTP = "subsystem:sftp"
+
 	// ComponentLocalTerm is a terminal on a regular SSH node.
 	ComponentLocalTerm = "term:local"
 
@@ -209,6 +212,9 @@ const (
 	// and vice versa.
 	ComponentKeepAlive = "keepalive"
 
+	// ComponentTeleport is the "teleport" binary.
+	ComponentTeleport = "teleport"
+
 	// ComponentTSH is the "tsh" binary.
 	ComponentTSH = "tsh"
 
@@ -242,6 +248,9 @@ const (
 
 	// ComponentWindowsDesktop is a Windows desktop access server.
 	ComponentWindowsDesktop = "windows_desktop"
+
+	// ComponentTracing is a tracing exporter
+	ComponentTracing = "tracing"
 
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
@@ -738,6 +747,10 @@ const (
 	// CheckHomeDirSubCommand is the sub-command Teleport uses to re-exec itself
 	// to check if the user's home directory exists.
 	CheckHomeDirSubCommand = "checkhomedir"
+
+	// SFTPSubCommand is the sub-command Teleport uses to re-exec itself to
+	// handle SFTP connections.
+	SFTPSubCommand = "sftp"
 )
 
 const (

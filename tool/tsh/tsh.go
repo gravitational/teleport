@@ -407,7 +407,10 @@ const (
 	// recommended default value of 2s. In the RFC this value is for the
 	// establishment of a TCP connection, rather than the full HTTP round-
 	// trip that we measure against, so some tweaking may be needed.
-	proxyDefaultResolutionTimeout = 2 * time.Second
+	//
+	// Raised to 5 seconds when fallback measure was removed to account for
+	// users with higher latency connections.
+	proxyDefaultResolutionTimeout = 5 * time.Second
 )
 
 // cliOption is used in tests to inject/override configuration within Run
@@ -1935,7 +1938,6 @@ func showDatabasesAsText(w io.Writer, clusterFlag string, databases []types.Data
 	if verbose {
 		t = asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect", "Expires"}, rows...)
 	} else {
-
 		t = asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Allowed Users", "Labels", "Connect"}, rows, "Labels")
 	}
 	fmt.Fprintln(w, t.AsBuffer().String())
@@ -2256,17 +2258,18 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 
 	// split login & host
 	hostLogin := cf.NodeLogin
+	hostUser := cf.UserHost
 	var labels map[string]string
-	if cf.UserHost != "" {
-		parts := strings.Split(cf.UserHost, "@")
+	if hostUser != "" {
+		parts := strings.Split(hostUser, "@")
 		partsLength := len(parts)
 		if partsLength > 1 {
 			hostLogin = strings.Join(parts[:partsLength-1], "@")
-			cf.UserHost = parts[partsLength-1]
+			hostUser = parts[partsLength-1]
 		}
 		// see if remote host is specified as a set of labels
-		if strings.Contains(cf.UserHost, "=") {
-			labels, err = client.ParseLabelSpec(cf.UserHost)
+		if strings.Contains(hostUser, "=") {
+			labels, err = client.ParseLabelSpec(hostUser)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -2279,7 +2282,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 			partsLength := len(parts)
 			if partsLength > 1 {
 				hostLogin = strings.Join(parts[:partsLength-1], "@")
-				cf.UserHost = parts[partsLength-1]
+				hostUser = parts[partsLength-1]
 				break
 			}
 		}
@@ -2296,7 +2299,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 
 	// 1: start with the defaults
 	c := client.MakeDefaultConfig()
-	c.Host = cf.UserHost
+	c.Host = hostUser
 
 	// ProxyJump is an alias of Proxy flag
 	if cf.ProxyJump != "" {
@@ -2650,11 +2653,8 @@ func setClientWebProxyAddr(cf *CLIConf, c *client.Config) error {
 
 			proxyAddress, err = pickDefaultAddr(
 				timeout, cf.InsecureSkipVerify, parsedAddrs.Host, defaultWebProxyPorts)
-
-			// On error, fall back to the legacy behaviour
 			if err != nil {
-				log.WithError(err).Debug("Proxy port resolution failed, falling back to legacy default.")
-				return c.ParseProxyHost(cf.Proxy)
+				return trace.Wrap(err)
 			}
 		}
 
