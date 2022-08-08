@@ -18,11 +18,13 @@ import Client, { TdpClientEvent } from './client';
 
 enum Action {
   TOGGLE_PLAY_PAUSE = 'play/pause',
+  PLAY_SPEED = 'speed',
   // TODO: MOVE = 'move'
 }
 
 export enum PlayerClientEvent {
   TOGGLE_PLAY_PAUSE = 'play/pause',
+  PLAY_SPEED = 'speed',
   UPDATE_CURRENT_TIME = 'time',
   SESSION_END = 'end',
   PLAYBACK_ERROR = 'playback error',
@@ -39,6 +41,12 @@ export class PlayerClient extends Client {
   togglePlayPause() {
     this.send(JSON.stringify({ action: Action.TOGGLE_PLAY_PAUSE }));
     this.emit(PlayerClientEvent.TOGGLE_PLAY_PAUSE);
+  }
+
+  // setPlaySpeed sets the playback speed of the recording.
+  setPlaySpeed(speed: number) {
+    this.send(JSON.stringify({ action: Action.PLAY_SPEED, speed }));
+    this.emit(PlayerClientEvent.PLAY_SPEED, speed);
   }
 
   // Overrides Client implementation.
