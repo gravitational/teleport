@@ -94,6 +94,11 @@ spec:
           readOnly: true
         - mountPath: /var/lib/teleport
           name: "{{ .Release.Name }}-teleport-data"
+          {{- if .Values.tls.existingCASecretName }}
+        - mountPath: /etc/teleport-tls-ca
+          name: "teleport-tls-ca"
+          readOnly: true
+          {{- end }}
   {{- if .Values.extraVolumeMounts }}
     {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
   {{- end }}
@@ -123,6 +128,10 @@ spec:
                 fieldPath: metadata.namespace
           - name: RELEASE_NAME
             value: {{ .Release.Name }}
+          {{- if .Values.tls.existingCASecretName }}
+          - name: SSL_CERT_FILE
+            value: /etc/teleport-tls-ca/ca.pem
+          {{- end }}
           {{- if .Values.extraEnv }}
             {{- toYaml .Values.extraEnv | nindent 10 }}
           {{- end }}
@@ -180,6 +189,11 @@ spec:
         - mountPath: /var/lib/teleport
           name: "data"
 {{- end }}
+{{- if .Values.tls.existingCASecretName }}
+        - mountPath: /etc/teleport-tls-ca
+          name: "teleport-tls-ca"
+          readOnly: true
+{{- end }}
 {{- if .Values.extraVolumeMounts }}
   {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
 {{- end }}
@@ -194,6 +208,11 @@ spec:
       - name: "data"
         emptyDir: {}
 {{- end}}
+{{- if .Values.tls.existingCASecretName }}
+      - name: "teleport-tls-ca"
+        secret:
+          secretName: {{ .Values.tls.existingCASecretName }}
+{{- end }}
 {{- if .Values.extraVolumes }}
   {{- toYaml .Values.extraVolumes | nindent 6 }}
 {{- end }}
