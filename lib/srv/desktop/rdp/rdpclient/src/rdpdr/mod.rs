@@ -2422,6 +2422,7 @@ impl FileInformationClass {
 
     fn decode(
         file_information_class_level: &FileInformationClassLevel,
+        length: u32,
         payload: &mut Payload,
     ) -> RdpResult<Self> {
         match file_information_class_level {
@@ -2435,7 +2436,7 @@ impl FileInformationClass {
             }
             FileInformationClassLevel::FileDispositionInformation => {
                 Ok(FileInformationClass::FileDispositionInformation(
-                    FileDispositionInformation::decode(payload)?,
+                    FileDispositionInformation::decode(payload, length)?,
                 ))
             }
             FileInformationClassLevel::FileRenameInformation => {
@@ -2844,8 +2845,9 @@ impl FileDispositionInformation {
         Ok(w)
     }
 
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
-        let delete_pending = payload.read_u8()?;
+    fn decode(payload: &mut Payload, length: u32) -> RdpResult<Self> {
+        // https://github.com/FreeRDP/FreeRDP/blob/dfa231c0a55b005af775b833f92f6bcd30363d77/channels/drive/client/drive_file.c#L684-L692
+        let delete_pending = if length != 0 { payload.read_u8()? } else { 1 };
         Ok(Self { delete_pending })
     }
 
@@ -3555,14 +3557,14 @@ impl ServerDriveSetInformationRequest {
             }
         };
 
-        // length, u32
-        payload.seek(SeekFrom::Current(4))?;
+        let length = payload.read_u32::<LittleEndian>()?;
 
         // There is a padding of 24 bytes between offset and write data so we
         // must ignore it
         payload.seek(SeekFrom::Current(24))?;
 
-        let set_buffer = FileInformationClass::decode(&file_information_class_level, payload)?;
+        let set_buffer =
+            FileInformationClass::decode(&file_information_class_level, length, payload)?;
 
         Ok(Self {
             device_io_request,
