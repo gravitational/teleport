@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -41,7 +40,6 @@ import (
 	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -69,8 +67,6 @@ type TLSServerConfig struct {
 	ID string
 	// Metrics are optional TLSServer metrics
 	Metrics *Metrics
-	// TraceClient is used to forward spans to the upstream telemetry collector
-	TraceClient otlptrace.Client
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -102,9 +98,6 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	}
 	if c.Metrics == nil {
 		c.Metrics = &Metrics{}
-	}
-	if c.TraceClient == nil {
-		c.TraceClient = tracing.NewNoopClient()
 	}
 	return nil
 }
@@ -186,7 +179,6 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		APIConfig:         cfg.APIConfig,
 		UnaryInterceptor:  authMiddleware.UnaryInterceptor(),
 		StreamInterceptor: authMiddleware.StreamInterceptor(),
-		TraceClient:       cfg.TraceClient,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

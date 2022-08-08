@@ -34,7 +34,7 @@ type Client struct {
 }
 
 // New creates and connects a new Client based on opts.
-func New(ctx context.Context, cfg Config) (*Client, error) {
+func New(cfg Config) (*Client, error) {
 	return &Client{}, errors.New("the real rdpclient.Client implementation was not included in this build")
 }
 
