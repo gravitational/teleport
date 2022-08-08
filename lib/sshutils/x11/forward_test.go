@@ -64,7 +64,7 @@ func TestForward(t *testing.T) {
 	clientConnToForward, ok := cConn2.(*net.TCPConn)
 	require.True(t, ok)
 
-	forwardErrC := make(chan error)
+	forwardErrC := make(chan error, 1)
 	go func() {
 		forwardErrC <- Forward(ctx, serverConnToForward, clientConnToForward)
 	}()
