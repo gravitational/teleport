@@ -179,6 +179,53 @@ matches snapshot for affinity.yaml:
     metadata:
       name: RELEASE-NAME
       namespace: NAMESPACE
+matches snapshot for aws-dynamodb-autoscaling.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+          storage:
+            type: dynamodb
+            region: us-west-2
+            table_name: test-dynamodb-backend-table
+            audit_events_uri: ['dynamodb://test-dynamodb-auditlog-table']
+            audit_sessions_uri: s3://test-s3-session-storage-bucket
+            continuous_backups: false
+            auto_scaling: true
+            read_min_capacity: 5
+            read_max_capacity: 100
+            read_target_value: 50
+            write_min_capacity: 5
+            write_max_capacity: 100
+            write_target_value: 50
+        auth_service:
+          enabled: true
+          cluster_name: test-aws-cluster
+          authentication:
+            type: local
+            second_factor: otp
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: test-aws-cluster
+        proxy_service:
+          public_addr: 'test-aws-cluster:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for aws-ha-acme.yaml:
   1: |
     apiVersion: v1
@@ -198,6 +245,7 @@ matches snapshot for aws-ha-acme.yaml:
             audit_events_uri: ['dynamodb://test-dynamodb-auditlog-table']
             audit_sessions_uri: s3://test-s3-session-storage-bucket
             continuous_backups: false
+            auto_scaling: false
         auth_service:
           enabled: true
           cluster_name: test-aws-cluster
@@ -243,6 +291,7 @@ matches snapshot for aws-ha-antiaffinity.yaml:
             audit_events_uri: ['dynamodb://test-dynamodb-auditlog-table']
             audit_sessions_uri: s3://test-s3-session-storage-bucket
             continuous_backups: false
+            auto_scaling: false
         auth_service:
           enabled: true
           cluster_name: test-aws-cluster
@@ -285,6 +334,7 @@ matches snapshot for aws-ha-log.yaml:
             audit_events_uri: ['dynamodb://test-dynamodb-auditlog-table', 'stdout://']
             audit_sessions_uri: s3://test-s3-session-storage-bucket
             continuous_backups: false
+            auto_scaling: false
         auth_service:
           enabled: true
           cluster_name: test-aws-cluster
@@ -330,6 +380,7 @@ matches snapshot for aws-ha.yaml:
             audit_events_uri: ['dynamodb://test-dynamodb-auditlog-table']
             audit_sessions_uri: s3://test-s3-session-storage-bucket
             continuous_backups: false
+            auto_scaling: false
         auth_service:
           enabled: true
           cluster_name: test-aws-cluster
@@ -372,6 +423,7 @@ matches snapshot for aws.yaml:
             audit_events_uri: ['dynamodb://test-dynamodb-auditlog-table']
             audit_sessions_uri: s3://test-s3-session-storage-bucket
             continuous_backups: false
+            auto_scaling: false
         auth_service:
           enabled: true
           cluster_name: test-aws-cluster
@@ -1062,6 +1114,40 @@ matches snapshot for service.yaml:
     metadata:
       name: RELEASE-NAME
       namespace: NAMESPACE
+matches snapshot for session-recording.yaml:
+  1: |
+    apiVersion: v1
+    data:
+      teleport.yaml: |-
+        teleport:
+          log:
+            severity: INFO
+            output: stderr
+            format:
+              output: text
+              extra_fields: ["timestamp","level","component","caller"]
+        auth_service:
+          enabled: true
+          cluster_name: helm-lint
+          authentication:
+            type: local
+            second_factor: otp
+          session_recording: node-sync
+        kubernetes_service:
+          enabled: true
+          listen_addr: 0.0.0.0:3027
+          kube_cluster_name: helm-lint
+        proxy_service:
+          public_addr: 'helm-lint:443'
+          kube_listen_addr: 0.0.0.0:3026
+          mysql_listen_addr: 0.0.0.0:3036
+          enabled: true
+        ssh_service:
+          enabled: false
+    kind: ConfigMap
+    metadata:
+      name: RELEASE-NAME
+      namespace: NAMESPACE
 matches snapshot for standalone-customsize.yaml:
   1: |
     apiVersion: v1
@@ -1157,6 +1243,7 @@ matches snapshot for tolerations.yaml:
             audit_events_uri: ['dynamodb://test-dynamodb-auditlog-table']
             audit_sessions_uri: s3://test-s3-session-storage-bucket
             continuous_backups: false
+            auto_scaling: false
         auth_service:
           enabled: true
           cluster_name: test-aws-cluster

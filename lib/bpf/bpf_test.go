@@ -82,7 +82,7 @@ func (s *Suite) TestWatch(c *check.C) {
 	emitter := &eventstest.MockEmitter{}
 
 	// Create and start a program that does nothing. Since sleep will run longer
-	// than we wait below, nothing should be emit to the Audit Log.
+	// than we wait below, nothing should be emitted to the Audit Log.
 	cmd := os_exec.Command("sleep", "10")
 	err = cmd.Start()
 	c.Assert(err, check.IsNil)
@@ -156,7 +156,7 @@ func (s *Suite) TestObfuscate(c *check.C) {
 	defer execsnoop.close()
 	c.Assert(err, check.IsNil)
 
-	// Create a context that will be used to signal that an event has been recieved.
+	// Create a context that will be used to signal that an event has been received.
 	doneContext, doneFunc := context.WithCancel(context.Background())
 
 	// Start two goroutines. The first writes a script which will execute "ls"
@@ -229,7 +229,7 @@ func (s *Suite) TestScript(c *check.C) {
 	defer execsnoop.close()
 	c.Assert(err, check.IsNil)
 
-	// Create a context that will be used to signal that an event has been recieved.
+	// Create a context that will be used to signal that an event has been received.
 	doneContext, doneFunc := context.WithCancel(context.Background())
 
 	// Start two goroutines. The first writes a script which will execute "ls"
@@ -353,7 +353,7 @@ func (s *Suite) TestPrograms(c *check.C) {
 
 		// Start two goroutines. The first will wait for the BPF program event to
 		// arrive, and once it has, signal over the context that it's complete. The
-		// second will continue to execute or a HTTP GET in a in a loop attempting to
+		// second will continue to execute or an HTTP GET in a loop attempting to
 		// trigger an event.
 		go waitForEvent(doneContext, doneFunc, tt.inEventCh)
 		if tt.inHTTP {
@@ -417,7 +417,7 @@ func (s *Suite) TestBPFCounter(c *check.C) {
 	// Make sure all are accounted for
 	c.Assert(testutil.ToFloat64(promCounter), check.Equals, float64(gentleBumps))
 
-	// Next, pound the counter to heopfully overflow the doorbell.
+	// Next, pound the counter to hopefully overflow the doorbell.
 	poundingBumps := 100000
 	for i := 0; i < poundingBumps; i++ {
 		syscall.Close(magicFD)
@@ -462,7 +462,7 @@ func executeCommand(c *check.C, doneContext context.Context, file string) {
 	}
 }
 
-// executeHTTP will perform a HTTP GET to some endpoint in a loop.
+// executeHTTP will perform an HTTP GET to some endpoint in a loop.
 func executeHTTP(c *check.C, doneContext context.Context, endpoint string) {
 	for {
 		// Perform HTTP GET to the requested endpoint.

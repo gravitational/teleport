@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/api/types"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -186,7 +187,8 @@ func sshProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxyPara
 	}
 	defer upstreamConn.Close()
 
-	client, err := makeSSHClient(ctx, upstreamConn, upstreamConn.RemoteAddr().String(), &ssh.ClientConfig{
+	remoteProxyAddr := net.JoinHostPort(sp.proxyHost, sp.proxyPort)
+	client, err := makeSSHClient(ctx, upstreamConn, remoteProxyAddr, &ssh.ClientConfig{
 		User: tc.HostLogin,
 		Auth: []ssh.AuthMethod{
 			ssh.PublicKeysCallback(tc.LocalAgent().Signers),
@@ -208,13 +210,13 @@ func sshProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxyPara
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = agent.RequestAgentForwarding(sess)
+	err = agent.RequestAgentForwarding(sess.Session)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	sshUserHost := fmt.Sprintf("%s:%s", sp.targetHost, sp.targetPort)
-	if err = sess.RequestSubsystem(proxySubsystemName(sshUserHost, sp.clusterName)); err != nil {
+	if err = sess.RequestSubsystem(ctx, proxySubsystemName(sshUserHost, sp.clusterName)); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := proxySession(ctx, sess); err != nil {
@@ -269,7 +271,7 @@ func makeSSHClient(ctx context.Context, conn net.Conn, addr string, cfg *ssh.Cli
 	return tracessh.NewClient(cc, chs, reqs), nil
 }
 
-func proxySession(ctx context.Context, sess *ssh.Session) error {
+func proxySession(ctx context.Context, sess *tracessh.Session) error {
 	stdout, err := sess.StdoutPipe()
 	if err != nil {
 		return trace.Wrap(err)
@@ -477,6 +479,13 @@ func mkLocalProxyCerts(certFile, keyFile string) ([]tls.Certificate, error) {
 	return []tls.Certificate{cert}, nil
 }
 
+func alpnProtocolForApp(app types.Application) alpncommon.Protocol {
+	if app.IsTCP() {
+		return alpncommon.ProtocolTCP
+	}
+	return alpncommon.ProtocolHTTP
+}
+
 func onProxyCommandApp(cf *CLIConf) error {
 	tc, err := makeClient(cf, false)
 	if err != nil {
@@ -484,6 +493,11 @@ func onProxyCommandApp(cf *CLIConf) error {
 	}
 
 	appCerts, err := loadAppCertificate(tc, cf.AppName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	app, err := getRegisteredApp(cf, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -506,7 +520,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		Listener:           listener,
 		RemoteProxyAddr:    tc.WebProxyAddr,
-		Protocols:          []alpncommon.Protocol{alpncommon.ProtocolHTTP},
+		Protocols:          []alpncommon.Protocol{alpnProtocolForApp(app)},
 		InsecureSkipVerify: cf.InsecureSkipVerify,
 		ParentContext:      cf.Context,
 		SNI:                address.Host(),

@@ -46,8 +46,12 @@ type Announcer interface {
 	// DELETE IN 11.0. Deprecated, use UpsertKubeServiceV2
 	UpsertKubeService(context.Context, types.Server) error
 
-	// UpsertKubeServiceV2 registers a kubernetes kubernetes service
+	// UpsertKubeServiceV2 registers a kubernetes service
+	// DELETE IN 13.0. Deprecated, use UpsertKubernetesServer
 	UpsertKubeServiceV2(context.Context, types.Server) (*types.KeepAlive, error)
+
+	// UpsertKubernetesServer registers a kubernetes server
+	UpsertKubernetesServer(context.Context, types.KubeServer) (*types.KeepAlive, error)
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
@@ -251,7 +255,11 @@ type ReadProxyAccessPoint interface {
 	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
 
 	// GetKubeServices returns a list of kubernetes services registered in the cluster
+	// DELETE IN 13.0. Deprecated, use GetKubernetesServers.
 	GetKubeServices(context.Context) ([]types.Server, error)
+
+	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
+	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
@@ -369,7 +377,11 @@ type ReadRemoteProxyAccessPoint interface {
 	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
 
 	// GetKubeServices returns a list of kubernetes services registered in the cluster
+	// DELETE IN 13.0. Deprecated, use GetKubernetesServers.
 	GetKubeServices(context.Context) ([]types.Server, error)
+
+	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
+	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
@@ -433,7 +445,11 @@ type ReadKubernetesAccessPoint interface {
 	GetNamespace(name string) (*types.Namespace, error)
 
 	// GetKubeServices returns a list of kubernetes services registered in the cluster
+	// DELETE IN 13.0. Deprecated, use GetKubernetesServers.
 	GetKubeServices(context.Context) ([]types.Server, error)
+
+	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
+	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 }
 
 // KubernetesAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -770,7 +786,11 @@ type Cache interface {
 	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
 
 	// GetKubeServices returns a list of kubernetes services registered in the cluster
+	// DELETE IN 13.0. Deprecated, use GetKubernetesServers.
 	GetKubeServices(context.Context) ([]types.Server, error)
+
+	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
+	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
@@ -975,3 +995,6 @@ type NewRemoteProxyCachingAccessPoint func(clt ClientI, cacheName []string) (Rem
 // notImplementedMessage is the message to return for endpoints that are not
 // implemented. This is due to how service interfaces are used with Teleport.
 const notImplementedMessage = "not implemented: can only be called by auth locally"
+
+// LicenseExpiredNotification defines a license expired notification
+const LicenseExpiredNotification = "licenseExpired"

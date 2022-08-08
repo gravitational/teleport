@@ -22,15 +22,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/utils"
-	libutils "github.com/gravitational/teleport/lib/utils"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 )
 
 func rotate(
@@ -86,15 +86,10 @@ func setupServerForCARotationTest(ctx context.Context, log utils.Logger, t *test
 	}
 
 	// Ensure the service starts correctly the first time before proceeding
-	eventCh := make(chan service.Event, 1)
-	svc.WaitForEvent(svc.ExitContext(), service.TeleportReadyEvent, eventCh)
-	select {
-	case <-eventCh:
-	case <-time.After(30 * time.Second):
-		// in reality, the auth server should start *much* sooner than this.  we use a very large
-		// timeout here because this isn't the kind of problem that this test is meant to catch.
-		t.Fatal("auth server didn't start after 30s")
-	}
+	_, err := svc.WaitForEventTimeout(30*time.Second, service.TeleportReadyEvent)
+	// in reality, the auth server should start *much* sooner than this.  we use a very large
+	// timeout here because this isn't the kind of problem that this test is meant to catch.
+	require.NoError(t, err, "auth server didn't start after 30s")
 
 	// Tracks the latest instance of the Teleport service through reloads
 	activeSvc := svc
@@ -131,7 +126,7 @@ func TestBot_Run_CARotation(t *testing.T) {
 
 	// wg and context manage the cancellation of long running processes e.g
 	// teleport and tbot in the test.
-	log := libutils.NewLoggerForTests()
+	log := utils.NewLoggerForTests()
 	wg := &sync.WaitGroup{}
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() {

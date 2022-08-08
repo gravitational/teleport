@@ -24,6 +24,10 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/pquerna/otp"
+	"github.com/pquerna/otp/totp"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -32,10 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/pquerna/otp"
-	"github.com/pquerna/otp/totp"
-
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -163,7 +163,7 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = s.Identity.CreateUserToken(ctx, token)
+	_, err = s.CreateUserToken(ctx, token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -187,7 +187,7 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 }
 
 func (s *Server) resetMFA(ctx context.Context, user string) error {
-	devs, err := s.Identity.GetMFADevices(ctx, user, false)
+	devs, err := s.Services.GetMFADevices(ctx, user, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -447,7 +447,7 @@ func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 	// Mark what recover type user requested.
 	newToken.SetUsage(usage)
 
-	if _, err := s.Identity.CreateUserToken(ctx, newToken); err != nil {
+	if _, err := s.CreateUserToken(ctx, newToken); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -495,7 +495,7 @@ func (s *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 	switch {
 	case req.GetExistingMFAResponse() == nil:
 		// Allows users with no devices to bypass second factor re-auth.
-		devices, err := s.Identity.GetMFADevices(ctx, username, false /* withSecrets */)
+		devices, err := s.Services.GetMFADevices(ctx, username, false /* withSecrets */)
 		switch {
 		case err != nil:
 			return nil, trace.Wrap(err)
@@ -543,7 +543,7 @@ func (s *Server) createPrivilegeToken(ctx context.Context, username, tokenKind s
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := s.Identity.CreateUserToken(ctx, newToken)
+	token, err := s.CreateUserToken(ctx, newToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
