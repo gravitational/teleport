@@ -125,6 +125,9 @@ const (
 	// KindDatabase is a database resource.
 	KindDatabase = "db"
 
+	// KindKubeServer is an kubernetes server resource.
+	KindKubeServer = "kube_server"
+
 	// KindKubernetesCluster is a Kubernetes cluster.
 	KindKubernetesCluster = "kube_cluster"
 
@@ -226,6 +229,7 @@ const (
 	KindState = "state"
 
 	// KindKubeService is a kubernetes service resource
+	// DELETE in 12.0.0
 	KindKubeService = "kube_service"
 
 	// KindMFADevice is an MFA device for a user.
@@ -425,6 +429,10 @@ const (
 
 	// BotGenerationLabel is a label used to record the certificate generation counter.
 	BotGenerationLabel = "teleport.internal/bot-generation"
+
+	// InternalResourceIDLabel is a label used to store an ID to correlate between two resources
+	// A pratical example of this is to create a correlation between a Node Provision Token and the Node that used that token to join the cluster
+	InternalResourceIDLabel = "teleport.internal/resource-id"
 )
 
 // RequestableResourceKinds lists all Teleport resource kinds users can request access to.

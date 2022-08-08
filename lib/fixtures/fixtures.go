@@ -61,42 +61,42 @@ func ExpectLimitExceeded(c *check.C, err error) {
 
 // AssertNotFound expects not found error
 func AssertNotFound(t *testing.T, err error) {
-	if trace.IsNotFound(err) == false {
+	if !trace.IsNotFound(err) {
 		t.Fatalf("Expected NotFound, got %T %v at %v.", trace.Unwrap(err), err, string(debug.Stack()))
 	}
 }
 
 // AssertBadParameter expects bad parameter error
 func AssertBadParameter(t *testing.T, err error) {
-	if trace.IsBadParameter(err) == false {
+	if !trace.IsBadParameter(err) {
 		t.Fatalf("Expected BadParameter, got %T %v at %v.", trace.Unwrap(err), err, string(debug.Stack()))
 	}
 }
 
 // AssertCompareFailed expects compare failed error
 func AssertCompareFailed(t *testing.T, err error) {
-	if trace.IsCompareFailed(err) == false {
+	if !trace.IsCompareFailed(err) {
 		t.Fatalf("Expected CompareFailed, got %T %v at %v.", trace.Unwrap(err), err, string(debug.Stack()))
 	}
 }
 
 // AssertAccessDenied expects error to be access denied
 func AssertAccessDenied(t *testing.T, err error) {
-	if trace.IsAccessDenied(err) == false {
+	if !trace.IsAccessDenied(err) {
 		t.Fatalf("Expected AccessDenied, got %T %v at %v.", trace.Unwrap(err), err, string(debug.Stack()))
 	}
 }
 
 // AssertAlreadyExists expects already exists error
 func AssertAlreadyExists(t *testing.T, err error) {
-	if trace.IsAlreadyExists(err) == false {
+	if !trace.IsAlreadyExists(err) {
 		t.Fatalf("Expected AlreadyExists, got %T %v at %v.", trace.Unwrap(err), err, string(debug.Stack()))
 	}
 }
 
 // AssertConnectionProblem expects connection problem error
 func AssertConnectionProblem(t *testing.T, err error) {
-	if trace.IsConnectionProblem(err) == false {
+	if !trace.IsConnectionProblem(err) {
 		t.Fatalf("Expected ConnectionProblem, got %T %v at %v.", trace.Unwrap(err), err, string(debug.Stack()))
 	}
 }

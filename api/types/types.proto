@@ -465,6 +465,7 @@ message ServerSpecV2 {
     // Important: jsontag must not be "kubernetes_clusters", because a
     // different field with that jsontag existed in 4.4:
     // https://github.com/gravitational/teleport/issues/4862
+    // DELETE IN 12.0.0. Deprecated, moved to KubernetesServerSpecV3.
     repeated KubernetesCluster KubernetesClusters = 10
         [ (gogoproto.jsontag) = "kube_clusters,omitempty" ];
     // PeerAddr is the address a proxy server is reachable at by its peer proxies.
@@ -827,6 +828,13 @@ message ProvisionTokenSpecV2 {
         [ (gogoproto.jsontag) = "join_method", (gogoproto.casttype) = "JoinMethod" ];
     // BotName is the name of the bot this token grants access to, if any
     string BotName = 5 [ (gogoproto.jsontag) = "bot_name,omitempty" ];
+    // SuggestedLabels is a set of labels that resources should set when using this token to enroll
+    // themselves in the cluster
+    wrappers.LabelValues SuggestedLabels = 6 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "suggested_labels,omitempty",
+        (gogoproto.customtype) = "Labels"
+    ];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
@@ -2543,6 +2551,39 @@ message KubernetesClusterSpecV3 {
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "dynamic_labels,omitempty" ];
 }
 
+// KubernetesServerV3 represents a Kubernetes server.
+message KubernetesServerV3 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+    // Kind is the Kubernetes server resource kind. Always "kube_server".
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource subkind.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is the resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is the Kubernetes server metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is the Kubernetes server spec.
+    KubernetesServerSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// KubernetesServerSpecV3 is the Kubernetes server spec.
+message KubernetesServerSpecV3 {
+    // Version is the Teleport version that the server is running.
+    string Version = 1 [ (gogoproto.jsontag) = "version" ];
+    // Hostname is the Kubernetes server hostname.
+    string Hostname = 2 [ (gogoproto.jsontag) = "hostname" ];
+    // HostID is the Kubernetes server host uuid.
+    string HostID = 3 [ (gogoproto.jsontag) = "host_id" ];
+    // Rotation contains the Kubernetes server CA rotation information.
+    Rotation Rotation = 4
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "rotation,omitempty" ];
+    // Cluster is a Kubernetes Cluster proxied by this Kubernetes server.
+    KubernetesClusterV3 Cluster = 5 [ (gogoproto.jsontag) = "cluster" ];
+    // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
+    repeated string ProxyIDs = 6 [ (gogoproto.jsontag) = "proxy_ids,omitempty" ];
+}
+
 // WebTokenV3 describes a web token. Web tokens are used as a transport to relay bearer tokens
 // to the client.
 // Initially bound to a web session, these have been factored out into a separate resource to
@@ -2766,7 +2807,7 @@ message OIDCAuthRequest {
     // find a redirect url from the OIDC connector which matches
     // the address. If there is no match, the default redirect
     // url will be used.
-    string ProxyAddress = 16 [ (gogoproto.jsontag) = "proxy_address,omitempt" ];
+    string ProxyAddress = 16 [ (gogoproto.jsontag) = "proxy_address,omitempty" ];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
