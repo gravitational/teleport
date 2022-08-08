@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/desktop"
 )
 
 type access struct {
@@ -86,6 +87,8 @@ type userACL struct {
 	Clipboard bool `json:"clipboard"`
 	// DesktopSessionRecording defines whether the user's desktop sessions are being recorded.
 	DesktopSessionRecording bool `json:"desktopSessionRecording"`
+	// DirectorySharing defines whether a user is permitted to share a directory during windows desktop sessions.
+	DirectorySharing bool `json:"directorySharing"`
 }
 
 type authType string
@@ -203,6 +206,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	windowsLogins := getWindowsDesktopLogins(userRoles)
 	clipboard := userRoles.DesktopClipboard()
 	desktopSessionRecording := desktopRecordingEnabled && userRoles.RecordDesktopSession()
+	directorySharing := userRoles.DesktopDirectorySharing()
 
 	acl := userACL{
 		AccessRequests:          requestAccess,
@@ -223,6 +227,8 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		Billing:                 billingAccess,
 		Clipboard:               clipboard,
 		DesktopSessionRecording: desktopSessionRecording,
+		// AllowDirectorySharing() ensures this setting is modulated by build flag while in development
+		DirectorySharing: directorySharing && desktop.AllowDirectorySharing(),
 	}
 
 	// local user
