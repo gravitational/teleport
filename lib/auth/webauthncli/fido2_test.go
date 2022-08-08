@@ -946,6 +946,8 @@ func TestFIDO2Login_PromptTouch(t *testing.T) {
 }
 
 func TestFIDO2Login_u2fDevice(t *testing.T) {
+	resetFIDO2AfterTests(t)
+
 	dev := mustNewFIDO2Device("/u2f", "" /* pin */, nil /* info */)
 	dev.u2fOnly = true
 
@@ -1000,6 +1002,93 @@ func TestFIDO2Login_u2fDevice(t *testing.T) {
 	dev.setUP() // simulate touch
 	_, _, err = wancli.FIDO2Login(ctx, origin, assertion, dev /* prompt */, nil /* opts */)
 	assert.NoError(t, err, "FIDO2Login errored")
+}
+
+func TestFIDO2Login_bioErrorHandling(t *testing.T) {
+	resetFIDO2AfterTests(t)
+
+	// bio is a biometric authenticator with configured resident credentials.
+	bio := mustNewFIDO2Device("/bio", "supersecretBIOpin", &libfido2.DeviceInfo{
+		Options: bioOpts,
+	}, &libfido2.Credential{
+		User: libfido2.User{
+			ID:   []byte{1, 2, 3, 4, 5}, // unimportant
+			Name: "llama",
+		},
+	})
+
+	f2 := newFakeFIDO2(bio).withNonMeteredLocations()
+	f2.setCallbacks()
+
+	// Prepare a passwordless assertion.
+	// MFA would do as well; both are realistic here.
+	const origin = "https://example.com"
+	assertion := &wanlib.CredentialAssertion{
+		Response: protocol.PublicKeyCredentialRequestOptions{
+			Challenge:          []byte{1, 2, 3, 4, 5},
+			RelyingPartyID:     "example.com",
+			AllowedCredentials: nil,                           // passwordless
+			UserVerification:   protocol.VerificationRequired, // passwordless
+		},
+	}
+
+	tests := []struct {
+		name               string
+		setAssertionErrors func()
+		wantMsg            string
+	}{
+		{
+			name:               "success (sanity check)",
+			setAssertionErrors: func() { bio.assertionErrors = nil },
+		},
+		{
+			name: "libfido2 error 60 fails with custom message",
+			setAssertionErrors: func() {
+				bio.assertionErrors = []error{
+					libfido2.Error{Code: 60},
+				}
+			},
+			wantMsg: "user verification function",
+		},
+		{
+			name: "libfido2 error 63 retried",
+			setAssertionErrors: func() {
+				bio.assertionErrors = []error{
+					libfido2.Error{Code: 63},
+					libfido2.Error{Code: 63},
+				}
+			},
+		},
+		{
+			name: "error retry has a limit",
+			setAssertionErrors: func() {
+				bio.assertionErrors = []error{
+					libfido2.Error{Code: 63},
+					libfido2.Error{Code: 63},
+					libfido2.Error{Code: 63},
+					libfido2.Error{Code: 63},
+					libfido2.Error{Code: 63},
+				}
+			},
+			wantMsg: "libfido2 error 63",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.setAssertionErrors()
+
+			// Use a ctx with timeout just to be safe. We shouldn't hit the timeout.
+			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			defer cancel()
+
+			_, _, err := wancli.FIDO2Login(ctx, origin, assertion, bio /* prompt */, nil /* opts */)
+			if test.wantMsg == "" {
+				require.NoError(t, err, "FIDO2Login returned non-nil error")
+			} else {
+				require.ErrorContains(t, err, test.wantMsg, "FIDO2Login returned an unexpected error")
+			}
+		})
+	}
 }
 
 func TestFIDO2Login_errors(t *testing.T) {
@@ -1646,6 +1735,11 @@ type fakeFIDO2Device struct {
 	// Causes libfido2.ErrNotFIDO2 on Info.
 	u2fOnly bool
 
+	// assertionErrors is a chain of errors to return from Assertion.
+	// Errors are returned from start to end and removed from the slice.
+	// If the slice is empty, Assertion runs normally.
+	assertionErrors []error
+
 	path        string
 	info        *libfido2.DeviceInfo
 	pin         string
@@ -1816,6 +1910,13 @@ func (f *fakeFIDO2Device) Assertion(
 	pin string,
 	opts *libfido2.AssertionOpts,
 ) ([]*libfido2.Assertion, error) {
+	// Give preference to simulated errors.
+	if len(f.assertionErrors) > 0 {
+		err := f.assertionErrors[0]
+		f.assertionErrors = f.assertionErrors[1:]
+		return nil, err
+	}
+
 	switch {
 	case rpID == "":
 		return nil, errors.New("rp.ID required")
