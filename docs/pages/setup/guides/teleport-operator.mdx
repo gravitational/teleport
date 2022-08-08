@@ -10,9 +10,9 @@ description: Easily manage Teleport resources from Kubernetes
 The Teleport Kubernetes Operator provides a way for Kubernetes users to manage some Teleport resources through
 Kubernetes, following [the Operator Pattern](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/).
 
-The Teleport Kubernetes Operator is deployed alongside its CustomResourceDefinitions. Once deployed, users
+The Teleport Kubernetes Operator is deployed alongside its custom resource definitions. Once deployed, users
 can use a Kubernetes client like `kubectl` or their existing CI/CD Kubernetes pipelines to create Teleport
-CustomResources. The Teleport Kubernetes Operator watches for those resources and does API calls to Teleport to
+custom resources. The Teleport Kubernetes Operator watches for those resources and does API calls to Teleport to
 reach the desired state.
 
 Currently supported Teleport resources are:
@@ -67,7 +67,7 @@ $ helm install teleport-cluster teleport/teleport-cluster \
 ```
 
 This command installs the required Kubernetes CRDs and deploys the Teleport Kubernetes Operator next to the Teleport
-cluster. All resources (except the CRDs which are cluster-scoped) are created in the `teleport-cluster` namespace.
+cluster. All resources (except CRDs, which are cluster-scoped) are created in the `teleport-cluster` namespace.
 
 All subsequents commands will take place in the `teleport-cluster` namespace, so let's use it by default:
 ```code
@@ -76,7 +76,7 @@ $ kubectl config set-context --current --namespace teleport-cluster
 
 ## Step 2/3. Manage Teleport users and roles using `kubectl`
 
-Create a manifest `teleport-resources.yaml` that describes two CustomResources: a `TeleportUser` and a `TeleportRole`:
+Create a manifest called `teleport-resources.yaml` that describes two custom resources: a `TeleportUser` and a `TeleportRole`:
 
 ```yaml
 apiVersion: resources.teleport.dev/v5
@@ -161,7 +161,7 @@ FIELDS:
 
 ### Resource is not reconciled in Teleport
 
-The operator watches for new resources or changes in Kubernetes. When a change happens, it triggers the reconciliation
+The Teleport Operator watches for new resources or changes in Kubernetes. When a change happens, it triggers the reconciliation
 loop. This loop is in charge of validating the resource, checking if it already exists in Teleport and making calls to
 the Teleport API to create/update/delete the resource. The reconciliation loop also adds a `status` field on the
 Kubernetes resource.
