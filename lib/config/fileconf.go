@@ -87,6 +87,9 @@ type FileConfig struct {
 	// WindowsDesktop is the "windows_desktop_service" that defines the
 	// configuration for Windows Desktop Access.
 	WindowsDesktop WindowsDesktopService `yaml:"windows_desktop_service,omitempty"`
+
+	// Tracing is the "tracing_service" section in Teleport configuration file
+	Tracing TracingService `yaml:"tracing_service,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -1550,4 +1553,34 @@ type LDAPConfig struct {
 	//
 	// TODO(zmb3) DELETE IN 10.0
 	PasswordFile string `yaml:"password_file"`
+}
+
+// TracingService contains configuration for the tracing_service.
+type TracingService struct {
+	// Enabled turns the tracing service role on or off for this process
+	EnabledFlag string `yaml:"enabled,omitempty"`
+
+	// ExporterURL is the OTLP exporter URL to send spans to
+	ExporterURL string `yaml:"exporter_url"`
+
+	// KeyPairs is a list of x509 serving key pairs used for mTLS.
+	KeyPairs []KeyPair `yaml:"keypairs,omitempty"`
+
+	// CACerts are the exporter ca certs to use
+	CACerts []string `yaml:"ca_certs,omitempty"`
+
+	// SamplingRatePerMillion is the sampling rate for the exporter.
+	// 1_000_000 means all spans will be sampled and 0 means none are sampled.
+	SamplingRatePerMillion int `yaml:"sampling_rate_per_million"`
+}
+
+func (s *TracingService) Enabled() bool {
+	if s.EnabledFlag == "" {
+		return false
+	}
+	v, err := apiutils.ParseBool(s.EnabledFlag)
+	if err != nil {
+		return false
+	}
+	return v
 }
