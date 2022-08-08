@@ -189,10 +189,13 @@ type mfaAddCommand struct {
 	*kingpin.CmdClause
 	devName string
 	devType string
-	// pwdless is nil if unset, true/false if explicitly set.
-	// If passwordless is not supported it's always set to false.
-	// The default behavior is the same as false.
-	pwdless *bool
+
+	// allowPasswordless is initially true if --allow-passwordless is set, false
+	// if not explicitly requested.
+	// It can only be set by users if wancli.IsFIDO2Available() is true.
+	// Note that Touch ID registrations are always passwordless-capable,
+	// regardless of other settings.
+	allowPasswordless bool
 }
 
 func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
@@ -202,22 +205,9 @@ func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
 	c.Flag("name", "Name of the new MFA device").StringVar(&c.devName)
 	c.Flag("type", fmt.Sprintf("Type of the new MFA device (%s)", strings.Join(defaultDeviceTypes, ", "))).
 		EnumVar(&c.devType, defaultDeviceTypes...)
-
 	if wancli.IsFIDO2Available() {
-		var allowPwdless bool
-		c.Flag("allow-passwordless", "Allow passwordless logins").
-			Action(func(_ *kingpin.ParseContext) error {
-				// If the callback is called it means that the flag was explicitly set,
-				// so we can copy its contents to the command.
-				c.pwdless = &allowPwdless
-				return nil
-			}).
-			BoolVar(&allowPwdless)
-	} else {
-		allowPwdless := false
-		c.pwdless = &allowPwdless
+		c.Flag("allow-passwordless", "Allow passwordless logins").BoolVar(&c.allowPasswordless)
 	}
-
 	return c
 }
 
@@ -257,22 +247,23 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 		return trace.BadParameter("device name cannot be empty")
 	}
 
-	// If passwordless is supported but unset, then ask the user.
-	var pwdless bool
 	switch c.devType {
 	case webauthnDeviceType:
 		// Ask the user?
-		if c.pwdless == nil {
+		// c.allowPasswordless=false at this point only means that the flag wasn't
+		// explicitly set.
+		if !c.allowPasswordless && wancli.IsFIDO2Available() {
 			answer, err := prompt.PickOne(ctx, os.Stdout, prompt.Stdin(), "Allow passwordless logins", []string{"YES", "NO"})
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			pwdless = answer == "YES"
+			c.allowPasswordless = answer == "YES"
 		}
 	case touchIDDeviceType:
-		pwdless = true // Touch ID is always a resident key/passwordless
+		// Touch ID is always a resident key/passwordless
+		c.allowPasswordless = true
 	}
-	c.pwdless = &pwdless
+	log.Debugf("tsh using passwordless registration? %v", c.allowPasswordless)
 
 	dev, err := c.addDeviceRPC(ctx, tc)
 	if err != nil {
@@ -326,7 +317,7 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 		}
 		// Init.
 		usage := proto.DeviceUsage_DEVICE_USAGE_MFA
-		if c.pwdless != nil && *c.pwdless {
+		if c.allowPasswordless {
 			usage = proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS
 		}
 		if err := stream.Send(&proto.AddMFADeviceRequest{Request: &proto.AddMFADeviceRequest_Init{
