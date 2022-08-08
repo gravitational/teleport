@@ -1077,7 +1077,7 @@ pub unsafe extern "C" fn handle_tdp_sd_write_response(
     // In other words, all pointer data that needs to persist after this function returns MUST
     // be copied into Rust-owned memory.
 
-    let res = res;
+    let res: SharedDirectoryWriteResponse = res;
 
     let client = match Client::from_ptr(client_ptr) {
         Ok(client) => client,
