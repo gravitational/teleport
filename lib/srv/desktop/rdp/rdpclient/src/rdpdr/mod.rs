@@ -768,7 +768,6 @@ impl Client {
         self.tdp_sd_write(rdp_req)
     }
 
-    #[allow(clippy::wildcard_in_or_patterns)]
     fn process_irp_set_information(
         &mut self,
         device_io_request: DeviceIoRequest,
@@ -786,6 +785,21 @@ impl Client {
                     "FileInformationClass does not match FileInformationClassLevel",
                 )),
             },
+            FileInformationClassLevel::FileDispositionInformation => match rdp_req.set_buffer {
+                FileInformationClass::FileDispositionInformation(ref info) => {
+                    if let Some(file) = self.file_cache.get_mut(rdp_req.device_io_request.file_id) {
+                        file.delete_pending = info.delete_pending == 1;
+                        return self.prep_set_info_response(&rdp_req, NTSTATUS::STATUS_SUCCESS);
+                    }
+
+                    // File not found in cache
+                    self.prep_set_info_response(&rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL)
+                }
+                _ => Err(invalid_data_error(
+                    "FileInformationClass does not match FileInformationClassLevel",
+                )),
+
+            },
             FileInformationClassLevel::FileBasicInformation
             | FileInformationClassLevel::FileEndOfFileInformation
             | FileInformationClassLevel::FileAllocationInformation => {
@@ -795,9 +809,7 @@ impl Client {
                 self.prep_set_info_response(&rdp_req, NTSTATUS::STATUS_SUCCESS)
             }
 
-            // TODO(isaiah) or TODO(lkozlowski): implement FileDispositionInformation as is the case in FreeRDP.
-            // Remove the #[allow(clippy::wildcard_in_or_patterns)] macro above this function once completed.
-            FileInformationClassLevel::FileDispositionInformation | _ => {
+            _ => {
                 Err(not_implemented_error(&format!(
                     "support for ServerDriveSetInformationRequest with fs_info_class_lvl = {:?} is not implemented",
                     rdp_req.file_information_class_level
