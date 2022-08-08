@@ -66,7 +66,7 @@ func (cmd *ResourceCommandE) createConnector(ctx context.Context, client auth.Cl
 			return trace.Wrap(err)
 		}
 		exists = (err == nil)
-		if cmd.base.IsForced() == false && exists {
+		if !cmd.base.IsForced() && exists {
 			return trace.AlreadyExists("connector '%s' already exists, use -f flag to override", connectorName)
 		}
 
@@ -100,7 +100,7 @@ func (cmd *ResourceCommandE) createConnector(ctx context.Context, client auth.Cl
 			return trace.Wrap(err)
 		}
 		exists = (err == nil)
-		if cmd.base.IsForced() == false && exists {
+		if !cmd.base.IsForced() && exists {
 			return trace.AlreadyExists("connector '%s' already exists, use -f flag to override", connectorName)
 		}
 		if err = client.UpsertOIDCConnector(ctx, conn); err != nil {
