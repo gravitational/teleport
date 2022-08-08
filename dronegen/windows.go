@@ -25,7 +25,7 @@ const (
 	// Hardcoded tool versions that we would normally pull from the makefile,
 	// but unfortunately our Makefiles use too many POSIX-isms for us to use on
 	// Windows, so for now we will just say the versions we want here.
-	windowsGoVersion   = "1.18.3"
+
 	windowsNodeVersion = "16.13.2"
 )
 
@@ -108,7 +108,6 @@ func windowsPushPipeline() pipeline {
 		cloneWindowsRepositoriesStep(p.Workspace.Path),
 		updateWindowsSubreposStep(p.Workspace.Path),
 		installWindowsNodeToolchainStep(p.Workspace.Path),
-		//		installWindowsGoToolchainStep(p.Workspace.Path),
 		{
 			Name: "Create Phoney tsh",
 			Environment: map[string]value{
