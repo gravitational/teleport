@@ -483,8 +483,10 @@ auth_service:
     # See "TLS Routing" in Architecture section for additional information.
     proxy_listener_mode: multiplex
 
-    # Sends the host CAs of all clusters to SSH clients logging in when enabled,
-    # instead of just the host CA for the current cluster. Defaults to false.
+    # Sends the host CAs of all clusters to tsh clients logging in when enabled,
+    # instead of just the host CA for the current cluster. This may be useful for
+    # users that want to log in to a root cluster and then "tsh ssh" into a node
+    # in a leaf cluster. Defaults to false.
     send_all_host_cas: false
 
 # This section configures the 'node service':

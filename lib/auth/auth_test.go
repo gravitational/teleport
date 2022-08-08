@@ -67,17 +67,36 @@ import (
 )
 
 type testPack struct {
-	bk          backend.Backend
-	clusterName types.ClusterName
-	a           *Server
-	mockEmitter *eventstest.MockEmitter
+	bk              backend.Backend
+	clusterName     types.ClusterName
+	leafClusterName types.ClusterName
+	a               *Server
+	mockEmitter     *eventstest.MockEmitter
 }
 
-func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
+type testPackOption func(*testPack) error
+
+func withLeafClusterCAs(name string) testPackOption {
+	return func(p *testPack) error {
+		clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+			ClusterName: name,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		p.leafClusterName = clusterName
+		return nil
+	}
+}
+
+func newTestPack(ctx context.Context, dataDir string, opts ...testPackOption) (testPack, error) {
 	var (
 		p   testPack
 		err error
 	)
+	for _, opt := range opts {
+		opt(&p)
+	}
 	p.bk, err = lite.NewWithConfig(ctx, lite.Config{Path: dataDir})
 	if err != nil {
 		return p, trace.Wrap(err)
@@ -156,6 +175,15 @@ func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
 		return p, trace.Wrap(err)
 	}
 
+	if p.leafClusterName != nil {
+		if err := p.a.UpsertCertAuthority(suite.NewTestCA(types.UserCA, p.leafClusterName.GetClusterName())); err != nil {
+			return p, trace.Wrap(err)
+		}
+		if err := p.a.UpsertCertAuthority(suite.NewTestCA(types.HostCA, p.leafClusterName.GetClusterName())); err != nil {
+			return p, trace.Wrap(err)
+		}
+	}
+
 	if err := p.a.UpsertNamespace(types.DefaultNamespace()); err != nil {
 		return p, trace.Wrap(err)
 	}
@@ -165,8 +193,8 @@ func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
 	return p, nil
 }
 
-func newAuthSuite(t *testing.T) *testPack {
-	s, err := newTestPack(context.Background(), t.TempDir())
+func newAuthSuite(t *testing.T, opts ...testPackOption) *testPack {
+	s, err := newTestPack(context.Background(), t.TempDir(), opts...)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		if s.bk != nil {
@@ -230,7 +258,7 @@ func TestSessions(t *testing.T) {
 
 func TestAuthenticateSSHUser(t *testing.T) {
 	t.Parallel()
-	s := newAuthSuite(t)
+	s := newAuthSuite(t, withLeafClusterCAs("leaf.localhost"))
 
 	ctx := context.Background()
 
@@ -336,6 +364,23 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
 	require.Equal(t, *gotID, wantID)
+
+	// Login to the root cluster, but include certs from leaf.
+	s.a.sendAllHostCAs = true
+	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+		AuthenticateUserRequest: AuthenticateUserRequest{
+			Username: user,
+			Pass:     &PassCreds{Password: pass},
+		},
+		PublicKey:      pub,
+		TTL:            time.Hour,
+		RouteToCluster: s.clusterName.GetClusterName(),
+	})
+	require.NoError(t, err)
+	require.Equal(t, resp.Username, user)
+	// Auth server should send leaf cluster's host CA in addition to the root cluster's.
+	require.Len(t, resp.HostSigners, 2)
+	s.a.sendAllHostCAs = false
 
 	// Register a kubernetes cluster to verify the defaulting logic in TLS cert
 	// generation.
