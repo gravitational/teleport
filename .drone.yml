@@ -1014,7 +1014,7 @@ name: teleport-docker-cron-ecr
 
 trigger:
   cron:
-    - teleport-docker-cron-ecr-test
+    - teleport-docker-cron-ecr
   repo:
     include:
       - gravitational/teleport
@@ -6369,6 +6369,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 5ad7d409cfda7e2ac8f877da88f7022e1ba1c7062368948cfbf9ccfaa348f183
+hmac: 3be4cf26b1ce2d8c2b72d45c64ccf8b74a96f2a566c3936929e9acc9f7487260
 
 ...
