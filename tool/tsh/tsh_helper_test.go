@@ -178,6 +178,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 		options.leafConfigFunc(cfg)
 	}
 	s.leaf = runTeleport(t, cfg)
+	t.Cleanup(func() { require.NoError(t, s.leaf.Close()) })
 
 	_, err = s.leaf.GetAuthServer().UpsertTrustedCluster(s.leaf.ExitContext(), tc)
 	require.NoError(t, err)
