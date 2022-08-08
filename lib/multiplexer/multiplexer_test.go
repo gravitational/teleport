@@ -792,3 +792,38 @@ func (noopListener) Close() error {
 func (l noopListener) Addr() net.Addr {
 	return l.addr
 }
+
+func TestDetectHTTP(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		url  string
+	}{
+		{
+			name: "home URL",
+			url:  "/home/page",
+		},
+		{
+			name: "short URL",
+			url:  "/",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			local, remote := net.Pipe()
+			defer local.Close()
+			go func() {
+				defer remote.Close()
+				req, err := http.NewRequest("GET", tc.url, nil)
+				require.NoError(t, err)
+				err = req.Write(local)
+				require.NoError(t, err)
+			}()
+
+			conn, err := detect(remote, false)
+			require.NoError(t, err)
+			require.Equal(t, ProtoHTTP, conn.protocol)
+		})
+	}
+}

@@ -379,7 +379,7 @@ func isHTTP(in []byte) bool {
 		[]byte("PATCH"),
 	}
 	for _, verb := range methods {
-		if bytes.HasPrefix(verb, in) {
+		if bytes.HasPrefix(in, verb) {
 			return true
 		}
 	}
