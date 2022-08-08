@@ -44,7 +44,6 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -810,7 +809,7 @@ func (a *AuthCommand) checkProxyAddr(clusterAPI auth.ClientI) error {
 		}
 		uaddr, err := utils.ParseAddr(addr)
 		if err != nil {
-			logrus.Warningf("Invalid public address on the proxy %q: %q: %v.", p.GetName(), addr, err)
+			log.Warningf("Invalid public address on the proxy %q: %q: %v.", p.GetName(), addr, err)
 			continue
 		}
 		u := url.URL{

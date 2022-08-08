@@ -1750,7 +1750,7 @@ func (s *Server) handleAgentForwardNode(req *ssh.Request, ctx *srv.ServerContext
 func (s *Server) handleAgentForwardProxy(req *ssh.Request, ctx *srv.ServerContext) error {
 	// Forwarding an agent to the proxy is only supported when the proxy is in
 	// recording mode.
-	if services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) == false {
+	if !services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
 		return trace.BadParameter("agent forwarding to proxy only supported in recording mode")
 	}
 

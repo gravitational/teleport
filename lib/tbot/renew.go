@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	libUtils "github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
@@ -677,7 +676,7 @@ func (b *Bot) renewLoop(ctx context.Context) error {
 	}
 
 	ticker := time.NewTicker(b.cfg.RenewalInterval)
-	jitter := libUtils.NewJitter()
+	jitter := utils.NewJitter()
 	defer ticker.Stop()
 	for {
 		var err error
