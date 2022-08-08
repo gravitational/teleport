@@ -1018,10 +1018,10 @@ image-ci: clean docker-binaries
 # https://docs.docker.com/engine/reference/commandline/cli/#experimental-features
 .PHONY: publish-ci
 publish-ci: image-ci
-	@if DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect "$(DOCKER_IMAGE_STAGING):$(VERSION)" 2>&1 >/dev/null; then\
+	@if DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect "$(DOCKER_IMAGE_STAGING):$(VERSION)" >/dev/null 2>&1; then\
 		echo "$(DOCKER_IMAGE_STAGING):$(VERSION) already exists. ";     \
 	else                                                                \
-		docker push "$(DOCKER_IMAGE_STAGING):$(VERSION)"";                 \
+		docker push "$(DOCKER_IMAGE_STAGING):$(VERSION)";                 \
 	fi
 	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ci; fi
 
