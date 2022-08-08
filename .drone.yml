@@ -1241,7 +1241,7 @@ steps:
       - export CURRENT_DATE=$(date '+%Y%m%d%H%M')
       - export TELEPORT_TAG=$(cat /go/build/CURRENT_VERSION_TAG.txt | tr -d '^v')
       - export TELEPORT_LAB_IMAGE_NAME_STAGING="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
-      - export TELEPORT_LAB_IMAGE_NAME_PROD="public.aws.ecr/gravitational/teleport-lab:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
+      - export TELEPORT_LAB_IMAGE_NAME_PROD="public.ecr.aws/gravitational/teleport-lab:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
        # Check out code
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
