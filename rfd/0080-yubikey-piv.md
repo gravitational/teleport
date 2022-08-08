@@ -430,6 +430,16 @@ Management Key not found, try configuring it with `tsh piv configure --set-mgm-k
 
 ### Additional considerations
 
+#### Kubernetes and MongoDB support
+
+Both Kubernetes and MongoDB login in `tsh` depend on raw RSA Private key data:
+ - https://github.com/gravitational/teleport/blob/master/lib/kube/kubeconfig/kubeconfig.go#L164-L167
+ - https://github.com/gravitational/teleport/blob/fc05eaf305f32b943a0e18b3a84c9f61a544b1ae/lib/client/client.go#L351-L353
+
+Since we can't get the raw RSA private key data from a PIV card, we don't have an easy way to make these integrations work.
+
+For Kubernetes, it may be possible to create a custom auth provider plugin and supply it to the kubernetes Auth Info - https://pkg.go.dev/k8s.io/client-go@v0.24.3/tools/clientcmd/api#AuthProviderConfig.
+
 #### PIV agent key support
 
 Initially, PIV login will not support `tsh --add-keys-to-agent`, `tsh -A`, or Proxy Recording mode, because [Adding agent keys from a smartcard](https://tools.ietf.org/id/draft-miller-ssh-agent-01.html#rfc.section.4.2.5) to a user's `ssh-agent` is [not supported in x/crypto/ssh/agent](https://github.com/golang/go/issues/16304). We can implement this support ourselves in the future.
