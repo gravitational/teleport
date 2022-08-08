@@ -23,6 +23,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -38,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
@@ -255,36 +256,15 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	t.Cleanup(lockWatcher.Close)
 
 	nodeDir := t.TempDir()
-	srv, err := regular.New(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
-		s.server.ClusterName(),
-		[]ssh.Signer{s.signer},
-		s.nodeClient,
-		nodeDir,
-		"",
-		utils.NetAddr{},
-		s.nodeClient,
-		regular.SetUUID(s.nodeID),
-		regular.SetNamespace(apidefaults.Namespace),
-		regular.SetEmitter(s.nodeClient),
-		regular.SetShell("/bin/sh"),
-		regular.SetSessionServer(s.nodeClient),
-		regular.SetPAMConfig(&pam.Config{Enabled: false}),
-		regular.SetLabels(
-			map[string]string{"foo": "bar"},
-			services.CommandLabels{
-				"baz": &types.CommandLabelV2{
-					Period:  types.NewDuration(time.Millisecond),
-					Command: []string{"expr", "1", "+", "3"},
-				},
-			}, nil,
-		),
-		regular.SetBPF(&bpf.NOP{}),
-		regular.SetRestrictedSessionManager(&restricted.NOP{}),
-		regular.SetClock(s.clock),
-		regular.SetUtmpPath(utmpPath, utmpPath),
-		regular.SetLockWatcher(lockWatcher),
-	)
+	srv, err := regular.New(context.Background(), utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}, s.server.ClusterName(), []ssh.Signer{s.signer}, s.nodeClient, nodeDir, "", utils.NetAddr{}, s.nodeClient, regular.SetUUID(s.nodeID), regular.SetNamespace(apidefaults.Namespace), regular.SetEmitter(s.nodeClient), regular.SetShell("/bin/sh"), regular.SetSessionServer(s.nodeClient), regular.SetPAMConfig(&pam.Config{Enabled: false}), regular.SetLabels(
+		map[string]string{"foo": "bar"},
+		services.CommandLabels{
+			"baz": &types.CommandLabelV2{
+				Period:  types.NewDuration(time.Millisecond),
+				Command: []string{"expr", "1", "+", "3"},
+			},
+		}, nil,
+	), regular.SetBPF(&bpf.NOP{}), regular.SetRestrictedSessionManager(&restricted.NOP{}), regular.SetClock(s.clock), regular.SetUtmpPath(utmpPath, utmpPath), regular.SetLockWatcher(lockWatcher))
 	require.NoError(t, err)
 	s.srv = srv
 	require.NoError(t, auth.CreateUploaderDir(nodeDir))

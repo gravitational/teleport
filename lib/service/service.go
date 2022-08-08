@@ -2259,7 +2259,9 @@ func (process *TeleportProcess) initSSH() error {
 
 		storagePresence := local.NewPresenceService(process.storage.BackendStorage)
 
-		s, err := regular.New(cfg.SSH.Addr,
+		s, err := regular.New(
+			context.Background(),
+			cfg.SSH.Addr,
 			cfg.Hostname,
 			[]ssh.Signer{conn.ServerIdentity.KeySigner},
 			authClient,
@@ -3481,28 +3483,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		})
 	}
 
-	sshProxy, err := regular.New(cfg.Proxy.SSHAddr,
-		cfg.Hostname,
-		[]ssh.Signer{conn.ServerIdentity.KeySigner},
-		accessPoint,
-		cfg.DataDir,
-		"",
-		process.proxyPublicAddr(),
-		conn.Client,
-		regular.SetLimiter(proxyLimiter),
-		regular.SetProxyMode(peerAddr, tsrv, accessPoint),
-		regular.SetSessionServer(conn.Client),
-		regular.SetCiphers(cfg.Ciphers),
-		regular.SetKEXAlgorithms(cfg.KEXAlgorithms),
-		regular.SetMACAlgorithms(cfg.MACAlgorithms),
-		regular.SetNamespace(apidefaults.Namespace),
-		regular.SetRotationGetter(process.getRotation),
-		regular.SetFIPS(cfg.FIPS),
-		regular.SetOnHeartbeat(process.onHeartbeat(teleport.ComponentProxy)),
-		regular.SetEmitter(streamEmitter),
-		regular.SetLockWatcher(lockWatcher),
-		regular.SetNodeWatcher(nodeWatcher),
-	)
+	sshProxy, err := regular.New(context.Background(), cfg.Proxy.SSHAddr, cfg.Hostname, []ssh.Signer{conn.ServerIdentity.KeySigner}, accessPoint, cfg.DataDir, "", process.proxyPublicAddr(), conn.Client, regular.SetLimiter(proxyLimiter), regular.SetProxyMode(peerAddr, tsrv, accessPoint), regular.SetSessionServer(conn.Client), regular.SetCiphers(cfg.Ciphers), regular.SetKEXAlgorithms(cfg.KEXAlgorithms), regular.SetMACAlgorithms(cfg.MACAlgorithms), regular.SetNamespace(apidefaults.Namespace), regular.SetRotationGetter(process.getRotation), regular.SetFIPS(cfg.FIPS), regular.SetOnHeartbeat(process.onHeartbeat(teleport.ComponentProxy)), regular.SetEmitter(streamEmitter), regular.SetLockWatcher(lockWatcher), regular.SetNodeWatcher(nodeWatcher))
 	if err != nil {
 		return trace.Wrap(err)
 	}

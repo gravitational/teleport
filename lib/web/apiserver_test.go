@@ -223,26 +223,7 @@ func newWebSuite(t *testing.T) *WebSuite {
 
 	// create SSH service:
 	nodeDataDir := t.TempDir()
-	node, err := regular.New(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
-		s.server.ClusterName(),
-		[]ssh.Signer{signer},
-		nodeClient,
-		nodeDataDir,
-		"",
-		utils.NetAddr{},
-		nodeClient,
-		regular.SetUUID(nodeID),
-		regular.SetNamespace(apidefaults.Namespace),
-		regular.SetShell("/bin/sh"),
-		regular.SetSessionServer(nodeClient),
-		regular.SetEmitter(nodeClient),
-		regular.SetPAMConfig(&pam.Config{Enabled: false}),
-		regular.SetBPF(&bpf.NOP{}),
-		regular.SetRestrictedSessionManager(&restricted.NOP{}),
-		regular.SetClock(s.clock),
-		regular.SetLockWatcher(nodeLockWatcher),
-	)
+	node, err := regular.New(context.Background(), utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}, s.server.ClusterName(), []ssh.Signer{signer}, nodeClient, nodeDataDir, "", utils.NetAddr{}, nodeClient, regular.SetUUID(nodeID), regular.SetNamespace(apidefaults.Namespace), regular.SetShell("/bin/sh"), regular.SetSessionServer(nodeClient), regular.SetEmitter(nodeClient), regular.SetPAMConfig(&pam.Config{Enabled: false}), regular.SetBPF(&bpf.NOP{}), regular.SetRestrictedSessionManager(&restricted.NOP{}), regular.SetClock(s.clock), regular.SetLockWatcher(nodeLockWatcher))
 	require.NoError(t, err)
 	s.node = node
 	s.srvID = node.ID()
@@ -309,26 +290,7 @@ func newWebSuite(t *testing.T) *WebSuite {
 	s.proxyTunnel = revTunServer
 
 	// proxy server:
-	s.proxy, err = regular.New(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
-		s.server.ClusterName(),
-		[]ssh.Signer{signer},
-		s.proxyClient,
-		t.TempDir(),
-		"",
-		utils.NetAddr{},
-		s.proxyClient,
-		regular.SetUUID(proxyID),
-		regular.SetProxyMode("", revTunServer, s.proxyClient),
-		regular.SetSessionServer(s.proxyClient),
-		regular.SetEmitter(s.proxyClient),
-		regular.SetNamespace(apidefaults.Namespace),
-		regular.SetBPF(&bpf.NOP{}),
-		regular.SetRestrictedSessionManager(&restricted.NOP{}),
-		regular.SetClock(s.clock),
-		regular.SetLockWatcher(proxyLockWatcher),
-		regular.SetNodeWatcher(proxyNodeWatcher),
-	)
+	s.proxy, err = regular.New(context.Background(), utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}, s.server.ClusterName(), []ssh.Signer{signer}, s.proxyClient, t.TempDir(), "", utils.NetAddr{}, s.proxyClient, regular.SetUUID(proxyID), regular.SetProxyMode("", revTunServer, s.proxyClient), regular.SetSessionServer(s.proxyClient), regular.SetEmitter(s.proxyClient), regular.SetNamespace(apidefaults.Namespace), regular.SetBPF(&bpf.NOP{}), regular.SetRestrictedSessionManager(&restricted.NOP{}), regular.SetClock(s.clock), regular.SetLockWatcher(proxyLockWatcher), regular.SetNodeWatcher(proxyNodeWatcher))
 	require.NoError(t, err)
 
 	// Expired sessions are purged immediately
@@ -3970,26 +3932,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 
 	// create SSH service:
 	nodeDataDir := t.TempDir()
-	node, err := regular.New(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
-		server.TLS.ClusterName(),
-		hostSigners,
-		nodeClient,
-		nodeDataDir,
-		"",
-		utils.NetAddr{},
-		nodeClient,
-		regular.SetUUID(nodeID),
-		regular.SetNamespace(apidefaults.Namespace),
-		regular.SetShell("/bin/sh"),
-		regular.SetSessionServer(nodeClient),
-		regular.SetEmitter(nodeClient),
-		regular.SetPAMConfig(&pam.Config{Enabled: false}),
-		regular.SetBPF(&bpf.NOP{}),
-		regular.SetRestrictedSessionManager(&restricted.NOP{}),
-		regular.SetClock(clock),
-		regular.SetLockWatcher(nodeLockWatcher),
-	)
+	node, err := regular.New(context.Background(), utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}, server.TLS.ClusterName(), hostSigners, nodeClient, nodeDataDir, "", utils.NetAddr{}, nodeClient, regular.SetUUID(nodeID), regular.SetNamespace(apidefaults.Namespace), regular.SetShell("/bin/sh"), regular.SetSessionServer(nodeClient), regular.SetEmitter(nodeClient), regular.SetPAMConfig(&pam.Config{Enabled: false}), regular.SetBPF(&bpf.NOP{}), regular.SetRestrictedSessionManager(&restricted.NOP{}), regular.SetClock(clock), regular.SetLockWatcher(nodeLockWatcher))
 	require.NoError(t, err)
 
 	require.NoError(t, node.Start())
@@ -4087,26 +4030,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, revTunServer.Close()) })
 
-	proxyServer, err := regular.New(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
-		authServer.ClusterName(),
-		hostSigners,
-		client,
-		t.TempDir(),
-		"",
-		utils.NetAddr{},
-		client,
-		regular.SetUUID(proxyID),
-		regular.SetProxyMode("", revTunServer, client),
-		regular.SetSessionServer(client),
-		regular.SetEmitter(client),
-		regular.SetNamespace(apidefaults.Namespace),
-		regular.SetBPF(&bpf.NOP{}),
-		regular.SetRestrictedSessionManager(&restricted.NOP{}),
-		regular.SetClock(clock),
-		regular.SetLockWatcher(proxyLockWatcher),
-		regular.SetNodeWatcher(proxyNodeWatcher),
-	)
+	proxyServer, err := regular.New(context.Background(), utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}, authServer.ClusterName(), hostSigners, client, t.TempDir(), "", utils.NetAddr{}, client, regular.SetUUID(proxyID), regular.SetProxyMode("", revTunServer, client), regular.SetSessionServer(client), regular.SetEmitter(client), regular.SetNamespace(apidefaults.Namespace), regular.SetBPF(&bpf.NOP{}), regular.SetRestrictedSessionManager(&restricted.NOP{}), regular.SetClock(clock), regular.SetLockWatcher(proxyLockWatcher), regular.SetNodeWatcher(proxyNodeWatcher))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxyServer.Close()) })
 

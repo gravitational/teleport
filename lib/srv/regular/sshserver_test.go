@@ -205,16 +205,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 
 	serverOptions = append(serverOptions, sshOpts...)
 
-	sshSrv, err := New(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
-		testServer.ClusterName(),
-		[]ssh.Signer{signer},
-		nodeClient,
-		nodeDir,
-		"",
-		utils.NetAddr{},
-		nodeClient,
-		serverOptions...)
+	sshSrv, err := New(context.Background(), utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}, testServer.ClusterName(), []ssh.Signer{signer}, nodeClient, nodeDir, "", utils.NetAddr{}, nodeClient, serverOptions...)
 	require.NoError(t, err)
 	require.NoError(t, auth.CreateUploaderDir(nodeDir))
 	require.NoError(t, sshSrv.Start())
@@ -1183,26 +1174,7 @@ func TestProxyRoundRobin(t *testing.T) {
 	require.NoError(t, reverseTunnelServer.Start())
 	defer reverseTunnelServer.Close()
 
-	proxy, err := New(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
-		f.testSrv.ClusterName(),
-		[]ssh.Signer{f.signer},
-		proxyClient,
-		t.TempDir(),
-		"",
-		utils.NetAddr{},
-		proxyClient,
-		SetProxyMode("", reverseTunnelServer, proxyClient),
-		SetSessionServer(proxyClient),
-		SetEmitter(nodeClient),
-		SetNamespace(apidefaults.Namespace),
-		SetPAMConfig(&pam.Config{Enabled: false}),
-		SetBPF(&bpf.NOP{}),
-		SetRestrictedSessionManager(&restricted.NOP{}),
-		SetClock(f.clock),
-		SetLockWatcher(lockWatcher),
-		SetNodeWatcher(nodeWatcher),
-	)
+	proxy, err := New(context.Background(), utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}, f.testSrv.ClusterName(), []ssh.Signer{f.signer}, proxyClient, t.TempDir(), "", utils.NetAddr{}, proxyClient, SetProxyMode("", reverseTunnelServer, proxyClient), SetSessionServer(proxyClient), SetEmitter(nodeClient), SetNamespace(apidefaults.Namespace), SetPAMConfig(&pam.Config{Enabled: false}), SetBPF(&bpf.NOP{}), SetRestrictedSessionManager(&restricted.NOP{}), SetClock(f.clock), SetLockWatcher(lockWatcher), SetNodeWatcher(nodeWatcher))
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
 	defer proxy.Close()
@@ -1304,26 +1276,7 @@ func TestProxyDirectAccess(t *testing.T) {
 
 	nodeClient, _ := newNodeClient(t, f.testSrv)
 
-	proxy, err := New(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
-		f.testSrv.ClusterName(),
-		[]ssh.Signer{f.signer},
-		proxyClient,
-		t.TempDir(),
-		"",
-		utils.NetAddr{},
-		proxyClient,
-		SetProxyMode("", reverseTunnelServer, proxyClient),
-		SetSessionServer(proxyClient),
-		SetEmitter(nodeClient),
-		SetNamespace(apidefaults.Namespace),
-		SetPAMConfig(&pam.Config{Enabled: false}),
-		SetBPF(&bpf.NOP{}),
-		SetRestrictedSessionManager(&restricted.NOP{}),
-		SetClock(f.clock),
-		SetLockWatcher(lockWatcher),
-		SetNodeWatcher(nodeWatcher),
-	)
+	proxy, err := New(context.Background(), utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}, f.testSrv.ClusterName(), []ssh.Signer{f.signer}, proxyClient, t.TempDir(), "", utils.NetAddr{}, proxyClient, SetProxyMode("", reverseTunnelServer, proxyClient), SetSessionServer(proxyClient), SetEmitter(nodeClient), SetNamespace(apidefaults.Namespace), SetPAMConfig(&pam.Config{Enabled: false}), SetBPF(&bpf.NOP{}), SetRestrictedSessionManager(&restricted.NOP{}), SetClock(f.clock), SetLockWatcher(lockWatcher), SetNodeWatcher(nodeWatcher))
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
 	defer proxy.Close()
@@ -1474,26 +1427,7 @@ func TestLimiter(t *testing.T) {
 
 	nodeClient, _ := newNodeClient(t, f.testSrv)
 	nodeStateDir := t.TempDir()
-	srv, err := New(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
-		f.testSrv.ClusterName(),
-		[]ssh.Signer{f.signer},
-		nodeClient,
-		nodeStateDir,
-		"",
-		utils.NetAddr{},
-		nodeClient,
-		SetLimiter(limiter),
-		SetShell("/bin/sh"),
-		SetSessionServer(nodeClient),
-		SetEmitter(nodeClient),
-		SetNamespace(apidefaults.Namespace),
-		SetPAMConfig(&pam.Config{Enabled: false}),
-		SetBPF(&bpf.NOP{}),
-		SetRestrictedSessionManager(&restricted.NOP{}),
-		SetClock(f.clock),
-		SetLockWatcher(newLockWatcher(ctx, t, nodeClient)),
-	)
+	srv, err := New(context.Background(), utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}, f.testSrv.ClusterName(), []ssh.Signer{f.signer}, nodeClient, nodeStateDir, "", utils.NetAddr{}, nodeClient, SetLimiter(limiter), SetShell("/bin/sh"), SetSessionServer(nodeClient), SetEmitter(nodeClient), SetNamespace(apidefaults.Namespace), SetPAMConfig(&pam.Config{Enabled: false}), SetBPF(&bpf.NOP{}), SetRestrictedSessionManager(&restricted.NOP{}), SetClock(f.clock), SetLockWatcher(newLockWatcher(ctx, t, nodeClient)))
 	require.NoError(t, err)
 	require.NoError(t, srv.Start())
 
@@ -1963,26 +1897,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 
 	nodeClient, _ := newNodeClient(t, f.testSrv)
 
-	proxy, err := New(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
-		f.testSrv.ClusterName(),
-		[]ssh.Signer{f.signer},
-		proxyClient,
-		t.TempDir(),
-		"",
-		utils.NetAddr{},
-		proxyClient,
-		SetProxyMode("", reverseTunnelServer, proxyClient),
-		SetSessionServer(proxyClient),
-		SetEmitter(nodeClient),
-		SetNamespace(apidefaults.Namespace),
-		SetPAMConfig(&pam.Config{Enabled: false}),
-		SetBPF(&bpf.NOP{}),
-		SetRestrictedSessionManager(&restricted.NOP{}),
-		SetClock(f.clock),
-		SetLockWatcher(lockWatcher),
-		SetNodeWatcher(nodeWatcher),
-	)
+	proxy, err := New(context.Background(), utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}, f.testSrv.ClusterName(), []ssh.Signer{f.signer}, proxyClient, t.TempDir(), "", utils.NetAddr{}, proxyClient, SetProxyMode("", reverseTunnelServer, proxyClient), SetSessionServer(proxyClient), SetEmitter(nodeClient), SetNamespace(apidefaults.Namespace), SetPAMConfig(&pam.Config{Enabled: false}), SetBPF(&bpf.NOP{}), SetRestrictedSessionManager(&restricted.NOP{}), SetClock(f.clock), SetLockWatcher(lockWatcher), SetNodeWatcher(nodeWatcher))
 	require.NoError(t, err)
 	require.NoError(t, proxy.Start())
 	defer proxy.Close()

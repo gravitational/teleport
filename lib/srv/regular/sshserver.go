@@ -682,16 +682,7 @@ func SetTracerProvider(provider oteltrace.TracerProvider) ServerOption {
 }
 
 // New returns an unstarted server
-func New(addr utils.NetAddr,
-	hostname string,
-	signers []ssh.Signer,
-	authService srv.AccessPoint,
-	dataDir string,
-	advertiseAddr string,
-	proxyPublicAddr utils.NetAddr,
-	auth auth.ClientI,
-	options ...ServerOption,
-) (*Server, error) {
+func New(ctx context.Context, addr utils.NetAddr, hostname string, signers []ssh.Signer, authService srv.AccessPoint, dataDir string, advertiseAddr string, proxyPublicAddr utils.NetAddr, auth auth.ClientI, options ...ServerOption) (*Server, error) {
 	err := utils.RegisterPrometheusCollectors(userSessionLimitHitCount)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -703,7 +694,7 @@ func New(addr utils.NetAddr,
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, cancel := context.WithCancel(context.TODO())
+	ctx, cancel := context.WithCancel(ctx)
 	s := &Server{
 		addr:               addr,
 		authService:        authService,
