@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"time"
 
@@ -998,7 +999,7 @@ func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (
 	if err := a.action(namespace, types.KindNode, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	node, err := a.authServer.GetCache().GetNode(ctx, namespace, name)
+	node, err := a.authServer.GetNode(ctx, namespace, name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2027,7 +2028,7 @@ func (a *ServerWithRoles) GetUser(name string, withSecrets bool) (types.User, er
 			}
 		}
 	}
-	return a.authServer.Identity.GetUser(name, withSecrets)
+	return a.authServer.GetUser(name, withSecrets)
 }
 
 // GetCurrentUser returns current user as seen by the server.
@@ -2623,7 +2624,7 @@ func (a *ServerWithRoles) GetOIDCConnector(ctx context.Context, id string, withS
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.Identity.GetOIDCConnector(ctx, id, withSecrets)
+	return a.authServer.GetOIDCConnector(ctx, id, withSecrets)
 }
 
 func (a *ServerWithRoles) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error) {
@@ -2638,7 +2639,7 @@ func (a *ServerWithRoles) GetOIDCConnectors(ctx context.Context, withSecrets boo
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.Identity.GetOIDCConnectors(ctx, withSecrets)
+	return a.authServer.GetOIDCConnectors(ctx, withSecrets)
 }
 
 func (a *ServerWithRoles) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
@@ -2706,7 +2707,7 @@ func (a *ServerWithRoles) GetSAMLConnector(ctx context.Context, id string, withS
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.Identity.GetSAMLConnector(ctx, id, withSecrets)
+	return a.authServer.GetSAMLConnector(ctx, id, withSecrets)
 }
 
 func (a *ServerWithRoles) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error) {
@@ -2721,7 +2722,7 @@ func (a *ServerWithRoles) GetSAMLConnectors(ctx context.Context, withSecrets boo
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.Identity.GetSAMLConnectors(ctx, withSecrets)
+	return a.authServer.GetSAMLConnectors(ctx, withSecrets)
 }
 
 func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
@@ -2832,7 +2833,7 @@ func (a *ServerWithRoles) GetGithubConnector(ctx context.Context, id string, wit
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.Identity.GetGithubConnector(ctx, id, withSecrets)
+	return a.authServer.GetGithubConnector(ctx, id, withSecrets)
 }
 
 func (a *ServerWithRoles) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
@@ -2847,7 +2848,7 @@ func (a *ServerWithRoles) GetGithubConnectors(ctx context.Context, withSecrets b
 			return nil, trace.Wrap(err)
 		}
 	}
-	return a.authServer.Identity.GetGithubConnectors(ctx, withSecrets)
+	return a.authServer.GetGithubConnectors(ctx, withSecrets)
 }
 
 // DeleteGithubConnector deletes a Github connector by name.
@@ -2901,7 +2902,7 @@ func (a *ServerWithRoles) EmitAuditEvent(ctx context.Context, event apievents.Au
 	if !ok || !role.IsServer() {
 		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
 	}
-	err := events.ValidateServerMetadata(event, role.GetServerID())
+	err := events.ValidateServerMetadata(event, role.GetServerID(), a.hasBuiltinRole(types.RoleProxy))
 	if err != nil {
 		// TODO: this should be a proper audit event
 		// notifying about access violation
@@ -2984,7 +2985,7 @@ func (s *streamWithRoles) Close(ctx context.Context) error {
 }
 
 func (s *streamWithRoles) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	err := events.ValidateServerMetadata(event, s.serverID)
+	err := events.ValidateServerMetadata(event, s.serverID, s.a.hasBuiltinRole(types.RoleProxy))
 	if err != nil {
 		// TODO: this should be a proper audit event
 		// notifying about access violation
@@ -3072,7 +3073,7 @@ func (a *ServerWithRoles) GetRoles(ctx context.Context) ([]types.Role, error) {
 }
 
 // CreateRole not implemented: can only be called locally.
-func (a *ServerWithRoles) CreateRole(role types.Role) error {
+func (a *ServerWithRoles) CreateRole(ctx context.Context, role types.Role) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -3687,14 +3688,25 @@ func (a *ServerWithRoles) SignDatabaseCSR(ctx context.Context, req *proto.Databa
 //    role Db.
 //  - Database service when initiating connection to a database instance to
 //    produce a client certificate.
+//  - Proxy service when generating mTLS files to a database
 func (a *ServerWithRoles) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
-	// Check if this is a local cluster admin, or a database service, or a
-	// user that is allowed to impersonate database service.
-	if !a.hasBuiltinRole(types.RoleDatabase, types.RoleAdmin) {
-		if err := a.canImpersonateBuiltinRole(types.RoleDatabase); err != nil {
-			log.WithError(err).Warnf("User %v tried to generate database certificate but is not allowed to impersonate %q system role.",
-				a.context.User.GetName(), types.RoleDatabase)
-			return nil, trace.AccessDenied(`access denied. The user must be able to impersonate the builtin role and user "Db" in order to generate database certificates, for more info see https://goteleport.com/docs/database-access/reference/cli/#tctl-auth-sign.`)
+	// Check if the User can `create` DatabaseCertificates
+	err := a.action(apidefaults.Namespace, types.KindDatabaseCertificate, types.VerbCreate)
+	if err != nil {
+		if !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		}
+
+		// Err is access denied, trying the old way
+
+		// Check if this is a local cluster admin, or a database service, or a
+		// user that is allowed to impersonate database service.
+		if !a.hasBuiltinRole(types.RoleDatabase, types.RoleAdmin) {
+			if err := a.canImpersonateBuiltinRole(types.RoleDatabase); err != nil {
+				log.WithError(err).Warnf("User %v tried to generate database certificate but does not have '%s' permission for '%s' kind, nor is allowed to impersonate %q system role",
+					a.context.User.GetName(), types.VerbCreate, types.KindDatabaseCertificate, types.RoleDatabase)
+				return nil, trace.AccessDenied(fmt.Sprintf("access denied. User must have '%s' permission for '%s' kind to generate the certificate ", types.VerbCreate, types.KindDatabaseCertificate))
+			}
 		}
 	}
 	return a.authServer.GenerateDatabaseCert(ctx, req)

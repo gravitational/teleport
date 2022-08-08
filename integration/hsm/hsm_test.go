@@ -118,21 +118,14 @@ func (t *teleportService) waitForStart(ctx context.Context) error {
 
 func (t *teleportService) waitForReady(ctx context.Context) error {
 	t.log.Debugf("Waiting for %s to be ready", t.name)
-	eventChannel := make(chan service.Event)
-	t.process.WaitForEvent(ctx, service.TeleportReadyEvent, eventChannel)
-	select {
-	case <-eventChannel:
-	case <-ctx.Done():
-		return trace.Wrap(ctx.Err(), "timed out waiting for %s to be ready", t.name)
+	if _, err := t.process.WaitForEvent(ctx, service.TeleportReadyEvent); err != nil {
+		return trace.Wrap(err, "timed out waiting for %s to be ready", t.name)
 	}
 	// also wait for AuthIdentityEvent so that we can read the admin credentials
 	// and create a test client
 	if t.process.GetAuthServer() != nil {
-		t.process.WaitForEvent(ctx, service.AuthIdentityEvent, eventChannel)
-		select {
-		case <-eventChannel:
-		case <-ctx.Done():
-			return trace.Wrap(ctx.Err(), "timed out waiting for %s auth identity event", t.name)
+		if _, err := t.process.WaitForEvent(ctx, service.AuthIdentityEvent); err != nil {
+			return trace.Wrap(err, "timed out waiting for %s auth identity event", t.name)
 		}
 		t.log.Debugf("%s is ready", t.name)
 	}
@@ -197,12 +190,8 @@ func (t *teleportService) waitForLocalAdditionalKeys(ctx context.Context) error 
 
 func (t *teleportService) waitForPhaseChange(ctx context.Context) error {
 	t.log.Debugf("Waiting for %s to change phase", t.name)
-	eventC := make(chan service.Event, 1)
-	t.process.WaitForEvent(ctx, service.TeleportPhaseChangeEvent, eventC)
-	select {
-	case <-ctx.Done():
-		return trace.Wrap(ctx.Err(), "timed out waiting for %s to change phase", t.name)
-	case <-eventC:
+	if _, err := t.process.WaitForEvent(ctx, service.TeleportPhaseChangeEvent); err != nil {
+		return trace.Wrap(err, "timed out waiting for %s to change phase", t.name)
 	}
 	t.log.Debugf("%s changed phase", t.name)
 	return nil

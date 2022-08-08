@@ -627,6 +627,14 @@ other user can join you through their terminal by typing:
 $ tsh join <session_ID>
 ```
 
+<Admonition
+  type="tip"
+  title="Lacking permission?"
+>
+  Joining sessions requires special permissions that need to be set up by your cluster administrator.
+  Refer them to the [Moderated Sessions guide](../access-controls/guides/moderated-sessions.mdx) for more information on configuring join permissions.
+</Admonition>
+
 <Notice type="note" scope={["oss", "enterprise"]}>
   Joining sessions is not supported in recording proxy mode (where `session_recording` is set to `proxy`).
 </Notice>

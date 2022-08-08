@@ -27,7 +27,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 
@@ -48,10 +48,9 @@ func (r *ResourceSuite) SetUpTest(c *check.C) {
 
 	clock := clockwork.NewFakeClockAt(time.Now())
 
-	r.bk, err = lite.NewWithConfig(context.TODO(), lite.Config{
-		Path:             c.MkDir(),
-		PollStreamPeriod: 200 * time.Millisecond,
-		Clock:            clock,
+	r.bk, err = memory.New(memory.Config{
+		Context: context.Background(),
+		Clock:   clock,
 	})
 	c.Assert(err, check.IsNil)
 }

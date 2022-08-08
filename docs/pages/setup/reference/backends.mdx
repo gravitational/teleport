@@ -38,6 +38,8 @@ If High Availability cannot be provided by the infrastructure (perhaps you're
 running Teleport on a bare metal cluster), you can still configure Teleport to
 run in a highly available fashion.
 
+(!docs/pages/includes/cloud/call-to-action.mdx!)
+
 ## Auth Server State
 
 To run multiple instances of Teleport Auth Server, you must switch to a High Availability secrets back-end first. Also, you must tell each node in a cluster that there is more than one auth server available. There are two ways to do this:
@@ -474,7 +476,11 @@ teleport:
 
 ### DynamoDB autoscaling
 
-When setting up DynamoDB it's important to set up backup and autoscaling. We make setup simpler by allowing AWS DynamoDB settings to be set automatically during Teleport startup.
+When setting up DynamoDB it's important to set up backups. Autoscaling is optional with Teleport,
+and it is advised to collect some production usage data before enabling autoscaling.
+
+Autoscaling and backup can be configured on DynamoDB directly. We also make setup simpler by allowing AWS DynamoDB
+settings to be set automatically during Teleport startup. The configuration is described below.
 
 **DynamoDB Continuous Backups**
 
@@ -508,7 +514,7 @@ teleport:
     write_target_value: float
 ```
 
-To enable these options you will need to update the IAM Role for Teleport.
+To enable these options you will need to update the IAM Policy for Teleport.
 
 ```json
 {
