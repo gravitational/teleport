@@ -42,6 +42,7 @@ use std::ffi::{CStr, CString};
 use std::io::Error as IoError;
 use std::io::ErrorKind;
 use std::io::{Cursor, Read, Write};
+use std::net;
 use std::net::{TcpStream, ToSocketAddrs};
 use std::os::raw::c_char;
 use std::os::unix::io::AsRawFd;
@@ -51,6 +52,33 @@ use std::{mem, ptr, slice, time};
 #[no_mangle]
 pub extern "C" fn init() {
     env_logger::try_init().unwrap_or_else(|e| println!("failed to initialize Rust logger: {}", e));
+}
+
+#[derive(Clone)]
+struct SharedStream {
+    tcp: Arc<TcpStream>,
+}
+
+impl SharedStream {
+    fn new(tcp: TcpStream) -> Self {
+        Self { tcp: Arc::new(tcp) }
+    }
+}
+
+impl Read for SharedStream {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, IoError> {
+        self.tcp.as_ref().read(buf)
+    }
+}
+
+impl Write for SharedStream {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, IoError> {
+        self.tcp.as_ref().write(buf)
+    }
+
+    fn flush(&mut self) -> Result<(), IoError> {
+        self.tcp.as_ref().flush()
+    }
 }
 
 /// Client has an unusual lifecycle:
@@ -63,9 +91,10 @@ pub extern "C" fn init() {
 /// tcp_fd is only set in connect_rdp and used as read-only afterwards, so it does not need
 /// synchronization.
 pub struct Client {
-    rdp_client: Arc<Mutex<RdpClient<TcpStream>>>,
+    rdp_client: Arc<Mutex<RdpClient<SharedStream>>>,
     tcp_fd: usize,
     go_ref: usize,
+    tcp: SharedStream,
 }
 
 impl Client {
@@ -174,6 +203,7 @@ impl From<RdpError> for ConnectError {
 }
 
 const RDP_CONNECT_TIMEOUT: time::Duration = time::Duration::from_secs(5);
+const RDP_HANDSHAKE_TIMEOUT: time::Duration = time::Duration::from_secs(10);
 const RDPSND_CHANNEL_NAME: &str = "rdpsnd";
 
 struct ConnectParams {
@@ -202,7 +232,12 @@ fn connect_rdp_inner(
     let domain = ".";
 
     // From rdp-rs/src/core/client.rs
-    let tcp = Link::new(Stream::Raw(tcp));
+    let shared_tcp = SharedStream::new(tcp);
+    // Set read timeout to prevent blocking forever on the handshake if the RDP server doesn't respond.
+    shared_tcp
+        .tcp
+        .set_read_timeout(Some(RDP_HANDSHAKE_TIMEOUT))?;
+    let tcp = Link::new(Stream::Raw(shared_tcp.clone()));
     let protocols = x224::Protocols::ProtocolSSL as u32 | x224::Protocols::ProtocolRDP as u32;
     let x224 = x224::Client::connect(tpkt::Client::new(tcp), protocols, false, None, false, false)?;
     let mut mcs = mcs::Client::new(x224);
@@ -331,10 +366,17 @@ fn connect_rdp_inner(
         rdpdr,
         cliprdr,
     };
+
+    // Reset read timeout as rdp-rs isn't build to handle it internally.
+    // This won't cause a lockup later since at that point the close_rdp() function will be called which
+    // will terminate the connection if the websocket disconnects.
+    shared_tcp.tcp.set_read_timeout(None)?;
+
     Ok(Client {
         rdp_client: Arc::new(Mutex::new(rdp_client)),
         tcp_fd,
         go_ref,
+        tcp: shared_tcp,
     })
 }
 
@@ -800,10 +842,18 @@ pub unsafe extern "C" fn close_rdp(client_ptr: *mut Client) -> CGOErrCode {
             return cgo_error;
         }
     };
-    match client.rdp_client.lock().unwrap().shutdown() {
+
+    let res = match client.rdp_client.lock().unwrap().shutdown() {
         Err(_) => CGOErrCode::ErrCodeFailure,
         Ok(_) => CGOErrCode::ErrCodeSuccess,
+    };
+
+    if let Err(err) = client.tcp.tcp.shutdown(net::Shutdown::Both) {
+        error!("failed shutting down TCP socket: {:?}", err);
+        return CGOErrCode::ErrCodeFailure;
     }
+
+    res
 }
 
 /// free_rdp lets the Go side inform us when it's done with Client and it can be dropped.

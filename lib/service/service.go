@@ -1464,11 +1464,11 @@ func (process *TeleportProcess) initAuthService() error {
 			emitter = localLog
 		}
 	}
-
+	clusterName := cfg.Auth.ClusterName.GetClusterName()
 	checkingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
 		Inner:       events.NewMultiEmitter(events.NewLoggingEmitter(), emitter),
 		Clock:       process.Clock,
-		ClusterName: cfg.Auth.ClusterName.GetClusterName(),
+		ClusterName: clusterName,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1477,7 +1477,7 @@ func (process *TeleportProcess) initAuthService() error {
 	checkingStreamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{
 		Inner:       streamer,
 		Clock:       process.Clock,
-		ClusterName: cfg.Auth.ClusterName.GetClusterName(),
+		ClusterName: clusterName,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1563,6 +1563,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Component:      teleport.ComponentAuth,
 			AuditLog:       process.auditLog,
 			SessionTracker: authServer.Services,
+			ClusterName:    clusterName,
 			// DELETE IN 11.0.0
 			// Provide a grace period so that Auth does not prematurely upload
 			// sessions which don't have a session tracker (v9.2 and earlier)
@@ -1585,7 +1586,7 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	authorizer, err := auth.NewAuthorizer(cfg.Auth.ClusterName.GetClusterName(), authServer, lockWatcher)
+	authorizer, err := auth.NewAuthorizer(clusterName, authServer, lockWatcher)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2280,6 +2281,7 @@ func (process *TeleportProcess) initSSH() error {
 			completerCfg := events.UploadCompleterConfig{
 				SessionTracker: conn.Client,
 				GracePeriod:    defaults.UploadGracePeriod,
+				ClusterName:    conn.ServerIdentity.ClusterName,
 			}
 			if err := process.initUploaderService(uploaderCfg, completerCfg); err != nil {
 				return trace.Wrap(err)
@@ -3192,7 +3194,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		trace.Component: teleport.Component(teleport.ComponentReverseTunnelServer, process.id),
 	})
 
-	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
+	clusterName := conn.ServerIdentity.ClusterName
 
 	// asyncEmitter makes sure that sessions do not block
 	// in case if connections are slow
@@ -3806,6 +3808,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 	completerCfg := events.UploadCompleterConfig{
 		SessionTracker: conn.Client,
+		ClusterName:    clusterName,
 	}
 	if err := process.initUploaderService(uploaderCfg, completerCfg); err != nil {
 		return trace.Wrap(err)
@@ -4103,6 +4106,8 @@ func (process *TeleportProcess) initApps() {
 			log.Debugf("Application service dependencies have started, continuing.")
 		}
 
+		clusterName := conn.ServerIdentity.ClusterName
+
 		// Start uploader that will scan a path on disk and upload completed
 		// sessions to the Auth Server.
 		uploaderCfg := filesessions.UploaderConfig{
@@ -4111,6 +4116,7 @@ func (process *TeleportProcess) initApps() {
 		}
 		completerCfg := events.UploadCompleterConfig{
 			SessionTracker: conn.Client,
+			ClusterName:    clusterName,
 		}
 		if err := process.initUploaderService(uploaderCfg, completerCfg); err != nil {
 			return trace.Wrap(err)
@@ -4183,8 +4189,6 @@ func (process *TeleportProcess) initApps() {
 
 			applications = append(applications, a)
 		}
-
-		clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
 		lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 			ResourceWatcherConfig: services.ResourceWatcherConfig{
