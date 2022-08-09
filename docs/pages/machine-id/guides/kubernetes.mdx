@@ -3,8 +3,8 @@ title: Machine ID with Kubernetes Access
 description: Accessing Kubernetes clusters via Machine ID
 ---
 
-In this guide, we will demonstrate how to use Machine ID to access a Kubernetes
-cluster protected by Teleport from an automated service.
+In this guide, we will demonstrate how to configure an automated service to use
+Machine ID to access a Kubernetes cluster protected by Teleport.
 
 With Machine ID, Teleport issues short-lived certificates, tied to a machine
 identity, that can be rotated, audited, and managed with the same access
@@ -28,10 +28,16 @@ Machine ID. You'll also need `tctl` access to initially configure the bot.
 
 (!docs/pages/includes/tctl.mdx!)
 
-Lastly, ensure both `tbot` and `kubectl` are installed on your Machine ID
-client system. Refer to our [Installation guide](../../installation.mdx) for
-`tbot`, and the [Kubernetes documentation](https://kubernetes.io/docs/tasks/tools/)
-for `kubectl`.
+Next, ensure the `tbot` binary is installed on your Machine ID client system.
+The client system is any system from which you want to access your Teleport
+cluster and the resources it protects from an automated service. Refer to our
+[Installation guide](../../installation.mdx) for instructions on installing
+Teleport, which includes the necessary `tbot` binary.
+
+Finally, to interact with the connected Kubernetes cluster, your client system
+will need to have `kubectl` installed. See the
+[Kubernetes documentation](https://kubernetes.io/docs/tasks/tools/) for
+installation instructions.
 
 ## Step 1/3. Create a Machine ID bot and assign permissions
 
@@ -183,9 +189,9 @@ on disk. You will use this to ensure only your application has access to the
 short-lived certificates Machine ID uses.
 
 We'll work with the assumption you will be running Machine ID as the Linux user
-`teleport` and your application as the Linux user `app`. Create and initialize
-the destination directory by running this `tbot init` command either as `root`
-or as the `teleport` user:
+`teleport` and your automated service as the Linux user `app`. Create and
+initialize the destination directory by running this `tbot init` command either
+as `root` or as the `teleport` user:
 
 ```code
 $ tbot init \
