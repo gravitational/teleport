@@ -205,7 +205,7 @@ func buildWindowsTshStep(workspace string) step {
 			`Enable-Go -ToolchainDir "` + windowsToolchainDir + `"`,
 			`cd $TeleportSrc`,
 			`$Env:GCO_ENABLED=1`,
-			`go build -o build/tsh ./tool/tsh`,
+			`go build -v -o build/tsh ./tool/tsh`,
 		},
 	}
 }
