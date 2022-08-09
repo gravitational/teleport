@@ -871,10 +871,6 @@
           "slug": "/architecture/proxy/"
         },
         {
-          "title": "Trusted Clusters",
-          "slug": "/trustedclusters/"
-        },
-        {
           "title": "TLS Routing",
           "slug": "/architecture/tls-routing/"
         }
@@ -1144,11 +1140,6 @@
       "permanent": true
     },
     {
-      "source": "/enterprise/sso/ssh-gsuite/",
-      "destination": "/enterprise/sso/ssh-google-workspace/",
-      "permanent": true
-    },
-    {
       "source": "/features/enhanced-session-recording/",
       "destination": "/server-access/guides/bpf-session-recording/",
       "permanent": true
@@ -1245,17 +1236,17 @@
     },
     {
       "source": "/docs/kubernetes-access/getting-started/agent/",
-      "destination": "/docs/kubernetes-access/getting-started/",
+      "destination": "/kubernetes-access/getting-started/",
       "permanent": true
     },
     {
       "source": "/docs/kubernetes-access/getting-started/cluster/",
-      "destination": "/docs/getting-started/kubernetes-cluster/",
+      "destination": "/getting-started/kubernetes-cluster/",
       "permanent": true
     },
     {
       "source": "/docs/kubernetes-access/getting-started/local/",
-      "destination": "/docs/getting-started/local-kubernetes/",
+      "destination": "/getting-started/local-kubernetes/",
       "permanent": true
     },
     {
