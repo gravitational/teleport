@@ -555,7 +555,7 @@ func onConfigDump(flags dumpFlags) error {
 
 	if configPath != "" {
 		canWriteToDataDir, err := utils.CanUserWriteTo(flags.DataDir)
-		if err != nil {
+		if err != nil && !trace.IsNotImplemented(err) {
 			fmt.Fprintf(os.Stderr, "Failed to check data dir permissions: %+v", err)
 		}
 		canWriteToConfDir, err := utils.CanUserWriteTo(filepath.Dir(configPath))

@@ -64,34 +64,34 @@ func CanUserWriteTo(path string) (bool, error) {
 			continue
 		}
 
-		return false, trace.BadParameter("Failed to find path: %+v", err)
+		return false, trace.BadParameter("failed to find path: %+v", err)
 
 	}
 
-	var UID int
-	var GID int
+	var uid int
+	var gid int
 	if stat, ok := fileInfo.Sys().(*syscall.Stat_t); ok {
-		UID = int(stat.Uid)
-		GID = int(stat.Gid)
+		uid = int(stat.Uid)
+		gid = int(stat.Gid)
 	}
 
 	var usr *user.User
 	if ogUser := os.Getenv("SUDO_USER"); ogUser != "" {
 		usr, err = user.Lookup(ogUser)
 		if err != nil {
-			return false, trace.NotFound("Could not determine orginal user: %+v", err)
+			return false, trace.NotFound("could not determine original user: %+v", err)
 		}
 	} else {
 		usr, err = user.Current()
 		if err != nil {
-			return false, trace.NotFound("Could not determine current user: %+v", err)
+			return false, trace.NotFound("could not determine current user: %+v", err)
 		}
 	}
 
 	perm := fileInfo.Mode().Perm()
 
 	// file is owned by the user
-	if strconv.Itoa(UID) == usr.Uid {
+	if strconv.Itoa(uid) == usr.Uid {
 		// file has u+wx permissions
 		if perm&syscall.S_IWUSR != 0 &&
 			perm&syscall.S_IXUSR != 0 {
@@ -102,10 +102,10 @@ func CanUserWriteTo(path string) (bool, error) {
 	// file and user have a group in common
 	groupIDs, err := usr.GroupIds()
 	if err != nil {
-		return false, trace.NotFound("Could not determine current user group ids: %+v", err)
+		return false, trace.NotFound("could not determine current user group ids: %+v", err)
 	}
-	for _, gid := range groupIDs {
-		if strconv.Itoa(GID) == gid {
+	for _, groupID := range groupIDs {
+		if strconv.Itoa(gid) == groupID {
 			// file has g+wx permissions
 			if perm&syscall.S_IWGRP != 0 &&
 				perm&syscall.S_IXGRP != 0 {
