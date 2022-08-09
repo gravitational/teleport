@@ -198,6 +198,10 @@
           "slug": "/setup/guides/",
           "entries": [
             {
+              "title": "Kubernetes Operator (Preview)",
+              "slug": "/setup/guides/teleport-operator/"
+            },
+            {
               "title": "Terraform Provider",
               "slug": "/setup/guides/terraform-provider/"
             },
