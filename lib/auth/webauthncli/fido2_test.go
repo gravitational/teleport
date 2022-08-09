@@ -1736,7 +1736,8 @@ type fakeFIDO2Device struct {
 	u2fOnly bool
 
 	// assertionErrors is a chain of errors to return from Assertion.
-	// Errors are returned from start to end and removed from the slice.
+	// Errors are returned from start to end and removed, one-by-one, on each
+	// invocation of the Assertion method.
 	// If the slice is empty, Assertion runs normally.
 	assertionErrors []error
 
