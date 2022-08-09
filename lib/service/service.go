@@ -3719,7 +3719,30 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 
-		alpnHandlerForWeb.Set(alpnServer.MakeConnectionHandler(true))
+		hostCACertID := types.CertAuthID{
+			DomainName: conn.ClientIdentity.ClusterName,
+			Type:       types.HostCA,
+		}
+		hostCAConfig := &tls.Config{}
+		ca, err := process.getCertAuthority(conn, hostCACertID, true)
+		if err != nil {
+			logrus.WithError(err).Warnf("-->> failed to get HostCA")
+			return trace.Wrap(err)
+		}
+		for _, keyPair := range ca.GetTrustedTLSKeyPairs() {
+			cert, err := tls.X509KeyPair(keyPair.Cert, keyPair.Key)
+			if err != nil {
+				logrus.WithError(err).Warnf("-->> failed to parsed trusted keys")
+				return trace.Wrap(err)
+			}
+			logrus.Infof("-->> adding HostCA")
+			hostCAConfig.Certificates = append(hostCAConfig.Certificates, cert)
+		}
+
+		alpnHandlerForWeb.Set(alpnServer.MakeConnectionHandler(
+			true,
+			hostCAConfig,
+		))
 
 		process.RegisterCriticalFunc("proxy.tls.alpn.sni.proxy", func() error {
 			log.Infof("Starting TLS ALPN SNI proxy server on %v.", listeners.alpn.Addr())

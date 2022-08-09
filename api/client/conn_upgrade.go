@@ -58,14 +58,18 @@ func isHTTPConnUpgradeRequired(proxyAddr string, tlsConfig *tls.Config) bool {
 		return result
 	}
 
-	upgradeRequired, _ := alpnHandshakeTest(
+	upgradeRequired, err := alpnHandshakeTest(
 		proxyAddr,
 		// Use an old but stable protocol for testing to reduce false
 		// positives in case remote is running a different version.
 		constants.ALPNSNIProtocolReverseTunnel,
 		tlsConfig.InsecureSkipVerify,
 	)
-	alpnTestResultsCache.Set(proxyAddr, upgradeRequired)
+
+	// Do NOT cache when it fails.
+	if err == nil {
+		alpnTestResultsCache.Set(proxyAddr, upgradeRequired)
+	}
 
 	return upgradeRequired
 }
