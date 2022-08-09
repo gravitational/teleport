@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
 
 	"github.com/gravitational/teleport"
@@ -466,18 +467,17 @@ func (a *AuditTestSuite) TestLegacyHandler(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
-func (a *AuditTestSuite) TestConcurrentStreaming(c *check.C) {
-	fakeClock := clockwork.NewFakeClock()
+func TestConcurrentStreaming(t *testing.T) {
 	uploader := NewMemoryUploader()
 	alog, err := NewAuditLog(AuditLogConfig{
-		DataDir:        a.dataDir,
+		DataDir:        t.TempDir(),
 		RecordSessions: true,
-		Clock:          fakeClock,
+		Clock:          clockwork.NewFakeClock(),
 		ServerID:       "remote",
 		UploadHandler:  uploader,
 	})
-	c.Assert(err, check.IsNil)
-	defer alog.Close()
+	require.NoError(t, err)
+	t.Cleanup(func() { alog.Close() })
 
 	ctx := context.Background()
 	sid := session.ID("abc123")
@@ -485,7 +485,7 @@ func (a *AuditTestSuite) TestConcurrentStreaming(c *check.C) {
 	// upload a bogus session so that we can try to stream its events
 	// (this is not valid protobuf, so the stream is not expected to succeed)
 	_, err = uploader.Upload(ctx, sid, io.NopCloser(strings.NewReader(`asdfasdfasdfasdfasdef`)))
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// run multiple concurrent streams, which forces the second one to wait
 	// on the download that the first one started
