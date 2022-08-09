@@ -52,7 +52,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -71,7 +70,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/lib/utils/proxy"
 
-	"github.com/duo-labs/webauthn/protocol"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -3278,31 +3276,6 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 }
 
 func (tc *TeleportClient) pwdlessLogin(ctx context.Context, pubKey []byte) (*auth.SSHLoginResponse, error) {
-	webClient, webURL, err := initClient(tc.WebProxyAddr, tc.InsecureSkipVerify, loopbackPool(tc.WebProxyAddr))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	challengeJSON, err := webClient.PostJSON(
-		ctx, webClient.Endpoint("webapi", "mfa", "login", "begin"),
-		&MFAChallengeRequest{
-			Passwordless: true,
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	challenge := &MFAAuthenticateChallenge{}
-	if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// Sanity check WebAuthn challenge.
-	switch {
-	case challenge.WebauthnChallenge == nil:
-		return nil, trace.BadParameter("passwordless: webauthn challenge missing")
-	case challenge.WebauthnChallenge.Response.UserVerification == protocol.VerificationDiscouraged:
-		return nil, trace.BadParameter("passwordless: user verification requirement too lax (%v)", challenge.WebauthnChallenge.Response.UserVerification)
-	}
-
 	// Only pass on the user if explicitly set, otherwise let the credential
 	// picker kick in.
 	user := ""
@@ -3310,35 +3283,23 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, pubKey []byte) (*aut
 		user = tc.Username
 	}
 
-	prompt := wancli.NewDefaultPrompt(ctx, tc.Stderr)
-	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), challenge.WebauthnChallenge, prompt, &wancli.LoginOpts{
+	response, err := SSHAgentPasswordlessLogin(ctx, SSHLoginPasswordless{
+		SSHLogin: SSHLogin{
+			ProxyAddr:         tc.WebProxyAddr,
+			PubKey:            pubKey,
+			TTL:               tc.KeyTTL,
+			Insecure:          tc.InsecureSkipVerify,
+			Pool:              loopbackPool(tc.WebProxyAddr),
+			Compatibility:     tc.CertificateFormat,
+			RouteToCluster:    tc.SiteName,
+			KubernetesCluster: tc.KubernetesCluster,
+		},
 		User:                    user,
 		AuthenticatorAttachment: tc.AuthenticatorAttachment,
+		StderrOverride:          tc.Stderr,
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	loginRespJSON, err := webClient.PostJSON(
-		ctx, webClient.Endpoint("webapi", "mfa", "login", "finish"),
-		&AuthenticateSSHUserRequest{
-			User:                      "", // User carried on WebAuthn assertion.
-			WebauthnChallengeResponse: wanlib.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()),
-			PubKey:                    pubKey,
-			TTL:                       tc.KeyTTL,
-			Compatibility:             tc.CertificateFormat,
-			RouteToCluster:            tc.SiteName,
-			KubernetesCluster:         tc.KubernetesCluster,
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	loginResp := &auth.SSHLoginResponse{}
-	if err := json.Unmarshal(loginRespJSON.Bytes(), loginResp); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return loginResp, nil
+	return response, trace.Wrap(err)
 }
 
 func (tc *TeleportClient) localLogin(ctx context.Context, secondFactor constants.SecondFactorType, pub []byte) (*auth.SSHLoginResponse, error) {
