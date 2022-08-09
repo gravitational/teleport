@@ -188,18 +188,22 @@ type Policies interface {
 
 // policies default implementation of the policies functions.
 type policies struct {
+	// partitionID is the partition ID.
+	partitionID string
 	// accountID current AWS account ID.
 	accountID string
 	// iamClient already initialized IAM client.
 	iamClient iamiface.IAMAPI
-	// PartitionID is the partition.
-	PartitionID string
 }
 
 // NewPolicies creates new instance of Policies using the provided
 // identity, partitionID and IAM client.
-func NewPolicies(accountID string, partitionID string, iamClient iamiface.IAMAPI) Policies {
-	return &policies{accountID, iamClient, partitionID}
+func NewPolicies(partitionID string, accountID string, iamClient iamiface.IAMAPI) Policies {
+	return &policies{
+		partitionID: partitionID,
+		accountID:   accountID,
+		iamClient:   iamClient,
+	}
 }
 
 // Upsert creates a new Policy or creates a Policy version if a policy with the
@@ -215,7 +219,7 @@ func NewPolicies(accountID string, partitionID string, iamClient iamiface.IAMAPI
 // * `iam:DeletePolicyVersion`: wildcard ("*") or policy that will be created;
 // * `iam:CreatePolicyVersion`: wildcard ("*") or policy that will be created;
 func (p *policies) Upsert(ctx context.Context, policy *Policy) (string, error) {
-	policyARN := fmt.Sprintf("arn:%s:iam::%s:policy/%s", p.PartitionID, p.accountID, policy.Name)
+	policyARN := fmt.Sprintf("arn:%s:iam::%s:policy/%s", p.partitionID, p.accountID, policy.Name)
 	encodedPolicyDocument, err := json.Marshal(policy.Document)
 	if err != nil {
 		return "", trace.Wrap(err)
