@@ -611,13 +611,19 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
 		keyFile = arg.profile.KeyPath()
 	}
 
+	profileCAs, err := arg.profile.CACertsForCluster(arg.teleportClient.SiteName)
+	if err != nil {
+		return localProxyOpts{}, trace.Wrap(err)
+	}
+
 	opts := localProxyOpts{
-		proxyAddr: arg.teleportClient.WebProxyAddr,
-		listener:  arg.listener,
-		protocols: []common.Protocol{common.Protocol(arg.routeToDatabase.Protocol)},
-		insecure:  arg.cliConf.InsecureSkipVerify,
-		certFile:  certFile,
-		keyFile:   keyFile,
+		proxyAddr:    arg.teleportClient.WebProxyAddr,
+		listener:     arg.listener,
+		protocols:    []common.Protocol{common.Protocol(arg.routeToDatabase.Protocol)},
+		insecure:     arg.cliConf.InsecureSkipVerify,
+		certFile:     certFile,
+		keyFile:      keyFile,
+		extraRootCAs: profileCAs,
 	}
 
 	// For SQL Server connections, local proxy must be configured with the

@@ -3740,8 +3740,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 
 		alpnHandlerForWeb.Set(alpnServer.MakeConnectionHandler(
-			true,
-			hostCAConfig,
+			alpnproxy.WithWaitForAsyncHandlers(),
+			alpnproxy.WithDefaultTLSconfig(serverTLSConfig),
 		))
 
 		process.RegisterCriticalFunc("proxy.tls.alpn.sni.proxy", func() error {
@@ -3950,7 +3950,7 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 	return tlsConfig, nil
 }
 
-func setupALPNRouter(listeners *proxyListeners, serverTLSConf *tls.Config, cfg *Config) *alpnproxy.Router {
+func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg *Config) *alpnproxy.Router {
 	if listeners.web == nil || cfg.Proxy.DisableTLS || cfg.Proxy.DisableALPNSNIListener {
 		return nil
 	}
@@ -4004,7 +4004,7 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConf *tls.Config, cfg *
 	router.Add(alpnproxy.HandlerDesc{
 		MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolProxySSH),
 		Handler:   sshProxyListener.HandleConnection,
-		TLSConfig: serverTLSConf,
+		TLSConfig: serverTLSConfig,
 		IsAsync:   true,
 	})
 	listeners.ssh = sshProxyListener

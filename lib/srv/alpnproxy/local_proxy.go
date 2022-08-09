@@ -19,6 +19,7 @@ package alpnproxy
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"io"
 	"net"
 	"net/http"
@@ -65,13 +66,12 @@ type LocalProxyConfig struct {
 	SSHHostKeyCallback ssh.HostKeyCallback
 	// SSHTrustedCluster allows selecting trusted cluster ssh subsystem request.
 	SSHTrustedCluster string
-	// ClientTLSConfig is a client TLS configuration used during establishing
-	// connection to the RemoteProxyAddr.
-	ClientTLSConfig *tls.Config
 	// Certs are the client certificates used to connect to the remote Teleport Proxy.
 	Certs []tls.Certificate
 	// AWSCredentials are AWS Credentials used by LocalProxy for request's signature verification.
 	AWSCredentials *credentials.Credentials
+	// TODO
+	ExtraRootCAs []*x509.Certificate
 }
 
 // CheckAndSetDefaults verifies the constraints for LocalProxyConfig.
@@ -130,7 +130,7 @@ func (l *LocalProxy) Start(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 		go func() {
-			if err := l.handleDownstreamConnection(ctx, conn, l.cfg.SNI); err != nil {
+			if err := l.handleDownstreamConnection(ctx, conn); err != nil {
 				if utils.IsOKNetworkError(err) {
 					return
 				}
@@ -145,18 +145,35 @@ func (l *LocalProxy) GetAddr() string {
 	return l.cfg.Listener.Addr().String()
 }
 
-// handleDownstreamConnection proxies the downstreamConn (connection established to the local proxy) and forward the
-// traffic to the upstreamConn (TLS connection to remote host).
-func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamConn net.Conn, serverName string) error {
-	defer downstreamConn.Close()
+// TODO
+func (l *LocalProxy) getUpstreamDialer() (client.ContextDialer, error) {
+	rootCAs, err := x509.SystemCertPool()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, extraCA := range l.cfg.ExtraRootCAs {
+		rootCAs.AddCert(extraCA)
+	}
 
-	upstreamDialer := client.TLSRoutingDialer{
+	return &client.TLSRoutingDialer{
 		Config: &tls.Config{
 			NextProtos:         l.cfg.GetProtocols(),
 			InsecureSkipVerify: l.cfg.InsecureSkipVerify,
-			ServerName:         serverName,
+			ServerName:         l.cfg.SNI,
 			Certificates:       l.cfg.Certs,
+			RootCAs:            rootCAs,
 		},
+	}, nil
+}
+
+// handleDownstreamConnection proxies the downstreamConn (connection established to the local proxy) and forward the
+// traffic to the upstreamConn (TLS connection to remote host).
+func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamConn net.Conn) error {
+	defer downstreamConn.Close()
+
+	upstreamDialer, err := l.getUpstreamDialer()
+	if err != nil {
+		return trace.Wrap(err)
 	}
 	upstreamConn, err := upstreamDialer.DialContext(ctx, "tcp", l.cfg.RemoteProxyAddr)
 	if err != nil {

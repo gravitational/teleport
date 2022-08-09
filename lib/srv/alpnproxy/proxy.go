@@ -217,6 +217,14 @@ func (h *HandlerDesc) handle(ctx context.Context, conn net.Conn, info Connection
 	return h.Handler(ctx, conn)
 }
 
+func (h *HandlerDesc) getTLSConfig(defaultTLSConfig *tls.Config) *tls.Config {
+	if h.TLSConfig != nil {
+		return h.TLSConfig
+	}
+
+	return defaultTLSConfig
+}
+
 // HandlerFunc is a common function signature used to handle downstream with
 // particular ALPN protocol.
 type HandlerFunc func(ctx context.Context, conn net.Conn) error
@@ -301,6 +309,7 @@ func (p *Proxy) Serve(ctx context.Context) error {
 	p.mu.Unlock()
 
 	p.cfg.WebTLSConfig.NextProtos = common.ProtocolsToString(p.supportedProtocols)
+	opts := p.defaultHandleConnOptions()
 	for {
 		clientConn, err := p.cfg.Listener.Accept()
 		if err != nil {
@@ -310,7 +319,7 @@ func (p *Proxy) Serve(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 		go func() {
-			if err := p.handleConn(ctx, clientConn, false, p.cfg.WebTLSConfig); err != nil {
+			if err := p.handleConn(ctx, clientConn, opts); err != nil {
 				// Try to close clientConn in case err happens before
 				// clientConn is closed.
 				p.closeClientConnAndLogError(clientConn)
@@ -327,10 +336,23 @@ func (p *Proxy) Serve(ctx context.Context) error {
 
 // MakeConnectionHandler creates a ConnectionHandler which provides a callback
 // to handle incoming connections by this ALPN proxy server.
-func (p *Proxy) MakeConnectionHandler(waitForAsync bool, defaultTLSConfig *tls.Config) ConnectionHandler {
+func (p *Proxy) MakeConnectionHandler(opts ...ConnectionHandlerOption) ConnectionHandler {
+	options := p.defaultHandleConnOptions()
+	for _, applyOpt := range opts {
+		applyOpt(options)
+	}
+
 	return ConnectionHandlerFunc(func(ctx context.Context, conn net.Conn) error {
-		return p.handleConn(ctx, conn, true, defaultTLSConfig)
+		return p.handleConn(ctx, conn, options)
 	})
+}
+
+// TODO
+func (p *Proxy) defaultHandleConnOptions() *connectionHandlerOptions {
+	return &connectionHandlerOptions{
+		waitForAsyncHandlers: false,
+		defaultTLSConfig:     p.cfg.WebTLSConfig,
+	}
 }
 
 // ConnectionInfo contains details about TLS connection.
@@ -355,7 +377,7 @@ type HandlerFuncWithInfo func(ctx context.Context, conn net.Conn, info Connectio
 // 5) For backward compatibility check RouteToDatabase identity field
 //    was set if yes forward to the generic TLS DB handler.
 // 6) Forward connection to the handler obtained in step 2.
-func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, waitForAsync bool, defaultTLSConfig *tls.Config) error {
+func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, opts *connectionHandlerOptions) error {
 	hello, conn, err := p.readHelloMessageWithoutTLSTermination(clientConn)
 	if err != nil {
 		return trace.Wrap(err)
@@ -369,7 +391,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, waitForAsyn
 	if handlerDesc.IsAsync {
 		// Do not close clientConn for async handlers. Connections will be
 		// closed by the handlers themselves.
-		if waitForAsync {
+		if opts.waitForAsyncHandlers {
 			waitConn := newWaitConn(ctx, conn)
 			defer waitConn.WaitForClose()
 
@@ -388,7 +410,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, waitForAsyn
 		return trace.Wrap(handlerDesc.handle(ctx, conn, connInfo))
 	}
 
-	tlsConn := tls.Server(conn, p.getTLSConfig(handlerDesc, defaultTLSConfig))
+	tlsConn := tls.Server(conn, handlerDesc.getTLSConfig(opts.defaultTLSConfig))
 	if err := tlsConn.SetReadDeadline(p.cfg.Clock.Now().Add(p.cfg.ReadDeadline)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -407,15 +429,6 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, waitForAsyn
 		return trace.Wrap(p.handleDatabaseConnection(ctx, tlsConn, connInfo))
 	}
 	return trace.Wrap(handlerDesc.handle(ctx, tlsConn, connInfo))
-}
-
-// getTLSConfig returns HandlerDesc.TLSConfig if custom TLS configuration was set for the handler
-// otherwise the ProxyConfig.WebTLSConfig is used.
-func (p *Proxy) getTLSConfig(desc *HandlerDesc, defaultTLSConfig *tls.Config) *tls.Config {
-	if desc.TLSConfig != nil {
-		return desc.TLSConfig
-	}
-	return defaultTLSConfig
 }
 
 // readHelloMessageWithoutTLSTermination allows reading a ClientHelloInfo message without termination of

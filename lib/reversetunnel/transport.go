@@ -19,6 +19,7 @@ package reversetunnel
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -64,6 +65,8 @@ type TunnelAuthDialerConfig struct {
 	Log logrus.FieldLogger
 	// InsecureSkipTLSVerify is whether to skip certificate validation.
 	InsecureSkipTLSVerify bool
+	// TODO
+	ExtraRootCAs []*x509.Certificate
 }
 
 func (c *TunnelAuthDialerConfig) CheckAndSetDefaults() error {
@@ -106,8 +109,16 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 		// address thus the ping call will always fail.
 		t.Log.Debugf("Failed to ping web proxy %q addr: %v", addr.Addr, err)
 	} else if resp.Proxy.TLSRoutingEnabled {
+		rootCAs, err := x509.SystemCertPool()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, extraCA := range t.ExtraRootCAs {
+			rootCAs.AddCert(extraCA)
+		}
 		opts = append(opts, proxy.WithALPNDialer(&tls.Config{
 			NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
+			RootCAs:    rootCAs,
 		}))
 	}
 

@@ -18,10 +18,30 @@ package alpnproxy
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 
 	"github.com/gravitational/trace"
 )
+
+type connectionHandlerOptions struct {
+	waitForAsyncHandlers bool
+	defaultTLSConfig     *tls.Config
+}
+
+type ConnectionHandlerOption func(*connectionHandlerOptions)
+
+func WithWaitForAsyncHandlers() ConnectionHandlerOption {
+	return func(opt *connectionHandlerOptions) {
+		opt.waitForAsyncHandlers = true
+	}
+}
+
+func WithDefaultTLSconfig(tlsConfig *tls.Config) ConnectionHandlerOption {
+	return func(opt *connectionHandlerOptions) {
+		opt.defaultTLSConfig = tlsConfig
+	}
+}
 
 // ConnectionHandler is an interface for serving incoming connections.
 type ConnectionHandler interface {

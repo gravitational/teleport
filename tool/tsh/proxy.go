@@ -420,12 +420,13 @@ func onProxyCommandDB(cf *CLIConf) error {
 }
 
 type localProxyOpts struct {
-	proxyAddr string
-	listener  net.Listener
-	protocols []alpncommon.Protocol
-	insecure  bool
-	certFile  string
-	keyFile   string
+	proxyAddr    string
+	listener     net.Listener
+	protocols    []alpncommon.Protocol
+	insecure     bool
+	certFile     string
+	keyFile      string
+	extraRootCAs []*x509.Certificate
 }
 
 // protocol returns the first protocol or string if configuration doesn't contain any protocols.
@@ -457,6 +458,7 @@ func mkLocalProxy(ctx context.Context, opts localProxyOpts) (*alpnproxy.LocalPro
 		ParentContext:      ctx,
 		SNI:                address.Host(),
 		Certs:              certs,
+		ExtraRootCAs:       opts.extraRootCAs,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

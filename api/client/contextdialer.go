@@ -174,7 +174,7 @@ type TLSRoutingDialer struct {
 	Config          *tls.Config
 }
 
-func (d *TLSRoutingDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+func (d TLSRoutingDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	if d.Config == nil {
 		return nil, trace.BadParameter("missing TLS config")
 	}

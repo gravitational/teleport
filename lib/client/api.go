@@ -611,6 +611,16 @@ func (p *ProfileStatus) CACertPathForCluster(cluster string) string {
 	return filepath.Join(keypaths.ProxyKeyDir(p.Dir, p.Name), "cas", cluster+".pem")
 }
 
+// TODO
+func (p *ProfileStatus) CACertsForCluster(cluster string) ([]*x509.Certificate, error) {
+	bytes, err := os.ReadFile(p.CACertPathForCluster(cluster))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return utils.ReadCertificateChain(bytes)
+}
+
 // KeyPath returns path to the private key for this profile.
 //
 // It's kept in <profile-dir>/keys/<proxy>/<user>.
