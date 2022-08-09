@@ -58,6 +58,7 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindAppServer, RO()),
 	types.NewRule(types.KindRemoteCluster, RO()),
 	types.NewRule(types.KindKubeService, RO()),
+	types.NewRule(types.KindKubeServer, RO()),
 	types.NewRule(types.KindDatabaseServer, RO()),
 	types.NewRule(types.KindDatabase, RO()),
 	types.NewRule(types.KindApp, RO()),
@@ -762,7 +763,7 @@ type CurrentUserRoleGetter interface {
 func FetchAllClusterRoles(ctx context.Context, access CurrentUserRoleGetter, defaultRoleNames []string, defaultTraits wrappers.Traits) (RoleSet, error) {
 	user, err := access.GetCurrentUser(ctx)
 	if err != nil {
-		// DELETE IN 12.0.
+		// DELETE IN 12.0.0
 		if trace.IsNotImplemented(err) {
 			// get the role definition for all roles of user.
 			// this may only fail if the role which we are looking for does not exist, or we don't have access to it.
@@ -779,7 +780,7 @@ func FetchAllClusterRoles(ctx context.Context, access CurrentUserRoleGetter, def
 
 	roles, err := access.GetCurrentUserRoles(ctx)
 	if err != nil {
-		// DELETE IN 12.0.
+		// DELETE IN 12.0
 		if trace.IsNotImplemented(err) {
 			roleSet, err := FetchRoles(user.GetRoles(), access, user.GetTraits())
 			return roleSet, trace.Wrap(err)
@@ -1372,7 +1373,7 @@ func (set RoleSet) CheckAccessToRemoteCluster(rc types.RemoteCluster) error {
 		}
 	}
 
-	if usesLabels == false && len(rcLabels) == 0 {
+	if !usesLabels && len(rcLabels) == 0 {
 		debugf("Grant access to cluster %v - no role in %v uses cluster labels and the cluster is not labeled.",
 			rc.GetName(), set.RoleNames())
 		return nil

@@ -488,7 +488,7 @@ func (p *databasePack) testMongoConnectionCount(t *testing.T) {
 	// Wait until the server reports no more connections. This usually happens
 	// really quick but wait a little longer just in case.
 	waitUntilNoConnections := func() bool {
-		return 0 == p.root.mongo.GetActiveConnectionsCount()
+		return p.root.mongo.GetActiveConnectionsCount() == 0
 	}
 	require.Eventually(t, waitUntilNoConnections, 5*time.Second, 100*time.Millisecond)
 }

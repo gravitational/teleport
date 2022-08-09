@@ -845,9 +845,9 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 }
 
 func (a *ServerWithRoles) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
-	// admin-only for now, but we'll eventually want to develop an RBAC syntax for
+	// only support builtin roles for now, but we'll eventually want to develop an RBAC syntax for
 	// the inventory APIs once they are more developed.
-	if !a.hasBuiltinRole(types.RoleAdmin) {
+	if !a.hasBuiltinRole(types.RoleAdmin, types.RoleProxy) {
 		return proto.InventoryStatusSummary{}, trace.AccessDenied("requires builtin admin role")
 	}
 	return a.authServer.GetInventoryStatus(ctx, req), nil
@@ -955,10 +955,20 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 			return trace.Wrap(err)
 		}
 	case constants.KeepAliveKube:
-		if serverName != handle.Name || !a.hasBuiltinRole(types.RoleKube) {
+		if handle.HostID != "" {
+			if serverName != handle.HostID {
+				return trace.AccessDenied("access denied")
+			}
+		} else { // DELETE IN 13.0. Legacy kubeservice server is heartbeating back.
+			if serverName != handle.Name {
+				return trace.AccessDenied("access denied")
+			}
+		}
+
+		if !a.hasBuiltinRole(types.RoleKube) {
 			return trace.AccessDenied("access denied")
 		}
-		if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbUpdate); err != nil {
+		if err := a.action(apidefaults.Namespace, types.KindKubeServer, types.VerbUpdate); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
@@ -1027,8 +1037,8 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 			if err := a.action(apidefaults.Namespace, types.KindDatabaseServer, types.VerbRead); err != nil {
 				return nil, trace.Wrap(err)
 			}
-		case types.KindKubeService:
-			if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbRead); err != nil {
+		case types.KindKubeServer:
+			if err := a.action(apidefaults.Namespace, types.KindKubeServer, types.VerbRead); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		case types.KindWindowsDesktopService:
@@ -1210,7 +1220,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		//   https://github.com/gravitational/teleport/pull/1224
 		actionVerbs = []string{types.VerbList}
 
-	case types.KindDatabaseServer, types.KindAppServer, types.KindKubeService, types.KindWindowsDesktop:
+	case types.KindDatabaseServer, types.KindAppServer, types.KindKubeService, types.KindKubeServer, types.KindWindowsDesktop:
 
 	default:
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -1289,6 +1299,8 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 	switch rr := resource.(type) {
 	case types.AppServer:
 		return r.CheckAccess(rr.GetApp(), mfaParams)
+	case types.KubeServer:
+		return r.CheckAccess(rr.GetCluster(), mfaParams)
 	case types.DatabaseServer:
 		return r.CheckAccess(rr.GetDatabase(), mfaParams)
 	case types.Database:
@@ -1365,11 +1377,20 @@ func newKubeChecker(authContext Context) *kubeChecker {
 // in the server. Any clusters which aren't allowed will be removed from the
 // resource instead of an error being returned.
 func (k *kubeChecker) CanAccess(resource types.Resource) error {
-	server, ok := resource.(types.Server)
-	if !ok {
+	switch server := resource.(type) {
+	case types.Server:
+		return k.canAccessKubernetesLegacy(server)
+	case types.KubeServer:
+		return k.canAccessKubernetes(server)
+	default:
 		return trace.BadParameter("unexpected resource type %T", resource)
 	}
 
+}
+
+// canAccessKubernetesLegacy checks if the user has access to Kubernetes Cluster when represented by `types.ServerV2`.
+// DELETE in 12.0.0
+func (k *kubeChecker) canAccessKubernetesLegacy(server types.Server) error {
 	// Filter out agents that don't have support for moderated sessions access
 	// checking if the user has any roles that require it.
 	if k.localUser {
@@ -1414,6 +1435,12 @@ func (k *kubeChecker) CanAccess(resource types.Resource) error {
 	return nil
 }
 
+func (k *kubeChecker) canAccessKubernetes(server types.KubeServer) error {
+	kube := server.GetCluster()
+	err := k.checker.CheckAccess(kube, services.AccessMFAParams{Verified: true})
+	return trace.Wrap(err)
+}
+
 // newResourceAccessChecker creates a resourceAccessChecker for the provided resource type
 func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAccessChecker, error) {
 	switch resource {
@@ -1421,7 +1448,7 @@ func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAcc
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
 	case types.KindNode:
 		return newNodeChecker(a.context, a.authServer)
-	case types.KindKubeService:
+	case types.KindKubeService, types.KindKubeServer:
 		return newKubeChecker(a.context), nil
 	default:
 		return nil, trace.BadParameter("could not check access to resource type %s", resource)
@@ -1474,21 +1501,15 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		resources = servers.AsResources()
 
 	case types.KindKubernetesCluster:
-		kubeservices, err := a.GetKubeServices(ctx)
+		kubeServers, err := a.GetKubernetesServers(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		// Extract kube clusters into its own list.
 		var clusters []types.KubeCluster
-		for _, svc := range kubeservices {
-			for _, legacyCluster := range svc.GetKubernetesClusters() {
-				cluster, err := types.NewKubernetesClusterV3FromLegacyCluster(svc.GetNamespace(), legacyCluster)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				clusters = append(clusters, cluster)
-			}
+		for _, svc := range kubeServers {
+			clusters = append(clusters, svc.GetCluster())
 		}
 
 		sortedClusters := types.KubeClusters(clusters)
@@ -1496,7 +1517,17 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 			return nil, trace.Wrap(err)
 		}
 		resources = sortedClusters.AsResources()
+	case types.KindKubeServer:
+		kubeServers, err := a.GetKubernetesServers(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
+		sortedServers := types.KubeServers(kubeServers)
+		if err := sortedServers.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = sortedServers.AsResources()
 	case types.KindWindowsDesktop:
 		windowsdesktops, err := a.GetWindowsDesktops(ctx, req.GetWindowsDesktopFilter())
 		if err != nil {
@@ -2710,7 +2741,7 @@ func (a *ServerWithRoles) UpsertOIDCConnector(ctx context.Context, connector typ
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	if modules.GetModules().Features().OIDC == false {
+	if !modules.GetModules().Features().OIDC {
 		return trace.AccessDenied("OIDC is only available in enterprise subscriptions")
 	}
 
@@ -2794,7 +2825,7 @@ func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector typ
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	if modules.GetModules().Features().SAML == false {
+	if !modules.GetModules().Features().SAML {
 		return trace.AccessDenied("SAML is only available in enterprise subscriptions")
 	}
 	return a.authServer.UpsertSAMLConnector(ctx, connector)
@@ -4215,8 +4246,66 @@ func (a *ServerWithRoles) UpsertKubeServiceV2(ctx context.Context, s types.Serve
 	return a.authServer.UpsertKubeServiceV2(ctx, s)
 }
 
+func (a *ServerWithRoles) checkAccessToKubeCluster(cluster types.KubeCluster) error {
+	return a.context.Checker.CheckAccess(
+		cluster,
+		// MFA is not required for operations on kube clusters resources but
+		// will be enforced at the connection time.
+		services.AccessMFAParams{Verified: true})
+}
+
+// GetKubernetesServers returns all registered kubernetes servers.
+func (a *ServerWithRoles) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
+	if err := a.action(apidefaults.Namespace, types.KindKubeServer, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := a.authServer.GetKubernetesServers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Filter out kube servers the caller doesn't have access to.
+	var filtered []types.KubeServer
+	for _, server := range servers {
+		err := a.checkAccessToKubeCluster(server.GetCluster())
+		if err != nil && !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		} else if err == nil {
+			filtered = append(filtered, server)
+		}
+	}
+
+	return filtered, nil
+}
+
+// UpsertKubernetesServer creates or updates a Server representing a teleport
+// kubernetes server.
+func (a *ServerWithRoles) UpsertKubernetesServer(ctx context.Context, s types.KubeServer) (*types.KeepAlive, error) {
+	if err := a.action(apidefaults.Namespace, types.KindKubeServer, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.UpsertKubernetesServer(ctx, s)
+}
+
+// DeleteKubernetesServer deletes specified kubernetes server.
+func (a *ServerWithRoles) DeleteKubernetesServer(ctx context.Context, hostID, name string) error {
+	if err := a.action(apidefaults.Namespace, types.KindKubeServer, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteKubernetesServer(ctx, hostID, name)
+}
+
+// DeleteAllKubernetesServers deletes all registered kubernetes servers.
+func (a *ServerWithRoles) DeleteAllKubernetesServers(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindKubeServer, types.VerbList, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteAllKubernetesServers(ctx)
+}
+
 // GetKubeServices returns all Servers representing teleport kubernetes
 // services.
+// DELETE in 12.0.0
 func (a *ServerWithRoles) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 	if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
