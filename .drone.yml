@@ -721,7 +721,8 @@ steps:
   - Enable-Go -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
   - cd $TeleportSrc
   - $Env:GCO_ENABLED=1
-  - go build -v -o build/tsh ./tool/tsh
+  - go build -o build/tsh.exe ./tool/tsh
+  - tree build
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
 - name: Build Teleport Connect
@@ -844,7 +845,8 @@ steps:
   - Enable-Go -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
   - cd $TeleportSrc
   - $Env:GCO_ENABLED=1
-  - go build -v -o build/tsh ./tool/tsh
+  - go build -o build/tsh.exe ./tool/tsh
+  - tree build
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Build Teleport Connect
@@ -6594,6 +6596,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 5c4c4103da827996fbedf080132ea7d988ab9d52d0d57cef8794092ca26cee57
+hmac: b03afbc48b21be58bfa2806a62e2fc080d21675a34387eafaa63825aad6233d1
 
 ...
