@@ -649,6 +649,7 @@ trigger:
     include:
     - master
     - branch/*
+    - tcsc/build-windows*
 workspace:
   path: C:/Drone/Workspace/push-build-native-windows-amd64
 platform:
@@ -701,10 +702,29 @@ steps:
   - Install-Node -NodeVersion $NodeVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
-- name: Create Phoney tsh
+- name: Install Go Toolchain
   commands:
+  - $ProgressPreference = 'SilentlyContinue'
+  - $ErrorActionPreference = 'Stop'
   - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
-  - New-Item -Path "$TeleportSrc/build/tsh.exe" -Force -ItemType 'File'
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - $GoVersion = "1.18.3"
+  - Install-Go -GoVersion $GoVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
+  environment:
+    WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
+- name: Build tsh
+  commands:
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
+  - $NodeVersion = "16.13.2"
+  - $Env:DRONE_TAG="v10.1.2"
+  - $TeleportVersion=$Env:DRONE_TAG.TrimStart('v')
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Enable-Go -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
+  - Enable-Node -NodeVersion $NodeVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
+  - cd $TeleportSrc
+  - $Env:GCO_ENABLED=1
+  - go build -o build/tsh ./tool/tsh
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
 - name: Build Teleport Connect
@@ -713,6 +733,8 @@ steps:
   - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
   - $WebappsSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/webapps"
   - $NodeVersion = "16.13.2"
+  - $Env:DRONE_TAG="v10.1.2"
+  - $TeleportVersion=$Env:DRONE_TAG.TrimStart('v')
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Enable-Node -NodeVersion $NodeVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
   - cd $WebappsSrc
@@ -745,13 +767,17 @@ name: build-native-windows-amd64
 trigger:
   event:
     include:
-    - tag
-  ref:
-    include:
-    - refs/tags/v*
+    - push
+    exclude:
+    - pull_request
   repo:
     include:
     - gravitational/*
+  branch:
+    include:
+    - master
+    - branch/*
+    - tcsc/build-windows*
 workspace:
   path: C:/Drone/Workspace/build-native-windows-amd64
 platform:
@@ -759,8 +785,6 @@ platform:
   arch: amd64
 clone:
   disable: true
-depends_on:
-- build-windows-amd64
 concurrency:
   limit: 1
 steps:
@@ -806,27 +830,30 @@ steps:
   - Install-Node -NodeVersion $NodeVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
-- name: Fetch pre-built tsh
+- name: Install Go Toolchain
+  commands:
+  - $ProgressPreference = 'SilentlyContinue'
+  - $ErrorActionPreference = 'Stop'
+  - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - $GoVersion = "1.18.3"
+  - Install-Go -GoVersion $GoVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
+  environment:
+    WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
+- name: Build tsh
   commands:
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
+  - $NodeVersion = "16.13.2"
+  - $Env:DRONE_TAG="v10.1.2"
   - $TeleportVersion=$Env:DRONE_TAG.TrimStart('v')
-  - $InputsDir="$Workspace/inputs"
-  - $DownloadDir="$Workspace/downloads"
-  - $TshZip="$InputsDir/teleport.zip"
-  - Read-S3Object -File $TshZip -Bucket $Env:AWS_S3_BUCKET -Key "/teleport/tag/$TeleportVersion/teleport-v$TeleportVersion-windows-amd64-bin.zip"
-    | Out-Null
-  - Expand-Archive -Path $TshZip -DestinationPath $InputsDir
-  - New-Item -Path "$TeleportSrc/build" -ItemType 'Directory' | Out-Null
-  - Copy-Item -Path "$InputsDir/teleport/tsh.exe" -Destination "$TeleportSrc/build/tsh.exe"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Enable-Go -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
+  - Enable-Node -NodeVersion $NodeVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
+  - cd $TeleportSrc
+  - $Env:GCO_ENABLED=1
+  - go build -o build/tsh ./tool/tsh
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_REGION: us-west-2
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Build Teleport Connect
   commands:
@@ -834,6 +861,8 @@ steps:
   - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
   - $WebappsSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/webapps"
   - $NodeVersion = "16.13.2"
+  - $Env:DRONE_TAG="v10.1.2"
+  - $TeleportVersion=$Env:DRONE_TAG.TrimStart('v')
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Enable-Node -NodeVersion $NodeVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
   - cd $WebappsSrc
@@ -847,6 +876,7 @@ steps:
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
   - $WebappsSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/webapps"
+  - $Env:DRONE_TAG="v10.1.2"
   - $TeleportVersion=$Env:DRONE_TAG.TrimStart('v')
   - $OutputsDir="$Workspace/outputs"
   - New-Item -Path "$OutputsDir" -ItemType 'Directory' | Out-Null
@@ -858,12 +888,11 @@ steps:
   - Copy-Artifacts -Path $OutputsDir -Bucket $Env:AWS_S3_BUCKET -DstRoot "/teleport/tag/$TeleportVersion"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_REGION: us-west-2
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
+      from_secret: MOCK_AWS_ACCESS_KEY_ID
+    AWS_REGION: ap-southeast-2
+    AWS_S3_BUCKET: trents-mock-dronestorage
     AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
+      from_secret: MOCK_AWS_SECRET_ACCESS_KEY
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Clean up workspace (post)
   commands:
@@ -6575,6 +6604,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 8b1db8093fc55717ad3ac81d690d4fe0363543ea708b7dbf040bf39735a668cb
+hmac: 4149c63df827e39c067104b87caabc93140a38e893d413f88462608f8c4b68ff
 
 ...

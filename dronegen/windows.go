@@ -25,7 +25,7 @@ const (
 	// Hardcoded tool versions that we would normally pull from the makefile,
 	// but unfortunately our Makefiles use too many POSIX-isms for us to use on
 	// Windows, so for now we will just say the versions we want here.
-
+	windowsGoVersion   = "1.18.3"
 	windowsNodeVersion = "16.13.2"
 )
 
@@ -39,48 +39,42 @@ func newWindowsPipeline(name string) pipeline {
 
 func windowsTagPipeline() pipeline {
 	p := newWindowsPipeline("build-native-windows-amd64")
-	p.Trigger = triggerTag
-	p.DependsOn = []string{"build-windows-amd64"}
+	//p.Trigger = triggerTag
+	p.Trigger = trigger{
+		Event:  triggerRef{Include: []string{"push"}, Exclude: []string{"pull_request"}},
+		Branch: triggerRef{Include: []string{"master", "branch/*", "tcsc/build-windows*"}},
+		Repo:   triggerRef{Include: []string{"gravitational/*"}},
+	}
+
+	// TODO(tcsc): restore before merge
+	//p.DependsOn = []string{ "build-windows-amd64" }
+
 	p.Steps = []step{
 		cloneWindowsRepositoriesStep(p.Workspace.Path),
 		updateWindowsSubreposStep(p.Workspace.Path),
 		installWindowsNodeToolchainStep(p.Workspace.Path),
-		{
-			Name: "Fetch pre-built tsh",
-			Environment: map[string]value{
-				"WORKSPACE_DIR":         {raw: p.Workspace.Path},
-				"AWS_REGION":            {raw: "us-west-2"},
-				"AWS_S3_BUCKET":         {fromSecret: "AWS_S3_BUCKET"},
-				"AWS_ACCESS_KEY_ID":     {fromSecret: "AWS_ACCESS_KEY_ID"},
-				"AWS_SECRET_ACCESS_KEY": {fromSecret: "AWS_SECRET_ACCESS_KEY"},
-			},
-			Commands: []string{
-				`$Workspace = "` + perBuildWorkspace + `"`,
-				`$TeleportSrc = "` + perBuildTeleportSrc + `"`,
-				`$TeleportVersion=$Env:DRONE_TAG.TrimStart('v')`,
-				`$InputsDir="$Workspace/inputs"`,
-				`$DownloadDir="$Workspace/downloads"`,
-				`$TshZip="$InputsDir/teleport.zip"`,
-				`Read-S3Object -File $TshZip -Bucket $Env:AWS_S3_BUCKET -Key "/teleport/tag/$TeleportVersion/teleport-v$TeleportVersion-windows-amd64-bin.zip" | Out-Null`,
-				`Expand-Archive -Path $TshZip -DestinationPath $InputsDir`,
-				`New-Item -Path "$TeleportSrc/build" -ItemType 'Directory' | Out-Null`,
-				`Copy-Item -Path "$InputsDir/teleport/tsh.exe" -Destination "$TeleportSrc/build/tsh.exe"`,
-			},
-		},
+		installWindowsGoToolchainStep(p.Workspace.Path),
+		buildWindowsTshStep(p.Workspace.Path),
 		buildWindowsTeleportConnectStep(p.Workspace.Path),
 		{
 			Name: "Upload Artifacts",
 			Environment: map[string]value{
-				"WORKSPACE_DIR":         {raw: p.Workspace.Path},
-				"AWS_REGION":            {raw: "us-west-2"},
-				"AWS_S3_BUCKET":         {fromSecret: "AWS_S3_BUCKET"},
-				"AWS_ACCESS_KEY_ID":     {fromSecret: "AWS_ACCESS_KEY_ID"},
-				"AWS_SECRET_ACCESS_KEY": {fromSecret: "AWS_SECRET_ACCESS_KEY"},
+				"WORKSPACE_DIR": {raw: p.Workspace.Path},
+				// TODO(tcsc): aid during dev, revert before merge
+				"AWS_REGION":            {raw: "ap-southeast-2"},
+				"AWS_S3_BUCKET":         {raw: "trents-mock-dronestorage"},
+				"AWS_ACCESS_KEY_ID":     {fromSecret: "MOCK_AWS_ACCESS_KEY_ID"},
+				"AWS_SECRET_ACCESS_KEY": {fromSecret: "MOCK_AWS_SECRET_ACCESS_KEY"},
+				// "AWS_REGION":            {raw: "us-west-2"},
+				// "AWS_S3_BUCKET":         {fromSecret: "AWS_S3_BUCKET"},
+				// "AWS_ACCESS_KEY_ID":     {fromSecret: "AWS_ACCESS_KEY_ID"},
+				// "AWS_SECRET_ACCESS_KEY": {fromSecret: "AWS_SECRET_ACCESS_KEY"},
 			},
 			Commands: []string{
 				`$Workspace = "` + perBuildWorkspace + `"`,
 				`$TeleportSrc = "` + perBuildTeleportSrc + `"`,
 				`$WebappsSrc = "` + perBuildWebappsSrc + `"`,
+				`$Env:DRONE_TAG="v10.1.2"`, // TODO(tcsc): aid during dev, remove before merge
 				`$TeleportVersion=$Env:DRONE_TAG.TrimStart('v')`,
 				`$OutputsDir="$Workspace/outputs"`,
 				`New-Item -Path "$OutputsDir" -ItemType 'Directory' | Out-Null`,
@@ -100,7 +94,7 @@ func windowsPushPipeline() pipeline {
 	p := newWindowsPipeline("push-build-native-windows-amd64")
 	p.Trigger = trigger{
 		Event:  triggerRef{Include: []string{"push"}, Exclude: []string{"pull_request"}},
-		Branch: triggerRef{Include: []string{"master", "branch/*"}},
+		Branch: triggerRef{Include: []string{"master", "branch/*", "tcsc/build-windows*"}},
 		Repo:   triggerRef{Include: []string{"gravitational/*"}},
 	}
 
@@ -108,16 +102,8 @@ func windowsPushPipeline() pipeline {
 		cloneWindowsRepositoriesStep(p.Workspace.Path),
 		updateWindowsSubreposStep(p.Workspace.Path),
 		installWindowsNodeToolchainStep(p.Workspace.Path),
-		{
-			Name: "Create Phoney tsh",
-			Environment: map[string]value{
-				"WORKSPACE_DIR": {raw: p.Workspace.Path},
-			},
-			Commands: []string{
-				`$TeleportSrc = "` + perBuildTeleportSrc + `"`,
-				`New-Item -Path "$TeleportSrc/build/tsh.exe" -Force -ItemType 'File'`,
-			},
-		},
+		installWindowsGoToolchainStep(p.Workspace.Path),
+		buildWindowsTshStep(p.Workspace.Path),
 		buildWindowsTeleportConnectStep(p.Workspace.Path),
 		cleanUpWindowsWorkspaceStep(p.Workspace.Path),
 	}
@@ -187,6 +173,46 @@ func installWindowsNodeToolchainStep(workspacePath string) step {
 	}
 }
 
+func installWindowsGoToolchainStep(workspacePath string) step {
+	return step{
+		Name:        "Install Go Toolchain",
+		Environment: map[string]value{"WORKSPACE_DIR": {raw: workspacePath}},
+		Commands: []string{
+			`$ProgressPreference = 'SilentlyContinue'`,
+			`$ErrorActionPreference = 'Stop'`,
+			`$TeleportSrc = "` + perBuildTeleportSrc + `"`,
+			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
+			// We can't use make, as there are too many posix dependencies to
+			// abstract away right now, so instead of `$(make -C $TeleportSrc/build.assets print-go-version)`,
+			// we will just hardcode it for now
+			`$GoVersion = "` + windowsGoVersion + `"`,
+			`Install-Go -GoVersion $GoVersion -ToolchainDir "` + windowsToolchainDir + `"`,
+		},
+	}
+}
+
+func buildWindowsTshStep(workspace string) step {
+	return step{
+		Name: "Build tsh",
+		Environment: map[string]value{
+			"WORKSPACE_DIR": {raw: workspace},
+		},
+		Commands: []string{
+			`$Workspace = "` + perBuildWorkspace + `"`,
+			`$TeleportSrc = "` + perBuildTeleportSrc + `"`,
+			`$NodeVersion = "` + windowsNodeVersion + `"`,
+			`$Env:DRONE_TAG="v10.1.2"`, // TODO(tcsc): aid during dev, remove before merge
+			`$TeleportVersion=$Env:DRONE_TAG.TrimStart('v')`,
+			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
+			`Enable-Go -ToolchainDir "` + windowsToolchainDir + `"`,
+			`Enable-Node -NodeVersion $NodeVersion -ToolchainDir "` + windowsToolchainDir + `"`,
+			`cd $TeleportSrc`,
+			`$Env:GCO_ENABLED=1`,
+			`go build -o build/tsh ./tool/tsh`,
+		},
+	}
+}
+
 func buildWindowsTeleportConnectStep(workspace string) step {
 	return step{
 		Name: "Build Teleport Connect",
@@ -198,6 +224,8 @@ func buildWindowsTeleportConnectStep(workspace string) step {
 			`$TeleportSrc = "` + perBuildTeleportSrc + `"`,
 			`$WebappsSrc = "` + perBuildWebappsSrc + `"`,
 			`$NodeVersion = "` + windowsNodeVersion + `"`,
+			`$Env:DRONE_TAG="v10.1.2"`, // TODO(tcsc): aid during dev, remove before merge
+			`$TeleportVersion=$Env:DRONE_TAG.TrimStart('v')`,
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 			`Enable-Node -NodeVersion $NodeVersion -ToolchainDir "` + windowsToolchainDir + `"`,
 			`cd $WebappsSrc`,

@@ -93,7 +93,7 @@ function Install-Go {
         $GoInstallZip = "go$GoVersion.windows-amd64.zip"
         Invoke-WebRequest -Uri $GoDownloadUrl -OutFile $GoInstallZip
         Expand-Archive -Path $GoInstallZip -DestinationPath $ToolchainDir
-        Enable-Go -ToolchainDir $ToolchainDir -GoVersion $GoVersion
+        Enable-Go -ToolchainDir $ToolchainDir
     }
 }
 
@@ -104,8 +104,7 @@ function Enable-Go {
     #>
     [CmdletBinding()]
     param(
-        [string] $ToolchainDir,
-        [string] $GoVersion
+        [string] $ToolchainDir
     )
     begin {
         $Env:Path = "$Env:Path;$ToolchainDir/go/bin"
