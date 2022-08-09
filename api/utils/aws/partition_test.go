@@ -23,38 +23,44 @@ import (
 )
 
 func TestGetPartitionFromRegion(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
-		name            string
 		region          string
 		expectPartition string
 	}{
 		{
-			name:            "cn north region",
 			region:          "cn-north-1",
 			expectPartition: "aws-cn",
 		},
 		{
-			name:            "cn north west region ",
 			region:          "cn-northwest-1",
 			expectPartition: "aws-cn",
 		},
 		{
-			name:            "US West (Northern California) Region",
+			region:          "us-gov-east-1",
+			expectPartition: "aws-us-gov",
+		},
+		{
+			region:          "us-gov-west-1",
+			expectPartition: "aws-us-gov",
+		},
+		{
+			region:          "us-east-1",
+			expectPartition: "aws",
+		},
+		{
 			region:          "us-west-1",
 			expectPartition: "aws",
 		},
 		{
-			name:            "region is null",
 			region:          "",
 			expectPartition: "aws",
 		},
 	}
 
 	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
+		t.Run(test.region, func(t *testing.T) {
 			require.Equal(t, test.expectPartition, GetPartitionFromRegion(test.region))
 		})
 	}

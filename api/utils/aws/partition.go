@@ -24,6 +24,8 @@ func GetPartitionFromRegion(region string) string {
 	switch {
 	case IsCNRegion(region):
 		partition = CNPartition
+	case IsUSGovRegion(region):
+		partition = USGovPartition
 	default:
 		partition = StandardPartition
 	}
@@ -36,4 +38,7 @@ const (
 
 	// CNPartition is the partition ID of the AWS China partition.
 	CNPartition = "aws-cn"
+
+	// USGovPartition is the partition ID of the AWS GovCloud partition.
+	USGovPartition = "aws-us-gov"
 )
