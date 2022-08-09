@@ -63,6 +63,7 @@ func TestUploadCompleterCompletesAbandonedUploads(t *testing.T) {
 		AuditLog:       log,
 		SessionTracker: sessionTrackerService,
 		Clock:          clock,
+		ClusterName:    "teleport-cluster",
 	})
 	require.NoError(t, err)
 
@@ -88,19 +89,18 @@ func TestUploadCompleterWithGracePeriod(t *testing.T) {
 	mu := NewMemoryUploader()
 	mu.Clock = clock
 
-	log := &mockAuditLog{}
-
 	sessionID := session.NewID()
 	sessionTrackerService := &mockSessionTrackerService{}
-
 	uc, err := NewUploadCompleter(UploadCompleterConfig{
 		Uploader:       mu,
-		AuditLog:       log,
+		AuditLog:       &mockAuditLog{},
 		SessionTracker: sessionTrackerService,
 		Clock:          clock,
 		GracePeriod:    2 * time.Hour,
+		ClusterName:    "teleport-cluster",
 	})
 	require.NoError(t, err)
+	t.Cleanup(uc.Close)
 
 	upload, err := mu.CreateUpload(context.Background(), sessionID)
 	require.NoError(t, err)
@@ -148,6 +148,7 @@ func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 				AuditLog:       log,
 				Clock:          clock,
 				SessionTracker: &mockSessionTrackerService{},
+				ClusterName:    "teleport-cluster",
 			})
 			require.NoError(t, err)
 
