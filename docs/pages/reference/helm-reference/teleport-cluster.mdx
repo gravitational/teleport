@@ -538,7 +538,7 @@ If you are deploying multiple releases of the Helm chart in the same cluster you
 
 | Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
-| `string` | `quay.io/gravitational/teleport-operator`| ✅ |
+| `string` | `public.ecr.aws/gravitational/teleport-operator`| ✅ |
 
 `operator.image` sets the Teleport Kubernetes Operator container image used for Teleport pods in the cluster.
 You can override this to use your own Teleport Operator image rather than a Teleport-published image.
@@ -1176,7 +1176,7 @@ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
 
 | Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
-| `string` | `quay.io/gravitational/teleport` | ✅ |
+| `string` | `public.ecr.aws/gravitational/teleport` | ✅ |
 
 `image` sets the Teleport container image used for Teleport Community pods in the cluster.
 
@@ -1199,7 +1199,7 @@ You can override this to use your own Teleport Community image rather than a Tel
 
 | Type | Default value | Can be used in `custom` mode? |
 | - | - | - |
-| `string` | `quay.io/gravitational/teleport-ent` | ✅ |
+| `string` | `public.ecr.aws/gravitational/teleport-ent` | ✅ |
 
 `enterpriseImage` sets the container image used for Teleport Enterprise pods in the cluster.
 
