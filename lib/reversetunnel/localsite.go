@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
@@ -44,7 +45,7 @@ import (
 )
 
 func newlocalSite(srv *server, domainName string, authServers []string) (*localSite, error) {
-	err := utils.RegisterPrometheusCollectors(localClusterCollectors...)
+	err := metrics.RegisterPrometheusCollectors(localClusterCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -288,6 +289,9 @@ func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 		Emitter:         s.srv.Config.Emitter,
 		ParentContext:   s.srv.Context,
 		LockWatcher:     s.srv.LockWatcher,
+		TargetID:        params.ServerID,
+		TargetAddr:      params.To.String(),
+		TargetHostname:  params.Address,
 	}
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {

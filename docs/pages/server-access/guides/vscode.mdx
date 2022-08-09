@@ -93,7 +93,14 @@ A new "Window Indicator" (icon with two arrows) should appear in the bottom left
 ![Window Indicator in bottom left corner of VS Code](../../../img/vscode/window-indicator.png)
 </Figure>
 
-Click on it, and select "Connect to Host...".
+Prior to connecting with a host set the `Remote.SSH: Use Local Server` setting to false in
+the extension setting.
+
+<Figure align="left" bordered caption="VSCode Setting">
+![Remote SSH Extension VS Code Settings](../../../img/vscode/settings.png)
+</Figure>
+
+To connect, click on the icon with two arrows and select "Connect to Host...".
 Select "+ Add New SSH Host..."
 
 For each host you wish to remotely develop on, add an entry like the following:
