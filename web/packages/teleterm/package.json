@@ -72,6 +72,7 @@
       "entitlements": "assets/entitlements.mac.plist",
       "entitlementsInherit": "assets/entitlements.mac.plist",
       "gatekeeperAssess": false,
+      "icon": "assets/icon-mac.png",
       "extraResources": [
         {
           "from": "../../../teleport/build/tsh",
@@ -98,6 +99,7 @@
         "nsis"
       ],
       "artifactName": "${productName} Setup-${version}.${ext}",
+      "icon": "assets/icon-win-linux",
       "extraResources": [
         {
           "from": "../../../teleport/build/tsh.exe",
@@ -110,6 +112,7 @@
         "deb"
       ],
       "category": "Development",
+      "icon": "assets/icon-win-linux",
       "extraResources": [
         {
           "from": "../../../teleport/build/tsh",
