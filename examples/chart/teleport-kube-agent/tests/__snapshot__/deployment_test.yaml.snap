@@ -731,7 +731,7 @@ should mount tls.existingCASecretName and set environment when set in values:
       env:
       - name: SSL_CERT_FILE
         value: /etc/teleport-tls-ca/ca.pem
-      image: quay.io/gravitational/teleport:11.0.0-dev
+      image: quay.io/gravitational/teleport:10.1.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -797,7 +797,7 @@ should mount tls.existingCASecretName and set extra environment when set in valu
         value: http://username:password@my.proxy.host:3128
       - name: SSL_CERT_FILE
         value: /etc/teleport-tls-ca/ca.pem
-      image: quay.io/gravitational/teleport:11.0.0-dev
+      image: quay.io/gravitational/teleport:10.1.2
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
