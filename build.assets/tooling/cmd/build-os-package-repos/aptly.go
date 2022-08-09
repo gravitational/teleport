@@ -672,3 +672,15 @@ func getSubdirectories(basePath string) ([]string, error) {
 
 	return subdirectories, nil
 }
+
+// Change to make tool golang v1.17 compatible.
+// This is a replacement for `slices.Contains`.
+func doesSliceContainString(slice []string, str string) bool {
+	for _, element := range slice {
+		if element == str {
+			return true
+		}
+	}
+
+	return false
+}
