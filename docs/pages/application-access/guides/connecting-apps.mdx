@@ -1,9 +1,7 @@
 ---
-title: Use Teleport for Application Access
+title: Web Application Access
 description: How to configure Teleport for Application Access.
 ---
-
-# Connecting Web Applications
 
 Download the latest version of Teleport for your platform from our [downloads page](https://goteleport.com/teleport/download)
 and follow the installation [instructions](../../installation.mdx).
@@ -41,6 +39,10 @@ join the cluster. Generate a short-lived join token and save it for example
 in `/tmp/token`:
 
 ```code
+# Log in to your cluster with tsh so you can use tctl from your local machine.
+# You can also run tctl on your Auth Service host without running "tsh login"
+# first.
+$ tsh login --user=myuser --proxy=teleport.example.com
 $ tctl tokens add \
     --type=app \
     --app-name=grafana \
@@ -101,7 +103,7 @@ Install Teleport:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-A Teleport Application Proxy agent can be started with a single CLI command:
+You can start the Teleport Application Service with a single CLI command:
 
 ```code
 $ sudo teleport start \

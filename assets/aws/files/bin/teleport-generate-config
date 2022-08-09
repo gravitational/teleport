@@ -64,8 +64,8 @@ aws_metadata_get() {
 
     if ! is_test; then
         IMDS_TOKEN=$(curl -m5 -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
-        IMDS_TOKEN_HEADER="-H \"X-aws-ec2-metadata-token: ${IMDS_TOKEN}\""
-        curl -m5 -sS "${IMDS_TOKEN_HEADER}" ${CURL_EXTRA_ARGS} http://169.254.169.254/latest/${REQUEST_PATH}
+        IMDS_TOKEN_HEADER="X-aws-ec2-metadata-token: ${IMDS_TOKEN}"
+        curl -m5 -sS -H "${IMDS_TOKEN_HEADER}" ${CURL_EXTRA_ARGS} http://169.254.169.254/latest/${REQUEST_PATH}
     else
         # return a pre-calculated value
         VARIABLE="TELEPORT_TESTVAR_${REQUEST}"

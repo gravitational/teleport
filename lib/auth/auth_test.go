@@ -22,6 +22,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509/pkix"
 	"encoding/json"
+	"errors"
 	"fmt"
 	mathrand "math/rand"
 	"os"
@@ -40,6 +41,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -54,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	reporting "github.com/gravitational/reporting/types"
 	"github.com/gravitational/trace"
 
 	"github.com/coreos/go-oidc/jose"
@@ -187,7 +191,7 @@ func TestSessions(t *testing.T) {
 	user := "user1"
 	pass := []byte("abc123")
 
-	_, err := s.a.AuthenticateWebUser(AuthenticateUserRequest{
+	_, err := s.a.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: user,
 		Pass:     &PassCreds{Password: pass},
 	})
@@ -199,7 +203,7 @@ func TestSessions(t *testing.T) {
 	err = s.a.UpsertPassword(user, pass)
 	require.NoError(t, err)
 
-	ws, err := s.a.AuthenticateWebUser(AuthenticateUserRequest{
+	ws, err := s.a.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: user,
 		Pass:     &PassCreds{Password: pass},
 	})
@@ -239,7 +243,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	pass := []byte("abc123")
 
 	// Try to login as an unknown user.
-	_, err = s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
+	_, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
 			Username: user,
 			Pass:     &PassCreds{Password: pass},
@@ -264,7 +268,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Login to the root cluster.
-	resp, err := s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
+	resp, err := s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
 			Username: user,
 			Pass:     &PassCreds{Password: pass},
@@ -302,7 +306,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.Equal(t, *gotID, wantID)
 
 	// Login to the leaf cluster.
-	resp, err = s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
+	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
 			Username: user,
 			Pass:     &PassCreds{Password: pass},
@@ -335,18 +339,21 @@ func TestAuthenticateSSHUser(t *testing.T) {
 
 	// Register a kubernetes cluster to verify the defaulting logic in TLS cert
 	// generation.
-	_, err = s.a.UpsertKubeServiceV2(ctx, &types.ServerV2{
-		Metadata: types.Metadata{Name: "kube-service"},
-		Kind:     types.KindKubeService,
-		Version:  types.V2,
-		Spec: types.ServerSpecV2{
-			KubernetesClusters: []*types.KubernetesCluster{{Name: "root-kube-cluster"}},
+	kubeCluster, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name: "root-kube-cluster",
 		},
-	})
+		types.KubernetesClusterSpecV3{},
+	)
+	require.NoError(t, err)
+
+	kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, "host", "uuid")
+	require.NoError(t, err)
+	_, err = s.a.UpsertKubernetesServer(ctx, kubeServer)
 	require.NoError(t, err)
 
 	// Login specifying a valid kube cluster. It should appear in the TLS cert.
-	resp, err = s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
+	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
 			Username: user,
 			Pass:     &PassCreds{Password: pass},
@@ -377,7 +384,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 
 	// Login without specifying kube cluster. A registered one should be picked
 	// automatically.
-	resp, err = s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
+	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
 			Username: user,
 			Pass:     &PassCreds{Password: pass},
@@ -421,7 +428,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Login specifying a valid kube cluster. It should appear in the TLS cert.
-	resp, err = s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
+	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
 			Username: user,
 			Pass:     &PassCreds{Password: pass},
@@ -452,7 +459,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 
 	// Login without specifying kube cluster. A registered one should be picked
 	// automatically.
-	resp, err = s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
+	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
 			Username: user,
 			Pass:     &PassCreds{Password: pass},
@@ -484,7 +491,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.Equal(t, *gotID, wantID)
 
 	// Login specifying an invalid kube cluster. This should fail.
-	_, err = s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
+	_, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
 			Username: user,
 			Pass:     &PassCreds{Password: pass},
@@ -500,11 +507,12 @@ func TestAuthenticateSSHUser(t *testing.T) {
 func TestUserLock(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
+	ctx := context.Background()
 
 	username := "user1"
 	pass := []byte("abc123")
 
-	_, err := s.a.AuthenticateWebUser(AuthenticateUserRequest{
+	_, err := s.a.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: username,
 		Pass:     &PassCreds{Password: pass},
 	})
@@ -517,7 +525,7 @@ func TestUserLock(t *testing.T) {
 	require.NoError(t, err)
 
 	// successful log in
-	ws, err := s.a.AuthenticateWebUser(AuthenticateUserRequest{
+	ws, err := s.a.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: username,
 		Pass:     &PassCreds{Password: pass},
 	})
@@ -528,21 +536,21 @@ func TestUserLock(t *testing.T) {
 	s.a.SetClock(fakeClock)
 
 	for i := 0; i <= defaults.MaxLoginAttempts; i++ {
-		_, err = s.a.AuthenticateWebUser(AuthenticateUserRequest{
+		_, err = s.a.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 			Username: username,
 			Pass:     &PassCreds{Password: []byte("wrong pass")},
 		})
 		require.Error(t, err)
 	}
 
-	user, err := s.a.Identity.GetUser(username, false)
+	user, err := s.a.GetUser(username, false)
 	require.NoError(t, err)
 	require.True(t, user.GetStatus().IsLocked)
 
 	// advance time and make sure we can login again
 	fakeClock.Advance(defaults.AccountLockInterval + time.Second)
 
-	_, err = s.a.AuthenticateWebUser(AuthenticateUserRequest{
+	_, err = s.a.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: username,
 		Pass:     &PassCreds{Password: pass},
 	})
@@ -561,7 +569,9 @@ func TestTokensCRUD(t *testing.T) {
 	require.Empty(t, btokens, 0)
 
 	// generate persistent token
-	tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}})
+	tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
+		Roles: types.SystemRoles{types.RoleNode},
+	})
 	require.NoError(t, err)
 	require.Len(t, tokenName, 2*TokenLenBytes)
 	tokens, err := s.a.GetTokens(ctx)
@@ -575,9 +585,31 @@ func TestTokensCRUD(t *testing.T) {
 	require.True(t, roles.Include(types.RoleNode))
 	require.False(t, roles.Include(types.RoleProxy))
 
+	// generate persistent token with defined TTL
+	desiredTTL := 6 * time.Hour
+	tokenName, err = s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
+		Roles: types.SystemRoles{types.RoleNode},
+		TTL:   proto.Duration(desiredTTL),
+	})
+	require.NoError(t, err)
+	token, err := s.a.GetToken(ctx, tokenName)
+	require.NoError(t, err)
+	actualTTL := time.Until(token.Expiry())
+	diff := actualTTL - desiredTTL
+	require.True(
+		t,
+		diff <= time.Minute && diff >= (-1*time.Minute),
+		"Token TTL should be within one minute of the desired TTL",
+	)
+
+	require.NoError(t, s.a.DeleteToken(ctx, tokenName))
+
 	// generate predefined token
 	customToken := "custom-token"
-	tokenName, err = s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}, Token: customToken})
+	tokenName, err = s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
+		Roles: types.SystemRoles{types.RoleNode},
+		Token: customToken,
+	})
 	require.NoError(t, err)
 	require.Equal(t, tokenName, customToken)
 
@@ -635,6 +667,57 @@ func TestBadTokens(t *testing.T) {
 	tampered := string(tok[0]+1) + tok[1:]
 	_, err = s.a.ValidateToken(ctx, tampered)
 	require.Error(t, err)
+}
+
+// TestLocalControlStream verifies that local control stream behaves as expected.
+func TestLocalControlStream(t *testing.T) {
+	const serverID = "test-server"
+
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	s := newAuthSuite(t)
+
+	stream := s.a.MakeLocalInventoryControlStream()
+	defer stream.Close()
+
+	err := stream.Send(ctx, proto.UpstreamInventoryHello{
+		ServerID: serverID,
+	})
+	require.NoError(t, err)
+
+	select {
+	case msg := <-stream.Recv():
+		_, ok := msg.(proto.DownstreamInventoryHello)
+		require.True(t, ok)
+	case <-stream.Done():
+		t.Fatalf("stream closed unexpectedly: %v", stream.Error())
+	case <-time.After(time.Second * 10):
+		t.Fatal("timeout waiting for downstream hello")
+	}
+
+	// wait for control stream to get inserted into the controller (happens after
+	// hello exchange is finished).
+	require.Eventually(t, func() bool {
+		_, ok := s.a.inventory.GetControlStream(serverID)
+		return ok
+	}, time.Second*5, time.Millisecond*200)
+
+	// try performing a normal operation against the control stream to double-check that it is healthy
+	go s.a.PingInventory(ctx, proto.InventoryPingRequest{
+		ServerID: serverID,
+	})
+
+	select {
+	case msg := <-stream.Recv():
+		_, ok := msg.(proto.DownstreamInventoryPing)
+		require.True(t, ok)
+	case <-stream.Done():
+		t.Fatalf("stream closed unexpectedly: %v", stream.Error())
+	case <-time.After(time.Second * 10):
+		t.Fatal("timeout waiting for downstream hello")
+	}
 }
 
 func TestGenerateTokenEventsEmitted(t *testing.T) {
@@ -883,7 +966,9 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 		ReverseTunnelAddress: "b",
 	})
 	require.NoError(t, err)
-	_, err = s.a.Presence.UpsertTrustedCluster(ctx, tc)
+	// use the UpsertTrustedCluster in Uncached as we just want the resource in
+	// the backend, we don't want to actually connect
+	_, err = s.a.Services.UpsertTrustedCluster(ctx, tc)
 	require.NoError(t, err)
 
 	require.NoError(t, s.a.UpsertCertAuthority(suite.NewTestCA(types.UserCA, "test")))
@@ -1091,7 +1176,8 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	err = p.a.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
-	accessInfo, err := services.AccessInfoFromUser(user, p.a)
+	accessInfo := services.AccessInfoFromUser(user)
+	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
 	require.NoError(t, err)
 
 	keygen := testauthority.New()
@@ -1099,7 +1185,7 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	require.NoError(t, err)
 	certReq := certRequest{
 		user:      user,
-		checker:   services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName()),
+		checker:   accessChecker,
 		publicKey: pub,
 	}
 	certs, err := p.a.generateUserCert(certReq)
@@ -1121,7 +1207,8 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 
 	user, _, err := CreateUserAndRole(p.a, "test-user", []string{})
 	require.NoError(t, err)
-	accessInfo, err := services.AccessInfoFromUser(user, p.a)
+	accessInfo := services.AccessInfoFromUser(user)
+	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
 	require.NoError(t, err)
 	mfaID := "test-mfa-id"
 	requestID := "test-access-request"
@@ -1130,7 +1217,7 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 	require.NoError(t, err)
 	certReq := certRequest{
 		user:           user,
-		checker:        services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName()),
+		checker:        accessChecker,
 		mfaVerified:    mfaID,
 		publicKey:      pub,
 		activeRequests: services.RequestIDs{AccessRequests: []string{requestID}},
@@ -1209,14 +1296,15 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 
 func TestNewWebSession(t *testing.T) {
 	t.Parallel()
-	p, err := newTestPack(context.Background(), t.TempDir())
+	ctx := context.Background()
+	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
 
 	// Set a web idle timeout.
 	duration := time.Duration(5) * time.Minute
 	cfg := types.DefaultClusterNetworkingConfig()
 	cfg.SetWebIdleTimeout(duration)
-	err = p.a.SetClusterNetworkingConfig(context.Background(), cfg)
+	err = p.a.SetClusterNetworkingConfig(ctx, cfg)
 	require.NoError(t, err)
 
 	// Create a user.
@@ -1233,7 +1321,7 @@ func TestNewWebSession(t *testing.T) {
 	}
 	bearerTokenTTL := utils.MinTTL(req.SessionTTL, BearerTokenTTL)
 
-	ws, err := p.a.NewWebSession(req)
+	ws, err := p.a.NewWebSession(ctx, req)
 	require.NoError(t, err)
 	require.Equal(t, user.GetName(), ws.GetUser())
 	require.Equal(t, duration, ws.GetIdleTimeout())
@@ -1310,7 +1398,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			token, err := srv.Auth().newUserToken(tc.tokenReq)
 			require.NoError(t, err)
-			_, err = srv.Auth().Identity.CreateUserToken(ctx, token)
+			_, err = srv.Auth().CreateUserToken(ctx, token)
 			require.NoError(t, err)
 
 			// Delete the TOTP device.
@@ -1323,7 +1411,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 	}
 
 	// Check it's been deleted.
-	devs, err := srv.Auth().Identity.GetMFADevices(ctx, username, false)
+	devs, err := srv.Auth().Services.GetMFADevices(ctx, username, false)
 	require.NoError(t, err)
 	compareDevices(t, false /* ignoreUpdateAndCounter */, devs, webDev2.MFA, totpDev2.MFA)
 
@@ -1402,7 +1490,7 @@ func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {
 			if tc.tokenRequest != nil {
 				token, err := srv.Auth().newUserToken(*tc.tokenRequest)
 				require.NoError(t, err)
-				_, err = srv.Auth().Identity.CreateUserToken(context.Background(), token)
+				_, err = srv.Auth().CreateUserToken(context.Background(), token)
 				require.NoError(t, err)
 
 				tokenID = token.GetName()
@@ -1527,7 +1615,7 @@ func TestDeleteMFADeviceSync_lastDevice(t *testing.T) {
 				Type: UserTokenTypeRecoveryApproved,
 			})
 			require.NoError(t, err)
-			_, err = srv.Auth().Identity.CreateUserToken(context.Background(), token)
+			_, err = srv.Auth().CreateUserToken(context.Background(), token)
 			require.NoError(t, err)
 
 			// Delete the device.
@@ -1593,7 +1681,7 @@ func TestAddMFADeviceSync(t *testing.T) {
 					Type: UserTokenTypeResetPassword,
 				})
 				require.NoError(t, err)
-				_, err = srv.Auth().Identity.CreateUserToken(ctx, token)
+				_, err = srv.Auth().CreateUserToken(ctx, token)
 				require.NoError(t, err)
 
 				return &proto.AddMFADeviceSyncRequest{
@@ -1742,7 +1830,7 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 			if tc.tokenRequest != nil {
 				token, err := srv.Auth().newUserToken(*tc.tokenRequest)
 				require.NoError(t, err)
-				_, err = srv.Auth().Identity.CreateUserToken(context.Background(), token)
+				_, err = srv.Auth().CreateUserToken(context.Background(), token)
 				require.NoError(t, err)
 
 				tokenID = token.GetName()
@@ -1848,4 +1936,171 @@ func compareDevices(t *testing.T, ignoreUpdateAndCounter bool, got []*types.MFAD
 	if diff := cmp.Diff(want, got, opts...); diff != "" {
 		t.Errorf("compareDevices mismatch (-want +got):\n%s", diff)
 	}
+}
+
+type mockCache struct {
+	Cache
+
+	resources      []types.ResourceWithLabels
+	resourcesError error
+}
+
+func (m mockCache) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	if m.resourcesError != nil {
+		return nil, m.resourcesError
+	}
+
+	if req.StartKey != "" {
+		return nil, nil
+	}
+
+	return &types.ListResourcesResponse{Resources: m.resources}, nil
+}
+
+func TestFilterResources(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	fail := errors.New("fail")
+
+	const resourceCount = 100
+	nodes := make([]types.ResourceWithLabels, 0, resourceCount)
+
+	for i := 0; i < resourceCount; i++ {
+		s, err := types.NewServer(uuid.NewString(), types.KindNode, types.ServerSpecV2{})
+		require.NoError(t, err)
+		nodes = append(nodes, s)
+	}
+
+	cases := []struct {
+		name           string
+		limit          int32
+		filterFn       func(labels types.ResourceWithLabels) error
+		errorAssertion require.ErrorAssertionFunc
+		cache          mockCache
+	}{
+		{
+			name:  "ListResources fails",
+			cache: mockCache{resourcesError: fail},
+			errorAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err, i...)
+				require.ErrorIs(t, err, fail)
+			},
+		},
+		{
+			name:           "Done returns no errors",
+			cache:          mockCache{resources: nodes},
+			errorAssertion: require.NoError,
+			filterFn: func(labels types.ResourceWithLabels) error {
+				return ErrDone
+			},
+		},
+		{
+			name:  "fatal errors are propagated",
+			cache: mockCache{resources: nodes},
+			errorAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err, i...)
+				require.ErrorIs(t, err, fail)
+			},
+			filterFn: func(labels types.ResourceWithLabels) error {
+				return fail
+			},
+		},
+		{
+			name:           "no errors iterates the entire resource set",
+			cache:          mockCache{resources: nodes},
+			errorAssertion: require.NoError,
+			filterFn: func(labels types.ResourceWithLabels) error {
+				return nil
+			},
+		},
+	}
+
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := &Server{Cache: tt.cache}
+
+			err := srv.IterateResources(ctx, proto.ListResourcesRequest{
+				ResourceType: types.KindNode,
+				Namespace:    apidefaults.Namespace,
+				Limit:        tt.limit,
+			}, tt.filterFn)
+			tt.errorAssertion(t, err)
+		})
+	}
+}
+
+func TestCAGeneration(t *testing.T) {
+	const (
+		clusterName = "cluster1"
+		HostUUID    = "0000-000-000-0000"
+	)
+	native.PrecomputeKeys()
+	// Cache key for better performance as we don't care about the value being unique.
+	privKey, pubKey, err := native.GenerateKeyPair()
+	require.NoError(t, err)
+
+	ksConfig := keystore.Config{
+		RSAKeyPairSource: func() (priv []byte, pub []byte, err error) {
+			return privKey, pubKey, nil
+		},
+		HostUUID: HostUUID,
+	}
+	keyStore, err := keystore.NewKeyStore(ksConfig)
+	require.NoError(t, err)
+
+	for _, caType := range types.CertAuthTypes {
+		t.Run(string(caType), func(t *testing.T) {
+			testKeySet := suite.NewTestCA(caType, clusterName, privKey).Spec.ActiveKeys
+			keySet, err := newKeySet(keyStore, types.CertAuthID{Type: caType, DomainName: clusterName})
+			require.NoError(t, err)
+
+			// Don't compare values as those are different. Only check if the key is set/not set in both cases.
+			require.Equal(t, len(testKeySet.SSH) > 0, len(keySet.SSH) > 0,
+				"test CA and production CA have different SSH keys for type %v", caType)
+			require.Equal(t, len(testKeySet.TLS) > 0, len(keySet.TLS) > 0,
+				"test CA and production CA have different TLS keys for type %v", caType)
+			require.Equal(t, len(testKeySet.JWT) > 0, len(keySet.JWT) > 0,
+				"test CA and production CA have different JWT keys for type %v", caType)
+		})
+	}
+}
+
+type mockEnforcer struct {
+	services.Enforcer
+	notifications []reporting.Notification
+}
+
+func (m mockEnforcer) GetLicenseCheckResult(ctx context.Context) (*reporting.Heartbeat, error) {
+	return &reporting.Heartbeat{
+		Spec: reporting.HeartbeatSpec{
+			Notifications: m.notifications,
+		},
+	}, nil
+}
+
+func TestEnforcerGetLicenseCheckResult(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	s := newAuthSuite(t)
+
+	expected := []reporting.Notification{
+		{
+			Type:     "test",
+			Severity: "warning",
+			Text:     "test warning",
+			HTML:     "test warning",
+		},
+	}
+
+	s.a.SetEnforcer(&mockEnforcer{
+		notifications: expected,
+	})
+
+	heartbeat, err := s.a.GetLicenseCheckResult(ctx)
+	require.NoError(t, err)
+	require.Equal(t, expected, heartbeat.Spec.Notifications)
 }

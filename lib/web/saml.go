@@ -17,6 +17,7 @@ limitations under the License.
 package web
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gravitational/teleport/api/types"
@@ -73,7 +74,7 @@ func (h *Handler) samlSSOConsole(w http.ResponseWriter, r *http.Request, p httpr
 		ConnectorID:       req.ConnectorID,
 		ClientRedirectURL: req.RedirectURL,
 		PublicKey:         req.PublicKey,
-		CertTTL:           types.Duration(req.CertTTL),
+		CertTTL:           req.CertTTL,
 		Compatibility:     req.Compatibility,
 		RouteToCluster:    req.RouteToCluster,
 		KubernetesCluster: req.KubernetesCluster,
@@ -111,6 +112,10 @@ func (h *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 					return url.String()
 				}
 			}
+		}
+
+		if errors.Is(err, auth.ErrSAMLNoRoles) {
+			return client.LoginFailedUnauthorizedRedirectURL
 		}
 
 		return client.LoginFailedBadCallbackRedirectURL

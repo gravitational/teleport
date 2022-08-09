@@ -1,58 +1,12 @@
 ---
 title: Getting started on a Linux Server
 description: This tutorial will guide you through the steps needed to install and run Teleport on a Linux server
-videoBanner: KCk7wYgUn3A
+videoBanner: 6ynLlAUipNE
 ---
 
 This tutorial will guide you through the steps needed to install and run
 Teleport (=teleport.version=) on a Linux machine, then show you how to use
 Teleport to configure access to resources.
-
-<ScopedBlock scope="enterprise">
-
-This guide is intended for users of the self-hosted, Open Source edition of
-Teleport.
-
-<TileSet>
-<Tile 
-href="./linux-server.mdx/?scope=oss" 
-title="View this guide as a Teleport Open Source user"
-icon="stack"
->
-</Tile>
-<Tile 
-href="../enterprise/getting-started.mdx/" 
-title="View the Enterprise Getting Started Guide"
-icon="building"
->
-</Tile>
-</TileSet>
-
-</ScopedBlock>
-
-<ScopedBlock scope="cloud">
-
-This guide is intended for users of the self-hosted, Open Source edition of
-Teleport.
-
-<TileSet>
-<Tile 
-href="./linux-server.mdx/?scope=oss" 
-title="View this guide as a Teleport Open Source user"
-icon="stack"
->
-</Tile>
-<Tile 
-href="../cloud/getting-started.mdx/" 
-title="View the Teleport Cloud Getting Started Guide"
-icon="cloud"
->
-</Tile>
-</TileSet>
-
-</ScopedBlock>
-
-<ScopedBlock scope="oss">
 
 We will run the following Teleport services:
 
@@ -70,6 +24,8 @@ We will run the following Teleport services:
   and other features.
 
 (!docs/pages/includes/permission-warning.mdx!)
+
+(!docs/pages/includes/cloud/call-to-action.mdx!)
 
 ## Prerequisites
 
@@ -196,10 +152,10 @@ app_service:
       public_addr: "demo.teleport.example.com"
 ```
 
-## Start Teleport
+### Start Teleport
 
 On your Linux machine, run the following command to start the `teleport` daemon
-(this depends on how you installed Telport earlier).
+(this depends on how you installed Teleport earlier).
 
 <Tabs>
   <TabItem label="Package manager RPM/DEB">
@@ -220,7 +176,7 @@ You can access Teleport's Web UI via HTTPS at the domain you created earlier
 (e.g., `https://teleport.example.com`). You should see a welcome screen similar
 to the following:
 
-![Teleport User Registration](../../img/quickstart/login.png)
+![Teleport Welcome Screen](../../img/quickstart/welcome.png)
 
 ## Step 4/6. Create a Teleport user and set up two-factor authentication
 
@@ -412,4 +368,3 @@ Teleport tasks, such as:
 
 - How Let's Encrypt uses the [ACME protocol](https://letsencrypt.org/how-it-works/) to issue certificates
 
-</ScopedBlock>

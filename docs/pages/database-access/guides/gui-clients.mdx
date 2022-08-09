@@ -16,7 +16,7 @@ Ensure that your environment includes the following:
 <TabItem scope={["oss"]} label="Open Source">
 
 - A running Teleport cluster. For details on how to set this up, see one of our
-  [Getting Started](/docs/getting-started) guides. 
+  [Getting Started](/docs/getting-started) guides.
 
 - The `tsh` client tool version >= (=teleport.version=).
 
@@ -79,16 +79,21 @@ You won't need to configure any credentials when connecting to this tunnel.
 Here is an example on how to start the proxy:
 
 ```bash
-# First, login into the database.
-$ tsh db login <database-name>
-
-# Then, start the local proxy.
+# Start the local proxy.
 $ tsh proxy db --tunnel <database-name>
 Started authenticated tunnel for the <engine> database "<database-name>" in cluster "<cluster-name>" on 127.0.0.1:62652.
 ```
 
-You can then connect to the address the proxy command returns, in our example it
+You can optionally specify the database name and the user to use by default
+when connecting to the database:
+
+```code
+$ tsh proxy db --db-user=my-database-user --db-name=my-schema --tunnel <database-name>
+```
+
+Now, you can connect to the address the proxy command returns. In our example it
 is `127.0.0.1:62652`.
+
 </TabItem>
 <TabItem label="TLS routing">
 If you're using Teleport in [TLS routing](../../setup/operations/tls-routing.mdx)
@@ -317,9 +322,9 @@ After opening Redis Insight click `ADD REDIS DATABASE`.
 
 ![Redis Insight Startup Screen](../../../img/database-access/guides/redis/redisinsight-startup.png)
 
-Log in to your Redis instance with a Redis user first by using:
+Now start a local proxy to your Redis instance:
 
-`tsh db login --db-user=alice redis-db-name`.
+`tsh proxy db --db-user=alice redis-db-name`.
 
 Click `Add Database Manually`. Use `127.0.0.1` as the `Host`. Use the port printed by
 the `tsh` command you ran in [Get connection information](#get-connection-information).
@@ -338,3 +343,72 @@ Click `Add Redis Database`.
 Congratulations! You have just connected to your Redis instance.
 
 ![Redis Insight Connected](../../../img/database-access/guides/redis/redisinsight-connected.png)
+
+
+## Snowflake: JetBrains (IntelliJ, Goland, DataGrip, PyCharm, etc.)
+
+
+The Snowflake integration works only in the authenticated proxy mode. Start a local proxy for connections to your Snowflake database by using the command below:
+```
+tsh proxy db --tunnel --port 2000 snowflake
+```
+
+In "Database Explorer" click the "add" button, pick "Data Source", and then pick "Snowflake":
+
+![JetBrains Add Database](../../../img/database-access/guides/snowflake/jetbrains-add-database.png)
+
+Next, set "Host" to `localhost` and "Port" to the port returned by the `tsh proxy db` command you ran earlier (`2000` in the example above).
+Set the "Username" to match the one that you are assuming when you connect to Snowflake
+ via Teleport and enter any value (e.g., "teleport") in the "Password" field (the value of
+ "Password" will be ignored but is required to create a data source in your IDE):
+
+![JetBrains General](../../../img/database-access/guides/snowflake/jetbrains-general.png)
+
+Switch to the "Advanced" tab, set any value (e.g., "teleport") for "account", and add a new record named `ssl` with value `off` (as with "Password", "account" is ignored while establishing the connection but required by your IDE):
+
+![JetBrains Advanced](../../../img/database-access/guides/snowflake/jetbrains-advanced.png)
+
+Teleport ignores the provided password and the account name as internally it uses values from the Database Agent configuration.
+Setting "SSL" to `off` only disables encryption on your local machine. The connection to Snowflake is encrypted by Teleport.
+
+Now you can click "Test Connection" to check your configuration.
+
+![JetBrains Success](../../../img/database-access/guides/snowflake/jetbrains-success.png)
+
+Congratulations! You have just connected to your Snowflake instance.
+
+## Snowflake: DBeaver
+
+The Snowflake integration works only in the authenticated proxy mode. Start a local proxy for connections to your Snowflake database by using the command below:
+```
+tsh proxy db --tunnel --port 2000 snowflake
+```
+
+Add a new database by clicking the "add" icon in the top-left corner:
+
+![DBeaver Main Screen](../../../img/database-access/guides/snowflake/dbeaver-main-screen.png)
+
+In the search bar of the "Connect to a database" window that opens up, type "snowflake", select the Snowflake driver, and click "Next":
+
+![DBeaver Select Database](../../../img/database-access/guides/snowflake/dbeaver-select-database.png)
+
+Set "Host" to `localhost` and "Port" to the port returned by the `tsh proxy db` command you ran earlier (`2000` in the example above).
+In the "Authentication" section set the "Username" to match the database username passed to Teleport with `--db-user`
+and enter any value (e.g., "teleport") in the "Password" field (the value of
+ "Password" will be ignored when establishing a connection but is required by DBeaver to register your database):
+
+![DBeaver Main](../../../img/database-access/guides/snowflake/dbeaver-main.png)
+
+Next, click the "Driver properties" tab and set "account" to any value (e.g., "teleport"; as with "Password", the value of
+ "account" will be ignored when establishing a connection but is required by DBeaver to register your database). In "User properties", set "ssl" to `off`:
+
+![DBeaver Driver](../../../img/database-access/guides/snowflake/dbeaver-driver.png)
+
+Teleport ignores the provided password and the account name as internally it uses values from the Database Agent configuration.
+SSL set to `off` disables only encryption on local machine. Connection to Snowflake is encrypted by Teleport.
+
+Now you can click on "Test Connection..." in the bottom-left corner:
+
+![DBeaver Success](../../../img/database-access/guides/snowflake/dbeaver-success.png)
+
+Congratulations! You have just connected to your Snowflake instance.

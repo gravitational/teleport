@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/base32"
 	"fmt"
 	"net"
@@ -28,11 +29,24 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
+	"github.com/jonboulle/clockwork"
+	"github.com/pquerna/otp"
+	"github.com/pquerna/otp/totp"
+	"github.com/stretchr/testify/require"
+	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
+	otlpresourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
+	otlptracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -42,13 +56,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/pquerna/otp"
-	"github.com/pquerna/otp/totp"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 func TestMFADeviceManagement(t *testing.T) {
@@ -797,7 +804,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	registered := addOneOfEachMFADevice(t, cl, clock, webOrigin)
 
 	// Fetch MFA device IDs.
-	devs, err := srv.Auth().Identity.GetMFADevices(ctx, user.GetName(), false)
+	devs, err := srv.Auth().Services.GetMFADevices(ctx, user.GetName(), false)
 	require.NoError(t, err)
 	var webDevID string
 	for _, dev := range devs {
@@ -1358,6 +1365,134 @@ func TestGenerateHostCerts(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, certs)
+}
+
+// TestInstanceCertAndControlStream attempts to generate an instance cert via the
+// assertion API and use it to handle an inventory ping via the control stream.
+func TestInstanceCertAndControlStream(t *testing.T) {
+	const assertionID = "test-assertion"
+	const serverID = "test-server"
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	srv := newTestTLSServer(t)
+
+	roles := []types.SystemRole{
+		types.RoleNode,
+		types.RoleAuth,
+		types.RoleProxy,
+	}
+
+	clt, err := srv.NewClient(TestServerID(types.RoleNode, serverID))
+	require.NoError(t, err)
+	defer clt.Close()
+
+	priv, pub, err := native.GenerateKeyPair()
+	require.NoError(t, err)
+
+	pubTLS, err := PrivateKeyToPublicKeyTLS(priv)
+	require.NoError(t, err)
+
+	req := proto.HostCertsRequest{
+		HostID:       serverID,
+		Role:         types.RoleInstance,
+		PublicSSHKey: pub,
+		PublicTLSKey: pubTLS,
+		SystemRoles:  roles,
+		// assertion ID is omitted initially to test
+		// the failure case
+	}
+
+	// request should fail since clt only holds RoleNode
+	_, err = clt.GenerateHostCerts(ctx, &req)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// perform assertions
+	for _, role := range roles {
+		func() {
+			clt, err := srv.NewClient(TestServerID(role, serverID))
+			require.NoError(t, err)
+			defer clt.Close()
+
+			err = clt.UnstableAssertSystemRole(ctx, proto.UnstableSystemRoleAssertion{
+				ServerID:    serverID,
+				AssertionID: assertionID,
+				SystemRole:  role,
+			})
+			require.NoError(t, err)
+		}()
+	}
+
+	// set assertion ID
+	req.UnstableSystemRoleAssertionID = assertionID
+
+	// assertion should allow us to generate certs
+	certs, err := clt.GenerateHostCerts(ctx, &req)
+	require.NoError(t, err)
+
+	// make an instance client
+	instanceCert, err := tls.X509KeyPair(certs.TLS, priv)
+	require.NoError(t, err)
+	instanceClt := srv.NewClientWithCert(instanceCert)
+
+	// instance cert can self-renew without assertions
+	req.UnstableSystemRoleAssertionID = ""
+	_, err = instanceClt.GenerateHostCerts(ctx, &req)
+	require.NoError(t, err)
+
+	stream, err := instanceClt.InventoryControlStream(ctx)
+	require.NoError(t, err)
+	defer stream.Close()
+
+	err = stream.Send(ctx, proto.UpstreamInventoryHello{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: roles,
+	})
+	require.NoError(t, err)
+
+	select {
+	case msg := <-stream.Recv():
+		_, ok := msg.(proto.DownstreamInventoryHello)
+		require.True(t, ok)
+	case <-time.After(time.Second * 5):
+		t.Fatalf("timeout waiting for downstream hello")
+	}
+
+	// fire off a ping in the background
+	pingErr := make(chan error, 1)
+	go func() {
+		defer close(pingErr)
+		// get an admin client so that we can test pings
+		clt, err := srv.NewClient(TestAdmin())
+		if err != nil {
+			pingErr <- err
+			return
+		}
+		defer clt.Close()
+
+		_, err = clt.PingInventory(ctx, proto.InventoryPingRequest{
+			ServerID: serverID,
+		})
+		pingErr <- err
+	}()
+
+	// wait for the ping
+	select {
+	case msg := <-stream.Recv():
+		ping, ok := msg.(proto.DownstreamInventoryPing)
+		require.True(t, ok)
+		err = stream.Send(ctx, proto.UpstreamInventoryPong{
+			ID: ping.ID,
+		})
+		require.NoError(t, err)
+	case <-time.After(time.Second * 5):
+		t.Fatalf("timeout waiting for downstream ping")
+	}
+
+	// ensure that bg ping routine was successful
+	require.NoError(t, <-pingErr)
 }
 
 func TestNodesCRUD(t *testing.T) {
@@ -1959,6 +2094,17 @@ func TestListResources(t *testing.T) {
 			require.Empty(t, resp.NextKey)
 			require.Empty(t, resp.TotalCount)
 
+			// ListResources should also work when called on auth directly
+			resp, err = srv.Auth().ListResources(ctx, proto.ListResourcesRequest{
+				ResourceType: test.resourceType,
+				Namespace:    apidefaults.Namespace,
+				Limit:        100,
+			})
+			require.NoError(t, err)
+			require.Len(t, resp.Resources, 2)
+			require.Empty(t, resp.NextKey)
+			require.Empty(t, resp.TotalCount)
+
 			// Test types.KindKubernetesCluster
 			if test.resourceType == types.KindKubeService {
 				test.resourceType = types.KindKubernetesCluster
@@ -2070,6 +2216,299 @@ func TestCustomRateLimiting(t *testing.T) {
 
 			err = test.fn(clt)
 			require.True(t, trace.IsLimitExceeded(err), "got err = %v, want LimitExceeded", err)
+		})
+	}
+}
+
+type mockAuthorizer struct {
+	ctx *Context
+	err error
+}
+
+func (a mockAuthorizer) Authorize(context.Context) (*Context, error) {
+	return a.ctx, a.err
+}
+
+type mockTraceClient struct {
+	err   error
+	spans []*otlptracev1.ResourceSpans
+}
+
+func (m mockTraceClient) Start(ctx context.Context) error {
+	return nil
+}
+
+func (m mockTraceClient) Stop(ctx context.Context) error {
+	return nil
+}
+
+func (m *mockTraceClient) UploadTraces(ctx context.Context, protoSpans []*otlptracev1.ResourceSpans) error {
+	m.spans = protoSpans
+
+	return m.err
+}
+
+func TestExport(t *testing.T) {
+	t.Parallel()
+	uploadErr := trace.AccessDenied("failed to upload")
+
+	const user = "user"
+
+	validateResource := func(forwardedFor string, resourceSpan *otlptracev1.ResourceSpans) {
+		var forwarded []string
+		for _, attribute := range resourceSpan.Resource.Attributes {
+			if attribute.Key == forwardedTag {
+				forwarded = append(forwarded, attribute.Value.GetStringValue())
+			}
+		}
+
+		require.Len(t, forwarded, 1)
+
+		for _, scopeSpan := range resourceSpan.ScopeSpans {
+			for _, span := range scopeSpan.Spans {
+				for _, attribute := range span.Attributes {
+					if attribute.Key == forwardedTag {
+						forwarded = append(forwarded, attribute.Value.GetStringValue())
+					}
+				}
+			}
+		}
+
+		require.Len(t, forwarded, 2)
+		for _, value := range forwarded {
+			require.Equal(t, forwardedFor, value)
+		}
+	}
+
+	validateTaggedSpans := func(forwardedFor string) require.ValueAssertionFunc {
+		return func(t require.TestingT, i interface{}, i2 ...interface{}) {
+			require.NotEmpty(t, i)
+			resourceSpans, ok := i.([]*otlptracev1.ResourceSpans)
+			require.True(t, ok)
+
+			for _, resourceSpan := range resourceSpans {
+				if resourceSpan.Resource != nil {
+					validateResource(forwardedFor, resourceSpan)
+					return
+				}
+
+				for _, scopeSpan := range resourceSpan.ScopeSpans {
+					for _, span := range scopeSpan.Spans {
+						var foundForwardedTag bool
+						for _, attribute := range span.Attributes {
+							if attribute.Key == forwardedTag {
+								require.False(t, foundForwardedTag)
+								foundForwardedTag = true
+								require.Equal(t, forwardedFor, attribute.Value.GetStringValue())
+							}
+						}
+						require.True(t, foundForwardedTag)
+					}
+				}
+			}
+		}
+	}
+
+	testSpans := []*otlptracev1.ResourceSpans{
+		{
+			Resource: &otlpresourcev1.Resource{
+				Attributes: []*otlpcommonv1.KeyValue{
+					{
+						Key: "test",
+						Value: &otlpcommonv1.AnyValue{
+							Value: &otlpcommonv1.AnyValue_IntValue{
+								IntValue: 1,
+							},
+						},
+					},
+					{
+						Key: "key",
+						Value: &otlpcommonv1.AnyValue{
+							Value: &otlpcommonv1.AnyValue_StringValue{
+								StringValue: user,
+							},
+						},
+					},
+				},
+			},
+			ScopeSpans: []*otlptracev1.ScopeSpans{
+				{
+					Spans: []*otlptracev1.Span{
+						{
+							Name: "with-attributes",
+							Attributes: []*otlpcommonv1.KeyValue{
+								{
+									Key: "test",
+									Value: &otlpcommonv1.AnyValue{
+										Value: &otlpcommonv1.AnyValue_IntValue{
+											IntValue: 1,
+										},
+									},
+								},
+								{
+									Key: "key",
+									Value: &otlpcommonv1.AnyValue{
+										Value: &otlpcommonv1.AnyValue_DoubleValue{
+											DoubleValue: 5.0,
+										},
+									},
+								},
+							},
+						},
+						{
+							Name:       "with-tag",
+							Attributes: []*otlpcommonv1.KeyValue{{Key: forwardedTag, Value: &otlpcommonv1.AnyValue{Value: &otlpcommonv1.AnyValue_StringValue{StringValue: "test"}}}},
+						},
+						{
+							Name: "no-attributes",
+						},
+					},
+				},
+			},
+		},
+		{
+			ScopeSpans: []*otlptracev1.ScopeSpans{
+				{
+					Spans: []*otlptracev1.Span{
+						{
+							Name: "more-with-attributes",
+							Attributes: []*otlpcommonv1.KeyValue{
+								{
+									Key: "test2",
+									Value: &otlpcommonv1.AnyValue{
+										Value: &otlpcommonv1.AnyValue_IntValue{
+											IntValue: 11,
+										},
+									},
+								},
+								{
+									Key: "key2",
+									Value: &otlpcommonv1.AnyValue{
+										Value: &otlpcommonv1.AnyValue_DoubleValue{
+											DoubleValue: 15.0,
+										},
+									},
+								},
+							},
+						},
+						{
+							Name: "already-tagged",
+							Attributes: []*otlpcommonv1.KeyValue{
+								{
+									Key: forwardedTag,
+									Value: &otlpcommonv1.AnyValue{
+										Value: &otlpcommonv1.AnyValue_StringValue{
+											StringValue: user,
+										},
+									},
+								},
+								{
+									Key: "key2",
+									Value: &otlpcommonv1.AnyValue{
+										Value: &otlpcommonv1.AnyValue_DoubleValue{
+											DoubleValue: 15.0,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	cases := []struct {
+		name              string
+		identity          TestIdentity
+		errAssertion      require.ErrorAssertionFunc
+		uploadedAssertion require.ValueAssertionFunc
+		spans             []*otlptracev1.ResourceSpans
+		authorizer        Authorizer
+		mockTraceClient   mockTraceClient
+	}{
+		{
+			name:              "error when unauthorized",
+			identity:          TestNop(),
+			errAssertion:      require.Error,
+			uploadedAssertion: require.Empty,
+			spans:             make([]*otlptracev1.ResourceSpans, 1),
+			authorizer:        &mockAuthorizer{err: trace.AccessDenied("unauthorized")},
+		},
+		{
+			name:              "nop for empty spans",
+			identity:          TestBuiltin(types.RoleNode),
+			errAssertion:      require.NoError,
+			uploadedAssertion: require.Empty,
+		},
+		{
+			name:     "failure to forward spans",
+			identity: TestBuiltin(types.RoleNode),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.ErrorIs(t, trail.FromGRPC(trace.Unwrap(err)), uploadErr)
+			},
+			uploadedAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+				require.NotNil(t, i)
+				require.Len(t, i, 1)
+			},
+			spans:           make([]*otlptracev1.ResourceSpans, 1),
+			mockTraceClient: mockTraceClient{err: uploadErr},
+		},
+		{
+			name:              "forwarded spans get tagged for system roles",
+			identity:          TestBuiltin(types.RoleProxy),
+			errAssertion:      require.NoError,
+			spans:             testSpans,
+			uploadedAssertion: validateTaggedSpans(fmt.Sprintf("%s.localhost:%s", types.RoleProxy, types.RoleProxy)),
+		},
+		{
+			name:              "forwarded spans get tagged for users",
+			identity:          TestUser(user),
+			errAssertion:      require.NoError,
+			spans:             testSpans,
+			uploadedAssertion: validateTaggedSpans(user),
+		},
+	}
+
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			as, err := NewTestAuthServer(TestAuthServerConfig{
+				Dir:         t.TempDir(),
+				Clock:       clockwork.NewFakeClock(),
+				TraceClient: &tt.mockTraceClient,
+			})
+			require.NoError(t, err)
+
+			srv, err := as.NewTestTLSServer()
+			require.NoError(t, err)
+
+			t.Cleanup(func() { require.NoError(t, srv.Close()) })
+
+			// Create a fake user.
+			_, _, err = CreateUserAndRole(srv.Auth(), user, []string{"role"})
+			require.NoError(t, err)
+
+			// Setup the server
+			if tt.authorizer != nil {
+				srv.TLSServer.grpcServer.Authorizer = tt.authorizer
+			}
+
+			// Get a client for the test identity
+			clt, err := srv.NewClient(tt.identity)
+			require.NoError(t, err)
+
+			// create a tracing client and forward some traces
+			traceClt := tracing.NewClient(clt.APIClient.GetConnection())
+			t.Cleanup(func() { require.NoError(t, traceClt.Close()) })
+			require.NoError(t, traceClt.Start(ctx))
+
+			tt.errAssertion(t, traceClt.UploadTraces(ctx, tt.spans))
+			tt.uploadedAssertion(t, tt.mockTraceClient.spans)
 		})
 	}
 }

@@ -17,6 +17,8 @@ limitations under the License.
 package service
 
 import (
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -26,17 +28,18 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db"
-	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
+func (process *TeleportProcess) shouldInitDatabases() bool {
+	databasesCfg := len(process.Config.Databases.Databases) > 0
+	resourceMatchersCfg := len(process.Config.Databases.ResourceMatchers) > 0
+	awsMatchersCfg := len(process.Config.Databases.AWSMatchers) > 0
+	anyCfg := databasesCfg || resourceMatchersCfg || awsMatchersCfg
+
+	return process.Config.Databases.Enabled && anyCfg
+}
+
 func (process *TeleportProcess) initDatabases() {
-	if len(process.Config.Databases.Databases) == 0 &&
-		len(process.Config.Databases.ResourceMatchers) == 0 &&
-		len(process.Config.Databases.AWSMatchers) == 0 {
-		return
-	}
 	process.registerWithAuthServer(types.RoleDatabase, DatabasesIdentityEvent)
 	process.RegisterCriticalFunc("db.init", process.initDatabaseService)
 }
@@ -45,22 +48,11 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	log := process.log.WithField(trace.Component, teleport.Component(
 		teleport.ComponentDatabase, process.id))
 
-	eventsCh := make(chan Event)
-	process.WaitForEvent(process.ExitContext(), DatabasesIdentityEvent, eventsCh)
-
-	var event Event
-	select {
-	case event = <-eventsCh:
-		log.Debugf("Received event %q.", event.Name)
-	case <-process.ExitContext().Done():
-		log.Debug("Process is exiting.")
-		return nil
+	conn, err := process.waitForConnector(DatabasesIdentityEvent, log)
+	if conn == nil {
+		return trace.Wrap(err)
 	}
 
-	conn, ok := (event.Payload).(*Connector)
-	if !ok {
-		return trace.BadParameter("unsupported event payload type %q", event.Payload)
-	}
 	accessPoint, err := process.newLocalCacheForDatabase(conn.Client, []string{teleport.ComponentDatabase})
 	if err != nil {
 		return trace.Wrap(err)
@@ -73,7 +65,15 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	tunnelAddrResolver := conn.TunnelProxyResolver()
 	if tunnelAddrResolver == nil {
 		tunnelAddrResolver = process.singleProcessModeResolver(resp.GetProxyListenerMode())
+
+		// run the resolver. this will check configuration for errors.
+		_, err := tunnelAddrResolver(process.ExitContext())
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
+
+	clusterName := conn.ServerIdentity.ClusterName
 
 	// Start uploader that will scan a path on disk and upload completed
 	// sessions to the auth server.
@@ -83,6 +83,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	}
 	completerCfg := events.UploadCompleterConfig{
 		SessionTracker: conn.Client,
+		ClusterName:    clusterName,
 	}
 	err = process.initUploaderService(uploaderCfg, completerCfg)
 	if err != nil {
@@ -147,8 +148,6 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		}
 		databases = append(databases, db)
 	}
-
-	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{

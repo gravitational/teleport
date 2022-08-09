@@ -5,6 +5,8 @@ description: How to back up and restore your Teleport cluster state.
 This guide explains the components of your Teleport deployment that must be
 backed up and lays out our recommended approach for performing backups.
 
+(!docs/pages/includes/cloud/call-to-action.mdx!)
+
 ## What you should back up
 
 ### Teleport services
@@ -114,6 +116,10 @@ When migrating backends, you should back up your Auth Service's
 ### Example of backing up and restoring a cluster
 
 ```code
+# Log in to your cluster with tsh so you can use tctl from your local machine.
+# You can also run tctl on your Auth Service host without running "tsh login"
+# first.
+$ tsh login --proxy=teleport.example.com --user=myuser
 # Export dynamic configuration state from old cluster
 $ tctl get all --with-secrets > state.yaml
 
@@ -146,9 +152,9 @@ also apply to a new cluster being bootstrapped from the state of an old cluster:
 
   - Changing the cluster name will break your CAs. This will be caught and Teleport
     will refuse to start.
-  - Some user authentication mechanisms (e.g. WebAuthn and U2F) require that the
-    public endpoint of the Web UI remains the same. This cannot be caught by
-    Teleport, so be careful!
+  - Some user authentication mechanisms (e.g. WebAuthn) require that the public
+    endpoint of the Web UI remains the same. This cannot be caught by Teleport,
+    so be careful!
   - Any Node whose invite token is defined in the Auth Service's configuration
     file will be able to join automatically, but Nodes that were added
     dynamically will need to be re-invited.
@@ -174,6 +180,10 @@ When migrating backends, you should back up your Auth Service's
 ### Example of backing up and restoring a cluster
 
 ```code
+# Log in to your cluster with tsh so you can use tctl from your local machine.
+# You can also run tctl on your Auth Service host without running "tsh login"
+# first.
+$ tsh login --user=myuser --proxy=teleport.example.com
 # Export dynamic configuration state from old cluster
 $ tctl get all --with-secrets > state.yaml
 
@@ -206,9 +216,9 @@ also apply to a new cluster being bootstrapped from the state of an old cluster:
 
   - Changing the cluster name will break your CAs. This will be caught and Teleport
     will refuse to start.
-  - Some user authentication mechanisms (e.g. WebAuthn and U2F) require that the
-    public endpoint of the Web UI remains the same. This cannot be caught by
-    Teleport, so be careful!
+  - Some user authentication mechanisms (e.g. WebAuthn) require that the public
+    endpoint of the Web UI remains the same. This cannot be caught by Teleport,
+    so be careful!
   - Any Node whose invite token is defined in the Auth Service's configuration
     file will be able to join automatically, but Nodes that were added
     dynamically will need to be re-invited.
@@ -216,12 +226,15 @@ also apply to a new cluster being bootstrapped from the state of an old cluster:
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Cloud">
 
-In Teleport Cloud, backend data is managed for you automatically. If you would
-like to migrate configuration resources to a self-hosted Teleport cluster,
-follow our recommended backup practice of storing configuration resources in a
-git repository and running `tctl create -f` regularly for each resource. This
-will enable you to keep your configuration resources up to date regardless of
-storage backend.
+In Teleport Cloud, backend data is managed for you automatically. 
+
+If you would like to migrate configuration resources to a self-hosted Teleport
+cluster, follow our recommended backup practice of storing configuration
+resources in a git repository and running `tctl create -f` regularly for each
+resource. 
+
+This will enable you to keep your configuration resources up to date regardless
+of storage backend.
 
 </TabItem>
 </Tabs>

@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/desktop"
 )
 
 type access struct {
@@ -36,7 +37,7 @@ type accessStrategy struct {
 	// Type determines how a user should access teleport resources.
 	// ie: does the user require a request to access resources?
 	Type types.RequestStrategy `json:"type"`
-	// Prompt is the optional dialogue shown to user,
+	// Prompt is the optional dialog shown to user,
 	// when the access strategy type requires a reason.
 	Prompt string `json:"prompt"`
 }
@@ -86,6 +87,8 @@ type userACL struct {
 	Clipboard bool `json:"clipboard"`
 	// DesktopSessionRecording defines whether the user's desktop sessions are being recorded.
 	DesktopSessionRecording bool `json:"desktopSessionRecording"`
+	// DirectorySharing defines whether a user is permitted to share a directory during windows desktop sessions.
+	DirectorySharing bool `json:"directorySharing"`
 }
 
 type authType string
@@ -190,7 +193,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	nodeAccess := newAccess(userRoles, ctx, types.KindNode)
 	appServerAccess := newAccess(userRoles, ctx, types.KindAppServer)
 	dbServerAccess := newAccess(userRoles, ctx, types.KindDatabaseServer)
-	kubeServerAccess := newAccess(userRoles, ctx, types.KindKubeService)
+	kubeServerAccess := newAccess(userRoles, ctx, types.KindKubeServer)
 	requestAccess := newAccess(userRoles, ctx, types.KindAccessRequest)
 	desktopAccess := newAccess(userRoles, ctx, types.KindWindowsDesktop)
 
@@ -203,6 +206,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	windowsLogins := getWindowsDesktopLogins(userRoles)
 	clipboard := userRoles.DesktopClipboard()
 	desktopSessionRecording := desktopRecordingEnabled && userRoles.RecordDesktopSession()
+	directorySharing := userRoles.DesktopDirectorySharing()
 
 	acl := userACL{
 		AccessRequests:          requestAccess,
@@ -223,6 +227,8 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		Billing:                 billingAccess,
 		Clipboard:               clipboard,
 		DesktopSessionRecording: desktopSessionRecording,
+		// AllowDirectorySharing() ensures this setting is modulated by build flag while in development
+		DirectorySharing: directorySharing && desktop.AllowDirectorySharing(),
 	}
 
 	// local user

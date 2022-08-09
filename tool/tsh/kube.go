@@ -44,6 +44,7 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
+	dockerterm "github.com/moby/term"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -202,7 +203,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 	}
 
 	session.Wait()
-	return nil
+	return trace.Wrap(session.Detach())
 }
 
 // RemoteExecutor defines the interface accepted by the Exec command - provided for test stubbing
@@ -277,6 +278,11 @@ func (o *StreamOptions) SetupTTY() term.TTY {
 	// if we get to here, the user wants to attach stdin, wants a TTY, and o.In is a terminal, so we
 	// can safely set t.Raw to true
 	t.Raw = true
+
+	if o.overrideStreams == nil {
+		// use dockerterm.StdStreams() to get the right I/O handles on Windows
+		o.overrideStreams = dockerterm.StdStreams
+	}
 
 	stdin, stdout, _ := o.overrideStreams()
 	o.In = stdin
@@ -664,9 +670,9 @@ func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
 }
 
 type kubeListing struct {
-	Proxy       string                   `json:"proxy"`
-	Cluster     string                   `json:"cluster"`
-	KubeCluster *types.KubernetesCluster `json:"kube_cluster"`
+	Proxy       string            `json:"proxy"`
+	Cluster     string            `json:"cluster"`
+	KubeCluster types.KubeCluster `json:"kube_cluster"`
 }
 
 type kubeListings []kubeListing
@@ -682,20 +688,20 @@ func (l kubeListings) Less(i, j int) bool {
 	if l[i].Cluster != l[j].Cluster {
 		return l[i].Cluster < l[j].Cluster
 	}
-	return l[i].KubeCluster.Name < l[j].KubeCluster.Name
+	return l[i].KubeCluster.GetName() < l[j].KubeCluster.GetName()
 }
 
 func (l kubeListings) Swap(i, j int) {
 	l[i], l[j] = l[j], l[i]
 }
 
-func formatKubeLabels(cluster *types.KubernetesCluster) string {
-	labels := make([]string, 0, len(cluster.StaticLabels)+len(cluster.DynamicLabels))
-	for key, value := range cluster.StaticLabels {
+func formatKubeLabels(cluster types.KubeCluster) string {
+	labels := make([]string, 0, len(cluster.GetStaticLabels())+len(cluster.GetDynamicLabels()))
+	for key, value := range cluster.GetStaticLabels() {
 		labels = append(labels, fmt.Sprintf("%s=%s", key, value))
 	}
-	for key, value := range cluster.DynamicLabels {
-		labels = append(labels, fmt.Sprintf("%s=%s", key, value.Result))
+	for key, value := range cluster.GetDynamicLabels() {
+		labels = append(labels, fmt.Sprintf("%s=%s", key, value.GetResult()))
 	}
 	sort.Strings(labels)
 	return strings.Join(labels, " ")
@@ -732,11 +738,11 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 		}
 		for _, cluster := range kubeClusters {
 			var selectedMark string
-			if cluster.Name == selectedCluster {
+			if cluster.GetName() == selectedCluster {
 				selectedMark = "*"
 			}
 
-			t.AddRow([]string{cluster.Name, formatKubeLabels(cluster), selectedMark})
+			t.AddRow([]string{cluster.GetName(), formatKubeLabels(cluster), selectedMark})
 		}
 		fmt.Println(t.AsBuffer().String())
 	case teleport.JSON, teleport.YAML:
@@ -752,7 +758,7 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 	return nil
 }
 
-func serializeKubeClusters(kubeClusters []*types.KubernetesCluster, selectedCluster, format string) (string, error) {
+func serializeKubeClusters(kubeClusters []types.KubeCluster, selectedCluster, format string) (string, error) {
 	type cluster struct {
 		KubeClusterName string            `json:"kube_cluster_name"`
 		Labels          map[string]string `json:"labels"`
@@ -760,15 +766,15 @@ func serializeKubeClusters(kubeClusters []*types.KubernetesCluster, selectedClus
 	}
 	clusterInfo := make([]cluster, 0, len(kubeClusters))
 	for _, cl := range kubeClusters {
-		labels := cl.StaticLabels
-		for key, value := range cl.DynamicLabels {
-			labels[key] = value.Result
+		labels := cl.GetStaticLabels()
+		for key, value := range cl.GetDynamicLabels() {
+			labels[key] = value.GetResult()
 		}
 
 		clusterInfo = append(clusterInfo, cluster{
-			KubeClusterName: cl.Name,
+			KubeClusterName: cl.GetName(),
 			Labels:          labels,
-			Selected:        cl.Name == selectedCluster,
+			Selected:        cl.GetName() == selectedCluster,
 		})
 	}
 	var out []byte
@@ -791,7 +797,7 @@ func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
 			Labels:              tc.Labels,
 		}
 
-		kubeClusters, err := tc.ListKubeClustersWithFiltersAllClusters(cf.Context, req)
+		kubeClusters, err := tc.ListKubernetesClustersWithFiltersAllClusters(cf.Context, req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -822,7 +828,7 @@ func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
 			t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"})
 		}
 		for _, listing := range listings {
-			t.AddRow([]string{listing.Proxy, listing.Cluster, listing.KubeCluster.Name, formatKubeLabels(listing.KubeCluster)})
+			t.AddRow([]string{listing.Proxy, listing.Cluster, listing.KubeCluster.GetName(), formatKubeLabels(listing.KubeCluster)})
 		}
 		fmt.Println(t.AsBuffer().String())
 	case teleport.JSON, teleport.YAML:
@@ -920,7 +926,7 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	return nil
 }
 
-func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleportCluster string, kubeClusters []*types.KubernetesCluster, err error) {
+func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleportCluster string, kubeClusters []types.KubeCluster, err error) {
 	err = client.RetryWithRelogin(ctx, tc, func() error {
 		pc, err := tc.ConnectToProxy(ctx)
 		if err != nil {
@@ -957,9 +963,6 @@ func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleport
 				}
 				return nil
 			}
-			if utils.IsPredicateError(err) {
-				return trace.Wrap(utils.PredicateError{Err: err})
-			}
 			return trace.Wrap(err)
 		}
 
@@ -971,10 +974,10 @@ func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleport
 	return teleportCluster, kubeClusters, nil
 }
 
-func kubeClustersToStrings(kubeClusters []*types.KubernetesCluster) []string {
+func kubeClustersToStrings(kubeClusters []types.KubeCluster) []string {
 	names := make([]string, len(kubeClusters))
 	for i, cluster := range kubeClusters {
-		names[i] = cluster.Name
+		names[i] = cluster.GetName()
 	}
 
 	return names
@@ -984,7 +987,7 @@ func kubeClustersToStrings(kubeClusters []*types.KubernetesCluster) []string {
 type kubernetesStatus struct {
 	clusterAddr         string
 	teleportClusterName string
-	kubeClusters        []*types.KubernetesCluster
+	kubeClusters        []types.KubeCluster
 	credentials         *client.Key
 	tlsServerName       string
 }

@@ -19,10 +19,12 @@ package config
 import (
 	"bytes"
 	"math"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -33,7 +35,7 @@ import (
 )
 
 // minimalConfigFile is a minimal subset of a teleport config file that can be
-// mutated programatically by test cases and then re-serialised to test the
+// mutated programatically by test cases and then re-serialized to test the
 // config file loader
 const minimalConfigFile string = `
 teleport:
@@ -50,9 +52,9 @@ ssh_service:
 // representation of a parsed YAML file.
 type cfgMap map[interface{}]interface{}
 
-// editConfig takes the minimal YAML configuration file, de-serialises it into a
+// editConfig takes the minimal YAML configuration file, de-serializes it into a
 // nested key-value dictionary suitable for manipulation by a test case,
-// passes that dictionary to the caller-supplied mutator and then re-serialises
+// passes that dictionary to the caller-supplied mutator and then re-serializes
 // it ready to be injected into the config loader.
 func editConfig(t *testing.T, mutate func(cfg cfgMap)) []byte {
 	var cfg cfgMap
@@ -126,7 +128,6 @@ func TestAuthSection(t *testing.T) {
 			desc: "Web idle timeout",
 			mutate: func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["web_idle_timeout"] = "10m"
-
 			},
 			expectError:          require.NoError,
 			expectWebIdleTimeout: requireEqual(types.Duration(10 * time.Minute)),
@@ -134,7 +135,6 @@ func TestAuthSection(t *testing.T) {
 			desc: "Web idle timeout (invalid)",
 			mutate: func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["web_idle_timeout"] = "potato"
-
 			},
 			expectError: require.Error,
 		},
@@ -324,11 +324,78 @@ func TestAuthenticationSection(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			text := bytes.NewBuffer(editConfig(t, tt.mutate))
-
 			cfg, err := ReadConfig(text)
 			tt.expectError(t, err)
 
 			require.Empty(t, cmp.Diff(cfg.Auth.Authentication, tt.expected))
+		})
+	}
+}
+
+func TestAuthenticationConfig_HandleSecondFactorOffOnWithoutQoutes(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		desc               string
+		input              string
+		expectError        require.ErrorAssertionFunc
+		expectSecondFactor require.ValueAssertionFunc
+	}{
+		{desc: "handle off with quotes", input: `
+auth_service:
+  enabled: yes
+  authentication:
+    type: local
+    second_factor: "off"
+teleport:
+  nodename: testing
+ssh_service:
+  enabled: yes`,
+			expectError:        require.NoError,
+			expectSecondFactor: requireEqual(constants.SecondFactorOff)},
+		{desc: "handle off without quotes", input: `
+auth_service:
+  enabled: yes
+  authentication:
+    type: local
+    second_factor: off
+teleport:
+  nodename: testing
+ssh_service:
+  enabled: yes`,
+			expectError:        require.NoError,
+			expectSecondFactor: requireEqual(constants.SecondFactorOff)},
+		{desc: "handle on without quotes", input: `
+auth_service:
+  enabled: yes
+  authentication:
+    type: local
+    second_factor: on
+teleport:
+  nodename: testing
+ssh_service:
+  enabled: yes`,
+			expectError:        require.NoError,
+			expectSecondFactor: requireEqual(constants.SecondFactorOn)},
+		{desc: "unsupported numeric type as second_factor", input: `
+auth_service:
+  enabled: yes
+  authentication:
+    type: local
+    second_factor: 4.4
+teleport:
+  nodename: testing
+ssh_service:
+  enabled: yes`,
+			expectError: require.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			cfg, err := ReadConfig(strings.NewReader(tt.input))
+			tt.expectError(t, err)
+			if tt.expectSecondFactor != nil {
+				tt.expectSecondFactor(t, cfg.Auth.Authentication.SecondFactor)
+			}
 		})
 	}
 }
@@ -465,7 +532,6 @@ func TestSSHSection(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestX11Config(t *testing.T) {
@@ -490,7 +556,8 @@ func TestX11Config(t *testing.T) {
 				}
 			},
 			expectX11Config: &x11.ServerConfig{},
-		}, {
+		},
+		{
 			desc: "x11 enabled",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
@@ -517,7 +584,8 @@ func TestX11Config(t *testing.T) {
 				DisplayOffset: 100,
 				MaxDisplay:    100 + x11.DefaultMaxDisplays,
 			},
-		}, {
+		},
+		{
 			desc: "display offset value capped",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
@@ -545,7 +613,8 @@ func TestX11Config(t *testing.T) {
 				DisplayOffset: x11.DefaultDisplayOffset,
 				MaxDisplay:    100,
 			},
-		}, {
+		},
+		{
 			desc: "max display value capped",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
@@ -558,7 +627,8 @@ func TestX11Config(t *testing.T) {
 				DisplayOffset: x11.DefaultDisplayOffset,
 				MaxDisplay:    x11.MaxDisplayNumber,
 			},
-		}, {
+		},
+		{
 			desc: "max display smaller than display offset",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
@@ -720,6 +790,15 @@ func TestMakeSampleFileConfig(t *testing.T) {
 		fc, err := MakeSampleFileConfig(SampleFlags{
 			AuthToken:  "auth-token",
 			JoinMethod: "token",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "auth-token", fc.JoinParams.TokenName)
+		require.Equal(t, types.JoinMethodToken, fc.JoinParams.Method)
+	})
+
+	t.Run("Token, method not specified", func(t *testing.T) {
+		fc, err := MakeSampleFileConfig(SampleFlags{
+			AuthToken: "auth-token",
 		})
 		require.NoError(t, err)
 		require.Equal(t, "auth-token", fc.JoinParams.TokenName)

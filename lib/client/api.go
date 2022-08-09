@@ -52,7 +52,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -71,7 +70,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/lib/utils/proxy"
 
-	"github.com/duo-labs/webauthn/protocol"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -721,6 +719,10 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 		return nil
 	}
 
+	if utils.IsPredicateError(err) {
+		return trace.Wrap(utils.PredicateError{Err: err})
+	}
+
 	if !IsErrorResolvableWithRelogin(err) {
 		return trace.Wrap(err)
 	}
@@ -1225,7 +1227,8 @@ func ParseProxyHost(proxyHost string) (*ParsedProxyHost, error) {
 // ParseProxyHost parses the proxyHost string and updates the config.
 //
 // Format of proxyHost string:
-//   proxy_web_addr:<proxy_web_port>,<proxy_ssh_port>
+//
+//	proxy_web_addr:<proxy_web_port>,<proxy_ssh_port>
 func (c *Config) ParseProxyHost(proxyHost string) error {
 	parsedAddrs, err := ParseProxyHost(proxyHost)
 	if err != nil {
@@ -1353,6 +1356,16 @@ func (c *Config) ProxySpecified() bool {
 	return c.WebProxyAddr != ""
 }
 
+// DefaultResourceFilter returns the default list resource request.
+func (c *Config) DefaultResourceFilter() *proto.ListResourcesRequest {
+	return &proto.ListResourcesRequest{
+		Namespace:           c.Namespace,
+		Labels:              c.Labels,
+		SearchKeywords:      c.SearchKeywords,
+		PredicateExpression: c.PredicateExpression,
+	}
+}
+
 // TeleportClient is a wrapper around SSH client with teleport specific
 // workflow built in.
 // TeleportClient is NOT safe for concurrent use.
@@ -1378,7 +1391,7 @@ type TeleportClient struct {
 // hasn't begun yet.
 //
 // It allows clients to cancel SSH action
-type ShellCreatedCallback func(s *ssh.Session, c *tracessh.Client, terminal io.ReadWriteCloser) (exit bool, err error)
+type ShellCreatedCallback func(s *tracessh.Session, c *tracessh.Client, terminal io.ReadWriteCloser) (exit bool, err error)
 
 // NewClient creates a TeleportClient object and fully configures it
 func NewClient(c *Config) (tc *TeleportClient, err error) {
@@ -1578,12 +1591,7 @@ func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient
 		retval = make([]string, 0)
 	)
 	if tc.Labels != nil && len(tc.Labels) > 0 {
-		nodes, err = proxy.FindNodesByFilters(ctx, proto.ListResourcesRequest{
-			Namespace:           tc.Namespace,
-			Labels:              tc.Labels,
-			SearchKeywords:      tc.SearchKeywords,
-			PredicateExpression: tc.PredicateExpression,
-		})
+		nodes, err = proxy.FindNodesByFilters(ctx, *tc.DefaultResourceFilter())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1655,8 +1663,8 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 
 	return proxyClient.IssueUserCertsWithMFA(
 		ctx, params,
-		func(ctx context.Context, _ string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-			return tc.PromptMFAChallenge(ctx, c, nil /* optsOverride */)
+		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+			return tc.PromptMFAChallenge(ctx, proxyAddr, c, nil /* applyOpts */)
 		})
 }
 
@@ -1860,7 +1868,9 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	defer nodeClient.Close()
 
 	// If forwarding ports were specified, start port forwarding.
-	tc.startPortForwarding(ctx, nodeClient)
+	if err := tc.startPortForwarding(ctx, nodeClient); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// If no remote command execution was requested, block on the context which
 	// will unblock upon error or SIGINT.
@@ -1901,29 +1911,24 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	return tc.runShell(ctx, nodeClient, types.SessionPeerMode, nil, nil)
 }
 
-func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) {
-	if len(tc.Config.LocalForwardPorts) > 0 {
-		for _, fp := range tc.Config.LocalForwardPorts {
-			addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
-			socket, err := net.Listen("tcp", addr)
-			if err != nil {
-				log.Errorf("Failed to bind to %v: %v.", addr, err)
-				continue
-			}
-			go nodeClient.listenAndForward(ctx, socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)))
+func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) error {
+	for _, fp := range tc.Config.LocalForwardPorts {
+		addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
+		socket, err := net.Listen("tcp", addr)
+		if err != nil {
+			return trace.Errorf("Failed to bind to %v: %v.", addr, err)
 		}
+		go nodeClient.listenAndForward(ctx, socket, addr, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)))
 	}
-	if len(tc.Config.DynamicForwardedPorts) > 0 {
-		for _, fp := range tc.Config.DynamicForwardedPorts {
-			addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
-			socket, err := net.Listen("tcp", addr)
-			if err != nil {
-				log.Errorf("Failed to bind to %v: %v.", addr, err)
-				continue
-			}
-			go nodeClient.dynamicListenAndForward(ctx, socket)
+	for _, fp := range tc.Config.DynamicForwardedPorts {
+		addr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
+		socket, err := net.Listen("tcp", addr)
+		if err != nil {
+			return trace.Errorf("Failed to bind to %v: %v.", addr, err)
 		}
+		go nodeClient.dynamicListenAndForward(ctx, socket, addr)
 	}
+	return nil
 }
 
 // Join connects to the existing/active SSH session
@@ -1946,7 +1951,6 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	if sessionID.Check() != nil {
 		return trace.Errorf("Invalid session ID format: %s", string(sessionID))
 	}
-	notFoundErrorMessage := fmt.Sprintf("session '%s' not found or it has ended", sessionID)
 
 	// connect to proxy:
 	if !tc.Config.ProxySpecified() {
@@ -1962,13 +1966,26 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 		return trace.Wrap(err)
 	}
 
+	// Session joining is not supported in proxy recording mode
+	if recConfig, err := site.GetSessionRecordingConfig(ctx); err != nil {
+		// If the user can't see the recording mode, just let them try joining below
+		if !trace.IsAccessDenied(err) {
+			return trace.Wrap(err)
+		}
+	} else if services.IsRecordAtProxy(recConfig.GetMode()) {
+		return trace.BadParameter("session joining is not supported in proxy recording mode")
+	}
+
 	session, err := site.GetSessionTracker(ctx, string(sessionID))
-	if err != nil && !trace.IsNotFound(err) {
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("session %q not found or it has ended", sessionID)
+		}
 		return trace.Wrap(err)
 	}
 
-	if session == nil {
-		return trace.NotFound(notFoundErrorMessage)
+	if session.GetSessionKind() != types.SSHSessionKind {
+		return trace.BadParameter("session joining is only supported for ssh sessions, not %q sessions", session.GetSessionKind())
 	}
 
 	// connect to server:
@@ -1983,7 +2000,9 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	defer nc.Close()
 
 	// Start forwarding ports if configured.
-	tc.startPortForwarding(ctx, nc)
+	if err := tc.startPortForwarding(ctx, nc); err != nil {
+		return trace.Wrap(err)
+	}
 
 	presenceCtx, presenceCancel := context.WithCancel(ctx)
 	defer presenceCancel()
@@ -2038,6 +2057,17 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 	sessionEvents, err = site.GetSessionEvents(namespace, *sid, 0, true)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// Return an error if it is a desktop session
+	if len(sessionEvents) > 0 {
+		if sessionEvents[0].GetType() == events.WindowsDesktopSessionStartEvent {
+			url := getDesktopEventWebURL(tc.localAgent.proxyHost, proxyClient.siteName, sid, sessionEvents)
+			message := "Desktop sessions cannot be viewed with tsh." +
+				" Please use the browser to play this session." +
+				" Click on the URL to view the session in the browser:"
+			return trace.BadParameter("%s\n%s", message, url)
+		}
 	}
 
 	// read the stream into a buffer:
@@ -2354,12 +2384,7 @@ func (tc *TeleportClient) ListNodesWithFilters(ctx context.Context) ([]types.Ser
 	}
 	defer proxyClient.Close()
 
-	servers, err := proxyClient.FindNodesByFilters(ctx, proto.ListResourcesRequest{
-		Namespace:           tc.Namespace,
-		Labels:              tc.Labels,
-		SearchKeywords:      tc.SearchKeywords,
-		PredicateExpression: tc.PredicateExpression,
-	})
+	servers, err := proxyClient.FindNodesByFilters(ctx, *tc.DefaultResourceFilter())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2381,12 +2406,7 @@ func (tc *TeleportClient) ListNodesWithFiltersAllClusters(ctx context.Context) (
 	}
 	servers := make(map[string][]types.Server, len(clusters))
 	for _, cluster := range clusters {
-		s, err := proxyClient.FindNodesByFiltersForCluster(ctx, proto.ListResourcesRequest{
-			Namespace:           tc.Namespace,
-			Labels:              tc.Labels,
-			SearchKeywords:      tc.SearchKeywords,
-			PredicateExpression: tc.PredicateExpression,
-		}, cluster.Name)
+		s, err := proxyClient.FindNodesByFiltersForCluster(ctx, *tc.DefaultResourceFilter(), cluster.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2412,12 +2432,7 @@ func (tc *TeleportClient) ListAppServersWithFilters(ctx context.Context, customF
 
 	filter := customFilter
 	if filter == nil {
-		filter = &proto.ListResourcesRequest{
-			Namespace:           tc.Namespace,
-			Labels:              tc.Labels,
-			SearchKeywords:      tc.SearchKeywords,
-			PredicateExpression: tc.PredicateExpression,
-		}
+		filter = tc.DefaultResourceFilter()
 	}
 
 	servers, err := proxyClient.FindAppServersByFilters(ctx, *filter)
@@ -2438,12 +2453,7 @@ func (tc *TeleportClient) listAppServersWithFiltersAllClusters(ctx context.Conte
 
 	filter := customFilter
 	if customFilter == nil {
-		filter = &proto.ListResourcesRequest{
-			Namespace:           tc.Namespace,
-			Labels:              tc.Labels,
-			SearchKeywords:      tc.SearchKeywords,
-			PredicateExpression: tc.PredicateExpression,
-		}
+		filter = tc.DefaultResourceFilter()
 	}
 
 	clusters, err := proxyClient.GetSites(ctx)
@@ -2549,12 +2559,7 @@ func (tc *TeleportClient) ListDatabaseServersWithFilters(ctx context.Context, cu
 
 	filter := customFilter
 	if filter == nil {
-		filter = &proto.ListResourcesRequest{
-			Namespace:           tc.Namespace,
-			Labels:              tc.Labels,
-			SearchKeywords:      tc.SearchKeywords,
-			PredicateExpression: tc.PredicateExpression,
-		}
+		filter = tc.DefaultResourceFilter()
 	}
 
 	servers, err := proxyClient.FindDatabaseServersByFilters(ctx, *filter)
@@ -2575,12 +2580,7 @@ func (tc *TeleportClient) listDatabaseServersWithFiltersAllClusters(ctx context.
 
 	filter := customFilter
 	if customFilter == nil {
-		filter = &proto.ListResourcesRequest{
-			Namespace:           tc.Namespace,
-			Labels:              tc.Labels,
-			SearchKeywords:      tc.SearchKeywords,
-			PredicateExpression: tc.PredicateExpression,
-		}
+		filter = tc.DefaultResourceFilter()
 	}
 
 	clusters, err := proxyClient.GetSites(ctx)
@@ -2655,8 +2655,8 @@ func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]types.Server, err
 	})
 }
 
-// ListKubeClustersWithFiltersAllClusters returns a map of all kube clusters in all clusters connected to a proxy.
-func (tc *TeleportClient) ListKubeClustersWithFiltersAllClusters(ctx context.Context, req proto.ListResourcesRequest) (map[string][]*types.KubernetesCluster, error) {
+// ListKubernetesClustersWithFiltersAllClusters returns a map of all kube clusters in all clusters connected to a proxy.
+func (tc *TeleportClient) ListKubernetesClustersWithFiltersAllClusters(ctx context.Context, req proto.ListResourcesRequest) (map[string][]types.KubeCluster, error) {
 	pc, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2665,7 +2665,7 @@ func (tc *TeleportClient) ListKubeClustersWithFiltersAllClusters(ctx context.Con
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	kubeClusters := make(map[string][]*types.KubernetesCluster, 0)
+	kubeClusters := make(map[string][]types.KubeCluster, 0)
 	for _, cluster := range clusters {
 		ac, err := pc.ConnectToCluster(ctx, cluster.Name)
 		if err != nil {
@@ -2809,6 +2809,37 @@ func (tc *TeleportClient) getProxySSHPrincipal() string {
 	return proxyPrincipal
 }
 
+const unconfiguredPublicAddrMsg = `WARNING:
+
+The following error has occurred as Teleport does not recognize the address
+that is being used to connect to it. This usually indicates that the
+'public_addr' configuration option of the 'proxy_service' has not been
+set to match the address you are hosting the proxy on.
+
+If 'public_addr' is configured correctly, this could be an indicator of an
+attempted man-in-the-middle attack.
+`
+
+// formatConnectToProxyErr adds additional user actionable advice to errors
+// that are raised during ConnectToProxy.
+func formatConnectToProxyErr(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	// Handles the error that occurs when you connect to the Proxy SSH service
+	// and the Proxy does not have a correct `public_addr` configured, and the
+	// system is configured with non-multiplexed ports.
+	if utils.IsHandshakeFailedError(err) {
+		const principalStr = "not in the set of valid principals for given certificate"
+		if strings.Contains(err.Error(), principalStr) {
+			return trace.Wrap(err, unconfiguredPublicAddrMsg)
+		}
+	}
+
+	return err
+}
+
 // ConnectToProxy will dial to the proxy server and return a ProxyClient when
 // successful. If the passed in context is canceled, this function will return
 // a trace.ConnectionProblem right away.
@@ -2837,7 +2868,7 @@ func (tc *TeleportClient) ConnectToProxy(ctx context.Context) (*ProxyClient, err
 	select {
 	// ConnectToProxy returned a result, return that back to the caller.
 	case <-connectContext.Done():
-		return proxyClient, trace.Wrap(err)
+		return proxyClient, trace.Wrap(formatConnectToProxyErr(err))
 	// The passed in context timed out. This is often due to the network being
 	// down and the user hitting Ctrl-C.
 	case <-ctx.Done():
@@ -2931,11 +2962,11 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 }
 
 // makeProxySSHClient creates an SSH client by following steps:
-// 1) If the current proxy supports TLS Routing and JumpHost address was not provided use TLSWrapper.
-// 2) Check JumpHost raw SSH port or Teleport proxy address.
-//    In case of proxy web address check if the proxy supports TLS Routing and connect to the proxy with TLSWrapper
-// 3) Dial sshProxyAddr with raw SSH Dialer where sshProxyAddress is proxy ssh address or JumpHost address if
-//    JumpHost address was provided.
+//  1. If the current proxy supports TLS Routing and JumpHost address was not provided use TLSWrapper.
+//  2. Check JumpHost raw SSH port or Teleport proxy address.
+//     In case of proxy web address check if the proxy supports TLS Routing and connect to the proxy with TLSWrapper
+//  3. Dial sshProxyAddr with raw SSH Dialer where sshProxyAddress is proxy ssh address or JumpHost address if
+//     JumpHost address was provided.
 func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig) (*tracessh.Client, error) {
 	// Use TLS Routing dialer only if proxy support TLS Routing and JumpHost was not set.
 	if tc.Config.TLSRoutingEnabled && len(tc.JumpHosts) == 0 {
@@ -3183,7 +3214,7 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	}
 
 	var response *auth.SSHLoginResponse
-
+	var username string
 	switch authType := pr.Auth.Type; {
 	case authType == constants.Local && pr.Auth.Local != nil && pr.Auth.Local.Name == constants.PasswordlessConnector:
 		// Sanity check settings.
@@ -3194,7 +3225,7 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		tc.Username = response.Username
+		username = response.Username
 	case authType == constants.Local:
 		response, err = tc.localLogin(ctx, pr.Auth.SecondFactor, key.Pub)
 		if err != nil {
@@ -3205,33 +3236,28 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// in this case identity is returned by the proxy
-		tc.Username = response.Username
-		if tc.localAgent != nil {
-			tc.localAgent.username = response.Username
-		}
+		username = response.Username
 	case authType == constants.SAML:
 		response, err = tc.ssoLogin(ctx, pr.Auth.SAML.Name, key.Pub, constants.SAML)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// in this case identity is returned by the proxy
-		tc.Username = response.Username
-		if tc.localAgent != nil {
-			tc.localAgent.username = response.Username
-		}
+		username = response.Username
 	case authType == constants.Github:
 		response, err = tc.ssoLogin(ctx, pr.Auth.Github.Name, key.Pub, constants.Github)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// in this case identity is returned by the proxy
-		tc.Username = response.Username
-		if tc.localAgent != nil {
-			tc.localAgent.username = response.Username
-		}
+		username = response.Username
 	default:
 		return nil, trace.BadParameter("unsupported authentication type: %q", pr.Auth.Type)
+	}
+	// Use proxy identity?
+	if username != "" {
+		tc.Username = username
+		if tc.localAgent != nil {
+			tc.localAgent.username = username
+		}
 	}
 
 	// Check that a host certificate for at least one cluster was returned.
@@ -3262,61 +3288,30 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 }
 
 func (tc *TeleportClient) pwdlessLogin(ctx context.Context, pubKey []byte) (*auth.SSHLoginResponse, error) {
-	webClient, webURL, err := initClient(tc.WebProxyAddr, tc.InsecureSkipVerify, loopbackPool(tc.WebProxyAddr))
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// Only pass on the user if explicitly set, otherwise let the credential
+	// picker kick in.
+	user := ""
+	if tc.ExplicitUsername {
+		user = tc.Username
 	}
 
-	challengeJSON, err := webClient.PostJSON(
-		ctx, webClient.Endpoint("webapi", "mfa", "login", "begin"),
-		&MFAChallengeRequest{
-			Passwordless: true,
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	challenge := &MFAAuthenticateChallenge{}
-	if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// Sanity check WebAuthn challenge.
-	switch {
-	case challenge.WebauthnChallenge == nil:
-		return nil, trace.BadParameter("passwordless: webauthn challenge missing")
-	case challenge.WebauthnChallenge.Response.UserVerification == protocol.VerificationDiscouraged:
-		return nil, trace.BadParameter("passwordless: user verification requirement too lax (%v)", challenge.WebauthnChallenge.Response.UserVerification)
-	}
-
-	prompt := wancli.NewDefaultPrompt(ctx, tc.Stderr)
-	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), challenge.WebauthnChallenge, prompt, &wancli.LoginOpts{
-		User:                    tc.Username,
-		OptimisticAssertion:     !tc.ExplicitUsername,
+	response, err := SSHAgentPasswordlessLogin(ctx, SSHLoginPasswordless{
+		SSHLogin: SSHLogin{
+			ProxyAddr:         tc.WebProxyAddr,
+			PubKey:            pubKey,
+			TTL:               tc.KeyTTL,
+			Insecure:          tc.InsecureSkipVerify,
+			Pool:              loopbackPool(tc.WebProxyAddr),
+			Compatibility:     tc.CertificateFormat,
+			RouteToCluster:    tc.SiteName,
+			KubernetesCluster: tc.KubernetesCluster,
+		},
+		User:                    user,
 		AuthenticatorAttachment: tc.AuthenticatorAttachment,
+		StderrOverride:          tc.Stderr,
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	loginRespJSON, err := webClient.PostJSON(
-		ctx, webClient.Endpoint("webapi", "mfa", "login", "finish"),
-		&AuthenticateSSHUserRequest{
-			User:                      "", // User carried on WebAuthn assertion.
-			WebauthnChallengeResponse: wanlib.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()),
-			PubKey:                    pubKey,
-			TTL:                       tc.KeyTTL,
-			Compatibility:             tc.CertificateFormat,
-			RouteToCluster:            tc.SiteName,
-			KubernetesCluster:         tc.KubernetesCluster,
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	loginResp := &auth.SSHLoginResponse{}
-	if err := json.Unmarshal(loginRespJSON.Bytes(), loginResp); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return loginResp, nil
+	return response, trace.Wrap(err)
 }
 
 func (tc *TeleportClient) localLogin(ctx context.Context, secondFactor constants.SecondFactorType, pub []byte) (*auth.SSHLoginResponse, error) {
@@ -3515,7 +3510,8 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 		Insecure:      tc.InsecureSkipVerify,
 		Pool:          loopbackPool(tc.WebProxyAddr),
 		ConnectorName: tc.AuthConnector,
-		ExtraHeaders:  tc.ExtraProxyHeaders})
+		ExtraHeaders:  tc.ExtraProxyHeaders,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3559,8 +3555,8 @@ func (tc *TeleportClient) ShowMOTD(ctx context.Context) error {
 			ProxyAddr:    tc.WebProxyAddr,
 			Insecure:     tc.InsecureSkipVerify,
 			Pool:         loopbackPool(tc.WebProxyAddr),
-			ExtraHeaders: tc.ExtraProxyHeaders})
-
+			ExtraHeaders: tc.ExtraProxyHeaders,
+		})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4112,13 +4108,13 @@ func ParsePortForwardSpec(spec []string) (ports ForwardedPorts, err error) {
 	if len(spec) == 0 {
 		return ports, nil
 	}
-	const errTemplate = "Invalid port forwarding spec: '%s'. Could be like `80:remote.host:80`"
+	const errTemplate = "invalid port forwarding spec '%s': expected format `80:remote.host:80`"
 	ports = make([]ForwardedPort, len(spec))
 
 	for i, str := range spec {
 		parts := strings.Split(str, ":")
 		if len(parts) < 3 || len(parts) > 4 {
-			return nil, fmt.Errorf(errTemplate, str)
+			return nil, trace.BadParameter(errTemplate, str)
 		}
 		if len(parts) == 3 {
 			parts = append([]string{"127.0.0.1"}, parts...)
@@ -4127,12 +4123,12 @@ func ParsePortForwardSpec(spec []string) (ports ForwardedPorts, err error) {
 		p.SrcIP = parts[0]
 		p.SrcPort, err = strconv.Atoi(parts[1])
 		if err != nil {
-			return nil, fmt.Errorf(errTemplate, str)
+			return nil, trace.BadParameter(errTemplate, str)
 		}
 		p.DestHost = parts[2]
 		p.DestPort, err = strconv.Atoi(parts[3])
 		if err != nil {
-			return nil, fmt.Errorf(errTemplate, str)
+			return nil, trace.BadParameter(errTemplate, str)
 		}
 	}
 	return ports, nil
@@ -4284,4 +4280,17 @@ func findActiveDatabases(key *Key) ([]tlsca.RouteToDatabase, error) {
 		}
 	}
 	return databases, nil
+}
+
+// getDesktopEventWebURL returns the web UI URL users can access to
+// watch a desktop session recording in the browser
+func getDesktopEventWebURL(proxyHost string, cluster string, sid *session.ID, events []events.EventFields) string {
+	if len(events) < 1 {
+		return ""
+	}
+	start := events[0].GetTimestamp()
+	end := events[len(events)-1].GetTimestamp()
+	duration := end.Sub(start)
+
+	return fmt.Sprintf("https://%s/web/cluster/%s/session/%s?recordingType=desktop&durationMs=%d", proxyHost, cluster, sid, duration/time.Millisecond)
 }

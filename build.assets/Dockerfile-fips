@@ -62,6 +62,9 @@ RUN mkdir -p /opt && cd /opt && curl https://go-boringcrypto.storage.googleapis.
     chmod a+w /go && \
     chmod a+w /var/lib && \
     chmod a-w /
+ENV GOPATH="/go" \
+    GOROOT="/opt/go" \
+    PATH="$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
 
 # Install libbpf
 ARG LIBBPF_VERSION
@@ -69,10 +72,6 @@ RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     make && \
     make install
-
-ENV GOPATH="/go" \
-    GOROOT="/opt/go" \
-    PATH="$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
 
 # Install PAM module and policies for testing.
 COPY pam/ /opt/pam_teleport/

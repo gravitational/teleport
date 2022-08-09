@@ -28,34 +28,29 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/breaker"
-	"github.com/gravitational/trace"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/clientcmd"
-	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
-
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth"
-	libclient "github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/stretchr/testify/require"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
 type ProxySuite struct {
-	root *TeleInstance
-	leaf *TeleInstance
+	root *helpers.TeleInstance
+	leaf *helpers.TeleInstance
 }
 
 type proxySuiteOptions struct {
@@ -68,11 +63,11 @@ type proxySuiteOptions struct {
 	rootClusterNodeName string
 	leafClusterNodeName string
 
-	rootClusterPorts *InstancePorts
-	leafClusterPorts *InstancePorts
+	rootClusterListeners helpers.InstanceListenerSetupFunc
+	leafClusterListeners helpers.InstanceListenerSetupFunc
 
-	rootTrustedSecretFunc func(suite *ProxySuite) []*InstanceSecrets
-	leafTrustedFunc       func(suite *ProxySuite) []*InstanceSecrets
+	rootTrustedSecretFunc func(suite *ProxySuite) []*helpers.InstanceSecrets
+	leafTrustedFunc       func(suite *ProxySuite) []*helpers.InstanceSecrets
 
 	rootClusterRoles      []types.Role
 	leafClusterRoles      []types.Role
@@ -83,33 +78,35 @@ type proxySuiteOptions struct {
 
 func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 	options := proxySuiteOptions{
-		rootClusterNodeName: Host,
-		leafClusterNodeName: Host,
-		rootClusterPorts:    singleProxyPortSetup(),
-		leafClusterPorts:    singleProxyPortSetup(),
+		rootClusterNodeName:  Host,
+		leafClusterNodeName:  Host,
+		rootClusterListeners: helpers.SingleProxyPortSetupOn(Host),
+		leafClusterListeners: helpers.SingleProxyPortSetupOn(Host),
 	}
 	for _, opt := range opts {
 		opt(&options)
 	}
 
-	rc := NewInstance(InstanceConfig{
+	rCfg := helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    options.rootClusterNodeName,
-		log:         utils.NewLoggerForTests(),
-		Ports:       options.rootClusterPorts,
-	})
+		Log:         utils.NewLoggerForTests(),
+	}
+	rCfg.Listeners = options.rootClusterListeners(t, &rCfg.Fds)
+	rc := helpers.NewInstance(t, rCfg)
 
 	// Create leaf cluster.
-	lc := NewInstance(InstanceConfig{
+	lCfg := helpers.InstanceConfig{
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    options.leafClusterNodeName,
 		Priv:        rc.Secrets.PrivKey,
 		Pub:         rc.Secrets.PubKey,
-		log:         utils.NewLoggerForTests(),
-		Ports:       options.leafClusterPorts,
-	})
+		Log:         utils.NewLoggerForTests(),
+	}
+	lCfg.Listeners = options.leafClusterListeners(t, &lCfg.Fds)
+	lc := helpers.NewInstance(t, lCfg)
 	suite := &ProxySuite{
 		root: rc,
 		leaf: lc,
@@ -178,7 +175,7 @@ func (p *ProxySuite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname strin
 		tconf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
-				Addr:        net.JoinHostPort(Loopback, p.leaf.GetPortWeb()),
+				Addr:        p.leaf.Web,
 			},
 		}
 		tconf.Auth.Enabled = false
@@ -201,7 +198,7 @@ func (p *ProxySuite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname strin
 	require.NoError(t, err)
 }
 
-func (p *ProxySuite) mustConnectToClusterAndRunSSHCommand(t *testing.T, config ClientConfig) {
+func (p *ProxySuite) mustConnectToClusterAndRunSSHCommand(t *testing.T, config helpers.ClientConfig) {
 	const (
 		deadline         = time.Second * 5
 		nextIterWaitTime = time.Millisecond * 100
@@ -262,10 +259,10 @@ func withRootClusterConfig(fn func(suite *ProxySuite) *service.Config, configMod
 
 func withRootAndLeafTrustedClusterReset() proxySuiteOptionsFunc {
 	return func(options *proxySuiteOptions) {
-		options.rootTrustedSecretFunc = func(suite *ProxySuite) []*InstanceSecrets {
+		options.rootTrustedSecretFunc = func(suite *ProxySuite) []*helpers.InstanceSecrets {
 			return nil
 		}
-		options.leafTrustedFunc = func(suite *ProxySuite) []*InstanceSecrets {
+		options.leafTrustedFunc = func(suite *ProxySuite) []*helpers.InstanceSecrets {
 			return nil
 		}
 	}
@@ -283,15 +280,15 @@ func withLeafClusterNodeName(nodeName string) proxySuiteOptionsFunc {
 	}
 }
 
-func withRootClusterPorts(ports *InstancePorts) proxySuiteOptionsFunc {
+func withRootClusterListeners(fn helpers.InstanceListenerSetupFunc) proxySuiteOptionsFunc {
 	return func(options *proxySuiteOptions) {
-		options.rootClusterPorts = ports
+		options.rootClusterListeners = fn
 	}
 }
 
-func withLeafClusterPorts(ports *InstancePorts) proxySuiteOptionsFunc {
+func withLeafClusterListeners(fn helpers.InstanceListenerSetupFunc) proxySuiteOptionsFunc {
 	return func(options *proxySuiteOptions) {
-		options.leafClusterPorts = ports
+		options.leafClusterListeners = fn
 	}
 }
 
@@ -314,11 +311,11 @@ func rootClusterStandardConfig(t *testing.T) func(suite *ProxySuite) *service.Co
 		config.Auth.Preference.SetSecondFactor("off")
 		config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		config.Proxy.Enabled = true
-		config.Proxy.WebAddr.Addr = net.JoinHostPort(rc.Hostname, rc.GetPortWeb())
+		config.Proxy.WebAddr.Addr = rc.Web
 		config.Proxy.DisableWebService = false
 		config.Proxy.DisableWebInterface = true
 		config.SSH.Enabled = true
-		config.SSH.Addr.Addr = net.JoinHostPort(rc.Hostname, rc.GetPortSSH())
+		config.SSH.Addr.Addr = rc.SSH
 		config.SSH.Labels = map[string]string{"env": "integration"}
 		config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		return config
@@ -334,11 +331,11 @@ func leafClusterStandardConfig(t *testing.T) func(suite *ProxySuite) *service.Co
 		config.Auth.Preference.SetSecondFactor("off")
 		config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		config.Proxy.Enabled = true
-		config.Proxy.WebAddr.Addr = net.JoinHostPort(lc.Hostname, lc.GetPortWeb())
+		config.Proxy.WebAddr.Addr = lc.Web
 		config.Proxy.DisableWebService = false
 		config.Proxy.DisableWebInterface = true
 		config.SSH.Enabled = true
-		config.SSH.Addr.Addr = net.JoinHostPort(lc.Hostname, lc.GetPortSSH())
+		config.SSH.Addr.Addr = lc.SSH
 		config.SSH.Labels = map[string]string{"env": "integration"}
 		config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		return config
@@ -514,33 +511,4 @@ func makeNodeConfig(nodeName, authAddr string) *service.Config {
 	nodeConfig.SSH.Enabled = true
 	nodeConfig.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	return nodeConfig
-}
-
-func mustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) string {
-	key, err := libclient.NewKey()
-	require.NoError(t, err)
-	key.ClusterName = tc.Secrets.SiteName
-
-	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCerts(
-		key.Pub, username, ttl,
-		constants.CertificateFormatStandard,
-		tc.Secrets.SiteName, "",
-	)
-	require.NoError(t, err)
-
-	key.Cert = sshCert
-	key.TLSCert = tlsCert
-
-	hostCAs, err := tc.Process.GetAuthServer().GetCertAuthorities(context.Background(), types.HostCA, false)
-	require.NoError(t, err)
-	key.TrustedCA = auth.AuthoritiesToTrustedCerts(hostCAs)
-
-	idPath := filepath.Join(t.TempDir(), "user_identity")
-	_, err = identityfile.Write(identityfile.WriteConfig{
-		OutputPath: idPath,
-		Key:        key,
-		Format:     identityfile.FormatFile,
-	})
-	require.NoError(t, err)
-	return idPath
 }

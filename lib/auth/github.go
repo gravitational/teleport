@@ -24,6 +24,10 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/coreos/go-oidc/oauth2"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -33,11 +37,10 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/coreos/go-oidc/oauth2"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
+
+// ErrGithubNoTeams results from a github user not beloging to any teams.
+var ErrGithubNoTeams = trace.BadParameter("user does not belong to any teams configured in connector; the configuration may have typos.")
 
 // CreateGithubAuthRequest creates a new request for Github OAuth2 flow
 func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) (*types.GithubAuthRequest, error) {
@@ -53,7 +56,7 @@ func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAu
 	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
 		"Redirect URL: %v.", req.RedirectURL)
 	req.SetExpiry(a.GetClock().Now().UTC().Add(defaults.GithubAuthRequestTTL))
-	err = a.Identity.CreateGithubAuthRequest(ctx, req)
+	err = a.Services.CreateGithubAuthRequest(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -62,7 +65,7 @@ func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAu
 
 // upsertGithubConnector creates or updates a Github connector.
 func (a *Server) upsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
-	if err := a.Identity.UpsertGithubConnector(ctx, connector); err != nil {
+	if err := a.UpsertGithubConnector(ctx, connector); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.GithubConnectorCreate{
@@ -83,7 +86,7 @@ func (a *Server) upsertGithubConnector(ctx context.Context, connector types.Gith
 
 // deleteGithubConnector deletes a Github connector by name.
 func (a *Server) deleteGithubConnector(ctx context.Context, connectorName string) error {
-	if err := a.Identity.DeleteGithubConnector(ctx, connectorName); err != nil {
+	if err := a.DeleteGithubConnector(ctx, connectorName); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -129,7 +132,6 @@ type githubManager interface {
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
 func (a *Server) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*GithubAuthResponse, error) {
-
 	return validateGithubAuthCallbackHelper(ctx, a, q, a.emitter)
 }
 
@@ -214,7 +216,7 @@ func (a *Server) getGithubConnectorAndClient(ctx context.Context, request types.
 	}
 
 	// regular execution flow
-	connector, err := a.Identity.GetGithubConnector(ctx, request.ConnectorID, true)
+	connector, err := a.GetGithubConnector(ctx, request.ConnectorID, true)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -272,7 +274,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 		state := q.Get("state")
 		if state != "" {
 			diagCtx.requestID = state
-			req, err := a.Identity.GetGithubAuthRequest(ctx, state)
+			req, err := a.Services.GetGithubAuthRequest(ctx, state)
 			if err == nil {
 				diagCtx.info.TestFlow = req.SSOTestFlow
 			}
@@ -296,7 +298,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 	}
 	diagCtx.requestID = stateToken
 
-	req, err := a.Identity.GetGithubAuthRequest(ctx, stateToken)
+	req, err := a.Services.GetGithubAuthRequest(ctx, stateToken)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to get OIDC Auth Request.")
 	}
@@ -376,7 +378,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
-		session, err := a.createWebSession(context.TODO(), types.NewWebSessionRequest{
+		session, err := a.createWebSession(ctx, types.NewWebSessionRequest{
 			User:       user.GetName(),
 			Roles:      user.GetRoles(),
 			Traits:     user.GetTraits(),
@@ -453,24 +455,22 @@ func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *ty
 	// Calculate logins, kubegroups, roles, and traits.
 	p.roles, p.kubeGroups, p.kubeUsers = connector.MapClaims(*claims)
 	if len(p.roles) == 0 {
-		return nil, trace.BadParameter(
-			"user %q does not belong to any teams configured in %q connector; the configuration may have typos.",
-			claims.Username, connector.GetName())
+		return nil, trace.Wrap(ErrGithubNoTeams)
 	}
 	p.traits = map[string][]string{
-		teleport.TraitLogins:     {p.username},
-		teleport.TraitKubeGroups: p.kubeGroups,
-		teleport.TraitKubeUsers:  p.kubeUsers,
-		teleport.TraitTeams:      claims.Teams,
+		constants.TraitLogins:     {p.username},
+		constants.TraitKubeGroups: p.kubeGroups,
+		constants.TraitKubeUsers:  p.kubeUsers,
+		teleport.TraitTeams:       claims.Teams,
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.
-	roles, err := services.FetchRoles(p.roles, a.Access, p.traits)
+	roles, err := services.FetchRoles(p.roles, a, p.traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	roleTTL := roles.AdjustSessionTTL(apidefaults.MaxCertDuration)
-	p.sessionTTL = utils.MinTTL(roleTTL, request.CertTTL.Duration())
+	p.sessionTTL = utils.MinTTL(roleTTL, request.CertTTL)
 
 	return &p, nil
 }
@@ -513,7 +513,7 @@ func (a *Server) createGithubUser(ctx context.Context, p *createUserParams, dryR
 		return user, nil
 	}
 
-	existingUser, err := a.GetUser(p.username, false)
+	existingUser, err := a.Services.GetUser(p.username, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -739,10 +739,8 @@ const (
 	MaxPages = 99
 )
 
-var (
-	// GithubScopes is a list of scopes requested during OAuth2 flow
-	GithubScopes = []string{
-		// read:org grants read-only access to user's team memberships
-		"read:org",
-	}
-)
+// GithubScopes is a list of scopes requested during OAuth2 flow
+var GithubScopes = []string{
+	// read:org grants read-only access to user's team memberships
+	"read:org",
+}

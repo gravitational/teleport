@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gravitational/teleport/api/utils/aws"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/config"
@@ -669,8 +668,8 @@ func buildSecretsManagerStatements(fileConfig *config.FileConfig, target awslib.
 	addedSecretPrefixes := map[string]bool{}
 	addedKMSKeyIDs := map[string]bool{}
 	for _, database := range fileConfig.Databases.Databases {
-		if !aws.IsElastiCacheEndpoint(database.URI) &&
-			!aws.IsMemoryDBEndpoint(database.URI) {
+		if !awsutils.IsElastiCacheEndpoint(database.URI) &&
+			!awsutils.IsMemoryDBEndpoint(database.URI) {
 			continue
 		}
 

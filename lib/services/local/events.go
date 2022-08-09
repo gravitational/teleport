@@ -118,6 +118,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newWebTokenParser()
 		case types.KindRemoteCluster:
 			parser = newRemoteClusterParser()
+		case types.KindKubeServer:
+			parser = newKubeServerParser()
 		case types.KindKubeService:
 			parser = newKubeServiceParser()
 		case types.KindDatabaseServer:
@@ -229,7 +231,7 @@ func (w *watcher) Events() <-chan types.Event {
 	return w.eventsC
 }
 
-// Done returns the channel signalling the closure
+// Done returns the channel signaling the closure
 func (w *watcher) Done() <-chan struct{} {
 	return w.backendWatcher.Done()
 }
@@ -947,6 +949,43 @@ func (p *webTokenParser) parse(event backend.Event) (types.Resource, error) {
 	}
 }
 
+func newKubeServerParser() *kubeServerParser {
+	return &kubeServerParser{
+		baseParser: newBaseParser(backend.Key(kubeServersPrefix)),
+	}
+}
+
+type kubeServerParser struct {
+	baseParser
+}
+
+func (p *kubeServerParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		hostID, name, err := baseTwoKeys(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &types.KubernetesServerV3{
+			Kind:    types.KindKubeServer,
+			Version: types.V3,
+			Metadata: types.Metadata{
+				Name:        name,
+				Namespace:   apidefaults.Namespace,
+				Description: hostID, // Pass host ID via description field for the cache.
+			},
+		}, nil
+	case types.OpPut:
+		return services.UnmarshalKubeServer(
+			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
 func newKubeServiceParser() *kubeServiceParser {
 	return &kubeServiceParser{
 		baseParser: newBaseParser(backend.Key(kubeServicesPrefix)),
@@ -1164,7 +1203,7 @@ func (p *networkRestrictionsParser) parse(event backend.Event) (types.Resource, 
 
 func newWindowsDesktopServicesParser() *windowsDesktopServicesParser {
 	return &windowsDesktopServicesParser{
-		baseParser: newBaseParser(backend.Key(windowsDesktopServicesPrefix)),
+		baseParser: newBaseParser(backend.Key(windowsDesktopServicesPrefix, "")),
 	}
 }
 
@@ -1189,7 +1228,7 @@ func (p *windowsDesktopServicesParser) parse(event backend.Event) (types.Resourc
 
 func newWindowsDesktopsParser() *windowsDesktopsParser {
 	return &windowsDesktopsParser{
-		baseParser: newBaseParser(backend.Key(windowsDesktopsPrefix)),
+		baseParser: newBaseParser(backend.Key(windowsDesktopsPrefix, "")),
 	}
 }
 

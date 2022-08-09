@@ -36,6 +36,8 @@ const (
 	// ProxyHelloSignature is a string which Teleport proxy will send
 	// right after the initial SSH "handshake/version" message if it detects
 	// talking to a Teleport server.
+	//
+	// This is also leveraged by tsh to propagate its tracing span ID.
 	ProxyHelloSignature = "Teleport-Proxy"
 )
 
@@ -264,7 +266,7 @@ func hostKeyFallbackFunc(knownHosts []ssh.PublicKey) func(hostname string, remot
 
 // KeysEqual is constant time compare of the keys to avoid timing attacks
 func KeysEqual(ak, bk ssh.PublicKey) bool {
-	a := ssh.Marshal(ak)
-	b := ssh.Marshal(bk)
-	return (len(a) == len(b) && subtle.ConstantTimeCompare(a, b) == 1)
+	a := ak.Marshal()
+	b := bk.Marshal()
+	return subtle.ConstantTimeCompare(a, b) == 1
 }

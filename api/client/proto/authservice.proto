@@ -124,6 +124,12 @@ message Event {
         // SnowflakeSession is a Snowflake web session.
         types.WebSessionV2 SnowflakeSession = 31
             [ (gogoproto.jsontag) = "snowflake_session,omitempty" ];
+        // KubernetesServer is an Kubernetes server resource.
+        types.KubernetesServerV3 KubernetesServer = 32
+            [ (gogoproto.jsontag) = "kubernetes_server,omitempty" ];
+        // KubernetesCluster is an Kubernetes cluster resource.
+        types.KubernetesClusterV3 KubernetesCluster = 33
+            [ (gogoproto.jsontag) = "kubernetes_cluster,omitempty" ];
     }
 }
 
@@ -184,6 +190,20 @@ message HostCertsRequest {
     types.Rotation Rotation = 9 [ (gogoproto.jsontag) = "rotation,omitempty" ];
     // NoCache is argument that only local callers can supply to bypass cache
     bool NoCache = 10 [ (gogoproto.jsontag) = "-" ];
+    // SystemRoles is a list of system roles held by the host. Most host certs are
+    // single-role and only specify the Role field. The SystemRoles field is only
+    // currently used on Instance certs, which need to express all roles held by
+    // the instance.
+    repeated string SystemRoles = 11 [
+        (gogoproto.jsontag) = "system_roles,omitempty",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
+    ];
+    // UnstableSystemRoleAssertionID is not a stable part of the public API. Used by
+    // older instances to requisition a multi-role cert by individually proving which
+    // system roles are held.
+    // DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
+    string UnstableSystemRoleAssertionID = 12
+        [ (gogoproto.jsontag) = "system_role_assertion_id,omitempty" ];
 }
 
 // UserCertRequest specifies certificate-generation parameters
@@ -264,6 +284,15 @@ message UserCertsRequest {
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "route_to_windows_desktop,omitempty"
     ];
+
+    // UseRoleRequests is used to ensure a certificate request is intended to
+    // use role impersonation, even if the list of role requests is empty.
+    bool UseRoleRequests = 14 [ (gogoproto.jsontag) = "use_role_requests,omitempty" ];
+
+    // DropAccessRequests is an optional list of request IDs indicating requests
+    // whose escalated privileges should be removed from the certificate.
+    repeated string DropAccessRequests = 15
+        [ (gogoproto.jsontag) = "drop_access_requests,omitempty" ];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -444,6 +473,11 @@ message PingResponse {
     string ProxyPublicAddr = 4 [ (gogoproto.jsontag) = "proxy_public_addr" ];
     // IsBoring signals whether or not the server was compiled with BoringCrypto.
     bool IsBoring = 5 [ (gogoproto.jsontag) = "is_boring" ];
+    // LicenseWarnings is a list of license compliance warnings.
+    repeated string LicenseWarnings = 6 [ (gogoproto.jsontag) = "license_warnings" ];
+    // RemoteAddr is the client peer addr as seen from the auth server (used to assist
+    // instances in guessing their external IP when none is configured).
+    string RemoteAddr = 7 [ (gogoproto.jsontag) = "remote_addr" ];
 }
 
 // Features are auth server features.
@@ -470,6 +504,10 @@ message Features {
     bool Desktop = 10 [ (gogoproto.jsontag) = "desktop" ];
     // ModeratedSessions enables moderated sessions product
     bool ModeratedSessions = 11 [ (gogoproto.jsontag) = "moderated_sessions" ];
+    // MachineID enables MachineID product
+    bool MachineID = 12 [ (gogoproto.jsontag) = "machine_id" ];
+    // ResourceAccessRequests enables resource access requests product
+    bool ResourceAccessRequests = 13 [ (gogoproto.jsontag) = "resource_access_requests" ];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
@@ -746,16 +784,36 @@ message GetKubeServicesResponse {
 
 // UpsertKubeServiceRequest are the parameters used to add or update a
 // kubernetes service.
+// DELETE IN 12.0.0
 message UpsertKubeServiceRequest { types.ServerV2 Server = 1 [ (gogoproto.jsontag) = "server" ]; }
 
 // DeleteKubeServiceRequest are the parameters used to remove a kubernetes service.
+// DELETE IN 12.0.0
 message DeleteKubeServiceRequest {
     // Name is the name of the kubernetes service to delete.
     string Name = 2 [ (gogoproto.jsontag) = "name" ];
 }
 
 // DeleteAllKubeServicesRequest are the parameters used to remove all kubernetes services.
+// DELETE IN 12.0.0
 message DeleteAllKubeServicesRequest {}
+
+// UpsertKubernetesServerRequest are the parameters used to add or update a
+// kubernetes server.
+message UpsertKubernetesServerRequest {
+    types.KubernetesServerV3 Server = 1 [ (gogoproto.jsontag) = "server" ];
+}
+
+// DeleteKubernetesServerRequest are the parameters used to remove a kubernetes server.
+message DeleteKubernetesServerRequest {
+    // HostID is the kube server host uuid.
+    string HostID = 1 [ (gogoproto.jsontag) = "host_id" ];
+    // Name is the name of the kubernetes service to delete.
+    string Name = 2 [ (gogoproto.jsontag) = "name" ];
+}
+
+// DeleteAllKubernetesServersRequest are the parameters used to remove all kubernetes servers.
+message DeleteAllKubernetesServersRequest {}
 
 // GetDatabaseServersRequest is a request to return all registered database servers.
 // DELETE IN 10.0.
@@ -1514,6 +1572,7 @@ message PaginatedResource {
         // Nodes represents a Server resource.
         types.ServerV2 Node = 3 [ (gogoproto.jsontag) = "node,omitempty" ];
         // KubeService represents a KubernetesService resource.
+        // DELETE IN 12.0.0. Deprecated, use KubernetesService field.
         types.ServerV2 KubeService = 4 [ (gogoproto.jsontag) = "kube_service,omitempty" ];
         // WindowsDesktop represents a WindowsDesktop resource.
         types.WindowsDesktopV3 WindowsDesktop = 5
@@ -1521,6 +1580,9 @@ message PaginatedResource {
         // KubeCluster represents a KubeCluster resource.
         types.KubernetesClusterV3 KubeCluster = 6
             [ (gogoproto.jsontag) = "kube_cluster,omitempty" ];
+        // KubernetesServer represents a Kubernetes Server resource.
+        types.KubernetesServerV3 KubernetesServer = 7
+            [ (gogoproto.jsontag) = "kubernetes_server,omitempty" ];
     }
 }
 
@@ -1777,8 +1839,139 @@ message GetSSODiagnosticInfoRequest {
     string AuthRequestID = 2 [ (gogoproto.jsontag) = "auth_request_id" ];
 }
 
+// UnstableSystemRoleAssertion is not a stable part of the public API. Used by older instances
+// to prove that they hold a given system role.
+// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
+message UnstableSystemRoleAssertion {
+    string ServerID = 1 [ (gogoproto.jsontag) = "server_id,omitempty" ];
+    string AssertionID = 2 [ (gogoproto.jsontag) = "assertion_id,omitempty" ];
+    string SystemRole = 3 [
+        (gogoproto.jsontag) = "system_role,omitempty",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
+    ];
+}
+
+// UnstableSystemRoleAssertionSet is not a stable part of the public API. Records the sum of system
+// role assertions provided by a given instance.
+// DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
+message UnstableSystemRoleAssertionSet {
+    string ServerID = 1 [ (gogoproto.jsontag) = "server_id,omitempty" ];
+    string AssertionID = 2 [ (gogoproto.jsontag) = "assertion_id,omitempty" ];
+    repeated string SystemRoles = 3 [
+        (gogoproto.jsontag) = "system_roles,omitempty",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
+    ];
+}
+
+// UpstreamInventoryOneOf is the upstream message for the inventory control stream,
+// sent from teleport instances to the auth server.
+message UpstreamInventoryOneOf {
+    oneof Msg {
+        // Hello is the first message sent up the control stream.
+        UpstreamInventoryHello Hello = 1;
+        // Heartbeat advertises instance status/liveness.
+        InventoryHeartbeat Heartbeat = 2;
+        // UpstreamInventoryPong is a response to a ping (used for testing/debug).
+        UpstreamInventoryPong Pong = 3;
+    }
+}
+
+// DownstreamInventoryOneOf is the downstream message for the inventory control stream,
+// sent from auth servers to teleport instances.
+message DownstreamInventoryOneOf {
+    oneof Msg {
+        // Hello is the first message sent down the control stream.
+        DownstreamInventoryHello Hello = 1;
+        // Ping triggers an upstream pong (used for testing/debug).
+        DownstreamInventoryPing Ping = 2;
+    }
+}
+
+// DownstreamInventoryPing is sent down the inventory control stream for testing/debug
+// purposes.
+message DownstreamInventoryPing { uint64 ID = 1; }
+
+// UpstreamInventoryPong is sent up the inventory control stream in response to a downstream
+// ping (used for testing/debug purposes).
+message UpstreamInventoryPong { uint64 ID = 1; }
+
+// UpstreamInventoryHello is the hello message sent up the inventory control stream.
+message UpstreamInventoryHello {
+    // Version advertises the teleport version of the instance.
+    string Version = 1;
+    // ServerID advertises the server ID of the instance.
+    string ServerID = 2;
+    // Services advertises the currently live services of the instance. note: this is
+    // distinct from the SystemRoles associated with a certificate in that a service may
+    // hold a system role that is not currently in use if it was granted that role by
+    // its auth token. i.e. Services is the subset of SystemRoles that are currently
+    // active.
+    repeated string Services = 3
+        [ (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole" ];
+
+    // TODO(fspmarshall): look into what other info can safely be stated here once, instead of
+    // being repeatedly announced (e.g. addrs, static labels, etc). may be able to achieve a
+    // non-trivial reduction in network usage by doing this.
+}
+
+// DownstreamInventoryHello is the hello message sent down the inventory control stream.
+message DownstreamInventoryHello {
+    // Version advertises the version of the auth server.
+    string Version = 1;
+    // ServerID advertises the server ID of the auth server.
+    string ServerID = 2;
+}
+
+// InventoryHeartbeat announces information about instance state.
+message InventoryHeartbeat {
+    // SSHServer is a complete ssh server spec to be heartbeated (note: the full spec is heartbeated
+    // in the interest of simple conversion from the old logic of heartbeating via UpsertNode, but
+    // we should be able to cut down on network usage fairly significantly by moving static values
+    // to the hello message and only heartbeating dynamic values here).
+    types.ServerV2 SSHServer = 1;
+}
+
+// InventoryStatusRequest requests inventory status info.
+message InventoryStatusRequest {
+    // Connected requests summary of the inventory control streams registered with
+    // the auth server that handles the request.
+    bool Connected = 1;
+}
+
+// InventoryStatusSummary is the status summary returned by the GetInventoryStatus rpc.
+message InventoryStatusSummary {
+    // Connected is a summary of the instances connected to the current auth server.  Only set if
+    // the Connected flag in the status request is true.
+    repeated UpstreamInventoryHello Connected = 1 [ (gogoproto.nullable) = false ];
+}
+
+// InventoryPingRequest is used to request that the specified server be sent an inventory ping
+// if it has a control stream registered.
+message InventoryPingRequest { string ServerID = 1; }
+
+// InventoryPingResponse returns the result of an inventory ping initiated via an
+// inventory ping request.
+message InventoryPingResponse { int64 Duration = 1 [ (gogoproto.casttype) = "time.Duration" ]; }
+
+// GetConnectionDiagnosticRequest is a request to return a connection diagnostic.
+message GetConnectionDiagnosticRequest {
+    // Name is the name of the connection diagnostic.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
+    // InventoryControlStream is the per-instance stream used to advertise teleport instance
+    // presence/version/etc to the auth server.
+    rpc InventoryControlStream(stream UpstreamInventoryOneOf)
+        returns (stream DownstreamInventoryOneOf);
+
+    // GetInventoryStatus gets information about current instance inventory.
+    rpc GetInventoryStatus(InventoryStatusRequest) returns (InventoryStatusSummary);
+
+    // PingInventory attempts to trigger a downstream inventory ping (used in testing/debug).
+    rpc PingInventory(InventoryPingRequest) returns (InventoryPingResponse);
+
     // MaintainSessionPresence establishes a channel used to continously verify the presence for a
     // session.
     rpc MaintainSessionPresence(stream PresenceMFAChallengeSend)
@@ -1872,6 +2065,8 @@ service AuthService {
     // GetCurrentUser returns current user as seen by the server.
     // Useful especially in the context of remote clusters which perform role and trait mapping.
     rpc GetCurrentUser(google.protobuf.Empty) returns (types.UserV2);
+    // GetCurrentUserRoles returns current user's roles.
+    rpc GetCurrentUserRoles(google.protobuf.Empty) returns (stream types.RoleV5);
     // GetUsers gets all current user resources.
     rpc GetUsers(GetUsersRequest) returns (stream types.UserV2);
     // CreateUser inserts a new user entry to a backend.
@@ -1998,11 +2193,28 @@ service AuthService {
         option deprecated = true;
     };
     // UpsertKubeServiceV2 adds or updates a kubernetes service.
-    rpc UpsertKubeServiceV2(UpsertKubeServiceRequest) returns (types.KeepAlive);
+    // DELETE IN 12.0. Deprecated, use UpsertKubernetesServer
+    rpc UpsertKubeServiceV2(UpsertKubeServiceRequest) returns (types.KeepAlive) {
+        option deprecated = true;
+    };
     // DeleteKubeService removes a kubernetes service.
-    rpc DeleteKubeService(DeleteKubeServiceRequest) returns (google.protobuf.Empty);
+    // DELETE IN 12.0. Deprecated, use DeleteKubernetesServer
+    rpc DeleteKubeService(DeleteKubeServiceRequest) returns (google.protobuf.Empty) {
+        option deprecated = true;
+    };
     // DeleteAllKubeServices removes all kubernetes services.
-    rpc DeleteAllKubeServices(DeleteAllKubeServicesRequest) returns (google.protobuf.Empty);
+    // DELETE IN 12.0. Deprecated, use DeleteAllKubernetesServers
+    rpc DeleteAllKubeServices(DeleteAllKubeServicesRequest) returns (google.protobuf.Empty) {
+        option deprecated = true;
+    };
+
+    // UpsertKubernetesServer adds or updates a kubernetes server.
+    rpc UpsertKubernetesServer(UpsertKubernetesServerRequest) returns (types.KeepAlive);
+    // DeleteKubernetesServer removes a kubernetes server.
+    rpc DeleteKubernetesServer(DeleteKubernetesServerRequest) returns (google.protobuf.Empty);
+    // DeleteAllKubernetesServers removes all kubernetes servers.
+    rpc DeleteAllKubernetesServers(DeleteAllKubernetesServersRequest)
+        returns (google.protobuf.Empty);
 
     // GetDatabaseServers returns all registered database proxy servers.
     // DELETE IN 10.0. Deprecated, use ListResources.
@@ -2126,6 +2338,8 @@ service AuthService {
     rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
     // UpsertToken upserts a token in a backend.
     rpc UpsertToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
+    // CreateToken creates a token in a backend.
+    rpc CreateToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
     // GenerateToken generates a new auth token.
     rpc GenerateToken(GenerateTokenRequest) returns (GenerateTokenResponse);
     // DeleteToken deletes an existing token in a backend described by the given request.
@@ -2240,6 +2454,12 @@ service AuthService {
     // GenerateCertAuthorityCRL creates an empty CRL for the specified CA.
     rpc GenerateCertAuthorityCRL(CertAuthorityRequest) returns (CRL);
 
+    // CreateConnectionDiagnostic creates a new connection diagnostic.
+    rpc CreateConnectionDiagnostic(types.ConnectionDiagnosticV1) returns (google.protobuf.Empty);
+    // GetConnectionDiagnostic reads a connection diagnostic.
+    rpc GetConnectionDiagnostic(GetConnectionDiagnosticRequest)
+        returns (types.ConnectionDiagnosticV1);
+
     // ChangeUserAuthentication allows a user to change their password and if enabled,
     // also adds a new MFA device. After successful invocation, a new web session is created as well
     // as a new set of recovery codes (if user meets the requirements to receive them), invalidating
@@ -2316,4 +2536,9 @@ service AuthService {
     // without signing keys. If the cluster has multiple TLS certs, they will
     // all be appended.
     rpc GetClusterCACert(google.protobuf.Empty) returns (GetClusterCACertResponse);
+
+    // UnstableAssertSystemRole is not a stable part of the public API. Used by older
+    // instances to prove that they hold a given system role.
+    // DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
+    rpc UnstableAssertSystemRole(UnstableSystemRoleAssertion) returns (google.protobuf.Empty);
 }

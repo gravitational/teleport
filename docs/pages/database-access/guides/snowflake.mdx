@@ -1,0 +1,195 @@
+---
+title: Database Access with Snowflake
+description: How to configure Teleport Database Access with Snowflake.
+---
+
+<Details
+  title="Version warning"
+  opened={true}
+  scope={["oss", "enterprise"]}
+  scopeOnly={true}
+  min="10.0"
+>
+  Database access for Snowflake is available starting from Teleport `10.0`.
+</Details>
+
+This guide will help you to:
+
+- Install and configure Teleport.
+- Assign Teleport's public key to a Snowflake user.
+- Connect to Snowflake through Teleport.
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+  ![Teleport Database Access Snowflake Self-Hosted](../../../img/database-access/guides/snowflake_selfhosted.png)
+</ScopedBlock>
+
+<ScopedBlock scope={["cloud"]}>
+  ![Teleport Database Access Snowflake Cloud](../../../img/database-access/guides/snowflake_cloud.png)
+</ScopedBlock>
+
+## Prerequisites
+
+- Snowflake account with `SECURITYADMIN` role or higher.
+
+- `snowsql` installed and added to your system's `PATH` environment variable.
+
+- A host where you will run the Teleport Database Service. Teleport version 10.0 or newer must be installed.
+
+  See [Installation](../../installation.mdx) for details.
+
+(!docs/pages/includes/user-client-prereqs.mdx!)
+
+(!docs/pages/includes/tctl.mdx!)
+
+## Step 1/5. Install and configure Teleport
+
+### Set up the Teleport Auth and Proxy Services
+
+(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
+
+### Set up the Teleport Database Service
+
+(!docs/pages/includes/database-access/token.mdx!)
+
+Install Teleport on the host where you will run the Teleport Database Service:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+  Start the Teleport Database Service, pointing the `--auth-server` flag to the
+  address of your Teleport Proxy Service:
+
+  ```code
+  $ teleport db start \
+  --token=/tmp/token \
+  --auth-server=teleport.example.com:3080 \
+  --name=example-snowflake \
+  --protocol=snowflake \
+  --uri=https://abc12345.snowflakecomputing.com \
+  --labels=env=dev
+  ```
+
+  <Admonition type="note">
+
+    The `--auth-server` flag must point to the Teleport cluster's Proxy Service
+    endpoint because the Database Service always connects back to the cluster over a
+    reverse tunnel.
+
+  </Admonition>
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+  Start the Teleport Database Service, pointing the `--auth-server` flag to the
+  address of your Teleport Cloud tenant:
+
+  ```code
+  $ teleport db start \
+  --token=/tmp/token \
+  --auth-server=mytenant.teleport.sh:443 \
+  --name=example-snowflake \
+  --protocol=snowflake \
+  --uri=https://abc12345.snowflakecomputing.com \
+  --labels=env=dev
+  ```
+
+</ScopedBlock>
+
+<Admonition type="tip">
+  You can start the Database Service using a configuration file instead of CLI flags.
+  See the [YAML reference](../reference/configuration.mdx) for details.
+</Admonition>
+
+## Step 2/5. Create a Teleport user
+
+(!docs/pages/includes/database-access/create-user.mdx!)
+
+## Step 3/5. Export a public key
+
+Use the `tctl auth sign` command below to export a public key for your Snowflake user:
+
+```code
+$ tctl auth sign --format=snowflake --out=server
+```
+
+The command will create a `server.pub` file with Teleport's public key. Teleport will use the corresponding private key to
+generate a JWT (JSON Web Token) that will be used to authenticate to Snowflake.
+
+(!docs/pages/includes/database-access/rotation-note.mdx!)
+
+## Step 4/5. Add the public key to your Snowflake user
+
+Use the public key you generated earlier to enable key pair authentication.
+
+Log in to your Snowflake instance and execute the SQL statement below:
+
+```sql
+alter user alice set rsa_public_key='MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAv3dHYw4LJCcZzdbhb3hV...LwIDAQAB';
+```
+
+In this statement, `alice` is the name of the Snowflake user and the `rsa_public_key` is the key generated earlier without
+the PEM header/footer (first and the last line).
+
+You can use the `describe user` command to verify the user's public key:
+
+```sql
+desc user alice;
+```
+
+See the [Snowflake documentation](https://docs.snowflake.com/en/user-guide/key-pair-auth.html#step-4-assign-the-public-key-to-a-snowflake-user)
+for more details.
+
+## Step 5/5. Connect
+
+Log in to your Teleport cluster and see the available databases:
+
+<Tabs>
+  <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
+    ```code
+    $ tsh login --proxy=teleport.example.com --user=alice
+    $ tsh db ls
+    # Name              Description         Labels
+    # ----------------- ------------------- --------
+    # example-snowflake Example Snowflake ❄ env=dev
+    ```
+  </TabItem>
+  <TabItem scope={["cloud"]} label="Teleport Cloud">
+    ```code
+    $ tsh login --proxy=mytenant.teleport.sh --user=alice
+    $ tsh db ls
+    # Name              Description         Labels
+    # ----------------- ------------------- --------
+    # example-snowflake Example Snowflake ❄ env=dev
+    ```
+  </TabItem>
+</Tabs>
+
+To retrieve credentials for a database and connect to it:
+
+```code
+$ tsh db connect example-snowflake
+```
+
+You can optionally specify the database user and the database name to use by
+default when connecting to the database instance:
+
+```code
+$ tsh db connect --db-user=alice --db-name=SNOWFLAKE_SAMPLE_DATA example-snowflake
+```
+
+The `snowsql` command-line client should be available in the system `PATH` in order to be
+able to connect.
+
+To log out of the database and remove credentials:
+
+```code
+# Remove credentials for a particular database instance.
+$ tsh db logout example-snowflake
+# Remove credentials for all database instances.
+$ tsh db logout
+```
+
+## Next steps
+
+(!docs/pages/includes/database-access/guides-next-steps.mdx!)

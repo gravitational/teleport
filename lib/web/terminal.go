@@ -84,6 +84,7 @@ type TerminalRequest struct {
 type AuthProvider interface {
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]events.EventFields, error)
+	GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error)
 }
 
 // NewTerminal creates a web-based terminal based on WebSockets and returns a
@@ -116,6 +117,17 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		return nil, trace.BadParameter("invalid server name %q: %v", req.Server, err)
 	}
 
+	var join bool
+	_, err = authProvider.GetSessionTracker(ctx, string(req.SessionID))
+	switch {
+	case trace.IsNotFound(err):
+		join = false
+	case err != nil:
+		return nil, trace.Wrap(err)
+	default:
+		join = true
+	}
+
 	return &TerminalHandler{
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentWebsocket,
@@ -129,6 +141,7 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		encoder:      unicode.UTF8.NewEncoder(),
 		decoder:      unicode.UTF8.NewDecoder(),
 		wsLock:       &sync.Mutex{},
+		join:         join,
 	}, nil
 }
 
@@ -154,7 +167,7 @@ type TerminalHandler struct {
 	hostUUID string
 
 	// sshSession holds the "shell" SSH channel to the node.
-	sshSession *ssh.Session
+	sshSession *tracessh.Session
 
 	// terminalContext is used to signal when the terminal sesson is closing.
 	terminalContext context.Context
@@ -178,6 +191,9 @@ type TerminalHandler struct {
 	closeOnce sync.Once
 
 	wsLock *sync.Mutex
+
+	// join is set if we're joining an existing session
+	join bool
 }
 
 // Serve builds a connect to the remote node and then pumps back two types of
@@ -301,8 +317,13 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*clie
 	// communicate over the websocket.
 	stream := t.asTerminalStream(ws)
 
+	if t.join {
+		clientConfig.HostLogin = teleport.SSHSessionJoinPrincipal
+	} else {
+		clientConfig.HostLogin = t.params.Login
+	}
+
 	clientConfig.ForwardAgent = client.ForwardAgentLocal
-	clientConfig.HostLogin = t.params.Login
 	clientConfig.Namespace = t.params.Namespace
 	clientConfig.Stdout = stream
 	clientConfig.Stderr = stream
@@ -328,9 +349,9 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*clie
 	// Save the *ssh.Session after the shell has been created. The session is
 	// used to update all other parties window size to that of the web client and
 	// to allow future window changes.
-	tc.OnShellCreated = func(s *ssh.Session, c *tracessh.Client, _ io.ReadWriteCloser) (bool, error) {
+	tc.OnShellCreated = func(s *tracessh.Session, c *tracessh.Client, _ io.ReadWriteCloser) (bool, error) {
 		t.sshSession = s
-		t.windowChange(&t.params.Term)
+		t.windowChange(r.Context(), &t.params.Term)
 
 		return false, nil
 	}
@@ -526,12 +547,13 @@ func (t *TerminalHandler) streamEvents(ws *websocket.Conn, tc *client.TeleportCl
 
 // windowChange is called when the browser window is resized. It sends a
 // "window-change" channel request to the server.
-func (t *TerminalHandler) windowChange(params *session.TerminalParams) {
+func (t *TerminalHandler) windowChange(ctx context.Context, params *session.TerminalParams) {
 	if t.sshSession == nil {
 		return
 	}
 
 	_, err := t.sshSession.SendRequest(
+		ctx,
 		sshutils.WindowChangeRequest,
 		false,
 		ssh.Marshal(sshutils.WinChangeReqParams{
@@ -680,7 +702,7 @@ func (t *TerminalHandler) read(out []byte, ws *websocket.Conn) (n int, err error
 
 		// Send the window change request in a goroutine so reads are not blocked
 		// by network connectivity issues.
-		go t.windowChange(params)
+		go t.windowChange(context.TODO(), params)
 
 		return 0, nil
 	default:

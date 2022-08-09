@@ -57,7 +57,7 @@ Enterprise Edition:
     spec:
       acs: https://tele.example.com/v1/webapi/saml/acs
       attributes_to_roles:
-      # Any user who has SAML `groups` atrribute with value `okta-admin`
+      # Any user who has SAML `groups` attribute with value `okta-admin`
       # will be given the Teleport `kube-access` role.
       - {name: "groups", value: "okta-admin", roles: ["kube-access"]}
       entity_descriptor: |
@@ -123,8 +123,9 @@ Create or update this role using `tctl`:
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
-# Log in to your Teleport cluster so you can use tctl remotely.
-# You can also run tctl on your Auth Service host.
+# Log in to your cluster with tsh so you can use tctl from your local machine.
+# You can also run tctl on your Auth Service host without running "tsh login"
+# first.
 $ tsh login --proxy=teleport.example.com --user=myuser
 $ tctl create -f member.yaml
 ```
@@ -222,7 +223,7 @@ Label each cluster with key-value pairs describing the cluster:
 <Tabs>
   <TabItem label="Helm">
     ```code
-    # Install or upgrade the agent or cluster and set labels:
+    # Install or upgrade Teleport and set labels:
     $ helm upgrade teleport-agent teleport-kube-agent --set kubeClusterName={CLUSTER?}\
       --set proxyAddr=${PROXY?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent\
       --set labels.env=prod --set labels.region=us-west-1

@@ -20,15 +20,16 @@ This guide will explain how to:
 ## Prerequisites
 
 - A running Teleport cluster, either self hosted or in Teleport Cloud.
-- A Teleport Node with Application Access enabled. Follow the [Getting Started](../getting-started.mdx)
-  or [Connecting Apps](./connecting-apps.mdx) guides to get it running.
+- A host running the `teleport` daemon with Application Access enabled. Follow
+  the [Getting Started](../getting-started.mdx) or
+  [Connecting Apps](./connecting-apps.mdx) guides to get it running.
 - IAM permissions in the AWS account you want to connect.
 - AWS EC2 or other instance where you can assign a IAM Security Role for the Teleport Agent.
 - `aws` command line interface (CLI) tool in PATH. [Installing or updating the latest version of the AWS CLI
 ](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
 
 <Admonition type="note">
-If using the Teleport agent deployed in AWS EKS, you cannot use Helm chart
+If using Teleport deployed in AWS EKS, you cannot use Helm chart
 annotations to specify the IAM permissions;
 you must associate the policy with the cluster role for the worker nodes.
 Otherwise, you will receive "400 Bad Request" errors from AWS.
@@ -221,10 +222,20 @@ app_service:
     labels:
       aws_account_id: "0987654321"
       env: prod
+  - name: "awsconsole-third-party"
+    uri: "https://console.aws.amazon.com/ec2/v2/home"
+    labels:
+      aws_account_id: "1234554321"
+    aws:
+      external_id: "example-external-id"
 ```
 
 When showing available IAM roles, Teleport will display only role ARNs that
 belong to the specific account.
+
+For AWS accounts that require external IDs for accessing their resources, set
+the `external_id` field, which the Application Service uses when assuming the
+AWS roles in these accounts.
 
 ## Step 6. Connect to AWS console with assumed IAM role
 
@@ -245,7 +256,7 @@ federated login and the name of your assumed IAM role:
 Note that your federated login session is marked with your Teleport username.
 
 <Admonition type="note" title="Session Duration">
-    If the Teleport agent is running with [temporary security credentials](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html),
+    If Teleport is running with [temporary security credentials](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html),
     the management console session will be limited to a maximum of one hour.
 </Admonition>
 

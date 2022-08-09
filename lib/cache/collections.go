@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -175,6 +176,11 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
 			collections[resourceKind] = &kubeService{watch: watch, Cache: c}
+		case types.KindKubeServer:
+			if c.Presence == nil {
+				return nil, trace.BadParameter("missing parameter Presence")
+			}
+			collections[resourceKind] = &kubeServer{watch: watch, Cache: c}
 		case types.KindDatabaseServer:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
@@ -262,6 +268,13 @@ type resourceKind struct {
 	kind    string
 	subkind string
 	version string
+}
+
+func (r resourceKind) String() string {
+	if r.subkind == "" {
+		return r.kind
+	}
+	return fmt.Sprintf("%s/%s", r.kind, r.subkind)
 }
 
 type accessRequest struct {
@@ -805,8 +818,15 @@ func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Conte
 		return nil, trace.Wrap(err)
 	}
 
+	// DELETE IN 11.0.
+	// missingDatabaseCA is needed only when leaf cluster v9 is connected
+	// to root cluster v10. Database CA has been added in v10, so older
+	// clusters don't have it and fetchCertAuthorities() returns an error.
+	missingDatabaseCA := false
 	applyDatabaseCAs, err := c.fetchCertAuthorities(ctx, types.DatabaseCA)
-	if err != nil {
+	if trace.IsBadParameter(err) {
+		missingDatabaseCA = true
+	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -822,8 +842,16 @@ func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Conte
 		if err := applyUserCAs(ctx); err != nil {
 			return trace.Wrap(err)
 		}
-		if err := applyDatabaseCAs(ctx); err != nil {
-			return trace.Wrap(err)
+		if !missingDatabaseCA {
+			if err := applyDatabaseCAs(ctx); err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			if err := c.trustCache.DeleteAllCertAuthorities(types.DatabaseCA); err != nil {
+				if !trace.IsNotFound(err) {
+					return trace.Wrap(err)
+				}
+			}
 		}
 		return trace.Wrap(applyJWTSigners(ctx))
 	}, nil
@@ -1827,6 +1855,7 @@ func (r *webToken) watchKind() types.WatchKind {
 	return r.watch
 }
 
+// DELETE in 13.0
 type kubeService struct {
 	*Cache
 	watch types.WatchKind
@@ -1885,6 +1914,72 @@ func (c *kubeService) processEvent(ctx context.Context, event types.Event) error
 }
 
 func (c *kubeService) watchKind() types.WatchKind {
+	return c.watch
+}
+
+type kubeServer struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (c *kubeServer) erase(ctx context.Context) error {
+	if err := c.presenceCache.DeleteAllKubernetesServers(ctx); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (c *kubeServer) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	resources, err := c.Presence.GetKubernetesServers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return func(ctx context.Context) error {
+		if err := c.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, resource := range resources {
+			if _, err := c.presenceCache.UpsertKubernetesServer(ctx, resource); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}, nil
+}
+
+func (c *kubeServer) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+
+		err := c.presenceCache.DeleteKubernetesServer(
+			ctx,
+			event.Resource.GetMetadata().Description, // Cache passes host ID via description field.
+			event.Resource.GetName(),
+		)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				c.Warningf("Failed to delete resource %v.", err)
+				return trace.Wrap(err)
+			}
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.KubeServer)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		if _, err := c.presenceCache.UpsertKubernetesServer(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		c.Warningf("Skipping unsupported event type %v.", event.Type)
+	}
+	return nil
+}
+
+func (c *kubeServer) watchKind() types.WatchKind {
 	return c.watch
 }
 

@@ -45,18 +45,30 @@ type MessageType byte
 // For descriptions of each message type see:
 // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#message-types
 const (
-	TypeClientScreenSpec           = MessageType(1)
-	TypePNGFrame                   = MessageType(2)
-	TypeMouseMove                  = MessageType(3)
-	TypeMouseButton                = MessageType(4)
-	TypeKeyboardButton             = MessageType(5)
-	TypeClipboardData              = MessageType(6)
-	TypeClientUsername             = MessageType(7)
-	TypeMouseWheel                 = MessageType(8)
-	TypeError                      = MessageType(9)
-	TypeMFA                        = MessageType(10)
-	TypeSharedDirectoryAnnounce    = MessageType(11)
-	TypeSharedDirectoryAcknowledge = MessageType(12)
+	TypeClientScreenSpec              = MessageType(1)
+	TypePNGFrame                      = MessageType(2)
+	TypeMouseMove                     = MessageType(3)
+	TypeMouseButton                   = MessageType(4)
+	TypeKeyboardButton                = MessageType(5)
+	TypeClipboardData                 = MessageType(6)
+	TypeClientUsername                = MessageType(7)
+	TypeMouseWheel                    = MessageType(8)
+	TypeError                         = MessageType(9)
+	TypeMFA                           = MessageType(10)
+	TypeSharedDirectoryAnnounce       = MessageType(11)
+	TypeSharedDirectoryAcknowledge    = MessageType(12)
+	TypeSharedDirectoryInfoRequest    = MessageType(13)
+	TypeSharedDirectoryInfoResponse   = MessageType(14)
+	TypeSharedDirectoryCreateRequest  = MessageType(15)
+	TypeSharedDirectoryCreateResponse = MessageType(16)
+	TypeSharedDirectoryDeleteRequest  = MessageType(17)
+	TypeSharedDirectoryDeleteResponse = MessageType(18)
+	TypeSharedDirectoryReadRequest    = MessageType(19)
+	TypeSharedDirectoryReadResponse   = MessageType(20)
+	TypeSharedDirectoryWriteRequest   = MessageType(21)
+	TypeSharedDirectoryWriteResponse  = MessageType(22)
+	TypeSharedDirectoryListRequest    = MessageType(25)
+	TypeSharedDirectoryListResponse   = MessageType(26)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -113,6 +125,30 @@ func decode(in peekReader) (Message, error) {
 		return decodeSharedDirectoryAnnounce(in)
 	case TypeSharedDirectoryAcknowledge:
 		return decodeSharedDirectoryAcknowledge(in)
+	case TypeSharedDirectoryInfoRequest:
+		return decodeSharedDirectoryInfoRequest(in)
+	case TypeSharedDirectoryInfoResponse:
+		return decodeSharedDirectoryInfoResponse(in)
+	case TypeSharedDirectoryCreateRequest:
+		return decodeSharedDirectoryCreateRequest(in)
+	case TypeSharedDirectoryCreateResponse:
+		return decodeSharedDirectoryCreateResponse(in)
+	case TypeSharedDirectoryDeleteRequest:
+		return decodeSharedDirectoryDeleteRequest(in)
+	case TypeSharedDirectoryDeleteResponse:
+		return decodeSharedDirectoryDeleteResponse(in)
+	case TypeSharedDirectoryListRequest:
+		return decodeSharedDirectoryListRequest(in)
+	case TypeSharedDirectoryListResponse:
+		return decodeSharedDirectoryListResponse(in)
+	case TypeSharedDirectoryReadRequest:
+		return decodeSharedDirectoryReadRequest(in)
+	case TypeSharedDirectoryReadResponse:
+		return decodeSharedDirectoryReadResponse(in)
+	case TypeSharedDirectoryWriteRequest:
+		return decodeSharedDirectoryWriteRequest(in)
+	case TypeSharedDirectoryWriteResponse:
+		return decodeSharedDirectoryWriteResponse(in)
 	default:
 		return nil, trace.BadParameter("unsupported desktop protocol message type %d", t)
 	}
@@ -647,7 +683,7 @@ func decodeSharedDirectoryAnnounce(in peekReader) (SharedDirectoryAnnounce, erro
 }
 
 type SharedDirectoryAcknowledge struct {
-	Err         uint32
+	ErrCode     uint32
 	DirectoryID uint32
 }
 
@@ -657,7 +693,7 @@ func decodeSharedDirectoryAcknowledge(in peekReader) (SharedDirectoryAcknowledge
 		return SharedDirectoryAcknowledge{}, trace.Wrap(err)
 	}
 	if t != byte(TypeSharedDirectoryAcknowledge) {
-		return SharedDirectoryAcknowledge{}, trace.BadParameter("got message type %v, expected SharedDirectoryAcknowledge(%v)", t, TypeSharedDirectoryAnnounce)
+		return SharedDirectoryAcknowledge{}, trace.BadParameter("got message type %v, expected SharedDirectoryAcknowledge(%v)", t, TypeSharedDirectoryAcknowledge)
 	}
 
 	var s SharedDirectoryAcknowledge
@@ -668,9 +704,670 @@ func decodeSharedDirectoryAcknowledge(in peekReader) (SharedDirectoryAcknowledge
 func (s SharedDirectoryAcknowledge) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryAcknowledge))
-	binary.Write(buf, binary.BigEndian, s.Err)
+	binary.Write(buf, binary.BigEndian, s.ErrCode)
 	binary.Write(buf, binary.BigEndian, s.DirectoryID)
 	return buf.Bytes(), nil
+}
+
+type SharedDirectoryInfoRequest struct {
+	CompletionID uint32
+	DirectoryID  uint32
+	Path         string
+}
+
+func (s SharedDirectoryInfoRequest) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSharedDirectoryInfoRequest))
+	binary.Write(buf, binary.BigEndian, s.CompletionID)
+	binary.Write(buf, binary.BigEndian, s.DirectoryID)
+	if err := encodeString(buf, s.Path); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf.Bytes(), nil
+}
+
+func decodeSharedDirectoryInfoRequest(in peekReader) (SharedDirectoryInfoRequest, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return SharedDirectoryInfoRequest{}, trace.Wrap(err)
+	}
+	if t != byte(TypeSharedDirectoryInfoRequest) {
+		return SharedDirectoryInfoRequest{}, trace.BadParameter("got message type %v, expected SharedDirectoryInfoRequest(%v)", t, TypeSharedDirectoryInfoRequest)
+	}
+	var completionID, directoryID uint32
+	err = binary.Read(in, binary.BigEndian, &completionID)
+	if err != nil {
+		return SharedDirectoryInfoRequest{}, trace.Wrap(err)
+	}
+	err = binary.Read(in, binary.BigEndian, &directoryID)
+	if err != nil {
+		return SharedDirectoryInfoRequest{}, trace.Wrap(err)
+	}
+	path, err := decodeString(in, tdpMaxPathLength)
+	if err != nil {
+		return SharedDirectoryInfoRequest{}, trace.Wrap(err)
+	}
+
+	return SharedDirectoryInfoRequest{
+		CompletionID: completionID,
+		DirectoryID:  directoryID,
+		Path:         path,
+	}, nil
+}
+
+type SharedDirectoryInfoResponse struct {
+	CompletionID uint32
+	ErrCode      uint32
+	Fso          FileSystemObject
+}
+
+func (s SharedDirectoryInfoResponse) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSharedDirectoryInfoResponse))
+	binary.Write(buf, binary.BigEndian, s.CompletionID)
+	binary.Write(buf, binary.BigEndian, s.ErrCode)
+	fso, err := s.Fso.Encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	binary.Write(buf, binary.BigEndian, fso)
+	return buf.Bytes(), nil
+}
+
+func decodeSharedDirectoryInfoResponse(in peekReader) (SharedDirectoryInfoResponse, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return SharedDirectoryInfoResponse{}, trace.Wrap(err)
+	}
+	if t != byte(TypeSharedDirectoryInfoResponse) {
+		return SharedDirectoryInfoResponse{}, trace.BadParameter("got message type %v, expected SharedDirectoryInfoResponse(%v)", t, TypeSharedDirectoryInfoResponse)
+	}
+	var completionID, errCode uint32
+	err = binary.Read(in, binary.BigEndian, &completionID)
+	if err != nil {
+		return SharedDirectoryInfoResponse{}, trace.Wrap(err)
+	}
+	err = binary.Read(in, binary.BigEndian, &errCode)
+	if err != nil {
+		return SharedDirectoryInfoResponse{}, trace.Wrap(err)
+	}
+	fso, err := decodeFileSystemObject(in)
+	if err != nil {
+		return SharedDirectoryInfoResponse{}, trace.Wrap(err)
+	}
+
+	return SharedDirectoryInfoResponse{
+		CompletionID: completionID,
+		ErrCode:      errCode,
+		Fso:          fso,
+	}, nil
+}
+
+const tdpMaxPathLength = tdpMaxErrorMessageLength
+
+type FileSystemObject struct {
+	LastModified uint64
+	Size         uint64
+	FileType     uint32
+	Path         string
+}
+
+func (s FileSystemObject) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	binary.Write(buf, binary.BigEndian, s.LastModified)
+	binary.Write(buf, binary.BigEndian, s.Size)
+	binary.Write(buf, binary.BigEndian, s.FileType)
+	if err := encodeString(buf, s.Path); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf.Bytes(), nil
+}
+
+func decodeFileSystemObject(in peekReader) (FileSystemObject, error) {
+	var lastModified, size uint64
+	var fileType uint32
+	err := binary.Read(in, binary.BigEndian, &lastModified)
+	if err != nil {
+		return FileSystemObject{}, trace.Wrap(err)
+	}
+	err = binary.Read(in, binary.BigEndian, &size)
+	if err != nil {
+		return FileSystemObject{}, trace.Wrap(err)
+	}
+	err = binary.Read(in, binary.BigEndian, &fileType)
+	if err != nil {
+		return FileSystemObject{}, trace.Wrap(err)
+	}
+	path, err := decodeString(in, tdpMaxPathLength)
+	if err != nil {
+		return FileSystemObject{}, trace.Wrap(err)
+	}
+
+	return FileSystemObject{
+		LastModified: lastModified,
+		Size:         size,
+		FileType:     fileType,
+		Path:         path,
+	}, nil
+}
+
+type SharedDirectoryCreateRequest struct {
+	CompletionID uint32
+	DirectoryID  uint32
+	FileType     uint32
+	Path         string
+}
+
+func (s SharedDirectoryCreateRequest) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSharedDirectoryCreateRequest))
+	binary.Write(buf, binary.BigEndian, s.CompletionID)
+	binary.Write(buf, binary.BigEndian, s.DirectoryID)
+	binary.Write(buf, binary.BigEndian, s.FileType)
+	if err := encodeString(buf, s.Path); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return buf.Bytes(), nil
+}
+
+func decodeSharedDirectoryCreateRequest(in peekReader) (SharedDirectoryCreateRequest, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return SharedDirectoryCreateRequest{}, trace.Wrap(err)
+	}
+	if t != byte(TypeSharedDirectoryCreateRequest) {
+		return SharedDirectoryCreateRequest{}, trace.BadParameter("got message type %v, expected SharedDirectoryCreateRequest(%v)", t, TypeSharedDirectoryCreateRequest)
+	}
+	var completionID, directoryID, fileType uint32
+	err = binary.Read(in, binary.BigEndian, &completionID)
+	if err != nil {
+		return SharedDirectoryCreateRequest{}, trace.Wrap(err)
+	}
+	err = binary.Read(in, binary.BigEndian, &directoryID)
+	if err != nil {
+		return SharedDirectoryCreateRequest{}, trace.Wrap(err)
+	}
+	err = binary.Read(in, binary.BigEndian, &fileType)
+	if err != nil {
+		return SharedDirectoryCreateRequest{}, trace.Wrap(err)
+	}
+	path, err := decodeString(in, tdpMaxPathLength)
+	if err != nil {
+		return SharedDirectoryCreateRequest{}, trace.Wrap(err)
+	}
+
+	return SharedDirectoryCreateRequest{
+		CompletionID: completionID,
+		DirectoryID:  directoryID,
+		FileType:     fileType,
+		Path:         path,
+	}, nil
+
+}
+
+type SharedDirectoryCreateResponse struct {
+	CompletionID uint32
+	ErrCode      uint32
+}
+
+func (s SharedDirectoryCreateResponse) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSharedDirectoryCreateResponse))
+	binary.Write(buf, binary.BigEndian, s)
+	return buf.Bytes(), nil
+}
+
+func decodeSharedDirectoryCreateResponse(in peekReader) (SharedDirectoryCreateResponse, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return SharedDirectoryCreateResponse{}, trace.Wrap(err)
+	}
+	if t != byte(TypeSharedDirectoryCreateRequest) {
+		return SharedDirectoryCreateResponse{}, trace.BadParameter("got message type %v, expected SharedDirectoryCreateResponse(%v)", t, TypeSharedDirectoryCreateRequest)
+	}
+
+	var res SharedDirectoryCreateResponse
+	err = binary.Read(in, binary.BigEndian, &res)
+	return res, err
+}
+
+type SharedDirectoryDeleteRequest struct {
+	CompletionID uint32
+	DirectoryID  uint32
+	Path         string
+}
+
+func (s SharedDirectoryDeleteRequest) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSharedDirectoryDeleteRequest))
+	binary.Write(buf, binary.BigEndian, s.CompletionID)
+	binary.Write(buf, binary.BigEndian, s.DirectoryID)
+	if err := encodeString(buf, s.Path); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return buf.Bytes(), nil
+}
+
+func decodeSharedDirectoryDeleteRequest(in peekReader) (SharedDirectoryDeleteRequest, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return SharedDirectoryDeleteRequest{}, trace.Wrap(err)
+	}
+	if t != byte(TypeSharedDirectoryDeleteRequest) {
+		return SharedDirectoryDeleteRequest{}, trace.BadParameter("got message type %v, expected SharedDirectoryDeleteRequest(%v)", t, TypeSharedDirectoryDeleteRequest)
+	}
+	var completionID, directoryID uint32
+	err = binary.Read(in, binary.BigEndian, &completionID)
+	if err != nil {
+		return SharedDirectoryDeleteRequest{}, trace.Wrap(err)
+	}
+	err = binary.Read(in, binary.BigEndian, &directoryID)
+	if err != nil {
+		return SharedDirectoryDeleteRequest{}, trace.Wrap(err)
+	}
+	path, err := decodeString(in, tdpMaxPathLength)
+	if err != nil {
+		return SharedDirectoryDeleteRequest{}, trace.Wrap(err)
+	}
+
+	return SharedDirectoryDeleteRequest{
+		CompletionID: completionID,
+		DirectoryID:  directoryID,
+		Path:         path,
+	}, nil
+}
+
+type SharedDirectoryDeleteResponse struct {
+	CompletionID uint32
+	ErrCode      uint32
+}
+
+func (s SharedDirectoryDeleteResponse) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSharedDirectoryDeleteResponse))
+	binary.Write(buf, binary.BigEndian, s)
+	return buf.Bytes(), nil
+}
+
+func decodeSharedDirectoryDeleteResponse(in peekReader) (SharedDirectoryDeleteResponse, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return SharedDirectoryDeleteResponse{}, trace.Wrap(err)
+	}
+	if t != byte(TypeSharedDirectoryDeleteRequest) {
+		return SharedDirectoryDeleteResponse{}, trace.BadParameter("got message type %v, expected SharedDirectoryDeleteResponse(%v)", t, TypeSharedDirectoryDeleteRequest)
+	}
+
+	var res SharedDirectoryDeleteResponse
+	err = binary.Read(in, binary.BigEndian, &res)
+	return res, err
+}
+
+type SharedDirectoryListRequest struct {
+	CompletionID uint32
+	DirectoryID  uint32
+	Path         string
+}
+
+func (s SharedDirectoryListRequest) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSharedDirectoryListRequest))
+	binary.Write(buf, binary.BigEndian, s.CompletionID)
+	binary.Write(buf, binary.BigEndian, s.DirectoryID)
+	if err := encodeString(buf, s.Path); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return buf.Bytes(), nil
+}
+
+func decodeSharedDirectoryListRequest(in peekReader) (SharedDirectoryListRequest, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return SharedDirectoryListRequest{}, trace.Wrap(err)
+	}
+	if t != byte(TypeSharedDirectoryListRequest) {
+		return SharedDirectoryListRequest{}, trace.BadParameter("got message type %v, expected SharedDirectoryListRequest(%v)", t, TypeSharedDirectoryListRequest)
+	}
+	var completionID, directoryID uint32
+	err = binary.Read(in, binary.BigEndian, &completionID)
+	if err != nil {
+		return SharedDirectoryListRequest{}, trace.Wrap(err)
+	}
+	err = binary.Read(in, binary.BigEndian, &directoryID)
+	if err != nil {
+		return SharedDirectoryListRequest{}, trace.Wrap(err)
+	}
+	path, err := decodeString(in, tdpMaxPathLength)
+	if err != nil {
+		return SharedDirectoryListRequest{}, trace.Wrap(err)
+	}
+
+	return SharedDirectoryListRequest{
+		CompletionID: completionID,
+		DirectoryID:  directoryID,
+		Path:         path,
+	}, nil
+}
+
+// | message type (26) | completion_id uint32 | err_code uint32 | fso_list_length uint32 | fso_list fso[] |
+type SharedDirectoryListResponse struct {
+	CompletionID uint32
+	ErrCode      uint32
+	FsoList      []FileSystemObject
+}
+
+func (s SharedDirectoryListResponse) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSharedDirectoryListResponse))
+	binary.Write(buf, binary.BigEndian, s.CompletionID)
+	binary.Write(buf, binary.BigEndian, s.ErrCode)
+	binary.Write(buf, binary.BigEndian, uint32(len(s.FsoList)))
+	for _, fso := range s.FsoList {
+		fsoEnc, err := fso.Encode()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		binary.Write(buf, binary.BigEndian, fsoEnc)
+	}
+
+	return buf.Bytes(), nil
+}
+
+func decodeSharedDirectoryListResponse(in peekReader) (SharedDirectoryListResponse, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return SharedDirectoryListResponse{}, trace.Wrap(err)
+	}
+	if t != byte(TypeSharedDirectoryListResponse) {
+		return SharedDirectoryListResponse{}, trace.BadParameter("got message type %v, expected SharedDirectoryListResponse(%v)", t, TypeSharedDirectoryListResponse)
+	}
+	var completionID, errCode, fsoListLength uint32
+	err = binary.Read(in, binary.BigEndian, &completionID)
+	if err != nil {
+		return SharedDirectoryListResponse{}, trace.Wrap(err)
+	}
+	err = binary.Read(in, binary.BigEndian, &errCode)
+	if err != nil {
+		return SharedDirectoryListResponse{}, trace.Wrap(err)
+	}
+	err = binary.Read(in, binary.BigEndian, &fsoListLength)
+	if err != nil {
+		return SharedDirectoryListResponse{}, trace.Wrap(err)
+	}
+
+	var fsoList []FileSystemObject
+	for i := uint32(0); i < fsoListLength; i++ {
+		fso, err := decodeFileSystemObject(in)
+		if err != nil {
+			return SharedDirectoryListResponse{}, trace.Wrap(err)
+		}
+		fsoList = append(fsoList, fso)
+	}
+
+	return SharedDirectoryListResponse{
+		CompletionID: completionID,
+		ErrCode:      errCode,
+		FsoList:      fsoList,
+	}, nil
+}
+
+// SharedDirectoryReadRequest is a message sent by the server to the client to request
+// bytes to be read from the file at the path and starting at byte offset.
+type SharedDirectoryReadRequest struct {
+	CompletionID uint32
+	DirectoryID  uint32
+	Path         string
+	PathLength   uint32
+	Offset       uint64
+	Length       uint32
+}
+
+func (s SharedDirectoryReadRequest) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+
+	buf.WriteByte(byte(TypeSharedDirectoryReadRequest))
+	binary.Write(buf, binary.BigEndian, s.CompletionID)
+	binary.Write(buf, binary.BigEndian, s.DirectoryID)
+	if err := encodeString(buf, s.Path); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	binary.Write(buf, binary.BigEndian, s.Offset)
+	binary.Write(buf, binary.BigEndian, s.Length)
+
+	return buf.Bytes(), nil
+}
+
+func decodeSharedDirectoryReadRequest(in peekReader) (SharedDirectoryReadRequest, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return SharedDirectoryReadRequest{}, trace.Wrap(err)
+	}
+	if t != byte(TypeSharedDirectoryReadRequest) {
+		return SharedDirectoryReadRequest{}, trace.BadParameter("got message type %v, expected TypeSharedDirectoryReadRequest(%v)", t, TypeSharedDirectoryReadRequest)
+	}
+
+	var completionID, directoryID, pathLength, length uint32
+	var offset uint64
+
+	err = binary.Read(in, binary.BigEndian, &completionID)
+	if err != nil {
+		return SharedDirectoryReadRequest{}, trace.Wrap(err)
+	}
+
+	err = binary.Read(in, binary.BigEndian, &directoryID)
+	if err != nil {
+		return SharedDirectoryReadRequest{}, trace.Wrap(err)
+	}
+
+	path, err := decodeString(in, tdpMaxPathLength)
+	if err != nil {
+		return SharedDirectoryReadRequest{}, trace.Wrap(err)
+	}
+
+	err = binary.Read(in, binary.BigEndian, &pathLength)
+	if err != nil {
+		return SharedDirectoryReadRequest{}, trace.Wrap(err)
+	}
+
+	err = binary.Read(in, binary.BigEndian, &offset)
+	if err != nil {
+		return SharedDirectoryReadRequest{}, trace.Wrap(err)
+	}
+
+	err = binary.Read(in, binary.BigEndian, &length)
+	if err != nil {
+		return SharedDirectoryReadRequest{}, trace.Wrap(err)
+	}
+
+	return SharedDirectoryReadRequest{
+		CompletionID: completionID,
+		DirectoryID:  directoryID,
+		Path:         path,
+		PathLength:   pathLength,
+		Offset:       offset,
+		Length:       length,
+	}, nil
+}
+
+// SharedDirectoryReadResponse is a message sent by the client to the server
+// in response to the SharedDirectoryReadRequest.
+type SharedDirectoryReadResponse struct {
+	CompletionID   uint32
+	ErrCode        uint32
+	ReadDataLength uint32
+	ReadData       []byte
+}
+
+func (s SharedDirectoryReadResponse) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSharedDirectoryReadResponse))
+	binary.Write(buf, binary.BigEndian, s.CompletionID)
+	binary.Write(buf, binary.BigEndian, s.ErrCode)
+	binary.Write(buf, binary.BigEndian, s.ReadDataLength)
+	if _, err := buf.Write(s.ReadData); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf.Bytes(), nil
+}
+
+func decodeSharedDirectoryReadResponse(in peekReader) (SharedDirectoryReadResponse, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return SharedDirectoryReadResponse{}, trace.Wrap(err)
+	}
+	if t != byte(TypeSharedDirectoryReadResponse) {
+		return SharedDirectoryReadResponse{}, trace.BadParameter("got message type %v, expected TypeSharedDirectoryReadResponse(%v)", t, TypeSharedDirectoryReadResponse)
+	}
+
+	var completionID, errorCode, readDataLength uint32
+
+	err = binary.Read(in, binary.BigEndian, &completionID)
+	if err != nil {
+		return SharedDirectoryReadResponse{}, trace.Wrap(err)
+	}
+
+	err = binary.Read(in, binary.BigEndian, &errorCode)
+	if err != nil {
+		return SharedDirectoryReadResponse{}, trace.Wrap(err)
+	}
+
+	err = binary.Read(in, binary.BigEndian, &readDataLength)
+	if err != nil {
+		return SharedDirectoryReadResponse{}, trace.Wrap(err)
+	}
+
+	readData := make([]byte, int(readDataLength))
+	if _, err := io.ReadFull(in, readData); err != nil {
+		return SharedDirectoryReadResponse{}, trace.Wrap(err)
+	}
+
+	return SharedDirectoryReadResponse{
+		CompletionID:   completionID,
+		ErrCode:        errorCode,
+		ReadDataLength: readDataLength,
+		ReadData:       readData,
+	}, nil
+}
+
+// SharedDirectoryWriteRequest is a message sent by the server to the client to request
+// bytes to be written the file at the path and starting at byte offset.
+type SharedDirectoryWriteRequest struct {
+	CompletionID    uint32
+	DirectoryID     uint32
+	Offset          uint64
+	Path            string
+	PathLength      uint32
+	WriteDataLength uint32
+	WriteData       []byte
+}
+
+func (s SharedDirectoryWriteRequest) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+
+	buf.WriteByte(byte(TypeSharedDirectoryWriteRequest))
+	binary.Write(buf, binary.BigEndian, s.CompletionID)
+	binary.Write(buf, binary.BigEndian, s.DirectoryID)
+	binary.Write(buf, binary.BigEndian, s.Offset)
+	if err := encodeString(buf, s.Path); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	binary.Write(buf, binary.BigEndian, s.WriteDataLength)
+	if _, err := buf.Write(s.WriteData); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf.Bytes(), nil
+
+}
+
+func decodeSharedDirectoryWriteRequest(in peekReader) (SharedDirectoryWriteRequest, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return SharedDirectoryWriteRequest{}, trace.Wrap(err)
+	}
+	if t != byte(TypeSharedDirectoryWriteRequest) {
+		return SharedDirectoryWriteRequest{}, trace.BadParameter("got message type %v, expected TypeSharedDirectoryWriteRequest(%v)", t, TypeSharedDirectoryWriteRequest)
+	}
+
+	var completionID, directoryID, pathLength, writeDataLength uint32
+	var offset uint64
+
+	err = binary.Read(in, binary.BigEndian, &completionID)
+	if err != nil {
+		return SharedDirectoryWriteRequest{}, trace.Wrap(err)
+	}
+
+	err = binary.Read(in, binary.BigEndian, &directoryID)
+	if err != nil {
+		return SharedDirectoryWriteRequest{}, trace.Wrap(err)
+	}
+
+	err = binary.Read(in, binary.BigEndian, &offset)
+	if err != nil {
+		return SharedDirectoryWriteRequest{}, trace.Wrap(err)
+	}
+
+	path, err := decodeString(in, tdpMaxPathLength)
+	if err != nil {
+		return SharedDirectoryWriteRequest{}, trace.Wrap(err)
+	}
+
+	err = binary.Read(in, binary.BigEndian, &pathLength)
+	if err != nil {
+		return SharedDirectoryWriteRequest{}, trace.Wrap(err)
+	}
+
+	err = binary.Read(in, binary.BigEndian, &writeDataLength)
+	if err != nil {
+		return SharedDirectoryWriteRequest{}, trace.Wrap(err)
+	}
+
+	writeData := make([]byte, int(writeDataLength))
+	if _, err := io.ReadFull(in, writeData); err != nil {
+		return SharedDirectoryWriteRequest{}, trace.Wrap(err)
+	}
+
+	return SharedDirectoryWriteRequest{
+		CompletionID:    completionID,
+		DirectoryID:     directoryID,
+		Path:            path,
+		PathLength:      pathLength,
+		Offset:          offset,
+		WriteDataLength: writeDataLength,
+		WriteData:       writeData,
+	}, nil
+
+}
+
+// SharedDirectoryWriteResponse is a message sent by the client to the server
+// in response to the SharedDirectoryWriteRequest.
+type SharedDirectoryWriteResponse struct {
+	CompletionID uint32
+	ErrCode      uint32
+	BytesWritten uint32
+}
+
+func (s SharedDirectoryWriteResponse) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeSharedDirectoryWriteResponse))
+	binary.Write(buf, binary.BigEndian, s)
+	return buf.Bytes(), nil
+}
+
+func decodeSharedDirectoryWriteResponse(in peekReader) (SharedDirectoryWriteResponse, error) {
+	t, err := in.ReadByte()
+	if err != nil {
+		return SharedDirectoryWriteResponse{}, trace.Wrap(err)
+	}
+	if t != byte(TypeSharedDirectoryWriteResponse) {
+		return SharedDirectoryWriteResponse{}, trace.BadParameter("got message type %v, expected SharedDirectoryWriteResponse(%v)", t, TypeSharedDirectoryWriteResponse)
+	}
+
+	var res SharedDirectoryWriteResponse
+	err = binary.Read(in, binary.BigEndian, &res)
+	return res, err
 }
 
 // encodeString encodes strings for TDP. Strings are encoded as UTF-8 with

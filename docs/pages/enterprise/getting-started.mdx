@@ -6,24 +6,10 @@ h1: Teleport Enterprise Quick Start
 
 This guide shows you how to get up and running with Teleport Enterprise.
 
-<ScopedBlock scope={["oss", "cloud"]}>
-
-This guide is intended for Teleport Enterprise users.
-
-<TileSet>
-<Tile title="View this guide as a Teleport Enterprise user" icon="building" href="./getting-started.mdx/?scope=enterprise">
-
-</Tile>
-</TileSet>
-
-</ScopedBlock>
-
-<ScopedBlock scope="enterprise">
-
 There are three types of services Teleport can run:
 
 - **Auth Service** stores user accounts and provides authentication and
-  authorization for every agent and every user in a cluster.
+  authorization for every resource service and every user in a cluster.
 - **Proxy Service** routes client connection requests to the appropriate agent
   and serves a Web UI that can also be used to access resources.
 - **Agents** provide access to resources including SSH servers, Kubernetes
@@ -91,7 +77,7 @@ and save it as `/var/lib/teleport/license.pem` on the auth server.
 
 ### Systemd Unit File
 
-Next, download the systemd service unit file from [examples directory](https://github.com/gravitational/teleport/tree/master/examples/systemd)
+Download the systemd unit file for Teleport from the [examples directory](https://github.com/gravitational/teleport/tree/v(=teleport.version=)/examples/systemd)
 on GitHub and save it as `/etc/systemd/system/teleport.service` on both servers.
 
 ```code
@@ -325,15 +311,21 @@ store it in `~/.tsh/keys/<proxy>` directory.
 With a certificate in place, Joe can now interact with the Teleport cluster:
 
 ```code
-# SSH into any host behind the proxy (Unix user 'joe' should already exist on the node):
-$ tsh ssh joe@node.example.com
-
 # See what hosts are available behind the proxy:
 $ tsh ls
+
+# SSH into any host behind the proxy (Unix user 'joe' should already exist on the node):
+$ tsh ssh joe@node.example.com
 
 # Log out (this will remove the user certificate from ~/.tsh)
 $ tsh logout
 ```
+
+<Details title="tsh not showing Nodes?" opened={false}>
+
+(!docs/pages/includes/node-logins.mdx!)
+
+</Details>
 
 ## Configuring SSO
 
@@ -379,11 +371,15 @@ We currently only offer Docker images for `x86_64` architectures.
   You will need a recent version of [`docker-compose`](https://docs.docker.com/compose/install/) installed to follow this section of the quick start guide.
 </Admonition>
 
-The easiest way to start Teleport Enterprise quickly is to use `docker-compose` with our [`teleport-ent-quickstart.yml`](https://github.com/gravitational/teleport/blob/master/docker/teleport-ent-quickstart.yml) file:
+The easiest way to start Teleport Enterprise quickly is to use `docker-compose` with our [`teleport-ent-quickstart.yml`](https://github.com/gravitational/teleport/blob/v(=teleport.version=)/docker/teleport-ent-quickstart.yml) file:
 
 ```code
-# download the quickstart file from our GitHub repo
-$ curl -Lso teleport-ent-quickstart.yml https://raw.githubusercontent.com/gravitational/teleport/master/docker/teleport-ent-quickstart.yml
+# Download your license file from the Gravitational dashboard and put it in the correct directory.
+# The file needs to be named "license.pem".
+$ cp ~/downloads/license.pem .
+
+# Download the quickstart file from our GitHub repo
+$ curl -Lso teleport-ent-quickstart.yml https://raw.githubusercontent.com/gravitational/teleport/v(=teleport.version=)/docker/teleport-ent-quickstart.yml
 
 # start teleport quickstart using docker-compose
 $ docker-compose -f teleport-ent-quickstart.yml up
@@ -407,7 +403,7 @@ $ mkdir -p ~/teleport/config ~/teleport/data
 
 # download your license file from the Gravitational dashboard and put it in the correct directory
 # the file needs to be named license.pem
-$ cp ~/downloads/downloaded-license.pem ~/teleport/data/license.pem
+$ cp ~/downloads/license.pem ~/teleport/data/license.pem
 
 # generate a sample teleport config and write it to the local config directory
 # this container will write the config and immediately exit - this is expected
@@ -470,4 +466,3 @@ If something is not working, please reach out to us by creating a ticket in your
 Customers who have purchased the premium support package can also ping us through
 your Slack channel.
 
-</ScopedBlock>

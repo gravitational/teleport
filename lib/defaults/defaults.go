@@ -112,6 +112,9 @@ const (
 	// HTTPIdleTimeout is a default timeout for idle HTTP connections
 	HTTPIdleTimeout = 30 * time.Second
 
+	// HTTPRequestTimeout is a default timeout for HTTP requests
+	HTTPRequestTimeout = 30 * time.Second
+
 	// WebHeadersTimeout is a timeout that is set for web requests
 	// before browsers raise "Timeout waiting web headers" error in
 	// the browser
@@ -379,18 +382,6 @@ var (
 
 	// AsyncBufferSize is a default buffer size for async emitters
 	AsyncBufferSize = 1024
-
-	// ConnectionErrorMeasurementPeriod is the maximum age of a connection error
-	// to be considered when deciding to restart the process. The process will
-	// restart if there has been more than `MaxConnectionErrorsBeforeRestart`
-	// errors in the preceding `ConnectionErrorMeasurementPeriod`
-	ConnectionErrorMeasurementPeriod = 2 * time.Minute
-
-	// MaxConnectionErrorsBeforeRestart is the number or allowable network errors
-	// in the previous `ConnectionErrorMeasurementPeriod`. The process will
-	// restart if there has been more than `MaxConnectionErrorsBeforeRestart`
-	// errors in the preceding `ConnectionErrorMeasurementPeriod`
-	MaxConnectionErrorsBeforeRestart = 5
 
 	// MaxWatcherBackoff is the maximum retry time a watcher should use in
 	// the event of connection issues
@@ -733,7 +724,7 @@ func CheckPasswordLimiter() *limiter.Limiter {
 		MaxConnections:   LimiterMaxConnections,
 		MaxNumberOfUsers: LimiterMaxConcurrentUsers,
 		Rates: []limiter.Rate{
-			limiter.Rate{
+			{
 				Period:  1 * time.Second,
 				Average: 10,
 				Burst:   10,

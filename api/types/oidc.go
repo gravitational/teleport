@@ -29,7 +29,7 @@ import (
 )
 
 // OIDCConnector specifies configuration for Open ID Connect compatible external
-// identity provider, e.g. google in some organisation
+// identity provider, e.g. google in some organization
 type OIDCConnector interface {
 	// ResourceWithSecrets provides common methods for objects
 	ResourceWithSecrets
@@ -437,7 +437,7 @@ func (i *OIDCAuthRequest) Check() error {
 		if err != nil {
 			return trace.BadParameter("PublicKey: bad key: %v", err)
 		}
-		if (i.CertTTL.Duration() > defaults.MaxCertDuration) || (i.CertTTL.Duration() < defaults.MinCertDuration) {
+		if (i.CertTTL > defaults.MaxCertDuration) || (i.CertTTL < defaults.MinCertDuration) {
 			return trace.BadParameter("CertTTL: wrong certificate TTL")
 		}
 	}

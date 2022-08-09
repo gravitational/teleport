@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
@@ -41,6 +42,8 @@ type Database struct {
 
 // GetDatabase returns a database
 func (c *Cluster) GetDatabase(ctx context.Context, dbURI string) (*Database, error) {
+	// TODO(ravicious): Fetch a single db instead of filtering the response from GetDatabases.
+	// https://github.com/gravitational/teleport/pull/14690#discussion_r927720600
 	dbs, err := c.GetDatabases(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -57,7 +60,7 @@ func (c *Cluster) GetDatabase(ctx context.Context, dbURI string) (*Database, err
 
 // GetDatabases returns databases
 func (c *Cluster) GetDatabases(ctx context.Context) ([]Database, error) {
-	var dbservers []types.DatabaseServer
+	var dbs []types.Database
 	err := addMetadataToRetryableError(ctx, func() error {
 		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
@@ -65,7 +68,7 @@ func (c *Cluster) GetDatabases(ctx context.Context) ([]Database, error) {
 		}
 		defer proxyClient.Close()
 
-		dbservers, err = proxyClient.FindDatabaseServersByFilters(ctx, proto.ListResourcesRequest{
+		dbs, err = proxyClient.FindDatabasesByFilters(ctx, proto.ListResourcesRequest{
 			Namespace: defaults.Namespace,
 		})
 		if err != nil {
@@ -77,13 +80,6 @@ func (c *Cluster) GetDatabases(ctx context.Context) ([]Database, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	var dbs []types.Database
-	for _, server := range dbservers {
-		dbs = append(dbs, server.GetDatabase())
-	}
-
-	dbs = types.DeduplicateDatabases(dbs)
 
 	var responseDbs []Database
 	for _, db := range dbs {
@@ -97,7 +93,7 @@ func (c *Cluster) GetDatabases(ctx context.Context) ([]Database, error) {
 }
 
 // ReissueDBCerts issues new certificates for specific DB access
-func (c *Cluster) ReissueDBCerts(ctx context.Context, user, dbName string, db types.Database) error {
+func (c *Cluster) ReissueDBCerts(ctx context.Context, user string, db types.Database) error {
 	// When generating certificate for MongoDB access, database username must
 	// be encoded into it. This is required to be able to tell which database
 	// user to authenticate the connection as.
@@ -122,7 +118,6 @@ func (c *Cluster) ReissueDBCerts(ctx context.Context, user, dbName string, db ty
 				ServiceName: db.GetName(),
 				Protocol:    db.GetProtocol(),
 				Username:    user,
-				Database:    dbName,
 			},
 			AccessRequests: c.status.ActiveRequests.AccessRequests,
 		})
@@ -141,7 +136,6 @@ func (c *Cluster) ReissueDBCerts(ctx context.Context, user, dbName string, db ty
 		ServiceName: db.GetName(),
 		Protocol:    db.GetProtocol(),
 		Username:    user,
-		Database:    dbName,
 	}, c.status)
 	if err != nil {
 		return trace.Wrap(err)
@@ -152,13 +146,30 @@ func (c *Cluster) ReissueDBCerts(ctx context.Context, user, dbName string, db ty
 
 // GetAllowedDatabaseUsers returns allowed users for the given database based on the role set.
 func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, dbURI string) ([]string, error) {
-	var roleSet services.RoleSet
+	var authClient auth.ClientI
+	var proxyClient *client.ProxyClient
 	var err error
 
 	err = addMetadataToRetryableError(ctx, func() error {
-		roleSet, err = services.FetchRoles(c.status.Roles, c.clusterClient, c.status.Traits)
-		return err
+		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer authClient.Close()
+
+	roleSet, err := services.FetchAllClusterRoles(ctx, authClient, c.status.Roles, c.status.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

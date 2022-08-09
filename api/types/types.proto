@@ -465,6 +465,7 @@ message ServerSpecV2 {
     // Important: jsontag must not be "kubernetes_clusters", because a
     // different field with that jsontag existed in 4.4:
     // https://github.com/gravitational/teleport/issues/4862
+    // DELETE IN 12.0.0. Deprecated, moved to KubernetesServerSpecV3.
     repeated KubernetesCluster KubernetesClusters = 10
         [ (gogoproto.jsontag) = "kube_clusters,omitempty" ];
     // PeerAddr is the address a proxy server is reachable at by its peer proxies.
@@ -543,6 +544,8 @@ message AppSpecV3 {
     bool InsecureSkipVerify = 4 [ (gogoproto.jsontag) = "insecure_skip_verify" ];
     // Rewrite is a list of rewriting rules to apply to requests and responses.
     Rewrite Rewrite = 5 [ (gogoproto.jsontag) = "rewrite,omitempty" ];
+    // AWS contains additional options for AWS applications.
+    AppAWS AWS = 6 [ (gogoproto.jsontag) = "aws,omitempty" ];
 }
 
 // App is a specific application that a server proxies.
@@ -597,6 +600,12 @@ message CommandLabelV2 {
     repeated string Command = 2 [ (gogoproto.jsontag) = "command" ];
     // Result captures standard output
     string Result = 3 [ (gogoproto.jsontag) = "result" ];
+}
+
+// AppAWS contains additional options for AWS applications.
+message AppAWS {
+    // ExternalID is the AWS External ID used when assuming roles in this app.
+    string ExternalID = 1 [ (gogoproto.jsontag) = "external_id,omitempty" ];
 }
 
 // PrivateKeyType is the storage type of a private key.
@@ -819,6 +828,13 @@ message ProvisionTokenSpecV2 {
         [ (gogoproto.jsontag) = "join_method", (gogoproto.casttype) = "JoinMethod" ];
     // BotName is the name of the bot this token grants access to, if any
     string BotName = 5 [ (gogoproto.jsontag) = "bot_name,omitempty" ];
+    // SuggestedLabels is a set of labels that resources should set when using this token to enroll
+    // themselves in the cluster
+    wrappers.LabelValues SuggestedLabels = 6 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "suggested_labels,omitempty",
+        (gogoproto.customtype) = "Labels"
+    ];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
@@ -931,6 +947,19 @@ message ClusterAuditConfigSpecV2 {
         (gogoproto.casttype) = "Duration",
         (gogoproto.nullable) = true
     ];
+
+    // FIPSEndpointState represents an AWS FIPS endpoint state.
+    enum FIPSEndpointState {
+        // FIPS_UNSET allows setting FIPS state for AWS S3/Dynamo using configuration files or
+        // environment variables
+        FIPS_UNSET = 0;
+        // FIPS_ENABLED explicitly enables FIPS support for AWS S3/Dynamo
+        FIPS_ENABLED = 1;
+        // FIPS_DISABLED explicitly disables FIPS support for AWS S3/Dynamo
+        FIPS_DISABLED = 2;
+    }
+    // UseFIPSEndpoint configures AWS endpoints to use FIPS.
+    FIPSEndpointState UseFIPSEndpoint = 15 [ (gogoproto.jsontag) = "use_fips_endpoint,omitempty" ];
 }
 
 // ClusterNetworkingConfigV2 contains cluster-wide networking configuration.
@@ -1460,6 +1489,10 @@ message AccessRequestSpecV3 {
     // LoginHint is used as a hint for search-based access requests to select
     // roles based on the login the user is attempting.
     string LoginHint = 15 [ (gogoproto.jsontag) = "login_hint,omitempty" ];
+
+    // DryRun indicates that the request should not actually be created, the
+    // auth server should only validate the access request.
+    bool DryRun = 16 [ (gogoproto.jsontag) = "dry_run,omitempty" ];
 }
 
 // AccessRequestFilter encodes filter params for access requests.
@@ -2518,6 +2551,39 @@ message KubernetesClusterSpecV3 {
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "dynamic_labels,omitempty" ];
 }
 
+// KubernetesServerV3 represents a Kubernetes server.
+message KubernetesServerV3 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+    // Kind is the Kubernetes server resource kind. Always "kube_server".
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource subkind.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is the resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is the Kubernetes server metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is the Kubernetes server spec.
+    KubernetesServerSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// KubernetesServerSpecV3 is the Kubernetes server spec.
+message KubernetesServerSpecV3 {
+    // Version is the Teleport version that the server is running.
+    string Version = 1 [ (gogoproto.jsontag) = "version" ];
+    // Hostname is the Kubernetes server hostname.
+    string Hostname = 2 [ (gogoproto.jsontag) = "hostname" ];
+    // HostID is the Kubernetes server host uuid.
+    string HostID = 3 [ (gogoproto.jsontag) = "host_id" ];
+    // Rotation contains the Kubernetes server CA rotation information.
+    Rotation Rotation = 4
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "rotation,omitempty" ];
+    // Cluster is a Kubernetes Cluster proxied by this Kubernetes server.
+    KubernetesClusterV3 Cluster = 5 [ (gogoproto.jsontag) = "cluster" ];
+    // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
+    repeated string ProxyIDs = 6 [ (gogoproto.jsontag) = "proxy_ids,omitempty" ];
+}
+
 // WebTokenV3 describes a web token. Web tokens are used as a transport to relay bearer tokens
 // to the client.
 // Initially bound to a web session, these have been factored out into a separate resource to
@@ -2712,7 +2778,7 @@ message OIDCAuthRequest {
     bytes PublicKey = 7 [ (gogoproto.jsontag) = "public_key" ];
 
     // CertTTL is the TTL of the certificate user wants to get
-    int64 CertTTL = 8 [ (gogoproto.jsontag) = "cert_ttl", (gogoproto.casttype) = "Duration" ];
+    int64 CertTTL = 8 [ (gogoproto.jsontag) = "cert_ttl", (gogoproto.casttype) = "time.Duration" ];
 
     // CreateWebSession indicates if user wants to generate a web
     // session after successful authentication
@@ -2741,7 +2807,7 @@ message OIDCAuthRequest {
     // find a redirect url from the OIDC connector which matches
     // the address. If there is no match, the default redirect
     // url will be used.
-    string ProxyAddress = 16 [ (gogoproto.jsontag) = "proxy_address,omitempt" ];
+    string ProxyAddress = 16 [ (gogoproto.jsontag) = "proxy_address,omitempty" ];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -2824,7 +2890,7 @@ message SAMLAuthRequest {
     bytes PublicKey = 6 [ (gogoproto.jsontag) = "public_key" ];
 
     // CertTTL is the TTL of the certificate user wants to get.
-    int64 CertTTL = 7 [ (gogoproto.jsontag) = "cert_ttl", (gogoproto.casttype) = "Duration" ];
+    int64 CertTTL = 7 [ (gogoproto.jsontag) = "cert_ttl", (gogoproto.casttype) = "time.Duration" ];
 
     // CSRFToken is associated with user web session token.
     string CSRFToken = 8 [ (gogoproto.jsontag) = "csrf_token" ];
@@ -2926,7 +2992,7 @@ message GithubAuthRequest {
     // PublicKey is an optional public key to sign in case of successful auth.
     bytes PublicKey = 5 [ (gogoproto.jsontag) = "public_key" ];
     // CertTTL is TTL of the cert that's generated in case of successful auth.
-    int64 CertTTL = 6 [ (gogoproto.jsontag) = "cert_ttl", (gogoproto.casttype) = "Duration" ];
+    int64 CertTTL = 6 [ (gogoproto.jsontag) = "cert_ttl", (gogoproto.casttype) = "time.Duration" ];
     // CreateWebSession indicates that a user wants to generate a web session
     // after successful authentication.
     bool CreateWebSession = 7 [ (gogoproto.jsontag) = "create_web_session" ];
@@ -3541,4 +3607,22 @@ message SortBy {
     bool IsDesc = 1 [ (gogoproto.jsontag) = "is_desc" ];
     // Field is the name of an objects field to sort by.
     string Field = 2 [ (gogoproto.jsontag) = "field" ];
+}
+
+// ConnectionDiagnosticV1 is the result of testing a connection.
+// When setting up a new resource in Teleport, it's useful to know if we can connect to it.
+// This can be done using the test connection feature.
+// Running `tsh` with `--test-id` creates a new Connection diagnostic
+// The user can then receive the result as feedback using the UI
+message ConnectionDiagnosticV1 {
+    ResourceHeader Header = 1
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "", (gogoproto.embed) = true ];
+    // Spec is the resource spec.
+    ConnectionDiagnosticSpecV1 Spec = 5
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+message ConnectionDiagnosticSpecV1 {
+    bool Success = 1 [ (gogoproto.jsontag) = "success" ];
+    string Message = 2 [ (gogoproto.jsontag) = "message" ];
 }
