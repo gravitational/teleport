@@ -16,7 +16,7 @@ controls that Teleport provides for human users.
 You will need Teleport Cloud 10.1.0 or later.
 </ScopedBlock>
 <ScopedBlock scope={["oss","enterprise"]}>
-You will need to be running Teleport version 10.1.0 or later.
+You will need a running Teleport cluster version 10.1.0 or later.
 </ScopedBlock>
 
 If you have not already connected your Kubernetes cluster to Teleport, follow
@@ -102,7 +102,7 @@ $ kubectl create role example-role \
 
 Next, create a role binding to connect the bot to your role. You may bind either
 the bot's mapped `User` or mapped `Group` to a role, however it must have been
-granted the matching `User` or `Group` via a Teleport role above.
+granted the matching `User` or `Group` via a Teleport role above:
 
 ```code
 ## This binds the new role to the group `example`
@@ -122,14 +122,14 @@ $ kubectl create rolebinding example-rolebinding-user \
   --user=alice
 ```
 
-Bots may be granted cluster-wide access by instead creating `ClusterRole` and
+You can grant cluster-wide access to your bot user by instead creating `ClusterRole` and
 `ClusterRoleBinding` resources, which are not namespaced and use an otherwise
 identical syntax.
 </Details>
 
 ## Step 2/3. Configure and start Machine ID
 
-First, on a node with `tctl` access, create a new Machine ID bot using the
+On a node with `tctl` access, such as your local machine, create a new Machine ID bot using the
 Teleport role created in the previous step:
 
 ```code
@@ -174,7 +174,7 @@ destinations:
 </ScopedBlock>
 
 Be sure to configure the `token` and `ca_pins` fields to match the output from
-`tctl bots add ...`, and set `kubernetes_cluster` match the cluster name as
+`tctl bots add ...`, and set `kubernetes_cluster` to match the cluster name as
 shown in `tsh kube ls`. For this example, we'll be connecting to the
 `example-k8s-cluster` cluster.
 
