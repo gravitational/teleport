@@ -5,13 +5,14 @@ import (
 	"os"
 
 	"github.com/gravitational/teleport/e/tool/teleport/process"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/common"
 )
 
 func init() {
-	utils.RegisterPrometheusCollectors(utils.BuildCollector())
+	metrics.RegisterPrometheusCollectors(metrics.BuildCollector())
 }
 
 func main() {
