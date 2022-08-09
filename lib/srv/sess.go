@@ -257,7 +257,6 @@ func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	// Start an interactive session (TTY attached). Close the session if an error
 	// occurs, otherwise it will be closed by the callee.
 	if err := sess.startInteractive(ctx, ch, scx, tempUser); err != nil {
