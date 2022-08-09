@@ -23,7 +23,7 @@ import (
 // messageByteBuckets creates buckets ranging from 32-65536 bytes.
 var messageByteBuckets = prometheus.ExponentialBuckets(32, 2, 12)
 
-type metrics interface {
+type grpcMetrics interface {
 	getConnectionGauge() *prometheus.GaugeVec
 	getRPCGauge() *prometheus.GaugeVec
 	getRPCCounter() *prometheus.CounterVec
@@ -32,16 +32,16 @@ type metrics interface {
 	getMessageReceived() *prometheus.HistogramVec
 }
 
-// reporter is grpc request specific metrics reporter.
+// reporter is grpc request specific grpcMetrics reporter.
 type reporter struct {
-	metrics
+	grpcMetrics
 }
 
 // newReporter returns a new reporter object that is used to
-// report metrics relative to proxy peer client or server.
-func newReporter(m metrics) *reporter {
+// report grpcMetrics relative to proxy peer client or server.
+func newReporter(m grpcMetrics) *reporter {
 	return &reporter{
-		metrics: m,
+		grpcMetrics: m,
 	}
 }
 
