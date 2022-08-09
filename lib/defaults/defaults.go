@@ -727,7 +727,7 @@ func CheckPasswordLimiter() *limiter.Limiter {
 		MaxConnections:   LimiterMaxConnections,
 		MaxNumberOfUsers: LimiterMaxConcurrentUsers,
 		Rates: []limiter.Rate{
-			limiter.Rate{
+			{
 				Period:  1 * time.Second,
 				Average: 10,
 				Burst:   10,

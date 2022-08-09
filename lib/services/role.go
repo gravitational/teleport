@@ -1373,7 +1373,7 @@ func (set RoleSet) CheckAccessToRemoteCluster(rc types.RemoteCluster) error {
 		}
 	}
 
-	if usesLabels == false && len(rcLabels) == 0 {
+	if !usesLabels && len(rcLabels) == 0 {
 		debugf("Grant access to cluster %v - no role in %v uses cluster labels and the cluster is not labeled.",
 			rc.GetName(), set.RoleNames())
 		return nil
