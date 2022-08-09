@@ -52,8 +52,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req DiagnoseCo
 	id := uuid.NewString()
 	connDiagInitial, err := types.NewConnectionDiagnosticV1(id, map[string]string{},
 		types.ConnectionDiagnosticSpecV1{
-			Message: "waiting",
-			Success: false,
+			Message: types.MessageWaiting,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)

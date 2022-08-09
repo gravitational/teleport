@@ -77,10 +77,8 @@ func (s *ConnectionDiagnosticService) UpdateConnectionDiagnostic(ctx context.Con
 		ID:      connectionDiagnostic.GetResourceID(),
 	}
 	_, err = s.Update(ctx, item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+
+	return trace.Wrap(err)
 }
 
 // GetConnectionDiagnostic receives a name and returns the Connection Diagnostic matching that name

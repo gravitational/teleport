@@ -3546,6 +3546,8 @@ func TestGetUserOrResetToken(t *testing.T) {
 }
 
 func TestListConnectionsDiagnostic(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	username := "someuser"
 	diagName := "diag1"
@@ -3592,7 +3594,7 @@ func TestListConnectionsDiagnostic(t *testing.T) {
 
 	// Adding traces
 	diag.AppendTrace(&types.ConnectionDiagnosticTrace{
-		ID:        "somid",
+		ID:        "some id",
 		TraceType: "rbac checks",
 		Status:    "some status",
 		Details:   "some details",
@@ -3615,6 +3617,8 @@ func TestListConnectionsDiagnostic(t *testing.T) {
 }
 
 func TestDiagnoseConnection(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	username := "someuser"
 	roleRWConnectionDiagnostic, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
@@ -3633,7 +3637,6 @@ func TestDiagnoseConnection(t *testing.T) {
 
 	createConnectionEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "diagnostics", "connections")
 
-	// No connection diagnostics so far, should return not found
 	resp, err := pack.clt.PostJSON(ctx, createConnectionEndpoint, client.DiagnoseConnectionRequest{
 		ResourceKind: "node",
 		ResourceName: "host1",

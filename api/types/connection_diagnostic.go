@@ -21,6 +21,12 @@ import (
 	"github.com/gravitational/trace"
 )
 
+const (
+	// MessageWaiting is the message used when we start the Diagnostic
+	// before collecting any traces
+	MessageWaiting = "waiting"
+)
+
 // ConnectionDiagnostic represents a Connection Diagnostic.
 type ConnectionDiagnostic interface {
 	// ResourceWithLabels provides common resource methods.
