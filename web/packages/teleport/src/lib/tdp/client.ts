@@ -32,6 +32,7 @@ import Codec, {
   SharedDirectoryMoveResponse,
   SharedDirectoryReadResponse,
   SharedDirectoryWriteResponse,
+  SharedDirectoryCreateResponse,
   FileSystemObject,
 } from './codec';
 import {
@@ -81,8 +82,8 @@ export default class Client extends EventEmitterWebAuthnSender {
       this.emit(TdpClientEvent.WS_OPEN);
     };
 
-    this.socket.onmessage = (ev: MessageEvent) => {
-      this.processMessage(ev.data as ArrayBuffer);
+    this.socket.onmessage = async (ev: MessageEvent) => {
+      await this.processMessage(ev.data as ArrayBuffer);
     };
 
     // The socket 'error' event will only ever be emitted by the socket
@@ -102,7 +103,9 @@ export default class Client extends EventEmitterWebAuthnSender {
     };
   }
 
-  processMessage(buffer: ArrayBuffer) {
+  // processMessage should be await-ed when called,
+  // so that its internal await-or-not logic is obeyed.
+  async processMessage(buffer: ArrayBuffer): Promise<void> {
     try {
       const messageType = this.codec.decodeMessageType(buffer);
       switch (messageType) {
@@ -135,6 +138,14 @@ export default class Client extends EventEmitterWebAuthnSender {
           break;
         case MessageType.SHARED_DIRECTORY_INFO_REQUEST:
           this.handleSharedDirectoryInfoRequest(buffer);
+          break;
+        case MessageType.SHARED_DIRECTORY_CREATE_REQUEST:
+          // A typical sequence is that we receive a SharedDirectoryCreateRequest
+          // immediately followed by a SharedDirectoryWriteRequest. It's important
+          // that we await here so that this client doesn't field the SharedDirectoryWriteRequest
+          // until the create has successfully completed, or else we might get an error
+          // trying to write to a file that hasn't been created yet.
+          await this.handleSharedDirectoryCreateRequest(buffer);
           break;
         case MessageType.SHARED_DIRECTORY_READ_REQUEST:
           this.handleSharedDirectoryReadRequest(buffer);
@@ -269,6 +280,32 @@ export default class Client extends EventEmitterWebAuthnSender {
       } else {
         this.handleError(e, TdpClientEvent.CLIENT_ERROR);
       }
+    }
+  }
+
+  async handleSharedDirectoryCreateRequest(buffer: ArrayBuffer) {
+    const req = this.codec.decodeSharedDirectoryCreateRequest(buffer);
+
+    try {
+      await this.sdManager.create(req.path, req.fileType);
+      const info = await this.sdManager.getInfo(req.path);
+      this.sendSharedDirectoryCreateResponse({
+        completionId: req.completionId,
+        errCode: SharedDirectoryErrCode.Nil,
+        fso: this.toFso(info),
+      });
+    } catch (e) {
+      this.sendSharedDirectoryCreateResponse({
+        completionId: req.completionId,
+        errCode: SharedDirectoryErrCode.Failed,
+        fso: {
+          lastModified: BigInt(0),
+          fileType: FileType.File,
+          size: BigInt(0),
+          path: req.path,
+        },
+      });
+      this.handleError(e, TdpClientEvent.CLIENT_ERROR, false);
     }
   }
 
@@ -452,6 +489,10 @@ export default class Client extends EventEmitterWebAuthnSender {
 
   sendSharedDirectoryWriteResponse(response: SharedDirectoryWriteResponse) {
     this.send(this.codec.encodeSharedDirectoryWriteResponse(response));
+  }
+
+  sendSharedDirectoryCreateResponse(response: SharedDirectoryCreateResponse) {
+    this.send(this.codec.encodeSharedDirectoryCreateResponse(response));
   }
 
   resize(spec: ClientScreenSpec) {

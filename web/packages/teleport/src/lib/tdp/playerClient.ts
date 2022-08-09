@@ -50,7 +50,7 @@ export class PlayerClient extends Client {
   }
 
   // Overrides Client implementation.
-  processMessage(buffer: ArrayBuffer) {
+  async processMessage(buffer: ArrayBuffer): Promise<void> {
     const json = JSON.parse(this.textDecoder.decode(buffer));
 
     if (json.message === 'end') {
@@ -60,7 +60,7 @@ export class PlayerClient extends Client {
     } else {
       const ms = json.ms;
       this.emit(PlayerClientEvent.UPDATE_CURRENT_TIME, ms);
-      super.processMessage(base64ToArrayBuffer(json.message));
+      await super.processMessage(base64ToArrayBuffer(json.message));
     }
   }
 

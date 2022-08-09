@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+import { FileType } from './codec';
 
 // SharedDirectoryManager manages a FileSystemDirectoryHandle for use
 // by the TDP client. Most of its methods can potentially throw errors
@@ -141,6 +142,32 @@ export class SharedDirectoryManager {
     file.close(); // Needed to actually write data to disk.
 
     return writeData.length;
+  }
+
+  /**
+   * Creates a new file or directory (determined by fileType) at path.
+   * If the path already exists for the given fileType, this operation is effectively ignored.
+   * @throws {DomException} If the path already exists but not for the given fileType.
+   * @throws Anything potentially thrown by getFileHandle/getDirectoryHandle.
+   * @throws {PathDoesNotExistError} if the path isn't a valid path to a directory.
+   */
+  async create(path: string, fileType: FileType): Promise<void> {
+    let splitPath = path.split('/');
+    const fileOrDirName = splitPath.pop();
+    const dirPath = splitPath.join('/');
+
+    const dirHandle = await this.walkPath(dirPath);
+    if (dirHandle.kind !== 'directory') {
+      throw new PathDoesNotExistError(
+        'destination was a file, not a directory'
+      );
+    }
+
+    if (fileType === FileType.File) {
+      await dirHandle.getFileHandle(fileOrDirName, { create: true });
+    } else {
+      await dirHandle.getDirectoryHandle(fileOrDirName, { create: true });
+    }
   }
 
   /**
