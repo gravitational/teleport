@@ -25,13 +25,13 @@ func GetPartitionFromRegion(region string) string {
 	case IsCNRegion(region):
 		partition = CNPartition
 	default:
-		partition = Partition
+		partition = StandardPartition
 	}
 	return partition
 }
 
 const (
-	// StandardParitition is the partition ID of the AWS Standard partition.
+	// StandardPartition is the partition ID of the AWS Standard partition.
 	StandardPartition = "aws"
 
 	// CNPartition is the partition ID of the AWS China partition.
