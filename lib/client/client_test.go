@@ -27,12 +27,13 @@ import (
 	"testing"
 	"time"
 
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/lib/sshutils"
+
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/check.v1"
-
-	"github.com/gravitational/teleport/lib/sshutils"
 )
 
 type ClientTestSuite struct {
@@ -208,8 +209,10 @@ func TestListenAndForwardCancel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := &NodeClient{
-				Client: &ssh.Client{
-					Conn: &fakeSSHConn{},
+				Client: &tracessh.Client{
+					Client: &ssh.Client{
+						Conn: &fakeSSHConn{},
+					},
 				},
 			}
 

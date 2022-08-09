@@ -84,6 +84,8 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		return trace.Wrap(err)
 	}
 
+	teleportClusterName := conn.ServerIdentity.ClusterName
+
 	// Start uploader that will scan a path on disk and upload completed
 	// sessions to the Auth Server.
 	uploaderCfg := filesessions.UploaderConfig{
@@ -92,6 +94,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	}
 	completerCfg := events.UploadCompleterConfig{
 		SessionTracker: conn.Client,
+		ClusterName:    teleportClusterName,
 	}
 	if err := process.initUploaderService(uploaderCfg, completerCfg); err != nil {
 		return trace.Wrap(err)
@@ -149,7 +152,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 				Client:      conn.Client,
 				AccessPoint: accessPoint,
 				HostSigner:  conn.ServerIdentity.KeySigner,
-				Cluster:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+				Cluster:     teleportClusterName,
 				Server:      shtl,
 				FIPS:        process.Config.FIPS,
 			})
@@ -184,8 +187,6 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 			}
 		}()
 	}
-
-	teleportClusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
