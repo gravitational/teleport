@@ -828,6 +828,13 @@ message ProvisionTokenSpecV2 {
         [ (gogoproto.jsontag) = "join_method", (gogoproto.casttype) = "JoinMethod" ];
     // BotName is the name of the bot this token grants access to, if any
     string BotName = 5 [ (gogoproto.jsontag) = "bot_name,omitempty" ];
+    // SuggestedLabels is a set of labels that resources should set when using this token to enroll
+    // themselves in the cluster
+    wrappers.LabelValues SuggestedLabels = 6 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "suggested_labels,omitempty",
+        (gogoproto.customtype) = "Labels"
+    ];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
@@ -2800,7 +2807,7 @@ message OIDCAuthRequest {
     // find a redirect url from the OIDC connector which matches
     // the address. If there is no match, the default redirect
     // url will be used.
-    string ProxyAddress = 16 [ (gogoproto.jsontag) = "proxy_address,omitempt" ];
+    string ProxyAddress = 16 [ (gogoproto.jsontag) = "proxy_address,omitempty" ];
 }
 
 // SAMLConnectorV2 represents a SAML connector.

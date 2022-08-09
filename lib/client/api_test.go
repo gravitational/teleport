@@ -277,8 +277,8 @@ func TestPortsParsing(t *testing.T) {
 	// parse invalid spec:
 	spec = []string{"foo", "bar"}
 	ports, err = ParsePortForwardSpec(spec)
-	require.Nil(t, ports)
-	require.ErrorContains(t, err, "Invalid port forwarding spec:")
+	require.Empty(t, ports)
+	require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 }
 
 func TestDynamicPortsParsing(t *testing.T) {

@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -658,7 +659,7 @@ const (
 
 // New creates a new instance of Cache
 func New(config Config) (*Cache, error) {
-	if err := utils.RegisterPrometheusCollectors(cacheCollectors...); err != nil {
+	if err := metrics.RegisterPrometheusCollectors(cacheCollectors...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := config.CheckAndSetDefaults(); err != nil {
