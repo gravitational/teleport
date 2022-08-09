@@ -13,7 +13,7 @@ Security: @reedloden
 
 ## What
 
-We will integrate PIV smart card support so that PIV-compatible hardware keys, like the Yubikey Series 5 cards, can be used to securely generate secrets. These secrets never exist outside of the hardware key, and require PIN/Touch to be accessed for cryptographic operations. We will also make it possbile for Teleport admins to enforce PIN and touch policies for their users
+We will integrate PIV smart card support so that PIV-compatible hardware keys, like the Yubikey Series 5 cards, can be used to securely generate secrets. These secrets never exist outside of the hardware key, and require PIN/Touch to be accessed for cryptographic operations. We will also make it possible for Teleport admins to enforce PIN and touch policies for their users
 
 ## Why
 
@@ -139,8 +139,8 @@ Now, future calls to `tsh login --piv --piv-slot=9a` can retrieve the certificat
   PIV slot 9a is currently in use by another tsh login session:
     proxy: proxy.example.com
     user: username
-  Would you like to overwrite this slot? (y/N):
   Would you like to use the next open slot? (9c) (y/N):
+  Would you like to overwrite this slot? (y/N):
   ```
  - if there is a non-tsh-generated certificate, prompt the user to overwrite. If they say no, then prompt them to use the next open slot.
   ```
@@ -152,7 +152,7 @@ Now, future calls to `tsh login --piv --piv-slot=9a` can retrieve the certificat
 
 We will also provide the user with the `--piv-slot-overwrite` flag to skip the prompts above.
 
-Note that we do not give user's the option to reuse a specific slot for multiple `tsh` login sessions or other appliations. Doing so would increase the overall complexity of the system, and could lead to issues like:
+Note that we do not give user's the option to reuse a specific slot for multiple `tsh` login sessions or other applications. Doing so would increase the overall complexity of the system, and could lead to issues like:
  - race conditions between reads/writes to a slot's login session certificate
  - using the same key for clusters/users with differing PIN/touch policy requirements. This would require more granular error messages, prompts, etc. and would lead to a more complicated UX than desired
  - a key's life cycle is not determinant, so its unclear how long to store a key's attestation
@@ -169,7 +169,7 @@ Note that if a user does not `tsh logout` and instead does something like `rm -r
 
 In order to enforce PIV login, we need to take a public key and tie it back to a trusted hardware device. This can be down with [Attestation](https://docs.yubico.com/yesdk/users-manual/application-piv/attestation.html), which yubikey makes possible by reserving the `f9` slot for an attestation certificate. This certificate can then be used to [verify](https://pkg.go.dev/github.com/go-piv/piv-go@v1.9.0/piv#Verify) the certificate chain from a yubikey's public key to a trusted yubikey CA.
 
-Note: attestation is not included in the PIV standard, so the following strategy will only be applicable to PIV keys that include the [Yubico Assert Extenstion](https://developers.yubico.com/PIV/Introduction/Yubico_extensions.html). New PIV hardware keys may also implement this extension. For example, solokeys' unfinished implementation of PIV at least has [mentions of YubicoPIVExtentenstion in the code](https://github.com/solokeys/piv-authenticator/blob/1922d6d97ba9ea4800572eea4b8a243ada2bf668/src/constants.rs#L274) which indicates that these extensions may be supported at some point.
+Note: attestation is not included in the PIV standard, so the following strategy will only be applicable to PIV keys that include the [Yubico Assert Extension](https://developers.yubico.com/PIV/Introduction/Yubico_extensions.html). New PIV hardware keys may also implement this extension. For example, solokeys' unfinished implementation of PIV at least has [mentions of YubicoPIVExtension in the code](https://github.com/solokeys/piv-authenticator/blob/1922d6d97ba9ea4800572eea4b8a243ada2bf668/src/constants.rs#L274) which indicates that these extensions may be supported at some point.
 
 After generating a Yubikey keypair, `tsh` will grab the Yubikey's attestation certificate and generate a new attestation statement [slot cert](https://pkg.go.dev/github.com/go-piv/piv-go@v1.9.0/piv#YubiKey.Attest) for the slot in question. These two certificates will be passed to the Auth server during the certificate signing process in order to verify certificates signed with the slot's public key.
 
@@ -188,7 +188,7 @@ In `tsh login --piv`, attestation will be performed immediately after the signin
 
 ```
 service AuthService {
-  rpc AssertPIVSlot(AssertPIVSlotRequest) returns (AssertPIVSlotRequest);
+  rpc AssertPIVSlot(AssertPIVSlotRequest) returns (AssertPIVSlotResponse);
 }
 
 message AssertPIVSlotRequest {
@@ -350,7 +350,7 @@ We will provide a new command - `tsh piv configure` - so that users can configur
 
 Storing the Management Key in metadata is the [intended purpose](https://pkg.go.dev/github.com/go-piv/piv-go@v1.9.0/piv#YubiKey.Metadata) set by `piv-go`, because it can greatly improve UX. However, it essentially conflates the PIN and Management Key into a single key, which lowers the general security profile of the card.
 
-In our case, we are ok with making this tradeoff because the Management Key does not actually provide any significant security benefit. It is only needed to grant access to [generating/importing key pairs and importing certificates](https://developers.yubico.com/PIV/Introduction/Admin_access.html), which will be strictly managed by `tsh`. If a user attempts to generate/import a new key, it would only break the user's existing `tsh` login session, becuase the user's signed Teleport certificates would not be signable with the new key. Importing a new certificate would just make it so that `tsh` cannot find the self-signed certificate holding login metadata.
+In our case, we are ok with making this tradeoff because the Management Key does not actually provide any significant security benefit. It is only needed to grant access to [generating/importing key pairs and importing certificates](https://developers.yubico.com/PIV/Introduction/Admin_access.html), which will be strictly managed by `tsh`. If a user attempts to generate/import a new key, it would only break the user's existing `tsh` login session, because the user's signed Teleport certificates would not be signed with the new key. Importing a new certificate would just make it so that `tsh` cannot find the certificate holding login metadata.
 
 Note: Using metadata to store the Management Key is possible because of the [Yubico PIV Extension](https://developers.yubico.com/PIV/Introduction/Yubico_extensions.html), so this strategy may not work for all PIV cards.
 
