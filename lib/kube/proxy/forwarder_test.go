@@ -65,7 +65,7 @@ var (
 		Usage:            []string{"usage a", "usage b"},
 		Principals:       []string{"principal a", "principal b"},
 		KubernetesGroups: []string{"remote k8s group a", "remote k8s group b"},
-		Traits:           map[string][]string{"trait a": []string{"b", "c"}},
+		Traits:           map[string][]string{"trait a": {"b", "c"}},
 	})
 	unmappedIdentity = auth.WrapIdentity(tlsca.Identity{
 		Username:         "bob",
@@ -73,7 +73,7 @@ var (
 		Usage:            []string{"usage a", "usage b"},
 		Principals:       []string{"principal a", "principal b"},
 		KubernetesGroups: []string{"k8s group a", "k8s group b"},
-		Traits:           map[string][]string{"trait a": []string{"b", "c"}},
+		Traits:           map[string][]string{"trait a": {"b", "c"}},
 	})
 )
 
@@ -167,7 +167,7 @@ func TestAuthenticate(t *testing.T) {
 		kubernetesCluster string
 		haveKubeCreds     bool
 		tunnel            reversetunnel.Server
-		kubeServices      []types.Server
+		kubeServers       []types.KubeServer
 
 		wantCtx     *authContext
 		wantErr     bool
@@ -180,19 +180,21 @@ func TestAuthenticate(t *testing.T) {
 			routeToCluster: "local",
 			haveKubeCreds:  true,
 			tunnel:         tun,
-			kubeServices: []types.Server{&types.ServerV2{
-				Spec: types.ServerSpecV2{
-					KubernetesClusters: []*types.KubernetesCluster{{
+			kubeServers: newKubeServersFromKubeClusters(
+				t,
+				&types.KubernetesClusterV3{
+					Metadata: types.Metadata{
 						Name: "local",
-						StaticLabels: map[string]string{
+						Labels: map[string]string{
 							"static_label1": "static_value1",
 							"static_label2": "static_value2",
 						},
+					},
+					Spec: types.KubernetesClusterSpecV3{
 						DynamicLabels: map[string]types.CommandLabelV2{},
-					}},
+					},
 				},
-			}},
-
+			),
 			wantCtx: &authContext{
 				kubeUsers:   utils.StringsSet([]string{"user-a"}),
 				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
@@ -214,13 +216,18 @@ func TestAuthenticate(t *testing.T) {
 			routeToCluster: "local",
 			haveKubeCreds:  false,
 			tunnel:         tun,
-			kubeServices: []types.Server{&types.ServerV2{
-				Spec: types.ServerSpecV2{
-					KubernetesClusters: []*types.KubernetesCluster{{
-						Name: "local",
-					}},
+			kubeServers: newKubeServersFromKubeClusters(
+				t,
+				&types.KubernetesClusterV3{
+					Metadata: types.Metadata{
+						Name:   "local",
+						Labels: map[string]string{},
+					},
+					Spec: types.KubernetesClusterSpecV3{
+						DynamicLabels: map[string]types.CommandLabelV2{},
+					},
 				},
-			}},
+			),
 
 			wantCtx: &authContext{
 				kubeUsers:         utils.StringsSet([]string{"user-a"}),
@@ -240,13 +247,18 @@ func TestAuthenticate(t *testing.T) {
 			routeToCluster: "local",
 			haveKubeCreds:  true,
 			tunnel:         tun,
-			kubeServices: []types.Server{&types.ServerV2{
-				Spec: types.ServerSpecV2{
-					KubernetesClusters: []*types.KubernetesCluster{{
-						Name: "local",
-					}},
+			kubeServers: newKubeServersFromKubeClusters(
+				t,
+				&types.KubernetesClusterV3{
+					Metadata: types.Metadata{
+						Name:   "local",
+						Labels: map[string]string{},
+					},
+					Spec: types.KubernetesClusterSpecV3{
+						DynamicLabels: map[string]types.CommandLabelV2{},
+					},
 				},
-			}},
+			),
 			wantCtx: &authContext{
 				kubeUsers:         utils.StringsSet([]string{"user-a"}),
 				kubeGroups:        utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
@@ -331,13 +343,18 @@ func TestAuthenticate(t *testing.T) {
 			routeToCluster: "local",
 			haveKubeCreds:  true,
 			tunnel:         tun,
-			kubeServices: []types.Server{&types.ServerV2{
-				Spec: types.ServerSpecV2{
-					KubernetesClusters: []*types.KubernetesCluster{{
-						Name: "local",
-					}},
+			kubeServers: newKubeServersFromKubeClusters(
+				t,
+				&types.KubernetesClusterV3{
+					Metadata: types.Metadata{
+						Name:   "local",
+						Labels: map[string]string{},
+					},
+					Spec: types.KubernetesClusterSpecV3{
+						DynamicLabels: map[string]types.CommandLabelV2{},
+					},
 				},
-			}},
+			),
 
 			wantCtx: &authContext{
 				kubeUsers:         utils.StringsSet([]string{"kube-user-a", "kube-user-b"}),
@@ -373,13 +390,18 @@ func TestAuthenticate(t *testing.T) {
 			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
 			routeToCluster: "local",
 			haveKubeCreds:  true,
-			kubeServices: []types.Server{&types.ServerV2{
-				Spec: types.ServerSpecV2{
-					KubernetesClusters: []*types.KubernetesCluster{{
-						Name: "local",
-					}},
+			kubeServers: newKubeServersFromKubeClusters(
+				t,
+				&types.KubernetesClusterV3{
+					Metadata: types.Metadata{
+						Name:   "local",
+						Labels: map[string]string{},
+					},
+					Spec: types.KubernetesClusterSpecV3{
+						DynamicLabels: map[string]types.CommandLabelV2{},
+					},
 				},
-			}},
+			),
 
 			wantCtx: &authContext{
 				kubeUsers:         utils.StringsSet([]string{"user-a"}),
@@ -420,18 +442,21 @@ func TestAuthenticate(t *testing.T) {
 			kubernetesCluster: "foo",
 			haveKubeCreds:     true,
 			tunnel:            tun,
-			kubeServices: []types.Server{&types.ServerV2{
-				Spec: types.ServerSpecV2{
-					KubernetesClusters: []*types.KubernetesCluster{{
+			kubeServers: newKubeServersFromKubeClusters(
+				t,
+				&types.KubernetesClusterV3{
+					Metadata: types.Metadata{
 						Name: "foo",
-						StaticLabels: map[string]string{
+						Labels: map[string]string{
 							"static_label1": "static_value1",
 							"static_label2": "static_value2",
 						},
-					}},
+					},
+					Spec: types.KubernetesClusterSpecV3{
+						DynamicLabels: map[string]types.CommandLabelV2{},
+					},
 				},
-			}},
-
+			),
 			wantCtx: &authContext{
 				kubeUsers:   utils.StringsSet([]string{"user-a"}),
 				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
@@ -470,7 +495,7 @@ func TestAuthenticate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			f.cfg.ReverseTunnelSrv = tt.tunnel
-			ap.kubeServices = tt.kubeServices
+			ap.kubeServers = tt.kubeServers
 			roles, err := services.RoleSetFromSpec("ops", types.RoleSpecV5{
 				Allow: types.RoleConditions{
 					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -743,15 +768,19 @@ func TestNewClusterSessionDirect(t *testing.T) {
 	authCtx := mockAuthCtx(ctx, t, "kube-cluster", false)
 
 	// helper function to create kube services
-	newKubeService := func(name, addr, kubeCluster string) (types.Server, kubeClusterEndpoint) {
-		kubeService, err := types.NewServer(name, types.KindKubeService,
-			types.ServerSpecV2{
-				Addr: addr,
-				KubernetesClusters: []*types.KubernetesCluster{{
-					Name: kubeCluster,
-				}},
-			},
-		)
+	newKubeServer := func(name, addr, kubeCluster string) (types.KubeServer, kubeClusterEndpoint) {
+		cluster, err := types.NewKubernetesClusterV3(types.Metadata{
+			Name: kubeCluster,
+		},
+			types.KubernetesClusterSpecV3{})
+		require.NoError(t, err)
+		kubeService, err := types.NewKubernetesServerV3(types.Metadata{
+			Name: name,
+		}, types.KubernetesServerSpecV3{
+			Hostname: addr,
+			HostID:   name,
+			Cluster:  cluster,
+		})
 		require.NoError(t, err)
 		kubeServiceEndpoint := kubeClusterEndpoint{
 			addr:     addr,
@@ -761,18 +790,19 @@ func TestNewClusterSessionDirect(t *testing.T) {
 	}
 
 	// no kube services for kube cluster
-	otherKubeService, _ := newKubeService("other", "other.example.com", "other-kube-cluster")
+	otherKubeService, _ := newKubeServer("other", "other.example.com", "other-kube-cluster")
 	f.cfg.CachingAuthClient = mockAccessPoint{
-		kubeServices: []types.Server{otherKubeService, otherKubeService, otherKubeService},
+		kubeServers: []types.KubeServer{otherKubeService, otherKubeService, otherKubeService},
 	}
 	_, err := f.newClusterSession(authCtx)
 	require.Error(t, err)
 
 	// multiple kube services for kube cluster
-	publicKubeService, publicEndpoint := newKubeService("public", "k8s.example.com", "kube-cluster")
-	tunnelKubeService, tunnelEndpoint := newKubeService("tunnel", reversetunnel.LocalKubernetes, "kube-cluster")
+	publicKubeService, publicEndpoint := newKubeServer("public", "k8s.example.com", "kube-cluster")
+	tunnelKubeService, tunnelEndpoint := newKubeServer("tunnel", reversetunnel.LocalKubernetes, "kube-cluster")
+
 	f.cfg.CachingAuthClient = mockAccessPoint{
-		kubeServices: []types.Server{publicKubeService, otherKubeService, tunnelKubeService, otherKubeService},
+		kubeServers: []types.KubeServer{publicKubeService, otherKubeService, tunnelKubeService, otherKubeService},
 	}
 	sess, err := f.newClusterSession(authCtx)
 	require.NoError(t, err)
@@ -985,7 +1015,7 @@ type mockAccessPoint struct {
 	netConfig       types.ClusterNetworkingConfig
 	recordingConfig types.SessionRecordingConfig
 	authPref        types.AuthPreference
-	kubeServices    []types.Server
+	kubeServers     []types.KubeServer
 	cas             map[string]types.CertAuthority
 }
 
@@ -1001,8 +1031,8 @@ func (ap mockAccessPoint) GetAuthPreference(ctx context.Context) (types.AuthPref
 	return ap.authPref, nil
 }
 
-func (ap mockAccessPoint) GetKubeServices(ctx context.Context) ([]types.Server, error) {
-	return ap.kubeServices, nil
+func (ap mockAccessPoint) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
+	return ap.kubeServers, nil
 }
 
 func (ap mockAccessPoint) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
@@ -1192,4 +1222,14 @@ func TestKubernetesConnectionLimit(t *testing.T) {
 			}
 		})
 	}
+}
+
+func newKubeServersFromKubeClusters(t *testing.T, kubeClusters ...*types.KubernetesClusterV3) []types.KubeServer {
+	var kubeServers []types.KubeServer
+	for _, kubeCluster := range kubeClusters {
+		kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, "", kubeCluster.Metadata.Name)
+		require.NoError(t, err)
+		kubeServers = append(kubeServers, kubeServer)
+	}
+	return kubeServers
 }

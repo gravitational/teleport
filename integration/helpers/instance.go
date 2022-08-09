@@ -1044,23 +1044,22 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error)
 		return nil, trace.Wrap(err)
 	}
 
+	log.Debugf("Teleport proxy (in instance %v) started: %v/%v events received.",
+		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
+
 	// Extract and set reversetunnel.Server and reversetunnel.AgentPool upon
 	// receipt of a ProxyReverseTunnelReady event
-	var tunnel reversetunnel.Server
 	for _, re := range receivedEvents {
 		switch re.Name {
 		case service.ProxyReverseTunnelReady:
 			ts, ok := re.Payload.(reversetunnel.Server)
 			if ok {
-				tunnel = ts
-				break
+				return ts, nil
 			}
 		}
 	}
 
-	log.Debugf("Teleport proxy (in instance %v) started: %v/%v events received.",
-		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
-	return tunnel, nil
+	return nil, nil
 }
 
 // Reset re-creates the teleport instance based on the same configuration

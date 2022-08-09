@@ -120,7 +120,7 @@ func (p noopPrompt) PromptPIN() (string, error) {
 	return "", nil
 }
 
-func (p noopPrompt) PromptTouch() {}
+func (p noopPrompt) PromptTouch() error { return nil }
 
 // pinCancelPrompt exercises cancellation after device selection.
 type pinCancelPrompt struct {
@@ -135,8 +135,9 @@ func (p *pinCancelPrompt) PromptPIN() (string, error) {
 	return p.pin, nil
 }
 
-func (p pinCancelPrompt) PromptTouch() {
+func (p pinCancelPrompt) PromptTouch() error {
 	// 2nd touch never happens
+	return nil
 }
 
 func TestIsFIDO2Available(t *testing.T) {
@@ -811,9 +812,9 @@ type countingPrompt struct {
 	count int
 }
 
-func (cp *countingPrompt) PromptTouch() {
+func (cp *countingPrompt) PromptTouch() error {
 	cp.count++
-	cp.LoginPrompt.PromptTouch()
+	return cp.LoginPrompt.PromptTouch()
 }
 
 func TestFIDO2Login_PromptTouch(t *testing.T) {
@@ -1706,8 +1707,9 @@ func (f *fakeFIDO2Device) PromptPIN() (string, error) {
 	return f.pin, nil
 }
 
-func (f *fakeFIDO2Device) PromptTouch() {
+func (f *fakeFIDO2Device) PromptTouch() error {
 	f.setUP()
+	return nil
 }
 
 func (f *fakeFIDO2Device) credentialID() []byte {
