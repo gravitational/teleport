@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
@@ -424,11 +425,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			// wait for the user to join this session:
 			for len(tracker.GetParticipants()) == 0 {
 				time.Sleep(time.Millisecond * 5)
-<<<<<<< HEAD
-				session, err = site.GetSession(ctx, defaults.Namespace, sessionID)
-=======
 				tracker, err = site.GetSessionTracker(ctx, tracker.GetSessionID())
->>>>>>> c245643d0 (remove legacy session service)
 				require.NoError(t, err)
 			}
 			// make sure it's us who joined! :)
@@ -467,11 +464,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			// everything because the session is closing)
 			var sessionStream []byte
 			for i := 0; i < 6; i++ {
-<<<<<<< HEAD
-				sessionStream, err = site.GetSessionChunk(defaults.Namespace, session.ID, 0, events.MaxChunkBytes)
-=======
 				sessionStream, err = site.GetSessionChunk(apidefaults.Namespace, session.ID(tracker.GetSessionID()), 0, events.MaxChunkBytes)
->>>>>>> c245643d0 (remove legacy session service)
 				require.NoError(t, err)
 				if strings.Contains(string(sessionStream), "exit") {
 					break
@@ -503,11 +496,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 					select {
 					case <-tickCh:
 						// Get all session events from the backend.
-<<<<<<< HEAD
-						sessionEvents, err := site.GetSessionEvents(defaults.Namespace, session.ID, 0, false)
-=======
 						sessionEvents, err := site.GetSessionEvents(apidefaults.Namespace, session.ID(tracker.GetSessionID()), 0, false)
->>>>>>> c245643d0 (remove legacy session service)
 						if err != nil {
 							return nil, trace.Wrap(err)
 						}
@@ -3823,11 +3812,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	require.NotNil(t, site)
 
 	// should have no sessions in it to start with
-<<<<<<< HEAD
-	sessions, _ := site.GetSessions(ctx, defaults.Namespace)
-=======
 	sessions, _ := site.GetActiveSessionTrackers(ctx)
->>>>>>> c245643d0 (remove legacy session service)
 	require.Len(t, sessions, 0)
 
 	// create interactive session (this goroutine is this user's terminal time)
@@ -3858,11 +3843,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	// wait for the user to join this session
 	for len(tracker.GetParticipants()) == 0 {
 		time.Sleep(time.Millisecond * 5)
-<<<<<<< HEAD
-		session, err = site.GetSession(ctx, defaults.Namespace, sessions[0].ID)
-=======
 		tracker, err = site.GetSessionTracker(ctx, sessions[0].GetSessionID())
->>>>>>> c245643d0 (remove legacy session service)
 		require.NoError(t, err)
 	}
 	// make sure it's us who joined! :)
@@ -3883,11 +3864,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 
 	// however, attempts to read the actual sessions should fail because it was
 	// not actually recorded
-<<<<<<< HEAD
-	_, err = site.GetSessionChunk(defaults.Namespace, session.ID, 0, events.MaxChunkBytes)
-=======
 	_, err = site.GetSessionChunk(apidefaults.Namespace, session.ID(tracker.GetSessionID()), 0, events.MaxChunkBytes)
->>>>>>> c245643d0 (remove legacy session service)
 	require.Error(t, err)
 }
 
