@@ -1016,6 +1016,9 @@ image-ci: clean docker-binaries
 
 # DOCKER_CLI_EXPERIMENTAL=enabled is set to allow inspecting the manifest for present images.
 # https://docs.docker.com/engine/reference/commandline/cli/#experimental-features
+# The internal staging images use amazon ECR's immutable repository settings. This makes overwrites impossible currently. 
+# This can cause issues when drone tagging pipelines must be re-run due to failures. 
+# Currently the work around for this is to not attempt to push to the image when it already exists.
 .PHONY: publish-ci
 publish-ci: image-ci
 	@if DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect "$(DOCKER_IMAGE_STAGING):$(VERSION)" >/dev/null 2>&1; then\
@@ -1032,6 +1035,9 @@ image-operator-ci:
 
 # DOCKER_CLI_EXPERIMENTAL=enabled is set to allow inspecting the manifest for present images.
 # https://docs.docker.com/engine/reference/commandline/cli/#experimental-features
+# The internal staging images use amazon ECR's immutable repository settings. This makes overwrites impossible currently. 
+# This can cause issues when drone tagging pipelines must be re-run due to failures. 
+# Currently the work around for this is to not attempt to push to the image when it already exists.
 .PHONY: publish-operator-ci
 publish-operator-ci: image-operator-ci
 	@if DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect "$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION)" >/dev/null 2>&1; then \
