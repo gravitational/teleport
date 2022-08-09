@@ -1051,7 +1051,6 @@ func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, orde
 // channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
 func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	// TODO(zmb3): check that sessionID is non-emtpy
 	l.log.Debugf("StreamSessionEvents(%v)", sessionID)
 	e := make(chan error, 1)
 	c := make(chan apievents.AuditEvent)
