@@ -199,13 +199,10 @@ func buildWindowsTshStep(workspace string) step {
 		},
 		Commands: []string{
 			`$Workspace = "` + perBuildWorkspace + `"`,
+			`$Env:GOCACHE = "$Workspace/gocache"`,
 			`$TeleportSrc = "` + perBuildTeleportSrc + `"`,
-			`$NodeVersion = "` + windowsNodeVersion + `"`,
-			`$Env:DRONE_TAG="v10.1.2"`, // TODO(tcsc): aid during dev, remove before merge
-			`$TeleportVersion=$Env:DRONE_TAG.TrimStart('v')`,
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 			`Enable-Go -ToolchainDir "` + windowsToolchainDir + `"`,
-			`Enable-Node -NodeVersion $NodeVersion -ToolchainDir "` + windowsToolchainDir + `"`,
 			`cd $TeleportSrc`,
 			`$Env:GCO_ENABLED=1`,
 			`go build -o build/tsh ./tool/tsh`,
@@ -224,8 +221,6 @@ func buildWindowsTeleportConnectStep(workspace string) step {
 			`$TeleportSrc = "` + perBuildTeleportSrc + `"`,
 			`$WebappsSrc = "` + perBuildWebappsSrc + `"`,
 			`$NodeVersion = "` + windowsNodeVersion + `"`,
-			`$Env:DRONE_TAG="v10.1.2"`, // TODO(tcsc): aid during dev, remove before merge
-			`$TeleportVersion=$Env:DRONE_TAG.TrimStart('v')`,
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 			`Enable-Node -NodeVersion $NodeVersion -ToolchainDir "` + windowsToolchainDir + `"`,
 			`cd $WebappsSrc`,

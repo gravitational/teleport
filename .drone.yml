@@ -715,13 +715,10 @@ steps:
 - name: Build tsh
   commands:
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $Env:GOCACHE = "$Workspace/gocache"
   - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
-  - $NodeVersion = "16.13.2"
-  - $Env:DRONE_TAG="v10.1.2"
-  - $TeleportVersion=$Env:DRONE_TAG.TrimStart('v')
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Enable-Go -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
-  - Enable-Node -NodeVersion $NodeVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
   - cd $TeleportSrc
   - $Env:GCO_ENABLED=1
   - go build -o build/tsh ./tool/tsh
@@ -733,8 +730,6 @@ steps:
   - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
   - $WebappsSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/webapps"
   - $NodeVersion = "16.13.2"
-  - $Env:DRONE_TAG="v10.1.2"
-  - $TeleportVersion=$Env:DRONE_TAG.TrimStart('v')
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Enable-Node -NodeVersion $NodeVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
   - cd $WebappsSrc
@@ -843,13 +838,10 @@ steps:
 - name: Build tsh
   commands:
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $Env:GOCACHE = "$Workspace/gocache"
   - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
-  - $NodeVersion = "16.13.2"
-  - $Env:DRONE_TAG="v10.1.2"
-  - $TeleportVersion=$Env:DRONE_TAG.TrimStart('v')
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Enable-Go -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
-  - Enable-Node -NodeVersion $NodeVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
   - cd $TeleportSrc
   - $Env:GCO_ENABLED=1
   - go build -o build/tsh ./tool/tsh
@@ -861,8 +853,6 @@ steps:
   - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
   - $WebappsSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/webapps"
   - $NodeVersion = "16.13.2"
-  - $Env:DRONE_TAG="v10.1.2"
-  - $TeleportVersion=$Env:DRONE_TAG.TrimStart('v')
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Enable-Node -NodeVersion $NodeVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
   - cd $WebappsSrc
@@ -6604,6 +6594,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 4149c63df827e39c067104b87caabc93140a38e893d413f88462608f8c4b68ff
+hmac: e43c43f860acac053c7a6dc49e5f55448d4816f246c0ef03cbd2a127123004f8
 
 ...
