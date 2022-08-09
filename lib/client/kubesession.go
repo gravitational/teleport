@@ -59,9 +59,15 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.SessionT
 	}
 
 	ws, resp, err := dialer.Dial(joinEndpoint, nil)
-	defer resp.Body.Close()
+	if resp != nil && resp.Body != nil {
+		defer resp.Body.Close()
+	}
 	if err != nil {
 		cancel()
+		if resp == nil || resp.Body == nil {
+			return nil, trace.Wrap(err)
+		}
+
 		body, _ := io.ReadAll(resp.Body)
 		var respData map[string]interface{}
 		if err := json.Unmarshal(body, &respData); err != nil {
