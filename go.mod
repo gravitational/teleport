@@ -73,6 +73,7 @@ require (
 	github.com/mailgun/timetools v0.0.0-20170619190023-f3a7b8ffff47
 	github.com/mailgun/ttlmap v0.0.0-20170619185759-c1c17f74874f
 	github.com/mattn/go-sqlite3 v1.14.6
+	github.com/mdlayher/netlink v1.6.0
 	github.com/moby/term v0.0.0-20210619224110-3f7ff695adc6
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/sftp v1.13.5
@@ -131,7 +132,11 @@ require (
 	sigs.k8s.io/controller-tools v0.9.2
 )
 
-require golang.org/x/exp v0.0.0-20220613132600-b0d781184e0d // indirect
+require (
+	github.com/josharian/native v1.0.0 // indirect
+	github.com/mdlayher/socket v0.1.1 // indirect
+	golang.org/x/exp v0.0.0-20220613132600-b0d781184e0d // indirect
+)
 
 require (
 	cloud.google.com/go v0.100.2 // indirect
