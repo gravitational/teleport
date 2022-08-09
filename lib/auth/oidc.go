@@ -25,7 +25,12 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/coreos/go-oidc/jose"
+	"github.com/coreos/go-oidc/oauth2"
+	"github.com/coreos/go-oidc/oidc"
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -36,11 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/coreos/go-oidc/jose"
-	"github.com/coreos/go-oidc/oauth2"
-	"github.com/coreos/go-oidc/oidc"
-	"github.com/gravitational/trace"
 )
 
 // ErrOIDCNoRoles results from not mapping any roles from OIDC claims.
@@ -88,7 +88,7 @@ func (a *Server) getOIDCConnectorAndClient(ctx context.Context, request types.OI
 	}
 
 	// regular execution flow
-	connector, err := a.Identity.GetOIDCConnector(ctx, request.ConnectorID, true)
+	connector, err := a.GetOIDCConnector(ctx, request.ConnectorID, true)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -219,7 +219,7 @@ func (c *oidcClient) waitFirstSync(timeout time.Duration) error {
 
 // UpsertOIDCConnector creates or updates an OIDC connector.
 func (a *Server) UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error {
-	if err := a.Identity.UpsertOIDCConnector(ctx, connector); err != nil {
+	if err := a.Services.UpsertOIDCConnector(ctx, connector); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.OIDCConnectorCreate{
@@ -240,7 +240,7 @@ func (a *Server) UpsertOIDCConnector(ctx context.Context, connector types.OIDCCo
 
 // DeleteOIDCConnector deletes an OIDC connector by name.
 func (a *Server) DeleteOIDCConnector(ctx context.Context, connectorName string) error {
-	if err := a.Identity.DeleteOIDCConnector(ctx, connectorName); err != nil {
+	if err := a.Services.DeleteOIDCConnector(ctx, connectorName); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.OIDCConnectorDelete{
@@ -298,7 +298,7 @@ func (a *Server) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRe
 
 	log.Debugf("OIDC redirect URL: %v.", req.RedirectURL)
 
-	err = a.Identity.CreateOIDCAuthRequest(ctx, req, defaults.OIDCAuthRequestTTL)
+	err = a.Services.CreateOIDCAuthRequest(ctx, req, defaults.OIDCAuthRequestTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -369,8 +369,15 @@ func checkEmailVerifiedClaim(claims jose.Claims) error {
 	unverifiedErr := trace.AccessDenied("email not verified by OIDC provider")
 
 	emailVerified, hasEmailVerifiedClaim, _ := claims.StringClaim(claimName)
-	if hasEmailVerifiedClaim && emailVerified == "false" {
-		return unverifiedErr
+	if hasEmailVerifiedClaim {
+		if emailVerified == "false" {
+			return unverifiedErr
+		}
+		if emailVerified == "true" {
+			return nil
+		}
+
+		return trace.BadParameter("unable to parse oidc claim: %q, must be either 'true' or 'false', got '%s'", claimName, emailVerified)
 	}
 
 	data, ok := claims[claimName]
@@ -396,7 +403,7 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 		state := q.Get("state")
 		if state != "" {
 			diagCtx.requestID = state
-			req, err := a.Identity.GetOIDCAuthRequest(ctx, state)
+			req, err := a.GetOIDCAuthRequest(ctx, state)
 			if err == nil {
 				diagCtx.info.TestFlow = req.SSOTestFlow
 			}
@@ -420,7 +427,7 @@ func (a *Server) validateOIDCAuthCallback(ctx context.Context, diagCtx *ssoDiagC
 	}
 	diagCtx.requestID = stateToken
 
-	req, err := a.Identity.GetOIDCAuthRequest(ctx, stateToken)
+	req, err := a.GetOIDCAuthRequest(ctx, stateToken)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to get OIDC Auth Request.")
 	}
@@ -619,7 +626,7 @@ func (a *Server) calculateOIDCUser(diagCtx *ssoDiagContext, connector types.OIDC
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.
-	roles, err := services.FetchRoles(p.roles, a.Access, p.traits)
+	roles, err := services.FetchRoles(p.roles, a, p.traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -667,7 +674,7 @@ func (a *Server) createOIDCUser(p *createUserParams, dryRun bool) (types.User, e
 	}
 
 	// Get the user to check if it already exists or not.
-	existingUser, err := a.Identity.GetUser(p.username, false)
+	existingUser, err := a.Services.GetUser(p.username, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -817,7 +824,6 @@ func (a *Server) getClaims(oidcClient *oidc.Client, connector types.OIDCConnecto
 // getClaims implements Server.getClaims, but allows that code path to be overridden for testing.
 func getClaims(closeCtx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error) {
 	oac, err := getOAuthClient(oidcClient, connector)
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

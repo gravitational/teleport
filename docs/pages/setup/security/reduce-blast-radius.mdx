@@ -117,7 +117,7 @@ Create your dynamic resource using `tctl create -f <path to your YAML file>`.
 </Tabs>
 
 ## Require dual authorization for role requests
-Even if an attacker gains access to a user's credentials and successfully signs into your Teleport cluster, you can still prevent the user from escalating their privileges. If you enable dual authorization, users who request to assume a particular role must obtain permission to do so from two or more reviewers. This way, if a malicous user manages to impersonate a legitimate one, reviewers can contact the real user before granting the new role.
+Even if an attacker gains access to a user's credentials and successfully signs into your Teleport cluster, you can still prevent the user from escalating their privileges. If you enable dual authorization, users who request to assume a particular role must obtain permission to do so from two or more reviewers. This way, if a malicious user manages to impersonate a legitimate one, reviewers can contact the real user before granting the new role.
 
 Dual authorization uses Teleport's access plugins—e.g., Slack, JIRA, and PagerDuty—to notify reviewers that a user has requested a role. For access plugins that require a SAML or OIDC connector, you must enable the Cloud or Enterprise versions of Teleport.
 
@@ -165,7 +165,7 @@ The `spec.allow.request.roles` field lists the names of other roles that a user 
 ## Automatically prevent some roles from requesting others
 A malicious Teleport user could request a more privileged role and trick a reviewer into granting access. You can prevent such a scenario by defining roles that prohibit users from even requesting access to particular roles.
 
-The `spec.deny` field has the same possible properties as the `spec.allow` field we described [earlier](#require-dual-authorization-for-role-requests) except, rather than enabling actions, this field disables them. For example, the `spec.deny.requests.roles` field is a list of roles that a user is prohibited from requesting. Teleport gives `deny` rules precedence over `allow` rules when executing access requests.
+The `spec.deny` field has the same possible properties as the `spec.allow` field we described [earlier](#require-dual-authorization-for-role-requests) except, rather than enabling actions, this field disables them. For example, the `spec.deny.requests.roles` field is a list of roles that a user is prohibited from requesting. Teleport gives `deny` rules precedence over `allow` rules when executing Access Requests.
 
 As an illustration, we have assigned user `myuser` to the `user` role, which we defined using the following template:
 
@@ -288,7 +288,7 @@ Two `user`s can grant elevated privileges to another `user` temporarily without 
 - [Per-session MFA](../../access-controls/guides/per-session-mfa.mdx)
 - [Dual authorization](../../access-controls/guides/dual-authz.mdx)
 - [Role templates, allow/deny rules, and traits](../../access-controls/guides/role-templates.mdx)
-- [Access requests and plugins](../../enterprise/workflow/index.mdx)
+- [Access Requests](../../access-controls/access-requests.mdx)
 
 ### Background reading
 - [Authentication connectors](../reference/authentication.mdx)

@@ -134,6 +134,30 @@ By default no devices are forbidden.
   </TabItem>
 </Tabs>
 
+## `sessionRecording`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `string` | `""` | no | `auth_service.session_recording` | ❌ |
+
+`sessionRecording` controls the `session_recording` field in the `teleport.yaml` configuration.
+It is passed as-is in the configuration.
+For possible values, [see the Teleport Configuration Reference](../reference/config.mdx#teleportyaml).
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  sessionRecording: proxy
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set sessionRecording=proxy
+  ```
+  </TabItem>
+</Tabs>
+
+
 ## `separatePostgresListener`
 
 | Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
@@ -198,6 +222,182 @@ These settings will not apply if [`proxyListenerMode`](#proxylistenermode) is se
   </TabItem>
 </Tabs>
 
+## `publicAddr`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `list[string]` | `[]` | no | `proxy_service.public_addr` | ❌ |
+
+`publicAddr` controls the advertised addresses for TLS connections.
+
+When `publicAddr` is not set, the address used is [`clusterName`](#clusterName) on port 443.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  publicAddr: ["loadbalancer.example.com:443"]
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set publicAddr[0]=loadbalancer.example.com:443
+  ```
+  </TabItem>
+</Tabs>
+
+## `kubePublicAddr`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `list[string]` | `[]` | no | `proxy_service.kube_public_addr` | ❌ |
+
+`kubePublicAddr` controls the advertised addresses for the Kubernetes proxy.
+This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex`.
+
+When `kubePublicAddr` is not set, the addresses are inferred from [`publicAddr`](#publicAddr) if set,
+else [`clusterName`](#clusterName) is used. Default port is 3026.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  kubePublicAddr: ["loadbalancer.example.com:3026"]
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set kubePublicAddr[0]=loadbalancer.example.com:3026
+  ```
+  </TabItem>
+</Tabs>
+
+## `mongoPublicAddr`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `list[string]` | `[]` | no | `proxy_service.mongo_public_addr` | ❌ |
+
+`mongoPublicAddr` controls the advertised addresses to MongoDB clients.
+This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex` and
+requires [`separateMongoListener`](#separatePostgresListener) enabled.
+
+When `mongoPublicAddr` is not set, the addresses are inferred from [`clusterName`](#clusterName) is used.
+Default port is 27017.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  mongoPublicAddr: ["loadbalancer.example.com:27017"]
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set mongoPublicAddr[0]=loadbalancer.example.com:27017
+  ```
+  </TabItem>
+</Tabs>
+
+## `mysqlPublicAddr`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `list[string]` | `[]` | no | `proxy_service.mysql_public_addr` | ❌ |
+
+`mysqlPublicAddr` controls the advertised addresses for the MySQL proxy.
+This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex`.
+
+When `mysqlPublicAddr` is not set, the addresses are inferred from [`publicAddr`](#publicAddr) if set,
+else [`clusterName`](#clusterName) is used. Default port is 3036.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  mysqlPublicAddr: ["loadbalancer.example.com:3036"]
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set mysqlPublicAddr[0]=loadbalancer.example.com:3036
+  ```
+  </TabItem>
+</Tabs>
+
+
+## `postgresPublicAddr`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `list[string]` | `[]` | no | `proxy_service.postgres_public_addr` | ❌ |
+
+`postgresPublicAddr` controls the advertised addresses to postgres clients.
+This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex` and
+requires [`separatePostgresListener`](#separatePostgresListener) enabled.
+
+When `postgresPublicAddr` is not set, the addresses are inferred from [`publicAddr`](#publicAddr) if set,
+else [`clusterName`](#clusterName) is used. Default port is 5432.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  postgresPublicAddr: ["loadbalancer.example.com:5432"]
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set postgresPublicAddr[0]=loadbalancer.example.com:5432
+  ```
+  </TabItem>
+</Tabs>
+
+## `sshPublicAddr`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `list[string]` | `[]` | no | `proxy_service.ssh_public_addr` | ❌ |
+
+`sshPublicAddr` controls the advertised addresses for SSH clients. This is also used by the `tsh` client.
+This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex`.
+
+hen `sshPublicAddr` is not set, the addresses are inferred from [`publicAddr`](#publicAddr) if set,
+else [`clusterName`](#clusterName) is used. Default port is 3023.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  sshPublicAddr: ["loadbalancer.example.com:3023"]
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set sshPublicAddr[0]=loadbalancer.example.com:3023
+  ```
+  </TabItem>
+</Tabs>
+
+## `tunnelPublicAddr`
+
+| Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
+| - | - | - | - | - |
+| `list[string]` | `[]` | no | `proxy_service.tunnel_public_addr` | ❌ |
+
+`tunnelPublicAddr` controls the advertised addresses to trusted clusters or nodes joining via node-tunneling.
+This setting will not apply if [`proxyListenerMode`](#proxylistenermode) is set to `multiplex`.
+
+When `tunnelPublicAddr` is not set, the addresses are inferred from [`publicAddr`](#publicAddr) if set,
+else [`clusterName`](#clusterName) is used. Default port is 3024.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  tunnelPublicAddr: ["loadbalancer.example.com:3024"]
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set tunnelPublicAddr[0]=loadbalancer.example.com:3024
+  ```
+  </TabItem>
+</Tabs>
+
 ## `enterprise`
 
 | Type | Default value | Can be used in `custom` mode? |
@@ -235,6 +435,116 @@ $ kubectl --namespace teleport create secret generic license --from-file=/path/t
   <TabItem label="--set">
   ```code
   $ --set enterprise=true
+  ```
+  </TabItem>
+</Tabs>
+
+## `installCRDs`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `bool` | `false`| ✅ |
+
+CRDs are not namespace-scoped resources - they can be installed only once in a cluster.
+
+CRDs are required by the Teleport Kubernetes Operator and are installed by default when `operator.enabled` is true.
+`installCRDs` overrides this behavior and allows users to indicate whether to deploy Teleport CRDs.
+
+If several releases of the `teleport-cluster` chart are deployed in the same Kubernetes cluster, only one
+release should have `installCRDs` enabled. Unless you are deploying multiple `teleport-cluster` Helm releases in
+the same Kubernetes cluster or installing the CRDs on your own you should not have to set this value.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  installCRDs: true
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set installCRDs=true
+  ```
+  </TabItem>
+</Tabs>
+
+## `operator`
+
+### `operator.enabled`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `bool` | `false`| ✅ |
+
+`operator.enabled` controls whether to deploy the Teleport Kubernetes Operator as a side-car.
+
+Enabling the operator will also deploy the Teleport CRDs in the Kubernetes cluster.
+If you are deploying multiple releases of the Helm chart in the same cluster you can override this behavior with
+[`installCRDs`](#installCRDs).
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  operator:
+   enabled: true
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set operator.enabled=true
+  ```
+  </TabItem>
+</Tabs>
+
+### `operator.image`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `string` | `quay.io/gravitational/teleport-operator`| ✅ |
+
+`operator.image` sets the Teleport Kubernetes Operator container image used for Teleport pods in the cluster.
+You can override this to use your own Teleport Operator image rather than a Teleport-published image.
+
+This setting requires [`operator.enabled`](#operatorenabled).
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  operator:
+    image: my.docker.registry/teleport-operator-image-name
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set operator.image=my.docker.registry/teleport-operator-image-name
+  ```
+  </TabItem>
+</Tabs>
+
+### `operator.resources`
+
+| Type | Default value | Can be used in `custom` mode? |
+| - | - | - |
+| `object` | `{}` | ✅  |
+
+See the [Kubernetes resource](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
+documentation.
+
+It is recommended to set resource requests/limits for each container based on their observed usage.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  operator:
+    resources:
+      requests:
+        cpu: 1
+        memory: 2Gi
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set operator.resources.requests.cpu=1 \
+  --set operator.resources.requests.memory=2Gi
   ```
   </TabItem>
 </Tabs>
@@ -829,7 +1139,7 @@ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
 | - | - | - |
 | `string` | `quay.io/gravitational/teleport` | ✅ |
 
-`image` sets the container image used for Teleport Community pods in the cluster.
+`image` sets the Teleport container image used for Teleport Community pods in the cluster.
 
 You can override this to use your own Teleport Community image rather than a Teleport-published image.
 
@@ -1432,8 +1742,8 @@ A `postStart` lifecycle handler to be configured on the main Teleport container.
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
 
-Resource requests/limits which should be configured for each container inside the pod. These resource limits
-will also be applied to `initContainers`.
+Resource requests/limits which should be configured for Teleport containers. These resource limits will also be
+applied to `initContainers`.
 
 <Tabs>
   <TabItem label="values.yaml">

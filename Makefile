@@ -13,8 +13,10 @@
 #   Master/dev branch: "1.0.0-dev"
 VERSION=11.0.0-dev
 
-DOCKER_IMAGE ?= quay.io/gravitational/teleport
-DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
+DOCKER_IMAGE_OPERATOR_CI ?= quay.io/gravitational/teleport-operator-ci
+DOCKER_IMAGE_QUAY ?= quay.io/gravitational/teleport
+DOCKER_IMAGE_ECR ?= public.ecr.aws/gravitational/teleport
+DOCKER_IMAGE_STAGING ?= 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport
 
 GOPATH ?= $(shell go env GOPATH)
 
@@ -28,7 +30,7 @@ BINDIR ?= /usr/local/bin
 DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
 PWD ?= `pwd`
-TELEPORT_DEBUG ?= no
+TELEPORT_DEBUG ?= false
 GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
 CGOFLAG ?= CGO_ENABLED=1
@@ -478,7 +480,7 @@ $(RENDER_TESTS): $(wildcard $(TOOLINGDIR)/cmd/render-tests/*.go)
 # Runs all Go/shell tests, called by CI/CD.
 #
 .PHONY: test
-test: test-helm test-sh test-ci test-api test-go test-rust
+test: test-helm test-sh test-ci test-api test-go test-rust test-operator
 
 # Runs bot Go tests.
 #
@@ -511,7 +513,7 @@ test-helm-update-snapshots:
 .PHONY: test-go
 test-go: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR) $(RENDER_TESTS)
 test-go: FLAGS ?= -race -shuffle on
-test-go: PACKAGES = $(shell go list ./... | grep -v integration | grep -v tool/tsh)
+test-go: PACKAGES = $(shell go list ./... | grep -v -e integration -e tool/tsh -e operator )
 test-go: CHAOS_FOLDERS = $(shell find . -type f -name '*chaos*.go' | xargs dirname | uniq)
 test-go: $(VERSRC) $(TEST_LOG_DIR)
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG) $(TOUCHID_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
@@ -553,7 +555,7 @@ UNIT_ROOT_REGEX := ^TestRoot
 .PHONY: test-go-root
 test-go-root: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR) $(RENDER_TESTS)
 test-go-root: FLAGS ?= -race -shuffle on
-test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v integration)
+test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v -e integration -e operator)
 test-go-root: $(VERSRC)
 	$(CGOFLAG) go test -json -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 		| tee $(TEST_LOG_DIR)/unit-root.json \
@@ -570,6 +572,14 @@ test-api: $(VERSRC) $(TEST_LOG_DIR) $(RENDER_TESTS)
 	$(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/api.json \
 		| ${RENDER_TESTS}
+
+#
+# Runs Teleport Operator tests.
+# We have to run them using the makefile to ensure the installation of the k8s test tools (envtest)
+#
+.PHONY: test-operator
+test-operator:
+	make -C operator test
 
 #
 # Runs cargo test on our Rust modules.
@@ -977,13 +987,19 @@ install: build
 .PHONY: image
 image: clean docker-binaries
 	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
-	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE):$(VERSION)
+	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_QUAY):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e image; fi
 
 .PHONY: publish
 publish: image
-	docker push $(DOCKER_IMAGE):$(VERSION)
+	docker push $(DOCKER_IMAGE_QUAY):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e publish; fi
+
+.PHONY: publish-ecr
+publish-ecr: image
+	docker tag $(DOCKER_IMAGE_QUAY) $(DOCKER_IMAGE_ECR)
+	docker push $(DOCKER_IMAGE_ECR):$(VERSION)
+	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ecr; fi
 
 # Docker image build in CI.
 # This is run to build and push Docker images to a private repository as part of the build process.
@@ -993,13 +1009,26 @@ publish: image
 .PHONY: image-ci
 image-ci: clean docker-binaries
 	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
-	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_CI):$(VERSION)
+	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_STAGING):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e image-ci; fi
 
 .PHONY: publish-ci
 publish-ci: image-ci
-	docker push $(DOCKER_IMAGE_CI):$(VERSION)
+	@if DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect $(DOCKER_IMAGE_STAGING):$(VERSION) 2>&1 >/dev/null; then\
+		echo "$(DOCKER_IMAGE_STAGING):$(VERSION) already exists. ";     \
+	else                                                                \
+		docker push $(DOCKER_IMAGE_STAGING):$(VERSION);                 \
+	fi
 	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ci; fi
+
+# Docker image build for Teleport Operator
+.PHONY: image-operator-ci
+image-operator-ci:
+	make -C operator docker-build IMG=$(DOCKER_IMAGE_OPERATOR_CI):$(VERSION)
+
+.PHONY: publish-operator-ci
+publish-operator-ci: image-operator-ci
+	docker push $(DOCKER_IMAGE_OPERATOR_CI):$(VERSION)
 
 .PHONY: print-version
 print-version:
@@ -1062,6 +1091,11 @@ deb:
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p deb -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e deb; fi
 
+# check binary compatibility with different OSes
+.PHONY: test-compat
+test-compat:
+	./build.assets/build-test-compat.sh
+
 .PHONY: ensure-webassets
 ensure-webassets:
 	@if [ ! -d $(shell pwd)/webassets/teleport/ ]; then \
@@ -1089,13 +1123,12 @@ init-submodules-e: init-webapps-submodules-e
 	git submodule init e
 	git submodule update
 
-# update-webassets updates the minified code in the webassets repo using the latest webapps
-# repo and creates a PR in the teleport repo to update webassets submodule.
+# update-webassets creates a PR in the teleport repo to update webassets submodule.
 .PHONY: update-webassets
-update-webassets: WEBAPPS_BRANCH ?= 'master'
+update-webassets: WEBASSETS_BRANCH ?= 'master'
 update-webassets: TELEPORT_BRANCH ?= 'master'
 update-webassets:
-	build.assets/webapps/update-teleport-webassets.sh -w $(WEBAPPS_BRANCH) -t $(TELEPORT_BRANCH)
+	build.assets/webapps/update-teleport-webassets.sh -w $(WEBASSETS_BRANCH) -t $(TELEPORT_BRANCH)
 
 # dronegen generates .drone.yml config
 .PHONY: dronegen

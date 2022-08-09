@@ -803,6 +803,9 @@ func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
 		Emitter:         s.srv.Config.Emitter,
 		ParentContext:   s.srv.Context,
 		LockWatcher:     s.srv.LockWatcher,
+		TargetID:        params.ServerID,
+		TargetAddr:      params.To.String(),
+		TargetHostname:  params.Address,
 	}
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {

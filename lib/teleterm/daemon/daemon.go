@@ -147,6 +147,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		TargetSubresourceName: params.TargetSubresourceName,
 		LocalPort:             params.LocalPort,
 		CLICommandProvider:    cliCommandProvider,
+		TCPPortAllocator:      s.cfg.TCPPortAllocator,
 	}
 
 	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, clusterCreateGatewayParams)
@@ -156,11 +157,11 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 
 	go func() {
 		if err := gateway.Serve(); err != nil {
-			gateway.Log.WithError(err).Warn("Failed to open a connection.")
+			gateway.Log().WithError(err).Warn("Failed to handle a gateway connection.")
 		}
 	}()
 
-	s.gateways[gateway.URI.String()] = gateway
+	s.gateways[gateway.URI().String()] = gateway
 
 	return gateway, nil
 }
@@ -184,19 +185,13 @@ func (s *Service) RemoveGateway(gatewayURI string) error {
 
 // removeGateway assumes that mu is already held by a public method.
 func (s *Service) removeGateway(gateway *gateway.Gateway) error {
-	// In case closing the gateway fails, we want to return early and leave the gateway in the map.
-	//
-	// This way the gateway will remain shown as available in the app. The user will see the error
-	// related to closing the gateway and will be able to attempt to close it again.
-	//
-	// This is preferable to removing the gateway from the hash map. Since Connect remembers the port
-	// used for a particular db server + username pair, the user would be able to reopen the same
-	// gateway on the occupied port only to see an error.
+	// If gateway.Close() fails it most likely means it was called on a gateway that was already
+	// closed and that we have a race condition. Let's return an error in that case.
 	if err := gateway.Close(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	delete(s.gateways, gateway.URI.String())
+	delete(s.gateways, gateway.URI().String())
 
 	return nil
 }
@@ -218,10 +213,10 @@ func (s *Service) RestartGateway(ctx context.Context, gatewayURI string) error {
 	}
 
 	newGateway, err := s.createGateway(ctx, CreateGatewayParams{
-		TargetURI:             oldGateway.TargetURI,
-		TargetUser:            oldGateway.TargetUser,
-		TargetSubresourceName: oldGateway.TargetSubresourceName,
-		LocalPort:             oldGateway.LocalPort,
+		TargetURI:             oldGateway.TargetURI(),
+		TargetUser:            oldGateway.TargetUser(),
+		TargetSubresourceName: oldGateway.TargetSubresourceName(),
+		LocalPort:             oldGateway.LocalPort(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -229,9 +224,9 @@ func (s *Service) RestartGateway(ctx context.Context, gatewayURI string) error {
 
 	// s.createGateway adds a gateway under a random URI, so we need to place the new gateway under
 	// the URI of the old gateway.
-	delete(s.gateways, newGateway.URI.String())
-	newGateway.URI = oldGateway.URI
-	s.gateways[oldGateway.URI.String()] = newGateway
+	delete(s.gateways, newGateway.URI().String())
+	newGateway.SetURI(oldGateway.URI())
+	s.gateways[oldGateway.URI().String()] = newGateway
 
 	return nil
 }
@@ -269,9 +264,62 @@ func (s *Service) SetGatewayTargetSubresourceName(gatewayURI, targetSubresourceN
 		return nil, trace.Wrap(err)
 	}
 
-	gateway.TargetSubresourceName = targetSubresourceName
+	gateway.SetTargetSubresourceName(targetSubresourceName)
 
 	return gateway, nil
+}
+
+// SetGatewayLocalPort creates a new gateway with the given port, swaps it with the old gateway
+// under the same URI in s.gateways and then closes the old gateway. It doesn't fetch a fresh db
+// cert.
+//
+// If gateway.NewWithLocalPort fails it's imperative that the current gateway is kept intact. This
+// way if the user attempts to change the port to one that cannot be obtained, they're able to
+// correct that mistake and choose a different port.
+//
+// SetGatewayLocalPort is a noop if port is equal to the existing port.
+func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (*gateway.Gateway, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	oldGateway, err := s.findGateway(gatewayURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if localPort == oldGateway.LocalPort() {
+		return oldGateway, nil
+	}
+
+	newGateway, err := gateway.NewWithLocalPort(*oldGateway, localPort)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.removeGateway(oldGateway); err != nil {
+		// s.removeGateway() fails only if it was called on a gateway that was already close. This
+		// shouldn't happen and would mean that we have a race condition.
+		//
+		// Rather than continuing in presence of the race condition, let's attempt to close the new
+		// gateway (since it shouldn't be used anyway) and return the error.
+		if newGatewayCloseErr := newGateway.Close(); newGatewayCloseErr != nil {
+			newGateway.Log().Warnf(
+				"Failed to close the new gateway after failing to close the old gateway: %v",
+				newGatewayCloseErr,
+			)
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	s.gateways[gatewayURI] = newGateway
+
+	go func() {
+		if err := newGateway.Serve(); err != nil {
+			newGateway.Log().WithError(err).Warn("Failed to handle a gateway connection.")
+		}
+	}()
+
+	return newGateway, nil
 }
 
 // ListServers returns cluster servers

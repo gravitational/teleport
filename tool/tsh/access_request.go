@@ -449,3 +449,20 @@ To request access to these resources, run
 
 	return nil
 }
+
+func onRequestDrop(cf *CLIConf) error {
+	tc, err := makeClient(cf, false /* useProfileLogin */)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(cf.RequestIDs) == 1 && cf.RequestIDs[0] == "*" {
+		fmt.Fprintf(os.Stdout, "Dropping all active access requests...\n\n")
+	} else {
+		fmt.Fprintf(os.Stdout, "Dropping access request(s): %s...\n\n", strings.Join(cf.RequestIDs, ", "))
+	}
+	if err := reissueWithRequests(cf, tc, nil /*newRequests*/, cf.RequestIDs); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(onStatus(cf))
+}

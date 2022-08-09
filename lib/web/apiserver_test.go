@@ -17,9 +17,11 @@ limitations under the License.
 package web
 
 import (
+	"archive/tar"
 	"bufio"
 	"bytes"
 	"compress/flate"
+	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"encoding/base32"
@@ -61,7 +63,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
-	apiProto "github.com/gravitational/teleport/api/client/proto"
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -190,7 +191,7 @@ func newWebSuite(t *testing.T) *WebSuite {
 
 	// start node
 	certs, err := s.server.Auth().GenerateHostCerts(s.ctx,
-		&apiProto.HostCertsRequest{
+		&authproto.HostCertsRequest{
 			HostID:       hostID,
 			NodeName:     s.server.ClusterName(),
 			Role:         types.RoleNode,
@@ -636,7 +637,7 @@ func TestSAML(t *testing.T) {
 			// now swap the request id to the hardcoded one in fixtures
 			authRequest.ID = fixtures.SAMLOktaAuthRequestID
 			authRequest.CSRFToken = csrfToken
-			err = s.server.Auth().Identity.CreateSAMLAuthRequest(ctx, *authRequest, backend.Forever)
+			err = s.server.Auth().Services.CreateSAMLAuthRequest(ctx, *authRequest, backend.Forever)
 			require.NoError(t, err)
 
 			// now respond with pre-recorded request to the POST url
@@ -1231,13 +1232,13 @@ func TestTerminalRequireSessionMfa(t *testing.T) {
 				return ap
 			},
 			registerDevice: func() *auth.TestDevice {
-				webauthnDev, err := auth.RegisterTestDevice(ctx, clt, "webauthn", apiProto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
+				webauthnDev, err := auth.RegisterTestDevice(ctx, clt, "webauthn", authproto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
 				require.NoError(t, err)
 
 				return webauthnDev
 			},
 			getChallengeResponseBytes: func(chals *client.MFAAuthenticateChallenge, dev *auth.TestDevice) []byte {
-				res, err := dev.SolveAuthn(&apiProto.MFAAuthenticateChallenge{
+				res, err := dev.SolveAuthn(&authproto.MFAAuthenticateChallenge{
 					WebauthnChallenge: wanlib.CredentialAssertionToProto(chals.WebauthnChallenge),
 				})
 				require.Nil(t, err)
@@ -1378,7 +1379,7 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 			},
 			mfaHandler: handleMFAWebauthnChallenge,
 			registerDevice: func(t *testing.T, ctx context.Context, clt *auth.Client) *auth.TestDevice {
-				webauthnDev, err := auth.RegisterTestDevice(ctx, clt, "webauthn", apiProto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
+				webauthnDev, err := auth.RegisterTestDevice(ctx, clt, "webauthn", authproto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
 				require.NoError(t, err)
 				return webauthnDev
 			},
@@ -1437,7 +1438,7 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 func handleMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.TestDevice) {
 	mfaChallange, err := tdp.DecodeMFAChallenge(bufio.NewReader(&WebsocketIO{Conn: ws}))
 	require.NoError(t, err)
-	res, err := dev.SolveAuthn(&apiProto.MFAAuthenticateChallenge{
+	res, err := dev.SolveAuthn(&authproto.MFAAuthenticateChallenge{
 		WebauthnChallenge: wanlib.CredentialAssertionToProto(mfaChallange.WebauthnChallenge),
 	})
 	require.NoError(t, err)
@@ -2096,6 +2097,11 @@ func TestTokenGeneration(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, username, []types.Role{roleTokenCRD})
+	endpoint := pack.clt.Endpoint("webapi", "token")
+
 	tt := []struct {
 		name       string
 		roles      types.SystemRoles
@@ -2147,12 +2153,6 @@ func TestTokenGeneration(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			env := newWebPack(t, 1)
-
-			proxy := env.proxies[0]
-			pack := proxy.authPack(t, username, []types.Role{roleTokenCRD})
-
-			endpoint := pack.clt.Endpoint("webapi", "token")
 			re, err := pack.clt.PostJSON(context.Background(), endpoint, types.ProvisionTokenSpecV2{
 				Roles:      tc.roles,
 				JoinMethod: tc.joinMethod,
@@ -2170,6 +2170,16 @@ func TestTokenGeneration(t *testing.T) {
 			err = json.Unmarshal(re.Bytes(), &responseToken)
 			require.NoError(t, err)
 
+			require.NotEmpty(t, responseToken.SuggestedLabels)
+			require.Condition(t, func() (success bool) {
+				for _, uiLabel := range responseToken.SuggestedLabels {
+					if uiLabel.Name == types.InternalResourceIDLabel && uiLabel.Value != "" {
+						return true
+					}
+				}
+				return false
+			})
+
 			// generated token roles should match the requested ones
 			generatedToken, err := proxy.auth.Auth().GetToken(context.Background(), responseToken.ID)
 			require.NoError(t, err)
@@ -2183,6 +2193,166 @@ func TestTokenGeneration(t *testing.T) {
 			require.Equal(t, expectedJoinMethod, generatedToken.GetJoinMethod())
 		})
 	}
+}
+
+func TestSignMTLS(t *testing.T) {
+	env := newWebPack(t, 1)
+	clusterName := env.server.ClusterName()
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com", nil)
+
+	endpoint := pack.clt.Endpoint("webapi", "token")
+	re, err := pack.clt.PostJSON(context.Background(), endpoint, types.ProvisionTokenSpecV2{
+		Roles: types.SystemRoles{types.RoleDatabase},
+	})
+	require.NoError(t, err)
+
+	var responseToken nodeJoinToken
+	err = json.Unmarshal(re.Bytes(), &responseToken)
+	require.NoError(t, err)
+
+	// download mTLS files from /webapi/sites/:site/sign/db
+	endpointSign := pack.clt.Endpoint("webapi", "sites", clusterName, "sign", "db")
+
+	bs, err := json.Marshal(struct {
+		Hostname string `json:"hostname"`
+		TTL      string `json:"ttl"`
+	}{
+		Hostname: "mypg.example.com",
+		TTL:      "2h",
+	})
+	require.NoError(t, err)
+
+	req, err := http.NewRequest(http.MethodPost, endpointSign, bytes.NewReader(bs))
+	require.NoError(t, err)
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Authorization", "Bearer "+responseToken.ID)
+
+	anonHTTPClient := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+
+	resp, err := anonHTTPClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	gzipReader, err := gzip.NewReader(resp.Body)
+	require.NoError(t, err)
+
+	tarReader := tar.NewReader(gzipReader)
+
+	tarContentFileNames := []string{}
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err)
+		require.Equal(t, byte(tar.TypeReg), header.Typeflag)
+		require.Equal(t, int64(0600), header.Mode)
+		tarContentFileNames = append(tarContentFileNames, header.Name)
+	}
+
+	expectedFileNames := []string{"server.cas", "server.key", "server.crt"}
+	require.ElementsMatch(t, tarContentFileNames, expectedFileNames)
+
+	// the token is no longer valid, so trying again should return an error
+	req, err = http.NewRequest(http.MethodPost, endpointSign, bytes.NewReader(bs))
+	require.NoError(t, err)
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Authorization", "Bearer "+responseToken.ID)
+
+	respSecondCall, err := anonHTTPClient.Do(req)
+	require.NoError(t, err)
+	defer respSecondCall.Body.Close()
+	require.Equal(t, http.StatusForbidden, respSecondCall.StatusCode)
+}
+
+func TestSignMTLS_failsAccessDenied(t *testing.T) {
+	env := newWebPack(t, 1)
+	clusterName := env.server.ClusterName()
+	username := "test-user@example.com"
+
+	roleUserUpdate, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindUser, []string{types.VerbUpdate}),
+				types.NewRule(types.KindToken, []string{types.VerbCreate}),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, username, []types.Role{roleUserUpdate})
+
+	endpoint := pack.clt.Endpoint("webapi", "token")
+	re, err := pack.clt.PostJSON(context.Background(), endpoint, types.ProvisionTokenSpecV2{
+		Roles: types.SystemRoles{types.RoleProxy},
+	})
+	require.NoError(t, err)
+
+	var responseToken nodeJoinToken
+	err = json.Unmarshal(re.Bytes(), &responseToken)
+	require.NoError(t, err)
+
+	// download mTLS files from /webapi/sites/:site/sign/db
+	endpointSign := pack.clt.Endpoint("webapi", "sites", clusterName, "sign", "db")
+
+	bs, err := json.Marshal(struct {
+		Hostname string `json:"hostname"`
+		TTL      string `json:"ttl"`
+		Format   string `json:"format"`
+	}{
+		Hostname: "mypg.example.com",
+		TTL:      "2h",
+		Format:   "db",
+	})
+	require.NoError(t, err)
+
+	req, err := http.NewRequest(http.MethodPost, endpointSign, bytes.NewReader(bs))
+	require.NoError(t, err)
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Authorization", "Bearer "+responseToken.ID)
+
+	anonHTTPClient := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+
+	resp, err := anonHTTPClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	// It fails because we passed a Provision Token with the wrong Role: Proxy
+	require.Equal(t, http.StatusForbidden, resp.StatusCode)
+
+	// using a user token also returns Forbidden
+	endpointResetToken := pack.clt.Endpoint("webapi", "users", "password", "token")
+	_, err = pack.clt.PostJSON(context.Background(), endpointResetToken, auth.CreateUserTokenRequest{
+		Name: username,
+		TTL:  time.Minute,
+		Type: auth.UserTokenTypeResetPassword,
+	})
+	require.NoError(t, err)
+
+	req, err = http.NewRequest(http.MethodPost, endpointSign, bytes.NewReader(bs))
+	require.NoError(t, err)
+
+	resp, err = anonHTTPClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusForbidden, resp.StatusCode)
 }
 
 func TestClusterDatabasesGet(t *testing.T) {
@@ -2263,6 +2433,7 @@ func TestClusterKubesGet(t *testing.T) {
 		Kind:     types.KindKubeService,
 		Version:  types.V2,
 		Spec: types.ServerSpecV2{
+			Addr: "test",
 			KubernetesClusters: []*types.KubernetesCluster{
 				{
 					Name:         "test-kube-name",
@@ -2577,9 +2748,9 @@ func TestAddMFADevice(t *testing.T) {
 			deviceName: "new-totp",
 			getTOTPCode: func() string {
 				// Create totp secrets.
-				res, err := env.server.Auth().CreateRegisterChallenge(ctx, &apiProto.CreateRegisterChallengeRequest{
+				res, err := env.server.Auth().CreateRegisterChallenge(ctx, &authproto.CreateRegisterChallengeRequest{
 					TokenID:    privilegeToken,
-					DeviceType: apiProto.DeviceType_DEVICE_TYPE_TOTP,
+					DeviceType: authproto.DeviceType_DEVICE_TYPE_TOTP,
 				})
 				require.NoError(t, err)
 
@@ -2594,9 +2765,9 @@ func TestAddMFADevice(t *testing.T) {
 			deviceName: "new-webauthn",
 			getWebauthnResp: func() *wanlib.CredentialCreationResponse {
 				// Get webauthn register challenge.
-				res, err := env.server.Auth().CreateRegisterChallenge(ctx, &apiProto.CreateRegisterChallengeRequest{
+				res, err := env.server.Auth().CreateRegisterChallenge(ctx, &authproto.CreateRegisterChallengeRequest{
 					TokenID:    privilegeToken,
-					DeviceType: apiProto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+					DeviceType: authproto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 				})
 				require.NoError(t, err)
 
@@ -2725,7 +2896,7 @@ func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
 	approvedToken.SetUser(username)
 	approvedToken.SetSubKind(auth.UserTokenTypeRecoveryApproved)
 	approvedToken.SetExpiry(env.clock.Now().Add(5 * time.Minute))
-	_, err = env.server.Auth().Identity.CreateUserToken(ctx, approvedToken)
+	_, err = env.server.Auth().CreateUserToken(ctx, approvedToken)
 	require.NoError(t, err)
 
 	// Call the getter endpoint.
@@ -2773,7 +2944,7 @@ func TestCreateAuthenticateChallenge(t *testing.T) {
 	startToken.SetUser(authPack.user)
 	startToken.SetSubKind(auth.UserTokenTypeRecoveryStart)
 	startToken.SetExpiry(env.clock.Now().Add(5 * time.Minute))
-	_, err = env.server.Auth().Identity.CreateUserToken(ctx, startToken)
+	_, err = env.server.Auth().CreateUserToken(ctx, startToken)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -2852,7 +3023,7 @@ func TestCreateRegisterChallenge(t *testing.T) {
 	token.SetUser("llama")
 	token.SetSubKind(auth.UserTokenTypePrivilege)
 	token.SetExpiry(env.clock.Now().Add(5 * time.Minute))
-	_, err = env.server.Auth().Identity.CreateUserToken(ctx, token)
+	_, err = env.server.Auth().CreateUserToken(ctx, token)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -3217,9 +3388,9 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 		Name: "invalid-name-for-recovery",
 	})
 	require.NoError(t, err)
-	res, err := env.server.Auth().CreateRegisterChallenge(ctx, &apiProto.CreateRegisterChallengeRequest{
+	res, err := env.server.Auth().CreateRegisterChallenge(ctx, &authproto.CreateRegisterChallengeRequest{
 		TokenID:    resetToken.GetName(),
-		DeviceType: apiProto.DeviceType_DEVICE_TYPE_TOTP,
+		DeviceType: authproto.DeviceType_DEVICE_TYPE_TOTP,
 	})
 	require.NoError(t, err)
 	totpCode, err := totp.GenerateCode(res.GetTOTP().GetSecret(), env.clock.Now())
@@ -3227,11 +3398,11 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 
 	// Test invalid username does not receive codes.
 	clt := env.proxies[0].client
-	re, err := clt.ChangeUserAuthentication(ctx, &apiProto.ChangeUserAuthenticationRequest{
+	re, err := clt.ChangeUserAuthentication(ctx, &authproto.ChangeUserAuthenticationRequest{
 		TokenID:     resetToken.GetName(),
 		NewPassword: []byte("abc123"),
-		NewMFARegisterResponse: &apiProto.MFARegisterResponse{Response: &apiProto.MFARegisterResponse_TOTP{
-			TOTP: &apiProto.TOTPRegisterResponse{Code: totpCode},
+		NewMFARegisterResponse: &authproto.MFARegisterResponse{Response: &authproto.MFARegisterResponse_TOTP{
+			TOTP: &authproto.TOTPRegisterResponse{Code: totpCode},
 		}},
 	})
 	require.NoError(t, err)
@@ -3247,20 +3418,20 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 		Name: "valid-username@example.com",
 	})
 	require.NoError(t, err)
-	res, err = env.server.Auth().CreateRegisterChallenge(ctx, &apiProto.CreateRegisterChallengeRequest{
+	res, err = env.server.Auth().CreateRegisterChallenge(ctx, &authproto.CreateRegisterChallengeRequest{
 		TokenID:    resetToken.GetName(),
-		DeviceType: apiProto.DeviceType_DEVICE_TYPE_TOTP,
+		DeviceType: authproto.DeviceType_DEVICE_TYPE_TOTP,
 	})
 	require.NoError(t, err)
 	totpCode, err = totp.GenerateCode(res.GetTOTP().GetSecret(), env.clock.Now())
 	require.NoError(t, err)
 
 	// Test valid username (email) returns codes.
-	re, err = clt.ChangeUserAuthentication(ctx, &apiProto.ChangeUserAuthenticationRequest{
+	re, err = clt.ChangeUserAuthentication(ctx, &authproto.ChangeUserAuthenticationRequest{
 		TokenID:     resetToken.GetName(),
 		NewPassword: []byte("abc123"),
-		NewMFARegisterResponse: &apiProto.MFARegisterResponse{Response: &apiProto.MFARegisterResponse_TOTP{
-			TOTP: &apiProto.TOTPRegisterResponse{Code: totpCode},
+		NewMFARegisterResponse: &authproto.MFARegisterResponse{Response: &authproto.MFARegisterResponse_TOTP{
+			TOTP: &authproto.TOTPRegisterResponse{Code: totpCode},
 		}},
 	})
 	require.NoError(t, err)
@@ -3374,6 +3545,49 @@ func TestGetUserOrResetToken(t *testing.T) {
 
 	_, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "users", "password", "notToken", resetToken.GetName()), url.Values{})
 	require.True(t, trace.IsNotFound(err))
+}
+
+func TestListConnectionsDiagnostic(t *testing.T) {
+	ctx := context.Background()
+	username := "someuser"
+	diagName := "diag1"
+	roleROConnectionDiagnostics, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindConnectionDiagnostic,
+					[]string{types.VerbRead}),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	env := newWebPack(t, 1)
+	clusterName := env.server.ClusterName()
+	pack := env.proxies[0].authPack(t, username, []types.Role{roleROConnectionDiagnostics})
+
+	connectionsEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "diagnostics", "connections", diagName)
+
+	// No connection diagnostics so far, should return not found
+	_, err = pack.clt.Get(ctx, connectionsEndpoint, url.Values{})
+	require.True(t, trace.IsNotFound(err))
+
+	connectionDiagnostic, err := types.NewConnectionDiagnosticV1(diagName, map[string]string{}, types.ConnectionDiagnosticSpecV1{
+		Success: true,
+		Message: "success for cd0",
+	})
+	require.NoError(t, err)
+	require.NoError(t, env.server.Auth().CreateConnectionDiagnostic(ctx, connectionDiagnostic))
+
+	resp, err := pack.clt.Get(ctx, connectionsEndpoint, url.Values{})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+
+	var receivedConnectionDiagnostic ui.ConnectionDiagnostic
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &receivedConnectionDiagnostic))
+
+	require.True(t, receivedConnectionDiagnostic.Success)
+	require.Equal(t, receivedConnectionDiagnostic.ID, diagName)
+	require.Equal(t, receivedConnectionDiagnostic.Message, "success for cd0")
 }
 
 type authProviderMock struct {
@@ -3731,7 +3945,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 
 	// start auth server
 	certs, err := server.Auth().GenerateHostCerts(ctx,
-		&apiProto.HostCertsRequest{
+		&authproto.HostCertsRequest{
 			HostID:       hostID,
 			NodeName:     server.TLS.ClusterName(),
 			Role:         types.RoleNode,
