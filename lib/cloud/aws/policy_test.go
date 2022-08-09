@@ -315,7 +315,7 @@ func TestUpsertPolicy(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			policies := NewPolicies(accountID, partitionID, test.iamMock)
+			policies := NewPolicies(partitionID, accountID, test.iamMock)
 
 			arn, err := policies.Upsert(ctx, &Policy{})
 			if test.returnError {
