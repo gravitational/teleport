@@ -1631,7 +1631,13 @@ func (s *session) trackSession(teleportUser string, policySet []*types.SessionTr
 
 	s.log.Debug("Creating session tracker")
 	var err error
-	s.tracker, err = NewSessionTracker(s.serverCtx, trackerSpec, s.registry.SessionTrackerService)
+
+	// if doing proxy recording, don't propagate tracker to the cluster level
+	if s.registry.Srv.Component() == teleport.ComponentNode && services.IsRecordAtProxy(s.scx.SessionRecordingConfig.GetMode()) {
+		s.tracker, err = NewSessionTracker(s.serverCtx, trackerSpec, nil)
+	} else {
+		s.tracker, err = NewSessionTracker(s.serverCtx, trackerSpec, s.registry.SessionTrackerService)
+	}
 	if err != nil {
 		return trace.Wrap(err)
 	}
