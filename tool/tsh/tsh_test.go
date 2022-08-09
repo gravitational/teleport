@@ -32,7 +32,6 @@ import (
 	"time"
 
 	"github.com/ghodss/yaml"
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
 	"go.uber.org/atomic"
@@ -63,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/tool/common"
+	"github.com/gravitational/trace"
 )
 
 const (
