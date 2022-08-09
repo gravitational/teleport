@@ -912,6 +912,16 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Proxy.MongoPublicAddrs = addrs
 	}
+	if fc.Proxy.PeerPublicAddr != "" {
+		if fc.Proxy.PeerAddr == "" {
+			return trace.BadParameter("peer_listen_addr must be set when peer_public_addr is set")
+		}
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.PeerPublicAddr, int(defaults.ProxyPeeringListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.PeerPublicAddr = *addr
+	}
 
 	acme, err := fc.Proxy.ACME.Parse()
 	if err != nil {
@@ -1290,6 +1300,11 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 			app.Rewrite = &service.Rewrite{
 				Redirect: application.Rewrite.Redirect,
 				Headers:  headers,
+			}
+		}
+		if application.AWS != nil {
+			app.AWS = &service.AppAWS{
+				ExternalID: application.AWS.ExternalID,
 			}
 		}
 		if err := app.CheckAndSetDefaults(); err != nil {

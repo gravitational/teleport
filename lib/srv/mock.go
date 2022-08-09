@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -76,7 +77,8 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 			Certificate:  cert,
 			// roles do not actually exist in mock backend, just need a non-nil
 			// access checker to avoid panic
-			AccessChecker: services.NewAccessChecker(&services.AccessInfo{RoleSet: roleSet}, clusterName),
+			AccessChecker: services.NewAccessCheckerWithRoleSet(
+				&services.AccessInfo{Roles: roleSet.RoleNames()}, clusterName, roleSet),
 		},
 		cancelContext: ctx,
 		cancel:        cancel,
@@ -222,6 +224,10 @@ func (m *mockServer) GetInfo() types.Server {
 			Version:   teleport.Version,
 		},
 	}
+}
+
+func (m *mockServer) TargetMetadata() apievents.ServerMetadata {
+	return apievents.ServerMetadata{}
 }
 
 // UseTunnel used to determine if this node has connected to this cluster

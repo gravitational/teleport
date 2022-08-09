@@ -43,13 +43,8 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-func newlocalSite(srv *server, domainName string, authServers []string, client auth.ClientI, peerClient *proxy.Client) (*localSite, error) {
+func newlocalSite(srv *server, domainName string, authServers []string) (*localSite, error) {
 	err := utils.RegisterPrometheusCollectors(localClusterCollectors...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	accessPoint, err := srv.newAccessPoint(client, []string{"reverse", domainName})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -58,15 +53,15 @@ func newlocalSite(srv *server, domainName string, authServers []string, client a
 	// certificate cache is created in each site (instead of creating it in
 	// reversetunnel.server and passing it along) so that the host certificate
 	// is signed by the correct certificate authority.
-	certificateCache, err := newHostCertificateCache(srv.Config.KeyGen, client)
+	certificateCache, err := newHostCertificateCache(srv.Config.KeyGen, srv.localAuthClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	s := &localSite{
 		srv:              srv,
-		client:           client,
-		accessPoint:      accessPoint,
+		client:           srv.localAuthClient,
+		accessPoint:      srv.LocalAccessPoint,
 		certificateCache: certificateCache,
 		domainName:       domainName,
 		authServers:      authServers,
@@ -79,7 +74,7 @@ func newlocalSite(srv *server, domainName string, authServers []string, client a
 			},
 		}),
 		offlineThreshold: srv.offlineThreshold,
-		peerClient:       peerClient,
+		peerClient:       srv.PeerClient,
 	}
 
 	// Start periodic functions for the local cluster in the background.
@@ -293,6 +288,9 @@ func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 		Emitter:         s.srv.Config.Emitter,
 		ParentContext:   s.srv.Context,
 		LockWatcher:     s.srv.LockWatcher,
+		TargetID:        params.ServerID,
+		TargetAddr:      params.To.String(),
+		TargetHostname:  params.Address,
 	}
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {

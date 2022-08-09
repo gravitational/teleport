@@ -490,10 +490,10 @@ func (a *appServerCollection) writeText(w io.Writer) error {
 		app := server.GetApp()
 		labels := stripInternalTeleportLabels(a.verbose, app.GetAllLabels())
 		rows = append(rows, []string{
-			server.GetHostname(), app.GetName(), app.GetPublicAddr(), app.GetURI(), labels, server.GetTeleportVersion()})
+			server.GetHostname(), app.GetName(), app.GetProtocol(), app.GetPublicAddr(), app.GetURI(), labels, server.GetTeleportVersion()})
 	}
 	var t asciitable.Table
-	headers := []string{"Host", "Name", "Public Address", "URI", "Labels", "Version"}
+	headers := []string{"Host", "Name", "Type", "Public Address", "URI", "Labels", "Version"}
 	if a.verbose {
 		t = asciitable.MakeTable(headers, rows...)
 	} else {
@@ -866,23 +866,32 @@ func (c *tokenCollection) writeText(w io.Writer) error {
 }
 
 type kubeServerCollection struct {
-	servers []types.Server
+	servers []types.KubeServer
 	verbose bool
+}
+
+func (c *kubeServerCollection) resources() (r []types.Resource) {
+	for _, resource := range c.servers {
+		r = append(r, resource)
+	}
+	return r
 }
 
 func (c *kubeServerCollection) writeText(w io.Writer) error {
 	var rows [][]string
 	for _, server := range c.servers {
-		kubes := server.GetKubernetesClusters()
-		for _, kube := range kubes {
-			labels := stripInternalTeleportLabels(c.verbose,
-				types.CombineLabels(kube.StaticLabels, kube.DynamicLabels))
-			rows = append(rows, []string{
-				kube.Name,
-				labels,
-				server.GetTeleportVersion(),
-			})
+		kube := server.GetCluster()
+		if kube == nil {
+			continue
 		}
+		labels := stripInternalTeleportLabels(c.verbose,
+			types.CombineLabels(kube.GetStaticLabels(), types.LabelsToV2(kube.GetDynamicLabels())))
+		rows = append(rows, []string{
+			kube.GetName(),
+			labels,
+			server.GetTeleportVersion(),
+		})
+
 	}
 	headers := []string{"Cluster", "Labels", "Version"}
 	var t asciitable.Table
