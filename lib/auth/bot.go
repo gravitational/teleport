@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -103,20 +102,6 @@ func createBotUser(
 		types.BotGenerationLabel: "0",
 	}
 	user.SetMetadata(metadata)
-
-	// Traits need to be set to silence "failed to find roles or traits" warning
-	if traits == nil {
-		traits = map[string][]string{}
-	}
-	if _, ok := traits[constants.TraitLogins]; !ok {
-		traits[constants.TraitLogins] = []string{}
-	}
-	if _, ok := traits[constants.TraitKubeUsers]; !ok {
-		traits[constants.TraitKubeUsers] = []string{}
-	}
-	if _, ok := traits[constants.TraitKubeGroups]; !ok {
-		traits[constants.TraitKubeGroups] = []string{}
-	}
 	user.SetTraits(traits)
 
 	if err := s.CreateUser(ctx, user); err != nil {
