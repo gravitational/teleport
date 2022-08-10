@@ -35,7 +35,7 @@ import (
 
 type bufferConfig struct {
 	gracePeriod time.Duration
-	capacity    int
+	capacity    int // TODO remove
 	clock       clockwork.Clock
 }
 
@@ -74,10 +74,10 @@ type CircularBuffer struct {
 	sync.Mutex
 	*log.Entry
 	cfg          bufferConfig
-	events       []Event
-	start        int
-	end          int
-	size         int
+	events       []Event // TODO remove
+	start        int // TODO remove
+	end          int // TODO remove
+	size         int // TODO remove
 	init, closed bool
 	watchers     *watcherTree
 }
