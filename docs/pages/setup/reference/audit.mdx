@@ -48,7 +48,7 @@ backend uses the local filesystem of an Auth Service host.
 For High Availability configurations, users can refer to our
 [DynamoDB](./backends.mdx#dynamodb) or [Firestore](./backends.mdx#firestore)
 chapters for information on how to configure the SSH events and recorded
-sessions to be stored on network storage. 
+sessions to be stored on network storage.
 
 It is even possible to store audit logs in multiple places at the same time.
 For more information on how to configure the audit log, refer to the `storage`
@@ -129,6 +129,7 @@ The possible event types are:
 | session.disk | A list of files opened during the session. *Requires Enhanced Session Recording*. |
 | session.network | A list of network connections made during the session.  *Requires Enhanced Session Recording*. |
 | session.command | A list of commands ran during the session.  *Requires Enhanced Session Recording*. |
+| session.recording.access | A session recording has been accessed via the web UI or tsh. |
 | exec | Remote command has been executed via SSH, like `tsh ssh root@node ls /`. The following fields will be logged: `{"command": "ls /", "exitCode": 0, "exitError": ""}` |
 | scp | Remote file copy has been executed. The following fields will be logged: `{"path": "/path/to/file.txt", "len": 32344, "action": "read" }` |
 | resize | Terminal has been resized. |
