@@ -23,3 +23,7 @@ package auditd
 func SendEvent(event EventType, result ResultType, msg Message) error {
 	return nil
 }
+
+func IsLoginUIDSet() bool {
+	return false
+}
