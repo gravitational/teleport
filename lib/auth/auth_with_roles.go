@@ -4528,30 +4528,39 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 		return createErrorChannel[apievents.AuditEvent](err)
 	}
 
-	// emit a session recording view event for the audit log
+	// StreamSessionEvents can be called internally, and when that happens we don't want to emit an event.
+	shouldEmitEvent := true
+
 	user, err := a.GetCurrentUser(context.Background())
 	if err != nil {
-		return createErrorChannel[apievents.AuditEvent](err)
+		// If we can't fetch the user, it's probably an internal call (the Proxy role is missing from the backend)
+		// so we can skip emitting the event.
+
+		shouldEmitEvent = false
 	}
 
-	roles, err := types.NewTeleportRoles(user.GetRoles())
-	if err != nil {
-		return createErrorChannel[apievents.AuditEvent](err)
-	}
-	// StreamSessionEvents can be called internally, and when that happens we don't want to emit an event
-	// Checking the user's roles for either the Auth or Proxy role will indicate if it's an internal call
-	if !roles.IncludeAny(types.RoleAuth, types.RoleProxy) {
-		if a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SessionRecordingAccess{
-			Metadata: apievents.Metadata{
-				Type: events.SessionRecordingAccessEvent,
-				Code: events.SessionRecordingAccessCode,
-			},
-			SessionID: sessionID.String(),
-			UserMetadata: apievents.UserMetadata{
-				User: user.GetName(),
-			},
-		}); err != nil {
+	if shouldEmitEvent {
+		// However, if we do manage to fetch the user successfully, either for an internal call or a normal call, let's
+		// check the roles and make sure they don't include Auth or Proxy.
+		roles, err := types.NewTeleportRoles(user.GetRoles())
+		if err != nil {
 			return createErrorChannel[apievents.AuditEvent](err)
+		}
+
+		if !roles.IncludeAny(types.RoleAuth, types.RoleProxy) {
+			// If we get to here, we know it's an actual user streaming the session events so we want to emit an event.
+			if a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SessionRecordingAccess{
+				Metadata: apievents.Metadata{
+					Type: events.SessionRecordingAccessEvent,
+					Code: events.SessionRecordingAccessCode,
+				},
+				SessionID: sessionID.String(),
+				UserMetadata: apievents.UserMetadata{
+					User: user.GetName(),
+				},
+			}); err != nil {
+				return createErrorChannel[apievents.AuditEvent](err)
+			}
 		}
 	}
 
