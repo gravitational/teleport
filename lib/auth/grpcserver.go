@@ -457,7 +457,12 @@ func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *proto.UserCerts
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certs, err := auth.ServerWithRoles.GenerateUserCerts(ctx, *req)
+	// Get the client IP.
+	clientPeer, ok := peer.FromContext(ctx)
+	if !ok {
+		return nil, trace.BadParameter("no peer info in gRPC stream, can't get client IP")
+	}
+	certs, err := auth.ServerWithRoles.generateUserCerts(ctx, *req, clientPeer.Addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2496,7 +2501,7 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req prot
 	}
 
 	// Generate the cert.
-	certs, err := actx.generateUserCerts(ctx, req, certRequestMFAVerified(mfaDev.Id), certRequestClientIP(clientIP))
+	certs, err := actx.generateUserCerts(ctx, req, clientPeer.Addr, certRequestMFAVerified(mfaDev.Id), certRequestClientIP(clientIP))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

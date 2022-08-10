@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/url"
 	"strings"
 	"time"
@@ -2365,10 +2366,17 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 
 // GenerateUserCerts generates users certificates
 func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
-	return a.generateUserCerts(ctx, req)
+	// Methods should call generateUserCerts, this GenerateUserCerts only exists
+	// to make ServerWithRoles satisfy ClientI :)
+	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
-func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserCertsRequest, opts ...certRequestOption) (*proto.Certs, error) {
+func (a *ServerWithRoles) generateUserCerts(
+	ctx context.Context,
+	req proto.UserCertsRequest,
+	remoteAddr net.Addr,
+	opts ...certRequestOption,
+) (*proto.Certs, error) {
 	var err error
 
 	// this prevents clients who have no chance at getting a cert and impersonating anyone
@@ -2379,6 +2387,10 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 
 	if a.context.Identity.GetIdentity().DisallowReissue {
 		return nil, trace.AccessDenied("access denied: identity is not allowed to reissue certificates")
+	}
+
+	connMetadata := apievents.ConnectionMetadata{
+		RemoteAddr: remoteAddr.String(),
 	}
 
 	// Prohibit recursive impersonation behavior:
@@ -2506,6 +2518,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 						Error:       trace.Unwrap(err).Error(),
 						UserMessage: err.Error(),
 					},
+					ConnectionMetadata: connMetadata,
 				}); err != nil {
 					log.WithError(err).Warn("Failed to emit local login failure event.")
 				}
@@ -2533,6 +2546,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 					Error:       trace.Unwrap(err).Error(),
 					UserMessage: err.Error(),
 				},
+				ConnectionMetadata: connMetadata,
 			}); err != nil {
 				log.WithError(err).Warn("Failed to emit local login failure event.")
 			}
@@ -2617,6 +2631,17 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		if err := a.authServer.validateGenerationLabel(ctx, user, &certReq, currentIdentityGeneration); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+
+	// If any of the roles in the certificate request require source ip pinning
+	// set the sourceIP of the request
+	if roleSet.PinSourceIP() {
+		clientIP, _, err := net.SplitHostPort(remoteAddr.String())
+		if err != nil {
+			return nil, trace.BadParameter("can't parse client IP from peer info: %v", err)
+		}
+
+		certReq.sourceIP = clientIP
 	}
 
 	certs, err := a.authServer.generateUserCert(certReq)
