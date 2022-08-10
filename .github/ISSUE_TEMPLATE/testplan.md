@@ -1166,6 +1166,7 @@ With a default Teleport instance configured with a SSH node:
 - [ ] Verify you are able to connect to the SSH node using openssh with the generated `ssh_config` in the destination directory
 - [ ] Verify that after the renewal period (default 20m, but this can be reduced via configuration), that newly generated certificates are placed in the destination directory
 - [ ] Verify that sending both `SIGUSR1` and `SIGHUP` to a running tbot process causes a renewal and new certificates to be generated
+- [ ] Verify that you are able to make a connection to the SSH node using the `ssh_config` provided by `tbot` after each phase of a manual CA rotation.
 
 Ensure the above tests are completed for both:
 
@@ -1185,7 +1186,9 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
     (`auth_service.authentication` in the cluster config):
     - [ ] `type: local`, `second_factor: "off"`
     - [ ] `type: local`, `second_factor: "otp"`
-    - [ ] `type: local`, `second_factor: "webauthn"`
+    - [ ] `type: local`, `second_factor: "webauthn"`,
+    - [ ] `type: local`, `second_factor: "webauthn"`, log in passwordlessly with hardware key
+    - [ ] `type: local`, `second_factor: "webauthn"`, log in passwordlessly with touch ID
     - [ ] `type: local`, `second_factor: "optional"`, log in without MFA
     - [ ] `type: local`, `second_factor: "optional"`, log in with OTP
     - [ ] `type: local`, `second_factor: "optional"`, log in with hardware key
