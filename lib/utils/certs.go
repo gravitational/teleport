@@ -24,6 +24,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"os"
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -255,6 +256,16 @@ func ReadCertificateChain(certificateChainBytes []byte) ([]*x509.Certificate, er
 	}
 
 	return x509Chain, nil
+}
+
+// ReadCertificateFile reads certificates from provided file.
+func ReadCertificateFile(path string) ([]*x509.Certificate, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+
+	return ReadCertificateChain(data)
 }
 
 const pemBlockCertificate = "CERTIFICATE"

@@ -27,6 +27,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"text/template"
 	"time"
 
@@ -315,6 +316,37 @@ func proxySession(ctx context.Context, sess *tracessh.Session) error {
 	return trace.NewAggregate(errs...)
 }
 
+// TODO
+func onProxyDBNewConnection(cf *CLIConf) func(dbCert x509.Certificate, lp *alpnproxy.LocalProxy, conn net.Conn) {
+	var sessionWarningOnce sync.Once
+
+	return func(dbCert x509.Certificate, lp *alpnproxy.LocalProxy, conn net.Conn) {
+		now := time.Now()
+		//TODO remove tmp debugging
+		now = now.Add(25 * time.Hour)
+
+		certExpires := dbCert.NotAfter.Sub(now)
+		log.Debugf("%v has connected to local proxy, and cert is expiring in %v.", conn.RemoteAddr(), certExpires)
+
+		if certExpires < time.Minute {
+			// TODO sample message
+			fmt.Fprintf(cf.Stdout(), "\nYour session is expired.\n\n")
+			fmt.Fprintln(cf.Stdout(), `Please relogin the database with "tsh db login", or logout the database with "tsh db logout", then repeat this command.`)
+
+			lp.Close()
+			return
+		}
+
+		if certExpires < time.Minute*30 {
+			sessionWarningOnce.Do(func() {
+				fmt.Fprintf(cf.Stdout(), "\nYour session is expiring in %v minutes.\n\n", certExpires.Truncate(time.Minute).Minutes())
+				fmt.Fprintln(cf.Stdout(), `Please relogin the database with "tsh db login", or logout the database with "tsh db logout", then repeat this command.`)
+			})
+			return
+		}
+	}
+}
+
 func onProxyCommandDB(cf *CLIConf) error {
 	client, err := makeClient(cf, false)
 	if err != nil {
@@ -356,12 +388,13 @@ func onProxyCommandDB(cf *CLIConf) error {
 	}()
 
 	proxyOpts, err := prepareLocalProxyOptions(&localProxyConfig{
-		cliConf:          cf,
-		teleportClient:   client,
-		profile:          profile,
-		routeToDatabase:  routeToDatabase,
-		listener:         listener,
-		localProxyTunnel: cf.LocalProxyTunnel,
+		cliConf:                 cf,
+		teleportClient:          client,
+		profile:                 profile,
+		routeToDatabase:         routeToDatabase,
+		listener:                listener,
+		localProxyTunnel:        cf.LocalProxyTunnel,
+		onNewAcceptedConnection: onProxyDBNewConnection(cf),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -421,12 +454,13 @@ func onProxyCommandDB(cf *CLIConf) error {
 }
 
 type localProxyOpts struct {
-	proxyAddr string
-	listener  net.Listener
-	protocols []alpncommon.Protocol
-	insecure  bool
-	certFile  string
-	keyFile   string
+	proxyAddr               string
+	listener                net.Listener
+	protocols               []alpncommon.Protocol
+	insecure                bool
+	certFile                string
+	keyFile                 string
+	onNewAcceptedConnection alpnproxy.OnNewAcceptedConnectionFunc
 }
 
 // protocol returns the first protocol or string if configuration doesn't contain any protocols.
@@ -451,13 +485,14 @@ func mkLocalProxy(ctx context.Context, opts localProxyOpts) (*alpnproxy.LocalPro
 		return nil, trace.Wrap(err)
 	}
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		InsecureSkipVerify: opts.insecure,
-		RemoteProxyAddr:    opts.proxyAddr,
-		Protocols:          append([]alpncommon.Protocol{alpnProtocol}, opts.protocols...),
-		Listener:           opts.listener,
-		ParentContext:      ctx,
-		SNI:                address.Host(),
-		Certs:              certs,
+		InsecureSkipVerify:      opts.insecure,
+		RemoteProxyAddr:         opts.proxyAddr,
+		Protocols:               append([]alpncommon.Protocol{alpnProtocol}, opts.protocols...),
+		Listener:                opts.listener,
+		ParentContext:           ctx,
+		SNI:                     address.Host(),
+		Certs:                   certs,
+		OnNewAcceptedConnection: opts.onNewAcceptedConnection,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

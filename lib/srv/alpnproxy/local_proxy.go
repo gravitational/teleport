@@ -34,6 +34,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils/aws"
 )
 
+// OnNewAcceptedConnectionFunc is a callback called when a new downstream
+// connection is accepted by the local proxy.
+type OnNewAcceptedConnectionFunc func(lp *LocalProxy, conn net.Conn)
+
 // LocalProxy allows upgrading incoming connection to TLS where custom TLS values are set SNI ALPN and
 // updated connection is forwarded to remote ALPN SNI teleport proxy service.
 type LocalProxy struct {
@@ -71,6 +75,11 @@ type LocalProxyConfig struct {
 	Certs []tls.Certificate
 	// AWSCredentials are AWS Credentials used by LocalProxy for request's signature verification.
 	AWSCredentials *credentials.Credentials
+	// OnNewAcceptedConnectionFunc is a callback called when a new downstream
+	// connection is accepted by the local proxy.
+	//
+	// Note that the callback blocks handling of the connection.
+	OnNewAcceptedConnection OnNewAcceptedConnectionFunc
 }
 
 // CheckAndSetDefaults verifies the constraints for LocalProxyConfig.
@@ -128,6 +137,11 @@ func (l *LocalProxy) Start(ctx context.Context) error {
 			log.WithError(err).Errorf("Failed to accept client connection.")
 			return trace.Wrap(err)
 		}
+
+		if l.cfg.OnNewAcceptedConnection != nil {
+			l.cfg.OnNewAcceptedConnection(l, conn)
+		}
+
 		go func() {
 			if err := l.handleDownstreamConnection(ctx, conn, l.cfg.SNI); err != nil {
 				if utils.IsOKNetworkError(err) {

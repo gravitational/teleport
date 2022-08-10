@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -598,6 +600,11 @@ type localProxyConfig struct {
 	// it's always true for Snowflake database. Value is copied here to not modify
 	// cli arguments directly.
 	localProxyTunnel bool
+	// onNewAcceptedConnection is a callback when the ALPN localproxy accepts a
+	// new connection. "dbCert" is the client certificate for authorizing the
+	// DB request and is always provided by this callback reglardless whether
+	// it's provided to ALPN localproxy or not.
+	onNewAcceptedConnection func(dbCert x509.Certificate, lp *alpnproxy.LocalProxy, conn net.Conn)
 }
 
 // prepareLocalProxyOptions created localProxyOpts needed to create local proxy from localProxyConfig.
@@ -618,6 +625,24 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
 		insecure:  arg.cliConf.InsecureSkipVerify,
 		certFile:  certFile,
 		keyFile:   keyFile,
+	}
+
+	if arg.onNewAcceptedConnection != nil {
+		dbCerts, err := utils.ReadCertificateFile(arg.profile.DatabaseCertPathForCluster(
+			arg.cliConf.SiteName,
+			arg.routeToDatabase.ServiceName,
+		))
+		if err != nil {
+			return localProxyOpts{}, trace.Wrap(err)
+		}
+
+		if len(dbCerts) != 1 {
+			return localProxyOpts{}, trace.CompareFailed("expecting one certificate but got %v", len(dbCerts))
+		}
+
+		opts.onNewAcceptedConnection = func(lp *alpnproxy.LocalProxy, conn net.Conn) {
+			arg.onNewAcceptedConnection(*dbCerts[0], lp, conn)
+		}
 	}
 
 	// For SQL Server connections, local proxy must be configured with the
