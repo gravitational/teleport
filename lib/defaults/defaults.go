@@ -22,11 +22,14 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/square/go-jose.v2"
@@ -748,7 +751,7 @@ func CheckPasswordLimiter() *limiter.Limiter {
 		MaxConnections:   LimiterMaxConnections,
 		MaxNumberOfUsers: LimiterMaxConcurrentUsers,
 		Rates: []limiter.Rate{
-			limiter.Rate{
+			{
 				Period:  1 * time.Second,
 				Average: 10,
 				Burst:   10,
@@ -791,3 +794,37 @@ const (
 	// TeleportConfigVersionV2 is the teleport proxy configuration v2 version.
 	TeleportConfigVersionV2 string = "v2"
 )
+
+// Default values for tsh and tctl commands.
+const (
+	TshTctlSessionListLimit = "50"
+	TshTctlSessionDayLimit  = 365
+)
+
+// DefaultFormats is the default set of formats to use for commands that have the --format flag.
+var DefaultFormats = []string{teleport.Text, teleport.JSON, teleport.YAML}
+
+// FormatFlagDescription creates the description for the --format flag.
+func FormatFlagDescription(formats ...string) string {
+	return fmt.Sprintf("Format output (%s)", strings.Join(formats, ", "))
+}
+
+func SearchSessionRange(clock clockwork.Clock, fromUTC, toUTC string) (from time.Time, to time.Time, err error) {
+	from = clock.Now().Add(time.Hour * -24)
+	to = clock.Now()
+	if fromUTC != "" {
+		from, err = time.Parse(time.RFC3339, fromUTC)
+		if err != nil {
+			return time.Time{}, time.Time{},
+				trace.BadParameter("failed to parse session recording listing start time: expected format %s, got %s.", time.RFC3339, fromUTC)
+		}
+	}
+	if toUTC != "" {
+		to, err = time.Parse(time.RFC3339, toUTC)
+		if err != nil {
+			return time.Time{}, time.Time{},
+				trace.BadParameter("failed to parse session recording listing end time: expected format %s, got %s.", time.RFC3339, toUTC)
+		}
+	}
+	return from, to, nil
+}

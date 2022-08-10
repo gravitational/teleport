@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/utils"
-	libutils "github.com/gravitational/teleport/lib/utils"
 )
 
 func rotate(
@@ -127,7 +126,7 @@ func TestBot_Run_CARotation(t *testing.T) {
 
 	// wg and context manage the cancellation of long running processes e.g
 	// teleport and tbot in the test.
-	log := libutils.NewLoggerForTests()
+	log := utils.NewLoggerForTests()
 	wg := &sync.WaitGroup{}
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() {
