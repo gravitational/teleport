@@ -546,7 +546,12 @@ func (t *proxySubsys) getMatchingServer(watcher NodesGetter, strategy types.Rout
 		if utils.IsEC2NodeID(t.host) {
 			idType = "EC2"
 		}
-		return nil, trace.NotFound("unable to locate node matching %s-like target %s", idType, t.host)
+		t.log.Warnf("unable to locate node matching %s-like target %s", idType, t.host)
+		return &types.ServerV2{
+			Metadata: types.Metadata{
+				Name: t.host,
+			},
+		}, nil
 	}
 
 	return server, nil
