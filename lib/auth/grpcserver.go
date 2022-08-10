@@ -948,6 +948,12 @@ func (g *GRPCServer) Ping(ctx context.Context, req *proto.PingRequest) (*proto.P
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// attempt to set remote addr.
+	if p, ok := peer.FromContext(ctx); ok {
+		rsp.RemoteAddr = p.Addr.String()
+	}
+
 	return &rsp, nil
 }
 

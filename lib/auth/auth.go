@@ -2267,8 +2267,8 @@ func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryCont
 
 // MakeLocalInventoryControlStream sets up an in-memory control stream which automatically registers with this auth
 // server upon hello exchange.
-func (a *Server) MakeLocalInventoryControlStream() client.DownstreamInventoryControlStream {
-	upstream, downstream := client.InventoryControlStreamPipe()
+func (a *Server) MakeLocalInventoryControlStream(opts ...client.ICSPipeOption) client.DownstreamInventoryControlStream {
+	upstream, downstream := client.InventoryControlStreamPipe(opts...)
 	go func() {
 		select {
 		case msg := <-upstream.Recv():
