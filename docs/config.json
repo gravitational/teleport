@@ -493,6 +493,10 @@
               "slug": "/database-access/guides/redis-aws/"
             },
             {
+              "title": "AWS DynamoDB",
+              "slug": "/database-access/guides/dynamodb/"
+            },
+            {
               "title": "GCP Cloud SQL PostgreSQL",
               "slug": "/database-access/guides/postgres-cloudsql/"
             },
