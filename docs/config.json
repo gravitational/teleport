@@ -457,47 +457,6 @@
           ]
         },
         {
-          "title": "Helm Chart Reference",
-          "slug": "/kubernetes-access/helm/reference/",
-          "entries": [
-            {
-              "title": "teleport-cluster",
-              "slug": "/kubernetes-access/helm/reference/teleport-cluster/",
-              "forScopes": ["enterprise", "oss"]
-            },
-            {
-              "title": "teleport-kube-agent",
-              "slug": "/kubernetes-access/helm/reference/teleport-kube-agent/"
-            }
-          ]
-        },
-        {
-          "title": "Helm Guides",
-          "slug": "/kubernetes-access/helm/guides/",
-          "entries": [
-            {
-              "title": "AWS EKS Cluster",
-              "slug": "/kubernetes-access/helm/guides/aws/"
-            },
-            {
-              "title": "Google Cloud GKE Cluster",
-              "slug": "/kubernetes-access/helm/guides/gcp/"
-            },
-            {
-              "title": "DigitalOcean Kubernetes Cluster",
-              "slug": "/kubernetes-access/helm/guides/digitalocean/"
-            },
-            {
-              "title": "Customize Deployment Config",
-              "slug": "/kubernetes-access/helm/guides/custom/"
-            },
-            {
-              "title": "Migrating From Older Charts",
-              "slug": "/kubernetes-access/helm/guides/migration/"
-            }
-          ]
-        },
-        {
           "title": "Access Controls",
           "slug": "/kubernetes-access/controls/"
         }
@@ -690,6 +649,14 @@
           "slug": "/machine-id/getting-started/"
         },
         {
+          "title": "Troubleshooting",
+          "slug": "/machine-id/troubleshooting/"
+        },
+        {
+          "title": "FAQ",
+          "slug": "/machine-id/faq/"
+        },
+        {
           "title": "Reference",
           "slug": "/machine-id/reference/",
           "entries": [
@@ -736,7 +703,7 @@
           "slug": "/access-controls/getting-started/"
         },
         {
-          "title": "Guides",
+          "title": "Cluster Access and RBAC",
           "slug": "/access-controls/guides/",
           "entries": [
             {
@@ -775,6 +742,46 @@
             }
           ]
         },
+	{
+	    "title": "Access Requests",
+	    "slug": "/access-controls/access-requests/",
+	    "entries": [
+		{
+		    "title": "Role Requests",
+		    "slug":"/access-controls/access-requests/role-requests/"
+		},
+		{
+		    "title": "Resource Requests",
+		    "slug":"/access-controls/access-requests/resource-requests/"
+		}
+	    ]
+	},
+	{
+	    "title": "Access Request Plugins",
+	    "slug": "/access-controls/access-request-plugins/",
+	    "entries": [
+		{
+		    "title": "Mattermost",
+		    "slug":"/access-controls/access-request-plugins/ssh-approval-mattermost/"
+		},
+		{
+		    "title": "PagerDuty",
+		    "slug":"/access-controls/access-request-plugins/ssh-approval-pagerduty/"
+		},
+                {
+                    "title": "Jira Server",
+                    "slug":"/access-controls/access-request-plugins/ssh-approval-jira-server/"
+                },
+		{
+		    "title": "Jira Cloud",
+		    "slug":"/access-controls/access-request-plugins/ssh-approval-jira-cloud/"
+		},
+		{
+		    "title": "Slack",
+		    "slug":"/access-controls/access-request-plugins/ssh-approval-slack/"
+		}
+	    ]
+	},
         {
           "title": "Reference",
           "slug": "/access-controls/reference/"
@@ -869,28 +876,12 @@
           ]
         },
         {
-          "title": "Access Requests",
-          "slug": "/enterprise/workflow/",
-          "entries": [
-            {
-              "title": "Resource Access Requests",
-              "slug": "/enterprise/workflow/resource-requests/",
-              "forScopes": ["enterprise", "cloud"]
-            },
-            {
-              "title": "Role Access Requests",
-              "slug": "/enterprise/workflow/role-requests/",
-              "forScopes": ["oss", "enterprise", "cloud"]
-            }
-          ]
-        },
-        {
           "title": "FedRAMP",
           "slug": "/enterprise/fedramp/",
           "forScopes": ["enterprise"]
         },
         {
-          "title": "SOC2",
+          "title": "SOC 2",
           "slug": "/enterprise/soc2/",
           "forScopes": ["enterprise", "cloud"]
         },
@@ -1067,11 +1058,6 @@
       "permanent": true
     },
     {
-      "source": "/user-manual/",
-      "destination": "/server-access/guides/tsh/",
-      "permanent": true
-    },
-    {
       "source": "/production/",
       "destination": "/setup/deployments/",
       "permanent": true
@@ -1234,11 +1220,6 @@
     {
       "source": "/openssh-teleport/",
       "destination": "/server-access/guides/openssh/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/sso/ssh-gsuite/",
-      "destination": "/enterprise/sso/ssh-google-workspace/",
       "permanent": true
     },
     {
@@ -1435,6 +1416,46 @@
       "source": "/setup/admin/graceful-restarts/",
       "destination": "/setup/admin/upgrading-the-teleport-binary/",
       "permanent": true
+    },
+    {
+       "source": "/enterprise/workflow/",
+       "destination": "/access-controls/access-requests/",
+       "permanent": true
+    },
+    {
+    	"source": "/enterprise/workflow/ssh-approval-mattermost/",
+    	"destination": "/access-controls/access-request-plugins/ssh-approval-mattermost/",
+    	"permanent": true
+    },
+    {
+    	"source": "/enterprise/workflow/ssh-approval-mattermost/",
+    	"destination": "/access-controls/access-request-plugins/ssh-approval-pagerduty/",
+    	"permanent": true
+    },
+    {
+    	"source": "/enterprise/workflow/ssh-approval-jira-server/",
+    	"destination": "/access-controls/access-request-plugins/ssh-approval-jira-server/",
+    	"permanent": true
+    },
+    {
+    	"source": "/enterprise/workflow/ssh-approval-jira-cloud/",
+    	"destination": "/access-controls/access-request-plugins/ssh-approval-jira-cloud/",
+    	"permanent": true
+    },
+    {
+    	"source": "/enterprise/workflow/ssh-approval-slack/",
+    	"destination": "/access-controls/access-request-plugins/ssh-approval-slack/",
+    	"permanent": true
+    },
+    {
+    	"source": "/enterprise/workflow/resource-requests/",
+    	"destination": "/access-controls/access-requests/resource-requests/",
+    	"permanent": true
+    },
+    {
+    	"source": "/enterprise/workflow/role-requests/",
+    	"destination": "/access-controls/access-requests/role-requests/",
+    	"permanent": true
     }
   ]
 }

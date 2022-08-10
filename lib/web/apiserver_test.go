@@ -2172,6 +2172,16 @@ func TestTokenGeneration(t *testing.T) {
 			err = json.Unmarshal(re.Bytes(), &responseToken)
 			require.NoError(t, err)
 
+			require.NotEmpty(t, responseToken.SuggestedLabels)
+			require.Condition(t, func() (success bool) {
+				for _, uiLabel := range responseToken.SuggestedLabels {
+					if uiLabel.Name == types.InternalResourceIDLabel && uiLabel.Value != "" {
+						return true
+					}
+				}
+				return false
+			})
+
 			// generated token roles should match the requested ones
 			generatedToken, err := proxy.auth.Auth().GetToken(context.Background(), responseToken.ID)
 			require.NoError(t, err)
@@ -3536,6 +3546,49 @@ func TestGetUserOrResetToken(t *testing.T) {
 
 	_, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "users", "password", "notToken", resetToken.GetName()), url.Values{})
 	require.True(t, trace.IsNotFound(err))
+}
+
+func TestListConnectionsDiagnostic(t *testing.T) {
+	ctx := context.Background()
+	username := "someuser"
+	diagName := "diag1"
+	roleROConnectionDiagnostics, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindConnectionDiagnostic,
+					[]string{types.VerbRead}),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	env := newWebPack(t, 1)
+	clusterName := env.server.ClusterName()
+	pack := env.proxies[0].authPack(t, username, []types.Role{roleROConnectionDiagnostics})
+
+	connectionsEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "diagnostics", "connections", diagName)
+
+	// No connection diagnostics so far, should return not found
+	_, err = pack.clt.Get(ctx, connectionsEndpoint, url.Values{})
+	require.True(t, trace.IsNotFound(err))
+
+	connectionDiagnostic, err := types.NewConnectionDiagnosticV1(diagName, map[string]string{}, types.ConnectionDiagnosticSpecV1{
+		Success: true,
+		Message: "success for cd0",
+	})
+	require.NoError(t, err)
+	require.NoError(t, env.server.Auth().CreateConnectionDiagnostic(ctx, connectionDiagnostic))
+
+	resp, err := pack.clt.Get(ctx, connectionsEndpoint, url.Values{})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+
+	var receivedConnectionDiagnostic ui.ConnectionDiagnostic
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &receivedConnectionDiagnostic))
+
+	require.True(t, receivedConnectionDiagnostic.Success)
+	require.Equal(t, receivedConnectionDiagnostic.ID, diagName)
+	require.Equal(t, receivedConnectionDiagnostic.Message, "success for cd0")
 }
 
 type authProviderMock struct {
