@@ -4548,7 +4548,7 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 		}
 
 		if !roles.IncludeAny(types.RoleAuth, types.RoleProxy) {
-			// If we get to here, we know it's an actual user streaming the session events so we want to emit an event.
+			// If we get to here, we know it's an actual user streaming the session events, so we want to emit an event.
 			if a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SessionRecordingAccess{
 				Metadata: apievents.Metadata{
 					Type: events.SessionRecordingAccessEvent,
