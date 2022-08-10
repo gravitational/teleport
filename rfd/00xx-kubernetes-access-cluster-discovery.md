@@ -257,12 +257,68 @@ If a cluster is deleted or no longer matches the discovery criteria, the credent
 
 With this method, Teleport does not install any agent in the cluster, but it requires that the Kubernetes API is accessible to the Teleport discovery. This means that if the operator wants to enroll clusters with private API endpoints, he must configure the Teleport discovery in a machine that has the ability to access the endpoint.
 
-
 ### Limitations
 
 Teleport will only provide access to API and will not enroll, automatically, databases or applications like Prometheus or Grafana that easily configured in a situation where Teleport Agent is installed into the cluster.
 
 The IAM mapping between Teleport IAM Role and Kubernetes roles is a complex and tedious process that must be done by the operator. Without it, Teleport cannot enroll the cluster. The AWS EKS team has a feature request to add an external API that allows configuring access to the cluster without manually editing the `configmap` that is on the cluster ([aws/containers-roadmap#185](https://github.com/aws/containers-roadmap/issues/185)).
+
+
+### Enroll clusters
+
+As described previously, Teleport requires access to the cluster. In AWS EKS, the access is granted by entries in `configmap/aws-auth`.
+Unless Teleport runs with cluster creator Role (mapped into `system:masters` RBAC), it cannot gain access to the cluster since AWS does not provide an API for managing external access.
+Without access via cluster creator's role, Teleport relies on manual action by the operator or to run snippets as cluster creator to configure the required RBAC permissions.
+
+There are several possibilities we can take into account, such as:
+
+#### Option 1: Run Teleport as `system:teleport`
+
+This process is the securest solution since it does not require any extra tooling like Lambda functions with high access level, neither it starts with `system:masters` and demotes itself.
+
+Although it is the securest way, for a myriad discoverable clusters, it might be hard to enroll them since it requires execution per cluster. `teleport kube configure` can simplify the process and reduce effort for existing clusters. For new clusters, the operator must change the cluster creation script/guide to configure the RBAC and map it to the Teleport IAM role (`kubectl apply` followed by `eksctl create iamidentitymapping`) or execute `teleport kube configure` after the cluster creation.
+
+#### Option 2: Run Teleport initially as `system:masters` instead of `system:teleport`
+
+Another possibility is for Teleport to start, temporarily, with `system:masters` Role, and before it enrolls the cluster, Teleport creates the `system:teleport` RBAC group and reconfigures the `aws-auth` configmap to grant `system:teleport` instead of `system:masters`. After changing the `configmap/aws-auth`, Teleport can't use `system:masters` permissions anymore.
+
+The `eksctl` project is adding a config field `iamidentitymappings` directly in the [cluster config](https://github.com/weaveworks/eksctl/pull/5464). This allows `eksctl` to create mappings between IAM and Kubernetes RBAC permissions during the cluster creation process. Terraform plugin [terraform-aws-eks
+](https://github.com/terraform-aws-modules/terraform-aws-eks) also provides similar functionality.
+
+To configure Teleport access as `system:masters` the operator needs to configure the `iamIdentityMappings` section in the `eksctl` config:
+
+```yaml
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: cluster
+  region: us-east-1
+
+iamIdentityMappings:
+  - arn: arn:aws:iam::222222222222:role/teleport-role
+    groups:
+      - system:masters
+    username: system:teleport
+    noDuplicateARNs: true 
+
+nodeGroups:
+  - name: ng-1
+    instanceType: m5.large
+    desiredCapacity: 1
+```
+
+With `system:masters` group access, Teleport Discovery Agent can install the RBAC and reduce its permissions by demoting itself to `system:teleport` before enrolling the cluster. This process avoids any manual action by the operator for new clusters because Teleport installs, configures, and demotes itself to the minimal required permissions. For existing clusters, `teleport kube configure` configures the IAM role mapping into `system:teleport`.
+
+#### Option 3: Using Lambda with cluster creator role to create Teleport's Role
+
+Another possibility is to use AWS Lambda functions to configure Teleport access to the cluster.
+This approach delegates the responsibility of managing the Lambda function to the operator and requires a code snippet to be created and shared with the operator.
+This code snippet receives the cluster name and AWS region and generates an IAM Auth token to access the cluster. After that, it creates the RBAC Role and Role Binding and assigns the Teleport IAM role to the `system:teleport` RBAC group.
+
+To be able to access the cluster, the Lambda function has to run with the same IAM role as the creator, or the `aws-auth` configmap must contain the mapping between Lamda IAM role into `system:masters`. Once Teleport discovers a new cluster, it invokes the Lambda function to create the RBAC and mapping (requires `lambda:InvokeFunction` IAM policy for Teleport) before it tries to enroll the cluster.
+
+If Lambda is running with the cluster creator's role, it requires that all clusters are created by the same IAM role, otherwise, it has no longer `system:masters` access level for that cluster.
 
 ### UX
 
@@ -340,7 +396,6 @@ The `kube configure` command also accepts the cloud and IAM role via flags: `--c
 After the command finishes, the discovery agent can enroll the affected clusters. 
 
 This command will not run as a daemon and is solely used to setup the requirements for discovery service to work for active EKS clusters. 
-For new clusters, the operator can either change the cluster creation script/guide to configure the RBAC and map it to the Teleport IAM role (`kubectl apply` followed by `eksctl create iamidentitymapping`) or run this command each time he creates a new cluster.
 
 ## Security
 
