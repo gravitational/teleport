@@ -5358,7 +5358,6 @@ trigger:
     include:
     - master
     - branch/*
-    - logan/teleport-buildbox-ecr
 workspace:
   path: /go/src/github.com/gravitational/teleport
 clone:
@@ -6472,6 +6471,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: ff1d0fb931341f66e3a78133d191d55df570f175fd1df0c9465074898602dc88
+hmac: 733409db7e7bf4d9fa981e163359c19d9157b4bdd4e80e5f3397cb94ff421219
 
 ...
