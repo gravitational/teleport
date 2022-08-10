@@ -4525,9 +4525,31 @@ func (a *ServerWithRoles) ReplaceRemoteLocks(ctx context.Context, clusterName st
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
 func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	if err := a.actionForKindSession(apidefaults.Namespace, types.VerbList, sessionID); err != nil {
-		c, e := make(chan apievents.AuditEvent), make(chan error, 1)
-		e <- trace.Wrap(err)
-		return c, e
+		return createErrorChannel[apievents.AuditEvent](err)
+	}
+
+	// emit a session recording view event for the audit log
+	user, err := a.GetCurrentUser(context.Background())
+	if err != nil {
+		return createErrorChannel[apievents.AuditEvent](err)
+	}
+
+	roles, err := types.NewTeleportRoles(user.GetRoles())
+	// StreamSessionEvents can be called internally, and when that happens we don't want to emit an event
+	// Checking the user's roles for either the Auth or Proxy role will indicate if it's an internal call
+	if !roles.IncludeAny(types.RoleAuth, types.RoleProxy) {
+		if a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SessionRecordingAccess{
+			Metadata: apievents.Metadata{
+				Type: events.SessionRecordingAccessEvent,
+				Code: events.SessionRecordingAccessCode,
+			},
+			SessionID: sessionID.String(),
+			UserMetadata: apievents.UserMetadata{
+				User: user.GetName(),
+			},
+		}); err != nil {
+			return createErrorChannel[apievents.AuditEvent](err)
+		}
 	}
 
 	return a.alog.StreamSessionEvents(ctx, sessionID, startIndex)
@@ -5113,4 +5135,12 @@ func verbsToReplaceResourceWithOrigin(stored types.ResourceWithOrigin) []string 
 		verbs = append(verbs, types.VerbCreate)
 	}
 	return verbs
+}
+
+// createErrorChannel takes an error and produces a channel of type T as well as an error channel
+// emitting a single error. This is useful for streaming handlers when they need to return an error.
+func createErrorChannel[T any](err error) (chan T, chan error) {
+	c, e := make(chan T), make(chan error, 1)
+	e <- trace.Wrap(err)
+	return c, e
 }
