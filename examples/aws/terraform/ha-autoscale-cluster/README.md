@@ -68,16 +68,16 @@ export TF_VAR_route53_domain="cluster.example.com"
 
 # Set to true to add a wildcard subdomain entry to point to the proxy, e.g. *.cluster.example.com
 # This is used to enable Teleport Application Access
-TF_VAR_add_wildcard_route53_record ?= true
+export TF_VAR_add_wildcard_route53_record="true"
 
 # Enable adding MongoDB listeners in Teleport proxy, load balancer ports and security groups
-TF_VAR_enable_mongodb_listener ?= true
+export TF_VAR_enable_mongodb_listener="true"
 
 # Enable adding MySQL listeners in Teleport proxy, load balancer ports and security groups
-TF_VAR_enable_mysql_listener ?= true
+export TF_VAR_enable_mysql_listener="true"
 
 # Enable adding Postgres listeners in Teleport proxy, load balancer ports and security groups
-TF_VAR_enable_postgres_listener ?= true
+export TF_VAR_enable_postgres_listener="true"
 
 # (optional) If using ACM, set an additional DNS alias which will be added pointing to the NLB. This can
 # be used with clients like kubectl which should target a DNS record. This will also add the DNS name to the
