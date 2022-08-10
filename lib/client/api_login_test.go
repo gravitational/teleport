@@ -462,7 +462,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg = service.MakeDefaultConfig()
 	cfg.DataDir = t.TempDir()
 	cfg.Hostname = "localhost"
-	cfg.Token = staticToken
+	cfg.SetToken(staticToken)
 	cfg.Clock = clock
 	cfg.Console = console
 	cfg.Log = logger
