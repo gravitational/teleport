@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/gravitational/teleport/api/utils"
@@ -83,7 +84,7 @@ type Database interface {
 	// GetType returns the database authentication type: self-hosted, RDS, Redshift or Cloud SQL.
 	GetType() string
 	// GetIAMPolicy returns AWS IAM policy for the database.
-	GetIAMPolicy() string
+	GetIAMPolicy() (string, error)
 	// GetIAMAction returns AWS IAM action needed to connect to the database.
 	GetIAMAction() string
 	// GetIAMResources returns AWS IAM resources that provide access to the database.
@@ -523,13 +524,15 @@ func parseAzureEndpoint(endpoint string) (name string, err error) {
 }
 
 // GetIAMPolicy returns AWS IAM policy for this database.
-func (d *DatabaseV3) GetIAMPolicy() string {
+func (d *DatabaseV3) GetIAMPolicy() (string, error) {
 	if d.IsRDS() {
-		return d.getRDSPolicy()
+		policy, err := d.getRDSPolicy()
+		return policy, trace.Wrap(err)
 	} else if d.IsRedshift() {
-		return d.getRedshiftPolicy()
+		policy, err := d.getRedshiftPolicy()
+		return policy, trace.Wrap(err)
 	}
-	return ""
+	return "", trace.BadParameter("GetIAMPolicy is not supported policy for database type %s", d.GetType())
 }
 
 // GetIAMAction returns AWS IAM action needed to connect to the database.
@@ -584,7 +587,7 @@ func (d *DatabaseV3) SetManagedUsers(users []string) {
 }
 
 // getRDSPolicy returns IAM policy document for this RDS database.
-func (d *DatabaseV3) getRDSPolicy() string {
+func (d *DatabaseV3) getRDSPolicy() (string, error) {
 	region := d.GetAWS().Region
 	if region == "" {
 		region = "<region>"
@@ -597,12 +600,22 @@ func (d *DatabaseV3) getRDSPolicy() string {
 	if resourceID == "" {
 		resourceID = "<resource_id>"
 	}
-	return fmt.Sprintf(rdsPolicyTemplate,
-		awsutils.GetPartitionFromRegion(region), region, accountID, resourceID)
+
+	var sb strings.Builder
+	err := rdsPolicyTemplate.Execute(&sb, arnTemplateInput{
+		Partition:  awsutils.GetPartitionFromRegion(region),
+		Region:     region,
+		AccountID:  accountID,
+		ResourceID: resourceID,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return sb.String(), nil
 }
 
 // getRedshiftPolicy returns IAM policy document for this Redshift database.
-func (d *DatabaseV3) getRedshiftPolicy() string {
+func (d *DatabaseV3) getRedshiftPolicy() (string, error) {
 	region := d.GetAWS().Region
 	if region == "" {
 		region = "<region>"
@@ -615,8 +628,18 @@ func (d *DatabaseV3) getRedshiftPolicy() string {
 	if clusterID == "" {
 		clusterID = "<cluster_id>"
 	}
-	return fmt.Sprintf(redshiftPolicyTemplate,
-		awsutils.GetPartitionFromRegion(region), region, accountID, clusterID)
+
+	var sb strings.Builder
+	err := redshiftPolicyTemplate.Execute(&sb, arnTemplateInput{
+		Partition:  awsutils.GetPartitionFromRegion(region),
+		Region:     region,
+		AccountID:  accountID,
+		ResourceID: clusterID,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return sb.String(), nil
 }
 
 const (
@@ -683,31 +706,35 @@ const (
 	AzureEndpointSuffix = ".database.azure.com"
 )
 
+type arnTemplateInput struct {
+	Partition, Region, AccountID, ResourceID string
+}
+
 var (
 	// rdsPolicyTemplate is the IAM policy template for RDS databases access.
-	rdsPolicyTemplate = `{
+	rdsPolicyTemplate = template.Must(template.New("").Parse(`{
   "Version": "2012-10-17",
   "Statement": [
     {
       "Effect": "Allow",
       "Action": "rds-db:connect",
-      "Resource": "arn:%v:rds-db:%v:%v:dbuser:%v/*"
+      "Resource": "arn:{{.Partition}}:rds-db:{{.Region}}:{{.AccountID}}:dbuser:{{.ResourceID}}/*"
     }
   ]
-}`
+}`))
 	// redshiftPolicyTemplate is the IAM policy template for Redshift databases access.
-	redshiftPolicyTemplate = `{
+	redshiftPolicyTemplate = template.Must(template.New("").Parse(`{
   "Version": "2012-10-17",
   "Statement": [
     {
       "Effect": "Allow",
       "Action": "redshift:GetClusterCredentials",
       "Resource": [
-        "arn:%[1]v:redshift:%[2]v:%[3]v:dbuser:%[4]v/*",
-        "arn:%[1]v:redshift:%[2]v:%[3]v:dbname:%[4]v/*",
-        "arn:%[1]v:redshift:%[2]v:%[3]v:dbgroup:%[4]v/*"
+        "arn:{{.Partition}}:redshift:{{.Region}}:{{.AccountID}}:dbuser:{{.ResourceID}}/*",
+        "arn:{{.Partition}}:redshift:{{.Region}}:{{.AccountID}}:dbname:{{.ResourceID}}/*",
+        "arn:{{.Partition}}:redshift:{{.Region}}:{{.AccountID}}:dbgroup:{{.ResourceID}}/*"
       ]
     }
   ]
-}`
+}`))
 )
