@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -194,8 +195,11 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 	clientParams := append(
 		[]roundtrip.ClientParam{
 			roundtrip.HTTPClient(&http.Client{
-				Timeout:   defaults.HTTPRequestTimeout,
-				Transport: otelhttp.NewTransport(breaker.NewRoundTripper(cb, transport)),
+				Timeout: defaults.HTTPRequestTimeout,
+				Transport: otelhttp.NewTransport(
+					breaker.NewRoundTripper(cb, transport),
+					otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
+				),
 			}),
 			roundtrip.SanitizerEnabled(true),
 		},

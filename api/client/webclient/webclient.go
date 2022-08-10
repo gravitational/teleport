@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
@@ -94,8 +95,11 @@ func newWebClient(cfg *Config) (*http.Client, error) {
 		},
 	}
 	return &http.Client{
-		Transport: otelhttp.NewTransport(proxy.NewHTTPFallbackRoundTripper(&transport, cfg.Insecure)),
-		Timeout:   cfg.Timeout,
+		Transport: otelhttp.NewTransport(
+			proxy.NewHTTPFallbackRoundTripper(&transport, cfg.Insecure),
+			otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
+		),
+		Timeout: cfg.Timeout,
 	}, nil
 }
 
