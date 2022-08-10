@@ -80,6 +80,7 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.SFTP_SYMLINK]: Icons.FolderPlus,
   [eventCodes.APP_SESSION_CHUNK]: Icons.Info,
   [eventCodes.APP_SESSION_START]: Icons.Info,
+  [eventCodes.APP_SESSION_END]: Icons.Info,
   [eventCodes.SESSION_END]: Icons.Cli,
   [eventCodes.SESSION_JOIN]: Icons.Cli,
   [eventCodes.SESSION_LEAVE]: Icons.Cli,

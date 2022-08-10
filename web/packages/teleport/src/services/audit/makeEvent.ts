@@ -479,22 +479,27 @@ export const formatters: Formatters = {
     type: 'app.session.start',
     desc: 'App Session Started',
     format: event => {
-      const { user, sid, aws_role_arn } = event;
+      const { user, app_name, aws_role_arn } = event;
       if (aws_role_arn) {
-        return `User [${user}] has started an AWS app session [${sid}]`;
+        return `User [${user}] has connected to AWS console [${app_name}]`;
       }
-      return `User [${user}] has started an app session [${sid}]`;
+      return `User [${user}] has connected to application [${app_name}]`;
+    },
+  },
+  [eventCodes.APP_SESSION_END]: {
+    type: 'app.session.end',
+    desc: 'App Session Ended',
+    format: event => {
+      const { user, app_name } = event;
+      return `User [${user}] has disconnected from application [${app_name}]`;
     },
   },
   [eventCodes.APP_SESSION_CHUNK]: {
     type: 'app.session.chunk',
     desc: 'App Session Data',
     format: event => {
-      const { sid, aws_role_arn } = event;
-      if (aws_role_arn) {
-        return `New AWS app session data created [${sid}]`;
-      }
-      return `New app session data created [${sid}]`;
+      const { user, app_name } = event;
+      return `New session data chunk created for application [${app_name}] accessed by user [${user}]`;
     },
   },
   [eventCodes.SUBSYSTEM]: {

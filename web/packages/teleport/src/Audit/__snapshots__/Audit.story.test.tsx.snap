@@ -363,7 +363,7 @@ exports[`list of all events 1`] = `
            of
            
           <strong>
-            124
+            125
           </strong>
         </div>
         <button
@@ -433,6 +433,43 @@ exports[`list of all events 1`] = `
       </tr>
     </thead>
     <tbody>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            App Session Ended
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [alice] has disconnected from application [ponger]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-08-10T19:54:40.444Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
       <tr>
         <td
           style="vertical-align: inherit;"
@@ -2604,7 +2641,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          New AWS app session data created [6593cf87-9839-4f18-abf8-c54873aaeb4e]
+          New session data chunk created for application [aws-console] accessed by user [alice]
         </td>
         <td
           style="min-width: 120px;"
@@ -2641,7 +2678,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [STeve] has started an AWS app session [6593cf87-9839-4f18-abf8-c54873aaeb4e]
+          User [STeve] has connected to AWS console [aws-console]
         </td>
         <td
           style="min-width: 120px;"
@@ -2715,7 +2752,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          New app session data created [6593cf87-9839-4f18-abf8-c54873aaeb4e]
+          New session data chunk created for application [test] accessed by user [alice]
         </td>
         <td
           style="min-width: 120px;"
@@ -2752,7 +2789,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [kimlisa] has started an app session [6593cf87-9839-4f18-abf8-c54873aaeb4e]
+          User [kimlisa] has connected to application [test]
         </td>
         <td
           style="min-width: 120px;"
@@ -4085,43 +4122,6 @@ exports[`list of all events 1`] = `
           style="word-break: break-word;"
         >
           User [root] changed attributes of file [/tmp/file] on node [[::1]:3022]
-        </td>
-        <td
-          style="min-width: 120px;"
-        >
-          2019-04-22T19:41:23Z
-        </td>
-        <td
-          align="right"
-        >
-          <button
-            class="c16"
-            kind="border"
-            width="87px"
-          >
-            Details
-          </button>
-        </td>
-      </tr>
-      <tr>
-        <td
-          style="vertical-align: inherit;"
-        >
-          <div
-            class="c14"
-          >
-            <span
-              class="c10 c15 icon icon-folder-plus c10 c15"
-              color="light"
-              font-size="3"
-            />
-            SFTP Setstat Failed
-          </div>
-        </td>
-        <td
-          style="word-break: break-word;"
-        >
-          User [root] failed to change attributes of file [/tmp/file] on node [[::1]:3022]: [EOF]
         </td>
         <td
           style="min-width: 120px;"
