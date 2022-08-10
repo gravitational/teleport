@@ -47,6 +47,7 @@ export const eventCodes = {
   ACCESS_REQUEST_RESOURCE_SEARCH: 'T5004I',
   APP_SESSION_CHUNK: 'T2008I',
   APP_SESSION_START: 'T2007I',
+  APP_SESSION_END: 'T2011I',
   AUTH_ATTEMPT_FAILURE: 'T3007W',
   BILLING_INFORMATION_UPDATE: 'TBL03I',
   BILLING_CARD_CREATE: 'TBL00I',
@@ -321,6 +322,14 @@ export type RawEvents = {
     {
       sid: string;
       aws_role_arn: string;
+      app_name: string;
+    }
+  >;
+  [eventCodes.APP_SESSION_END]: RawEvent<
+    typeof eventCodes.APP_SESSION_END,
+    {
+      sid: string;
+      app_name: string;
     }
   >;
   [eventCodes.APP_SESSION_CHUNK]: RawEvent<
@@ -328,6 +337,7 @@ export type RawEvents = {
     {
       sid: string;
       aws_role_arn: string;
+      app_name: string;
     }
   >;
   [eventCodes.SUBSYSTEM]: RawEvent<
