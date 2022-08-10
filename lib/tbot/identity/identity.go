@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/tbot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -40,8 +40,8 @@ const (
 	// TLSCertKey is the name under which TLS certificates exist in a destination.
 	TLSCertKey = "tlscert"
 
-	// TLSCertKey is the name under which SSH certificates exist in a destination.
-	SSHCertKey = "sshcert"
+	// SSHCertKey is the name under which SSH certificates exist in a destination.
+	SSHCertKey = "key-cert.pub"
 
 	// SSHCACertsKey is the name under which SSH CA certificates exist in a destination.
 	SSHCACertsKey = "sshcacerts"
@@ -365,7 +365,7 @@ func ReadSSHIdentityFromKeyPair(identity *Identity, keyBytes, publicKeyBytes, ce
 
 	clusterName := cert.Permissions.Extensions[teleport.CertExtensionTeleportRouteToCluster]
 	if clusterName == "" {
-		return trace.BadParameter("missing cert extension %v", utils.CertExtensionAuthority)
+		return trace.BadParameter("missing cert extension %v", teleport.CertExtensionTeleportRouteToCluster)
 	}
 
 	identity.ClusterName = clusterName
@@ -381,7 +381,7 @@ func ReadSSHIdentityFromKeyPair(identity *Identity, keyBytes, publicKeyBytes, ce
 // VerifyWrite attempts to write to the .write-test artifact inside the given
 // destination. It should be called before attempting a renewal to help ensure
 // we won't then fail to save the identity.
-func VerifyWrite(dest destination.Destination) error {
+func VerifyWrite(dest bot.Destination) error {
 	return trace.Wrap(dest.Write(WriteTestKey, []byte{}))
 }
 
@@ -401,7 +401,7 @@ func ListKeys(kinds ...ArtifactKind) []string {
 }
 
 // SaveIdentity saves a bot identity to a destination.
-func SaveIdentity(id *Identity, d destination.Destination, kinds ...ArtifactKind) error {
+func SaveIdentity(id *Identity, d bot.Destination, kinds ...ArtifactKind) error {
 	for _, artifact := range GetArtifacts() {
 		// Only store artifacts matching one of the set kinds.
 		if !artifact.Matches(kinds...) {
@@ -412,7 +412,7 @@ func SaveIdentity(id *Identity, d destination.Destination, kinds ...ArtifactKind
 
 		log.Debugf("Writing %s", artifact.Key)
 		if err := d.Write(artifact.Key, data); err != nil {
-			return trace.WrapWithMessage(err, "could not write to %v", artifact.Key)
+			return trace.Wrap(err, "could not write to %v", artifact.Key)
 		}
 	}
 
@@ -420,7 +420,7 @@ func SaveIdentity(id *Identity, d destination.Destination, kinds ...ArtifactKind
 }
 
 // LoadIdentity loads a bot identity from a destination.
-func LoadIdentity(d destination.Destination, kinds ...ArtifactKind) (*Identity, error) {
+func LoadIdentity(d bot.Destination, kinds ...ArtifactKind) (*Identity, error) {
 	var certs proto.Certs
 	var params LoadIdentityParams
 
@@ -432,7 +432,28 @@ func LoadIdentity(d destination.Destination, kinds ...ArtifactKind) (*Identity, 
 
 		data, err := d.Read(artifact.Key)
 		if err != nil {
-			return nil, trace.WrapWithMessage(err, "could not read artifact %q from destination %s", artifact.Key, d)
+			return nil, trace.Wrap(err, "could not read artifact %q from destination %s", artifact.Key, d)
+		}
+
+		// Attempt to load from an old key if there was no data in the current
+		// key. This will be in the case as d.Read for the file destination will
+		// not throw an error if the file does not exist.
+		// This allows migrations of key names.
+		if artifact.OldKey != "" && len(data) == 0 {
+			log.Debugf(
+				"Unable to load from current key %q, trying to migrate from old key %q",
+				artifact.Key,
+				artifact.OldKey,
+			)
+			data, err = d.Read(artifact.OldKey)
+			if err != nil {
+				return nil, trace.Wrap(
+					err,
+					"could not read artifact %q from destination %q",
+					artifact.OldKey,
+					d,
+				)
+			}
 		}
 
 		// We generally expect artifacts to exist beforehand regardless of

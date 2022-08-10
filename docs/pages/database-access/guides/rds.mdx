@@ -38,8 +38,6 @@ This guide will help you to:
 
 (!docs/pages/includes/user-client-prereqs.mdx!)
 
-(!docs/pages/includes/tctl.mdx!)
-
 ## Step 1/7. Install Teleport
 
 (!docs/pages/includes/database-access/start-auth-proxy.mdx!)
@@ -69,7 +67,7 @@ $ teleport db configure create \
 ```
 
 </ScopedBlock>
-<ScopedBlock scope={["oss", "enterprise"]}>
+<ScopedBlock scope={["cloud"]}>
 
 ```code
 $ teleport db configure create \
@@ -189,27 +187,17 @@ $ tsh db ls
   `<cluster-id>-custom-<endpoint-name>` respectively.
 </Admonition>
 
-Log in to particular database using `tsh db login` command:
+To retrieve credentials for a database and connect to it:
 
 ```code
-$ tsh db login postgres-rds
+$ tsh db connect postgres-rds
 ```
-
-<Admonition type="tip" title="Tip">
-  You can be logged in to multiple databases simultaneously.
-</Admonition>
 
 You can optionally specify the database name and the user to use by default
 when connecting to the database instance:
 
 ```code
-$ tsh db login --db-user=postgres --db-name=postgres postgres-rds
-```
-
-Now connect to the database:
-
-```code
-$ tsh db connect postgres-rds
+$ tsh db connect --db-user=postgres --db-name=postgres postgres-rds
 ```
 
 <Admonition type="note" title="Note">

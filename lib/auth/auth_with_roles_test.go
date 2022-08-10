@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
@@ -1275,7 +1276,7 @@ func TestGenerateDatabaseCert(t *testing.T) {
 
 			_, err = client.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{CSR: csr})
 			if test.err != "" {
-				require.EqualError(t, err, test.err)
+				require.ErrorContains(t, err, test.err)
 			} else {
 				require.NoError(t, err)
 			}
@@ -2601,6 +2602,132 @@ func TestGetAndList_KubeServices(t *testing.T) {
 	require.Empty(t, cmp.Diff(testResources, resp.Resources))
 }
 
+func TestGetAndList_KubernetesServers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create test kube servers.
+	for i := 0; i < 5; i++ {
+		// insert legacy kube servers
+		name := uuid.NewString()
+		cluster, err := types.NewKubernetesClusterV3(
+			types.Metadata{
+				Name: name, Labels: map[string]string{"name": name},
+			},
+			types.KubernetesClusterSpecV3{},
+		)
+		require.NoError(t, err)
+
+		kubeServer, err := types.NewKubernetesServerV3(
+			types.Metadata{
+				Name: name, Labels: map[string]string{"name": name},
+			},
+
+			types.KubernetesServerSpecV3{
+				HostID:   name,
+				Hostname: "test",
+				Cluster:  cluster,
+			},
+		)
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertKubernetesServer(ctx, kubeServer)
+		require.NoError(t, err)
+	}
+
+	testServers, err := srv.Auth().GetKubernetesServers(ctx)
+	require.NoError(t, err)
+	require.Len(t, testServers, 5)
+
+	testResources := make([]types.ResourceWithLabels, len(testServers))
+	for i, server := range testServers {
+		testResources[i] = server
+	}
+
+	// create user, role, and client
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	listRequest := proto.ListResourcesRequest{
+		Namespace: defaults.Namespace,
+		// Guarantee that the list will all the servers.
+		Limit:        int32(len(testServers) + 1),
+		ResourceType: types.KindKubeServer,
+	}
+
+	// permit user to get all kubernetes service
+	role.SetKubernetesLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err := clt.GetKubernetesServers(ctx)
+	require.NoError(t, err)
+	require.Len(t, testServers, len(testServers))
+	require.Empty(t, cmp.Diff(testServers, servers))
+	resp, err := clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, len(testResources))
+	require.Empty(t, cmp.Diff(testResources, resp.Resources))
+
+	// Test various filtering.
+	baseRequest := proto.ListResourcesRequest{
+		Namespace:    defaults.Namespace,
+		Limit:        int32(len(testServers) + 1),
+		ResourceType: types.KindKubeServer,
+	}
+
+	// Test label match.
+	withLabels := baseRequest
+	withLabels.Labels = map[string]string{"name": testServers[0].GetName()}
+	resp, err = clt.ListResources(ctx, withLabels)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
+
+	// Test search keywords match.
+	withSearchKeywords := baseRequest
+	withSearchKeywords.SearchKeywords = []string{"name", testServers[0].GetName()}
+	resp, err = clt.ListResources(ctx, withSearchKeywords)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
+
+	// Test expression match.
+	withExpression := baseRequest
+	withExpression.PredicateExpression = fmt.Sprintf(`labels.name == "%s"`, testServers[0].GetName())
+	resp, err = clt.ListResources(ctx, withExpression)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
+
+	// deny user to get the first kubernetes service
+	role.SetKubernetesLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetKubernetesServers(ctx)
+	require.NoError(t, err)
+	require.Len(t, servers, len(testServers)-1)
+	require.Empty(t, cmp.Diff(testServers[1:], servers))
+	resp, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, len(testResources)-1)
+	require.Empty(t, cmp.Diff(testResources[1:], resp.Resources))
+
+	// deny user to get all databases
+	role.SetKubernetesLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetKubernetesServers(ctx)
+	require.NoError(t, err)
+	require.Len(t, servers, 0)
+	require.Empty(t, cmp.Diff(testServers[:0], servers))
+	resp, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 0)
+	require.Empty(t, cmp.Diff(testResources[:0], resp.Resources))
+}
+
 func TestListResources_NeedTotalCountFlag(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -3242,6 +3369,207 @@ func TestListResources_SortAndDeduplicate(t *testing.T) {
 			require.NoError(t, extractedErr)
 			require.ElementsMatch(t, uniqueNames, extractedNames)
 			require.IsDecreasing(t, extractedNames)
+		})
+	}
+}
+
+func TestListResources_WithRoles(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	const nodePerPool = 3
+
+	// inserts a pool nodes with different labels
+	insertNodes := func(ctx context.Context, t *testing.T, srv *Server, nodeCount int, labels map[string]string) {
+		for i := 0; i < nodeCount; i++ {
+			name := uuid.NewString()
+			addr := fmt.Sprintf("node-%s.example.com", name)
+
+			node := &types.ServerV2{
+				Kind:    types.KindNode,
+				Version: types.V2,
+				Metadata: types.Metadata{
+					Name:      name,
+					Namespace: defaults.Namespace,
+					Labels:    labels,
+				},
+				Spec: types.ServerSpecV2{
+					Addr:       addr,
+					PublicAddr: addr,
+				},
+			}
+
+			_, err := srv.UpsertNode(ctx, node)
+			require.NoError(t, err)
+		}
+	}
+
+	// creates roles that deny the given labels
+	createRole := func(ctx context.Context, t *testing.T, srv *Server, name string, labels map[string]apiutils.Strings) {
+		role, err := types.NewRoleV3(name, types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Logins: []string{"root"},
+				NodeLabels: types.Labels{
+					"*": []string{types.Wildcard},
+				},
+			},
+			Deny: types.RoleConditions{
+				NodeLabels: labels,
+			},
+		})
+		require.NoError(t, err)
+		err = srv.UpsertRole(ctx, role)
+		require.NoError(t, err)
+	}
+
+	// the pool from which nodes and roles are created from
+	pool := map[string]struct {
+		denied map[string]apiutils.Strings
+		labels map[string]string
+	}{
+		"other": {
+			denied: nil,
+			labels: map[string]string{
+				"other": "123",
+			},
+		},
+		"a": {
+			denied: map[string]apiutils.Strings{
+				"pool": {"a"},
+			},
+			labels: map[string]string{
+				"pool": "a",
+			},
+		},
+		"b": {
+			denied: map[string]apiutils.Strings{
+				"pool": {"b"},
+			},
+			labels: map[string]string{
+				"pool": "b",
+			},
+		},
+		"c": {
+			denied: map[string]apiutils.Strings{
+				"pool": {"c"},
+			},
+			labels: map[string]string{
+				"pool": "c",
+			},
+		},
+		"d": {
+			denied: map[string]apiutils.Strings{
+				"pool": {"d"},
+			},
+			labels: map[string]string{
+				"pool": "d",
+			},
+		},
+		"e": {
+			denied: map[string]apiutils.Strings{
+				"pool": {"e"},
+			},
+			labels: map[string]string{
+				"pool": "e",
+			},
+		},
+	}
+
+	// create the nodes and role
+	for name, data := range pool {
+		insertNodes(ctx, t, srv.Auth(), nodePerPool, data.labels)
+		createRole(ctx, t, srv.Auth(), name, data.denied)
+	}
+
+	nodeCount := len(pool) * nodePerPool
+
+	cases := []struct {
+		name     string
+		roles    []string
+		expected int
+	}{
+		{
+			name:     "all allowed",
+			roles:    []string{"other"},
+			expected: nodeCount,
+		},
+		{
+			name:     "role a",
+			roles:    []string{"a"},
+			expected: nodeCount - nodePerPool,
+		},
+		{
+			name:     "role a,b",
+			roles:    []string{"a", "b"},
+			expected: nodeCount - (2 * nodePerPool),
+		},
+		{
+			name:     "role a,b,c",
+			roles:    []string{"a", "b", "c"},
+			expected: nodeCount - (3 * nodePerPool),
+		},
+		{
+			name:     "role a,b,c,d",
+			roles:    []string{"a", "b", "c", "d"},
+			expected: nodeCount - (4 * nodePerPool),
+		},
+		{
+			name:     "role a,b,c,d,e",
+			roles:    []string{"a", "b", "c", "d", "e"},
+			expected: nodeCount - (5 * nodePerPool),
+		},
+	}
+
+	// ensure that a user can see the correct number of resources for their role(s)
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			user, err := types.NewUser(uuid.NewString())
+			require.NoError(t, err)
+
+			for _, role := range tt.roles {
+				user.AddRole(role)
+			}
+
+			err = srv.Auth().UpsertUser(user)
+			require.NoError(t, err)
+
+			for _, needTotal := range []bool{true, false} {
+				total := needTotal
+				t.Run(fmt.Sprintf("needTotal=%t", total), func(t *testing.T) {
+					t.Parallel()
+
+					clt, err := srv.NewClient(TestUser(user.GetName()))
+					require.NoError(t, err)
+
+					var resp *types.ListResourcesResponse
+					var nodes []types.ResourceWithLabels
+					for {
+						key := ""
+						if resp != nil {
+							key = resp.NextKey
+						}
+
+						resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+							ResourceType:   types.KindNode,
+							StartKey:       key,
+							Limit:          nodePerPool,
+							NeedTotalCount: total,
+						})
+						require.NoError(t, err)
+
+						nodes = append(nodes, resp.Resources...)
+
+						if resp.NextKey == "" {
+							break
+						}
+					}
+
+					require.Len(t, nodes, tt.expected)
+				})
+			}
 		})
 	}
 }

@@ -20,6 +20,8 @@ We have split this guide into:
 - [GCP Teleport Introduction](#gcp-teleport-introduction)
 - [GCP Quickstart](#gcp-quickstart)
 
+(!docs/pages/includes/cloud/call-to-action.mdx!)
+
 ## Teleport on GCP FAQ
 
 ### Why would you want to use Teleport with GCP?
@@ -207,14 +209,14 @@ proxy_service:
     email: example@email.com
 ```
 
-**3. Setup Teleport Nodes**
+**3. Set up Teleport Nodes**
 
-Save the following configuration file as `/etc/teleport.yaml` on the node:
+Save the following configuration file as `/etc/teleport.yaml` on the Node:
 
 ```yaml
 teleport:
   auth_token: EXAMPLE-NODE-JOIN-TOKEN
-  # Nodes and other agents can be joined to the cluster via the proxy's public adress.
+  # Nodes and other agents can be joined to the cluster via the proxy's public address.
   # This will establish a reverse tunnel between the proxy and the node which is used for all traffic.
   auth_servers: [ "teleport.example.com:443" ]
 # enable ssh service and disable auth and proxy

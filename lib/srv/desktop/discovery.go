@@ -17,6 +17,7 @@ package desktop
 import (
 	"context"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
@@ -214,6 +215,23 @@ func (s *WindowsService) applyLabelsFromLDAP(entry *ldap.Entry, labels map[strin
 	}
 }
 
+// lookupDesktop does a DNS lookup for the provided hostname.
+// It checks using the default system resolver first, and falls
+// back to making a DNS query of the configured LDAP server
+// if the system resolver fails.
+func (s *WindowsService) lookupDesktop(ctx context.Context, hostname string) (addrs []string, err error) {
+	tctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	addrs, err = net.DefaultResolver.LookupHost(tctx, hostname)
+	if err == nil && len(addrs) > 0 {
+		return addrs, nil
+	}
+
+	s.cfg.Log.WithError(err).Debugf("DNS lookup for %v failed, falling back to LDAP server", hostname)
+	return s.dnsResolver.LookupHost(ctx, hostname)
+}
+
 // ldapEntryToWindowsDesktop generates the Windows Desktop resource
 // from an LDAP search result
 func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *ldap.Entry, getHostLabels func(string) map[string]string) (types.ResourceWithLabels, error) {
@@ -222,7 +240,7 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *l
 	labels[types.TeleportNamespace+"/windows_domain"] = s.cfg.Domain
 	s.applyLabelsFromLDAP(entry, labels)
 
-	addrs, err := s.dnsResolver.LookupHost(ctx, hostname)
+	addrs, err := s.lookupDesktop(ctx, hostname)
 	if err != nil || len(addrs) == 0 {
 		return nil, trace.WrapWithMessage(err, "couldn't resolve %q", hostname)
 	}

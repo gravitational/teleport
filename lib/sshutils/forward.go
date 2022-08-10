@@ -24,12 +24,12 @@ import (
 // RequestForwarder represents a resource capable of sending
 // an ssh request such as an ssh.Channel or ssh.Session.
 type RequestForwarder interface {
-	SendRequest(name string, wantReply bool, payload []byte) (bool, error)
+	SendRequest(ctx context.Context, name string, wantReply bool, payload []byte) (bool, error)
 }
 
 // ForwardRequest is a helper for forwarding a request across a session or channel.
-func ForwardRequest(sender RequestForwarder, req *ssh.Request) (bool, error) {
-	reply, err := sender.SendRequest(req.Type, req.WantReply, req.Payload)
+func ForwardRequest(ctx context.Context, sender RequestForwarder, req *ssh.Request) (bool, error) {
+	reply, err := sender.SendRequest(ctx, req.Type, req.WantReply, req.Payload)
 	if err != nil || !req.WantReply {
 		return reply, trace.Wrap(err)
 	}
@@ -48,7 +48,7 @@ func ForwardRequests(ctx context.Context, sin <-chan *ssh.Request, sender Reques
 			}
 			switch sreq.Type {
 			case WindowChangeRequest:
-				if _, err := ForwardRequest(sender, sreq); err != nil {
+				if _, err := ForwardRequest(ctx, sender, sreq); err != nil {
 					return trace.Wrap(err)
 				}
 			default:

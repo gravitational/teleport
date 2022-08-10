@@ -92,7 +92,7 @@ func TestDatabaseAccess(t *testing.T) {
 // TestDatabaseAccessSeparateListeners tests the Mongo and Postgres separate port setup.
 func TestDatabaseAccessSeparateListeners(t *testing.T) {
 	pack := setupDatabaseTest(t,
-		withPortSetupDatabaseTest(helpers.SeparateMongoAndPostgresPortSetup),
+		withListenerSetupDatabaseTest(helpers.SeparateMongoAndPostgresPortSetup),
 	)
 
 	t.Run("PostgresSeparateListener", pack.testPostgresSeparateListener)
@@ -106,7 +106,7 @@ func (p *databasePack) testPostgresRootCluster(t *testing.T) {
 	client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
 		AuthClient: p.root.cluster.GetSiteAPI(p.root.cluster.Secrets.SiteName),
 		AuthServer: p.root.cluster.Process.GetAuthServer(),
-		Address:    net.JoinHostPort(Loopback, p.root.cluster.GetPortWeb()),
+		Address:    p.root.cluster.Web,
 		Cluster:    p.root.cluster.Secrets.SiteName,
 		Username:   p.root.user.GetName(),
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -140,7 +140,7 @@ func (p *databasePack) testPostgresLeafCluster(t *testing.T) {
 	client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
 		AuthClient: p.root.cluster.GetSiteAPI(p.root.cluster.Secrets.SiteName),
 		AuthServer: p.root.cluster.Process.GetAuthServer(),
-		Address:    net.JoinHostPort(Loopback, p.root.cluster.GetPortWeb()), // Connecting via root cluster.
+		Address:    p.root.cluster.Web, // Connecting via root cluster.
 		Cluster:    p.leaf.cluster.Secrets.SiteName,
 		Username:   p.root.user.GetName(),
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -193,18 +193,14 @@ func (p *databasePack) testRotateTrustedCluster(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 
-	rotationPhases := []string{types.RotationPhaseInit, types.RotationPhaseUpdateClients,
-		types.RotationPhaseUpdateServers, types.RotationPhaseStandby}
+	rotationPhases := []string{
+		types.RotationPhaseInit, types.RotationPhaseUpdateClients,
+		types.RotationPhaseUpdateServers, types.RotationPhaseStandby,
+	}
 
 	waitForEvent := func(process *service.TeleportProcess, event string) {
-		eventC := make(chan service.Event, 1)
-		process.WaitForEvent(context.TODO(), event, eventC)
-		select {
-		case <-eventC:
-
-		case <-time.After(20 * time.Second):
-			t.Fatalf("timeout waiting for service to broadcast event %s", event)
-		}
+		_, err := process.WaitForEventTimeout(20*time.Second, event)
+		require.NoError(t, err, "timeout waiting for service to broadcast event %s", event)
 	}
 
 	for _, phase := range rotationPhases {
@@ -259,7 +255,7 @@ func (p *databasePack) testRotateTrustedCluster(t *testing.T) {
 	dbClient, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
 		AuthClient: p.root.cluster.GetSiteAPI(p.root.cluster.Secrets.SiteName),
 		AuthServer: p.root.cluster.Process.GetAuthServer(),
-		Address:    net.JoinHostPort(Loopback, p.root.cluster.GetPortWeb()), // Connecting via root cluster.
+		Address:    p.root.cluster.Web, // Connecting via root cluster.
 		Cluster:    p.leaf.cluster.Secrets.SiteName,
 		Username:   p.root.user.GetName(),
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -356,7 +352,7 @@ func (p *databasePack) testMySQLRootCluster(t *testing.T) {
 	client, err := mysql.MakeTestClient(common.TestClientConfig{
 		AuthClient: p.root.cluster.GetSiteAPI(p.root.cluster.Secrets.SiteName),
 		AuthServer: p.root.cluster.Process.GetAuthServer(),
-		Address:    net.JoinHostPort(Loopback, p.root.cluster.GetPortMySQL()),
+		Address:    p.root.cluster.MySQL,
 		Cluster:    p.root.cluster.Secrets.SiteName,
 		Username:   p.root.user.GetName(),
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -381,7 +377,6 @@ func (p *databasePack) testMySQLRootCluster(t *testing.T) {
 	// Disconnect.
 	err = client.Close()
 	require.NoError(t, err)
-
 }
 
 // testMySQLLeafCluster tests a scenario where a user connects
@@ -391,7 +386,7 @@ func (p *databasePack) testMySQLLeafCluster(t *testing.T) {
 	client, err := mysql.MakeTestClient(common.TestClientConfig{
 		AuthClient: p.root.cluster.GetSiteAPI(p.root.cluster.Secrets.SiteName),
 		AuthServer: p.root.cluster.Process.GetAuthServer(),
-		Address:    net.JoinHostPort(Loopback, p.root.cluster.GetPortMySQL()), // Connecting via root cluster.
+		Address:    p.root.cluster.MySQL, // Connecting via root cluster.
 		Cluster:    p.leaf.cluster.Secrets.SiteName,
 		Username:   p.root.user.GetName(),
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -425,7 +420,7 @@ func (p *databasePack) testMongoRootCluster(t *testing.T) {
 	client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
 		AuthClient: p.root.cluster.GetSiteAPI(p.root.cluster.Secrets.SiteName),
 		AuthServer: p.root.cluster.Process.GetAuthServer(),
-		Address:    net.JoinHostPort(Loopback, p.root.cluster.GetPortWeb()),
+		Address:    p.root.cluster.Web,
 		Cluster:    p.root.cluster.Secrets.SiteName,
 		Username:   p.root.user.GetName(),
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -453,7 +448,7 @@ func (p *databasePack) testMongoConnectionCount(t *testing.T) {
 		client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
 			AuthClient: p.root.cluster.GetSiteAPI(p.root.cluster.Secrets.SiteName),
 			AuthServer: p.root.cluster.Process.GetAuthServer(),
-			Address:    net.JoinHostPort(Loopback, p.root.cluster.GetPortWeb()),
+			Address:    p.root.cluster.Web,
 			Cluster:    p.root.cluster.Secrets.SiteName,
 			Username:   p.root.user.GetName(),
 			RouteToDatabase: tlsca.RouteToDatabase{
@@ -493,7 +488,7 @@ func (p *databasePack) testMongoConnectionCount(t *testing.T) {
 	// Wait until the server reports no more connections. This usually happens
 	// really quick but wait a little longer just in case.
 	waitUntilNoConnections := func() bool {
-		return 0 == p.root.mongo.GetActiveConnectionsCount()
+		return p.root.mongo.GetActiveConnectionsCount() == 0
 	}
 	require.Eventually(t, waitUntilNoConnections, 5*time.Second, 100*time.Millisecond)
 }
@@ -505,7 +500,7 @@ func (p *databasePack) testMongoLeafCluster(t *testing.T) {
 	client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
 		AuthClient: p.root.cluster.GetSiteAPI(p.root.cluster.Secrets.SiteName),
 		AuthServer: p.root.cluster.Process.GetAuthServer(),
-		Address:    net.JoinHostPort(Loopback, p.root.cluster.GetPortWeb()), // Connecting via root cluster.
+		Address:    p.root.cluster.Web, // Connecting via root cluster.
 		Cluster:    p.leaf.cluster.Secrets.SiteName,
 		Username:   p.root.user.GetName(),
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -523,7 +518,6 @@ func (p *databasePack) testMongoLeafCluster(t *testing.T) {
 	// Disconnect.
 	err = client.Disconnect(context.Background())
 	require.NoError(t, err)
-
 }
 
 // TestRootLeafIdleTimeout tests idle client connection termination by proxy and DB services in
@@ -547,7 +541,7 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 		client, err := mysql.MakeTestClient(common.TestClientConfig{
 			AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
 			AuthServer: pack.root.cluster.Process.GetAuthServer(),
-			Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortMySQL()), // Connecting via root cluster.
+			Address:    pack.root.cluster.MySQL, // Connecting via root cluster.
 			Cluster:    pack.leaf.cluster.Secrets.SiteName,
 			Username:   pack.root.user.GetName(),
 			RouteToDatabase: tlsca.RouteToDatabase{
@@ -615,7 +609,7 @@ func TestDatabaseAccessUnspecifiedHostname(t *testing.T) {
 	client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
 		AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
 		AuthServer: pack.root.cluster.Process.GetAuthServer(),
-		Address:    net.JoinHostPort(Loopback, pack.root.cluster.GetPortWeb()),
+		Address:    pack.root.cluster.Web,
 		Cluster:    pack.root.cluster.Secrets.SiteName,
 		Username:   pack.root.user.GetName(),
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -644,7 +638,7 @@ func (p *databasePack) testPostgresSeparateListener(t *testing.T) {
 	client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
 		AuthClient: p.root.cluster.GetSiteAPI(p.root.cluster.Secrets.SiteName),
 		AuthServer: p.root.cluster.Process.GetAuthServer(),
-		Address:    net.JoinHostPort(Loopback, p.root.cluster.GetPortPostgres()),
+		Address:    p.root.cluster.Postgres,
 		Cluster:    p.root.cluster.Secrets.SiteName,
 		Username:   p.root.user.GetName(),
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -675,7 +669,7 @@ func (p *databasePack) testPostgresSeparateListener(t *testing.T) {
 // with DisableTLS.
 func TestDatabaseAccessPostgresSeparateListenerTLSDisabled(t *testing.T) {
 	pack := setupDatabaseTest(t,
-		withPortSetupDatabaseTest(helpers.SeparatePostgresPortSetup),
+		withListenerSetupDatabaseTest(helpers.SeparatePostgresPortSetup),
 		withRootConfig(func(config *service.Config) {
 			config.Proxy.DisableTLS = true
 		}),
@@ -717,7 +711,7 @@ func (p *databasePack) testHARootCluster(t *testing.T) {
 	client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
 		AuthClient: p.root.cluster.GetSiteAPI(p.root.cluster.Secrets.SiteName),
 		AuthServer: p.root.cluster.Process.GetAuthServer(),
-		Address:    net.JoinHostPort(Loopback, p.root.cluster.GetPortWeb()),
+		Address:    p.root.cluster.Web,
 		Cluster:    p.root.cluster.Secrets.SiteName,
 		Username:   p.root.user.GetName(),
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -771,7 +765,7 @@ func (p *databasePack) testHALeafCluster(t *testing.T) {
 	client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
 		AuthClient: p.root.cluster.GetSiteAPI(p.root.cluster.Secrets.SiteName),
 		AuthServer: p.root.cluster.Process.GetAuthServer(),
-		Address:    net.JoinHostPort(Loopback, p.root.cluster.GetPortWeb()), // Connecting via root cluster.
+		Address:    p.root.cluster.Web, // Connecting via root cluster.
 		Cluster:    p.leaf.cluster.Secrets.SiteName,
 		Username:   p.root.user.GetName(),
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -798,12 +792,13 @@ func (p *databasePack) testHALeafCluster(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// testDatabaseAccessMongoSeparateListener tests mongo proxy listener running on separate port.
 func (p *databasePack) testMongoSeparateListener(t *testing.T) {
 	// Connect to the database service in root cluster.
 	client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
 		AuthClient: p.root.cluster.GetSiteAPI(p.root.cluster.Secrets.SiteName),
 		AuthServer: p.root.cluster.Process.GetAuthServer(),
-		Address:    net.JoinHostPort(Loopback, p.root.cluster.GetPortMongo()),
+		Address:    p.root.cluster.Mongo,
 		Cluster:    p.root.cluster.Secrets.SiteName,
 		Username:   p.root.user.GetName(),
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -923,11 +918,11 @@ type databaseClusterPack struct {
 }
 
 type testOptions struct {
-	clock             clockwork.Clock
-	instancePortsFunc func() *helpers.InstancePorts
-	rootConfig        func(config *service.Config)
-	leafConfig        func(config *service.Config)
-	nodeName          string
+	clock         clockwork.Clock
+	listenerSetup helpers.InstanceListenerSetupFunc
+	rootConfig    func(config *service.Config)
+	leafConfig    func(config *service.Config)
+	nodeName      string
 }
 
 type testOptionFunc func(*testOptions)
@@ -936,8 +931,8 @@ func (o *testOptions) setDefaultIfNotSet() {
 	if o.clock == nil {
 		o.clock = clockwork.NewRealClock()
 	}
-	if o.instancePortsFunc == nil {
-		o.instancePortsFunc = helpers.StandardPortSetup
+	if o.listenerSetup == nil {
+		o.listenerSetup = helpers.StandardListenerSetup
 	}
 	if o.nodeName == "" {
 		o.nodeName = Host
@@ -956,9 +951,9 @@ func withNodeName(nodeName string) testOptionFunc {
 	}
 }
 
-func withPortSetupDatabaseTest(portFn func() *helpers.InstancePorts) testOptionFunc {
+func withListenerSetupDatabaseTest(fn helpers.InstanceListenerSetupFunc) testOptionFunc {
 	return func(o *testOptions) {
-		o.instancePortsFunc = portFn
+		o.listenerSetup = fn
 	}
 }
 
@@ -991,6 +986,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
+	// TODO(tcsc): Refactor the test database setup such that it does not use NewPortStr()
 	p := &databasePack{
 		clock: opts.clock,
 		root: databaseClusterPack{
@@ -1006,26 +1002,28 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	}
 
 	// Create root cluster.
-	p.root.cluster = helpers.NewInstance(helpers.InstanceConfig{
+	rootCfg := helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    opts.nodeName,
 		Priv:        privateKey,
 		Pub:         publicKey,
 		Log:         log,
-		Ports:       opts.instancePortsFunc(),
-	})
+	}
+	rootCfg.Listeners = opts.listenerSetup(t, &rootCfg.Fds)
+	p.root.cluster = helpers.NewInstance(t, rootCfg)
 
 	// Create leaf cluster.
-	p.leaf.cluster = helpers.NewInstance(helpers.InstanceConfig{
+	leafCfg := helpers.InstanceConfig{
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    opts.nodeName,
-		Ports:       opts.instancePortsFunc(),
 		Priv:        privateKey,
 		Pub:         publicKey,
 		Log:         log,
-	})
+	}
+	leafCfg.Listeners = opts.listenerSetup(t, &leafCfg.Fds)
+	p.leaf.cluster = helpers.NewInstance(t, leafCfg)
 
 	// Make root cluster config.
 	rcConf := service.MakeDefaultConfig()
@@ -1105,11 +1103,11 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	}
 	rdConf := service.MakeDefaultConfig()
 	rdConf.DataDir = t.TempDir()
-	rdConf.Token = "static-token-value"
+	rdConf.SetToken("static-token-value")
 	rdConf.AuthServers = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
-			Addr:        net.JoinHostPort(Loopback, p.root.cluster.GetPortWeb()),
+			Addr:        p.root.cluster.Web,
 		},
 	}
 	rdConf.Databases.Enabled = true
@@ -1143,11 +1141,11 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	}
 	ldConf := service.MakeDefaultConfig()
 	ldConf.DataDir = t.TempDir()
-	ldConf.Token = "static-token-value"
+	ldConf.SetToken("static-token-value")
 	ldConf.AuthServers = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
-			Addr:        net.JoinHostPort(Loopback, p.leaf.cluster.GetPortWeb()),
+			Addr:        p.leaf.cluster.Web,
 		},
 	}
 	ldConf.Databases.Enabled = true
@@ -1305,12 +1303,12 @@ type databaseAgentStartParams struct {
 func (p *databasePack) startRootDatabaseAgent(t *testing.T, params databaseAgentStartParams) (*service.TeleportProcess, *auth.Client) {
 	conf := service.MakeDefaultConfig()
 	conf.DataDir = t.TempDir()
-	conf.Token = "static-token-value"
-	conf.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("localhost", helpers.NewPortStr())}
+	conf.SetToken("static-token-value")
+	conf.DiagnosticAddr = *utils.MustParseAddr(helpers.NewListener(t, service.ListenerDiagnostic, &conf.FileDescriptors))
 	conf.AuthServers = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
-			Addr:        net.JoinHostPort(Loopback, p.root.cluster.GetPortWeb()),
+			Addr:        p.root.cluster.Web,
 		},
 	}
 	conf.Clock = p.clock
@@ -1344,7 +1342,7 @@ func (p *databasePack) testLargeQuery(t *testing.T) {
 	client, err := mysql.MakeTestClient(common.TestClientConfig{
 		AuthClient: p.root.cluster.GetSiteAPI(p.root.cluster.Secrets.SiteName),
 		AuthServer: p.root.cluster.Process.GetAuthServer(),
-		Address:    net.JoinHostPort(Loopback, p.root.cluster.GetPortMySQL()),
+		Address:    p.root.cluster.MySQL,
 		Cluster:    p.root.cluster.Secrets.SiteName,
 		Username:   p.root.user.GetName(),
 		RouteToDatabase: tlsca.RouteToDatabase{
