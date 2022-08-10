@@ -9,9 +9,9 @@ import (
 func cronBuildContainerImagePipelines() []pipeline {
 	// This needs to be updated on each major release.
 	teleportVersions := []teleportVersion{
-		{MajorVersion: "v11", RelativeVersionName: "current-version"},
-		{MajorVersion: "v10", RelativeVersionName: "previous-version-one"},
-		{MajorVersion: "v9", RelativeVersionName: "previous-version-two"},
+		{MajorVersion: "v10", RelativeVersionName: "current-version"},
+		{MajorVersion: "v9", RelativeVersionName: "previous-version-one"},
+		{MajorVersion: "v8", RelativeVersionName: "previous-version-two"},
 	}
 
 	pipelines := make([]pipeline, 0, len(teleportVersions))
@@ -79,7 +79,8 @@ func (tp *teleportPackage) GetName() string {
 }
 
 func (tp *teleportPackage) BuildSteps(majorVersion, setupStep string) []step {
-	supportedArchs := []string{"amd64", "i386", "arm64", "arm"}
+	// The base image (ubuntu:20.04) does not offer i386 images so we don't either
+	supportedArchs := []string{"amd64", "arm64", "arm"}
 	containerRepos := GetContainerRepos()
 
 	steps := make([]step, 0)
