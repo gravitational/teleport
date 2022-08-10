@@ -52,7 +52,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req DiagnoseCo
 	id := uuid.NewString()
 	connectionDiagnostic, err := types.NewConnectionDiagnosticV1(id, map[string]string{},
 		types.ConnectionDiagnosticSpecV1{
-			Message: types.MessageWaiting,
+			Message: types.DiagnosticMessageWaiting,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -67,7 +67,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req DiagnoseCo
 	// - create ssh client using that certificate
 	// - if connection fails because of a network error, a trace must be included indicating that the host is not reachable
 	// - other traces will be added by the Node itself (rbac checks, principal)
-	connectionDiagnostic.SetMessage(types.MessageDryRun)
+	connectionDiagnostic.SetMessage(types.DiagnosticMessageDryRun)
 	connectionDiagnostic.SetSuccess(true)
 
 	if err := s.cd.UpdateConnectionDiagnostic(ctx, connectionDiagnostic); err != nil {

@@ -22,13 +22,13 @@ import (
 )
 
 const (
-	// MessageWaiting is the message used when we start the Diagnostic
+	// DiagnosticMessageWaiting is the message used when we start the Diagnostic
 	// before collecting any traces
-	MessageWaiting = "waiting"
+	DiagnosticMessageWaiting = "waiting"
 
-	// MessageDryRun is the dry-run message.
+	// DiagnosticMessageDryRun is the dry-run message.
 	// Should only be used when the ConnectionTester is being implemented, and removed afterwards.
-	MessageDryRun = "dry-run"
+	DiagnosticMessageDryRun = "dry-run"
 )
 
 // ConnectionDiagnostic represents a Connection Diagnostic.
