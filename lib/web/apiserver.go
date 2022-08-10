@@ -1048,7 +1048,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	if err != nil {
 		h.log.WithError(err).Error("Cannot retrieve SessionRecordingConfig.")
 	} else {
-		canJoinSessions = services.IsRecordAtProxy(recCfg.GetMode()) == false
+		canJoinSessions = !services.IsRecordAtProxy(recCfg.GetMode())
 	}
 
 	webCfg := webclient.WebConfig{

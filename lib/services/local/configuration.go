@@ -21,14 +21,14 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 var clusterNameNotFound = prometheus.NewCounter(
@@ -45,7 +45,7 @@ type ClusterConfigurationService struct {
 
 // NewClusterConfigurationService returns a new ClusterConfigurationService.
 func NewClusterConfigurationService(backend backend.Backend) (*ClusterConfigurationService, error) {
-	err := utils.RegisterPrometheusCollectors(clusterNameNotFound)
+	err := metrics.RegisterPrometheusCollectors(clusterNameNotFound)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

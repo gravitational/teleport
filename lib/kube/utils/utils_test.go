@@ -30,7 +30,7 @@ func TestCheckOrSetKubeCluster(t *testing.T) {
 
 	tests := []struct {
 		desc        string
-		services    []types.Server
+		services    []types.KubeServer
 		kubeCluster string
 		teleCluster string
 		want        string
@@ -38,9 +38,11 @@ func TestCheckOrSetKubeCluster(t *testing.T) {
 	}{
 		{
 			desc: "valid cluster name",
-			services: []types.Server{
-				kubeService("k8s-1", "k8s-2"),
-				kubeService("k8s-3", "k8s-4"),
+			services: []types.KubeServer{
+				kubeServer(t, "k8s-1", "server1", "uuuid"),
+				kubeServer(t, "k8s-2", "server1", "uuuid"),
+				kubeServer(t, "k8s-3", "server2", "uuuid2"),
+				kubeServer(t, "k8s-4", "server2", "uuuid2"),
 			},
 			kubeCluster: "k8s-4",
 			teleCluster: "zzz-tele-cluster",
@@ -49,9 +51,11 @@ func TestCheckOrSetKubeCluster(t *testing.T) {
 		},
 		{
 			desc: "invalid cluster name",
-			services: []types.Server{
-				kubeService("k8s-1", "k8s-2"),
-				kubeService("k8s-3", "k8s-4"),
+			services: []types.KubeServer{
+				kubeServer(t, "k8s-1", "server1", "uuuid"),
+				kubeServer(t, "k8s-2", "server1", "uuuid"),
+				kubeServer(t, "k8s-3", "server2", "uuuid2"),
+				kubeServer(t, "k8s-4", "server2", "uuuid2"),
 			},
 			kubeCluster: "k8s-5",
 			teleCluster: "zzz-tele-cluster",
@@ -59,23 +63,25 @@ func TestCheckOrSetKubeCluster(t *testing.T) {
 		},
 		{
 			desc:        "no registered clusters",
-			services:    []types.Server{},
+			services:    []types.KubeServer{},
 			kubeCluster: "k8s-1",
 			teleCluster: "zzz-tele-cluster",
 			assertErr:   require.Error,
 		},
 		{
 			desc:        "no registered clusters and empty cluster provided",
-			services:    []types.Server{},
+			services:    []types.KubeServer{},
 			kubeCluster: "",
 			teleCluster: "zzz-tele-cluster",
 			assertErr:   require.Error,
 		},
 		{
 			desc: "no cluster provided, default to first alphabetically",
-			services: []types.Server{
-				kubeService("k8s-1", "k8s-2"),
-				kubeService("k8s-3", "k8s-4"),
+			services: []types.KubeServer{
+				kubeServer(t, "k8s-1", "server1", "uuuid"),
+				kubeServer(t, "k8s-2", "server1", "uuuid"),
+				kubeServer(t, "k8s-3", "server2", "uuuid2"),
+				kubeServer(t, "k8s-4", "server2", "uuuid2"),
 			},
 			kubeCluster: "",
 			teleCluster: "zzz-tele-cluster",
@@ -84,9 +90,13 @@ func TestCheckOrSetKubeCluster(t *testing.T) {
 		},
 		{
 			desc: "no cluster provided, default to teleport cluster name",
-			services: []types.Server{
-				kubeService("k8s-1", "k8s-2"),
-				kubeService("k8s-3", "zzz-tele-cluster", "k8s-4"),
+			services: []types.KubeServer{
+				kubeServer(t, "k8s-1", "server1", "uuuid"),
+				kubeServer(t, "k8s-2", "server1", "uuuid"),
+				kubeServer(t, "k8s-3", "server2", "uuuid2"),
+
+				kubeServer(t, "zzz-tele-cluster", "server2", "uuuid2"),
+				kubeServer(t, "k8s-4", "server2", "uuuid2"),
 			},
 			kubeCluster: "",
 			teleCluster: "zzz-tele-cluster",
@@ -103,40 +113,26 @@ func TestCheckOrSetKubeCluster(t *testing.T) {
 	}
 }
 
-type mockKubeServicesPresence []types.Server
+type mockKubeServicesPresence []types.KubeServer
 
-func (p mockKubeServicesPresence) GetKubeServices(context.Context) ([]types.Server, error) {
+func (p mockKubeServicesPresence) GetKubernetesServers(context.Context) ([]types.KubeServer, error) {
 	return p, nil
 }
 
-func kubeService(kubeClusters ...string) types.Server {
-	var ks []*types.KubernetesCluster
-	for _, kc := range kubeClusters {
-		ks = append(ks, &types.KubernetesCluster{Name: kc})
-	}
-	return &types.ServerV2{
-		Spec: types.ServerSpecV2{
-			KubernetesClusters: ks,
-		},
-	}
+func kubeServer(t *testing.T, kubeCluster, hostname, hostID string) types.KubeServer {
+	cluster, err := types.NewKubernetesClusterV3(types.Metadata{Name: kubeCluster}, types.KubernetesClusterSpecV3{})
+	require.NoError(t, err)
+	server, err := types.NewKubernetesServerV3FromCluster(cluster, hostname, hostID)
+	require.NoError(t, err)
+	return server
 }
 
 func TestExtractAndSortKubeClusterNames(t *testing.T) {
 	t.Parallel()
 
-	server1, err := types.NewServer("foo", types.KindNode, types.ServerSpecV2{
-		KubernetesClusters: []*types.KubernetesCluster{
-			{Name: "watermelon"},
-		},
-	})
-	require.NoError(t, err)
+	server1 := kubeServer(t, "watermelon", "server1", "uuuid")
 
-	server2, err := types.NewServer("foo", types.KindNode, types.ServerSpecV2{
-		KubernetesClusters: []*types.KubernetesCluster{
-			{Name: "watermelon"},
-		},
-	})
-	require.NoError(t, err)
+	server2 := kubeServer(t, "watermelon", "server1", "uuuid")
 
 	server3, err := types.NewServer("bar", types.KindNode, types.ServerSpecV2{
 		KubernetesClusters: []*types.KubernetesCluster{
@@ -147,6 +143,9 @@ func TestExtractAndSortKubeClusterNames(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	names := extractAndSortKubeClusterNames([]types.Server{server1, server2, server3})
+	servers, err := types.NewKubeServersV3FromServer(server3)
+	require.NoError(t, err)
+
+	names := extractAndSortKubeClusterNames(append(servers, server1, server2))
 	require.Equal(t, []string{"apple", "banana", "pear", "watermelon"}, names)
 }

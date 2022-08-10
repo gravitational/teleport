@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -130,7 +131,7 @@ func NewSessionRegistry(cfg SessionRegistryConfig) (*SessionRegistry, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	err := utils.RegisterPrometheusCollectors(serverSessions)
+	err := metrics.RegisterPrometheusCollectors(serverSessions)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -301,7 +302,7 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 		return trace.Wrap(err)
 	}
 
-	err = sess.startExec(channel, scx, tempUser)
+	err = sess.startExec(ctx, channel, scx, tempUser)
 	if err != nil {
 		sess.Close()
 		return trace.Wrap(err)
@@ -342,8 +343,8 @@ func (s *SessionRegistry) GetTerminalSize(sessionID string) (*term.Winsize, erro
 // NotifyWinChange is called to notify all members in the party that the PTY
 // size has changed. The notification is sent as a global SSH request and it
 // is the responsibility of the client to update it's window size upon receipt.
-func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *ServerContext) error {
-	session := ctx.getSession()
+func (s *SessionRegistry) NotifyWinChange(ctx context.Context, params rsession.TerminalParams, scx *ServerContext) error {
+	session := scx.getSession()
 	if session == nil {
 		s.log.Debug("Unable to update window size, no session found in context.")
 		return nil
@@ -355,13 +356,13 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 		Metadata: apievents.Metadata{
 			Type:        events.ResizeEvent,
 			Code:        events.TerminalResizeCode,
-			ClusterName: ctx.ClusterName,
+			ClusterName: scx.ClusterName,
 		},
 		ServerMetadata: session.serverMeta,
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(sid),
 		},
-		UserMetadata: ctx.Identity.GetUserMetadata(),
+		UserMetadata: scx.Identity.GetUserMetadata(),
 		TerminalSize: params.Serialize(),
 	}
 
@@ -372,7 +373,7 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 	}
 
 	// Update the size of the server side PTY.
-	err := session.term.SetWinSize(params)
+	err := session.term.SetWinSize(ctx, params)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -380,7 +381,7 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 	// If sessions are being recorded at the proxy, sessions can not be shared.
 	// In that situation, PTY size information does not need to be propagated
 	// back to all clients and we can return right away.
-	if services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+	if services.IsRecordAtProxy(scx.SessionRecordingConfig.GetMode()) {
 		return nil
 	}
 
@@ -389,7 +390,7 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 	// OpenSSH clients will ignore this and not update their own local PTY.
 	for _, p := range session.getParties() {
 		// Don't send the window change notification back to the originator.
-		if p.ctx.ID() == ctx.ID() {
+		if p.ctx.ID() == scx.ID() {
 			continue
 		}
 
@@ -655,7 +656,7 @@ func (s *session) Stop() {
 		if err := s.term.Close(); err != nil {
 			s.log.WithError(err).Debug("Failed to close the shell")
 		}
-		if err := s.term.Kill(); err != nil {
+		if err := s.term.Kill(context.TODO()); err != nil {
 			s.log.WithError(err).Debug("Failed to kill the shell")
 		}
 	}
@@ -968,7 +969,7 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 	s.BroadcastMessage("Creating session with ID: %v...", s.id)
 	s.BroadcastMessage(SessionControlsInfoBroadcast)
 
-	if err := s.startTerminal(scx); err != nil {
+	if err := s.startTerminal(ctx, scx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1070,22 +1071,22 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 	return nil
 }
 
-func (s *session) startTerminal(ctx *ServerContext) error {
+func (s *session) startTerminal(ctx context.Context, scx *ServerContext) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	// allocate a terminal or take the one previously allocated via a
 	// separate "allocate TTY" SSH request
 	var err error
-	if s.term = ctx.GetTerm(); s.term != nil {
-		ctx.SetTerm(nil)
-	} else if s.term, err = NewTerminal(ctx); err != nil {
-		ctx.Infof("Unable to allocate new terminal: %v", err)
+	if s.term = scx.GetTerm(); s.term != nil {
+		scx.SetTerm(nil)
+	} else if s.term, err = NewTerminal(scx); err != nil {
+		scx.Infof("Unable to allocate new terminal: %v", err)
 		return trace.Wrap(err)
 	}
 
-	if err := s.term.Run(); err != nil {
-		ctx.Errorf("Unable to run shell command: %v.", err)
+	if err := s.term.Run(ctx); err != nil {
+		scx.Errorf("Unable to run shell command: %v.", err)
 		return trace.ConvertSystemError(err)
 	}
 
@@ -1164,49 +1165,49 @@ func newEventOnlyRecorder(s *session, ctx *ServerContext) (events.StreamWriter, 
 	return rec, nil
 }
 
-func (s *session) startExec(channel ssh.Channel, ctx *ServerContext, tempUser *user.User) error {
+func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *ServerContext, tempUser *user.User) error {
 	// Emit a session.start event for the exec session.
-	s.emitSessionStartEvent(ctx)
+	s.emitSessionStartEvent(scx)
 
 	// Start execution. If the program failed to start, send that result back.
 	// Note this is a partial start. Teleport will have re-exec'ed itself and
 	// wait until it's been placed in a cgroup and told to continue.
-	result, err := ctx.ExecRequest.Start(channel)
+	result, err := scx.ExecRequest.Start(ctx, channel)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if result != nil {
-		ctx.Debugf("Exec request (%v) result: %v.", ctx.ExecRequest, result)
-		ctx.SendExecResult(*result)
+		scx.Debugf("Exec request (%v) result: %v.", scx.ExecRequest, result)
+		scx.SendExecResult(*result)
 	}
 
 	// Open a BPF recording session. If BPF was not configured, not available,
 	// or running in a recording proxy, OpenSession is a NOP.
 	sessionContext := &bpf.SessionContext{
-		Context:   ctx.srv.Context(),
-		PID:       ctx.ExecRequest.PID(),
+		Context:   scx.srv.Context(),
+		PID:       scx.ExecRequest.PID(),
 		Emitter:   s.Recorder(),
-		Namespace: ctx.srv.GetNamespace(),
+		Namespace: scx.srv.GetNamespace(),
 		SessionID: string(s.id),
-		ServerID:  ctx.srv.HostUUID(),
-		Login:     ctx.Identity.Login,
-		User:      ctx.Identity.TeleportUser,
-		Events:    ctx.Identity.AccessChecker.EnhancedRecordingSet(),
+		ServerID:  scx.srv.HostUUID(),
+		Login:     scx.Identity.Login,
+		User:      scx.Identity.TeleportUser,
+		Events:    scx.Identity.AccessChecker.EnhancedRecordingSet(),
 	}
-	cgroupID, err := ctx.srv.GetBPF().OpenSession(sessionContext)
+	cgroupID, err := scx.srv.GetBPF().OpenSession(sessionContext)
 	if err != nil {
-		ctx.Errorf("Failed to open enhanced recording (exec) session: %v: %v.", ctx.ExecRequest.GetCommand(), err)
+		scx.Errorf("Failed to open enhanced recording (exec) session: %v: %v.", scx.ExecRequest.GetCommand(), err)
 		return trace.Wrap(err)
 	}
 
 	// If a cgroup ID was assigned then enhanced session recording was enabled.
 	if cgroupID > 0 {
 		s.setHasEnhancedRecording(true)
-		ctx.srv.GetRestrictedSessionManager().OpenSession(sessionContext, cgroupID)
+		scx.srv.GetRestrictedSessionManager().OpenSession(sessionContext, cgroupID)
 	}
 
 	if tempUser != nil {
-		sessionUser, err := user.Lookup(ctx.Identity.Login)
+		sessionUser, err := user.Lookup(scx.Identity.Login)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1217,26 +1218,26 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext, tempUser *u
 	}
 
 	// Process has been placed in a cgroup, continue execution.
-	ctx.ExecRequest.Continue()
+	scx.ExecRequest.Continue()
 
 	// Process is running, wait for it to stop.
 	go func() {
-		result = ctx.ExecRequest.Wait()
+		result = scx.ExecRequest.Wait()
 		if result != nil {
-			ctx.SendExecResult(*result)
+			scx.SendExecResult(*result)
 		}
 
 		// Wait a little bit to let all events filter through before closing the
 		// BPF session so everything can be recorded.
 		time.Sleep(2 * time.Second)
 
-		ctx.srv.GetRestrictedSessionManager().CloseSession(sessionContext, cgroupID)
+		scx.srv.GetRestrictedSessionManager().CloseSession(sessionContext, cgroupID)
 
 		// Close the BPF recording session. If BPF was not configured, not available,
 		// or running in a recording proxy, this is simply a NOP.
-		err = ctx.srv.GetBPF().CloseSession(sessionContext)
+		err = scx.srv.GetBPF().CloseSession(sessionContext)
 		if err != nil {
-			ctx.Errorf("Failed to close enhanced recording (exec) session: %v: %v.", s.id, err)
+			scx.Errorf("Failed to close enhanced recording (exec) session: %v: %v.", s.id, err)
 		}
 
 		s.emitSessionEndEvent()
