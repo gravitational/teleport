@@ -24,17 +24,22 @@ issues with adding AWS servers to Teleport clusters automatically.
 ## Discovery
 
 Discovery can use a matcher similar to the `db_service/aws` matcher, however EC2
-instances will have an optional install command:
+instances will have an optional install command and set of join parameters:
 
 ```yaml
 ssh_service:
   enabled: "yes"
   aws:
-    - types: ["ec2"]
-      regions: ["us-west-1"]
-      tags:
-        "teleport": "yes" # aws tags to match
-      ssm_command_document: ssm_command_document_name
+  aws:
+   - types: ["ec2"]
+     regions: ["eu-central-1"]
+     tags:
+       "teleport": "yes"
+     install:
+       join_params:
+         token_name:  aws-discovery-iam-token # default value
+     ssm:
+       document: "TeleportDiscoveryInstaller" # default value
 ```
 
 The agent will use EC2's `DescribeInstances` API in order to list instances[1]. This
@@ -94,8 +99,9 @@ generated that is appropriate for the current running version and operating
 system initially supporting DEB and RPM based distros that Teleport already
 provides packages for.
 
-The user must create a custom SSM Command document that will be used to execute
-the served command.
+The user must create a custom SSM Command document that will be used to
+execute the served command. The instance of Teleport doing discovery will
+attempt to automatically create the SSM document.
 
 Example SSM aws:runCommand document:
 ```yaml
@@ -126,7 +132,7 @@ mainSteps:
 In order to run the new SSM document the AWS user will need IAM permissions to run
 SSM commands[3] for example:
 
-```json
+```js
 {
     "Statement": [
         {
@@ -138,8 +144,34 @@ SSM commands[3] for example:
                  # Allows running the installTeleport docuemnt on the allowed instances
                 "arn:aws:ssm:us-east-2:aws-account-ID:document/installTeleport"
             ]
-        }
+        },
+		// "CreateDocument" and "GetDocument" permissions are required
+		// to automatically create the document
+        {
+            "Action": "ssm:CreateDocument",
+            "Effect": "Allow",
+            "Resource": [ "*" ]
+        },
+		{
+            "Action": "ssm:GetDocument",
+            "Effect": "Allow",
+            "Resource": [ "*" ]
+        }		
     ]
+}
+```
+
+The machines being discovered will need to allow recieving `ec2messages` in
+order to recieve the SSM commands:
+
+```js 
+{
+	"Statement": [
+		{
+			"Action": "ec2messages:GetMessages"
+			"Effect": "Allow"
+		}
+	]
 }
 ```
 
@@ -283,6 +315,18 @@ The SSH discovery node should have permission to call `ec2:DescribeInstances`
             ]
         }
     ]
+}
+```
+
+Nodes being discovered will need permission to `GetMessages`
+```json
+{
+	"Statement": [
+		{
+			"Action": "ec2messages:GetMessages"
+			"Effect": "Allow"
+		}
+	]
 }
 ```
 
