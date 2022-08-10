@@ -172,10 +172,10 @@ func (c *pingConn) Write(p []byte) (int, error) {
 
 ### ALPN
 
-Since the ping protocol is a wrapper for other protocols, it is identified as a
-suffix `-ping`. So if the client wants to wrap a protocol, for example, MySQL,
-it should add this prefix to the already existing MySQL protocol:
-`teleport-mysql-ping`.
+To keep backward compatibility with `tsh` clients, we will introduce new
+protocol names that indicate the ping connection usage. Those protocols will be
+identified by the suffix `-ping`. For example, the MySQL protocol with ping will
+be `teleport-mysql-ping`.
 
 Ping protocols will take precedence over regular protocols. If the client asks
 for it and the proxy server supports, it will be used over the regular one.
@@ -183,6 +183,9 @@ for it and the proxy server supports, it will be used over the regular one.
 Clients and servers must rely on the `NegotiatedProtocol` connection state
 property to check if the protocol is supported on both sides and is going to be
 used for the connection.
+
+**NOTE:** In future Teleport versions, we can set the ping connection as default
+for some protocols, removing the suffix’s necessity.
 
 ### Client/Server flow
 
