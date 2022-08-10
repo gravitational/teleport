@@ -4524,8 +4524,14 @@ func (a *ServerWithRoles) ReplaceRemoteLocks(ctx context.Context, clusterName st
 // channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
 func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+	createErrorChannel := func(err error) (chan apievents.AuditEvent, chan error) {
+		c, e := make(chan apievents.AuditEvent), make(chan error, 1)
+		e <- trace.Wrap(err)
+		return c, e
+	}
+
 	if err := a.actionForKindSession(apidefaults.Namespace, types.VerbList, sessionID); err != nil {
-		return createErrorChannel[apievents.AuditEvent](err)
+		return createErrorChannel(err)
 	}
 
 	// StreamSessionEvents can be called internally, and when that happens we don't want to emit an event.
@@ -4544,7 +4550,7 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 		// check the roles and make sure they don't include Auth or Proxy.
 		roles, err := types.NewTeleportRoles(user.GetRoles())
 		if err != nil {
-			return createErrorChannel[apievents.AuditEvent](err)
+			return createErrorChannel(err)
 		}
 
 		if !roles.IncludeAny(types.RoleAuth, types.RoleProxy) {
@@ -4559,7 +4565,7 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 					User: user.GetName(),
 				},
 			}); err != nil {
-				return createErrorChannel[apievents.AuditEvent](err)
+				return createErrorChannel(err)
 			}
 		}
 	}
@@ -5149,10 +5155,3 @@ func verbsToReplaceResourceWithOrigin(stored types.ResourceWithOrigin) []string 
 	return verbs
 }
 
-// createErrorChannel takes an error and produces a channel of type T as well as an error channel
-// emitting a single error. This is useful for streaming handlers when they need to return an error.
-func createErrorChannel[T any](err error) (chan T, chan error) {
-	c, e := make(chan T), make(chan error, 1)
-	e <- trace.Wrap(err)
-	return c, e
-}
