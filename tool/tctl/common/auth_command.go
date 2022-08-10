@@ -815,7 +815,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 		return nil
 	}
 	if reqExpiry.Sub(expires) > time.Minute {
-		log.Warnf("Requested TTL of %s was not granted. User may have a role with a shorter max session TTL"+
+		fmt.Printf("Requested TTL of %s was not granted. User may have a role with a shorter max session TTL"+
 			" or an existing session ending before the requested TTL. Proceeding with %s",
 			a.genTTL,
 			time.Until(expires).Round(time.Second))
