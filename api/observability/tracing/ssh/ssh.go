@@ -131,15 +131,14 @@ func NewClientConn(ctx context.Context, conn net.Conn, addr string, config *ssh.
 	defer span.End()
 
 	hp := &sshutils.HandshakePayload{
-		TracingContext: tracing.PropagationContextFromContext(ctx),
+		TracingContext: tracing.PropagationContextFromContext(ctx, opts...),
 	}
 
 	if len(hp.TracingContext) > 0 {
 		payloadJSON, err := json.Marshal(hp)
 		if err == nil {
 			payload := fmt.Sprintf("%s%s\x00", sshutils.ProxyHelloSignature, payloadJSON)
-			_, err = conn.Write([]byte(payload))
-			if err != nil {
+			if _, err := conn.Write([]byte(payload)); err != nil {
 				log.WithError(err).Warnf("Failed to pass along tracing context to proxy %v", addr)
 			}
 		}
