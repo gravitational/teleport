@@ -45,13 +45,14 @@ func TestServerCreateBotFeatureDisabled(t *testing.T) {
 			MachineID: false,
 		},
 	})
+	ctx := context.Background()
 
 	srv := newTestTLSServer(t)
-	_, err := CreateRole(context.Background(), srv.Auth(), "example", types.RoleSpecV5{})
+	_, err := CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV5{})
 	require.NoError(t, err)
 
 	// Attempt to create a bot. This should fail immediately.
-	_, err = srv.Auth().createBot(context.Background(), &proto.CreateBotRequest{
+	_, err = srv.Auth().createBot(ctx, &proto.CreateBotRequest{
 		Name:  "test",
 		Roles: []string{"example"},
 	})
@@ -67,9 +68,9 @@ func TestServerCreateBotFeatureDisabled(t *testing.T) {
 func TestServerCreateBot(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
-
+	ctx := context.Background()
 	testRole := "test-role"
-	_, err := CreateRole(context.Background(), srv.Auth(), testRole, types.RoleSpecV5{})
+	_, err := CreateRole(ctx, srv.Auth(), testRole, types.RoleSpecV5{})
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -193,20 +194,21 @@ func TestRegisterBotOnboardFeatureDisabled(t *testing.T) {
 	})
 
 	srv := newTestTLSServer(t)
+	ctx := context.Background()
 
 	botName := "test"
 	botResourceName := BotResourceName(botName)
 
-	_, err := createBotRole(context.Background(), srv.Auth(), "test", "bot-test", []string{})
+	_, err := createBotRole(ctx, srv.Auth(), "test", "bot-test", []string{})
 	require.NoError(t, err)
 
-	_, err = createBotUser(context.Background(), srv.Auth(), botName, botResourceName, wrappers.Traits{})
+	_, err = createBotUser(ctx, srv.Auth(), botName, botResourceName, wrappers.Traits{})
 	require.NoError(t, err)
 
 	later := srv.Clock().Now().Add(4 * time.Hour)
 	goodToken := newBotToken(t, "good-token", botName, types.RoleBot, later)
 
-	err = srv.Auth().UpsertToken(context.Background(), goodToken)
+	err = srv.Auth().UpsertToken(ctx, goodToken)
 	require.NoError(t, err)
 
 	privateKey, publicKey, err := native.GenerateKeyPair()
@@ -232,15 +234,19 @@ func TestRegisterBotOnboardFeatureDisabled(t *testing.T) {
 }
 
 func renewBotCerts(
-	srv *TestTLSServer, tlsCert tls.Certificate, botUser string,
-	publicKey []byte, privateKey []byte,
+	ctx context.Context,
+	srv *TestTLSServer,
+	tlsCert tls.Certificate,
+	botUser string,
+	publicKey []byte,
+	privateKey []byte,
 ) (*Client, *proto.Certs, tls.Certificate, error) {
 	client := srv.NewClientWithCert(tlsCert)
 
-	certs, err := client.GenerateUserCerts(context.Background(), proto.UserCertsRequest{
+	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
 		PublicKey: publicKey,
 		Username:  botUser,
-		Expires:   time.Now().Add(1 * time.Hour),
+		Expires:   time.Now().Add(time.Hour),
 	})
 	if err != nil {
 		return nil, nil, tls.Certificate{}, trace.Wrap(err)
@@ -260,12 +266,13 @@ func renewBotCerts(
 func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
+	ctx := context.Background()
 
-	_, err := CreateRole(context.Background(), srv.Auth(), "example", types.RoleSpecV5{})
+	_, err := CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV5{})
 	require.NoError(t, err)
 
 	// Create a new bot.
-	bot, err := srv.Auth().createBot(context.Background(), &proto.CreateBotRequest{
+	bot, err := srv.Auth().createBot(ctx, &proto.CreateBotRequest{
 		Name:  "test",
 		Roles: []string{"example"},
 	})
@@ -294,7 +301,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 
 	// Renew the cert a bunch of times.
 	for i := 0; i < 10; i++ {
-		_, certs, tlsCert, err = renewBotCerts(srv, tlsCert, bot.UserName, publicKey, privateKey)
+		_, certs, tlsCert, err = renewBotCerts(ctx, srv, tlsCert, bot.UserName, publicKey, privateKey)
 		require.NoError(t, err)
 
 		// Parse the Identity
@@ -317,12 +324,12 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
-
-	_, err := CreateRole(context.Background(), srv.Auth(), "example", types.RoleSpecV5{})
+	ctx := context.Background()
+	_, err := CreateRole(ctx, srv.Auth(), "example", types.RoleSpecV5{})
 	require.NoError(t, err)
 
 	// Create a new bot.
-	bot, err := srv.Auth().createBot(context.Background(), &proto.CreateBotRequest{
+	bot, err := srv.Auth().createBot(ctx, &proto.CreateBotRequest{
 		Name:  "test",
 		Roles: []string{"example"},
 	})
@@ -350,7 +357,7 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 	require.NoError(t, err)
 
 	// Renew the certs once (e.g. this is the actual bot process)
-	_, certsReal, _, err := renewBotCerts(srv, tlsCert, bot.UserName, publicKey, privateKey)
+	_, certsReal, _, err := renewBotCerts(ctx, srv, tlsCert, bot.UserName, publicKey, privateKey)
 	require.NoError(t, err)
 
 	// Check the generation, it should be 2.
@@ -361,12 +368,12 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 	require.Equal(t, uint64(2), impersonatedIdent.Generation)
 
 	// Meanwhile, the initial set of certs was stolen. Let's try to renew those.
-	_, _, _, err = renewBotCerts(srv, tlsCert, bot.UserName, publicKey, privateKey)
+	_, _, _, err = renewBotCerts(ctx, srv, tlsCert, bot.UserName, publicKey, privateKey)
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 
 	// The user should now be locked.
-	locks, err := srv.Auth().GetLocks(context.Background(), true, types.LockTarget{
+	locks, err := srv.Auth().GetLocks(ctx, true, types.LockTarget{
 		User: "bot-test",
 	})
 	require.NoError(t, err)

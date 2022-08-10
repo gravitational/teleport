@@ -291,16 +291,19 @@ ssh -F /opt/machine-id/ssh_config root@node-name.example.com
 ```
 
 <Admonition type="note" title="Roles must have logins defined">
-  If you see the below error, it means the user you are trying to log in as is
-  not specified under `logins` in the role you are using or your role is missing
-  the `{{ internal.logins }}` variable if you have used `--logins` when creating
-  your bot.
+  The below error can occur when the bot does not have permission to log in to
+  a node as the requested user:
 
   ```code
   $ ssh -F /opt/machine-id/ssh_config root@node-name.example.com
   root@node-name: Permission denied (publickey).
   kex_exchange_identification: Connection closed by remote host
   ```
+  This can happen in two circumstances:
+  - The user you are trying to log in as is not specified under `logins` in the
+   role you are using
+  - If you have used `--logins` when creating the bot user, the role the bot is 
+  impersonating does not have the `{{ internal.logins }}` variable specified.
 
   If you have been following along with the `access` role, do the following.
 
