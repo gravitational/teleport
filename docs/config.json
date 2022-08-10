@@ -614,7 +614,7 @@
       "control_url": "https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control?version=5.1&number="
     },
     "soc2": {
-      "last_report": "April 12th, 2021"
+      "last_report": "August 9th, 2022"
     },
     "cloud": {
       "version": "9.1.2",
