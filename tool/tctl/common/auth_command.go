@@ -65,6 +65,7 @@ type AuthCommand struct {
 	proxyAddr                  string
 	leafCluster                string
 	kubeCluster                string
+	kubeTLSServerName          string
 	appName                    string
 	dbService                  string
 	dbName                     string
@@ -120,6 +121,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authSign.Flag("kube-cluster", `Leaf cluster to generate identity file for when --format is set to "kubernetes"`).Hidden().StringVar(&a.leafCluster)
 	a.authSign.Flag("leaf-cluster", `Leaf cluster to generate identity file for when --format is set to "kubernetes"`).StringVar(&a.leafCluster)
 	a.authSign.Flag("kube-cluster-name", `Kubernetes cluster to generate identity file for when --format is set to "kubernetes"`).StringVar(&a.kubeCluster)
+	a.authSign.Flag("kube-tls-server-name", `Kubernetes cluster SNI to pass to the server for when --format is set to "kubernetes"`).StringVar(&a.kubeTLSServerName)
 	a.authSign.Flag("app-name", `Application to generate identity file for. Mutually exclusive with "--db-service".`).StringVar(&a.appName)
 	a.authSign.Flag("db-service", `Database to generate identity file for. Mutually exclusive with "--app-name".`).StringVar(&a.dbService)
 	a.authSign.Flag("db-user", `Database user placed on the identity file. Only used when "--db-service" is set.`).StringVar(&a.dbUser)
@@ -686,6 +688,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 		Key:                  key,
 		Format:               a.outputFormat,
 		KubeProxyAddr:        a.proxyAddr,
+		KubeTLSServerName:    a.kubeTLSServerName,
 		OverwriteDestination: a.signOverwrite,
 	})
 	if err != nil {
