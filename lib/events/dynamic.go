@@ -273,6 +273,18 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	return e, nil
 }
 
+// GetUser pulls the user from the events that have a UserMetadata.
+// For other events an empty string is returned.
+func GetUser(event events.AuditEvent) string {
+	var user string
+
+	if g, ok := event.(UserMetadataGetter); ok {
+		user = g.GetUser()
+	}
+
+	return user
+}
+
 // GetSessionID pulls the session ID from the events that have a
 // SessionMetadata. For other events an empty string is returned.
 func GetSessionID(event events.AuditEvent) string {

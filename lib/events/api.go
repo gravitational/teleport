@@ -567,6 +567,13 @@ const (
 	V3 = 3
 )
 
+// UsersMetadataGetter represents interface
+// that provides information about the user
+type UserMetadataGetter interface {
+	// GetUser returns the event user
+	GetUser() string
+}
+
 // ServerMetadataGetter represents interface
 // that provides information about its server id
 type ServerMetadataGetter interface {
