@@ -100,23 +100,21 @@ func getReconciliationCondition(err error) metav1.Condition {
 }
 
 func getValidStructureCondition(err error) metav1.Condition {
-	var condition metav1.Condition
-	if err == nil {
-		condition = metav1.Condition{
-			Type:    ConditionTypeValidStructure,
-			Status:  metav1.ConditionTrue,
-			Reason:  ConditionReasonNoError,
-			Message: "Kubernetes CR was successfully decoded.",
-		}
-	} else {
-		condition = metav1.Condition{
+	if err != nil {
+		return metav1.Condition{
 			Type:    ConditionTypeValidStructure,
 			Status:  metav1.ConditionFalse,
 			Reason:  ConditionReasonFailedToDecode,
 			Message: fmt.Sprintf("Failed to decode Kubernetes CR: %s", err),
 		}
 	}
-	return condition
+	return metav1.Condition{
+			Type:    ConditionTypeValidStructure,
+			Status:  metav1.ConditionTrue,
+			Reason:  ConditionReasonNoError,
+			Message: "Kubernetes CR was successfully decoded.",
+		}
+	}
 }
 
 func getUnstructuredObjectFromGVK(gvk schema.GroupVersionKind) *unstructured.Unstructured {

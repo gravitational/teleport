@@ -64,10 +64,10 @@ type RoleReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.11.0/pkg/reconcile
 func (r *RoleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	// The TeleportRole OpenAPI spec does not validate typing of Label fields like `node_labels`.
-	// This means we can receive invalid data, by default it won't be unmarshalled properly and will crash the operator
+	// This means we can receive invalid data, by default it won't be unmarshalled properly and will crash the operator.
 	// To handle this more gracefully we unmarshall first in an unstructured object.
 	// The unstructured object will be converted later to a typed one, in r.UpsertExternal.
-	// See `/operator/crdgen/schemagen.go` and https://github.com/gravitational/teleport/issues/15204 for context
+	// See `/operator/crdgen/schemagen.go` and https://github.com/gravitational/teleport/issues/15204 for context.
 	obj := getUnstructuredObjectFromGVK(TeleportRoleGVK)
 	return ResourceBaseReconciler{
 		Client:         r.Client,
