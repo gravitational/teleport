@@ -570,6 +570,7 @@ steps:
   - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
   - rustup override set $RUST_VERSION
   - export BUILD_NUMBER=$DRONE_BUILD_NUMBER
+  - export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83
   - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
   - security find-identity -v
   - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
@@ -3335,6 +3336,7 @@ steps:
   - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
   - rustup override set $RUST_VERSION
   - export BUILD_NUMBER=$DRONE_BUILD_NUMBER
+  - export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83
   - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
   - security find-identity -v
   - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
@@ -6369,6 +6371,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 3be4cf26b1ce2d8c2b72d45c64ccf8b74a96f2a566c3936929e9acc9f7487260
+hmac: 1ac2bbbd3ecc42e83a2d1ef49e5db1c4e4b35567603f9dc9aa231bba79bf0d51
 
 ...
