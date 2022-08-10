@@ -196,8 +196,8 @@ message AssertPIVSlotRequest {
 }
 
 message YubikeyPIVAttestationData {
-  bytes SlotCert = 1;
-  bytes AttestationCert = 2;
+  bytes slot_cert = 1;
+  bytes attestation_cert = 2;
 }
 ```
 
@@ -236,12 +236,7 @@ Allowed values for `piv.mode`:
  - `disabled`: attestation will not be performed - essentially `AssertYubikeyPIVSlot` will be disabled by the auth server and always return no error
 
 
-If `pin_policy` or `touch_policy` is set, then the Auth server will check the [`Attestation`](https://pkg.go.dev/github.com/go-piv/piv-go@v1.9.0/piv#Attestation) object's `PINPolicy` or `TouchPolicy` fields. If the checked fields are at least as strict as the policies required, then the request will proceed.
-
-Examples:
- - `pin_policy=once` + `PINPolicy=always` = success
- - `touch_policy=always` + `TouchPolicy=always` = success
- - `touch_policy=cached` + `TouchPolicy=never` = failure
+If `pin_policy` or `touch_policy` is set, then the Auth server will check the [`Attestation`](https://pkg.go.dev/github.com/go-piv/piv-go@v1.9.0/piv#Attestation) object's `PINPolicy` or `TouchPolicy` fields. If the checked fields are at least as strict as the policies required, then the request will proceed. For Example, if the configured `cluster_auth_preference.spec.piv.pin_policy = once`, then the user can use pin policies `once` and `always`, but not `never`.
 
 #### Role Options
 
@@ -318,9 +313,29 @@ message GetPIVRequirementsResponse {
 }
 
 message PIVRequirements {
-    string Mode = 1;
-    string PINPolicy = 2;
-    string TouchPolicy = 3;
+    PIVMode mode = 1;
+    PIVPINPolicy pin_policy = 2;
+    PIVTouchPolicy touch_policy = 3;
+}
+
+enum PIVMode {
+    PIV_MODE_Optional = 0;
+    PIV_MODE_Required = 1;
+    PIV_MODE_Disabled = 2;
+}
+
+enum PIVPINPolicy {
+    PIV_PIN_Policy_Unknown = 0;
+    PIV_PIN_Policy_Never = 1;
+    PIV_PIN_Policy_Once = 2;
+    PIV_PIN_Policy_Always = 3;
+}
+
+enum PIVTouchPolicy {
+    PIV_Touch_Policy_Unknown = 0;
+    PIV_Touch_Policy_Never = 1;
+    PIV_Touch_Policy_Cached = 2;
+    PIV_Touch_Policy_Always = 3;
 }
 ```
 
@@ -411,7 +426,6 @@ We will also provide the user with the flags `--get-mgm-key` and `--reset`, whic
 
 // Retrieve management key from metadata
 Management Key: <24 byte random code>
-WARNING: This is not recommended if you are using your PIV card with any other applications. Continue? (y/N):
 
 // Or if management key key not found in metadata...
 Management Key not found, try configuring it with `tsh piv configure --set-mgm-key`
