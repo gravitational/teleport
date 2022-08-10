@@ -1402,7 +1402,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.DataDir = t.TempDir()
 
 	cfg.AuthServers = []utils.NetAddr{*authAddr}
-	cfg.Token = staticToken
+	cfg.SetToken(staticToken)
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = true

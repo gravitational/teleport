@@ -276,7 +276,7 @@ func newProxyConfig(ctx context.Context, t *testing.T, authAddr utils.NetAddr, l
 
 	config := service.MakeDefaultConfig()
 	config.PollingPeriod = 1 * time.Second
-	config.Token = "foo"
+	config.SetToken("foo")
 	config.SSH.Enabled = true
 	config.SSH.Addr.Addr = net.JoinHostPort(hostName, ports.Pop())
 	config.Auth.Enabled = false
