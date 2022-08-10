@@ -65,16 +65,15 @@ func newDirectDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 // and used instead.
 func tracedDialer(ctx context.Context, fn ContextDialerFunc) ContextDialerFunc {
 	return func(dialCtx context.Context, network, addr string) (net.Conn, error) {
+		traceCtx := dialCtx
 		if spanCtx := oteltrace.SpanContextFromContext(dialCtx); !spanCtx.IsValid() {
-			ctx = oteltrace.ContextWithSpanContext(dialCtx, oteltrace.SpanContextFromContext(ctx))
-		} else {
-			ctx = dialCtx
+			traceCtx = oteltrace.ContextWithSpanContext(traceCtx, oteltrace.SpanContextFromContext(ctx))
 		}
 
-		ctx, span := tracing.DefaultProvider().Tracer("dialer").Start(ctx, "client/DirectDial")
+		traceCtx, span := tracing.DefaultProvider().Tracer("dialer").Start(traceCtx, "client/DirectDial")
 		defer span.End()
 
-		return fn(ctx, network, addr)
+		return fn(traceCtx, network, addr)
 	}
 }
 
