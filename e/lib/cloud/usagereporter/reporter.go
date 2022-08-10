@@ -69,7 +69,7 @@ func (r *UsageReporter) reportUsage(ctx context.Context) {
 		r.Log.WithError(err).Error("Failed to report number of users.")
 	}
 
-	appCount, err := r.getAppsCount(ctx)
+	apps, err := r.ResourceGetter.GetApplicationServers(ctx, defaults.Namespace)
 	if err != nil {
 		r.Log.WithError(err).Error("Failed to report number of applications.")
 	}
@@ -105,7 +105,7 @@ func (r *UsageReporter) reportUsage(ctx context.Context) {
 				Quantity: int64(len(databases)),
 			}, {
 				Resource: cloudapi.APPLICATION,
-				Quantity: int64(appCount),
+				Quantity: int64(len(apps)),
 			}, {
 				Resource: cloudapi.KUBE_CLUSTER,
 				Quantity: int64(len(kubeServers)),
@@ -127,25 +127,11 @@ func (r *UsageReporter) reportUsage(ctx context.Context) {
 			len(users),
 			len(databases),
 			len(kubeServers),
-			appCount,
+			len(apps),
 			len(roles),
 			authConnectorCount,
 		)
 	}
-}
-
-func (r *UsageReporter) getAppsCount(ctx context.Context) (int, error) {
-	servers, err := r.ResourceGetter.GetAppServers(ctx, defaults.Namespace)
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-
-	count := 0
-	for _, server := range servers {
-		count = count + len(server.GetApps())
-	}
-
-	return count, nil
 }
 
 func (r *UsageReporter) getAuthConnectorCount(ctx context.Context) (int, error) {

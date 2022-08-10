@@ -27,12 +27,8 @@ func TestUsageReport(t *testing.T) {
 		return []types.User{&types.UserV2{}}, nil
 	}
 
-	m.apiGetters.MockedGetAppServers = func() ([]types.Server, error) {
-		return []types.Server{&types.ServerV2{
-			Spec: types.ServerSpecV2{
-				Apps: []*types.App{{}},
-			},
-		}}, nil
+	m.apiGetters.MockedGetApplicationServers = func() ([]types.AppServer, error) {
+		return []types.AppServer{&types.AppServerV3{}}, nil
 	}
 
 	m.apiGetters.MockedGetKubeServices = func() ([]types.Server, error) {
@@ -67,21 +63,29 @@ func TestUsageReport(t *testing.T) {
 
 	m.reporter.reportUsage(context.TODO())
 
-	needed := []*cloudapi.UsageReport{{PeriodStart: 449884799,
-		PeriodEnd: 449884800,
-		Items: []*cloudapi.UsageReportItem{{Resource: cloudapi.USER,
+	needed := []*cloudapi.UsageReport{{
+		PeriodStart: 449884799,
+		PeriodEnd:   449884800,
+		Items: []*cloudapi.UsageReportItem{{
+			Resource: cloudapi.USER,
 			Quantity: 1,
-		}, {Resource: cloudapi.SERVER,
+		}, {
+			Resource: cloudapi.SERVER,
 			Quantity: 1,
-		}, {Resource: cloudapi.DATABASE,
+		}, {
+			Resource: cloudapi.DATABASE,
 			Quantity: 1,
-		}, {Resource: cloudapi.APPLICATION,
+		}, {
+			Resource: cloudapi.APPLICATION,
 			Quantity: 1,
-		}, {Resource: cloudapi.KUBE_CLUSTER,
+		}, {
+			Resource: cloudapi.KUBE_CLUSTER,
 			Quantity: 1,
-		}, {Resource: cloudapi.ROLE,
+		}, {
+			Resource: cloudapi.ROLE,
 			Quantity: 2,
-		}, {Resource: cloudapi.AUTH_CONNECTOR,
+		}, {
+			Resource: cloudapi.AUTH_CONNECTOR,
 			Quantity: 6,
 		}},
 	}}
@@ -101,7 +105,7 @@ func TestErrors(t *testing.T) {
 		return nil, trace.BadParameter("unable to return users")
 	}
 
-	m.apiGetters.MockedGetAppServers = func() ([]types.Server, error) {
+	m.apiGetters.MockedGetApplicationServers = func() ([]types.AppServer, error) {
 		return nil, trace.BadParameter("unable to return apps")
 	}
 
@@ -125,21 +129,29 @@ func TestErrors(t *testing.T) {
 
 	m.reporter.reportUsage(context.TODO())
 
-	needed := []*cloudapi.UsageReport{{PeriodStart: 449884799,
-		PeriodEnd: 449884800,
-		Items: []*cloudapi.UsageReportItem{{Resource: cloudapi.USER,
+	needed := []*cloudapi.UsageReport{{
+		PeriodStart: 449884799,
+		PeriodEnd:   449884800,
+		Items: []*cloudapi.UsageReportItem{{
+			Resource: cloudapi.USER,
 			Quantity: 0,
-		}, {Resource: cloudapi.SERVER,
+		}, {
+			Resource: cloudapi.SERVER,
 			Quantity: 0,
-		}, {Resource: cloudapi.DATABASE,
+		}, {
+			Resource: cloudapi.DATABASE,
 			Quantity: 1,
-		}, {Resource: cloudapi.APPLICATION,
+		}, {
+			Resource: cloudapi.APPLICATION,
 			Quantity: 0,
-		}, {Resource: cloudapi.KUBE_CLUSTER,
+		}, {
+			Resource: cloudapi.KUBE_CLUSTER,
 			Quantity: 0,
-		}, {Resource: cloudapi.ROLE,
+		}, {
+			Resource: cloudapi.ROLE,
 			Quantity: 0,
-		}, {Resource: cloudapi.AUTH_CONNECTOR,
+		}, {
+			Resource: cloudapi.AUTH_CONNECTOR,
 			Quantity: 0,
 		}},
 	}}

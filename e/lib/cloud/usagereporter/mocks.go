@@ -41,15 +41,15 @@ func (m *MockedBackendGetter) Clock() clockwork.Clock {
 }
 
 type MockedResourceGetter struct {
-	MockedGetNodes            func() ([]types.Server, error)
-	MockedGetDatabaseServers  func() ([]types.DatabaseServer, error)
-	MockedGetUsers            func() ([]types.User, error)
-	MockedGetKubeServices     func() ([]types.Server, error)
-	MockedGetAppServers       func() ([]types.Server, error)
-	MockedGetRoles            func() ([]types.Role, error)
-	MockedGetGithubConnectors func() ([]types.GithubConnector, error)
-	MockedGetSAMLConnectors   func() ([]types.SAMLConnector, error)
-	MockedGetOIDCConnectors   func() ([]types.OIDCConnector, error)
+	MockedGetNodes              func() ([]types.Server, error)
+	MockedGetDatabaseServers    func() ([]types.DatabaseServer, error)
+	MockedGetUsers              func() ([]types.User, error)
+	MockedGetKubeServices       func() ([]types.Server, error)
+	MockedGetApplicationServers func() ([]types.AppServer, error)
+	MockedGetRoles              func() ([]types.Role, error)
+	MockedGetGithubConnectors   func() ([]types.GithubConnector, error)
+	MockedGetSAMLConnectors     func() ([]types.SAMLConnector, error)
+	MockedGetOIDCConnectors     func() ([]types.OIDCConnector, error)
 }
 
 func (g *MockedResourceGetter) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
@@ -66,8 +66,8 @@ func (g *MockedResourceGetter) GetDatabaseServers(ctx context.Context, namespace
 	}
 
 	return nil, trace.NotImplemented("GetDatabaseServers is not implemented")
-
 }
+
 func (g *MockedResourceGetter) GetUsers(withSecrets bool) ([]types.User, error) {
 	if g.MockedGetUsers != nil {
 		return g.MockedGetUsers()
@@ -84,9 +84,9 @@ func (g *MockedResourceGetter) GetKubeServices(context.Context) ([]types.Server,
 	return nil, trace.NotImplemented("GetKubeServices is not implemented")
 }
 
-func (g *MockedResourceGetter) GetAppServers(context.Context, string, ...services.MarshalOption) ([]types.Server, error) {
-	if g.MockedGetAppServers != nil {
-		return g.MockedGetAppServers()
+func (g *MockedResourceGetter) GetApplicationServers(context.Context, string) ([]types.AppServer, error) {
+	if g.MockedGetApplicationServers != nil {
+		return g.MockedGetApplicationServers()
 	}
 
 	return nil, trace.NotImplemented("GetAppServers is not implemented")
