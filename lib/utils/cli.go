@@ -54,9 +54,9 @@ func InitLogger(purpose LoggingPurpose, level logrus.Level, verbose ...bool) {
 	logrus.SetLevel(level)
 	switch purpose {
 	case LoggingForCLI:
-		// If debug logging was asked for on the CLI, then write logs to stderr.
+		// If warn logging was asked for on the CLI, then write logs to stderr.
 		// Otherwise, discard all logs.
-		if level == logrus.DebugLevel {
+		if level == logrus.WarnLevel {
 			logrus.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
 			logrus.SetOutput(os.Stderr)
 		} else {
