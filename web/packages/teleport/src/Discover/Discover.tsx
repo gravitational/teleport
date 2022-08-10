@@ -26,9 +26,23 @@ import { MenuItem, MenuItemIcon } from 'shared/components/MenuAction';
 import cfg from 'teleport/config';
 
 import { useDiscoverContext } from './discoverContextProvider';
-import { useDiscover, State, AgentStep } from './useDiscover';
-import { agentStepTitles, agentViews } from './AgentConnect';
+import { useDiscover, State } from './useDiscover';
+
 import { SelectResource } from './SelectResource';
+import { DownloadScript } from './DownloadScript';
+import { LoginTrait } from './LoginTrait';
+import { TestConnection } from './TestConnection';
+
+import type { AgentKind } from './useDiscover';
+import type { AgentStepComponent } from './types';
+
+export const agentViews: Record<AgentKind, AgentStepComponent[]> = {
+  app: [],
+  db: [],
+  desktop: [],
+  kube: [],
+  node: [SelectResource, DownloadScript, LoginTrait, TestConnection],
+};
 
 export default function Container() {
   const ctx = useDiscoverContext();
@@ -41,7 +55,7 @@ export function Discover({
   initAttempt,
   username,
   currentStep,
-  selectedAgentKind,
+  selectedAgentKind = 'node',
   logout,
   onSelectResource,
   ...agentProps
@@ -67,9 +81,6 @@ export function Discover({
           <Flex p={5} alignItems="flex-start">
             <SideNavAgentConnect currentStep={currentStep} />
             <Box width="100%" height="100%" minWidth="0">
-              {currentStep === AgentStep.Select && (
-                <SelectResource onSelect={onSelectResource} />
-              )}
               {AgentComponent && <AgentComponent {...agentProps} />}
             </Box>
           </Flex>
@@ -131,6 +142,13 @@ function TopBar(props: { onLogout: VoidFunction; username: string }) {
 }
 
 function SideNavAgentConnect({ currentStep }) {
+  const agentStepTitles: string[] = [
+    'Select Resource Type',
+    'Configure Resource',
+    'Configure Role',
+    'Test Connection',
+  ];
+
   return (
     <SideNavContainer>
       <Box mb={4}>

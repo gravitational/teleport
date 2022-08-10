@@ -23,7 +23,8 @@ import { Image, Text, Box, ButtonPrimary, ButtonSecondary, Flex } from 'design';
 import Empty from 'teleport/components/Empty';
 import cfg from 'teleport/config';
 
-import { resourceTypes } from './resource-lists';
+import { useDiscoverContext } from '../discoverContextProvider';
+import { resourceTypes } from '../resource-lists';
 
 import applicationIcon from './assets/application.png';
 import databaseIcon from './assets/database.png';
@@ -31,9 +32,22 @@ import serverIcon from './assets/server.png';
 import k8sIcon from './assets/kubernetes.png';
 
 import type { TabComponent } from 'design/SlideTabs/SlideTabs';
-import type { ResourceType, ResourceLocation } from './resource-lists';
+import type { ResourceType, ResourceLocation } from '../resource-lists';
+import type { AgentStepProps } from '../types';
+import type { State } from '../useDiscover';
 
-export function SelectResource({ onSelect }: SelectResourceProps) {
+export default function Container(props: AgentStepProps) {
+  const ctx = useDiscoverContext();
+  return <SelectResource nextStep={props.nextStep} />;
+}
+
+type Props = {
+  // ctx: DiscoverContext;
+  // props: AgentStepProps;
+  nextStep: State['nextStep'];
+};
+
+export function SelectResource({ nextStep }: Props) {
   const [selectedResource, setSelectedResource] = useState<string>('server');
   const [selectedType, setSelectedType] = useState('');
   const [disableProceed, setDisableProceed] = useState<boolean>(true);
@@ -140,10 +154,11 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
           disabled={disableProceed}
           mr={3}
           onClick={() => {
-            onSelect({
-              resource: selectedResource,
-              type: selectedType,
-            });
+            nextStep();
+            // nextStep({
+            //   resource: selectedResource,
+            //   type: selectedType,
+            // });
           }}
         >
           Proceed

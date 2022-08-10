@@ -33,7 +33,7 @@ export function useDiscover(ctx: DiscoverContext) {
   const { attempt: initAttempt, run: initRun } = useAttempt('processing');
 
   const [joinToken, setJoinToken] = useState<JoinToken>();
-  const [currentStep, setCurrentStep] = useState<AgentStep>(0);
+  const [currentStep, setCurrentStep] = useState(0);
   const [selectedAgentKind, setSelectedAgentKind] = useState<AgentKind>();
   const [agentMeta, setAgentMeta] = useState<AgentMeta>();
 
@@ -109,19 +109,6 @@ export function useDiscover(ctx: DiscoverContext) {
     prevStep,
     createJoinToken,
   };
-}
-
-// AgentStep defines the order of steps in `connecting a agent (resource)`
-// that all agent kinds should share.
-//
-// The numerical enum value is used to determine which step the user is currently in,
-// which is also used as the `index value` to access array's values
-// for `agentStepTitles` and `agentViews`.
-export enum AgentStep {
-  Select = 0,
-  Setup,
-  RoleConfig,
-  TestConnection,
 }
 
 // NodeMeta describes the fields for node resource
