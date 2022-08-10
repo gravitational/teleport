@@ -4496,6 +4496,18 @@ func (a *ServerWithRoles) ReplaceRemoteLocks(ctx context.Context, clusterName st
 	return a.authServer.ReplaceRemoteLocks(ctx, clusterName, locks)
 }
 
+// StreamEvents streams audit events. An error is returned on the first channel if one is encountered.
+// The event channel is not closed on error to prevent race conditions in downstream select statements.
+func (a *ServerWithRoles) StreamEvents(ctx context.Context, startKey string) (chan apievents.StreamEvents, chan error) {
+	if err := a.action(apidefaults.Namespace, types.KindEvent, types.VerbList); err != nil {
+		c, e := make(chan apievents.StreamEvents), make(chan error, 1)
+		e <- trace.Wrap(err)
+		return c, e
+	}
+
+	return a.alog.StreamEvents(ctx, startKey)
+}
+
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
 // channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.

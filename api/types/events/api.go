@@ -71,6 +71,14 @@ type AuditEvent interface {
 	SetClusterName(string)
 }
 
+// StreamEvents TODO
+type StreamEvents struct {
+	// Items TODO
+	Items []AuditEvent
+	// LastKey TODO
+	LastKey string
+}
+
 // Emitter creates and manages audit log streams
 type Emitter interface {
 	// EmitAuditEvent emits a single audit event.

@@ -53,6 +53,11 @@ func (d *DiscardAuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit in
 func (d *DiscardAuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	return nil
 }
+func (d *DiscardAuditLog) StreamEvents(ctx context.Context, startKey string) (chan apievents.StreamEvents, chan error) {
+	c, e := make(chan apievents.StreamEvents), make(chan error, 1)
+	close(c)
+	return c, e
+}
 func (d *DiscardAuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
 	close(c)
@@ -91,7 +96,7 @@ func (*DiscardStream) Complete(ctx context.Context) error {
 
 // EmitAuditEvent discards audit event
 func (*DiscardStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	log.Debugf("Dicarding stream event: %v", event)
+	log.Debugf("Discarding stream event: %v", event)
 	return nil
 }
 
@@ -105,7 +110,7 @@ type DiscardEmitter struct{}
 
 // EmitAuditEvent discards audit event
 func (*DiscardEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	log.Debugf("Dicarding event: %v", event)
+	log.Debugf("Discarding event: %v", event)
 	return nil
 }
 
