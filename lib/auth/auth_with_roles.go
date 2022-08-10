@@ -2466,6 +2466,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		activeRequests: services.RequestIDs{
 			AccessRequests: req.AccessRequests,
 		},
+		connectionDiagnosticID: req.ConnectionDiagnosticID,
 	}
 	if user.GetName() != a.context.User.GetName() {
 		certReq.impersonator = a.context.User.GetName()
@@ -4966,6 +4967,15 @@ func (a *ServerWithRoles) UpdateConnectionDiagnostic(ctx context.Context, connec
 	}
 
 	return nil
+}
+
+// AppendTraceConnectionDiagnostic adds a new trace for the given ConnectionDiagnostic.
+func (a *ServerWithRoles) AppendTraceConnectionDiagnostic(ctx context.Context, name string, t *types.ConnectionDiagnosticTrace) (types.ConnectionDiagnostic, error) {
+	if err := a.action(apidefaults.Namespace, types.KindConnectionDiagnostic, types.VerbRead, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.AppendTraceConnectionDiagnostic(ctx, name, t)
 }
 
 // StartAccountRecovery is implemented by AuthService.StartAccountRecovery.

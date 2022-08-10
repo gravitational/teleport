@@ -94,6 +94,10 @@ type accessPoint interface {
 
 	// GenerateCertAuthorityCRL returns an empty CRL for a CA.
 	GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error)
+
+	// AppendTraceConnectionDiagnostics adds a Trace into the ConnectionDiagnostics.
+	// This is a convinience method that calls GetConnectionDiagnostic, appends the trace and updates the ConnectionDiagnostic.
+	AppendTraceConnectionDiagnostic(ctx context.Context, name string, t *types.ConnectionDiagnosticTrace) (types.ConnectionDiagnostic, error)
 }
 
 // ReadNodeAccessPoint is a read only API interface implemented by a certificate authority (CA) to be

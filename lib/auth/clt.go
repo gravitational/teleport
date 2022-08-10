@@ -1693,4 +1693,8 @@ type ClientI interface {
 
 	// PingInventory attempts to trigger a downstream ping against a connected instance.
 	PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error)
+
+	// AppendTraceConnectionDiagnostics adds a Trace into the ConnectionDiagnostics.
+	// This is a convinience method that calls GetConnectionDiagnostic, appends the trace and updates the ConnectionDiagnostic.
+	AppendTraceConnectionDiagnostic(ctx context.Context, name string, t *types.ConnectionDiagnosticTrace) (types.ConnectionDiagnostic, error)
 }

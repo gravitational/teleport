@@ -3830,41 +3830,312 @@ func TestListConnectionsDiagnostic(t *testing.T) {
 	require.Equal(t, receivedConnectionDiagnostic.Traces[0].Details, "some details")
 }
 
-func TestDiagnoseConnection(t *testing.T) {
-	t.Parallel()
-
+func TestDiagnoseSSHConnection(t *testing.T) {
 	ctx := context.Background()
-	username := "someuser"
-	roleRWConnectionDiagnostic, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				types.NewRule(types.KindConnectionDiagnostic,
-					[]string{types.VerbRead, types.VerbCreate, types.VerbUpdate}),
+
+	osUser, err := user.Current()
+	require.NoError(t, err)
+
+	osUsername := osUser.Username
+
+	roleWithFullAccess := func(username string, login string) []types.Role {
+		ret, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces: []string{apidefaults.Namespace},
+				NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				Rules: []types.Rule{
+					types.NewRule(types.KindConnectionDiagnostic, services.RW()),
+					types.NewRule(types.KindNode, services.RW()),
+				},
+				Logins: []string{login},
 			},
-		},
-	})
+		})
+		require.NoError(t, err)
+		return []types.Role{ret}
+	}
+	require.NoError(t, err)
+
+	rolesWithoutAccessToNode := func(username string) []types.Role {
+		ret, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces: []string{apidefaults.Namespace},
+				NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				Rules: []types.Rule{
+					types.NewRule(types.KindConnectionDiagnostic, services.RW()),
+				},
+			},
+		})
+		require.NoError(t, err)
+		return []types.Role{ret}
+	}
+	require.NoError(t, err)
+
+	roleWithPrincipal := func(username string, principal string) []types.Role {
+		ret, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces: []string{apidefaults.Namespace},
+				NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				Rules: []types.Rule{
+					types.NewRule(types.KindNode, services.RO()),
+					types.NewRule(types.KindConnectionDiagnostic, services.RW()),
+				},
+				Logins: []string{principal},
+			},
+		})
+		require.NoError(t, err)
+		return []types.Role{ret}
+	}
 	require.NoError(t, err)
 
 	env := newWebPack(t, 1)
 	clusterName := env.server.ClusterName()
-	pack := env.proxies[0].authPack(t, username, []types.Role{roleRWConnectionDiagnostic})
 
-	createConnectionEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "diagnostics", "connections")
+	for _, tt := range []struct {
+		name            string
+		teleportUser    string
+		roles           []types.Role
+		resourceName    string
+		nodeUser        string
+		updateAddr      string
+		expectedSuccess bool
+		expectedMessage string
+		expectedTraces  []types.ConnectionDiagnosticTrace
+	}{
+		{
+			name:            "success",
+			roles:           roleWithFullAccess("success", osUsername),
+			teleportUser:    "success",
+			resourceName:    "node",
+			nodeUser:        osUsername,
+			expectedSuccess: true,
+			expectedMessage: "success",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					TraceType: "rbac node",
+					Status:    "success",
+					Details:   "Resource exists.",
+				},
+				{
+					TraceType: "network connectivity",
+					Status:    "success",
+					Details:   "Host is alive and reachable.",
+				},
+				{
+					TraceType: "rbac principal",
+					Status:    "success",
+					Details:   "Successfully authenticated.",
+				},
+				{
+					TraceType: "node ssh server",
+					Status:    "success",
+					Details:   "Established an SSH connection.",
+				},
+				{
+					TraceType: "node ssh session",
+					Status:    "success",
+					Details:   "Created an SSH session.",
+				},
+				{
+					TraceType: "node principal",
+					Status:    "success",
+					Details:   fmt.Sprintf("%q user exists in target node", osUsername),
+				},
+			},
+		},
+		{
+			name:            "node not found",
+			roles:           roleWithFullAccess("nodenotfound", osUsername),
+			teleportUser:    "nodenotfound",
+			resourceName:    "notanode",
+			nodeUser:        osUsername,
+			expectedSuccess: false,
+			expectedMessage: "failed",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					TraceType: "rbac node",
+					Status:    "failed",
+					Details:   "Node not found. Ensure the Node exists and your role allows you to access it.",
+					Error:     fmt.Sprintf("key %q is not found", "/nodes/default/notanode"),
+				},
+			},
+		},
+		{
+			name:            "node not reachable",
+			teleportUser:    "nodenotreachable",
+			roles:           roleWithFullAccess("nodenotreachable", osUsername),
+			resourceName:    "node",
+			nodeUser:        osUsername,
+			updateAddr:      "192.0.2.1:22", // Part of IPv4 address block reserved for documentation and examples (similar to example.org/com) (https://www.rfc-editor.org/rfc/rfc5737)
+			expectedSuccess: false,
+			expectedMessage: "failed",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					TraceType: "network connectivity",
+					Status:    "failed",
+					Details:   "Failed to access the host. Please ensure it's network reachable.",
+					Error:     "dial tcp 192.0.2.1:22: i/o timeout",
+				},
+			},
+		},
+		{
+			name:            "node listens but is not an ssh server",
+			teleportUser:    "nodewithoutssh",
+			roles:           roleWithFullAccess("nodewithoutssh", osUsername),
+			resourceName:    "node",
+			nodeUser:        osUsername,
+			updateAddr:      "127.0.0.1:0",
+			expectedSuccess: false,
+			expectedMessage: "failed",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					TraceType: "node ssh server",
+					Status:    "failed",
+					Details:   "Failed to open SSH connection. Please ensure Teleport is running.",
+					Error:     "ssh: handshake failed: EOF",
+				},
+			},
+		},
+		{
+			name:            "no access to node",
+			teleportUser:    "userwithoutaccess",
+			roles:           rolesWithoutAccessToNode("userwithoutaccess"),
+			resourceName:    "node",
+			nodeUser:        osUsername,
+			expectedSuccess: false,
+			expectedMessage: "failed",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					TraceType: "rbac node",
+					Status:    "failed",
+					Details:   "Node not found. Ensure the Node exists and your role allows you to access it.",
+					Error:     "not found",
+				},
+			},
+		},
+		{
+			name:            "selected principal is not part of the allowed principals",
+			teleportUser:    "deniedprincipal",
+			roles:           roleWithFullAccess("deniedprincipal", osUsername),
+			resourceName:    "node",
+			nodeUser:        "deniedprincipal",
+			expectedSuccess: false,
+			expectedMessage: "failed",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					TraceType: "rbac principal",
+					Status:    "failed",
+					Details:   "Principal is not allowed by this certificate. Ensure your roles allows you use it.",
+					Error:     `ssh: principal "deniedprincipal" not in the set of valid principals for given certificate: ["` + osUsername + `" "-teleport-internal-join"]`,
+				},
+			},
+		},
+		{
+			name:            "principal doesnt exist in target host",
+			teleportUser:    "principaldoesnotexist",
+			roles:           roleWithPrincipal("principaldoesnotexist", "nonvalidlinuxuser"),
+			resourceName:    "node",
+			nodeUser:        "nonvalidlinuxuser",
+			expectedSuccess: false,
+			expectedMessage: "failed",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					TraceType: "node principal",
+					Status:    "failed",
+					Details:   `Failed to query the current user in the target node. Please ensure the principal "nonvalidlinuxuser" is a valid Linux login in the target node. Output from Node: Failed to launch: user: unknown user nonvalidlinuxuser.`,
+					Error:     "Process exited with status 255",
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			pack := env.proxies[0].authPack(t, tt.teleportUser, tt.roles)
+			createConnectionEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "diagnostics", "connections")
 
-	resp, err := pack.clt.PostJSON(ctx, createConnectionEndpoint, conntest.TestConnectionRequest{
-		ResourceKind: "node",
-		ResourceName: "host1",
-		SSHPrincipal: username,
-	})
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.Code())
+			if tt.updateAddr != "" {
+				if tt.updateAddr == "127.0.0.1:0" {
+					wg := sync.WaitGroup{}
+					fakeServer, err := net.Listen("tcp", tt.updateAddr)
+					require.NoError(t, err)
 
-	var receivedConnectionDiagnostic ui.ConnectionDiagnostic
-	require.NoError(t, json.Unmarshal(resp.Bytes(), &receivedConnectionDiagnostic))
+					wg.Add(1)
+					go func(t *testing.T) {
+						defer wg.Done()
 
-	require.True(t, receivedConnectionDiagnostic.Success)
-	require.Equal(t, receivedConnectionDiagnostic.Message, "dry-run")
-	require.Len(t, receivedConnectionDiagnostic.Traces, 0)
+						// A single connection is expected, no need to loop.
+						c, err := fakeServer.Accept()
+						require.NoError(t, err)
+
+						// Use a non-SSH protocol.
+						// Note: we don't care about errors here, this is a fake server anyway
+						buf := make([]byte, 1024)
+						c.Read(buf)
+						c.Write([]byte("not an ssh server"))
+
+						c.Close()
+					}(t)
+
+					tt.updateAddr = fakeServer.Addr().String()
+					t.Cleanup(func() {
+						wg.Wait()
+						require.NoError(t, fakeServer.Close())
+					})
+				}
+				testingNode, err := env.proxies[0].client.GetNode(ctx, apidefaults.Namespace, tt.resourceName)
+				require.NoError(t, err)
+
+				originalAddress := testingNode.GetAddr()
+				testingNode.SetAddr(tt.updateAddr)
+
+				_, err = env.node.GetAccessPoint().UpsertNode(ctx, testingNode)
+				require.NoError(t, err)
+
+				t.Cleanup(func() {
+					testingNode.SetAddr(originalAddress)
+
+					_, err = env.node.GetAccessPoint().UpsertNode(ctx, testingNode)
+					require.NoError(t, err)
+				})
+			}
+
+			resp, err := pack.clt.PostJSON(ctx, createConnectionEndpoint, conntest.TestConnectionRequest{
+				ResourceKind: "node",
+				ResourceName: tt.resourceName,
+				SSHPrincipal: tt.nodeUser,
+				// Default is 5 seconds but since tests run locally, we can reduce this value to also improve test responsiveness
+				DialTimeout: time.Second,
+			})
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.Code())
+
+			var connectionDiagnostic ui.ConnectionDiagnostic
+			require.NoError(t, json.Unmarshal(resp.Bytes(), &connectionDiagnostic))
+
+			for i, trace := range connectionDiagnostic.Traces {
+				t.Logf("%s : %d id='%s' status='%s' type='%s' details='%s' error='%s'\n", tt.name, i, trace.ID, trace.Status, trace.TraceType, trace.Details, trace.Error)
+			}
+
+			require.Equal(t, tt.expectedSuccess, connectionDiagnostic.Success)
+			require.Equal(t, tt.expectedMessage, connectionDiagnostic.Message)
+
+			for _, expectedTrace := range tt.expectedTraces {
+
+				foundTrace := false
+				for _, returnedTrace := range connectionDiagnostic.Traces {
+					if expectedTrace.TraceType != returnedTrace.TraceType {
+						continue
+					}
+
+					foundTrace = true
+					require.NotEmpty(t, returnedTrace.ID)
+					require.Equal(t, expectedTrace.Status, returnedTrace.Status)
+					require.Equal(t, expectedTrace.Details, returnedTrace.Details)
+					require.Equal(t, expectedTrace.Error, returnedTrace.Error)
+				}
+
+				require.True(t, foundTrace)
+			}
+		})
+	}
 }
 
 type authProviderMock struct {

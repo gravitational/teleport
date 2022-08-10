@@ -2985,3 +2985,23 @@ func (c *Client) UpsertClusterAlert(ctx context.Context, alert types.ClusterAler
 	}, c.callOpts...)
 	return trail.FromGRPC(err)
 }
+
+// AppendTraceConnectionDiagnostic adds a new trace for the given ConnectionDiagnostic.
+func (c *Client) AppendTraceConnectionDiagnostic(ctx context.Context, name string, t *types.ConnectionDiagnosticTrace) (types.ConnectionDiagnostic, error) {
+	req := &proto.GetConnectionDiagnosticRequest{
+		Name: name,
+	}
+	connectionDiagnostic, err := c.grpc.GetConnectionDiagnostic(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	connectionDiagnostic.AppendTrace(t)
+
+	_, err = c.grpc.UpdateConnectionDiagnostic(ctx, connectionDiagnostic, c.callOpts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return connectionDiagnostic, nil
+}

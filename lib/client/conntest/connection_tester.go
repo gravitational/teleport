@@ -18,10 +18,15 @@ package conntest
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/trace"
+)
+
+const (
+	DefaultDiagnosticDialTimeout = 5 * time.Second
 )
 
 // TestConnectionRequest contains
@@ -35,6 +40,9 @@ type TestConnectionRequest struct {
 	// SSHPrincipal is the Linux username to use in a connection test.
 	// Specific to SSHTester.
 	SSHPrincipal string `json:"ssh_principal,omitempty"`
+
+	// Timeout when trying to connect to the destination host
+	DialTimeout time.Duration `json:"dial_timeout,omitempty"`
 }
 
 // CheckAndSetDefaults validates the Request has the required fields.
@@ -45,6 +53,10 @@ func (r *TestConnectionRequest) CheckAndSetDefaults() error {
 
 	if r.ResourceName == "" {
 		return trace.BadParameter("missing required parameter ResourceName")
+	}
+
+	if r.DialTimeout <= 0 {
+		r.DialTimeout = DefaultDiagnosticDialTimeout
 	}
 
 	return nil

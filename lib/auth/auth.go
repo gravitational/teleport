@@ -905,6 +905,9 @@ type certRequest struct {
 	// generation indicates the number of times this certificate has been
 	// renewed.
 	generation uint64
+	// connectionDiagnosticID contains the ID of the ConnectionDiagnostic.
+	// The Node/Agent will append connection traces to this instance.
+	connectionDiagnosticID string
 }
 
 // check verifies the cert request is valid.
@@ -1200,28 +1203,29 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	}
 
 	params := services.UserCertParams{
-		CASigner:              caSigner,
-		PublicUserKey:         req.publicKey,
-		Username:              req.user.GetName(),
-		Impersonator:          req.impersonator,
-		AllowedLogins:         allowedLogins,
-		TTL:                   sessionTTL,
-		Roles:                 req.checker.RoleNames(),
-		CertificateFormat:     certificateFormat,
-		PermitPortForwarding:  req.checker.CanPortForward(),
-		PermitAgentForwarding: req.checker.CanForwardAgents(),
-		PermitX11Forwarding:   req.checker.PermitX11Forwarding(),
-		RouteToCluster:        req.routeToCluster,
-		Traits:                req.traits,
-		ActiveRequests:        req.activeRequests,
-		MFAVerified:           req.mfaVerified,
-		ClientIP:              req.clientIP,
-		DisallowReissue:       req.disallowReissue,
-		Renewable:             req.renewable,
-		Generation:            req.generation,
-		CertificateExtensions: req.checker.CertificateExtensions(),
-		AllowedResourceIDs:    requestedResourcesStr,
-		SourceIP:              req.sourceIP,
+		CASigner:               caSigner,
+		PublicUserKey:          req.publicKey,
+		Username:               req.user.GetName(),
+		Impersonator:           req.impersonator,
+		AllowedLogins:          allowedLogins,
+		TTL:                    sessionTTL,
+		Roles:                  req.checker.RoleNames(),
+		CertificateFormat:      certificateFormat,
+		PermitPortForwarding:   req.checker.CanPortForward(),
+		PermitAgentForwarding:  req.checker.CanForwardAgents(),
+		PermitX11Forwarding:    req.checker.PermitX11Forwarding(),
+		RouteToCluster:         req.routeToCluster,
+		Traits:                 req.traits,
+		ActiveRequests:         req.activeRequests,
+		MFAVerified:            req.mfaVerified,
+		ClientIP:               req.clientIP,
+		DisallowReissue:        req.disallowReissue,
+		Renewable:              req.renewable,
+		Generation:             req.generation,
+		CertificateExtensions:  req.checker.CertificateExtensions(),
+		AllowedResourceIDs:     requestedResourcesStr,
+		SourceIP:               req.sourceIP,
+		ConnectionDiagnosticID: req.connectionDiagnosticID,
 	}
 	sshCert, err := a.Authority.GenerateUserCert(params)
 	if err != nil {
@@ -3169,6 +3173,23 @@ func (a *Server) ListResources(ctx context.Context, req proto.ListResourcesReque
 		}, nil
 	}
 	return a.Cache.ListResources(ctx, req)
+}
+
+// AppendTraceConnectionDiagnostics adds a Trace into the ConnectionDiagnostics.
+// This is a convinience method that calls GetConnectionDiagnostic, appends the trace and updates the ConnectionDiagnostic.
+func (a *Server) AppendTraceConnectionDiagnostic(ctx context.Context, name string, t *types.ConnectionDiagnosticTrace) (types.ConnectionDiagnostic, error) {
+	connectionDiagnostic, err := a.GetConnectionDiagnostic(ctx, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	connectionDiagnostic.AppendTrace(t)
+
+	if err := a.UpdateConnectionDiagnostic(ctx, connectionDiagnostic); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return connectionDiagnostic, nil
 }
 
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {

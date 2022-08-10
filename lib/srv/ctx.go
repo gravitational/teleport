@@ -103,6 +103,10 @@ type AccessPoint interface {
 
 	// GetCertAuthorities returns a list of cert authorities
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+
+	// AppendTraceConnectionDiagnostics adds a Trace into the ConnectionDiagnostics.
+	// This is a convinience method that calls GetConnectionDiagnostic, appends the trace and updates the ConnectionDiagnostic.
+	AppendTraceConnectionDiagnostic(ctx context.Context, name string, t *types.ConnectionDiagnosticTrace) (types.ConnectionDiagnostic, error)
 }
 
 // Server is regular or forwarding SSH server.

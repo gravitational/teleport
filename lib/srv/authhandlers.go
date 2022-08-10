@@ -244,6 +244,8 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext) error {
 // UserKeyAuth implements SSH client authentication using public keys and is
 // called by the server every time the client connects.
 func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+	ctx := context.Background()
+
 	fingerprint := fmt.Sprintf("%v %v", key.Type(), sshutils.Fingerprint(key))
 
 	// create a new logging entry with info specific to this login attempt
@@ -312,13 +314,40 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		},
 		FIPS: h.c.FIPS,
 	}
+
+	connectionDiagnosticID := cert.Extensions[teleport.CertExtensionTeleportConnectionDiagnosticID]
+
 	permissions, err := certChecker.Authenticate(conn, key)
 	if err != nil {
 		certificateMismatchCount.Inc()
 		recordFailedLogin(err)
+
+		if connectionDiagnosticID != "" {
+			_, err := h.c.AccessPoint.AppendTraceConnectionDiagnostic(ctx, connectionDiagnosticID, types.NewFailedTraceConnectionDiagnostic(
+				uuid.NewString(),
+				types.DiagnosticTraceTypeRBACPrincipal,
+				"Principal is not allowed by this certificate. Ensure your roles allows you use it.",
+				err,
+			))
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
 		return nil, trace.Wrap(err)
 	}
 	log.Debugf("Successfully authenticated")
+
+	if connectionDiagnosticID != "" {
+		_, err = h.c.AccessPoint.AppendTraceConnectionDiagnostic(ctx, connectionDiagnosticID, types.NewSuccessTraceConnectionDiagnostic(
+			uuid.NewString(),
+			types.DiagnosticTraceTypeRBACPrincipal,
+			"Successfully authenticated.",
+		))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	clusterName, err := h.c.AccessPoint.GetClusterName()
 	if err != nil {
