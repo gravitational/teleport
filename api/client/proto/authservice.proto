@@ -1183,6 +1183,12 @@ message IsMFARequiredRequest {
     }
 }
 
+// StreamEventsRequest is a request to start or resume streaming audit events.
+message StreamEventsRequest {
+    // StartKey is an optional stream cursor that can be used to resume the stream.
+    string StartKey = 1;
+}
+
 // StreamSessionEventsRequest is a request containing needed data to fetch a session recording.
 message StreamSessionEventsRequest {
     // SessionID is the ID for a given session in an UUIDv4 format.
@@ -1261,9 +1267,9 @@ message GetSessionEventsRequest {
 message Events {
     // Items is a list of typed gRPC formatted audit events.
     repeated events.OneOf Items = 1;
-    // the key of the last event if the returned set did not contain all events found i.e limit <
-    // actual amount. this is the key clients can supply in another API request to continue fetching
-    // events from the previous last position
+    // The key of the last event if the returned set did not contain all events.
+    // This is the key clients can supply in another API request to continue fetching
+    // events from the previous last position.
     string LastKey = 2;
 }
 
@@ -2385,6 +2391,8 @@ service AuthService {
     // ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
     rpc ReplaceRemoteLocks(ReplaceRemoteLocksRequest) returns (google.protobuf.Empty);
 
+    // StreamEvents streams audit events.
+    rpc StreamEvents(StreamEventsRequest) returns (stream Events);
     // StreamSessionEvents streams audit events from a given session recording.
     rpc StreamSessionEvents(StreamSessionEventsRequest) returns (stream events.OneOf);
 
