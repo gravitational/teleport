@@ -116,7 +116,7 @@ func (l *EC2) Sync(ctx context.Context) error {
 			// Only show the error the first time around.
 			if !l.loggedInstanceTagsNotFound {
 				l.loggedInstanceTagsNotFound = true
-				l.c.Log.Debug("could not fetch tags, please ensure 'allow instance tags in metadata' is enabled on the instance")
+				l.c.Log.Warning("could not fetch tags, please ensure 'allow instance tags in metadata' is enabled on the instance")
 			}
 			return nil
 		}
@@ -166,7 +166,7 @@ func (l *EC2) periodicUpdateLabels(ctx context.Context) {
 
 	for {
 		if err := l.Sync(ctx); err != nil {
-			l.c.Log.Debugf("Error fetching EC2 tags: %v", err)
+			l.c.Log.Warningf("Error fetching EC2 tags: %v", err)
 		}
 		select {
 		case <-ticker.Chan():
