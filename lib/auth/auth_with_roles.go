@@ -3837,15 +3837,15 @@ func (a *ServerWithRoles) SignDatabaseCSR(ctx context.Context, req *proto.Databa
 //
 // This certificate can be requested by:
 //
-//   - Cluster administrator using "tctl auth sign --format=db" command locally
-//     on the auth server to produce a certificate for configuring a self-hosted
-//     database.
-//   - Remote user using "tctl auth sign --format=db" command with a remote
-//     proxy (e.g. Teleport Cloud), as long as they can impersonate system
-//     role Db.
-//   - Database service when initiating connection to a database instance to
-//     produce a client certificate.
-//   - Proxy service when generating mTLS files to a database
+//  - Cluster administrator using "tctl auth sign --format=db" command locally
+//    on the auth server to produce a certificate for configuring a self-hosted
+//    database.
+//  - Remote user using "tctl auth sign --format=db" command with a remote
+//    proxy (e.g. Teleport Cloud), as long as they can impersonate system
+//    role Db.
+//  - Database service when initiating connection to a database instance to
+//    produce a client certificate.
+//  - Proxy service when generating mTLS files to a database
 func (a *ServerWithRoles) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
 	// Check if the User can `create` DatabaseCertificates
 	err := a.action(apidefaults.Namespace, types.KindDatabaseCertificate, types.VerbCreate)
@@ -5154,4 +5154,3 @@ func verbsToReplaceResourceWithOrigin(stored types.ResourceWithOrigin) []string 
 	}
 	return verbs
 }
-
