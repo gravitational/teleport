@@ -313,8 +313,8 @@ const (
 //
 // All spans received will have a `teleport.forwarded.for` attribute added to them with the value being one of
 // two things depending on the role of the forwarder:
-//  1) User forwarded: `teleport.forwarded.for: alice`
-//  2) Instance forwarded: `teleport.forwarded.for: Proxy.clustername:Proxy,Node,Instance`
+//  1. User forwarded: `teleport.forwarded.for: alice`
+//  2. Instance forwarded: `teleport.forwarded.for: Proxy.clustername:Proxy,Node,Instance`
 //
 // This allows upstream consumers of the spans to be able to identify forwarded spans and act on them accordingly.
 func (a *ServerWithRoles) Export(ctx context.Context, req *collectortracev1.ExportTraceServiceRequest) (*collectortracev1.ExportTraceServiceResponse, error) {
@@ -3837,15 +3837,15 @@ func (a *ServerWithRoles) SignDatabaseCSR(ctx context.Context, req *proto.Databa
 //
 // This certificate can be requested by:
 //
-//  - Cluster administrator using "tctl auth sign --format=db" command locally
-//    on the auth server to produce a certificate for configuring a self-hosted
-//    database.
-//  - Remote user using "tctl auth sign --format=db" command with a remote
-//    proxy (e.g. Teleport Cloud), as long as they can impersonate system
-//    role Db.
-//  - Database service when initiating connection to a database instance to
-//    produce a client certificate.
-//  - Proxy service when generating mTLS files to a database
+//   - Cluster administrator using "tctl auth sign --format=db" command locally
+//     on the auth server to produce a certificate for configuring a self-hosted
+//     database.
+//   - Remote user using "tctl auth sign --format=db" command with a remote
+//     proxy (e.g. Teleport Cloud), as long as they can impersonate system
+//     role Db.
+//   - Database service when initiating connection to a database instance to
+//     produce a client certificate.
+//   - Proxy service when generating mTLS files to a database
 func (a *ServerWithRoles) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
 	// Check if the User can `create` DatabaseCertificates
 	err := a.action(apidefaults.Namespace, types.KindDatabaseCertificate, types.VerbCreate)
@@ -4535,6 +4535,9 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 	}
 
 	roles, err := types.NewTeleportRoles(user.GetRoles())
+	if err != nil {
+		return createErrorChannel[apievents.AuditEvent](err)
+	}
 	// StreamSessionEvents can be called internally, and when that happens we don't want to emit an event
 	// Checking the user's roles for either the Auth or Proxy role will indicate if it's an internal call
 	if !roles.IncludeAny(types.RoleAuth, types.RoleProxy) {
