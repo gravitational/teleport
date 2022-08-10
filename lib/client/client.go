@@ -30,6 +30,8 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/propagation"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
@@ -1690,7 +1692,7 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 		}
 	}
 
-	proxyConn, err := proxy.Client.Dial("tcp", nodeAddress.Addr)
+	proxyConn, err := proxy.Client.DialContext(ctx, "tcp", nodeAddress.Addr)
 	if err != nil {
 		return nil, trace.ConnectionProblem(err, "failed connecting to node %v. %s", nodeAddress, err)
 	}
@@ -1778,7 +1780,8 @@ func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan 
 }
 
 // newClientConn is a wrapper around ssh.NewClientConn
-func newClientConn(ctx context.Context,
+func newClientConn(
+	ctx context.Context,
 	conn net.Conn,
 	nodeAddress string,
 	config *ssh.ClientConfig,
@@ -1792,7 +1795,10 @@ func newClientConn(ctx context.Context,
 
 	respCh := make(chan response, 1)
 	go func() {
-		conn, chans, reqs, err := ssh.NewClientConn(conn, nodeAddress, config)
+		// Use a noop text map propagator so that the tracing context isn't included in
+		// the connection handshake. Since the provided conn will already include the tracing
+		// context we don't want to send it again.
+		conn, chans, reqs, err := tracessh.NewClientConn(ctx, conn, nodeAddress, config, tracing.WithTextMapPropagator(propagation.NewCompositeTextMapPropagator()))
 		respCh <- response{conn, chans, reqs, err}
 	}()
 

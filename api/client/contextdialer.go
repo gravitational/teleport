@@ -22,9 +22,12 @@ import (
 	"net"
 	"time"
 
+	oteltrace "go.opentelemetry.io/otel/trace"
+
 	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 
@@ -54,10 +57,31 @@ func newDirectDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 	}
 }
 
+// tracedDialer ensures that the provided ContextDialerFunc is given a context
+// which contains tracing information. In the event that a grpc dial occurs without
+// a grpc.WithBlock dialing option, the context provided to the dial function will
+// be context.Background(), which doesn't contain any tracing information. To get around
+// this limitation, any tracing context from the provided context.Context will be extracted
+// and used instead.
+func tracedDialer(ctx context.Context, fn ContextDialerFunc) ContextDialerFunc {
+	return func(dialCtx context.Context, network, addr string) (net.Conn, error) {
+		if spanCtx := oteltrace.SpanContextFromContext(dialCtx); !spanCtx.IsValid() {
+			ctx = oteltrace.ContextWithSpanContext(dialCtx, oteltrace.SpanContextFromContext(ctx))
+		} else {
+			ctx = dialCtx
+		}
+
+		ctx, span := tracing.DefaultProvider().Tracer("dialer").Start(ctx, "client/DirectDial")
+		defer span.End()
+
+		return fn(ctx, network, addr)
+	}
+}
+
 // NewDialer makes a new dialer that connects to an Auth server either directly or via an HTTP proxy, depending
 // on the environment.
-func NewDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
-	return ContextDialerFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
+func NewDialer(ctx context.Context, keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
+	return tracedDialer(ctx, func(ctx context.Context, network, addr string) (net.Conn, error) {
 		dialer := newDirectDialer(keepAlivePeriod, dialTimeout)
 		if proxyURL := proxy.GetProxyURL(addr); proxyURL != nil {
 			return DialProxyWithDialer(ctx, proxyURL, addr, dialer)
