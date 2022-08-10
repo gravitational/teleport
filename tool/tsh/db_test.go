@@ -404,11 +404,12 @@ func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []service
 			all, err := auth.GetAuthServer().GetDatabaseServers(ctx, apidefaults.Namespace)
 			require.NoError(t, err)
 
+			// Count how many input "dbs" are registered.
 			var registered int
 			for _, db := range dbs {
 				for _, a := range all {
 					if a.GetName() == db.Name {
-						registered += 1
+						registered++
 						break
 					}
 				}

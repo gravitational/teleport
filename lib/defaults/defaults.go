@@ -507,7 +507,7 @@ func ReadableDatabaseProtocol(p string) string {
 		return "Microsoft SQL Server"
 	default:
 		// Unknown protocol. Return original string.
-		return string(p)
+		return p
 	}
 }
 
