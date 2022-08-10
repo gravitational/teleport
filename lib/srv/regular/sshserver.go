@@ -1637,11 +1637,11 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		case tracessh.TracingRequest:
 			return nil
 		case sshutils.PTYRequest:
-			return s.termHandlers.HandlePTYReq(ch, req, serverContext)
+			return s.termHandlers.HandlePTYReq(ctx, ch, req, serverContext)
 		case sshutils.ShellRequest:
 			return s.termHandlers.HandleShell(ctx, ch, req, serverContext)
 		case sshutils.WindowChangeRequest:
-			return s.termHandlers.HandleWinChange(ch, req, serverContext)
+			return s.termHandlers.HandleWinChange(ctx, ch, req, serverContext)
 		case teleport.ForceTerminateRequest:
 			return s.termHandlers.HandleForceTerminate(ch, req, serverContext)
 		case sshutils.EnvRequest:
@@ -1676,11 +1676,11 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	case sshutils.ExecRequest:
 		return s.termHandlers.HandleExec(ctx, ch, req, serverContext)
 	case sshutils.PTYRequest:
-		return s.termHandlers.HandlePTYReq(ch, req, serverContext)
+		return s.termHandlers.HandlePTYReq(ctx, ch, req, serverContext)
 	case sshutils.ShellRequest:
 		return s.termHandlers.HandleShell(ctx, ch, req, serverContext)
 	case sshutils.WindowChangeRequest:
-		return s.termHandlers.HandleWinChange(ch, req, serverContext)
+		return s.termHandlers.HandleWinChange(ctx, ch, req, serverContext)
 	case teleport.ForceTerminateRequest:
 		return s.termHandlers.HandleForceTerminate(ch, req, serverContext)
 	case sshutils.EnvRequest:

@@ -259,6 +259,9 @@ const (
 	// KindDatabaseCertificate is a resource to control Database Certificates generation
 	KindDatabaseCertificate = "database_certificate"
 
+	// KindConnectionDiagnostic is a resource that tracks the result of testing a connection
+	KindConnectionDiagnostic = "connection_diagnostic"
+
 	// V5 is the fifth version of resources.
 	V5 = "v5"
 
@@ -422,6 +425,10 @@ const (
 
 	// BotGenerationLabel is a label used to record the certificate generation counter.
 	BotGenerationLabel = "teleport.internal/bot-generation"
+
+	// InternalResourceIDLabel is a label used to store an ID to correlate between two resources
+	// A pratical example of this is to create a correlation between a Node Provision Token and the Node that used that token to join the cluster
+	InternalResourceIDLabel = "teleport.internal/resource-id"
 )
 
 // RequestableResourceKinds lists all Teleport resource kinds users can request access to.
