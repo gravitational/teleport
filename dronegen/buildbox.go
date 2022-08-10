@@ -29,7 +29,7 @@ func buildboxPipelineSteps() []step {
 		waitForDockerStep(),
 	}
 
-	for _, name := range []string{"buildbox", "buildbox-arm"} {
+	for _, name := range []string{"buildbox", "buildbox-arm", "buildbox-centos7"} {
 		for _, fips := range []bool{false, true} {
 			// FIPS is unsupported on ARM/ARM64
 			if name == "buildbox-arm" && fips {
@@ -49,16 +49,32 @@ func buildboxPipelineStep(buildboxName string, fips bool) step {
 		Name:  buildboxName,
 		Image: "docker",
 		Environment: map[string]value{
-			"QUAYIO_DOCKER_USERNAME": {fromSecret: "QUAYIO_DOCKER_USERNAME"},
-			"QUAYIO_DOCKER_PASSWORD": {fromSecret: "QUAYIO_DOCKER_PASSWORD"},
+			"STAGING_AWS_ACCESS_KEY_ID":     {fromSecret: "STAGING_BUILDBOX_DRONE_USER_ECR_KEY"},
+			"STAGING_AWS_SECRET_ACCESS_KEY": {fromSecret: "STAGING_BUILDBOX_DRONE_USER_ECR_SECRET"},
+			"PROD_AWS_ACCESS_KEY_ID":        {fromSecret: "PRODUCTION_BUILDBOX_DRONE_USER_ECR_KEY"},
+			"PROD_AWS_SECRET_ACCESS_KEY":    {fromSecret: "PRODUCTION_BUILDBOX_DRONE_USER_ECR_SECRET"},
 		},
 		Volumes: dockerVolumeRefs(),
 		Commands: []string{
-			`apk add --no-cache make`,
+			`apk add --no-cache make aws-cli`,
 			`chown -R $UID:$GID /go`,
-			`docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io`,
+			// Authenticate to staging registry
+			`export AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID"`,
+			`export AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY"`,
+			`aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin ` + StagingRegistry,
+			// Build buildbox image
 			fmt.Sprintf(`make -C build.assets %s`, buildboxName),
-			fmt.Sprintf(`docker push quay.io/gravitational/teleport-%s:$BUILDBOX_VERSION`, buildboxName),
+			// Retag for staging registry
+			fmt.Sprintf(`docker tag %s/gravitational/teleport-%s:$BUILDBOX_VERSION %s/gravitational/teleport-%s:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA`, ProductionRegistry, buildboxName, StagingRegistry, buildboxName),
+			// Push to staging registry
+			fmt.Sprintf(`docker push %s/gravitational/teleport-%s:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA`, StagingRegistry, buildboxName),
+			// Authenticate to production registry
+			`docker logout ` + StagingRegistry,
+			`export AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID"`,
+			`export AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY"`,
+			`aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin ` + ProductionRegistry,
+			// Push to production registry
+			fmt.Sprintf(`docker push %s/gravitational/teleport-%s:$BUILDBOX_VERSION`, ProductionRegistry, buildboxName),
 		},
 	}
 }
