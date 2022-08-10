@@ -70,5 +70,5 @@ func ConnectionTesterForKind(resourceKind string, client auth.ClientI) (Connecti
 	case types.KindNode:
 		return NewSSHConnectionTester(client), nil
 	}
-	return nil, trace.NotImplemented("resource '%s' does not have a connection tester", resourceKind)
+	return nil, trace.NotImplemented("resource %q does not have a connection tester", resourceKind)
 }

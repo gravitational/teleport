@@ -23,18 +23,18 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // SSHConnectionTester implements the ConnectionTester interface for Testing SSH access
 type SSHConnectionTester struct {
-	clt auth.ClientI
+	cd services.ConnectionsDiagnostic
 }
 
 // NewSSHConnectionTester creates a new SSHConnectionTester
-func NewSSHConnectionTester(clt auth.ClientI) *SSHConnectionTester {
+func NewSSHConnectionTester(cd services.ConnectionsDiagnostic) *SSHConnectionTester {
 	return &SSHConnectionTester{
-		clt: clt,
+		cd: cd,
 	}
 }
 
@@ -50,7 +50,7 @@ func NewSSHConnectionTester(clt auth.ClientI) *SSHConnectionTester {
 //   - the SSH Node will append a trace indicating if the requested principal is valid for the target Node
 func (s *SSHConnectionTester) TestConnection(ctx context.Context, req DiagnoseConnectionRequest) (types.ConnectionDiagnostic, error) {
 	id := uuid.NewString()
-	connDiagInitial, err := types.NewConnectionDiagnosticV1(id, map[string]string{},
+	connectionDiagnostic, err := types.NewConnectionDiagnosticV1(id, map[string]string{},
 		types.ConnectionDiagnosticSpecV1{
 			Message: types.MessageWaiting,
 		})
@@ -58,7 +58,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req DiagnoseCo
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.clt.CreateConnectionDiagnostic(ctx, connDiagInitial); err != nil {
+	if err := s.cd.CreateConnectionDiagnostic(ctx, connectionDiagnostic); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -67,15 +67,10 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req DiagnoseCo
 	// - create ssh client using that certificate
 	// - if connection fails because of a network error, a trace must be included indicating that the host is not reachable
 	// - other traces will be added by the Node itself (rbac checks, principal)
-	connDiagInitial.SetMessage("dry-run")
-	connDiagInitial.SetSuccess(true)
+	connectionDiagnostic.SetMessage(types.MessageDryRun)
+	connectionDiagnostic.SetSuccess(true)
 
-	if err := s.clt.UpdateConnectionDiagnostic(ctx, connDiagInitial); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	connectionDiagnostic, err := s.clt.GetConnectionDiagnostic(ctx, id)
-	if err != nil {
+	if err := s.cd.UpdateConnectionDiagnostic(ctx, connectionDiagnostic); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
