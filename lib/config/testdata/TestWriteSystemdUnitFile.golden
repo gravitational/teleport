@@ -1,0 +1,15 @@
+[Unit]
+Description=Teleport Service
+After=network.target
+
+[Service]
+Type=simple
+Restart=on-failure
+EnvironmentFile=-/custom/env/dir/teleport
+ExecStart=/custom/install/dir/teleport start --pid-file=/custom/pid/dir/teleport.pid
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/custom/pid/dir/teleport.pid
+LimitNOFILE=16384
+
+[Install]
+WantedBy=multi-user.target
