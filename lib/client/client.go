@@ -31,14 +31,12 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -49,13 +47,15 @@ import (
 	"github.com/gravitational/teleport/lib/utils/socks"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 // ProxyClient implements ssh client to a teleport proxy
 // It can provide list of nodes or connect to nodes
 type ProxyClient struct {
 	teleportClient  *TeleportClient
-	Client          *ssh.Client
+	Client          *tracessh.Client
 	hostLogin       string
 	proxyAddress    string
 	proxyPrincipal  string
@@ -69,7 +69,7 @@ type ProxyClient struct {
 // NodeClient can run shell and commands or upload and download files.
 type NodeClient struct {
 	Namespace string
-	Client    *ssh.Client
+	Client    *tracessh.Client
 	Proxy     *ProxyClient
 	TC        *TeleportClient
 	OnMFA     func()
@@ -78,8 +78,8 @@ type NodeClient struct {
 // GetSites returns list of the "sites" (AKA teleport clusters) connected to the proxy
 // Each site is returned as an instance of its auth server
 //
-func (proxy *ProxyClient) GetSites() ([]types.Site, error) {
-	proxySession, err := proxy.Client.NewSession()
+func (proxy *ProxyClient) GetSites(ctx context.Context) ([]types.Site, error) {
+	proxySession, err := proxy.Client.NewSession(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -611,7 +611,7 @@ func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace str
 
 // FindNodesByFilters returns list of the nodes which have filters matched.
 func (proxy *ProxyClient) FindNodesByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.Server, error) {
-	cluster, err := proxy.currentCluster()
+	cluster, err := proxy.currentCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -655,7 +655,7 @@ func (proxy *ProxyClient) FindNodesByFiltersForCluster(ctx context.Context, req 
 
 // FindAppServersByFilters returns a list of application servers in the current cluster which have filters matched.
 func (proxy *ProxyClient) FindAppServersByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.AppServer, error) {
-	cluster, err := proxy.currentCluster()
+	cluster, err := proxy.currentCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -750,7 +750,7 @@ func (proxy *ProxyClient) DeleteUserAppSessions(ctx context.Context, req *proto.
 
 // FindDatabaseServersByFilters returns registered database proxy servers that match the provided filter.
 func (proxy *ProxyClient) FindDatabaseServersByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.DatabaseServer, error) {
-	cluster, err := proxy.currentCluster()
+	cluster, err := proxy.currentCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -793,7 +793,7 @@ func (proxy *ProxyClient) FindDatabaseServersByFiltersForCluster(ctx context.Con
 // FindDatabasesByFilters returns registered databases that match the provided
 // filter in the current cluster.
 func (proxy *ProxyClient) FindDatabasesByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.Database, error) {
-	cluster, err := proxy.currentCluster()
+	cluster, err := proxy.currentCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -837,7 +837,7 @@ func (proxy *ProxyClient) ListResources(ctx context.Context, namespace, resource
 // and could be cached based on the access policy
 func (proxy *ProxyClient) CurrentClusterAccessPoint(ctx context.Context, quiet bool) (auth.ClientI, error) {
 	// get the current cluster:
-	cluster, err := proxy.currentCluster()
+	cluster, err := proxy.currentCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -863,7 +863,7 @@ func (proxy *ProxyClient) ClusterAccessPoint(ctx context.Context, clusterName st
 // if 'quiet' is set to true, no errors will be printed to stdout, otherwise
 // any connection errors are visible to a user.
 func (proxy *ProxyClient) ConnectToCurrentCluster(ctx context.Context, quiet bool) (auth.ClientI, error) {
-	cluster, err := proxy.currentCluster()
+	cluster, err := proxy.currentCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1071,7 +1071,7 @@ func (proxy *ProxyClient) dialAuthServer(ctx context.Context, clusterName string
 		return nil, trace.Wrap(err)
 	}
 
-	proxySession, err := proxy.Client.NewSession()
+	proxySession, err := proxy.Client.NewSession(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1189,7 +1189,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 		return nil, trace.Wrap(err)
 	}
 
-	proxySession, err := proxy.Client.NewSession()
+	proxySession, err := proxy.Client.NewSession(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1222,7 +1222,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 		if proxy.teleportClient.localAgent == nil {
 			return nil, trace.BadParameter("cluster is in proxy recording mode and requires agent forwarding for connections, but no agent was initialized")
 		}
-		err = agent.ForwardToAgent(proxy.Client, proxy.teleportClient.localAgent.Agent)
+		err = agent.ForwardToAgent(proxy.Client.Client, proxy.teleportClient.localAgent.Agent)
 		if err != nil && !strings.Contains(err.Error(), "agent: already have handler for") {
 			return nil, trace.Wrap(err)
 		}
@@ -1274,10 +1274,8 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 	emptyCh := make(chan *ssh.Request)
 	close(emptyCh)
 
-	client := ssh.NewClient(conn, chans, emptyCh)
-
 	nc := &NodeClient{
-		Client:    client,
+		Client:    tracessh.NewClient(conn, chans, emptyCh),
 		Proxy:     proxy,
 		Namespace: apidefaults.Namespace,
 		TC:        proxy.teleportClient,
@@ -1316,7 +1314,7 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 		if proxy.teleportClient.localAgent == nil {
 			return nil, trace.BadParameter("cluster is in proxy recording mode and requires agent forwarding for connections, but no agent was initialized")
 		}
-		err = agent.ForwardToAgent(proxy.Client, proxy.teleportClient.localAgent.Agent)
+		err = agent.ForwardToAgent(proxy.Client.Client, proxy.teleportClient.localAgent.Agent)
 		if err != nil && !strings.Contains(err.Error(), "agent: already have handler for") {
 			return nil, trace.Wrap(err)
 		}
@@ -1346,10 +1344,8 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 	emptyCh := make(chan *ssh.Request)
 	close(emptyCh)
 
-	client := ssh.NewClient(conn, chans, emptyCh)
-
 	nc := &NodeClient{
-		Client:    client,
+		Client:    tracessh.NewClient(conn, chans, emptyCh),
 		Proxy:     proxy,
 		Namespace: apidefaults.Namespace,
 		TC:        proxy.teleportClient,
@@ -1458,7 +1454,7 @@ func (c *NodeClient) ExecuteSCP(ctx context.Context, cmd scp.Command) error {
 		return trace.Wrap(err)
 	}
 
-	s, err := c.Client.NewSession()
+	s, err := c.Client.NewSession(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1715,8 +1711,8 @@ func (c *NodeClient) Close() error {
 }
 
 // currentCluster returns the connection to the API of the current cluster
-func (proxy *ProxyClient) currentCluster() (*types.Site, error) {
-	sites, err := proxy.GetSites()
+func (proxy *ProxyClient) currentCluster(ctx context.Context) (*types.Site, error) {
+	sites, err := proxy.GetSites(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -20,6 +20,7 @@ package regular
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -29,10 +30,10 @@ import (
 	"strings"
 	"sync"
 
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/observability/tracing"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
@@ -53,10 +54,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 )
 
 const sftpSubsystem = "sftp"
@@ -925,7 +926,7 @@ func (s *Server) serveAgent(ctx *srv.ServerContext) error {
 // req.Reply(false, nil).
 //
 // For more details: https://tools.ietf.org/html/rfc4254.html#page-4
-func (s *Server) HandleRequest(r *ssh.Request) {
+func (s *Server) HandleRequest(ctx context.Context, r *ssh.Request) {
 	switch r.Type {
 	case teleport.KeepAliveReqType:
 		s.handleKeepAlive(r)
@@ -1387,6 +1388,20 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 				scx.Debugf("Client %v disconnected.", scx.ServerConn.RemoteAddr())
 				return
 			}
+
+			// handle the tracing request inline here to update the context for this session.
+			// this should only be requested once, right after the session has been created.
+			if req.Type == tracessh.TracingRequest {
+				var traceCtx tracing.PropagationContext
+				if err := json.Unmarshal(req.Payload, &traceCtx); err != nil {
+					scx.WithError(err).Error("Failed to unmarshal tracing request.")
+					continue
+				}
+
+				ctx = tracing.WithPropagationContext(ctx, traceCtx)
+				continue
+			}
+
 			if err := s.dispatch(ctx, ch, req, scx); err != nil {
 				s.replyError(ch, req, err)
 				return
@@ -1414,7 +1429,7 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 	}
 }
 
-// dispatch receives an SSH request for a subsystem and disptaches the request to the
+// dispatch receives an SSH request for a subsystem and dispatches the request to the
 // appropriate subsystem implementation
 func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) error {
 	serverContext.Debugf("Handling request %v, want reply %v.", req.Type, req.WantReply)
@@ -1424,7 +1439,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	if s.proxyMode {
 		switch req.Type {
 		case sshutils.SubsystemRequest:
-			return s.handleSubsystem(ch, req, serverContext)
+			return s.handleSubsystem(ctx, ch, req, serverContext)
 		case sshutils.EnvRequest:
 			// we currently ignore setting any environment variables via SSH for security purposes
 			return s.handleEnv(ch, req, serverContext)
@@ -1465,7 +1480,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	case sshutils.SubsystemRequest:
 		// subsystems are SSH subsystems defined in http://tools.ietf.org/html/rfc4254 6.6
 		// they are in essence SSH session extensions, allowing to implement new SSH commands
-		return s.handleSubsystem(ch, req, serverContext)
+		return s.handleSubsystem(ctx, ch, req, serverContext)
 	case sshutils.X11ForwardRequest:
 		return s.handleX11Forward(ch, req, serverContext)
 	case sshutils.AgentForwardRequest:
@@ -1600,24 +1615,24 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 	return nil
 }
 
-func (s *Server) handleSubsystem(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
-	sb, err := s.parseSubsystemRequest(req, ctx)
+func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) error {
+	sb, err := s.parseSubsystemRequest(req, serverContext)
 	if err != nil {
-		ctx.Warnf("Failed to parse subsystem request: %v: %v.", req, err)
+		serverContext.Warnf("Failed to parse subsystem request: %v: %v.", req, err)
 		return trace.Wrap(err)
 	}
-	ctx.Debugf("Subsystem request: %v.", sb)
+	serverContext.Debugf("Subsystem request: %v.", sb)
 	// starting subsystem is blocking to the client,
 	// while collecting its result and waiting is not blocking
-	if err := sb.Start(ctx.ServerConn, ch, req, ctx); err != nil {
-		ctx.Warnf("Subsystem request %v failed: %v.", sb, err)
-		ctx.SendSubsystemResult(srv.SubsystemResult{Err: trace.Wrap(err)})
+	if err := sb.Start(ctx, serverContext.ServerConn, ch, req, serverContext); err != nil {
+		serverContext.Warnf("Subsystem request %v failed: %v.", sb, err)
+		serverContext.SendSubsystemResult(srv.SubsystemResult{Err: trace.Wrap(err)})
 		return trace.Wrap(err)
 	}
 	go func() {
 		err := sb.Wait()
 		log.Debugf("Subsystem %v finished with result: %v.", sb, err)
-		ctx.SendSubsystemResult(srv.SubsystemResult{Err: trace.Wrap(err)})
+		serverContext.SendSubsystemResult(srv.SubsystemResult{Err: trace.Wrap(err)})
 	}()
 	return nil
 }
@@ -1779,7 +1794,7 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 		return
 	}
 
-	if err := subsys.Start(scx.ServerConn, ch, &ssh.Request{}, scx); err != nil {
+	if err := subsys.Start(ctx, scx.ServerConn, ch, &ssh.Request{}, scx); err != nil {
 		log.Errorf("Unable to start proxy subsystem: %v.", err)
 		writeStderr(ch, "Unable to start proxy subsystem.")
 		return
