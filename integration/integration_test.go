@@ -718,7 +718,7 @@ func (s *integrationTestSuite) newTeleportIoT(t *testing.T, logins []string) *he
 	nodeConfig := func() *service.Config {
 		tconf := s.defaultServiceConfig()
 		tconf.Hostname = Host
-		tconf.Token = "token"
+		tconf.SetToken("token")
 		tconf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
@@ -1088,7 +1088,7 @@ func testCustomReverseTunnel(t *testing.T, suite *integrationTestSuite) {
 	// Create a Teleport instance with a Node.
 	nodeConf := suite.defaultServiceConfig()
 	nodeConf.Hostname = Host
-	nodeConf.Token = "token"
+	nodeConf.SetToken("token")
 	nodeConf.Auth.Enabled = false
 	nodeConf.Proxy.Enabled = false
 	nodeConf.SSH.Enabled = true
@@ -2742,7 +2742,7 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	nodeConfig := func() *service.Config {
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = tunnelNodeHostname
-		tconf.Token = "token"
+		tconf.SetToken("token")
 		tconf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
@@ -3142,7 +3142,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 	nodeConfig := func() *service.Config {
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = "cluster-main-node"
-		tconf.Token = "token"
+		tconf.SetToken("token")
 		tconf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
@@ -3278,7 +3278,7 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 	nodeConfig := func() *service.Config {
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = "cluster-main-node"
-		tconf.Token = "token"
+		tconf.SetToken("token")
 		tconf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
@@ -6430,7 +6430,7 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 			conf.Proxy.Enabled = false
 
 			conf.DataDir = t.TempDir()
-			conf.Token = "token"
+			conf.SetToken("token")
 			conf.UploadEventsC = i.UploadEventsC
 			conf.AuthServers = []utils.NetAddr{
 				*utils.MustParseAddr(net.JoinHostPort(i.Hostname, helpers.PortStr(t, i.Web))),
