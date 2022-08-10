@@ -246,7 +246,6 @@ exports[`polling error state 1`] = `
   display: inline-block;
   transition: color 0.3s;
   margin-left: 4px;
-  margin-right: 8px;
   color: #f50057;
 }
 
@@ -274,12 +273,6 @@ exports[`polling error state 1`] = `
   margin: 0px;
 }
 
-.c9 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-}
-
 .c5 {
   box-sizing: border-box;
   margin-bottom: 4px;
@@ -298,6 +291,18 @@ exports[`polling error state 1`] = `
   display: flex;
 }
 
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  display: flex;
+  align-items: center;
+}
+
+.c9 .icon {
+  margin-right: 8px;
+}
+
 .c3 {
   box-sizing: border-box;
   padding: 16px;
@@ -312,6 +317,7 @@ exports[`polling error state 1`] = `
   font-weight: normal;
   padding-left: 2px;
   font-size: inherit;
+  min-height: auto;
 }
 
 <div
@@ -548,7 +554,6 @@ exports[`polling state 1`] = `
 .c10 {
   display: inline-block;
   transition: color 0.3s;
-  margin-right: 8px;
   color: #FFFFFF;
   font-size: 18px;
 }
@@ -595,6 +600,18 @@ exports[`polling state 1`] = `
   display: flex;
 }
 
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  display: flex;
+  align-items: center;
+}
+
+.c9 .icon {
+  margin-right: 8px;
+}
+
 .c3 {
   box-sizing: border-box;
   padding: 16px;
@@ -602,14 +619,6 @@ exports[`polling state 1`] = `
   max-width: 800px;
   background-color: rgba(255,255,255,0.05);
   border: 2px solid #2F3659;
-}
-
-.c9 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  display: flex;
-  align-items: center;
 }
 
 <div
@@ -841,7 +850,6 @@ exports[`polling success state 1`] = `
   display: inline-block;
   transition: color 0.3s;
   margin-left: 4px;
-  margin-right: 8px;
   color: #00bfa5;
 }
 
@@ -869,12 +877,6 @@ exports[`polling success state 1`] = `
   margin: 0px;
 }
 
-.c9 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-}
-
 .c5 {
   box-sizing: border-box;
   margin-bottom: 4px;
@@ -891,6 +893,18 @@ exports[`polling success state 1`] = `
   box-sizing: border-box;
   margin-right: 8px;
   display: flex;
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  display: flex;
+  align-items: center;
+}
+
+.c9 .icon {
+  margin-right: 8px;
 }
 
 .c3 {

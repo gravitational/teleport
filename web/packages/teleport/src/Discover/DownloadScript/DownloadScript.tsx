@@ -26,7 +26,7 @@ import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import { useDiscoverContext } from '../discoverContextProvider';
 import { AgentStepProps } from '../types';
 
-import { Header, ActionButtons } from '../Shared';
+import { Header, ActionButtons, TextIcon } from '../Shared';
 
 import { useDownloadScript } from './useDownloadScript';
 
@@ -69,25 +69,20 @@ export function DownloadScript({
               mb={1}
             />
             {pollState === 'polling' && (
-              <Text
-                css={`
-                  display: flex;
-                  align-items: center;
-                `}
-              >
-                <Icons.Restore fontSize={4} mr={2} />
+              <TextIcon>
+                <Icons.Restore fontSize={4} />
                 Waiting for resource discovery...
-              </Text>
+              </TextIcon>
             )}
             {pollState === 'success' && (
-              <Text>
-                <Icons.CircleCheck mr={2} ml={1} color="success" />
+              <TextIcon>
+                <Icons.CircleCheck ml={1} color="success" />
                 Successfully discovered resource
-              </Text>
+              </TextIcon>
             )}
             {pollState === 'error' && (
-              <Text>
-                <Icons.Warning mr={2} ml={1} color="danger" />
+              <TextIcon>
+                <Icons.Warning ml={1} color="danger" />
                 Timed out, failed to discover resource.{' '}
                 <ButtonText
                   onClick={regenerateScriptAndRepoll}
@@ -96,11 +91,12 @@ export function DownloadScript({
                     font-weight: normal;
                     padding-left: 2px;
                     font-size: inherit;
+                    min-height: auto;
                   `}
                 >
                   Generate a new script and try again.
                 </ButtonText>
-              </Text>
+              </TextIcon>
             )}
           </ScriptBox>
           <ActionButtons

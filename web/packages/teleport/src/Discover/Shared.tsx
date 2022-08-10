@@ -15,6 +15,7 @@
  */
 
 import React from 'react';
+import styled from 'styled-components';
 
 import { Text, ButtonPrimary, ButtonSecondary, Box } from 'design';
 import Dialog, {
@@ -95,3 +96,12 @@ function ConfirmExitDialog({ onClose }: { onClose(): void }) {
     </Dialog>
   );
 }
+
+export const TextIcon = styled(Text)`
+  display: flex;
+  align-items: center;
+
+  .icon {
+    margin-right: 8px;
+  }
+`;

@@ -19,7 +19,7 @@ import React from 'react';
 import { ButtonPrimary, ButtonSecondary, Text, Box } from 'design';
 
 import { LoginTrait } from './LoginTrait';
-
+import { TestConnection } from './TestConnection';
 import { DownloadScript } from './DownloadScript';
 
 import type { AgentStepProps, AgentStepComponent } from './types';
@@ -46,7 +46,7 @@ export const agentViews: Record<AgentKind, AgentStepComponent[]> = {
   db: [],
   desktop: [],
   kube: [],
-  node: [GatherReqsNode, DownloadScript, LoginTrait, InstallTeleport],
+  node: [GatherReqsNode, DownloadScript, LoginTrait, TestConnection],
 };
 
 function GatherReqs(props: AgentStepProps) {

@@ -14,5 +14,5 @@
  * limitations under the License.
  */
 
-export * from './types';
-export { agentService } from './agents';
+import TestConnection from './TestConnection';
+export { TestConnection };

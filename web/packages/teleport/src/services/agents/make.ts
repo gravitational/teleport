@@ -14,5 +14,30 @@
  * limitations under the License.
  */
 
-export * from './types';
-export { agentService } from './agents';
+import type { ConnectionDiagnostic, ConnectionDiagnosticTrace } from './types';
+
+export function makeConnectionDiagnostic(json: any): ConnectionDiagnostic {
+  json = json || {};
+  const { id, labels, success, message, traces } = json;
+
+  return {
+    id,
+    labels: labels ? labels : [],
+    success,
+    message,
+    traces: makeTraces(traces),
+  };
+}
+
+function makeTraces(traces: any): ConnectionDiagnosticTrace[] {
+  if (!traces) {
+    return [];
+  }
+
+  return traces.map(t => ({
+    id: t.id,
+    traceType: t.trace_type,
+    status: t.status,
+    details: t.details,
+  }));
+}

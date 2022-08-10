@@ -14,5 +14,26 @@
  * limitations under the License.
  */
 
-export * from './types';
-export { agentService } from './agents';
+import api from 'teleport/services/api';
+import cfg from 'teleport/config';
+
+import { makeConnectionDiagnostic } from './make';
+
+import type {
+  ConnectionDiagnostic,
+  ConnectionDiagnosticRequest,
+} from './types';
+
+export const agentService = {
+  createConnectionDiagnostic(
+    req: ConnectionDiagnosticRequest
+  ): Promise<ConnectionDiagnostic> {
+    return api
+      .post(cfg.getConnectionDiagnosticUrl(), {
+        resource_kind: req.resourceKind,
+        resource_name: req.resourceName,
+        ssh_principal: req.sshPrincipal,
+      })
+      .then(makeConnectionDiagnostic);
+  },
+};
