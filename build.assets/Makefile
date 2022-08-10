@@ -52,7 +52,7 @@ BUILDBOX_TELETERM=quay.io/gravitational/teleport-buildbox-teleterm:$(BUILDBOX_VE
 BUILDBOX_NAME=$(BUILDBOX)
 BUILDBOX_FIPS_NAME=$(BUILDBOX_FIPS)
 
-DOCSBOX=quay.io/gravitational/next:main
+DOCSBOX=public.ecr.aws/gravitational/docs
 
 ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)

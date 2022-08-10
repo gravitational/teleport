@@ -73,9 +73,9 @@ up-to-date information.
 <TabItem scope={["oss"]} label="Open Source">
 We provide pre-built Docker images for every version of Teleport.
 
-These images are hosted on quay.io. All tags under
-`quay.io/gravitational/teleport`
-[are Teleport Open Source images](https://quay.io/repository/gravitational/teleport?tag=latest\&tab=tags).
+These images are hosted on Amazon ECR Public. All tags under
+`public.ecr.aws/gravitational/teleport`
+[are Teleport Open Source images](https://gallery.ecr.aws/gravitational/teleport).
 
 The table below gives an idea of how our image naming scheme works. We offer
 images that point to a static version of Teleport as well as images that are
@@ -87,7 +87,7 @@ date.
 |Image name|Teleport version|Image automatically updated?|Image base|
 |-|-|-|-|
 |`(=teleport.latest_oss_docker_image=)`|The latest version of Teleport Open Source|Yes|[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)|
-|`quay.io/gravitational/teleport:(=teleport.version=)`|The version specified in the image's tag (i.e. (=teleport.version=))|No|[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)|
+|`public.ecr.aws/gravitational/teleport:(=teleport.version=)`|The version specified in the image's tag (i.e. (=teleport.version=))|No|[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)|
 
 For testing, we always recommend that you use the latest released version of Teleport, which is currently `(=teleport.latest_oss_docker_image=)`.
 
