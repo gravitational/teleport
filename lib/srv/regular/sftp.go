@@ -25,11 +25,12 @@ import (
 	"os/exec"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
@@ -55,7 +56,7 @@ func newSFTPSubsys() (*sftpSubsys, error) {
 	}, nil
 }
 
-func (s *sftpSubsys) Start(serverConn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, serverCtx *srv.ServerContext) error {
+func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, serverCtx *srv.ServerContext) error {
 	s.ch = ch
 
 	// Create two sets of anonymous pipes to give the child process

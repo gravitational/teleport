@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -296,7 +297,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 
 				return tconf
 			}
-			nodeProcess, err := teleport.StartNode(nodeConfig())
+			_, err := teleport.StartNode(nodeConfig())
 			require.NoError(t, err)
 
 			// get access to a authClient for the cluster
@@ -500,15 +501,6 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			require.Equal(t, string(sessionID), start.GetString(events.SessionEventID))
 			require.NotEmpty(t, start.GetString(events.TerminalSize))
 
-			// If session are being recorded at nodes, the SessionServerID should contain
-			// the ID of the node. If sessions are being recorded at the proxy, then
-			// SessionServerID should be that of the proxy.
-			expectedServerID := nodeProcess.Config.HostUUID
-			if services.IsRecordAtProxy(tt.inRecordLocation) {
-				expectedServerID = teleport.Process.Config.HostUUID
-			}
-			require.Equal(t, expectedServerID, start.GetString(events.SessionServerID))
-
 			// make sure data is recorded properly
 			out := &bytes.Buffer{}
 			for _, e := range history {
@@ -687,7 +679,7 @@ func (s *integrationTestSuite) newTeleportIoT(t *testing.T, logins []string) *Te
 	nodeConfig := func() *service.Config {
 		tconf := s.defaultServiceConfig()
 		tconf.Hostname = Host
-		tconf.Token = "token"
+		tconf.SetToken("token")
 		tconf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
@@ -905,7 +897,7 @@ func testCustomReverseTunnel(t *testing.T, suite *integrationTestSuite) {
 	// Create a Teleport instance with a Node.
 	nodeConf := suite.defaultServiceConfig()
 	nodeConf.Hostname = Host
-	nodeConf.Token = "token"
+	nodeConf.SetToken("token")
 	nodeConf.Auth.Enabled = false
 	nodeConf.Proxy.Enabled = false
 	nodeConf.SSH.Enabled = true
@@ -2507,7 +2499,7 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	nodeConfig := func() *service.Config {
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = tunnelNodeHostname
-		tconf.Token = "token"
+		tconf.SetToken("token")
 		tconf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
@@ -2907,7 +2899,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 	nodeConfig := func() *service.Config {
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = "cluster-main-node"
-		tconf.Token = "token"
+		tconf.SetToken("token")
 		tconf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
@@ -3050,7 +3042,7 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 	nodeConfig := func() *service.Config {
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = "cluster-main-node"
-		tconf.Token = "token"
+		tconf.SetToken("token")
 		tconf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
@@ -4606,7 +4598,7 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 		cl.Stdin = personB
 
 		// Change the size of the window immediately after it is created.
-		cl.OnShellCreated = func(s *ssh.Session, c *ssh.Client, terminal io.ReadWriteCloser) (exit bool, err error) {
+		cl.OnShellCreated = func(s *ssh.Session, c *tracessh.Client, terminal io.ReadWriteCloser) (exit bool, err error) {
 			err = s.WindowChange(48, 160)
 			if err != nil {
 				return true, trace.Wrap(err)
@@ -6318,7 +6310,7 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 			conf.Proxy.Enabled = false
 
 			conf.DataDir = t.TempDir()
-			conf.Token = "token"
+			conf.SetToken("token")
 			conf.UploadEventsC = i.UploadEventsC
 			conf.AuthServers = []utils.NetAddr{
 				*utils.MustParseAddr(net.JoinHostPort(i.Hostname, i.GetPortWeb())),
@@ -6518,7 +6510,7 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 		proxyClient.Close()
 	})
 
-	sftpClient, err := sftp.NewClient(proxyClient.Client)
+	sftpClient, err := sftp.NewClient(proxyClient.Client.Client)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, sftpClient.Close())
