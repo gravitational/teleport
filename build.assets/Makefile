@@ -384,7 +384,7 @@ release-amd64-centos7-fips: buildbox-centos7-fips
 
 .PHONY: release-amd64-connect
 release-amd64-connect: buildbox-teleterm
-	$(MAKE) release ARCH=amd64
+	$(MAKE) release ARCH=amd64 BUILDBOX_NAME=$(BUILDBOX_TELETERM)
 
 #
 # Create a Teleport FIPS package using the build container.
