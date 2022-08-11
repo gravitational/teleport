@@ -1,10 +1,10 @@
 ---
-title: Access AWS Management Console and API With Teleport Application Access
-description: How to access AWS Management Console and API with Teleport Application Access.
+title: Access AWS With Teleport Application Access
+description: How to access AWS with Teleport Application Access.
 videoBanner: GVcy_rffxQw
 ---
 
-# AWS Management Console And API Access
+# AWS Access
 
 Teleport can automatically sign your users into the AWS management console with
 appropriate IAM roles. Teleport also provides API access to AWS Command Line
@@ -356,9 +356,9 @@ HTTPS proxy or a local AWS Service Endpoint proxy.
   </TabItem>
 
   <TabItem label="AWS Service Endpoint proxy">
-  If your application cannot use a HTTPS proxy, start the AWS app proxy with
-  the `--endpoint-url` flag to create a local server that can be used as an [AWS
-  Service Endpoint](https://docs.aws.amazon.com/general/latest/gr/rande.html):
+  If the application cannot use a HTTPS proxy, start the AWS app proxy with the
+  `--endpoint-url` flag to create a local server that can be used as an AWS
+  Service Endpoint.
 
   ```code
   $ tsh proxy aws --endpoint-url -p 23457
