@@ -1427,7 +1427,7 @@ steps:
   - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
     print-node-version)
   - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
+  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-linux-x64
   - mkdir -p $TOOLCHAIN_DIR
   - curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.gz
   - tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-linux-x64.tar.gz
@@ -1614,7 +1614,7 @@ steps:
   - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
     print-node-version)
   - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
+  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-linux-x64
   - mkdir -p $TOOLCHAIN_DIR
   - curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.gz
   - tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-linux-x64.tar.gz
@@ -1800,7 +1800,7 @@ steps:
   - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
     print-node-version)
   - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
+  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-linux-x64
   - mkdir -p $TOOLCHAIN_DIR
   - curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.gz
   - tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-linux-x64.tar.gz
@@ -1984,7 +1984,7 @@ steps:
   - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
     print-node-version)
   - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
+  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-linux-x64
   - mkdir -p $TOOLCHAIN_DIR
   - curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.gz
   - tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-linux-x64.tar.gz
@@ -2885,7 +2885,7 @@ steps:
   - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
     print-node-version)
   - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
+  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-linux-x64
   - mkdir -p $TOOLCHAIN_DIR
   - curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.gz
   - tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-linux-x64.tar.gz
@@ -4024,7 +4024,7 @@ steps:
   - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
     print-node-version)
   - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
+  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-linux-x64
   - mkdir -p $TOOLCHAIN_DIR
   - curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.gz
   - tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-linux-x64.tar.gz
@@ -4198,7 +4198,7 @@ steps:
   - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
     print-node-version)
   - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
+  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-linux-x64
   - mkdir -p $TOOLCHAIN_DIR
   - curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.gz
   - tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-linux-x64.tar.gz
@@ -5080,7 +5080,7 @@ steps:
   - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
     print-node-version)
   - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
+  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-linux-x64
   - mkdir -p $TOOLCHAIN_DIR
   - curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.gz
   - tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-linux-x64.tar.gz
@@ -6541,6 +6541,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: e9bcef5d1685df35ab3301f138d02459bc839108840d84fc0c822aae92c0ac92
+hmac: 7d597b56fdd2cd8f2ea811fe822cc50f817c28670e704d642840d7dab15ed3da
 
 ...

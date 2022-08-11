@@ -239,7 +239,7 @@ func installNodeToolchainStepLinux(workspacePath string) step {
 			`set -u`,
 			`export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-node-version)`,
 			`export TOOLCHAIN_DIR=` + perBuildToolchainsDir,
-			`export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64`,
+			`export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-linux-x64`,
 			`mkdir -p $TOOLCHAIN_DIR`,
 			`curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.gz`,
 			`tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-linux-x64.tar.gz`,
