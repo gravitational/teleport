@@ -23,7 +23,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/teleport/api/utils"
@@ -40,7 +39,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	"github.com/aws/aws-sdk-go/service/dynamodbstreams"
-	"github.com/aws/aws-sdk-go/service/dynamodbstreams/dynamodbstreamsiface"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
@@ -125,17 +123,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 type Backend struct {
 	*log.Entry
 	Config
-	svc              dynamodbiface.DynamoDBAPI
-	streams          dynamodbstreamsiface.DynamoDBStreamsAPI
-	clock            clockwork.Clock
-	buf              *backend.CircularBuffer
-	ctx              context.Context
-	cancel           context.CancelFunc
-	watchStarted     context.Context
-	signalWatchStart context.CancelFunc
-	// closedFlag is set to indicate that the database is closed
-	closedFlag int32
-
+	svc   dynamodbiface.DynamoDBAPI
+	clock clockwork.Clock
+	buf   *backend.CircularBuffer
 	// session holds the AWS client.
 	session *session.Session
 }
@@ -217,17 +207,11 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	buf := backend.NewCircularBuffer(
 		backend.BufferCapacity(cfg.BufferSize),
 	)
-	closeCtx, cancel := context.WithCancel(ctx)
-	watchStarted, signalWatchStart := context.WithCancel(ctx)
 	b := &Backend{
-		Entry:            l,
-		Config:           *cfg,
-		clock:            clockwork.NewRealClock(),
-		buf:              buf,
-		ctx:              closeCtx,
-		cancel:           cancel,
-		watchStarted:     watchStarted,
-		signalWatchStart: signalWatchStart,
+		Entry:  l,
+		Config: *cfg,
+		clock:  clockwork.NewRealClock(),
+		buf:    buf,
 	}
 	// create an AWS session using default SDK behavior, i.e. it will interpret
 	// the environment and ~/.aws directory just like an AWS CLI tool would:
@@ -269,7 +253,6 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	b.streams = streams
 
 	// check if the table exists?
 	ts, err := b.getTableStatus(ctx, b.TableName)
@@ -289,13 +272,13 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	}
 
 	// Enable TTL on table.
-	err = b.turnOnTimeToLive(ctx)
+	err = TurnOnTimeToLive(ctx, b.svc, b.TableName, ttlKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Turn on DynamoDB streams, needed to implement events.
-	err = b.turnOnStreams(ctx)
+	err = TurnOnStreams(ctx, b.svc, b.TableName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -322,7 +305,19 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	}
 
 	go func() {
-		if err := b.asyncPollStreams(ctx); err != nil {
+		s := Shards{
+			log:              b.Entry,
+			svc:              svc,
+			streams:          streams,
+			retryPeriod:      b.RetryPeriod,
+			pollStreamPeriod: b.PollStreamPeriod,
+			tableName:        b.TableName,
+			// shard iterators are initialized, unblock any registered watchers
+			onStreamingStart: func() { b.buf.SetInit() },
+			onStreamingEnd:   func() { b.buf.Reset() },
+			onEvents:         func(events []backend.Event) { b.buf.Emit(events...) },
+		}
+		if err := s.asyncPollStreams(ctx); err != nil {
 			b.Errorf("Stream polling loop exited: %v", err)
 		}
 	}()
@@ -589,19 +584,9 @@ func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 	return err
 }
 
-func (b *Backend) isClosed() bool {
-	return atomic.LoadInt32(&b.closedFlag) == 1
-}
-
-func (b *Backend) setClosed() {
-	atomic.StoreInt32(&b.closedFlag, 1)
-}
-
 // Close closes the DynamoDB driver
 // and releases associated resources
 func (b *Backend) Close() error {
-	b.setClosed()
-	b.cancel()
 	return b.buf.Close()
 }
 

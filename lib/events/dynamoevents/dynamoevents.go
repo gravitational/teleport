@@ -98,8 +98,8 @@ var tableSchema = []*dynamodb.AttributeDefinition{
 type Config struct {
 	// Region is where DynamoDB Table will be used to store k/v
 	Region string `json:"region,omitempty"`
-	// Tablename where to store K/V in DynamoDB
-	Tablename string `json:"table_name,omitempty"`
+	// TableName where to store K/V in DynamoDB
+	TableName string `json:"table_name,omitempty"`
 	// ReadCapacityUnits is Dynamodb read capacity units
 	ReadCapacityUnits int64 `json:"read_capacity_units"`
 	// WriteCapacityUnits is Dynamodb write capacity units
@@ -167,7 +167,7 @@ func (cfg *Config) SetFromURL(in *url.URL) error {
 // is not enough to connect to DynamoDB
 func (cfg *Config) CheckAndSetDefaults() error {
 	// Table name is required.
-	if cfg.Tablename == "" {
+	if cfg.TableName == "" {
 		return trace.BadParameter("DynamoDB: table_name is not specified")
 	}
 
@@ -205,9 +205,6 @@ type Log struct {
 	// Backend holds the data backend used.
 	// This is used for locking.
 	backend backend.Backend
-
-	// isBillingModeProvisioned tracks if the table has provisioned capacity or not.
-	isBillingModeProvisioned bool
 }
 
 type event struct {
@@ -302,7 +299,7 @@ func New(ctx context.Context, cfg Config, backend backend.Backend) (*Log, error)
 	b.svc = svc
 
 	// check if the table exists?
-	ts, err := b.getTableStatus(ctx, b.Tablename)
+	ts, err := b.getTableStatus(ctx, b.TableName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -310,33 +307,37 @@ func New(ctx context.Context, cfg Config, backend backend.Backend) (*Log, error)
 	case tableStatusOK:
 		break
 	case tableStatusMissing:
-		err = b.createTable(ctx, b.Tablename)
+		err = b.createTable(ctx, b.TableName)
 	case tableStatusNeedsMigration:
 		return nil, trace.BadParameter("unsupported schema")
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = b.turnOnTimeToLive(ctx)
+
+	// Enable TTL on table.
+	err = dynamo.TurnOnTimeToLive(ctx, b.svc, b.TableName, keyExpires)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	b.isBillingModeProvisioned, err = b.getBillingModeIsProvisioned(ctx)
+	// Turn on DynamoDB streams, needed to implement events.
+	// TODO: maybe make this configurable
+	err = dynamo.TurnOnStreams(ctx, b.svc, b.TableName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Enable continuous backups if requested.
 	if b.Config.EnableContinuousBackups {
-		if err := dynamo.SetContinuousBackups(ctx, b.svc, b.Tablename); err != nil {
+		if err := dynamo.SetContinuousBackups(ctx, b.svc, b.TableName); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
 	// Enable auto scaling if requested.
 	if b.Config.EnableAutoScaling {
-		if err := dynamo.SetAutoScaling(ctx, applicationautoscaling.New(b.session), dynamo.GetTableID(b.Tablename), dynamo.AutoScalingParams{
+		if err := dynamo.SetAutoScaling(ctx, applicationautoscaling.New(b.session), dynamo.GetTableID(b.TableName), dynamo.AutoScalingParams{
 			ReadMinCapacity:  b.Config.ReadMinCapacity,
 			ReadMaxCapacity:  b.Config.ReadMaxCapacity,
 			ReadTargetValue:  b.Config.ReadTargetValue,
@@ -347,7 +348,7 @@ func New(ctx context.Context, cfg Config, backend backend.Backend) (*Log, error)
 			return nil, trace.Wrap(err)
 		}
 
-		if err := dynamo.SetAutoScaling(ctx, applicationautoscaling.New(b.session), dynamo.GetIndexID(b.Tablename, indexTimeSearchV2), dynamo.AutoScalingParams{
+		if err := dynamo.SetAutoScaling(ctx, applicationautoscaling.New(b.session), dynamo.GetIndexID(b.TableName, indexTimeSearchV2), dynamo.AutoScalingParams{
 			ReadMinCapacity:  b.Config.ReadMinCapacity,
 			ReadMaxCapacity:  b.Config.ReadMaxCapacity,
 			ReadTargetValue:  b.Config.ReadTargetValue,
@@ -452,7 +453,7 @@ func (l *Log) createPutItem(sessionID string, in apievents.AuditEvent) (*dynamod
 	}
 	return &dynamodb.PutItemInput{
 		Item:      av,
-		TableName: aws.String(l.Tablename),
+		TableName: aws.String(l.TableName),
 	}, nil
 }
 
@@ -497,7 +498,7 @@ func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, inlc
 	}
 	input := dynamodb.QueryInput{
 		KeyConditionExpression:    aws.String(query),
-		TableName:                 aws.String(l.Tablename),
+		TableName:                 aws.String(l.TableName),
 		ExpressionAttributeValues: attributeValues,
 	}
 	out, err := l.svc.Query(&input)
@@ -698,7 +699,7 @@ func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, nam
 		left:       left,
 		fromUTC:    fromUTC,
 		toUTC:      toUTC,
-		tableName:  l.Tablename,
+		tableName:  l.TableName,
 		api:        l.svc,
 		forward:    forward,
 		indexName:  indexName,
@@ -867,27 +868,6 @@ func fromWhereExpr(cond *types.WhereExpr, params *condFilterParams) (string, err
 	return "", trace.BadParameter("failed to convert WhereExpr %q to DynamoDB filter expression", cond)
 }
 
-func (l *Log) turnOnTimeToLive(ctx context.Context) error {
-	status, err := l.svc.DescribeTimeToLiveWithContext(ctx, &dynamodb.DescribeTimeToLiveInput{
-		TableName: aws.String(l.Tablename),
-	})
-	if err != nil {
-		return trace.Wrap(convertError(err))
-	}
-	switch aws.StringValue(status.TimeToLiveDescription.TimeToLiveStatus) {
-	case dynamodb.TimeToLiveStatusEnabled, dynamodb.TimeToLiveStatusEnabling:
-		return nil
-	}
-	_, err = l.svc.UpdateTimeToLiveWithContext(ctx, &dynamodb.UpdateTimeToLiveInput{
-		TableName: aws.String(l.Tablename),
-		TimeToLiveSpecification: &dynamodb.TimeToLiveSpecification{
-			AttributeName: aws.String(keyExpires),
-			Enabled:       aws.Bool(true),
-		},
-	})
-	return convertError(err)
-}
-
 // getTableStatus checks if a given table exists
 func (l *Log) getTableStatus(ctx context.Context, tableName string) (tableStatus, error) {
 	_, err := l.svc.DescribeTableWithContext(ctx, &dynamodb.DescribeTableInput{
@@ -901,24 +881,6 @@ func (l *Log) getTableStatus(ctx context.Context, tableName string) (tableStatus
 		return tableStatusError, trace.Wrap(err)
 	}
 	return tableStatusOK, nil
-}
-
-func (l *Log) getBillingModeIsProvisioned(ctx context.Context) (bool, error) {
-	res, err := l.svc.DescribeTableWithContext(ctx, &dynamodb.DescribeTableInput{
-		TableName: aws.String(l.Tablename),
-	})
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	// Guaranteed to be set.
-	table := res.Table
-
-	// Perform pessimistic nil-checks, assume the table is provisioned if they are true.
-	// Otherwise, actually check the billing mode.
-	return table.BillingModeSummary == nil ||
-		table.BillingModeSummary.BillingMode == nil ||
-		*table.BillingModeSummary.BillingMode == dynamodb.BillingModeProvisioned, nil
 }
 
 // indexExists checks if a given index exists on a given table and that it is active or updating.
@@ -1006,7 +968,7 @@ func (l *Log) Close() error {
 
 // deleteAllItems deletes all items from the database, used in tests
 func (l *Log) deleteAllItems(ctx context.Context) error {
-	out, err := l.svc.ScanWithContext(ctx, &dynamodb.ScanInput{TableName: aws.String(l.Tablename)})
+	out, err := l.svc.ScanWithContext(ctx, &dynamodb.ScanInput{TableName: aws.String(l.TableName)})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1032,7 +994,7 @@ func (l *Log) deleteAllItems(ctx context.Context) error {
 
 		_, err := l.svc.BatchWriteItemWithContext(ctx, &dynamodb.BatchWriteItemInput{
 			RequestItems: map[string][]*dynamodb.WriteRequest{
-				l.Tablename: chunk,
+				l.TableName: chunk,
 			},
 		})
 		err = convertError(err)
