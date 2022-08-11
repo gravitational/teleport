@@ -198,6 +198,10 @@
           "slug": "/setup/guides/",
           "entries": [
             {
+              "title": "Kubernetes Operator (Preview)",
+              "slug": "/setup/guides/teleport-operator/"
+            },
+            {
               "title": "Terraform Provider",
               "slug": "/setup/guides/terraform-provider/"
             },
@@ -455,51 +459,6 @@
           ]
         },
         {
-          "title": "Helm Chart Reference",
-          "slug": "/kubernetes-access/helm/reference/",
-          "entries": [
-            {
-              "title": "teleport-cluster",
-              "slug": "/kubernetes-access/helm/reference/teleport-cluster/"
-            },
-            {
-              "title": "teleport-kube-agent",
-              "slug": "/kubernetes-access/helm/reference/teleport-kube-agent/"
-            }
-          ]
-        },
-        {
-          "title": "Helm Guides",
-          "slug": "/kubernetes-access/helm/guides/",
-          "entries": [
-            {
-              "title": "AWS EKS Cluster",
-              "slug": "/kubernetes-access/helm/guides/aws/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "Google Cloud GKE Cluster",
-              "slug": "/kubernetes-access/helm/guides/gcp/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "DigitalOcean Kubernetes Cluster",
-              "slug": "/kubernetes-access/helm/guides/digitalocean/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "Customize Deployment Config",
-              "slug": "/kubernetes-access/helm/guides/custom/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "Migrating From Older Charts",
-              "slug": "/kubernetes-access/helm/guides/migration/",
-              "forScopes": ["oss", "enterprise"]
-            }
-          ]
-        },
-        {
           "title": "Access Controls",
           "slug": "/kubernetes-access/controls/"
         }
@@ -532,6 +491,10 @@
             {
               "title": "AWS ElastiCache & MemoryDB",
               "slug": "/database-access/guides/redis-aws/"
+            },
+            {
+              "title": "AWS DynamoDB",
+              "slug": "/database-access/guides/dynamodb/"
             },
             {
               "title": "GCP Cloud SQL PostgreSQL",
@@ -791,11 +754,13 @@
 	    "entries": [
 		{
 		    "title": "Role Requests",
-		    "slug":"/access-controls/access-requests/role-requests/"
+		    "slug":"/access-controls/access-requests/role-requests/",
+		    "forScopes": ["enterprise", "cloud"]
 		},
 		{
 		    "title": "Resource Requests",
-		    "slug":"/access-controls/access-requests/resource-requests/"
+		    "slug":"/access-controls/access-requests/resource-requests/",
+		    "forScopes": ["enterprise", "cloud"]
 		}
 	    ]
 	},
@@ -805,23 +770,33 @@
 	    "entries": [
 		{
 		    "title": "Mattermost",
-		    "slug":"/access-controls/access-request-plugins/ssh-approval-mattermost/"
+		    "slug":"/access-controls/access-request-plugins/ssh-approval-mattermost/",
+		    "forScopes": ["enterprise", "cloud"]
 		},
 		{
 		    "title": "PagerDuty",
-		    "slug":"/access-controls/access-request-plugins/ssh-approval-pagerduty/"
+		    "slug":"/access-controls/access-request-plugins/ssh-approval-pagerduty/",
+		    "forScopes": ["enterprise", "cloud"]
 		},
                 {
                     "title": "Jira Server",
-                    "slug":"/access-controls/access-request-plugins/ssh-approval-jira-server/"
+                    "slug":"/access-controls/access-request-plugins/ssh-approval-jira-server/",
+                    "forScopes": ["enterprise", "cloud"]
                 },
 		{
 		    "title": "Jira Cloud",
-		    "slug":"/access-controls/access-request-plugins/ssh-approval-jira-cloud/"
+		    "slug":"/access-controls/access-request-plugins/ssh-approval-jira-cloud/",
+		    "forScopes": ["enterprise", "cloud"]
 		},
 		{
 		    "title": "Slack",
-		    "slug":"/access-controls/access-request-plugins/ssh-approval-slack/"
+		    "slug":"/access-controls/access-request-plugins/ssh-approval-slack/",
+		    "forScopes": ["enterprise", "cloud"]
+		},
+		{
+		    "title": "Email",
+		    "slug": "/access-controls/access-request-plugins/ssh-approval-email/",
+		    "forScopes": ["enterprise", "cloud"]
 		}
 	    ]
 	},
@@ -915,22 +890,6 @@
               "title": "Okta",
               "slug": "/enterprise/sso/okta/",
               "forScopes": ["enterprise", "cloud"]
-            }
-          ]
-        },
-        {
-          "title": "Access Requests",
-          "slug": "/enterprise/workflow/",
-          "entries": [
-            {
-              "title": "Resource Access Requests",
-              "slug": "/enterprise/workflow/resource-requests/",
-              "forScopes": ["enterprise", "cloud"]
-            },
-            {
-              "title": "Role Access Requests",
-              "slug": "/enterprise/workflow/role-requests/",
-              "forScopes": ["oss", "enterprise", "cloud"]
             }
           ]
         },
@@ -1067,7 +1026,7 @@
       "control_url": "https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control?version=5.1&number="
     },
     "soc2": {
-      "last_report": "April 12th, 2021"
+      "last_report": "August 9th, 2022"
     },
     "cloud": {
       "version": "8.3.4",
@@ -1114,11 +1073,6 @@
     {
       "source": "/architecture/users/",
       "destination": "/architecture/authorization/",
-      "permanent": true
-    },
-    {
-      "source": "/user-manual/",
-      "destination": "/server-access/guides/tsh/",
       "permanent": true
     },
     {
@@ -1284,11 +1238,6 @@
     {
       "source": "/openssh-teleport/",
       "destination": "/server-access/guides/openssh/",
-      "permanent": true
-    },
-    {
-      "source": "/enterprise/sso/ssh-gsuite/",
-      "destination": "/enterprise/sso/ssh-google-workspace/",
       "permanent": true
     },
     {

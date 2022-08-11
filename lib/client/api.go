@@ -48,11 +48,11 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -71,7 +71,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/lib/utils/proxy"
 
-	"github.com/duo-labs/webauthn/protocol"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -1229,7 +1228,8 @@ func ParseProxyHost(proxyHost string) (*ParsedProxyHost, error) {
 // ParseProxyHost parses the proxyHost string and updates the config.
 //
 // Format of proxyHost string:
-//   proxy_web_addr:<proxy_web_port>,<proxy_ssh_port>
+//
+//	proxy_web_addr:<proxy_web_port>,<proxy_ssh_port>
 func (c *Config) ParseProxyHost(proxyHost string) error {
 	parsedAddrs, err := ParseProxyHost(proxyHost)
 	if err != nil {
@@ -2963,11 +2963,11 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 }
 
 // makeProxySSHClient creates an SSH client by following steps:
-// 1) If the current proxy supports TLS Routing and JumpHost address was not provided use TLSWrapper.
-// 2) Check JumpHost raw SSH port or Teleport proxy address.
-//    In case of proxy web address check if the proxy supports TLS Routing and connect to the proxy with TLSWrapper
-// 3) Dial sshProxyAddr with raw SSH Dialer where sshProxyAddress is proxy ssh address or JumpHost address if
-//    JumpHost address was provided.
+//  1. If the current proxy supports TLS Routing and JumpHost address was not provided use TLSWrapper.
+//  2. Check JumpHost raw SSH port or Teleport proxy address.
+//     In case of proxy web address check if the proxy supports TLS Routing and connect to the proxy with TLSWrapper
+//  3. Dial sshProxyAddr with raw SSH Dialer where sshProxyAddress is proxy ssh address or JumpHost address if
+//     JumpHost address was provided.
 func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig) (*tracessh.Client, error) {
 	// Use TLS Routing dialer only if proxy support TLS Routing and JumpHost was not set.
 	if tc.Config.TLSRoutingEnabled && len(tc.JumpHosts) == 0 {
@@ -3289,31 +3289,6 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 }
 
 func (tc *TeleportClient) pwdlessLogin(ctx context.Context, pubKey []byte) (*auth.SSHLoginResponse, error) {
-	webClient, webURL, err := initClient(tc.WebProxyAddr, tc.InsecureSkipVerify, loopbackPool(tc.WebProxyAddr))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	challengeJSON, err := webClient.PostJSON(
-		ctx, webClient.Endpoint("webapi", "mfa", "login", "begin"),
-		&MFAChallengeRequest{
-			Passwordless: true,
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	challenge := &MFAAuthenticateChallenge{}
-	if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// Sanity check WebAuthn challenge.
-	switch {
-	case challenge.WebauthnChallenge == nil:
-		return nil, trace.BadParameter("passwordless: webauthn challenge missing")
-	case challenge.WebauthnChallenge.Response.UserVerification == protocol.VerificationDiscouraged:
-		return nil, trace.BadParameter("passwordless: user verification requirement too lax (%v)", challenge.WebauthnChallenge.Response.UserVerification)
-	}
-
 	// Only pass on the user if explicitly set, otherwise let the credential
 	// picker kick in.
 	user := ""
@@ -3321,35 +3296,23 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, pubKey []byte) (*aut
 		user = tc.Username
 	}
 
-	prompt := wancli.NewDefaultPrompt(ctx, tc.Stderr)
-	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), challenge.WebauthnChallenge, prompt, &wancli.LoginOpts{
+	response, err := SSHAgentPasswordlessLogin(ctx, SSHLoginPasswordless{
+		SSHLogin: SSHLogin{
+			ProxyAddr:         tc.WebProxyAddr,
+			PubKey:            pubKey,
+			TTL:               tc.KeyTTL,
+			Insecure:          tc.InsecureSkipVerify,
+			Pool:              loopbackPool(tc.WebProxyAddr),
+			Compatibility:     tc.CertificateFormat,
+			RouteToCluster:    tc.SiteName,
+			KubernetesCluster: tc.KubernetesCluster,
+		},
 		User:                    user,
 		AuthenticatorAttachment: tc.AuthenticatorAttachment,
+		StderrOverride:          tc.Stderr,
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	loginRespJSON, err := webClient.PostJSON(
-		ctx, webClient.Endpoint("webapi", "mfa", "login", "finish"),
-		&AuthenticateSSHUserRequest{
-			User:                      "", // User carried on WebAuthn assertion.
-			WebauthnChallengeResponse: wanlib.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()),
-			PubKey:                    pubKey,
-			TTL:                       tc.KeyTTL,
-			Compatibility:             tc.CertificateFormat,
-			RouteToCluster:            tc.SiteName,
-			KubernetesCluster:         tc.KubernetesCluster,
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	loginResp := &auth.SSHLoginResponse{}
-	if err := json.Unmarshal(loginRespJSON.Bytes(), loginResp); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return loginResp, nil
+	return response, trace.Wrap(err)
 }
 
 func (tc *TeleportClient) localLogin(ctx context.Context, secondFactor constants.SecondFactorType, pub []byte) (*auth.SSHLoginResponse, error) {
@@ -4146,13 +4109,13 @@ func ParsePortForwardSpec(spec []string) (ports ForwardedPorts, err error) {
 	if len(spec) == 0 {
 		return ports, nil
 	}
-	const errTemplate = "Invalid port forwarding spec: '%s'. Could be like `80:remote.host:80`"
+	const errTemplate = "invalid port forwarding spec '%s': expected format `80:remote.host:80`"
 	ports = make([]ForwardedPort, len(spec))
 
 	for i, str := range spec {
 		parts := strings.Split(str, ":")
 		if len(parts) < 3 || len(parts) > 4 {
-			return nil, fmt.Errorf(errTemplate, str)
+			return nil, trace.BadParameter(errTemplate, str)
 		}
 		if len(parts) == 3 {
 			parts = append([]string{"127.0.0.1"}, parts...)
@@ -4161,12 +4124,12 @@ func ParsePortForwardSpec(spec []string) (ports ForwardedPorts, err error) {
 		p.SrcIP = parts[0]
 		p.SrcPort, err = strconv.Atoi(parts[1])
 		if err != nil {
-			return nil, fmt.Errorf(errTemplate, str)
+			return nil, trace.BadParameter(errTemplate, str)
 		}
 		p.DestHost = parts[2]
 		p.DestPort, err = strconv.Atoi(parts[3])
 		if err != nil {
-			return nil, fmt.Errorf(errTemplate, str)
+			return nil, trace.BadParameter(errTemplate, str)
 		}
 	}
 	return ports, nil
@@ -4331,4 +4294,35 @@ func getDesktopEventWebURL(proxyHost string, cluster string, sid *session.ID, ev
 	duration := end.Sub(start)
 
 	return fmt.Sprintf("https://%s/web/cluster/%s/session/%s?recordingType=desktop&durationMs=%d", proxyHost, cluster, sid, duration/time.Millisecond)
+}
+
+// SearchSessionEvents allows searching for session events with a full pagination support.
+func (tc *TeleportClient) SearchSessionEvents(ctx context.Context, fromUTC, toUTC time.Time, pageSize int, order types.EventOrder, max int) ([]apievents.AuditEvent, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/SearchSessionEvents",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.Int("page_size", pageSize),
+			attribute.String("from", fromUTC.Format(time.RFC3339)),
+			attribute.String("to", toUTC.Format(time.RFC3339)),
+		),
+	)
+	defer span.End()
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+	authClient, err := proxyClient.CurrentClusterAccessPoint(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer authClient.Close()
+	sessions, err := GetPaginatedSessions(ctx, fromUTC, toUTC,
+		pageSize, order, max, authClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sessions, nil
 }

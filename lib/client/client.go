@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -2159,4 +2160,29 @@ func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr No
 // localAgent returns for the Teleport client's local agent.
 func (proxy *ProxyClient) localAgent() *LocalKeyAgent {
 	return proxy.teleportClient.LocalAgent()
+}
+
+// GetPaginatedSessions grabs up to 'max' sessions.
+func GetPaginatedSessions(ctx context.Context, fromUTC, toUTC time.Time, pageSize int, order types.EventOrder, max int, authClient auth.ClientI) ([]apievents.AuditEvent, error) {
+	prevEventKey := ""
+	var sessions []apievents.AuditEvent
+	for {
+		if remaining := max - len(sessions); remaining < pageSize {
+			pageSize = remaining
+		}
+		nextEvents, eventKey, err := authClient.SearchSessionEvents(fromUTC, toUTC,
+			pageSize, order, prevEventKey, nil /* where condition */, "" /* session ID */)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sessions = append(sessions, nextEvents...)
+		if eventKey == "" || len(sessions) >= max {
+			break
+		}
+		prevEventKey = eventKey
+	}
+	if max < len(sessions) {
+		return sessions[:max], nil
+	}
+	return sessions, nil
 }

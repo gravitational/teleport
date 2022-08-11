@@ -2741,7 +2741,7 @@ func (a *ServerWithRoles) UpsertOIDCConnector(ctx context.Context, connector typ
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	if modules.GetModules().Features().OIDC == false {
+	if !modules.GetModules().Features().OIDC {
 		return trace.AccessDenied("OIDC is only available in enterprise subscriptions")
 	}
 
@@ -2825,7 +2825,7 @@ func (a *ServerWithRoles) UpsertSAMLConnector(ctx context.Context, connector typ
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindSAML, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	if modules.GetModules().Features().SAML == false {
+	if !modules.GetModules().Features().SAML {
 		return trace.AccessDenied("SAML is only available in enterprise subscriptions")
 	}
 	return a.authServer.UpsertSAMLConnector(ctx, connector)
