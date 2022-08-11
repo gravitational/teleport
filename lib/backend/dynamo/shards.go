@@ -84,13 +84,14 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 	eventsC := make(chan shardEvent)
 
 	shouldStartPoll := func(shard *dynamodbstreams.Shard) bool {
-		sid := aws.StringValue(shard.ShardId)
-		if _, ok := set[sid]; ok {
+		shardId := aws.StringValue(shard.ShardId)
+		parentShardId := aws.StringValue(shard.ParentShardId)
+		if _, ok := set[shardId]; ok {
 			// already being polled
 			return false
 		}
-		if _, ok := set[aws.StringValue(shard.ParentShardId)]; ok {
-			b.Debugf("Skipping child shard: %s, still polling parent %s", sid, aws.StringValue(shard.ParentShardId))
+		if _, ok := set[parentShardId]; ok {
+			b.Debugf("Skipping child shard: %s, still polling parent %s", shardId, parentShardId)
 			// still processing parent
 			return false
 		}
@@ -122,6 +123,8 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 			started++
 		}
 
+		// Q: I don't understand why we block on "shard iterator registration" only when starting up.
+		// If we have to "block", shouldn't we block every time we start polling a new shard?
 		if init {
 			// block on shard iterator registration.
 			for i := 0; i < started; i++ {
@@ -167,6 +170,7 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 				}
 				b.Debugf("Shard ID %v exited gracefully.", event.shardID)
 			} else {
+				// Q: It seems that there's no checkpointing when streaming changes to the backend.
 				b.buf.Emit(event.events...)
 			}
 		case <-ticker.C:
@@ -196,6 +200,9 @@ func (b *Backend) findStream(ctx context.Context) (*string, error) {
 func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard *dynamodbstreams.Shard, eventsC chan shardEvent, initC chan<- error) error {
 	shardIterator, err := b.streams.GetShardIteratorWithContext(ctx, &dynamodbstreams.GetShardIteratorInput{
 		ShardId:           shard.ShardId,
+		// Q: Besides no checkpointing, the shard iterator type is set to LATEST, meaning that there's no worry about retrieving all events.
+		// With checkpointing, we would know the last event retrieved from each (known) shard, and could set the shard iterator type to AFTER_SEQUENCE_NUMBER.
+		// If the shard is unknown (i.e. no checkpointing info about it), we should probably set the shard iterator type to TRIM_HORIZON, which can retrieve events up-to 24h old.
 		ShardIteratorType: aws.String(dynamodbstreams.ShardIteratorTypeLatest),
 		StreamArn:         streamArn,
 	})
@@ -284,6 +291,15 @@ func filterActiveShards(shards []*dynamodbstreams.Shard) []*dynamodbstreams.Shar
 	var active []*dynamodbstreams.Shard
 	for i := range shards {
 		if shards[i].SequenceNumberRange.EndingSequenceNumber == nil {
+			// from https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_streams_DescribeStream.html:
+			// > Each shard in the stream has a SequenceNumberRange associated with it.
+			// > If the SequenceNumberRange has a StartingSequenceNumber but no EndingSequenceNumber, then the shard is still open (able to receive more stream records).
+			// > If both StartingSequenceNumber and EndingSequenceNumber are present, then that shard is closed and can no longer receive more data.
+			//
+			// Q: From the above, I don't understand why we're filtering out these shards.
+			// If the ending sequence number is non-nil, then shard is closed and can't receive more data.
+			// But does that mean that we have polled everything?
+			// i don't think so!
 			active = append(active, shards[i])
 		}
 	}
