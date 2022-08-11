@@ -148,6 +148,14 @@ func tagCopyArtifactCommands(b buildType) []string {
 		}
 	}
 
+	// copy Teleport Connect artifacts
+	if b.hasTeleportConnect() {
+		commands = append(commands,
+			`cd /go/src/github.com/gravitational/webapps/packages/teleterm/build/release`,
+			`cp teleconnect*.{tar.gz,deb,rpm} /go/artifacts`,
+		)
+	}
+
 	// generate checksums
 	commands = append(commands, fmt.Sprintf(`cd /go/artifacts && for FILE in teleport*%s; do sha256sum $FILE > $FILE.sha256; done && ls -l`, extension))
 	return commands
