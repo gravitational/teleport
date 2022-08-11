@@ -1366,7 +1366,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go:258
 ################################################
 
 kind: pipeline
@@ -1428,6 +1428,9 @@ steps:
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
   - make -C build.assets release-amd64-centos7
+  - cd /go/src/github.com/gravitational/webapps
+  - yarn install --frozen-lockfile && yarn build-term && yarn package-term
+  - cd -
   environment:
     ARCH: amd64
     GID: "1000"
@@ -1449,6 +1452,8 @@ steps:
   - export VERSION=$(cat /go/.version.txt)
   - mv /go/artifacts/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-v$${VERSION}-linux-amd64-centos7-bin.tar.gz
   - mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos7-bin.tar.gz
+  - cd /go/src/github.com/gravitational/webapps/packages/teleterm/build/release
+  - cp teleconnect*.{tar.gz,deb,rpm} /go/artifacts
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
 - name: Upload to S3
@@ -1526,7 +1531,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go:258
 ################################################
 
 kind: pipeline
@@ -1589,6 +1594,9 @@ steps:
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - make -C build.assets release-amd64-centos7-fips
+  - cd /go/src/github.com/gravitational/webapps
+  - yarn install --frozen-lockfile && yarn build-term && yarn package-term
+  - cd -
   environment:
     ARCH: amd64
     FIPS: "yes"
@@ -1608,6 +1616,8 @@ steps:
     \;
   - export VERSION=$(cat /go/.version.txt)
   - mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos7-fips-bin.tar.gz
+  - cd /go/src/github.com/gravitational/webapps/packages/teleterm/build/release
+  - cp teleconnect*.{tar.gz,deb,rpm} /go/artifacts
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
 - name: Upload to S3
@@ -1685,7 +1695,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go:258
 ################################################
 
 kind: pipeline
@@ -1747,6 +1757,9 @@ steps:
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
   - make -C build.assets release-amd64-centos7
+  - cd /go/src/github.com/gravitational/webapps
+  - yarn install --frozen-lockfile && yarn build-term && yarn package-term
+  - cd -
   environment:
     ARCH: amd64
     GID: "1000"
@@ -1765,6 +1778,8 @@ steps:
     \;
   - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts
     \;
+  - cd /go/src/github.com/gravitational/webapps/packages/teleterm/build/release
+  - cp teleconnect*.{tar.gz,deb,rpm} /go/artifacts
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
 - name: Upload to S3
@@ -1842,7 +1857,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go:258
 ################################################
 
 kind: pipeline
@@ -1905,6 +1920,9 @@ steps:
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - make -C build.assets release-amd64-centos7-fips
+  - cd /go/src/github.com/gravitational/webapps
+  - yarn install --frozen-lockfile && yarn build-term && yarn package-term
+  - cd -
   environment:
     ARCH: amd64
     FIPS: "yes"
@@ -1922,6 +1940,8 @@ steps:
   - cd /go/src/github.com/gravitational/teleport
   - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts
     \;
+  - cd /go/src/github.com/gravitational/webapps/packages/teleterm/build/release
+  - cp teleconnect*.{tar.gz,deb,rpm} /go/artifacts
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
 - name: Upload to S3
@@ -1999,7 +2019,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go:472
 ################################################
 
 kind: pipeline
@@ -2183,7 +2203,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go:472
 ################################################
 
 kind: pipeline
@@ -2364,7 +2384,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go:472
 ################################################
 
 kind: pipeline
@@ -2534,7 +2554,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go:472
 ################################################
 
 kind: pipeline
@@ -2701,7 +2721,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go:258
 ################################################
 
 kind: pipeline
@@ -2858,7 +2878,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go:472
 ################################################
 
 kind: pipeline
@@ -3042,7 +3062,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go:472
 ################################################
 
 kind: pipeline
@@ -3838,7 +3858,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go:258
 ################################################
 
 kind: pipeline
@@ -3995,7 +4015,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go:258
 ################################################
 
 kind: pipeline
@@ -4152,7 +4172,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go:472
 ################################################
 
 kind: pipeline
@@ -4322,7 +4342,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go:472
 ################################################
 
 kind: pipeline
@@ -4492,7 +4512,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go:472
 ################################################
 
 kind: pipeline
@@ -4676,7 +4696,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go:472
 ################################################
 
 kind: pipeline
@@ -4860,7 +4880,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go:258
 ################################################
 
 kind: pipeline
@@ -6365,6 +6385,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 435e18755866e12d1b6cc018ea75e457c1d6aa4054cdce89f0ffeac9119841f4
+hmac: e73b519268d2b15c1b47c426df9601702926e49542daa328f139b567f6da0f60
 
 ...
