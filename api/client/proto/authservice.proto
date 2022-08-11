@@ -1267,9 +1267,9 @@ message GetSessionEventsRequest {
 message Events {
     // Items is a list of typed gRPC formatted audit events.
     repeated events.OneOf Items = 1;
-    // The key of the last event if the returned set did not contain all events.
-    // This is the key clients can supply in another API request to continue fetching
-    // events from the previous last position.
+    // the key of the last event if the returned set did not contain all events found i.e limit <
+    // actual amount. this is the key clients can supply in another API request to continue fetching
+    // events from the previous last position
     string LastKey = 2;
 }
 

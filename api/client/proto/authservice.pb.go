@@ -7980,9 +7980,9 @@ func (m *GetSessionEventsRequest) GetOrder() Order {
 type Events struct {
 	// Items is a list of typed gRPC formatted audit events.
 	Items []*events.OneOf `protobuf:"bytes,1,rep,name=Items,proto3" json:"Items,omitempty"`
-	// The key of the last event if the returned set did not contain all events.
-	// This is the key clients can supply in another API request to continue fetching
-	// events from the previous last position.
+	// the key of the last event if the returned set did not contain all events found i.e limit <
+	// actual amount. this is the key clients can supply in another API request to continue fetching
+	// events from the previous last position
 	LastKey              string   `protobuf:"bytes,2,opt,name=LastKey,proto3" json:"LastKey,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
