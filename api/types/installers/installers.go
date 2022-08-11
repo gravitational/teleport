@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2021 Gravitational, Inc.
+Copyright 2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,9 +27,13 @@ var defaultInstallScript string
 
 // DefaultInstaller represents a the default installer script provided
 // by teleport
-var DefaultInstaller, _ = types.NewInstallerV1(defaultInstallScript)
+var DefaultInstaller = types.MustNewInstallerV1(defaultInstallScript)
 
+// Template is used to fill proxy address and version information into
+// the installer script
 type Template struct {
+	// PublicProxyAddr is public address of the proxy
 	PublicProxyAddr string
-	MajorVersion    string
+	// MajorVersion is the major version of the Teleport auth node
+	MajorVersion string
 }

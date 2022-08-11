@@ -30,6 +30,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -3296,7 +3297,14 @@ func (a *ServerWithRoles) GetInstaller(ctx context.Context) (types.Installer, er
 	if err := a.action(apidefaults.Namespace, types.KindInstaller, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetInstaller(ctx)
+	installer, err := a.authServer.GetInstaller(ctx)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return installers.DefaultInstaller, nil
+		}
+		return nil, err
+	}
+	return installer, nil
 }
 
 // SetInstaller sets an Installer script resource

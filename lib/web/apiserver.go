@@ -193,8 +193,9 @@ type Config struct {
 	// ProxySettings allows fetching the current proxy settings.
 	ProxySettings proxySettingsGetter
 
-	// Installer is used to template the installer script in responses
-	Installer installers.Template
+	// PublicProxyAddr is used to template the public proxy address
+	// into the installer script responses
+	PublicProxyAddr string
 }
 
 type APIHandler struct {
@@ -1392,15 +1393,11 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	httplib.SetScriptHeaders(w.Header())
 	installer, err := h.auth.proxyClient.GetInstaller(r.Context())
 	if err != nil {
-		if trace.IsNotFound(err) {
-			installer = installers.DefaultInstaller
-		} else {
-			return nil, trace.Wrap(err)
-		}
+		return nil, trace.Wrap(err)
 	}
 	ping, err := h.auth.Ping(r.Context())
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	// semver parsing requires a 'v' at the beginning of the version string.
 	version := semver.Major("v" + ping.ServerVersion)
@@ -1408,9 +1405,10 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tmpl := h.cfg.Installer
-	tmpl.MajorVersion = version
-
+	tmpl := installers.Template{
+		PublicProxyAddr: h.cfg.PublicProxyAddr,
+		MajorVersion:    version,
+	}
 	err = instTmpl.Execute(w, tmpl)
 	return nil, trace.Wrap(err)
 }

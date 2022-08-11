@@ -1307,7 +1307,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		return &tokenCollection{tokens: []types.ProvisionToken{token}}, nil
 	case types.KindInstaller:
 		if rc.ref.Name != "" {
-			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindInstaller)
+			return nil, trace.BadParameter("installer is a singleton resource, use `tctl get %v` to fetch it", types.KindInstaller)
 		}
 		inst, err := client.GetInstaller(ctx)
 		if err != nil {

@@ -48,6 +48,14 @@ func NewInstallerV1(script string) (*InstallerV1, error) {
 	return installer, nil
 }
 
+func MustNewInstallerV1(script string) *InstallerV1 {
+	inst, err := NewInstallerV1(script)
+	if err != nil {
+		panic(err)
+	}
+	return inst
+}
+
 // CheckAndSetDefaults implements Installer
 func (c *InstallerV1) CheckAndSetDefaults() error {
 	c.setStaticFields()
