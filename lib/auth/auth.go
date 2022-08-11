@@ -1871,7 +1871,17 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 	allowedResourceIDs := accessInfo.AllowedResourceIDs
 	accessRequests := identity.ActiveRequests
 
-	if req.AccessRequestID != "" {
+	if req.UpdateUserTraits {
+		// We don't call from the cache layer because we want to
+		// retrieve the recently updated user. Otherwise the cache
+		// returns stale data.
+		user, err := a.Identity.GetUser(req.User, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		traits = user.GetTraits()
+
+	} else if req.AccessRequestID != "" {
 		accessRequest, err := a.getValidatedAccessRequest(ctx, req.User, req.AccessRequestID)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1895,9 +1905,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		if expiresAt.After(accessRequest.GetAccessExpiry()) {
 			expiresAt = accessRequest.GetAccessExpiry()
 		}
-	}
-
-	if req.Switchback {
+	} else if req.Switchback {
 		if prevSession.GetLoginTime().IsZero() {
 			return nil, trace.BadParameter("Unable to switchback, log in time was not recorded.")
 		}

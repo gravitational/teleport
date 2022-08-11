@@ -1659,13 +1659,16 @@ type renewSessionRequest struct {
 	AccessRequestID string `json:"requestId"`
 	// Switchback indicates switching back to default roles when creating new session.
 	Switchback bool `json:"switchback"`
+	// UpdateUserTraits is a flag to indicate if user traits need to be updated.
+	UpdateUserTraits bool `json:"updateUserTraits"`
 }
 
 // renewSession updates this existing session with a new session.
 //
 // Depending on request fields sent in for extension, the new session creation can vary depending on:
-//   - requestId (opt): appends roles approved from access request to currently assigned roles or,
-//   - switchback (opt): roles stacked with assuming approved access requests, will revert to user's default roles
+//   - AccessRequestID (opt): appends roles approved from access request to currently assigned roles or,
+//   - Switchback (opt): roles stacked with assuming approved access requests, will revert to user's default roles
+//   - UpdateLoginTraits (opt): similar to default but updates the login traits by retrieving it from the backend
 //   - default (none set): create new session with currently assigned roles
 func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	req := renewSessionRequest{}
@@ -1673,11 +1676,11 @@ func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params ht
 		return nil, trace.Wrap(err)
 	}
 
-	if req.AccessRequestID != "" && req.Switchback {
-		return nil, trace.BadParameter("Failed to renew session: fields 'AccessRequestID' and 'Switchback' cannot be both set")
+	if req.AccessRequestID != "" && req.Switchback || req.AccessRequestID != "" && req.UpdateUserTraits || req.Switchback && req.UpdateUserTraits {
+		return nil, trace.BadParameter("failed to renew session: only one field can be set")
 	}
 
-	newSession, err := ctx.extendWebSession(r.Context(), req.AccessRequestID, req.Switchback)
+	newSession, err := ctx.extendWebSession(r.Context(), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
