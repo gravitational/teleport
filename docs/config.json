@@ -754,11 +754,13 @@
 	    "entries": [
 		{
 		    "title": "Role Requests",
-		    "slug":"/access-controls/access-requests/role-requests/"
+		    "slug":"/access-controls/access-requests/role-requests/",
+		    "forScopes": ["enterprise", "cloud"]
 		},
 		{
 		    "title": "Resource Requests",
-		    "slug":"/access-controls/access-requests/resource-requests/"
+		    "slug":"/access-controls/access-requests/resource-requests/",
+		    "forScopes": ["enterprise", "cloud"]
 		}
 	    ]
 	},
@@ -768,23 +770,33 @@
 	    "entries": [
 		{
 		    "title": "Mattermost",
-		    "slug":"/access-controls/access-request-plugins/ssh-approval-mattermost/"
+		    "slug":"/access-controls/access-request-plugins/ssh-approval-mattermost/",
+		    "forScopes": ["enterprise", "cloud"]
 		},
 		{
 		    "title": "PagerDuty",
-		    "slug":"/access-controls/access-request-plugins/ssh-approval-pagerduty/"
+		    "slug":"/access-controls/access-request-plugins/ssh-approval-pagerduty/",
+		    "forScopes": ["enterprise", "cloud"]
 		},
                 {
                     "title": "Jira Server",
-                    "slug":"/access-controls/access-request-plugins/ssh-approval-jira-server/"
+                    "slug":"/access-controls/access-request-plugins/ssh-approval-jira-server/",
+                    "forScopes": ["enterprise", "cloud"]
                 },
 		{
 		    "title": "Jira Cloud",
-		    "slug":"/access-controls/access-request-plugins/ssh-approval-jira-cloud/"
+		    "slug":"/access-controls/access-request-plugins/ssh-approval-jira-cloud/",
+		    "forScopes": ["enterprise", "cloud"]
 		},
 		{
 		    "title": "Slack",
-		    "slug":"/access-controls/access-request-plugins/ssh-approval-slack/"
+		    "slug":"/access-controls/access-request-plugins/ssh-approval-slack/",
+		    "forScopes": ["enterprise", "cloud"]
+		},
+		{
+		    "title": "Email",
+		    "slug": "/access-controls/access-request-plugins/ssh-approval-email/",
+		    "forScopes": ["enterprise", "cloud"]
 		}
 	    ]
 	},
