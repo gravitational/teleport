@@ -17,11 +17,12 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import styled from 'styled-components';
-import { Flex, ButtonPrimary, Text, Box, Indicator } from 'design';
+import { Flex, ButtonPrimary, Text, Box, Image, Indicator } from 'design';
 import TopNavUserMenu from 'design/TopNav/TopNavUserMenu';
 import { Danger } from 'design/Alert';
 import * as Icons from 'design/Icon';
 import { MenuItem, MenuItemIcon } from 'shared/components/MenuAction';
+import logoSvg from 'design/assets/images/teleport-logo.svg';
 
 import cfg from 'teleport/config';
 
@@ -76,15 +77,19 @@ export function Discover({
         <Danger>{initAttempt.statusText}</Danger>
       )}
       {initAttempt.status === 'success' && (
-        <>
-          <TopBar onLogout={logout} username={username} />
-          <Flex p={5} alignItems="flex-start">
+        <Flex>
+          <Flex>
             <SideNavAgentConnect currentStep={currentStep} />
-            <Box width="100%" height="100%" minWidth="0">
+          </Flex>
+          <Flex flexWrap="wrap">
+            <Box style={{ width: '100%' }}>
+              <TopBar onLogout={logout} username={username} />
+            </Box>
+            <Box width="100%" height="100%" minWidth="0" pl={5} pt={5}>
               {AgentComponent && <AgentComponent {...agentProps} />}
             </Box>
           </Flex>
-        </>
+        </Flex>
       )}
     </MainContainer>
   );
@@ -113,10 +118,10 @@ function TopBar(props: { onLogout: VoidFunction; username: string }) {
       height="56px"
       pl={5}
       borderColor="primary.main"
-      border="1px solid"
+      css={{ borderBottomWidth: '1px', borderBottomStyle: 'solid' }}
     >
       <Text typography="h4" bold>
-        Access Management
+        Access Manager
       </Text>
       <TopNavUserMenu
         menuListCss={() => `
@@ -151,7 +156,13 @@ function SideNavAgentConnect({ currentStep }) {
 
   return (
     <SideNavContainer>
-      <Box mb={4}>
+      <Image src={logoSvg} width="141px" mb="6" />
+      <Box
+        border="1px solid rgba(255,255,255,0.1);"
+        borderRadius="8px"
+        css={{ backgroundColor: 'rgba(255,255,255,0.02);' }}
+        p={4}
+      >
         <Flex alignItems="center">
           <Flex
             borderRadius={5}
@@ -233,14 +244,14 @@ const StepsContainer = styled(Text)`
 `;
 
 const SideNavContainer = styled.nav`
-  border-radius: 8px;
-  border: 1px solid ${props => props.theme.colors.primary.light};
-  width: 300px;
-  padding: 24px;
-  margin-right: 30px;
+  background-color: ${props => props.theme.colors.primary.light};
+  box-sizing: border-box;
+  width: 348px;
+  padding: 22px 32px;
 `;
 
 export const MainContainer = styled.div`
+  display: flex;
   width: 100%;
   height: 100%;
   position: absolute;

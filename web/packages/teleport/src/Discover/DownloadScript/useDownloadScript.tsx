@@ -127,7 +127,6 @@ export function useDownloadScript({ ctx, props }: Props) {
           });
           return;
         }
-
         setJoinToken(token);
       })
     );

@@ -68,6 +68,7 @@ export function DownloadScript({
               mt={2}
               mb={1}
             />
+
             {pollState === 'polling' && (
               <TextIcon>
                 <Icons.Restore fontSize={4} />
