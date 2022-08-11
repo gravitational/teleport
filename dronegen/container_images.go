@@ -31,7 +31,6 @@ func (tv *teleportVersion) BuildVersionPipeline() pipeline {
 	pipelineName := fmt.Sprintf("teleport-docker-cron-%s", tv.RelativeVersionName)
 
 	pipeline := newKubePipeline(pipelineName)
-	pipeline.Type = "docker"
 	pipeline.Trigger = cronTrigger([]string{pipelineName})
 	pipeline.Workspace = workspace{Path: "/go"}
 	pipeline.Services = []service{dockerService()}
@@ -80,65 +79,122 @@ func (tp *teleportPackage) GetName() string {
 
 func (tp *teleportPackage) BuildSteps(majorVersion, setupStep string) []step {
 	// The base image (ubuntu:20.04) does not offer i386 images so we don't either
-	supportedArchs := []string{"amd64", "arm64", "arm"}
+	supportedArchs := []string{
+		"amd64",
+		"arm64",
+		"arm",
+	}
 	containerRepos := GetContainerRepos()
 
 	steps := make([]step, 0)
 
-	buildStepDetails := make([]*buildStepOutput, 0, len(supportedArchs))
+	teleportBuildStepDetails := make([]*buildStepOutput, 0, len(supportedArchs))
+	labBuildStepDetails := make([]*buildStepOutput, 0, len(supportedArchs))
 	for _, supportedArch := range supportedArchs {
 		// FIPS is only supported on AMD64 currently
 		if tp.IsFIPS && supportedArch != "amd64" {
 			continue
 		}
 
-		buildArchStep, buildArchStepDetails := tp.buildArchStep(majorVersion, supportedArch)
-		buildArchStep.DependsOn = []string{setupStep}
-		steps = append(steps, buildArchStep)
+		// Setup Teleport build steps
+		teleportBuildArchStep, teleportBuildArchStepDetails := tp.buildTeleportArchStep(majorVersion, supportedArch)
+		teleportBuildArchStep.DependsOn = []string{setupStep}
+		steps = append(steps, teleportBuildArchStep)
+		teleportBuildStepDetails = append(teleportBuildStepDetails, teleportBuildArchStepDetails)
 
-		buildStepDetails = append(buildStepDetails, buildArchStepDetails)
+		// Setup Teleport lab build steps
+		// Only use OSS for now as that's what we currently support
+		if tp.IsEnterprise || tp.IsFIPS {
+			continue
+		}
+
+		labBuildArchStep, labBuildArchStepDetails := tp.buildTeleportLabArchStep(teleportBuildArchStepDetails)
+		steps = append(steps, labBuildArchStep)
+		labBuildStepDetails = append(labBuildStepDetails, labBuildArchStepDetails)
 	}
 
 	for _, containerRepo := range containerRepos {
-		steps = append(steps, containerRepo.BuildSteps(buildStepDetails)...)
+		steps = append(steps, containerRepo.BuildSteps(teleportBuildStepDetails)...)
+		steps = append(steps, containerRepo.BuildSteps(labBuildStepDetails)...)
 	}
 
 	return steps
 }
 
-func (tp *teleportPackage) buildArchStep(majorVersion, arch string) (step, *buildStepOutput) {
-	packageName := tp.GetName()
-	imageName := fmt.Sprintf("teleport-%s-%s-%s", majorVersion, packageName, arch)
+func (tp *teleportPackage) buildTeleportLabArchStep(teleportBuildStepDetail *buildStepOutput) (step, *buildStepOutput) {
+	dockerfile := "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
+
+	step, stepDetail := tp.createBuildStep("teleport-lab", teleportBuildStepDetail.MajorVersion, teleportBuildStepDetail.BuiltImageArch,
+		dockerfile, "", []string{fmt.Sprintf("BASE_IMAGE=%q", teleportBuildStepDetail.BuiltImageName)})
+	step.Commands = append(
+		cloneRepoCommands(),
+		step.Commands...,
+	)
+	step.DependsOn = []string{teleportBuildStepDetail.StepName}
+
+	return step, stepDetail
+}
+
+func (tp *teleportPackage) buildTeleportArchStep(majorVersion, arch string) (step, *buildStepOutput) {
 	workingDirectory := path.Join("/", "go", "build")
 	dockerfile := path.Join(workingDirectory, "Dockerfile-cron")
 	// Other dockerfiles can be added/configured here if needed in the future
 	downloadUrl := "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
 
+	step, stepDetail := tp.createBuildStep("teleport", majorVersion, arch, dockerfile, "teleport",
+		[]string{fmt.Sprintf("MAJOR_VERSION=%q", majorVersion), fmt.Sprintf("PACKAGE_NAME=%q", tp.GetName())})
+
+	// Add setup commands to download the dockerfile
+	step.Commands = append(
+		[]string{
+			"apk --update --no-cache add curl",
+			fmt.Sprintf("curl -Ls -o %q %q", dockerfile, downloadUrl),
+		},
+		step.Commands...,
+	)
+
+	return step, stepDetail
+}
+
+func (tp *teleportPackage) createBuildStep(buildName, majorVersion, arch, dockerfile, target string, buildArgs []string) (step, *buildStepOutput) {
+	packageName := tp.GetName()
+	// This makes the image name a little more intuitive
+	imageNamePackageSection := ""
+	if strings.HasPrefix(packageName, buildName) {
+		imageNamePackageSection = strings.TrimPrefix(packageName, buildName)
+	}
+	imageName := fmt.Sprintf("%s-%s%s-%s", buildName, majorVersion, imageNamePackageSection, arch)
+	workingDirectory := path.Join("/", "go", "build")
+
+	if target == "" {
+		target = "''" // Set target to an empty shell string rather than nil
+	}
+
+	buildCommand := "docker build"
+	buildCommand += " --target " + target
+	buildCommand += " --platform linux/" + arch
+	buildCommand += " --tag " + imageName
+	buildCommand += " --file " + dockerfile
+	for _, buildArg := range buildArgs {
+		buildCommand += " --build-arg " + buildArg
+	}
+	buildCommand += " " + workingDirectory
+
 	step := step{
-		Name:    fmt.Sprintf("Build Teleport image %q", imageName),
+		Name:    fmt.Sprintf("Build %s image %q", buildName, imageName),
 		Image:   "docker",
 		Volumes: dockerVolumeRefs(),
 		Commands: []string{
-			"apk --update --no-cache add curl",
 			fmt.Sprintf("mkdir -p %q && cd %q", workingDirectory, workingDirectory),
-			fmt.Sprintf("curl -Ls -o %q %q", dockerfile, downloadUrl),
-			strings.Join([]string{
-				"docker build",
-				"--target teleport",
-				fmt.Sprintf("--platform linux/%s", arch),
-				fmt.Sprintf("--build-arg MAJOR_VERSION=%q", majorVersion),
-				fmt.Sprintf("--build-arg PACKAGE_NAME=%q", packageName),
-				fmt.Sprintf("--tag %q", imageName),
-				fmt.Sprintf("--file %q", dockerfile),
-				workingDirectory,
-			}, " "),
+			buildCommand,
 		},
 	}
 
 	return step, &buildStepOutput{
 		StepName:        step.Name,
-		BuiltImageArch:  arch,
+		BuildName:       buildName,
 		BuiltImageName:  imageName,
+		BuiltImageArch:  arch,
 		MajorVersion:    majorVersion,
 		TeleportPackage: tp,
 	}
@@ -148,6 +204,7 @@ func (tp *teleportPackage) buildArchStep(majorVersion, arch string) (step, *buil
 // dependent steps so we add that via this struct
 type buildStepOutput struct {
 	StepName        string
+	BuildName       string
 	BuiltImageName  string
 	BuiltImageArch  string
 	MajorVersion    string
@@ -159,9 +216,9 @@ type containerRepo struct {
 	Environment      map[string]value
 	RegistryDomain   string
 	LoginCommands    []string
-	OssImageName     func(majorVersion string) string
-	EntImageName     func(majorVersion string) string
-	FipsEntImageName func(majorVersion string) string
+	OssImageName     func(buildName, majorVersion string) string
+	EntImageName     func(buildName, majorVersion string) string
+	FipsEntImageName func(buildName, majorVersion string) string
 }
 
 func NewEcrContainerRepo(name, accessKeyIdSecret, secretAccessKeySecret, domain string, isStaging bool) *containerRepo {
@@ -178,27 +235,27 @@ func NewEcrContainerRepo(name, accessKeyIdSecret, secretAccessKeySecret, domain 
 		RegistryDomain: domain,
 		LoginCommands: []string{
 			"apk add --no-cache aws-cli",
-			"TIMESTAMP=$(date '+%Y%m%d%H%M')",
+			"TIMESTAMP=$(date -d @\"$DRONE_BUILD_CREATED\" '+%Y%m%d%H%M')",
 			fmt.Sprintf("aws ecr get-login-password --region=us-west-2 | docker login -u=\"AWS\" --password-stdin %s", domain),
 		},
-		OssImageName: func(majorVersion string) string {
-			baseTag := fmt.Sprintf("%s/gravitational/teleport:%s", domain, majorVersion)
+		OssImageName: func(buildName, majorVersion string) string {
+			baseTag := fmt.Sprintf("%s/gravitational/%s:%s", buildName, domain, trimV(majorVersion))
 
 			if !isStaging {
 				return baseTag
 			}
 			return fmt.Sprintf("%s-%s", baseTag, "$TIMESTAMP")
 		},
-		EntImageName: func(majorVersion string) string {
-			baseTag := fmt.Sprintf("%s/gravitational/teleport-ent:%s", domain, majorVersion)
+		EntImageName: func(buildName, majorVersion string) string {
+			baseTag := fmt.Sprintf("%s/gravitational/%s-ent:%s", buildName, domain, trimV(majorVersion))
 
 			if !isStaging {
 				return baseTag
 			}
 			return fmt.Sprintf("%s-%s", baseTag, "$TIMESTAMP")
 		},
-		FipsEntImageName: func(majorVersion string) string {
-			baseTag := fmt.Sprintf("%s/gravitational/teleport-ent:%s-fips", domain, majorVersion)
+		FipsEntImageName: func(buildName, majorVersion string) string {
+			baseTag := fmt.Sprintf("%s/gravitational/%s-ent:%s-fips", buildName, domain, trimV(majorVersion))
 
 			if !isStaging {
 				return baseTag
@@ -223,14 +280,14 @@ func NewQuayContainerRepo(dockerUsername, dockerPassword string) *containerRepo 
 		LoginCommands: []string{
 			"docker login -u=\"$QUAY_USERNAME\" -p=\"$QUAY_PASSWORD\" \"quay.io\"",
 		},
-		OssImageName: func(majorVersion string) string {
-			return fmt.Sprintf("quay.io/gravitational/teleport:%s", majorVersion)
+		OssImageName: func(buildName, majorVersion string) string {
+			return fmt.Sprintf("quay.io/gravitational/%s:%s", buildName, trimV(majorVersion))
 		},
-		EntImageName: func(majorVersion string) string {
-			return fmt.Sprintf("quay.io/gravitational/teleport-ent:%s", majorVersion)
+		EntImageName: func(buildName, majorVersion string) string {
+			return fmt.Sprintf(buildName, "quay.io/gravitational/%s-ent:%s", buildName, trimV(majorVersion))
 		},
-		FipsEntImageName: func(majorVersion string) string {
-			return fmt.Sprintf("quay.io/gravitational/teleport-ent:%s-fips", majorVersion)
+		FipsEntImageName: func(buildName, majorVersion string) string {
+			return fmt.Sprintf("quay.io/gravitational/%s-ent:%s-fips", buildName, trimV(majorVersion))
 		},
 	}
 }
@@ -244,6 +301,10 @@ func GetContainerRepos() []*containerRepo {
 }
 
 func (cr *containerRepo) BuildSteps(buildStepDetails []*buildStepOutput) []step {
+	if len(buildStepDetails) == 0 {
+		return nil
+	}
+
 	steps := make([]step, 0)
 
 	pushStepDetails := make([]*pushStepOutput, 0, len(buildStepDetails))
@@ -272,19 +333,20 @@ func (cr *containerRepo) buildCommandsWithLogin(wrappedCommands []string) []stri
 	return commands
 }
 
-func (cr *containerRepo) BuildImageName(majorVersion string, teleportPackage *teleportPackage) string {
+func (cr *containerRepo) BuildImageName(buildName, majorVersion string, teleportPackage *teleportPackage) string {
 	if !teleportPackage.IsEnterprise {
-		return cr.OssImageName(majorVersion)
+		return cr.OssImageName(buildName, majorVersion)
 	}
 
 	if !teleportPackage.IsFIPS {
-		return cr.EntImageName(majorVersion)
+		return cr.EntImageName(buildName, majorVersion)
 	}
 
-	return cr.FipsEntImageName(majorVersion)
+	return cr.FipsEntImageName(buildName, majorVersion)
 }
 
 type pushStepOutput struct {
+	BuildName       string
 	MajorVersion    string
 	TeleportPackage *teleportPackage
 	PushedImageName string
@@ -292,7 +354,8 @@ type pushStepOutput struct {
 }
 
 func (cr *containerRepo) tagAndPushStep(buildStepDetails *buildStepOutput) (step, *pushStepOutput) {
-	repoImageTag := fmt.Sprintf("%s-%s", cr.BuildImageName(buildStepDetails.MajorVersion, buildStepDetails.TeleportPackage), buildStepDetails.BuiltImageArch)
+	repoImageTag := fmt.Sprintf("%s-%s", cr.BuildImageName(buildStepDetails.BuildName, buildStepDetails.MajorVersion,
+		buildStepDetails.TeleportPackage), buildStepDetails.BuiltImageArch)
 	step := step{
 		Name:        fmt.Sprintf("Tag and push %q to %s", repoImageTag, cr.Name),
 		Image:       "docker",
@@ -308,6 +371,7 @@ func (cr *containerRepo) tagAndPushStep(buildStepDetails *buildStepOutput) (step
 	}
 
 	return step, &pushStepOutput{
+		BuildName:       buildStepDetails.BuildName,
 		MajorVersion:    buildStepDetails.MajorVersion,
 		TeleportPackage: buildStepDetails.TeleportPackage,
 		PushedImageName: repoImageTag,
@@ -316,7 +380,8 @@ func (cr *containerRepo) tagAndPushStep(buildStepDetails *buildStepOutput) (step
 }
 
 func (cr *containerRepo) createAndPushManifestStep(pushStepDetails []*pushStepOutput) step {
-	repoImageTag := cr.BuildImageName(pushStepDetails[0].MajorVersion, pushStepDetails[0].TeleportPackage)
+	stepDetail := pushStepDetails[0]
+	repoImageTag := cr.BuildImageName(stepDetail.BuildName, stepDetail.MajorVersion, stepDetail.TeleportPackage)
 
 	manifestCommandArgs := make([]string, 0, len(pushStepDetails))
 	pushStepNames := make([]string, 0, len(pushStepDetails))
@@ -338,13 +403,6 @@ func (cr *containerRepo) createAndPushManifestStep(pushStepDetails []*pushStepOu
 	}
 }
 
-// func teleportLabSteps() []step {
-// 	containerRepos := GetContainerRepos()
-// 	steps := make([]step, 0, len(containerRepos))
-
-// 	for _, containerRepo := range containerRepos {
-// 		steps = append(steps, step{
-// 			Name: fmt.Sprintf("Build teleport lab for "),
-// 		})
-// 	}
-// }
+func trimV(semver string) string {
+	return strings.TrimPrefix(semver, "v")
+}

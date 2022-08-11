@@ -103,6 +103,16 @@ func cronTrigger(cronJobNames []string) trigger {
 	}
 }
 
+func cloneRepoCommands() []string {
+	return []string{
+		`mkdir -p /go/src/github.com/gravitational/teleport`,
+		`cd /go/src/github.com/gravitational/teleport`,
+		`git init && git remote add origin ${DRONE_REMOTE_URL}`,
+		`git fetch origin`,
+		`git checkout -qf ${DRONE_COMMIT_SHA}`,
+	}
+}
+
 type buildType struct {
 	os              string
 	arch            string
