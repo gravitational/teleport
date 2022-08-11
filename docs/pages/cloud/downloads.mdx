@@ -53,7 +53,8 @@ macOS Packages                     | [amd64](https://get.gravitational.com/telep
 
 ## Teleport package repositories
 
-Teleport currently maintains DEB repositories for Debian compatible systems.
+Teleport currently maintains DEB and RPM package repositories. Follow these
+instructions to add a package repository and install Teleport.
 
 <Tabs>
     <TabItem label="Debian/Ubuntu (DEB)">
@@ -71,9 +72,21 @@ Teleport currently maintains DEB repositories for Debian compatible systems.
         $ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
           https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/v(=cloud.major_version=)" \
         | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
-
         $ sudo apt-get update
         $ sudo apt-get install teleport
+        ```
+    </TabItem>
+    <TabItem label="Amazon Linux 2/RHEL (RPM)">
+        ```code
+        # Source variables about OS version
+        $ source /etc/os-release
+        # Add the Teleport YUM repository for v(=cloud.major_version=). You'll need to update this
+        # file for each major release of Teleport.
+        # Note: if using a fork of RHEL/CentOS or Amazon Linux you may need to use '$ID_LIKE'
+        # and the codename your distro was forked from instead of '$ID'
+        $ sudo yum-config-manager \
+            --add-repo $(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/v(=cloud.major_version=)/teleport.repo")
+        $ sudo yum install teleport
         ```
     </TabItem>
 </Tabs>
