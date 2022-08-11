@@ -509,11 +509,10 @@ func (process *TeleportProcess) addConnector(connector *Connector) {
 // the resulting payload as a *Connector. Returns (nil, nil) when the
 // ExitContext is done, so error checking should happen on the connector rather
 // than the error:
-//
-//	conn, err := process.waitForConnector("FooIdentity", log)
-//	if conn == nil {
-//		return trace.Wrap(err)
-//	}
+//  conn, err := process.waitForConnector("FooIdentity", log)
+//  if conn == nil {
+//  	return trace.Wrap(err)
+//  }
 func (process *TeleportProcess) waitForConnector(identityEvent string, log logrus.FieldLogger) (*Connector, error) {
 	event, err := process.WaitForEvent(process.ExitContext(), identityEvent)
 	if err != nil {
@@ -1392,7 +1391,7 @@ func initExternalLog(ctx context.Context, auditConfig types.ClusterAuditConfig, 
 	if !auditConfig.ShouldUploadSessions() && hasNonFileLog {
 		// if audit events are being exported, session recordings should
 		// be exported as well.
-		//return nil, trace.BadParameter("please specify audit_sessions_uri when using external audit backends")
+		return nil, trace.BadParameter("please specify audit_sessions_uri when using external audit backends")
 	}
 
 	if len(loggers) > 1 {
@@ -2844,10 +2843,10 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) (
 
 // initProxy gets called if teleport runs with 'proxy' role enabled.
 // this means it will do four things:
-//  1. serve a web UI
-//  2. proxy SSH connections to nodes running with 'node' role
-//  3. take care of reverse tunnels
-//  4. optionally proxy kubernetes connections
+//    1. serve a web UI
+//    2. proxy SSH connections to nodes running with 'node' role
+//    3. take care of reverse tunnels
+//    4. optionally proxy kubernetes connections
 func (process *TeleportProcess) initProxy() error {
 	// If no TLS key was provided for the web listener, generate a self-signed cert
 	if len(process.Config.Proxy.KeyPairs) == 0 &&
