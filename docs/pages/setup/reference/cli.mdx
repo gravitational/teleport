@@ -747,7 +747,14 @@ add_headers:
 
 #### Aliases
 
-Aliases allow you to define custom commands or change the default flag values for existing commands.
+Aliases allow you to define custom commands or change the default flag values for existing commands using the following syntax:
+
+```yaml
+aliases:
+    "<alias>": "<command>"
+```
+
+The `<alias>` can only be a top-level subcommand. In other words, you can define `tsh mycommand` alias but not `tsh my command`.
 
 New command `tsh l`:
 
@@ -763,6 +770,8 @@ aliases:
     "status": "tsh status --format=json"
 ```
 
+The alias can use an arbitrary number of arguments. If a argument variable `$N` is referenced, `tsh` will check that at least `N+1` arguments were given to the alias invocation. All arguments that were given but not referenced in the alias definition will be appended at the end.
+
 Define custom command using `bash`. The `$0` and `$1` variables will be substituted with command arguments.
 
 ```yaml
@@ -770,9 +779,14 @@ aliases:
     "connect": "bash -c 'tsh login $0 && tsh ssh $1'"
 ```
 
-The alias can use an arbitrary number of arguments. If a argument variable `$N` is referenced, `tsh` will check that at least `N+1` arguments were given to the alias invocation. All arguments that were given but not referenced in the alias definition will be appended at the end.
+Define custom login command where first argument specifies `--auth` option.
 
-Given configuration:
+```yaml
+aliases:
+    "ap": "tsh login --auth=$0 --proxy=teleport.example.com"
+```
+
+Given the configuration:
 
 ```yaml
 aliases:
