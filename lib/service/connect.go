@@ -88,6 +88,7 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 				// Set cluster features and return successfully with a working connector.
 				process.setClusterFeatures(pingResponse.GetServerFeatures())
 				process.log.Infof("%v: features loaded from auth server: %+v", role, pingResponse.GetServerFeatures())
+				process.setAuthSubjectiveAddr(pingResponse.RemoteAddr)
 				return connector, nil
 			}
 
@@ -136,14 +137,8 @@ func (process *TeleportProcess) assertSystemRoles() (assertionID string, err err
 	assertionID = uuid.New().String()
 	irm := process.getInstanceRoleEventMapping()
 	for role, eventName := range irm {
-		eventsC := make(chan Event)
-		process.WaitForEvent(process.ExitContext(), eventName, eventsC)
-
-		var event Event
-
-		select {
-		case event = <-eventsC:
-		case <-process.ExitContext().Done():
+		event, err := process.WaitForEvent(process.ExitContext(), eventName)
+		if err != nil {
 			return "", trace.Errorf("process is exiting")
 		}
 
@@ -152,12 +147,11 @@ func (process *TeleportProcess) assertSystemRoles() (assertionID string, err err
 			return "", trace.BadParameter("unsupported connector type: %T", event.Payload)
 		}
 
-		err := conn.Client.UnstableAssertSystemRole(process.ExitContext(), proto.UnstableSystemRoleAssertion{
+		err = conn.Client.UnstableAssertSystemRole(process.ExitContext(), proto.UnstableSystemRoleAssertion{
 			ServerID:    process.Config.HostUUID,
 			AssertionID: assertionID,
 			SystemRole:  role,
 		})
-
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -576,7 +570,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		}
 	} else {
 		// Auth server is remote, so we need a provisioning token.
-		if process.Config.Token == "" {
+		if !process.Config.HasToken() {
 			return nil, trace.BadParameter("%v must join a cluster and needs a provisioning token", role)
 		}
 
@@ -587,8 +581,13 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			return nil, trace.Wrap(err)
 		}
 
+		token, err := process.Config.Token()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		certs, err := auth.Register(auth.RegisterParams{
-			Token:                process.Config.Token,
+			Token:                token,
 			ID:                   id,
 			Servers:              process.Config.AuthServers,
 			AdditionalPrincipals: additionalPrincipals,
@@ -664,14 +663,10 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 // takes action if necessary
 func (process *TeleportProcess) periodicSyncRotationState() error {
 	// start rotation only after teleport process has started
-	eventC := make(chan Event, 1)
-	process.WaitForEvent(process.ExitContext(), TeleportReadyEvent, eventC)
-	select {
-	case <-eventC:
-		process.log.Infof("The new service has started successfully. Starting syncing rotation status with period %v.", process.Config.PollingPeriod)
-	case <-process.GracefulExitContext().Done():
+	if _, err := process.WaitForEvent(process.GracefulExitContext(), TeleportReadyEvent); err != nil {
 		return nil
 	}
+	process.log.Infof("The new service has started successfully. Starting syncing rotation status with period %v.", process.Config.PollingPeriod)
 
 	periodic := interval.New(interval.Config{
 		Duration:      process.Config.RotationConnectionInterval,

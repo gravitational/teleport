@@ -159,18 +159,14 @@ func TestDatabaseRotateTrustedCluster(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 
-	rotationPhases := []string{types.RotationPhaseInit, types.RotationPhaseUpdateClients,
-		types.RotationPhaseUpdateServers, types.RotationPhaseStandby}
+	rotationPhases := []string{
+		types.RotationPhaseInit, types.RotationPhaseUpdateClients,
+		types.RotationPhaseUpdateServers, types.RotationPhaseStandby,
+	}
 
 	waitForEvent := func(process *service.TeleportProcess, event string) {
-		eventC := make(chan service.Event, 1)
-		process.WaitForEvent(context.TODO(), event, eventC)
-		select {
-		case <-eventC:
-
-		case <-time.After(20 * time.Second):
-			t.Fatalf("timeout waiting for service to broadcast event %s", event)
-		}
+		_, err := process.WaitForEventTimeout(20*time.Second, event)
+		require.NoError(t, err, "timeout waiting for service to broadcast event %s", event)
 	}
 
 	for _, phase := range rotationPhases {
@@ -1085,7 +1081,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	}
 	rdConf := service.MakeDefaultConfig()
 	rdConf.DataDir = t.TempDir()
-	rdConf.Token = "static-token-value"
+	rdConf.SetToken("static-token-value")
 	rdConf.AuthServers = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
@@ -1123,7 +1119,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	}
 	ldConf := service.MakeDefaultConfig()
 	ldConf.DataDir = t.TempDir()
-	ldConf.Token = "static-token-value"
+	ldConf.SetToken("static-token-value")
 	ldConf.AuthServers = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
@@ -1285,7 +1281,7 @@ type databaseAgentStartParams struct {
 func (p *databasePack) startRootDatabaseAgent(t *testing.T, params databaseAgentStartParams) (*service.TeleportProcess, *auth.Client) {
 	conf := service.MakeDefaultConfig()
 	conf.DataDir = t.TempDir()
-	conf.Token = "static-token-value"
+	conf.SetToken("static-token-value")
 	conf.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("localhost", ports.Pop())}
 	conf.AuthServers = []utils.NetAddr{
 		{

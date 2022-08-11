@@ -8,26 +8,26 @@ The Teleport team delivers a new major release roughly every 3 months.
 
 ## Teleport
 
-### Teleport 10.1
-
-Teleport 10.1 will bring Application Access, Kubernetes Access, and CA rotation
-support to Machine ID, a Kubernetes Operator, and TCP endpoint support to
-Application Access.
-
-| Version     | Date       | Description                |
-|-------------|------------|----------------------------|
-| Release     | July 2022  | Good to go for production. |
-
 ### Teleport 10.2
 
-Teleport 10.2 will bring file upload/download support to Desktop Access,
-host certificate support to Machine ID, Elasticsearch support to Database Access,
-and automatic configuration of AD to Desktop Access. Teleport 10.2 will remove the need for a PVC
-to securely deploy Teleport within a Kubernetes cluster, and will add automatic discovery
-of servers on AWS.
+In Teleport 10.2, Desktop Access will receive:
 
-In addition, support for a notification-only automatic upgrade system will be
-added to Teleport.
+- support for directory sharing
+- simplified configuration of AD
+- configurable playback speed for recorded sessions
+
+Server Access will add:
+- support for Auditd
+- support for non-disk based certificates
+- automatic discovery of servers on AWS
+
+For Teleport Connect, we will add Touch ID support in macOS builds, and introduce
+support for Windows.
+
+Database Access will add support for Elasticsearch.
+
+Lastly, Teleport 10.2 will include support for a notification-only automatic
+upgrade system.
 
 | Version     | Date         | Description                |
 |-------------|--------------|----------------------------|
@@ -35,7 +35,8 @@ added to Teleport.
 
 ### Teleport 10.3
 
-Teleport 10 will bring Cassandra support to Database Access.
+Teleport 10 will bring Cassandra support to Database Access. Host
+certificate support will be added to Machine ID.
 
 | Version     | Date              | Description                |
 |-------------|-------------------|----------------------------|
@@ -47,10 +48,9 @@ The key deliverables for Teleport Cloud in the next quarter:
 
 | Date    | Description |
 |---------|-------------|
-| Q2 2022 | Update security audit from independent auditors. [2021 Audit](https://goteleport.com/resources/audits/teleport-cloud-security-audit-2021/)  |
-| Q2 2022 | Provide a public listing of IP addresses used by Teleport infrastructure for firewall configuration. |
-| Q2 2022 | Scheduled upgrades will limit downtime to non-peak hours.
-| Q3 2022 | Complete rollout of our [worldwide access design](https://goteleport.com/blog/access-proxy-latency/), allowing low-latency access from around the world. |
+| Q3 2022 | Update security audit from independent auditors. [2021 Audit](https://goteleport.com/resources/audits/teleport-cloud-security-audit-2021/)  |
+| Q3 2022 | Scheduled upgrades will limit downtime to non-peak hours.
+| Q4 2022 | Complete rollout of our [worldwide access design](https://goteleport.com/blog/access-proxy-latency/), allowing low-latency access from around the world. |
 
 ## Semantic Versioning
 

@@ -744,7 +744,7 @@ func (i *TeleInstance) startNode(tconf *service.Config, authPort string) (*servi
 
 	authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, authPort))
 	tconf.AuthServers = append(tconf.AuthServers, *authServer)
-	tconf.Token = "token"
+	tconf.SetToken("token")
 	tconf.UploadEventsC = i.UploadEventsC
 	tconf.CachePolicy = service.CachePolicy{
 		Enabled: true,
@@ -801,7 +801,7 @@ func (i *TeleInstance) StartApp(conf *service.Config) (*service.TeleportProcess,
 			Addr:        net.JoinHostPort(Loopback, i.GetPortWeb()),
 		},
 	}
-	conf.Token = "token"
+	conf.SetToken("token")
 	conf.UploadEventsC = i.UploadEventsC
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
@@ -853,7 +853,7 @@ func (i *TeleInstance) StartApps(configs []*service.Config) ([]*service.Teleport
 					Addr:        net.JoinHostPort(Loopback, i.GetPortWeb()),
 				},
 			}
-			cfg.Token = "token"
+			cfg.SetToken("token")
 			cfg.UploadEventsC = i.UploadEventsC
 			cfg.Auth.Enabled = false
 			cfg.Proxy.Enabled = false
@@ -917,7 +917,7 @@ func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportPro
 			Addr:        net.JoinHostPort(Loopback, i.GetPortWeb()),
 		},
 	}
-	conf.Token = "token"
+	conf.SetToken("token")
 	conf.UploadEventsC = i.UploadEventsC
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
@@ -980,7 +980,7 @@ func (i *TeleInstance) StartKube(conf *service.Config, clusterName string) (*ser
 			Addr:        net.JoinHostPort(Loopback, i.GetPortWeb()),
 		},
 	}
-	conf.Token = "token"
+	conf.SetToken("token")
 	conf.UploadEventsC = i.UploadEventsC
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
@@ -1029,7 +1029,7 @@ func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, pro
 	tconf.Log = i.log
 	authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, i.GetPortAuth()))
 	tconf.AuthServers = append(tconf.AuthServers, *authServer)
-	tconf.Token = "token"
+	tconf.SetToken("token")
 	tconf.HostUUID = name
 	tconf.Hostname = name
 	tconf.UploadEventsC = i.UploadEventsC
@@ -1122,7 +1122,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error)
 	tconf.UploadEventsC = i.UploadEventsC
 	tconf.HostUUID = cfg.Name
 	tconf.Hostname = cfg.Name
-	tconf.Token = "token"
+	tconf.SetToken("token")
 
 	tconf.Auth.Enabled = false
 
@@ -1313,6 +1313,8 @@ type ClientConfig struct {
 	Interactive bool
 	// Source IP to used in generated SSH cert
 	SourceIP string
+	// EnableEscapeSequences will scan Stdin for SSH escape sequences during command/shell execution.
+	EnableEscapeSequences bool
 }
 
 // NewClientWithCreds creates client with credentials
@@ -1362,20 +1364,21 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 	}
 
 	cconf := &client.Config{
-		Username:           cfg.Login,
-		Host:               cfg.Host,
-		HostPort:           cfg.Port,
-		HostLogin:          cfg.Login,
-		InsecureSkipVerify: true,
-		KeysDir:            keyDir,
-		SiteName:           cfg.Cluster,
-		ForwardAgent:       fwdAgentMode,
-		Labels:             cfg.Labels,
-		WebProxyAddr:       webProxyAddr,
-		SSHProxyAddr:       sshProxyAddr,
-		Interactive:        cfg.Interactive,
-		TLSRoutingEnabled:  i.isSinglePortSetup,
-		Tracer:             tracing.NoopProvider().Tracer("test"),
+		Username:              cfg.Login,
+		Host:                  cfg.Host,
+		HostPort:              cfg.Port,
+		HostLogin:             cfg.Login,
+		InsecureSkipVerify:    true,
+		KeysDir:               keyDir,
+		SiteName:              cfg.Cluster,
+		ForwardAgent:          fwdAgentMode,
+		Labels:                cfg.Labels,
+		WebProxyAddr:          webProxyAddr,
+		SSHProxyAddr:          sshProxyAddr,
+		Interactive:           cfg.Interactive,
+		TLSRoutingEnabled:     i.isSinglePortSetup,
+		Tracer:                tracing.NoopProvider().Tracer("test"),
+		EnableEscapeSequences: cfg.EnableEscapeSequences,
 	}
 
 	// JumpHost turns on jump host mode
@@ -1511,12 +1514,6 @@ func (i *TeleInstance) StopAll() error {
 }
 
 func startAndWait(process *service.TeleportProcess, expectedEvents []string) ([]service.Event, error) {
-	// register to listen for all ready events on the broadcast channel
-	broadcastCh := make(chan service.Event)
-	for _, eventName := range expectedEvents {
-		process.WaitForEvent(context.TODO(), eventName, broadcastCh)
-	}
-
 	// start the process
 	err := process.Start()
 	if err != nil {
@@ -1525,17 +1522,18 @@ func startAndWait(process *service.TeleportProcess, expectedEvents []string) ([]
 
 	// wait for all events to arrive or a timeout. if all the expected events
 	// from above are not received, this instance will not start
-	receivedEvents := []service.Event{}
-	timeoutCh := time.After(10 * time.Second)
-
-	for idx := 0; idx < len(expectedEvents); idx++ {
-		select {
-		case e := <-broadcastCh:
-			receivedEvents = append(receivedEvents, e)
-		case <-timeoutCh:
-			return nil, trace.BadParameter("timed out, only %v/%v events received. received: %v, expected: %v",
-				len(receivedEvents), len(expectedEvents), receivedEvents, expectedEvents)
+	receivedEvents := make([]service.Event, 0, len(expectedEvents))
+	ctx, cancel := context.WithTimeout(process.ExitContext(), 10*time.Second)
+	defer cancel()
+	for _, eventName := range expectedEvents {
+		if event, err := process.WaitForEvent(ctx, eventName); err == nil {
+			receivedEvents = append(receivedEvents, event)
 		}
+	}
+
+	if len(receivedEvents) < len(expectedEvents) {
+		return nil, trace.BadParameter("timed out, only %v/%v events received. received: %v, expected: %v",
+			len(receivedEvents), len(expectedEvents), receivedEvents, expectedEvents)
 	}
 
 	// Not all services follow a non-blocking Start/Wait pattern. This means a

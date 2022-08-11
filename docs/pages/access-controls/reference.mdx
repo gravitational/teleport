@@ -106,8 +106,8 @@ The table below documents the behavior of each option if multiple roles are assi
 | `permit_x11_forwarding` | Allow users to enable X11 forwarding with OpenSSH clients and servers | |
 | `require_session_mfa` | Require additional MFA tap before initiating a session | Logical "OR" i.e. evaluates to "yes" if at least one role requires session MFA |
 | `lock` | Locking mode (`strict` or `best_effort`) | `strict` wins in case of conflict |
-| `request_access` | Enterprise-only access request strategy (`optional`, `always` or `reason`) | |
-| `request_prompt` | Prompt for the access request "reason" field | |
+| `request_access` | Enterprise-only Access Request strategy (`optional`, `always` or `reason`) | |
+| `request_prompt` | Prompt for the Access Request "reason" field | |
 | `max_connections` | Enterprise-only limit on how many concurrent sessions can be started via Teleport | |
 | `max_kubernetes_connections` | Defines the maximum number of concurrent Kubernetes sessions per user | |
 | `record_session` |Defines the [Session recording mode](../setup/reference/audit.mdx#modes).|The strictest value takes precedence.|

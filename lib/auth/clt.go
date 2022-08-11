@@ -1195,7 +1195,7 @@ func (c *Client) DeleteNamespace(name string) error {
 }
 
 // CreateRole not implemented: can only be called locally.
-func (c *Client) CreateRole(role types.Role) error {
+func (c *Client) CreateRole(ctx context.Context, role types.Role) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -1694,6 +1694,7 @@ type ClientI interface {
 	session.Service
 	services.ClusterConfiguration
 	services.SessionTrackerService
+	services.ConnectionsDiagnostic
 	types.Events
 
 	types.WebSessionsGetter
