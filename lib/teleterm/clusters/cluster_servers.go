@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 
 	"github.com/gravitational/trace"
@@ -35,8 +36,14 @@ type Server struct {
 	types.Server
 }
 
+type ListServersParams struct {
+	ClusterUri string
+	Query      string
+	Search     string
+}
+
 // GetServers returns cluster servers
-func (c *Cluster) GetServers(ctx context.Context) ([]Server, error) {
+func (c *Cluster) GetServers(ctx context.Context, params ListServersParams) ([]Server, error) {
 	var clusterServers []types.Server
 	err := addMetadataToRetryableError(ctx, func() error {
 		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
@@ -46,7 +53,9 @@ func (c *Cluster) GetServers(ctx context.Context) ([]Server, error) {
 		defer proxyClient.Close()
 
 		clusterServers, err = proxyClient.FindNodesByFilters(ctx, proto.ListResourcesRequest{
-			Namespace: defaults.Namespace,
+			Namespace:           defaults.Namespace,
+			PredicateExpression: params.Query,
+			SearchKeywords:      client.ParseSearchKeywords(params.Search, ' '),
 		})
 		if err != nil {
 			return trace.Wrap(err)

@@ -26,7 +26,12 @@ import (
 
 // ListServers lists servers
 func (s *Handler) ListServers(ctx context.Context, req *api.ListServersRequest) (*api.ListServersResponse, error) {
-	servers, err := s.DaemonService.ListServers(ctx, req.ClusterUri)
+	params := clusters.ListServersParams{
+		ClusterUri: req.ClusterUri,
+		Query:      req.Query,
+		Search:     req.Search,
+	}
+	servers, err := s.DaemonService.ListServers(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

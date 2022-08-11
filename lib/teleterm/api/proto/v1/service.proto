@@ -235,7 +235,11 @@ message SetGatewayLocalPortRequest {
     string local_port = 2;
 }
 
-message ListServersRequest { string cluster_uri = 1; }
+message ListServersRequest {
+    string cluster_uri = 1;
+    string query = 2;
+    string search = 3;
+}
 
 message ListServersResponse { repeated Server servers = 1; }
 

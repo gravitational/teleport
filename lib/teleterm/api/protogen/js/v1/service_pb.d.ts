@@ -732,6 +732,12 @@ export class ListServersRequest extends jspb.Message {
     getClusterUri(): string;
     setClusterUri(value: string): ListServersRequest;
 
+    getQuery(): string;
+    setQuery(value: string): ListServersRequest;
+
+    getSearch(): string;
+    setSearch(value: string): ListServersRequest;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ListServersRequest.AsObject;
@@ -746,6 +752,8 @@ export class ListServersRequest extends jspb.Message {
 export namespace ListServersRequest {
     export type AsObject = {
         clusterUri: string,
+        query: string,
+        search: string,
     }
 }
 

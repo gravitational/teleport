@@ -323,13 +323,13 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (*gateway.Ga
 }
 
 // ListServers returns cluster servers
-func (s *Service) ListServers(ctx context.Context, clusterURI string) ([]clusters.Server, error) {
-	cluster, err := s.ResolveCluster(clusterURI)
+func (s *Service) ListServers(ctx context.Context, params clusters.ListServersParams) ([]clusters.Server, error) {
+	cluster, err := s.ResolveCluster(params.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	servers, err := cluster.GetServers(ctx)
+	servers, err := cluster.GetServers(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
