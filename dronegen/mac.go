@@ -182,17 +182,6 @@ func pushCheckoutCommandsDarwin(b buildType) []string {
 		`git checkout ${DRONE_TAG:-$DRONE_COMMIT}`,
 	}
 
-	// clone github.com/gravitational/webapps for the Teleport Connect source code
-	if b.hasTeleportConnect() {
-		commands = append(commands,
-			`mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
-			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
-			`git clone https://github.com/gravitational/webapps.git .`,
-			`git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)`,
-			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
-		)
-	}
-
 	commands = append(commands,
 		// fetch enterprise submodules
 		// suppressing the newline on the end of the private key makes git operations fail on MacOS
