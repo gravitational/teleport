@@ -405,6 +405,10 @@ func (t *proxySubsys) proxyToHost(
 		t.log.Warnf("server lookup failed: using default=%v", serverAddr)
 	}
 
+	if serverID == "" {
+		t.log.Warn("---------- no server id found in the cache, dial will fail")
+	}
+
 	// Pass the agent along to the site. If the proxy is in recording mode, this
 	// agent is used to perform user authentication. Pass the DNS name to the
 	// dialer as well so the forwarding proxy can generate a host certificate
@@ -456,6 +460,7 @@ func (t *proxySubsys) proxyToHost(
 // NodesGetter is a function that retrieves a subset of nodes matching
 // the filter criteria.
 type NodesGetter interface {
+	NodeCount() int
 	GetNodes(fn func(n services.Node) bool) []types.Server
 }
 
@@ -507,6 +512,10 @@ func (t *proxySubsys) getMatchingServer(watcher NodesGetter, strategy types.Rout
 		return false
 	})
 
+	if len(matches) == 0 {
+		t.log.Infof("------------No matching servers found out of %d potential matches", watcher.NodeCount())
+	}
+
 	var server types.Server
 	switch {
 	case strategy == types.RoutingStrategy_MOST_RECENT:
@@ -536,7 +545,16 @@ func (t *proxySubsys) getMatchingServer(watcher NodesGetter, strategy types.Rout
 		if utils.IsEC2NodeID(t.host) {
 			idType = "EC2"
 		}
-		return nil, trace.NotFound("unable to locate node matching %s-like target %s", idType, t.host)
+
+		t.log.Warnf("unable to locate node matching %s-like target %s", idType, t.host)
+		return &types.ServerV2{
+			Metadata: types.Metadata{
+				Name: t.host,
+			},
+			Spec: types.ServerSpecV2{
+				UseTunnel: true,
+			},
+		}, nil
 	}
 
 	return server, nil

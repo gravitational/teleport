@@ -2919,9 +2919,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	nodeWatcher, err := services.NewNodeWatcher(process.ExitContext(), services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
-			Log:       process.log.WithField(trace.Component, teleport.ComponentProxy),
-			Client:    conn.Client,
+			Log:       process.log.WithField(trace.Component, teleport.Component(teleport.ComponentProxy, "NW")),
+			Client:    accessPoint,
 		},
+		NodesGetter: conn.Client,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -2931,9 +2932,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
 			Log:       process.log.WithField(trace.Component, teleport.ComponentProxy),
-			Client:    conn.Client,
+			Client:    accessPoint,
 		},
-		AuthorityGetter: accessPoint,
+		AuthorityGetter: conn.Client,
 		Types:           []types.CertAuthType{types.HostCA, types.UserCA},
 	})
 	if err != nil {

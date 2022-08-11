@@ -251,7 +251,11 @@ func (p *resourceWatcher) watch() error {
 		if event.Type != types.OpInit {
 			return trace.BadParameter("expected init event, got %v instead", event.Type)
 		}
+	case <-time.After(time.Minute):
+		return trace.LimitExceeded("failed to receive init event")
 	}
+
+	p.Log.Infoln("----------- Resource Watcher received init event, updating current state")
 
 	if err := p.collector.getResourcesAndUpdateCurrent(p.ctx); err != nil {
 		return trace.Wrap(err)
@@ -1230,6 +1234,9 @@ func (n *nodeCollector) getResourcesAndUpdateCurrent(ctx context.Context) error 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	n.Log.Infof("----------- initial state fetched %d nodes", len(nodes))
+
 	if len(nodes) == 0 {
 		return nil
 	}

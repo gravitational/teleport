@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/utils"
@@ -73,7 +72,7 @@ func newlocalSite(srv *server, domainName string, authServers []string) (*localS
 		offlineThreshold: srv.offlineThreshold,
 	}
 
-	// Start periodic functions for the the local cluster in the background.
+	// Start periodic functions for the local cluster in the background.
 	go s.periodicFunctions()
 
 	return s, nil
@@ -509,7 +508,7 @@ func (s *localSite) chanTransportConn(rconn *remoteConn, dreq *sshutils.DialReq)
 
 // periodicFunctions runs functions periodic functions for the local cluster.
 func (s *localSite) periodicFunctions() {
-	ticker := time.NewTicker(defaults.ResyncInterval)
+	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
 
 	for {
@@ -527,17 +526,18 @@ func (s *localSite) periodicFunctions() {
 // sshTunnelStats reports SSH tunnel statistics for the cluster.
 func (s *localSite) sshTunnelStats() error {
 	missing := s.srv.NodeWatcher.GetNodes(func(server services.Node) bool {
-		// Skip over any servers that that have a TTL larger than announce TTL (10
+		// Skip over any servers that have a TTL larger than announce TTL (10
 		// minutes) and are non-IoT SSH servers (they won't have tunnels).
 		//
 		// Servers with a TTL larger than the announce TTL skipped over to work around
 		// an issue with DynamoDB where objects can hang around for 48 hours after
 		// their TTL value.
-		ttl := s.clock.Now().Add(-1 * apidefaults.ServerAnnounceTTL)
-		if server.Expiry().Before(ttl) {
+		if !server.GetUseTunnel() {
 			return false
 		}
-		if !server.GetUseTunnel() {
+
+		ttl := s.clock.Now().Add(-1 * apidefaults.ServerAnnounceTTL)
+		if server.Expiry().Before(ttl) {
 			return false
 		}
 
