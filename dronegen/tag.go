@@ -29,7 +29,7 @@ const (
 const releasesHost = "https://releases-staging.platform.teleport.sh"
 
 // tagCheckoutCommands builds a list of commands for Drone to check out a git commit on a tag build
-func tagCheckoutCommands(fips bool) []string {
+func tagCheckoutCommands(b buildType) []string {
 	commands := []string{
 		`mkdir -p /go/src/github.com/gravitational/teleport`,
 		`cd /go/src/github.com/gravitational/teleport`,
@@ -51,6 +51,17 @@ if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
   exit 1
 fi
 echo "$$VERSION" > /go/.version.txt`,
+	}
+
+	// clone github.com/gravitational/webapps for the Teleport Connect source code
+	if b.hasTeleportConnect() {
+		commands = append(commands,
+			`mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
+			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
+			`git clone https://github.com/gravitational/webapps.git .`,
+			`git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)`,
+			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
+		)
 	}
 	return commands
 }
@@ -273,7 +284,7 @@ func tagPipeline(b buildType) pipeline {
 			Environment: map[string]value{
 				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
-			Commands: tagCheckoutCommands(b.fips),
+			Commands: tagCheckoutCommands(b),
 		},
 		waitForDockerStep(),
 		{
@@ -484,7 +495,7 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			Environment: map[string]value{
 				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
-			Commands: tagCheckoutCommands(b.fips),
+			Commands: tagCheckoutCommands(b),
 		},
 		waitForDockerStep(),
 		{
