@@ -1123,8 +1123,8 @@ func (c *Client) GetSessionEvents(namespace string, sid session.ID, afterN int, 
 }
 
 // StreamEvents TODO
-func (c *Client) StreamEvents(ctx context.Context, startKey string) (chan apievents.StreamEvents, chan error) {
-	return c.APIClient.StreamEvents(ctx, startKey)
+func (c *Client) StreamEvents(ctx context.Context, cursor string) (chan apievents.StreamEvent, chan error) {
+	return c.APIClient.StreamEvents(ctx, cursor)
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first

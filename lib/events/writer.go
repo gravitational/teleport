@@ -95,8 +95,8 @@ func (w *WriterLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, ord
 }
 
 // StreamSessionEvents TODO
-func (w *WriterLog) StreamEvents(ctx context.Context, startKey string) (chan apievents.StreamEvents, chan error) {
-	c, e := make(chan apievents.StreamEvents), make(chan error, 1)
+func (w *WriterLog) StreamEvents(ctx context.Context, cursor string) (chan apievents.StreamEvent, chan error) {
+	c, e := make(chan apievents.StreamEvent), make(chan error, 1)
 	e <- trace.NotImplemented("not implemented")
 	return c, e
 }

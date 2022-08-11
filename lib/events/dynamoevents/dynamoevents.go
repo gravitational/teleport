@@ -1090,9 +1090,9 @@ func convertError(err error) error {
 }
 
 // StreamEvents TODO
-func (l *Log) StreamEvents(ctx context.Context, startKey string) (chan apievents.StreamEvents, chan error) {
+func (l *Log) StreamEvents(ctx context.Context, cursor string) (chan apievents.StreamEvent, chan error) {
 	// TODO
-	c, e := make(chan apievents.StreamEvents), make(chan error, 1)
+	c, e := make(chan apievents.StreamEvent), make(chan error, 1)
 	return c, e
 }
 

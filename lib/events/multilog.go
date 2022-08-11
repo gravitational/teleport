@@ -127,8 +127,8 @@ func (m *MultiLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, orde
 }
 
 // StreamSessionEvents TODO
-func (w *MultiLog) StreamEvents(ctx context.Context, startKey string) (chan apievents.StreamEvents, chan error) {
-	c, e := make(chan apievents.StreamEvents), make(chan error, 1)
+func (w *MultiLog) StreamEvents(ctx context.Context, cursor string) (chan apievents.StreamEvent, chan error) {
+	c, e := make(chan apievents.StreamEvent), make(chan error, 1)
 	e <- trace.NotImplemented("not implemented")
 	return c, e
 }

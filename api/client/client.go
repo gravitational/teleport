@@ -2086,12 +2086,12 @@ func (c *Client) DeleteAllNodes(ctx context.Context, namespace string) error {
 }
 
 // StreamEvents TODO
-func (c *Client) StreamEvents(ctx context.Context, startKey string) (chan events.StreamEvents, chan error) {
+func (c *Client) StreamEvents(ctx context.Context, startKey string) (chan events.StreamEvent, chan error) {
 	request := &proto.StreamEventsRequest{
 		StartKey: startKey,
 	}
 
-	ch := make(chan events.StreamEvents)
+	ch := make(chan events.StreamEvent)
 	e := make(chan error, 1)
 
 	stream, err := c.grpc.StreamEvents(ctx, request)
@@ -2114,22 +2114,18 @@ func (c *Client) StreamEvents(ctx context.Context, startKey string) (chan events
 				break outer
 			}
 
-			items := make([]events.AuditEvent, len(recv.Items))
-			for i := range recv.Items {
-				item, err := events.FromOneOf(*recv.Items[i])
-				if err != nil {
-					e <- trace.Wrap(trail.FromGRPC(err))
-					break outer
-				}
-				items[i] = item
+			event, err := events.FromOneOf(*recv.Event)
+			if err != nil {
+				e <- trace.Wrap(trail.FromGRPC(err))
+				break outer
 			}
 
-			streamEvents := events.StreamEvents{
-				Items:   items,
-				LastKey: recv.LastKey,
+			streamEvent := events.StreamEvent{
+				Event:  event,
+				Cursor: recv.Cursor,
 			}
 			select {
-			case ch <- streamEvents:
+			case ch <- streamEvent:
 			case <-ctx.Done():
 				e <- trace.Wrap(ctx.Err())
 				break outer

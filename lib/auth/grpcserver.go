@@ -3194,23 +3194,19 @@ func (g *GRPCServer) StreamEvents(req *proto.StreamEventsRequest, stream proto.A
 
 	for {
 		select {
-		case streamEvents, more := <-c:
+		case streamEvent, more := <-c:
 			if !more {
 				return nil
 			}
 
-			items := make([]*apievents.OneOf, len(streamEvents.Items))
-			for i := range streamEvents.Items {
-				oneOf, err := apievents.ToOneOf(streamEvents.Items[i])
-				if err != nil {
-					return trail.ToGRPC(trace.Wrap(err))
-				}
-				items[i] = oneOf
+			oneOf, err := apievents.ToOneOf(streamEvent.Event)
+			if err != nil {
+				return trail.ToGRPC(trace.Wrap(err))
 			}
 
-			send := &proto.Events{
-				Items:   items,
-				LastKey: streamEvents.LastKey,
+			send := &proto.StreamEvent{
+				Event:  oneOf,
+				Cursor: streamEvent.Cursor,
 			}
 			if err := stream.Send(send); err != nil {
 				return trail.ToGRPC(trace.Wrap(err))
@@ -3303,7 +3299,7 @@ func (g *GRPCServer) GetEvents(ctx context.Context, req *proto.GetEventsRequest)
 		return nil, trace.Wrap(err)
 	}
 
-	rawEvents, lastkey, err := auth.ServerWithRoles.SearchEvents(req.StartDate, req.EndDate, req.Namespace, req.EventTypes, int(req.Limit), types.EventOrder(req.Order), req.StartKey)
+	rawEvents, lastKey, err := auth.ServerWithRoles.SearchEvents(req.StartDate, req.EndDate, req.Namespace, req.EventTypes, int(req.Limit), types.EventOrder(req.Order), req.StartKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3321,7 +3317,7 @@ func (g *GRPCServer) GetEvents(ctx context.Context, req *proto.GetEventsRequest)
 	}
 
 	res.Items = encodedEvents
-	res.LastKey = lastkey
+	res.LastKey = lastKey
 	return res, nil
 }
 

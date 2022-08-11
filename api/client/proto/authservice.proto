@@ -1273,6 +1273,13 @@ message Events {
     string LastKey = 2;
 }
 
+message StreamEvent {
+    // Event is a typed gRPC formatted audit event.
+    events.OneOf Event = 1;
+    // Cursor is a stream cursor that can be used to resume the stream.
+    string Cursor = 2;
+}
+
 message GetLocksRequest {
     // Targets is a list of targets. Every returned lock must match at least
     // one of the targets.
@@ -2392,7 +2399,7 @@ service AuthService {
     rpc ReplaceRemoteLocks(ReplaceRemoteLocksRequest) returns (google.protobuf.Empty);
 
     // StreamEvents streams audit events.
-    rpc StreamEvents(StreamEventsRequest) returns (stream Events);
+    rpc StreamEvents(StreamEventsRequest) returns (stream StreamEvent);
     // StreamSessionEvents streams audit events from a given session recording.
     rpc StreamSessionEvents(StreamSessionEventsRequest) returns (stream events.OneOf);
 

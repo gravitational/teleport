@@ -756,7 +756,7 @@ type IAuditLog interface {
 	SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error)
 
 	// StreamEvents TODO
-	StreamEvents(ctx context.Context, startKey string) (chan apievents.StreamEvents, chan error)
+	StreamEvents(ctx context.Context, cursor string) (chan apievents.StreamEvent, chan error)
 
 	// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
 	// channel if one is encountered. Otherwise the event channel is closed when the stream ends.

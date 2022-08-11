@@ -880,12 +880,12 @@ func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, orde
 	return l.localLog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, sessionID)
 }
 
-func (l *AuditLog) StreamEvents(ctx context.Context, startKey string) (chan apievents.StreamEvents, chan error) {
-	l.log.Debugf("StreamEvents(%v)", startKey)
+func (l *AuditLog) StreamEvents(ctx context.Context, cursor string) (chan apievents.StreamEvent, chan error) {
+	l.log.Debugf("StreamEvents(%v)", cursor)
 	if l.ExternalLog != nil {
-		return l.ExternalLog.StreamEvents(ctx, startKey)
+		return l.ExternalLog.StreamEvents(ctx, cursor)
 	}
-	return l.localLog.StreamEvents(ctx, startKey)
+	return l.localLog.StreamEvents(ctx, cursor)
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first

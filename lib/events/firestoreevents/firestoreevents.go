@@ -628,8 +628,8 @@ func (l *Log) purgeExpiredEvents() error {
 	}
 }
 
-func (l *Log) StreamEvents(ctx context.Context, startKey string) (chan apievents.StreamEvents, chan error) {
-	c, e := make(chan apievents.StreamEvents), make(chan error, 1)
+func (l *Log) StreamEvents(ctx context.Context, cursor string) (chan apievents.StreamEvent, chan error) {
+	c, e := make(chan apievents.StreamEvent), make(chan error, 1)
 	e <- trace.NotImplemented("not implemented")
 	return c, e
 }
