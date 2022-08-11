@@ -1366,7 +1366,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:258
+# Generated at dronegen/tag.go:269
 ################################################
 
 kind: pipeline
@@ -1411,6 +1411,11 @@ steps:
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
+  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -1531,7 +1536,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:258
+# Generated at dronegen/tag.go:269
 ################################################
 
 kind: pipeline
@@ -1576,6 +1581,11 @@ steps:
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
+  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -1695,7 +1705,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:258
+# Generated at dronegen/tag.go:269
 ################################################
 
 kind: pipeline
@@ -1740,6 +1750,11 @@ steps:
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
+  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -1857,7 +1872,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:258
+# Generated at dronegen/tag.go:269
 ################################################
 
 kind: pipeline
@@ -1902,6 +1917,11 @@ steps:
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
+  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -2019,7 +2039,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:472
+# Generated at dronegen/tag.go:483
 ################################################
 
 kind: pipeline
@@ -2063,6 +2083,11 @@ steps:
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
+  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -2203,7 +2228,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:472
+# Generated at dronegen/tag.go:483
 ################################################
 
 kind: pipeline
@@ -2247,6 +2272,11 @@ steps:
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
+  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -2384,7 +2414,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:472
+# Generated at dronegen/tag.go:483
 ################################################
 
 kind: pipeline
@@ -2428,6 +2458,11 @@ steps:
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
+  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -2554,7 +2589,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:472
+# Generated at dronegen/tag.go:483
 ################################################
 
 kind: pipeline
@@ -2598,6 +2633,11 @@ steps:
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
+  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -2721,7 +2761,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:258
+# Generated at dronegen/tag.go:269
 ################################################
 
 kind: pipeline
@@ -2878,7 +2918,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:472
+# Generated at dronegen/tag.go:483
 ################################################
 
 kind: pipeline
@@ -3062,7 +3102,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:472
+# Generated at dronegen/tag.go:483
 ################################################
 
 kind: pipeline
@@ -3858,7 +3898,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:258
+# Generated at dronegen/tag.go:269
 ################################################
 
 kind: pipeline
@@ -4015,7 +4055,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:258
+# Generated at dronegen/tag.go:269
 ################################################
 
 kind: pipeline
@@ -4172,7 +4212,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:472
+# Generated at dronegen/tag.go:483
 ################################################
 
 kind: pipeline
@@ -4342,7 +4382,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:472
+# Generated at dronegen/tag.go:483
 ################################################
 
 kind: pipeline
@@ -4512,7 +4552,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:472
+# Generated at dronegen/tag.go:483
 ################################################
 
 kind: pipeline
@@ -4696,7 +4736,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:472
+# Generated at dronegen/tag.go:483
 ################################################
 
 kind: pipeline
@@ -4880,7 +4920,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:258
+# Generated at dronegen/tag.go:269
 ################################################
 
 kind: pipeline
@@ -6385,6 +6425,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: e73b519268d2b15c1b47c426df9601702926e49542daa328f139b567f6da0f60
+hmac: f0bf51286def097c788604dd6543beb19e053073668ead6cfed915731bf2fb77
 
 ...
