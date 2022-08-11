@@ -30,7 +30,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:104
+# Generated at dronegen/push.go:108
 ################################################
 
 kind: pipeline
@@ -90,7 +90,7 @@ steps:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
-  - make -C build.assets release-amd64-centos7
+  - make -C build.assets release-amd64-connect
   environment:
     ARCH: amd64
     GID: "1000"
@@ -133,7 +133,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:104
+# Generated at dronegen/push.go:108
 ################################################
 
 kind: pipeline
@@ -236,7 +236,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:104
+# Generated at dronegen/push.go:108
 ################################################
 
 kind: pipeline
@@ -343,7 +343,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:104
+# Generated at dronegen/push.go:108
 ################################################
 
 kind: pipeline
@@ -626,7 +626,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:104
+# Generated at dronegen/push.go:108
 ################################################
 
 kind: pipeline
@@ -729,7 +729,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:104
+# Generated at dronegen/push.go:108
 ################################################
 
 kind: pipeline
@@ -1361,7 +1361,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:290
+# Generated at dronegen/tag.go:273
 ################################################
 
 kind: pipeline
@@ -1406,11 +1406,6 @@ steps:
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
-  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - git clone https://github.com/gravitational/webapps.git .
-  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -1421,23 +1416,6 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Install Node Toolchain
-  commands:
-  - set -u
-  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
-    print-node-version)
-  - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-linux-x64
-  - mkdir -p $TOOLCHAIN_DIR
-  - curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.gz
-  - tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-linux-x64.tar.gz
-  - rm -f node-v$NODE_VERSION-linux-x64.tar.gz
-  - export PATH=$NODE_DIR/bin:$PATH
-  - corepack enable yarn
-  - echo Node reporting version $(node --version)
-  - echo Yarn reporting version $(yarn --version)
-  environment:
-    WORKSPACE_DIR: /go
 - name: Build artifacts
   image: docker
   commands:
@@ -1445,9 +1423,6 @@ steps:
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
   - make -C build.assets release-amd64-centos7
-  - cd /go/src/github.com/gravitational/webapps
-  - yarn install --frozen-lockfile && yarn build-term && yarn package-term
-  - cd -
   environment:
     ARCH: amd64
     GID: "1000"
@@ -1469,8 +1444,6 @@ steps:
   - export VERSION=$(cat /go/.version.txt)
   - mv /go/artifacts/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-v$${VERSION}-linux-amd64-centos7-bin.tar.gz
   - mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos7-bin.tar.gz
-  - cd /go/src/github.com/gravitational/webapps/packages/teleterm/build/release
-  - cp teleconnect*.{tar.gz,deb,rpm} /go/artifacts
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
 - name: Upload to S3
@@ -1548,7 +1521,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:290
+# Generated at dronegen/tag.go:273
 ################################################
 
 kind: pipeline
@@ -1593,11 +1566,6 @@ steps:
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
-  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - git clone https://github.com/gravitational/webapps.git .
-  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -1608,23 +1576,6 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Install Node Toolchain
-  commands:
-  - set -u
-  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
-    print-node-version)
-  - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-linux-x64
-  - mkdir -p $TOOLCHAIN_DIR
-  - curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.gz
-  - tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-linux-x64.tar.gz
-  - rm -f node-v$NODE_VERSION-linux-x64.tar.gz
-  - export PATH=$NODE_DIR/bin:$PATH
-  - corepack enable yarn
-  - echo Node reporting version $(node --version)
-  - echo Yarn reporting version $(yarn --version)
-  environment:
-    WORKSPACE_DIR: /go
 - name: Build artifacts
   image: docker
   commands:
@@ -1633,9 +1584,6 @@ steps:
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - make -C build.assets release-amd64-centos7-fips
-  - cd /go/src/github.com/gravitational/webapps
-  - yarn install --frozen-lockfile && yarn build-term && yarn package-term
-  - cd -
   environment:
     ARCH: amd64
     FIPS: "yes"
@@ -1655,8 +1603,6 @@ steps:
     \;
   - export VERSION=$(cat /go/.version.txt)
   - mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos7-fips-bin.tar.gz
-  - cd /go/src/github.com/gravitational/webapps/packages/teleterm/build/release
-  - cp teleconnect*.{tar.gz,deb,rpm} /go/artifacts
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
 - name: Upload to S3
@@ -1734,7 +1680,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:290
+# Generated at dronegen/tag.go:273
 ################################################
 
 kind: pipeline
@@ -1794,30 +1740,13 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Install Node Toolchain
-  commands:
-  - set -u
-  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
-    print-node-version)
-  - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-linux-x64
-  - mkdir -p $TOOLCHAIN_DIR
-  - curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.gz
-  - tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-linux-x64.tar.gz
-  - rm -f node-v$NODE_VERSION-linux-x64.tar.gz
-  - export PATH=$NODE_DIR/bin:$PATH
-  - corepack enable yarn
-  - echo Node reporting version $(node --version)
-  - echo Yarn reporting version $(yarn --version)
-  environment:
-    WORKSPACE_DIR: /go
 - name: Build artifacts
   image: docker
   commands:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
-  - make -C build.assets release-amd64-centos7
+  - make -C build.assets release-amd64-connect
   - cd /go/src/github.com/gravitational/webapps
   - yarn install --frozen-lockfile && yarn build-term && yarn package-term
   - cd -
@@ -1918,7 +1847,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:290
+# Generated at dronegen/tag.go:273
 ################################################
 
 kind: pipeline
@@ -1963,11 +1892,6 @@ steps:
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
-  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - git clone https://github.com/gravitational/webapps.git .
-  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -1978,23 +1902,6 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Install Node Toolchain
-  commands:
-  - set -u
-  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
-    print-node-version)
-  - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-linux-x64
-  - mkdir -p $TOOLCHAIN_DIR
-  - curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.gz
-  - tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-linux-x64.tar.gz
-  - rm -f node-v$NODE_VERSION-linux-x64.tar.gz
-  - export PATH=$NODE_DIR/bin:$PATH
-  - corepack enable yarn
-  - echo Node reporting version $(node --version)
-  - echo Yarn reporting version $(yarn --version)
-  environment:
-    WORKSPACE_DIR: /go
 - name: Build artifacts
   image: docker
   commands:
@@ -2003,9 +1910,6 @@ steps:
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - make -C build.assets release-amd64-centos7-fips
-  - cd /go/src/github.com/gravitational/webapps
-  - yarn install --frozen-lockfile && yarn build-term && yarn package-term
-  - cd -
   environment:
     ARCH: amd64
     FIPS: "yes"
@@ -2023,8 +1927,6 @@ steps:
   - cd /go/src/github.com/gravitational/teleport
   - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts
     \;
-  - cd /go/src/github.com/gravitational/webapps/packages/teleterm/build/release
-  - cp teleconnect*.{tar.gz,deb,rpm} /go/artifacts
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
 - name: Upload to S3
@@ -2102,7 +2004,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:505
+# Generated at dronegen/tag.go:487
 ################################################
 
 kind: pipeline
@@ -2146,11 +2048,6 @@ steps:
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
-  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - git clone https://github.com/gravitational/webapps.git .
-  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -2291,7 +2188,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:505
+# Generated at dronegen/tag.go:487
 ################################################
 
 kind: pipeline
@@ -2335,11 +2232,6 @@ steps:
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
-  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - git clone https://github.com/gravitational/webapps.git .
-  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -2477,7 +2369,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:505
+# Generated at dronegen/tag.go:487
 ################################################
 
 kind: pipeline
@@ -2652,7 +2544,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:505
+# Generated at dronegen/tag.go:487
 ################################################
 
 kind: pipeline
@@ -2696,11 +2588,6 @@ steps:
       exit 1
     fi
     echo "$$VERSION" > /go/.version.txt
-  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - git clone https://github.com/gravitational/webapps.git .
-  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
@@ -2824,7 +2711,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:290
+# Generated at dronegen/tag.go:273
 ################################################
 
 kind: pipeline
@@ -2879,23 +2766,6 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Install Node Toolchain
-  commands:
-  - set -u
-  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
-    print-node-version)
-  - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-linux-x64
-  - mkdir -p $TOOLCHAIN_DIR
-  - curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.gz
-  - tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-linux-x64.tar.gz
-  - rm -f node-v$NODE_VERSION-linux-x64.tar.gz
-  - export PATH=$NODE_DIR/bin:$PATH
-  - corepack enable yarn
-  - echo Node reporting version $(node --version)
-  - echo Yarn reporting version $(yarn --version)
-  environment:
-    WORKSPACE_DIR: /go
 - name: Build artifacts
   image: docker
   commands:
@@ -2998,7 +2868,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:505
+# Generated at dronegen/tag.go:487
 ################################################
 
 kind: pipeline
@@ -3182,7 +3052,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:505
+# Generated at dronegen/tag.go:487
 ################################################
 
 kind: pipeline
@@ -3963,7 +3833,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:290
+# Generated at dronegen/tag.go:273
 ################################################
 
 kind: pipeline
@@ -4018,23 +3888,6 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Install Node Toolchain
-  commands:
-  - set -u
-  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
-    print-node-version)
-  - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-linux-x64
-  - mkdir -p $TOOLCHAIN_DIR
-  - curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.gz
-  - tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-linux-x64.tar.gz
-  - rm -f node-v$NODE_VERSION-linux-x64.tar.gz
-  - export PATH=$NODE_DIR/bin:$PATH
-  - corepack enable yarn
-  - echo Node reporting version $(node --version)
-  - echo Yarn reporting version $(yarn --version)
-  environment:
-    WORKSPACE_DIR: /go
 - name: Build artifacts
   image: docker
   commands:
@@ -4137,7 +3990,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:290
+# Generated at dronegen/tag.go:273
 ################################################
 
 kind: pipeline
@@ -4192,23 +4045,6 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Install Node Toolchain
-  commands:
-  - set -u
-  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
-    print-node-version)
-  - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-linux-x64
-  - mkdir -p $TOOLCHAIN_DIR
-  - curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.gz
-  - tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-linux-x64.tar.gz
-  - rm -f node-v$NODE_VERSION-linux-x64.tar.gz
-  - export PATH=$NODE_DIR/bin:$PATH
-  - corepack enable yarn
-  - echo Node reporting version $(node --version)
-  - echo Yarn reporting version $(yarn --version)
-  environment:
-    WORKSPACE_DIR: /go
 - name: Build artifacts
   image: docker
   commands:
@@ -4311,7 +4147,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:505
+# Generated at dronegen/tag.go:487
 ################################################
 
 kind: pipeline
@@ -4481,7 +4317,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:505
+# Generated at dronegen/tag.go:487
 ################################################
 
 kind: pipeline
@@ -4651,7 +4487,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:505
+# Generated at dronegen/tag.go:487
 ################################################
 
 kind: pipeline
@@ -4835,7 +4671,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:505
+# Generated at dronegen/tag.go:487
 ################################################
 
 kind: pipeline
@@ -5019,7 +4855,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:290
+# Generated at dronegen/tag.go:273
 ################################################
 
 kind: pipeline
@@ -5074,23 +4910,6 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-- name: Install Node Toolchain
-  commands:
-  - set -u
-  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
-    print-node-version)
-  - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-linux-x64
-  - mkdir -p $TOOLCHAIN_DIR
-  - curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.gz
-  - tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-linux-x64.tar.gz
-  - rm -f node-v$NODE_VERSION-linux-x64.tar.gz
-  - export PATH=$NODE_DIR/bin:$PATH
-  - corepack enable yarn
-  - echo Node reporting version $(node --version)
-  - echo Yarn reporting version $(yarn --version)
-  environment:
-    WORKSPACE_DIR: /go
 - name: Build artifacts
   image: docker
   commands:
@@ -6541,6 +6360,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 7d597b56fdd2cd8f2ea811fe822cc50f817c28670e704d642840d7dab15ed3da
+hmac: 432fd6454fa4ef70a4f4c46b8aa03513e39ce92fa40ac6a06ef802d49eb64860
 
 ...

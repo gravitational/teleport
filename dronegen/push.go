@@ -73,6 +73,7 @@ func pushPipelines() []pipeline {
 
 	// Only amd64 Windows is supported for now.
 	ps = append(ps, pushPipeline(buildType{os: "windows", arch: "amd64", windowsUnsigned: true}))
+	//ps = append(ps, pushPipeline(buildType{os: "linux", arch: "amd64", connect: true}))
 
 	ps = append(ps, darwinPushPipeline())
 	return ps
@@ -99,6 +100,9 @@ func pushPipeline(b buildType) pipeline {
 	if b.fips {
 		pipelineName += "-fips"
 		pushEnvironment["FIPS"] = value{raw: "yes"}
+	}
+	if b.connect {
+		//pipelineName += "-connect"
 	}
 
 	p := newKubePipeline(pipelineName)

@@ -226,30 +226,10 @@ func tagPipelines() []pipeline {
 	// CentOS 6 FIPS builds have been removed in Teleport 7.0. See https://github.com/gravitational/teleport/issues/7207
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos7: true}))
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos7: true, fips: true}))
+	//ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", connect: true}))
 
 	ps = append(ps, darwinTagPipeline(), darwinTeleportPkgPipeline(), darwinTshPkgPipeline())
 	return ps
-}
-
-func installNodeToolchainStepLinux(workspacePath string) step {
-	return step{
-		Name:        "Install Node Toolchain",
-		Environment: map[string]value{"WORKSPACE_DIR": {raw: workspacePath}},
-		Commands: []string{
-			`set -u`,
-			`export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-node-version)`,
-			`export TOOLCHAIN_DIR=` + perBuildToolchainsDir,
-			`export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-linux-x64`,
-			`mkdir -p $TOOLCHAIN_DIR`,
-			`curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.gz`,
-			`tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-linux-x64.tar.gz`,
-			`rm -f node-v$NODE_VERSION-linux-x64.tar.gz`,
-			`export PATH=$NODE_DIR/bin:$PATH`,
-			`corepack enable yarn`,
-			`echo Node reporting version $(node --version)`,
-			`echo Yarn reporting version $(yarn --version)`,
-		},
-	}
 }
 
 // tagPipeline generates a tag pipeline for a given combination of os/arch/FIPS
@@ -264,6 +244,9 @@ func tagPipeline(b buildType) pipeline {
 	pipelineName := fmt.Sprintf("build-%s-%s", b.os, b.arch)
 	if b.centos7 {
 		pipelineName += "-centos7"
+	}
+	if b.connect {
+		//pipelineName += "-connect"
 	}
 	tagEnvironment := map[string]value{
 		"UID":     {raw: "1000"},
@@ -308,7 +291,6 @@ func tagPipeline(b buildType) pipeline {
 			Commands: tagCheckoutCommands(b),
 		},
 		waitForDockerStep(),
-		installNodeToolchainStepLinux(p.Workspace.Path),
 		{
 			Name:        "Build artifacts",
 			Image:       "docker",
