@@ -46,6 +46,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
@@ -63,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
+	"github.com/gravitational/teleport/tool/common"
 )
 
 const (
@@ -1451,12 +1453,16 @@ func TestKubeConfigUpdate(t *testing.T) {
 			kubeStatus: &kubernetesStatus{
 				clusterAddr:         "https://a.example.com:3026",
 				teleportClusterName: "a.example.com",
-				kubeClusters: []*types.KubernetesCluster{
-					{
-						Name: "dev",
+				kubeClusters: []types.KubeCluster{
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name: "dev",
+						},
 					},
-					{
-						Name: "prod",
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name: "prod",
+						},
 					},
 				},
 				credentials: creds,
@@ -1483,12 +1489,16 @@ func TestKubeConfigUpdate(t *testing.T) {
 			kubeStatus: &kubernetesStatus{
 				clusterAddr:         "https://a.example.com:3026",
 				teleportClusterName: "a.example.com",
-				kubeClusters: []*types.KubernetesCluster{
-					{
-						Name: "dev",
+				kubeClusters: []types.KubeCluster{
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name: "dev",
+						},
 					},
-					{
-						Name: "prod",
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name: "prod",
+						},
 					},
 				},
 				credentials: creds,
@@ -1515,12 +1525,16 @@ func TestKubeConfigUpdate(t *testing.T) {
 			kubeStatus: &kubernetesStatus{
 				clusterAddr:         "https://a.example.com:3026",
 				teleportClusterName: "a.example.com",
-				kubeClusters: []*types.KubernetesCluster{
-					{
-						Name: "dev",
+				kubeClusters: []types.KubeCluster{
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name: "dev",
+						},
 					},
-					{
-						Name: "prod",
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name: "prod",
+						},
 					},
 				},
 				credentials: creds,
@@ -1539,7 +1553,7 @@ func TestKubeConfigUpdate(t *testing.T) {
 			kubeStatus: &kubernetesStatus{
 				clusterAddr:         "https://a.example.com:3026",
 				teleportClusterName: "a.example.com",
-				kubeClusters:        []*types.KubernetesCluster{},
+				kubeClusters:        []types.KubeCluster{},
 				credentials:         creds,
 			},
 			errorAssertion: require.NoError,
@@ -1559,12 +1573,16 @@ func TestKubeConfigUpdate(t *testing.T) {
 			kubeStatus: &kubernetesStatus{
 				clusterAddr:         "https://a.example.com:3026",
 				teleportClusterName: "a.example.com",
-				kubeClusters: []*types.KubernetesCluster{
-					{
-						Name: "dev",
+				kubeClusters: []types.KubeCluster{
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name: "dev",
+						},
 					},
-					{
-						Name: "prod",
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name: "prod",
+						},
 					},
 				},
 				credentials: creds,
@@ -1919,7 +1937,7 @@ func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOp
 	cfg.DataDir = t.TempDir()
 
 	cfg.AuthServers = []utils.NetAddr{*authAddr}
-	cfg.Token = staticToken
+	cfg.SetToken(staticToken)
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = true
@@ -2010,7 +2028,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.DataDir = t.TempDir()
 
 	cfg.AuthServers = []utils.NetAddr{*authAddr}
-	cfg.Token = staticToken
+	cfg.SetToken(staticToken)
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = true
@@ -2731,22 +2749,32 @@ func TestSerializeKubeClusters(t *testing.T) {
 		}
 	]
 	`
-
-	clusters := []*types.KubernetesCluster{
-		{
+	c1, err := types.NewKubernetesClusterV3(
+		types.Metadata{
 			Name: "cluster1",
-			StaticLabels: map[string]string{
+			Labels: map[string]string{
 				"foo": "bar",
 			},
+		},
+		types.KubernetesClusterSpecV3{
 			DynamicLabels: map[string]types.CommandLabelV2{
 				"cmd": {
 					Result: "result",
 				},
 			},
 		},
-		{
+	)
+	require.NoError(t, err)
+	c2, err := types.NewKubernetesClusterV3(
+		types.Metadata{
 			Name: "cluster2",
 		},
+		types.KubernetesClusterSpecV3{},
+	)
+
+	require.NoError(t, err)
+	clusters := []types.KubeCluster{
+		c1, c2,
 	}
 	testSerialization(t, expected, func(f string) (string, error) {
 		return serializeKubeClusters(clusters, "cluster1", f)
@@ -2988,4 +3016,88 @@ func TestExportingTraces(t *testing.T) {
 			tt.spanAssertion(t, collector.Spans())
 		})
 	}
+}
+
+func TestShowSessions(t *testing.T) {
+	expected := `[
+    {
+        "ei": 0,
+        "event": "",
+        "uid": "someID1",
+        "time": "0001-01-01T00:00:00Z",
+        "sid": "",
+        "server_id": "",
+        "enhanced_recording": false,
+        "interactive": false,
+        "participants": [
+            "someParticipant"
+        ],
+        "session_start": "0001-01-01T00:00:00Z",
+        "session_stop": "0001-01-01T00:00:00Z"
+    },
+    {
+        "ei": 0,
+        "event": "",
+        "uid": "someID2",
+        "time": "0001-01-01T00:00:00Z",
+        "sid": "",
+        "server_id": "",
+        "enhanced_recording": false,
+        "interactive": false,
+        "participants": [
+            "someParticipant"
+        ],
+        "session_start": "0001-01-01T00:00:00Z",
+        "session_stop": "0001-01-01T00:00:00Z"
+    },
+    {
+        "ei": 0,
+        "event": "",
+        "uid": "someID3",
+        "time": "0001-01-01T00:00:00Z",
+        "sid": "",
+        "windows_desktop_service": "",
+        "desktop_addr": "",
+        "windows_domain": "",
+        "windows_user": "",
+        "desktop_labels": null,
+        "session_start": "0001-01-01T00:00:00Z",
+        "session_stop": "0001-01-01T00:00:00Z",
+        "desktop_name": "",
+        "recorded": false,
+        "participants": [
+            "someParticipant"
+        ]
+    }
+]`
+	sessions := []events.AuditEvent{
+		&events.SessionEnd{
+			Metadata: events.Metadata{
+				ID: "someID1",
+			},
+			StartTime:    time.Time{},
+			EndTime:      time.Time{},
+			Participants: []string{"someParticipant"},
+		},
+		&events.SessionEnd{
+			Metadata: events.Metadata{
+				ID: "someID2",
+			},
+			StartTime:    time.Time{},
+			EndTime:      time.Time{},
+			Participants: []string{"someParticipant"},
+		},
+		&events.WindowsDesktopSessionEnd{
+			Metadata: events.Metadata{
+				ID: "someID3",
+			},
+			StartTime:    time.Time{},
+			EndTime:      time.Time{},
+			Participants: []string{"someParticipant"},
+		},
+	}
+	var buf bytes.Buffer
+	err := common.ShowSessions(sessions, teleport.JSON, &buf)
+	require.NoError(t, err)
+	require.Equal(t, expected, buf.String())
 }

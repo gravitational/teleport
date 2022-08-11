@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -93,7 +94,7 @@ type Server struct {
 
 	srv           *sshutils.Server
 	shell         string
-	getRotation   RotationGetter
+	getRotation   services.RotationGetter
 	authService   srv.AccessPoint
 	reg           *srv.SessionRegistry
 	sessionServer rsession.Service
@@ -408,9 +409,6 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	s.srv.HandleConnection(conn)
 }
 
-// RotationGetter returns rotation state
-type RotationGetter func(role types.SystemRole) (*types.Rotation, error)
-
 // SetUtmpPath is a functional server option to override the user accounting database and log path.
 func SetUtmpPath(utmpPath, wtmpPath string) ServerOption {
 	return func(s *Server) error {
@@ -430,7 +428,7 @@ func SetClock(clock clockwork.Clock) ServerOption {
 }
 
 // SetRotationGetter sets rotation state getter
-func SetRotationGetter(getter RotationGetter) ServerOption {
+func SetRotationGetter(getter services.RotationGetter) ServerOption {
 	return func(s *Server) error {
 		s.getRotation = getter
 		return nil
@@ -695,7 +693,7 @@ func New(addr utils.NetAddr,
 	auth auth.ClientI,
 	options ...ServerOption,
 ) (*Server, error) {
-	err := utils.RegisterPrometheusCollectors(userSessionLimitHitCount)
+	err := metrics.RegisterPrometheusCollectors(userSessionLimitHitCount)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1647,11 +1645,11 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		case tracessh.TracingRequest:
 			return nil
 		case sshutils.PTYRequest:
-			return s.termHandlers.HandlePTYReq(ch, req, serverContext)
+			return s.termHandlers.HandlePTYReq(ctx, ch, req, serverContext)
 		case sshutils.ShellRequest:
 			return s.termHandlers.HandleShell(ctx, ch, req, serverContext)
 		case sshutils.WindowChangeRequest:
-			return s.termHandlers.HandleWinChange(ch, req, serverContext)
+			return s.termHandlers.HandleWinChange(ctx, ch, req, serverContext)
 		case teleport.ForceTerminateRequest:
 			return s.termHandlers.HandleForceTerminate(ch, req, serverContext)
 		case sshutils.EnvRequest:
@@ -1686,11 +1684,11 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	case sshutils.ExecRequest:
 		return s.termHandlers.HandleExec(ctx, ch, req, serverContext)
 	case sshutils.PTYRequest:
-		return s.termHandlers.HandlePTYReq(ch, req, serverContext)
+		return s.termHandlers.HandlePTYReq(ctx, ch, req, serverContext)
 	case sshutils.ShellRequest:
 		return s.termHandlers.HandleShell(ctx, ch, req, serverContext)
 	case sshutils.WindowChangeRequest:
-		return s.termHandlers.HandleWinChange(ch, req, serverContext)
+		return s.termHandlers.HandleWinChange(ctx, ch, req, serverContext)
 	case teleport.ForceTerminateRequest:
 		return s.termHandlers.HandleForceTerminate(ch, req, serverContext)
 	case sshutils.EnvRequest:
@@ -1753,7 +1751,7 @@ func (s *Server) handleAgentForwardNode(req *ssh.Request, ctx *srv.ServerContext
 func (s *Server) handleAgentForwardProxy(req *ssh.Request, ctx *srv.ServerContext) error {
 	// Forwarding an agent to the proxy is only supported when the proxy is in
 	// recording mode.
-	if services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) == false {
+	if !services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
 		return trace.BadParameter("agent forwarding to proxy only supported in recording mode")
 	}
 

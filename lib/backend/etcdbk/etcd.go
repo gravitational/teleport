@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	cq "github.com/gravitational/teleport/lib/utils/concurrentqueue"
@@ -187,7 +188,7 @@ var _ backend.Backend = &EtcdBackend{}
 
 // New returns new instance of Etcd-powered backend
 func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
-	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

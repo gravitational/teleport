@@ -50,6 +50,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	saml2 "github.com/russellhaering/gosaml2"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -71,6 +72,8 @@ import (
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
@@ -94,7 +97,7 @@ type ServerOption func(*Server) error
 
 // NewServer creates and configures a new Server instance
 func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
-	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -148,6 +151,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.WindowsDesktops == nil {
 		cfg.WindowsDesktops = local.NewWindowsDesktopService(cfg.Backend)
 	}
+	if cfg.ConnectionsDiagnostic == nil {
+		cfg.ConnectionsDiagnostic = local.NewConnectionsDiagnosticService(cfg.Backend)
+	}
 	if cfg.SessionTrackerService == nil {
 		cfg.SessionTrackerService, err = local.NewSessionTrackerService(cfg.Backend)
 		if err != nil {
@@ -163,6 +169,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	if cfg.KeyStoreConfig.HostUUID == "" {
 		cfg.KeyStoreConfig.HostUUID = cfg.HostUUID
+	}
+	if cfg.TraceClient == nil {
+		cfg.TraceClient = tracing.NewNoopClient()
 	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
@@ -193,6 +202,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		WindowsDesktops:       cfg.WindowsDesktops,
 		SessionTrackerService: cfg.SessionTrackerService,
 		Enforcer:              cfg.Enforcer,
+		ConnectionsDiagnostic: cfg.ConnectionsDiagnostic,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -215,6 +225,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		keyStore:        keyStore,
 		getClaimsFun:    getClaims,
 		inventory:       inventory.NewController(cfg.Presence),
+		traceClient:     cfg.TraceClient,
 	}
 	for _, o := range opts {
 		if err := o(&as); err != nil {
@@ -242,6 +253,7 @@ type Services struct {
 	services.WindowsDesktops
 	services.SessionTrackerService
 	services.Enforcer
+	services.ConnectionsDiagnostic
 	types.Events
 	events.IAuditLog
 }
@@ -390,6 +402,10 @@ type Server struct {
 	getClaimsFun func(closeCtx context.Context, oidcClient *oidc.Client, connector types.OIDCConnector, code string) (jose.Claims, error)
 
 	inventory *inventory.Controller
+
+	// traceClient is used to forward spans to the upstream collector for components
+	// within the cluster that don't have a direct connection to said collector
+	traceClient otlptrace.Client
 }
 
 func (a *Server) CloseContext() context.Context {
@@ -547,11 +563,11 @@ func (a *Server) updateVersionMetrics() {
 		serverCheck(app)
 	}
 
-	kubeServices, err := a.GetKubeServices(a.closeCtx)
+	kubeServers, err := a.GetKubernetesServers(a.closeCtx)
 	if err != nil {
-		log.Debugf("Failed to get Kube services for teleport_registered_servers metric: %v", err)
+		log.Debugf("Failed to get Kube servers for teleport_registered_servers metric: %v", err)
 	}
-	for _, kubeService := range kubeServices {
+	for _, kubeService := range kubeServers {
 		serverCheck(kubeService)
 	}
 
@@ -655,7 +671,7 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 	}
 
 	// get the certificate authority that will be signing the public key of the host
-	ca, err := a.GetCertAuthority(context.TODO(), types.CertAuthID{
+	ca, err := a.Services.GetCertAuthority(context.TODO(), types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: domainName,
 	}, true)
@@ -1241,7 +1257,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 // In case if user exceeds defaults.MaxLoginAttempts
 // the user account will be locked for defaults.AccountLockInterval
 func (a *Server) WithUserLock(username string, authenticateFn func() error) error {
-	user, err := a.GetUser(username, false)
+	user, err := a.Services.GetUser(username, false)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			// If user is not found, still call authenticateFn. It should
@@ -1810,15 +1826,15 @@ func (a *Server) registerWebauthnDevice(ctx context.Context, regResp *proto.MFAR
 }
 
 // GetWebSession returns existing web session described by req. Explicitly
-// delegating to Cache as it's directly implemented by *Services as well.
+// delegating to Services as it's directly implemented by Cache as well.
 func (a *Server) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
-	return a.Cache.GetWebSession(ctx, req)
+	return a.Services.GetWebSession(ctx, req)
 }
 
 // GetWebToken returns existing web token described by req. Explicitly
-// delegating to Cache as it's directly implemented by *Services as well.
+// delegating to Services as it's directly implemented by Cache as well.
 func (a *Server) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
-	return a.Cache.GetWebToken(ctx, req)
+	return a.Services.GetWebToken(ctx, req)
 }
 
 // ExtendWebSession creates a new web session for a user based on a valid previous (current) session.
@@ -2106,7 +2122,11 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	}
 
 	// get the certificate authority that will be signing the public key of the host,
-	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
+	client := a.Cache
+	if req.NoCache {
+		client = a.Services
+	}
+	ca, err := client.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
@@ -2120,7 +2140,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	// to the backend, which is a fine tradeoff
 	if !req.NoCache && req.Rotation != nil && !req.Rotation.Matches(ca.GetRotation()) {
 		log.Debugf("Client sent rotation state %v, cache state is %v, using state from the DB.", req.Rotation, ca.GetRotation())
-		ca, err = a.GetCertAuthority(ctx, types.CertAuthID{
+		ca, err = a.Services.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       types.HostCA,
 			DomainName: clusterName.GetClusterName(),
 		}, true)
@@ -2258,8 +2278,8 @@ func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryCont
 
 // MakeLocalInventoryControlStream sets up an in-memory control stream which automatically registers with this auth
 // server upon hello exchange.
-func (a *Server) MakeLocalInventoryControlStream() client.DownstreamInventoryControlStream {
-	upstream, downstream := client.InventoryControlStreamPipe()
+func (a *Server) MakeLocalInventoryControlStream(opts ...client.ICSPipeOption) client.DownstreamInventoryControlStream {
+	upstream, downstream := client.InventoryControlStreamPipe(opts...)
 	go func() {
 		select {
 		case msg := <-upstream.Recv():
@@ -3107,30 +3127,23 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
 		}
 		// Find the target cluster and check whether MFA is required.
-		svcs, err := a.GetKubeServices(ctx)
+		svcs, err := a.GetKubernetesServers(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		var cluster *types.KubernetesCluster
-		var server types.Server
-	outer:
+		var cluster types.KubeCluster
 		for _, svc := range svcs {
-			for _, c := range svc.GetKubernetesClusters() {
-				if c.Name == t.KubernetesCluster {
-					server = svc
-					cluster = c
-					break outer
-				}
+			kubeCluster := svc.GetCluster()
+			if kubeCluster.GetName() == t.KubernetesCluster {
+				cluster = kubeCluster
+				break
 			}
 		}
-		if cluster == nil || server == nil {
+		if cluster == nil {
 			return nil, trace.Wrap(notFoundErr)
 		}
-		k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(server.GetNamespace(), cluster)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		noMFAAccessErr = checker.CheckAccess(k8sV3, services.AccessMFAParams{})
+
+		noMFAAccessErr = checker.CheckAccess(cluster, services.AccessMFAParams{})
 
 	case *proto.IsMFARequiredRequest_Database:
 		notFoundErr = trace.NotFound("database service %q not found", t.Database.ServiceName)
