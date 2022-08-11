@@ -105,7 +105,7 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 	}
 
 	dialer := proxy.DialerFromEnvironment(addr.Addr, opts...)
-	sconn, err := dialer.Dial(addr.AddrNetwork, addr.Addr, t.ClientConfig)
+	sconn, err := dialer.Dial(ctx, addr.AddrNetwork, addr.Addr, t.ClientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
