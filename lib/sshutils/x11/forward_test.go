@@ -69,7 +69,7 @@ func TestForward(t *testing.T) {
 		forwardErrC <- Forward(ctx, serverConnToForward, clientConnToForward)
 	}()
 
-	// Write a msg to client connection 1, which should propogate to server connection 2.
+	// Write a msg to client connection 1, which should propagate to server connection 2.
 	message := "msg"
 	_, err := cConn1.Write([]byte(message))
 	require.NoError(t, err)
