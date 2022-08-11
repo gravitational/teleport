@@ -1,5 +1,13 @@
 # Changelog
 
+## 11.0.0
+
+### Breaking changes
+
+#### Deprecate Quay.io support
+#### Deprecate old deb/rpm repos
+#### `teleport-kube-agent` without persistent storage
+
 ## 10.0.0
 
 Teleport 10 is a major release that brings the following new features.
