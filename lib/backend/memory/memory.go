@@ -40,7 +40,7 @@ func GetName() string {
 }
 
 const (
-	// defaultBTreeDegreee is a default degree of a B-Tree
+	// defaultBTreeDegree is a default degree of a B-Tree
 	defaultBTreeDegree = 8
 )
 
