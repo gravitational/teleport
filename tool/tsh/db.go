@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -63,12 +64,26 @@ func onListDatabases(cf *CLIConf) error {
 	var proxy *client.ProxyClient
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
 		proxy, err = tc.ConnectToProxy(cf.Context)
+		if err != nil {
+		}
 		return trace.Wrap(err)
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer proxy.Close()
+
+	ac, err := proxy.ConnectToCurrentCluster(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer ac.Close()
+
+	cn, err := ac.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	log.Warnf("-->> cluster name %v", cn)
 
 	databases, err := proxy.FindDatabasesByFiltersForCluster(cf.Context, *tc.DefaultResourceFilter(), tc.SiteName)
 	if err != nil {
@@ -611,19 +626,27 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
 		keyFile = arg.profile.KeyPath()
 	}
 
-	profileCAs, err := arg.profile.CACertsForCluster(arg.teleportClient.SiteName)
-	if err != nil {
-		return localProxyOpts{}, trace.Wrap(err)
+	opts := localProxyOpts{
+		proxyAddr:               arg.teleportClient.WebProxyAddr,
+		listener:                arg.listener,
+		protocols:               []common.Protocol{common.Protocol(arg.routeToDatabase.Protocol)},
+		insecure:                arg.cliConf.InsecureSkipVerify,
+		certFile:                certFile,
+		keyFile:                 keyFile,
+		alpnConnUpgradeRequired: arg.teleportClient.IsALPNConnUpgradeRequired(),
 	}
 
-	opts := localProxyOpts{
-		proxyAddr:    arg.teleportClient.WebProxyAddr,
-		listener:     arg.listener,
-		protocols:    []common.Protocol{common.Protocol(arg.routeToDatabase.Protocol)},
-		insecure:     arg.cliConf.InsecureSkipVerify,
-		certFile:     certFile,
-		keyFile:      keyFile,
-		extraRootCAs: profileCAs,
+	// TODO
+	if arg.teleportClient.IsALPNConnUpgradeRequired() {
+		tlsCAs, err := arg.profile.CACertsForCluster(arg.teleportClient.SiteName)
+		if err != nil {
+			return localProxyOpts{}, trace.Wrap(err)
+		}
+
+		opts.rootCAs = x509.NewCertPool()
+		for _, tlsCA := range tlsCAs {
+			opts.rootCAs.AddCert(tlsCA)
+		}
 	}
 
 	// For SQL Server connections, local proxy must be configured with the

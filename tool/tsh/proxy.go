@@ -420,13 +420,14 @@ func onProxyCommandDB(cf *CLIConf) error {
 }
 
 type localProxyOpts struct {
-	proxyAddr    string
-	listener     net.Listener
-	protocols    []alpncommon.Protocol
-	insecure     bool
-	certFile     string
-	keyFile      string
-	extraRootCAs []*x509.Certificate
+	proxyAddr               string
+	listener                net.Listener
+	protocols               []alpncommon.Protocol
+	insecure                bool
+	certFile                string
+	keyFile                 string
+	rootCAs                 *x509.CertPool
+	alpnConnUpgradeRequired bool
 }
 
 // protocol returns the first protocol or string if configuration doesn't contain any protocols.
@@ -451,14 +452,15 @@ func mkLocalProxy(ctx context.Context, opts localProxyOpts) (*alpnproxy.LocalPro
 		return nil, trace.Wrap(err)
 	}
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		InsecureSkipVerify: opts.insecure,
-		RemoteProxyAddr:    opts.proxyAddr,
-		Protocols:          append([]alpncommon.Protocol{alpnProtocol}, opts.protocols...),
-		Listener:           opts.listener,
-		ParentContext:      ctx,
-		SNI:                address.Host(),
-		Certs:              certs,
-		ExtraRootCAs:       opts.extraRootCAs,
+		InsecureSkipVerify:      opts.insecure,
+		RemoteProxyAddr:         opts.proxyAddr,
+		Protocols:               append([]alpncommon.Protocol{alpnProtocol}, opts.protocols...),
+		Listener:                opts.listener,
+		ParentContext:           ctx,
+		SNI:                     address.Host(),
+		Certs:                   certs,
+		RootCAs:                 opts.rootCAs,
+		ALPNConnUpgradeRequired: opts.alpnConnUpgradeRequired,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

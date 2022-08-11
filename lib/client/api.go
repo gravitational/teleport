@@ -40,6 +40,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -1395,6 +1396,9 @@ type TeleportClient struct {
 	// Note: there's no mutex guarding this or localAgent, making
 	// TeleportClient NOT safe for concurrent use.
 	lastPing *webclient.PingResponse
+
+	alpnConnUpgradeRequired     bool
+	alpnConnUpgradeRequiredOnce sync.Once
 }
 
 // ShellCreatedCallback can be supplied for every teleport client. It will
@@ -2851,6 +2855,14 @@ func formatConnectToProxyErr(err error) error {
 	return err
 }
 
+// TODO
+func (tc *TeleportClient) IsALPNConnUpgradeRequired() bool {
+	tc.alpnConnUpgradeRequiredOnce.Do(func() {
+		tc.alpnConnUpgradeRequired = client.IsHTTPConnUpgradeRequired(tc.WebProxyAddr, tc.InsecureSkipVerify)
+	})
+	return tc.alpnConnUpgradeRequired
+}
+
 // ConnectToProxy will dial to the proxy server and return a ProxyClient when
 // successful. If the passed in context is canceled, this function will return
 // a trace.ConnectionProblem right away.
@@ -2959,16 +2971,17 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 	}
 
 	return &ProxyClient{
-		teleportClient:  tc,
-		Client:          sshClient,
-		proxyAddress:    sshProxyAddr,
-		proxyPrincipal:  sshConfig.User,
-		hostKeyCallback: sshConfig.HostKeyCallback,
-		authMethods:     sshConfig.Auth,
-		hostLogin:       tc.HostLogin,
-		siteName:        clusterName(),
-		clientAddr:      tc.ClientAddr,
-		Tracer:          tc.Tracer,
+		teleportClient:          tc,
+		Client:                  sshClient,
+		proxyAddress:            sshProxyAddr,
+		proxyPrincipal:          sshConfig.User,
+		hostKeyCallback:         sshConfig.HostKeyCallback,
+		authMethods:             sshConfig.Auth,
+		hostLogin:               tc.HostLogin,
+		siteName:                clusterName(),
+		clientAddr:              tc.ClientAddr,
+		Tracer:                  tc.Tracer,
+		alpnConnUpgradeRequired: tc.IsALPNConnUpgradeRequired(),
 	}, nil
 }
 
@@ -3030,7 +3043,10 @@ func makeProxySSHClientWithTLSWrapper(ctx context.Context, tc *TeleportClient, s
 	}
 
 	tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
-	dialer := proxy.DialerFromEnvironment(tc.Config.WebProxyAddr, proxy.WithALPNDialer(tlsConfig))
+	dialer := proxy.DialerFromEnvironment(tc.Config.WebProxyAddr, proxy.WithTLSRoutingDialer(&client.TLSRoutingDialerConfig{
+		TLSConfig:               tlsConfig,
+		ALPNConnUpgradeRequired: tc.IsALPNConnUpgradeRequired(),
+	}))
 	return dialer.Dial(ctx, "tcp", proxyAddr, sshConfig)
 }
 

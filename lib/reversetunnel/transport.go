@@ -30,6 +30,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -66,7 +67,7 @@ type TunnelAuthDialerConfig struct {
 	// InsecureSkipTLSVerify is whether to skip certificate validation.
 	InsecureSkipTLSVerify bool
 	// TODO
-	ExtraRootCAs []*x509.Certificate
+	TLSRootCAs *x509.CertPool
 }
 
 func (c *TunnelAuthDialerConfig) CheckAndSetDefaults() error {
@@ -109,17 +110,16 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 		// address thus the ping call will always fail.
 		t.Log.Debugf("Failed to ping web proxy %q addr: %v", addr.Addr, err)
 	} else if resp.Proxy.TLSRoutingEnabled {
-		rootCAs, err := x509.SystemCertPool()
-		if err != nil {
-			return nil, trace.Wrap(err)
+		tlsRoutingDialerConfig := &client.TLSRoutingDialerConfig{
+			ALPNConnUpgradeRequired: client.IsHTTPConnUpgradeRequired(addr.Addr, t.InsecureSkipTLSVerify),
+			TLSConfig: &tls.Config{
+				NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
+			},
 		}
-		for _, extraCA := range t.ExtraRootCAs {
-			rootCAs.AddCert(extraCA)
+		if tlsRoutingDialerConfig.ALPNConnUpgradeRequired {
+			tlsRoutingDialerConfig.TLSConfig.RootCAs = t.TLSRootCAs
 		}
-		opts = append(opts, proxy.WithALPNDialer(&tls.Config{
-			NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
-			RootCAs:    rootCAs,
-		}))
+		opts = append(opts, proxy.WithTLSRoutingDialer(tlsRoutingDialerConfig))
 	}
 
 	dialer := proxy.DialerFromEnvironment(addr.Addr, opts...)

@@ -19,7 +19,6 @@ package service
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"path/filepath"
 	"strings"
 
@@ -1059,11 +1058,7 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCAs, err := identity.TLSCAs()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tunnelClient, err := process.newClientThroughTunnel(authServers, tlsConfig, sshClientConfig, tlsCAs)
+	tunnelClient, err := process.newClientThroughTunnel(authServers, tlsConfig, sshClientConfig)
 	if err != nil {
 		process.log.Errorf("Node failed to establish connection to Teleport Proxy. We have tried the following endpoints:")
 		// Can't errors.As directErr in the "x509: certificate is valid for x but not y" error case, as only message field is set
@@ -1085,7 +1080,7 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 	return tunnelClient, nil
 }
 
-func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAddr, tlsConfig *tls.Config, sshConfig *ssh.ClientConfig, tlsCAs []*x509.Certificate) (*auth.Client, error) {
+func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAddr, tlsConfig *tls.Config, sshConfig *ssh.ClientConfig) (*auth.Client, error) {
 	resolver := reversetunnel.WebClientResolver(authServers, lib.IsInsecureDevMode())
 
 	resolver, err := reversetunnel.CachingResolver(process.ExitContext(), resolver, process.Clock)
@@ -1098,7 +1093,7 @@ func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAd
 		ClientConfig:          sshConfig,
 		Log:                   process.log,
 		InsecureSkipTLSVerify: lib.IsInsecureDevMode(),
-		ExtraRootCAs:          tlsCAs,
+		TLSRootCAs:            tlsConfig.RootCAs,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

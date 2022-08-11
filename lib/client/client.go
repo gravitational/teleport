@@ -58,16 +58,17 @@ import (
 // ProxyClient implements ssh client to a teleport proxy
 // It can provide list of nodes or connect to nodes
 type ProxyClient struct {
-	teleportClient  *TeleportClient
-	Client          *tracessh.Client
-	Tracer          oteltrace.Tracer
-	hostLogin       string
-	proxyAddress    string
-	proxyPrincipal  string
-	hostKeyCallback ssh.HostKeyCallback
-	authMethods     []ssh.AuthMethod
-	siteName        string
-	clientAddr      string
+	teleportClient          *TeleportClient
+	Client                  *tracessh.Client
+	Tracer                  oteltrace.Tracer
+	hostLogin               string
+	proxyAddress            string
+	proxyPrincipal          string
+	hostKeyCallback         ssh.HostKeyCallback
+	authMethods             []ssh.AuthMethod
+	siteName                string
+	clientAddr              string
+	alpnConnUpgradeRequired bool
 }
 
 // NodeClient implements ssh client to a ssh node (teleport or any regular ssh node)
@@ -1164,6 +1165,7 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 			client.LoadTLS(tlsConfig),
 		},
 		ALPNSNIAuthDialClusterName: clusterName,
+		ALPNConnUpgradeRequired:    proxy.alpnConnUpgradeRequired,
 		CircuitBreakerConfig:       breaker.NoopBreakerConfig(),
 	})
 	if err != nil {

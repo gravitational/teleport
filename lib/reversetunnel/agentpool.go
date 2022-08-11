@@ -19,6 +19,7 @@ package reversetunnel
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"io"
 	"net"
@@ -26,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -132,6 +134,8 @@ type AgentPoolConfig struct {
 	// LocalAuthAddresses is a list of auth servers to use when dialing back to
 	// the local cluster.
 	LocalAuthAddresses []string
+	// TODO
+	TLSRootCAs *x509.CertPool
 }
 
 // CheckAndSetDefaults checks and sets defaults.
@@ -471,18 +475,24 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 
 	options := []proxy.DialerOptionFunc{proxy.WithInsecureSkipTLSVerify(lib.IsInsecureDevMode())}
 	if p.runtimeConfig.useALPNRouting() {
-		tlsConfig := &tls.Config{
-			NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
+		tlsRoutingDialerConfig := &client.TLSRoutingDialerConfig{
+			ALPNConnUpgradeRequired: p.runtimeConfig.alpnConnUpgradeRequired,
+			TLSConfig: &tls.Config{
+				NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
+			},
 		}
 
 		if p.runtimeConfig.useReverseTunnelV2() {
-			tlsConfig.NextProtos = []string{
+			tlsRoutingDialerConfig.TLSConfig.NextProtos = []string{
 				string(alpncommon.ProtocolReverseTunnelV2),
 				string(alpncommon.ProtocolReverseTunnel),
 			}
 		}
+		if tlsRoutingDialerConfig.ALPNConnUpgradeRequired {
+			tlsRoutingDialerConfig.TLSConfig.RootCAs = p.TLSRootCAs
+		}
 
-		options = append(options, proxy.WithALPNDialer(tlsConfig))
+		options = append(options, proxy.WithTLSRoutingDialer(tlsRoutingDialerConfig))
 	}
 
 	dialer := &agentDialer{
@@ -583,6 +593,8 @@ type agentPoolRuntimeConfig struct {
 	// the agent pools sequential webclient.Find and ssh dial, the Find call will always reach
 	// Proxy A and the ssh dial call will always be forwarded to Proxy B.
 	remoteTLSRoutingEnabled bool
+	// TODO
+	alpnConnUpgradeRequired bool
 	// lastRemotePing is the time of the last ping attempt.
 	lastRemotePing *time.Time
 
@@ -662,7 +674,7 @@ func (c *agentPoolRuntimeConfig) updateRemote(ctx context.Context, addr *utils.N
 	ctx, cancel := context.WithTimeout(ctx, defaults.DefaultDialTimeout)
 	defer cancel()
 
-	tlsRoutingEnabled := false
+	var tlsRoutingEnabled, alpnConnUpgradeRequired bool
 
 	ping, err := webclient.Find(&webclient.Config{
 		Context:   ctx,
@@ -677,6 +689,7 @@ func (c *agentPoolRuntimeConfig) updateRemote(ctx context.Context, addr *utils.N
 		}
 	} else {
 		tlsRoutingEnabled = ping.Proxy.TLSRoutingEnabled
+		alpnConnUpgradeRequired = client.IsHTTPConnUpgradeRequired(addr.Addr, lib.IsInsecureDevMode())
 	}
 
 	c.mu.Lock()
@@ -685,6 +698,7 @@ func (c *agentPoolRuntimeConfig) updateRemote(ctx context.Context, addr *utils.N
 	c.lastRemotePing = &now
 
 	c.remoteTLSRoutingEnabled = tlsRoutingEnabled
+	c.alpnConnUpgradeRequired = alpnConnUpgradeRequired
 	return nil
 }
 

@@ -71,7 +71,9 @@ type LocalProxyConfig struct {
 	// AWSCredentials are AWS Credentials used by LocalProxy for request's signature verification.
 	AWSCredentials *credentials.Credentials
 	// TODO
-	ExtraRootCAs []*x509.Certificate
+	RootCAs *x509.CertPool
+	// TODO
+	ALPNConnUpgradeRequired bool
 }
 
 // CheckAndSetDefaults verifies the constraints for LocalProxyConfig.
@@ -147,23 +149,16 @@ func (l *LocalProxy) GetAddr() string {
 
 // TODO
 func (l *LocalProxy) getUpstreamDialer() (client.ContextDialer, error) {
-	rootCAs, err := x509.SystemCertPool()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for _, extraCA := range l.cfg.ExtraRootCAs {
-		rootCAs.AddCert(extraCA)
-	}
-
-	return &client.TLSRoutingDialer{
-		Config: &tls.Config{
+	return client.NewTLSRoutingDialer(client.TLSRoutingDialerConfig{
+		ALPNConnUpgradeRequired: l.cfg.ALPNConnUpgradeRequired,
+		TLSConfig: &tls.Config{
 			NextProtos:         l.cfg.GetProtocols(),
 			InsecureSkipVerify: l.cfg.InsecureSkipVerify,
 			ServerName:         l.cfg.SNI,
 			Certificates:       l.cfg.Certs,
-			RootCAs:            rootCAs,
+			RootCAs:            l.cfg.RootCAs,
 		},
-	}, nil
+	}), nil
 }
 
 // handleDownstreamConnection proxies the downstreamConn (connection established to the local proxy) and forward the

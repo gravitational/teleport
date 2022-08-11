@@ -23,7 +23,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"time"
 
 	"github.com/sirupsen/logrus"
 
@@ -32,11 +31,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-var alpnTestResultsCache = utils.NewCache[string, bool](utils.CacheConfig{
-	DefaultTTL: time.Hour,
-})
-
-// isHTTPConnUpgradeRequired returns true if a tunnel is required through a HTTP
+// IsHTTPConnUpgradeRequired returns true if a tunnel is required through a HTTP
 // upgrade.
 //
 // The function makes a test connection to the Proxy Service and checks if the
@@ -46,51 +41,27 @@ var alpnTestResultsCache = utils.NewCache[string, bool](utils.CacheConfig{
 //
 // In those cases, the client makes a HTTP "upgrade" call to the Proxy Service
 // to establish a tunnel for the origianlly planned traffic.
-func isHTTPConnUpgradeRequired(proxyAddr string, tlsConfig *tls.Config) bool {
-	// TODO Currently if remote is not HTTPS, TLS routing is not performed at
-	// all. However, the HTTP upgrade is probably a good workaround for HTTP
-	// remotes.
-	if tlsConfig == nil {
-		return false
-	}
-
-	if result, found := alpnTestResultsCache.Get(proxyAddr); found {
-		return result
-	}
-
-	upgradeRequired, err := alpnHandshakeTest(
-		proxyAddr,
-		// Use an old but stable protocol for testing to reduce false
-		// positives in case remote is running a different version.
-		constants.ALPNSNIProtocolReverseTunnel,
-		tlsConfig.InsecureSkipVerify,
-	)
-
-	// Do NOT cache when it fails.
-	if err == nil {
-		alpnTestResultsCache.Set(proxyAddr, upgradeRequired)
-	}
-
-	return upgradeRequired
-}
-
-func alpnHandshakeTest(addr string, protocol string, insecure bool) (bool, error) {
+func IsHTTPConnUpgradeRequired(addr string, insecure bool) bool {
 	logrus.Debugf("-->> alpnHandshakeTest test for %v", addr)
 
 	if utils.IsLoopback(addr) || utils.IsUnspecified(addr) {
-		return false, nil
+		return false
 	}
 
+	// Use an old but stable protocol for testing to reduce false
+	// positives in case remote is running a different version.
+	testProtocol := constants.ALPNSNIProtocolReverseTunnel
 	testConn, err := tls.Dial("tcp", addr, &tls.Config{
-		NextProtos:         []string{protocol},
+		NextProtos:         []string{testProtocol},
 		InsecureSkipVerify: insecure,
 	})
 	if err != nil {
-		return false, trace.Wrap(err)
+		// TODO log?
+		return false
 	}
 
 	defer testConn.Close()
-	return testConn.ConnectionState().NegotiatedProtocol == "", nil
+	return testConn.ConnectionState().NegotiatedProtocol == ""
 }
 
 // TODO

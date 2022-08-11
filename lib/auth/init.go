@@ -737,15 +737,11 @@ func (i *Identity) TLSConfig(cipherSuites []uint16) (*tls.Config, error) {
 		return nil, trace.BadParameter("failed to parse private key: %v", err)
 	}
 
-	tlsCAs, err := i.TLSCAs()
+	certPool, err := i.TLSRootCAs()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	certPool := x509.NewCertPool()
-	for _, tlsCA := range tlsCAs {
-		certPool.AddCert(tlsCA)
-	}
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	tlsConfig.RootCAs = certPool
 	tlsConfig.ClientCAs = certPool
@@ -754,7 +750,7 @@ func (i *Identity) TLSConfig(cipherSuites []uint16) (*tls.Config, error) {
 }
 
 // TODO
-func (i *Identity) TLSCAs() ([]*x509.Certificate, error) {
+func (i *Identity) TLSRootCAs() (*x509.CertPool, error) {
 	cas := make([]*x509.Certificate, 0, len(i.TLSCACertsBytes))
 	for j := range i.TLSCACertsBytes {
 		parsedCert, err := tlsca.ParseCertificatePEM(i.TLSCACertsBytes[j])
@@ -763,7 +759,12 @@ func (i *Identity) TLSCAs() ([]*x509.Certificate, error) {
 		}
 		cas = append(cas, parsedCert)
 	}
-	return cas, nil
+
+	caPool := x509.NewCertPool()
+	for _, ca := range cas {
+		caPool.AddCert(ca)
+	}
+	return caPool, nil
 }
 
 func (i *Identity) getSSHCheckers() ([]ssh.PublicKey, error) {
