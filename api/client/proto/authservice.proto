@@ -1185,8 +1185,8 @@ message IsMFARequiredRequest {
 
 // StreamEventsRequest is a request to start or resume streaming audit events.
 message StreamEventsRequest {
-    // StartKey is an optional stream cursor that can be used to resume the stream.
-    string StartKey = 1;
+    // Cursor is an optional stream cursor that can be used to resume the stream.
+    string Cursor = 1;
 }
 
 // StreamSessionEventsRequest is a request containing needed data to fetch a session recording.

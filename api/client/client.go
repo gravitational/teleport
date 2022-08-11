@@ -2086,9 +2086,9 @@ func (c *Client) DeleteAllNodes(ctx context.Context, namespace string) error {
 }
 
 // StreamEvents TODO
-func (c *Client) StreamEvents(ctx context.Context, startKey string) (chan events.StreamEvent, chan error) {
+func (c *Client) StreamEvents(ctx context.Context, cursor string) (chan events.StreamEvent, chan error) {
 	request := &proto.StreamEventsRequest{
-		StartKey: startKey,
+		Cursor: cursor,
 	}
 
 	ch := make(chan events.StreamEvent)

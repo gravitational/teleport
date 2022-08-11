@@ -3190,7 +3190,7 @@ func (g *GRPCServer) StreamEvents(req *proto.StreamEventsRequest, stream proto.A
 		return trace.Wrap(err)
 	}
 
-	c, e := auth.ServerWithRoles.StreamEvents(stream.Context(), req.StartKey)
+	c, e := auth.ServerWithRoles.StreamEvents(stream.Context(), req.Cursor)
 
 	for {
 		select {
