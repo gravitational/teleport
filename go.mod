@@ -3,9 +3,9 @@ module github.com/gravitational/teleport
 go 1.18
 
 require (
-	cloud.google.com/go/firestore v1.2.0
-	cloud.google.com/go/iam v0.1.1
-	cloud.google.com/go/storage v1.10.0
+	cloud.google.com/go/firestore v1.6.1
+	cloud.google.com/go/iam v0.3.0
+	cloud.google.com/go/storage v1.23.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v0.19.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v0.11.0
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1
@@ -107,18 +107,18 @@ require (
 	golang.org/x/crypto v0.0.0-20220622213112-05595931fe9d
 	golang.org/x/exp v0.0.0-20220613132600-b0d781184e0d
 	golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3
-	golang.org/x/net v0.0.0-20220412020605-290c469a71a5
-	golang.org/x/oauth2 v0.0.0-20220411215720-9780585627b5
+	golang.org/x/net v0.0.0-20220809184613-07c6da5e1ced
+	golang.org/x/oauth2 v0.0.0-20220808172628-8227340efae7
 	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
-	golang.org/x/sys v0.0.0-20220412211240-33da011f77ad
+	golang.org/x/sys v0.0.0-20220808155132-1c4a2a72c664
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
 	golang.org/x/text v0.3.7
 	golang.org/x/tools v0.1.10
-	google.golang.org/api v0.75.0
-	google.golang.org/genproto v0.0.0-20220421151946-72621c1f0bd3
-	google.golang.org/grpc v1.46.0
+	google.golang.org/api v0.91.0
+	google.golang.org/genproto v0.0.0-20220808204814-fd01256a5276
+	google.golang.org/grpc v1.48.0
 	google.golang.org/grpc/examples v0.0.0-20210424002626-9572fd6faeae
-	google.golang.org/protobuf v1.28.0
+	google.golang.org/protobuf v1.28.1
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/ini.v1 v1.62.0
 	gopkg.in/square/go-jose.v2 v2.5.1
@@ -134,8 +134,13 @@ require (
 )
 
 require (
-	cloud.google.com/go v0.100.2 // indirect
-	cloud.google.com/go/compute v1.6.1 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.1.0 // indirect
+	github.com/googleapis/go-type-adapters v1.0.0 // indirect
+)
+
+require (
+	cloud.google.com/go v0.103.0 // indirect
+	cloud.google.com/go/compute v1.8.0 // indirect
 	github.com/Azure/azure-pipeline-go v0.2.3 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v0.7.0 // indirect
 	github.com/Azure/azure-storage-blob-go v0.14.0 // indirect
@@ -203,7 +208,7 @@ require (
 	github.com/google/flatbuffers v2.0.0+incompatible // indirect
 	github.com/google/gnostic v0.5.7-v3refs // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
-	github.com/googleapis/gax-go/v2 v2.3.0 // indirect
+	github.com/googleapis/gax-go/v2 v2.5.1 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20190430165422-3e4dfb77656c // indirect
 	github.com/gorilla/handlers v1.5.1 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
@@ -286,7 +291,7 @@ require (
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.19.1 // indirect
 	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8 // indirect
-	golang.org/x/xerrors v0.0.0-20220411194840-2f41105eb62f // indirect
+	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
