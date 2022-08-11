@@ -374,7 +374,7 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 		},
 		// AllowLocalAuth
 		{
-			name: "OK AllowLocalAuth forced true for type=local",
+			name: "OK AllowLocalAuth preserve explicit false for type=local",
 			secondFactors: []constants.SecondFactorType{
 				constants.SecondFactorOff, // doesn't matter for this test
 				constants.SecondFactorOTP,
@@ -382,6 +382,20 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 			spec: types.AuthPreferenceSpecV2{
 				Type:           constants.Local,
 				AllowLocalAuth: types.NewBoolOption(false),
+			},
+			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {
+				assert.False(t, got.GetAllowLocalAuth(), "AllowLocalAuth")
+			},
+		},
+		// AllowLocalAuth
+		{
+			name: "OK AllowLocalAuth default to true for type=local",
+			secondFactors: []constants.SecondFactorType{
+				constants.SecondFactorOff, // doesn't matter for this test
+				constants.SecondFactorOTP,
+			},
+			spec: types.AuthPreferenceSpecV2{
+				Type: constants.Local,
 			},
 			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {
 				assert.True(t, got.GetAllowLocalAuth(), "AllowLocalAuth")
