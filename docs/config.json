@@ -1019,7 +1019,7 @@
       "last_report": "August 9th, 2022"
     },
     "cloud": {
-      "version": "9.3.10",
+      "version": "10.1.2",
       "sla": {
         "monthly_percentage": "99.5%",
         "monthly_downtime": "3 hours 40 minutes"
