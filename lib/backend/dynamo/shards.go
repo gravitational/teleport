@@ -36,46 +36,46 @@ import (
 )
 
 type shardEvent struct {
-	events  []backend.Event
+	records []*dynamodbstreams.Record
 	shardID string
 	err     error
 }
 
 type Shards struct {
-	log     *log.Entry
-	svc     dynamodbiface.DynamoDBAPI
-	streams dynamodbstreamsiface.DynamoDBStreamsAPI
-	// retryPeriod is a period between dynamo backend retries on failures
-	retryPeriod time.Duration
-	// pollStreamPeriod is a polling period for event stream
-	pollStreamPeriod time.Duration
-	tableName        string
-	onStreamingStart func()
-	onStreamingEnd   func()
-	onEvents         func([]backend.Event)
+	Log             *log.Entry
+	DynamoDB        dynamodbiface.DynamoDBAPI
+	DynamoDBStreams dynamodbstreamsiface.DynamoDBStreamsAPI
+	// RetryPeriod is a period between dynamo backend retries on failures
+	RetryPeriod time.Duration
+	// PollStreamPeriod is a polling period for event stream
+	PollStreamPeriod time.Duration
+	TableName        string
+	OnStreamingStart func()
+	OnStreamingEnd   func()
+	OnRecords        func([]*dynamodbstreams.Record) error
 }
 
-func (s *Shards) asyncPollStreams(ctx context.Context) error {
+func (s *Shards) AsyncPollStreams(ctx context.Context) error {
 	retry, err := utils.NewLinear(utils.LinearConfig{
-		Step: s.retryPeriod / 10,
-		Max:  s.retryPeriod,
+		Step: s.RetryPeriod / 10,
+		Max:  s.RetryPeriod,
 	})
 	if err != nil {
-		s.log.Errorf("Bad retry parameters: %v", err)
+		s.Log.Errorf("Bad retry parameters: %v", err)
 		return trace.Wrap(err)
 	}
 
 	for {
 		err := s.pollStreams(ctx)
 		if err != nil {
-			s.log.Errorf("Poll streams returned with error: %v.", err)
+			s.Log.Errorf("Poll streams returned with error: %v.", err)
 		}
-		s.log.Debugf("Reloading %v.", retry)
+		s.Log.Debugf("Reloading %v.", retry)
 		select {
 		case <-retry.After():
 			retry.Inc()
 		case <-ctx.Done():
-			s.log.Debugf("Closed, returning from asyncPollStreams loop.")
+			s.Log.Debugf("Closed, returning from asyncPollStreams loop.")
 			return nil
 		}
 	}
@@ -89,7 +89,7 @@ func (b *Shards) pollStreams(externalCtx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	b.log.Debugf("Found latest event stream %v.", aws.StringValue(streamArn))
+	b.Log.Debugf("Found latest event stream %v.", aws.StringValue(streamArn))
 
 	set := make(map[string]struct{})
 	eventsC := make(chan shardEvent)
@@ -102,7 +102,7 @@ func (b *Shards) pollStreams(externalCtx context.Context) error {
 			return false
 		}
 		if _, ok := set[parentShardId]; ok {
-			b.log.Debugf("Skipping child shard: %s, still polling parent %s", shardId, parentShardId)
+			b.Log.Debugf("Skipping child shard: %s, still polling parent %s", shardId, parentShardId)
 			// still processing parent
 			return false
 		}
@@ -128,7 +128,7 @@ func (b *Shards) pollStreams(externalCtx context.Context) error {
 				continue
 			}
 			shardID := aws.StringValue(shards[i].ShardId)
-			b.log.Debugf("Adding active shard %v.", shardID)
+			b.Log.Debugf("Adding active shard %v.", shardID)
 			set[shardID] = struct{}{}
 			go b.asyncPollShard(ctx, streamArn, shards[i], eventsC, initC)
 			started++
@@ -158,10 +158,10 @@ func (b *Shards) pollStreams(externalCtx context.Context) error {
 	}
 
 	// shard iterators are initialized, unblock any registered watchers
-	b.onStreamingStart()
-	defer b.onStreamingEnd()
+	b.OnStreamingStart()
+	defer b.OnStreamingEnd()
 
-	ticker := time.NewTicker(b.pollStreamPeriod)
+	ticker := time.NewTicker(b.PollStreamPeriod)
 	defer ticker.Stop()
 
 	for {
@@ -171,45 +171,47 @@ func (b *Shards) pollStreams(externalCtx context.Context) error {
 				if event.shardID == "" {
 					// empty shard IDs in err-variant events are programming bugs and will lead to
 					// invalid state.
-					b.log.WithError(err).Warnf("Forcing watch system reset due to empty shard ID on error (this is a bug)")
+					b.Log.WithError(err).Warnf("Forcing watch system reset due to empty shard ID on error (this is a bug)")
 					return trace.BadParameter("empty shard ID")
 				}
 				delete(set, event.shardID)
 				if event.err != io.EOF {
-					b.log.Debugf("Shard ID %v closed with error: %v, reseting buffers.", event.shardID, event.err)
+					b.Log.Debugf("Shard ID %v closed with error: %v, resetting buffers.", event.shardID, event.err)
 					return trace.Wrap(event.err)
 				}
-				b.log.Debugf("Shard ID %v exited gracefully.", event.shardID)
+				b.Log.Debugf("Shard ID %v exited gracefully.", event.shardID)
 			} else {
 				// Q: It seems that there's no checkpointing when streaming changes to the backend.
-				b.onEvents(event.events)
+				if err := b.OnRecords(event.records); err != nil {
+					return trace.Wrap(err)
+				}
 			}
 		case <-ticker.C:
 			if err := refreshShards(false); err != nil {
 				return trace.Wrap(err)
 			}
 		case <-ctx.Done():
-			b.log.Debugf("Context is closing, returning.")
+			b.Log.Debugf("Context is closing, returning.")
 			return nil
 		}
 	}
 }
 
 func (b *Shards) findStream(ctx context.Context) (*string, error) {
-	status, err := b.svc.DescribeTableWithContext(ctx, &dynamodb.DescribeTableInput{
-		TableName: aws.String(b.tableName),
+	status, err := b.DynamoDB.DescribeTableWithContext(ctx, &dynamodb.DescribeTableInput{
+		TableName: aws.String(b.TableName),
 	})
 	if err != nil {
 		return nil, trace.Wrap(convertError(err))
 	}
 	if status.Table.LatestStreamArn == nil {
-		return nil, trace.NotFound("No streams found for table %v", b.tableName)
+		return nil, trace.NotFound("No streams found for table %v", b.TableName)
 	}
 	return status.Table.LatestStreamArn, nil
 }
 
 func (b *Shards) pollShard(ctx context.Context, streamArn *string, shard *dynamodbstreams.Shard, eventsC chan shardEvent, initC chan<- error) error {
-	shardIterator, err := b.streams.GetShardIteratorWithContext(ctx, &dynamodbstreams.GetShardIteratorInput{
+	shardIterator, err := b.DynamoDBStreams.GetShardIteratorWithContext(ctx, &dynamodbstreams.GetShardIteratorInput{
 		ShardId: shard.ShardId,
 		// Q: Besides no checkpointing, the shard iterator type is set to LATEST, meaning that there's no worry about retrieving all events.
 		// With checkpointing, we would know the last event retrieved from each (known) shard, and could set the shard iterator type to AFTER_SEQUENCE_NUMBER.
@@ -229,7 +231,7 @@ func (b *Shards) pollShard(ctx context.Context, streamArn *string, shard *dynamo
 		return convertError(err)
 	}
 
-	ticker := time.NewTicker(b.pollStreamPeriod)
+	ticker := time.NewTicker(b.PollStreamPeriod)
 	defer ticker.Stop()
 	iterator := shardIterator.ShardIterator
 	shardID := aws.StringValue(shard.ShardId)
@@ -238,39 +240,35 @@ func (b *Shards) pollShard(ctx context.Context, streamArn *string, shard *dynamo
 		case <-ctx.Done():
 			return trace.ConnectionProblem(ctx.Err(), "context is closing")
 		case <-ticker.C:
-			out, err := b.streams.GetRecordsWithContext(ctx, &dynamodbstreams.GetRecordsInput{
+			out, err := b.DynamoDBStreams.GetRecordsWithContext(ctx, &dynamodbstreams.GetRecordsInput{
 				ShardIterator: iterator,
 			})
 			if err != nil {
 				return convertError(err)
 			}
 			if len(out.Records) > 0 {
-				b.log.Debugf("Got %v new stream shard records.", len(out.Records))
+				b.Log.Debugf("Got %v new stream shard records.", len(out.Records))
 			}
 			if len(out.Records) == 0 {
 				if out.NextShardIterator == nil {
-					b.log.Debugf("Shard is closed: %v.", aws.StringValue(shard.ShardId))
+					b.Log.Debugf("Shard is closed: %v.", aws.StringValue(shard.ShardId))
 					return io.EOF
 				}
 				iterator = out.NextShardIterator
 				continue
 			}
 			if out.NextShardIterator == nil {
-				b.log.Debugf("Shard is closed: %v.", aws.StringValue(shard.ShardId))
+				b.Log.Debugf("Shard is closed: %v.", aws.StringValue(shard.ShardId))
 				return io.EOF
 			}
-			events := make([]backend.Event, 0, len(out.Records))
-			for i := range out.Records {
-				event, err := toEvent(out.Records[i])
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				events = append(events, *event)
+			shardEvent := shardEvent{
+				shardID: shardID,
+				records: out.Records,
 			}
 			select {
 			case <-ctx.Done():
 				return trace.ConnectionProblem(ctx.Err(), "context is closing")
-			case eventsC <- shardEvent{shardID: shardID, events: events}:
+			case eventsC <- shardEvent:
 			}
 			iterator = out.NextShardIterator
 		}
@@ -285,7 +283,7 @@ func (b *Shards) collectActiveShards(ctx context.Context, streamArn *string) ([]
 		StreamArn: streamArn,
 	}
 	for {
-		streamInfo, err := b.streams.DescribeStreamWithContext(ctx, input)
+		streamInfo, err := b.DynamoDBStreams.DescribeStreamWithContext(ctx, input)
 		if err != nil {
 			return nil, convertError(err)
 		}
@@ -377,7 +375,7 @@ func (b *Shards) asyncPollShard(ctx context.Context, streamArn *string, shard *d
 		select {
 		case eventsC <- shardEvent{err: err, shardID: shardID}:
 		case <-ctx.Done():
-			b.log.Debugf("Context is closing, returning")
+			b.Log.Debugf("Context is closing, returning")
 			return
 		}
 	}()

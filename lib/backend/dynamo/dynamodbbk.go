@@ -305,19 +305,30 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	}
 
 	go func() {
-		s := Shards{
-			log:              b.Entry,
-			svc:              svc,
-			streams:          streams,
-			retryPeriod:      b.RetryPeriod,
-			pollStreamPeriod: b.PollStreamPeriod,
-			tableName:        b.TableName,
+		s := &Shards{
+			Log:              b.Entry,
+			DynamoDB:         svc,
+			DynamoDBStreams:  streams,
+			RetryPeriod:      b.RetryPeriod,
+			PollStreamPeriod: b.PollStreamPeriod,
+			TableName:        b.TableName,
 			// shard iterators are initialized, unblock any registered watchers
-			onStreamingStart: func() { b.buf.SetInit() },
-			onStreamingEnd:   func() { b.buf.Reset() },
-			onEvents:         func(events []backend.Event) { b.buf.Emit(events...) },
+			OnStreamingStart: func() { b.buf.SetInit() },
+			OnStreamingEnd:   func() { b.buf.Reset() },
+			OnRecords: func(records []*dynamodbstreams.Record) error {
+				events := make([]backend.Event, 0, len(records))
+				for i := range records {
+					event, err := toEvent(records[i])
+					if err != nil {
+						return trace.Wrap(err)
+					}
+					events = append(events, *event)
+				}
+				b.buf.Emit(events...)
+				return nil
+			},
 		}
-		if err := s.asyncPollStreams(ctx); err != nil {
+		if err := s.AsyncPollStreams(ctx); err != nil {
 			b.Errorf("Stream polling loop exited: %v", err)
 		}
 	}()

@@ -38,6 +38,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
 	"github.com/gravitational/teleport/lib/session"
@@ -50,6 +51,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
+	"github.com/aws/aws-sdk-go/service/dynamodbstreams"
+	"github.com/aws/aws-sdk-go/service/dynamodbstreams/dynamodbstreamsiface"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -112,6 +115,10 @@ type Config struct {
 	UIDGenerator utils.UID
 	// Endpoint is an optional non-AWS endpoint
 	Endpoint string `json:"endpoint,omitempty"`
+	// PollStreamPeriod is a polling period for event stream
+	PollStreamPeriod time.Duration `json:"poll_stream_period,omitempty"`
+	// RetryPeriod is a period between dynamo backend retries on failures
+	RetryPeriod time.Duration `json:"retry_period"`
 
 	// ReadMaxCapacity is the maximum provisioned read capacity.
 	ReadMaxCapacity int64
@@ -187,6 +194,12 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.UIDGenerator == nil {
 		cfg.UIDGenerator = utils.NewRealUID()
 	}
+	if cfg.PollStreamPeriod == 0 {
+		cfg.PollStreamPeriod = backend.DefaultPollStreamPeriod
+	}
+	if cfg.RetryPeriod == 0 {
+		cfg.RetryPeriod = defaults.HighResPollingPeriod
+	}
 
 	return nil
 }
@@ -197,7 +210,8 @@ type Log struct {
 	*log.Entry
 	// Config is a backend configuration
 	Config
-	svc dynamodbiface.DynamoDBAPI
+	svc     dynamodbiface.DynamoDBAPI
+	streams dynamodbstreamsiface.DynamoDBStreamsAPI
 
 	// session holds the AWS client.
 	session *awssession.Session
@@ -297,6 +311,11 @@ func New(ctx context.Context, cfg Config, backend backend.Backend) (*Log, error)
 		return nil, trace.Wrap(err)
 	}
 	b.svc = svc
+	streams, err := dynamometrics.NewStreamsMetricsAPI(dynamometrics.Backend, dynamodbstreams.New(b.session))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	b.streams = streams
 
 	// check if the table exists?
 	ts, err := b.getTableStatus(ctx, b.TableName)
@@ -1053,8 +1072,40 @@ func convertError(err error) error {
 
 // StreamEvents TODO
 func (l *Log) StreamEvents(ctx context.Context, cursor string) (chan apievents.StreamEvent, chan error) {
-	// TODO
 	c, e := make(chan apievents.StreamEvent), make(chan error, 1)
+	go func() {
+		s := &dynamo.Shards{
+			Log:              l.Entry,
+			DynamoDB:         l.svc,
+			DynamoDBStreams:  l.streams,
+			RetryPeriod:      l.RetryPeriod,
+			PollStreamPeriod: l.PollStreamPeriod,
+			TableName:        l.TableName,
+			OnStreamingStart: func() {},
+			OnStreamingEnd:   func() {},
+			OnRecords: func(records []*dynamodbstreams.Record) error {
+				for i := range records {
+					var e event
+					if err := dynamodbattribute.UnmarshalMap(records[i].Dynamodb.NewImage, &e); err != nil {
+						return trace.WrapWithMessage(err, "failed to unmarshal event")
+					}
+					event, err := events.FromEventFields(e.FieldsMap)
+					if err != nil {
+						return trace.WrapWithMessage(err, "failed to convert event")
+					}
+					streamEvent := apievents.StreamEvent{
+						Event:  event,
+						Cursor: "TODO",
+					}
+					c <- streamEvent
+				}
+				return nil
+			},
+		}
+		if err := s.AsyncPollStreams(ctx); err != nil {
+			l.Errorf("Stream polling loop exited: %v", err)
+		}
+	}()
 	return c, e
 }
 
