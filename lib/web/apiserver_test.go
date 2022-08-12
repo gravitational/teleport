@@ -2481,6 +2481,81 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 	}
 }
 
+func TestAuthExport(t *testing.T) {
+	env := newWebPack(t, 1)
+	clusterName := env.server.ClusterName()
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "test-user@example.com", nil)
+
+	for _, tt := range []struct {
+		name           string
+		authType       string
+		expectedStatus int
+	}{
+		{
+			name:           "all",
+			authType:       "",
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "host",
+			authType:       "host",
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "user",
+			authType:       "user",
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "windows",
+			authType:       "windows",
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "db",
+			authType:       "db",
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "invalid",
+			authType:       "invalid",
+			expectedStatus: http.StatusBadRequest,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			// export host certificate
+			endpointExport := pack.clt.Endpoint("webapi", "sites", clusterName, "auth", "export")
+
+			if tt.authType != "" {
+				endpointExport = fmt.Sprintf("%s?type=%s", endpointExport, tt.authType)
+			}
+
+			req, err := http.NewRequest(http.MethodGet, endpointExport, nil)
+			require.NoError(t, err)
+
+			anonHTTPClient := &http.Client{
+				Transport: &http.Transport{
+					TLSClientConfig: &tls.Config{
+						InsecureSkipVerify: true,
+					},
+				},
+			}
+
+			resp, err := anonHTTPClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			require.Equal(t, tt.expectedStatus, resp.StatusCode)
+
+			bs, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.NotEmpty(t, bs)
+		})
+	}
+}
+
 func TestClusterDatabasesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
