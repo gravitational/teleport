@@ -19,11 +19,13 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"io"
 	"math"
 	"net"
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
@@ -177,8 +179,7 @@ func TestPingConnection(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		// Create TCP connections to have asynchronous read/write.
-		w, r := makeTCPPingConn(t)
+		w, r := makeBufferedPingConn(t)
 		defer w.Close()
 		defer r.Close()
 
@@ -313,49 +314,16 @@ func makePingConn(t *testing.T) (*pingConn, *pingConn) {
 	return &pingConn{Conn: writer}, &pingConn{Conn: reader}
 }
 
-// makeTCPPingConn creates TCP connections to have asynchronous read/write.
-func makeTCPPingConn(t *testing.T) (*pingConn, *pingConn) {
+// makeBufferedPingConn creates connections to have asynchronous writes.
+func makeBufferedPingConn(t *testing.T) (*pingConn, *pingConn) {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	fakeAddr := &net.TCPAddr{}
+	bufA := new(bytes.Buffer)
+	bufB := new(bytes.Buffer)
 
-	listener, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
-	t.Cleanup(func() { listener.Close() })
+	connA := utils.NewPipeNetConn(bufA, bufB, io.NopCloser(bufA), fakeAddr, fakeAddr)
+	connB := utils.NewPipeNetConn(bufB, bufA, io.NopCloser(bufB), fakeAddr, fakeAddr)
 
-	connChan := make(chan net.Conn, 2)
-
-	// Accept routine.
-	go func() {
-		conn, err := listener.Accept()
-		if err != nil {
-			cancel()
-			return
-		}
-		connChan <- conn
-	}()
-
-	// Dial routine.
-	go func() {
-		conn, err := net.Dial("tcp", listener.Addr().String())
-		if err != nil {
-			cancel()
-			return
-		}
-		connChan <- conn
-	}()
-
-	connRes := make([]*pingConn, 2)
-	for i := 0; i < 2; i++ {
-		select {
-		case <-ctx.Done():
-			require.Fail(t, "failed to setup TCP ping connections: %s", ctx.Err())
-		case conn := <-connChan:
-			connRes[i] = newPingConn(conn)
-		}
-	}
-
-	require.NoError(t, ctx.Err())
-	return connRes[0], connRes[1]
+	return newPingConn(connA), newPingConn(connB)
 }
