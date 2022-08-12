@@ -2075,7 +2075,7 @@ func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	if fc.JoinParams != (JoinParams{}) {
-		if !cfg.HasToken() {
+		if cfg.HasToken() {
 			return trace.BadParameter("only one of auth_token or join_params should be set")
 		}
 		cfg.SetToken(fc.JoinParams.TokenName)
