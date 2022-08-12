@@ -16,11 +16,6 @@ limitations under the License.
 
 package main
 
-import (
-	"fmt"
-	"strings"
-)
-
 const (
 	// loginUsageFooter is printed at the bottom of `tsh help login` output
 	loginUsageFooter = `NOTES:
@@ -46,8 +41,3 @@ EXAMPLES:
 https://goteleport.com/docs/getting-started/linux-server/#step-46-create-a-teleport-user-and-set-up-two-factor-authentication
   `
 )
-
-// formatFlagDescription creates the description for the --format flag.
-func formatFlagDescription(formats ...string) string {
-	return fmt.Sprintf("Format output (%s)", strings.Join(formats, ", "))
-}

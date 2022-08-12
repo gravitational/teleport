@@ -13,11 +13,11 @@
 #   Master/dev branch: "1.0.0-dev"
 VERSION=11.0.0-dev
 
-
-DOCKER_IMAGE_OPERATOR_CI ?= quay.io/gravitational/teleport-operator-ci
 DOCKER_IMAGE_QUAY ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_ECR ?= public.ecr.aws/gravitational/teleport
 DOCKER_IMAGE_STAGING ?= 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport
+DOCKER_IMAGE_OPERATOR_STAGING ?= 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator
+
 
 GOPATH ?= $(shell go env GOPATH)
 
@@ -1013,19 +1013,38 @@ image-ci: clean docker-binaries
 	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_STAGING):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e image-ci; fi
 
+
+# DOCKER_CLI_EXPERIMENTAL=enabled is set to allow inspecting the manifest for present images.
+# https://docs.docker.com/engine/reference/commandline/cli/#experimental-features
+# The internal staging images use amazon ECR's immutable repository settings. This makes overwrites impossible currently. 
+# This can cause issues when drone tagging pipelines must be re-run due to failures. 
+# Currently the work around for this is to not attempt to push to the image when it already exists.
 .PHONY: publish-ci
 publish-ci: image-ci
-	docker push $(DOCKER_IMAGE_STAGING):$(VERSION)
+	@if DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect "$(DOCKER_IMAGE_STAGING):$(VERSION)" >/dev/null 2>&1; then\
+		echo "$(DOCKER_IMAGE_STAGING):$(VERSION) already exists. ";     \
+	else                                                                \
+		docker push "$(DOCKER_IMAGE_STAGING):$(VERSION)";                 \
+	fi
 	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ci; fi
 
 # Docker image build for Teleport Operator
 .PHONY: image-operator-ci
 image-operator-ci:
-	make -C operator docker-build IMG=$(DOCKER_IMAGE_OPERATOR_CI):$(VERSION)
+	make -C operator docker-build IMG="$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION)"
 
+# DOCKER_CLI_EXPERIMENTAL=enabled is set to allow inspecting the manifest for present images.
+# https://docs.docker.com/engine/reference/commandline/cli/#experimental-features
+# The internal staging images use amazon ECR's immutable repository settings. This makes overwrites impossible currently. 
+# This can cause issues when drone tagging pipelines must be re-run due to failures. 
+# Currently the work around for this is to not attempt to push to the image when it already exists.
 .PHONY: publish-operator-ci
 publish-operator-ci: image-operator-ci
-	docker push $(DOCKER_IMAGE_OPERATOR_CI):$(VERSION)
+	@if DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect "$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION)" >/dev/null 2>&1; then \
+		echo "$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION) already exists. ";                                                         \
+	else                                                                                                                             \
+		docker push "$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION)";                                                                   \
+	fi
 
 .PHONY: print-version
 print-version:
@@ -1120,13 +1139,12 @@ init-submodules-e: init-webapps-submodules-e
 	git submodule init e
 	git submodule update
 
-# update-webassets updates the minified code in the webassets repo using the latest webapps
-# repo and creates a PR in the teleport repo to update webassets submodule.
+# update-webassets creates a PR in the teleport repo to update webassets submodule.
 .PHONY: update-webassets
-update-webassets: WEBAPPS_BRANCH ?= 'master'
+update-webassets: WEBASSETS_BRANCH ?= 'master'
 update-webassets: TELEPORT_BRANCH ?= 'master'
 update-webassets:
-	build.assets/webapps/update-teleport-webassets.sh -w $(WEBAPPS_BRANCH) -t $(TELEPORT_BRANCH)
+	build.assets/webapps/update-teleport-webassets.sh -w $(WEBASSETS_BRANCH) -t $(TELEPORT_BRANCH)
 
 # dronegen generates .drone.yml config
 .PHONY: dronegen
