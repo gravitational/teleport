@@ -198,6 +198,10 @@
           "slug": "/setup/guides/",
           "entries": [
             {
+              "title": "Kubernetes Operator (Preview)",
+              "slug": "/setup/guides/teleport-operator/"
+            },
+            {
               "title": "Terraform Provider",
               "slug": "/setup/guides/terraform-provider/"
             },
@@ -302,6 +306,10 @@
         {
           "title": "Using tsh",
           "slug": "/use-teleport/tsh/"
+        },
+        {
+          "title": "Using Teleport Connect",
+          "slug": "/use-teleport/teleport-connect/"
         }
       ]
     },
@@ -322,8 +330,12 @@
           "slug": "/application-access/guides/",
           "entries": [
             {
-              "title": "Connecting Apps",
+              "title": "Web App Access",
               "slug": "/application-access/guides/connecting-apps/"
+            },
+            {
+              "title": "TCP App Access (Preview)",
+              "slug": "/application-access/guides/tcp/"
             },
             {
               "title": "API Access",
@@ -447,51 +459,6 @@
           ]
         },
         {
-          "title": "Helm Chart Reference",
-          "slug": "/kubernetes-access/helm/reference/",
-          "entries": [
-            {
-              "title": "teleport-cluster",
-              "slug": "/kubernetes-access/helm/reference/teleport-cluster/"
-            },
-            {
-              "title": "teleport-kube-agent",
-              "slug": "/kubernetes-access/helm/reference/teleport-kube-agent/"
-            }
-          ]
-        },
-        {
-          "title": "Helm Guides",
-          "slug": "/kubernetes-access/helm/guides/",
-          "entries": [
-            {
-              "title": "AWS EKS Cluster",
-              "slug": "/kubernetes-access/helm/guides/aws/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "Google Cloud GKE Cluster",
-              "slug": "/kubernetes-access/helm/guides/gcp/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "DigitalOcean Kubernetes Cluster",
-              "slug": "/kubernetes-access/helm/guides/digitalocean/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "Customize Deployment Config",
-              "slug": "/kubernetes-access/helm/guides/custom/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "Migrating From Older Charts",
-              "slug": "/kubernetes-access/helm/guides/migration/",
-              "forScopes": ["oss", "enterprise"]
-            }
-          ]
-        },
-        {
           "title": "Access Controls",
           "slug": "/kubernetes-access/controls/"
         }
@@ -524,6 +491,10 @@
             {
               "title": "AWS ElastiCache & MemoryDB",
               "slug": "/database-access/guides/redis-aws/"
+            },
+            {
+              "title": "AWS DynamoDB",
+              "slug": "/database-access/guides/dynamodb/"
             },
             {
               "title": "GCP Cloud SQL PostgreSQL",
@@ -684,6 +655,14 @@
           "slug": "/machine-id/getting-started/"
         },
         {
+          "title": "Troubleshooting",
+          "slug": "/machine-id/troubleshooting/"
+        },
+        {
+          "title": "FAQ",
+          "slug": "/machine-id/faq/"
+        },
+        {
           "title": "Reference",
           "slug": "/machine-id/reference/",
           "entries": [
@@ -730,7 +709,7 @@
           "slug": "/access-controls/getting-started/"
         },
         {
-          "title": "Guides",
+          "title": "Cluster Access and RBAC",
           "slug": "/access-controls/guides/",
           "entries": [
             {
@@ -769,6 +748,58 @@
             }
           ]
         },
+	{
+	    "title": "Access Requests",
+	    "slug": "/access-controls/access-requests/",
+	    "entries": [
+		{
+		    "title": "Role Requests",
+		    "slug":"/access-controls/access-requests/role-requests/",
+		    "forScopes": ["enterprise", "cloud"]
+		},
+		{
+		    "title": "Resource Requests",
+		    "slug":"/access-controls/access-requests/resource-requests/",
+		    "forScopes": ["enterprise", "cloud"]
+		}
+	    ]
+	},
+	{
+	    "title": "Access Request Plugins",
+	    "slug": "/access-controls/access-request-plugins/",
+	    "entries": [
+		{
+		    "title": "Mattermost",
+		    "slug":"/access-controls/access-request-plugins/ssh-approval-mattermost/",
+		    "forScopes": ["enterprise", "cloud"]
+		},
+		{
+		    "title": "PagerDuty",
+		    "slug":"/access-controls/access-request-plugins/ssh-approval-pagerduty/",
+		    "forScopes": ["enterprise", "cloud"]
+		},
+                {
+                    "title": "Jira Server",
+                    "slug":"/access-controls/access-request-plugins/ssh-approval-jira-server/",
+                    "forScopes": ["enterprise", "cloud"]
+                },
+		{
+		    "title": "Jira Cloud",
+		    "slug":"/access-controls/access-request-plugins/ssh-approval-jira-cloud/",
+		    "forScopes": ["enterprise", "cloud"]
+		},
+		{
+		    "title": "Slack",
+		    "slug":"/access-controls/access-request-plugins/ssh-approval-slack/",
+		    "forScopes": ["enterprise", "cloud"]
+		},
+		{
+		    "title": "Email",
+		    "slug": "/access-controls/access-request-plugins/ssh-approval-email/",
+		    "forScopes": ["enterprise", "cloud"]
+		}
+	    ]
+	},
         {
           "title": "Reference",
           "slug": "/access-controls/reference/"
@@ -863,28 +894,12 @@
           ]
         },
         {
-          "title": "Access Requests",
-          "slug": "/enterprise/workflow/",
-          "entries": [
-            {
-              "title": "Resource Access Requests",
-              "slug": "/enterprise/workflow/resource-requests/",
-              "forScopes": ["enterprise", "cloud"]
-            },
-            {
-              "title": "Role Access Requests",
-              "slug": "/enterprise/workflow/role-requests/",
-              "forScopes": ["oss", "enterprise", "cloud"]
-            }
-          ]
-        },
-        {
           "title": "FedRAMP",
           "slug": "/enterprise/fedramp/",
           "forScopes": ["enterprise"]
         },
         {
-          "title": "SOC2",
+          "title": "SOC 2",
           "slug": "/enterprise/soc2/",
           "forScopes": ["enterprise", "cloud"]
         },
@@ -1011,10 +1026,10 @@
       "control_url": "https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control?version=5.1&number="
     },
     "soc2": {
-      "last_report": "April 12th, 2021"
+      "last_report": "August 9th, 2022"
     },
     "cloud": {
-      "version": "8.3.4",
+      "version": "10.1.2",
       "sla": {
         "monthly_percentage": "99.5%",
         "monthly_downtime": "3 hours 40 minutes"
@@ -1058,11 +1073,6 @@
     {
       "source": "/architecture/users/",
       "destination": "/architecture/authorization/",
-      "permanent": true
-    },
-    {
-      "source": "/user-manual/",
-      "destination": "/server-access/guides/tsh/",
       "permanent": true
     },
     {
@@ -1231,11 +1241,6 @@
       "permanent": true
     },
     {
-      "source": "/enterprise/sso/ssh-gsuite/",
-      "destination": "/enterprise/sso/ssh-google-workspace/",
-      "permanent": true
-    },
-    {
       "source": "/features/enhanced-session-recording/",
       "destination": "/server-access/guides/bpf-session-recording/",
       "permanent": true
@@ -1389,6 +1394,46 @@
       "source": "/setup/admin/graceful-restarts/",
       "destination": "/setup/admin/upgrading-the-teleport-binary/",
       "permanent": true
+    },
+    {
+       "source": "/enterprise/workflow/",
+       "destination": "/access-controls/access-requests/",
+       "permanent": true
+    },
+    {
+    	"source": "/enterprise/workflow/ssh-approval-mattermost/",
+    	"destination": "/access-controls/access-request-plugins/ssh-approval-mattermost/",
+    	"permanent": true
+    },
+    {
+    	"source": "/enterprise/workflow/ssh-approval-mattermost/",
+    	"destination": "/access-controls/access-request-plugins/ssh-approval-pagerduty/",
+    	"permanent": true
+    },
+    {
+    	"source": "/enterprise/workflow/ssh-approval-jira-server/",
+    	"destination": "/access-controls/access-request-plugins/ssh-approval-jira-server/",
+    	"permanent": true
+    },
+    {
+    	"source": "/enterprise/workflow/ssh-approval-jira-cloud/",
+    	"destination": "/access-controls/access-request-plugins/ssh-approval-jira-cloud/",
+    	"permanent": true
+    },
+    {
+    	"source": "/enterprise/workflow/ssh-approval-slack/",
+    	"destination": "/access-controls/access-request-plugins/ssh-approval-slack/",
+    	"permanent": true
+    },
+    {
+    	"source": "/enterprise/workflow/resource-requests/",
+    	"destination": "/access-controls/access-requests/resource-requests/",
+    	"permanent": true
+    },
+    {
+    	"source": "/enterprise/workflow/role-requests/",
+    	"destination": "/access-controls/access-requests/role-requests/",
+    	"permanent": true
     }
   ]
 }

@@ -67,13 +67,14 @@ func darwinPushPipeline() pipeline {
 		{
 			Name: "Build Mac artifacts",
 			Environment: map[string]value{
-				"GOPATH":        {raw: path.Join(p.Workspace.Path, "/go")},
-				"GOCACHE":       {raw: path.Join(p.Workspace.Path, "/go/cache")},
-				"OS":            {raw: "darwin"},
-				"ARCH":          {raw: "amd64"},
-				"WORKSPACE_DIR": {raw: p.Workspace.Path},
+				"GOPATH":            {raw: path.Join(p.Workspace.Path, "/go")},
+				"GOCACHE":           {raw: path.Join(p.Workspace.Path, "/go/cache")},
+				"OS":                {raw: "darwin"},
+				"ARCH":              {raw: "amd64"},
+				"WORKSPACE_DIR":     {raw: p.Workspace.Path},
+				"BUILDBOX_PASSWORD": {fromSecret: "BUILDBOX_PASSWORD"},
 			},
-			Commands: darwinTagBuildCommands(b, darwinBuildOptions{unlockKeychain: false}),
+			Commands: darwinTagBuildCommands(b, darwinBuildOptions{unlockKeychain: true}),
 		},
 		cleanUpToolchainsStep(p.Workspace.Path),
 		cleanUpExecStorageStep(p.Workspace.Path),
@@ -347,6 +348,10 @@ func darwinTagBuildCommands(b buildType, opts darwinBuildOptions) []string {
 		// This makes the full app version look like this: 9.3.5.12489
 		// https://www.electron.build/configuration/configuration.html#Configuration-buildVersion
 		`export BUILD_NUMBER=$DRONE_BUILD_NUMBER`,
+		// CSC_NAME tells electron-builder which cert to use for signing when there are multiple certs
+		// available.
+		// https://www.electron.build/code-signing
+		`export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83`,
 	}
 
 	if opts.unlockKeychain {

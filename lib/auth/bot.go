@@ -72,7 +72,7 @@ func createBotRole(ctx context.Context, s *Server, botName string, resourceName 
 	meta.Labels[types.BotLabel] = botName
 	role.SetMetadata(meta)
 
-	err = s.UpsertRole(ctx, role)
+	err = s.CreateRole(ctx, role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -125,15 +125,16 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 	resourceName := BotResourceName(req.Name)
 
 	// Ensure conflicting resources don't already exist.
-	_, err := s.GetRole(ctx, resourceName)
+	// We skip the cache here to allow for bot recreation shortly after bot
+	// deletion.
+	_, err := s.Services.GetRole(ctx, resourceName)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
 	if roleExists := (err == nil); roleExists {
 		return nil, trace.AlreadyExists("cannot add bot: role %q already exists", resourceName)
 	}
-
-	_, err = s.GetUser(resourceName, false)
+	_, err = s.Services.GetUser(resourceName, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -317,7 +318,7 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, certReq *certRequest, currentIdentityGeneration uint64) error {
 	// Fetch the user, bypassing the cache. We might otherwise fetch a stale
 	// value in case of a rapid certificate renewal.
-	user, err := s.Identity.GetUser(user.GetName(), false)
+	user, err := s.Services.GetUser(user.GetName(), false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -367,7 +368,7 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 		// There's a tiny chance the underlying user is mutated between calls
 		// to GetUser() but we're comparing with an older value so it'll fail
 		// safely.
-		newUser, err := s.Identity.GetUser(user.GetName(), false)
+		newUser, err := s.Services.GetUser(user.GetName(), false)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -428,7 +429,7 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 	newGeneration := currentIdentityGeneration + 1
 
 	// As above, commit some crimes to clone the User.
-	newUser, err := s.Identity.GetUser(user.GetName(), false)
+	newUser, err := s.Services.GetUser(user.GetName(), false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -488,15 +489,15 @@ func (s *Server) generateInitialBotCerts(ctx context.Context, username string, p
 	}
 
 	// Inherit the user's roles and traits verbatim.
-	accessInfo, err := services.AccessInfoFromUser(user, s)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	accessInfo := services.AccessInfoFromUser(user)
 	clusterName, err := s.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), s)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// renewable cert request must include a generation
 	var generation uint64

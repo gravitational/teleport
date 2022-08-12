@@ -30,13 +30,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/breaker"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/teleport/lib/auth"
-	libclient "github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -175,7 +171,7 @@ func (p *ProxySuite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname strin
 		tconf.Console = nil
 		tconf.Log = utils.NewLoggerForTests()
 		tconf.Hostname = tunnelNodeHostname
-		tconf.Token = "token"
+		tconf.SetToken("token")
 		tconf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
@@ -503,7 +499,7 @@ func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpncommon.Prot
 func makeNodeConfig(nodeName, authAddr string) *service.Config {
 	nodeConfig := service.MakeDefaultConfig()
 	nodeConfig.Hostname = nodeName
-	nodeConfig.Token = "token"
+	nodeConfig.SetToken("token")
 	nodeConfig.AuthServers = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
@@ -515,33 +511,4 @@ func makeNodeConfig(nodeName, authAddr string) *service.Config {
 	nodeConfig.SSH.Enabled = true
 	nodeConfig.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	return nodeConfig
-}
-
-func mustCreateUserIdentityFile(t *testing.T, tc *helpers.TeleInstance, username string, ttl time.Duration) string {
-	key, err := libclient.NewKey()
-	require.NoError(t, err)
-	key.ClusterName = tc.Secrets.SiteName
-
-	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCerts(
-		key.Pub, username, ttl,
-		constants.CertificateFormatStandard,
-		tc.Secrets.SiteName, "",
-	)
-	require.NoError(t, err)
-
-	key.Cert = sshCert
-	key.TLSCert = tlsCert
-
-	hostCAs, err := tc.Process.GetAuthServer().GetCertAuthorities(context.Background(), types.HostCA, false)
-	require.NoError(t, err)
-	key.TrustedCA = auth.AuthoritiesToTrustedCerts(hostCAs)
-
-	idPath := filepath.Join(t.TempDir(), "user_identity")
-	_, err = identityfile.Write(identityfile.WriteConfig{
-		OutputPath: idPath,
-		Key:        key,
-		Format:     identityfile.FormatFile,
-	})
-	require.NoError(t, err)
-	return idPath
 }

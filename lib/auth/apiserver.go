@@ -102,7 +102,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 
 	// Generating certificates for user and host authorities
 	srv.POST("/:version/ca/host/certs", srv.withAuth(srv.generateHostCert))
-	srv.POST("/:version/ca/user/certs", srv.withAuth(srv.generateUserCert)) // DELETE IN: 4.2.0
 
 	// Operations on users
 	srv.GET("/:version/users", srv.withAuth(srv.getUsers))
@@ -231,7 +230,7 @@ func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 			authServer: s.AuthServer,
 			context:    *authContext,
 			sessions:   s.SessionService,
-			alog:       s.AuthServer.IAuditLog,
+			alog:       s.AuthServer,
 		}
 		version := p.ByName("version")
 		if version == "" {
@@ -499,36 +498,6 @@ func (s *APIServer) getWebSession(auth ClientI, w http.ResponseWriter, r *http.R
 	return rawMessage(services.MarshalWebSession(sess, services.WithVersion(version)))
 }
 
-// DELETE IN: 4.2.0
-type generateUserCertReq struct {
-	Key           []byte        `json:"key"`
-	User          string        `json:"user"`
-	TTL           time.Duration `json:"ttl"`
-	Compatibility string        `json:"compatibility,omitempty"`
-}
-
-// DELETE IN: 4.2.0
-func (s *APIServer) generateUserCert(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
-	var req *generateUserCertReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	certificateFormat, err := utils.CheckCertificateFormatFlag(req.Compatibility)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	certs, err := auth.GenerateUserCerts(r.Context(), proto.UserCertsRequest{
-		PublicKey: req.Key,
-		Username:  req.User,
-		Expires:   s.Now().UTC().Add(req.TTL),
-		Format:    certificateFormat,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return string(certs.SSH), nil
-}
-
 type WebSessionReq struct {
 	// User is the user name associated with the session id.
 	User string `json:"user"`
@@ -574,7 +543,7 @@ func (s *APIServer) authenticateWebUser(auth ClientI, w http.ResponseWriter, r *
 		return nil, trace.Wrap(err)
 	}
 	req.Username = p.ByName("user")
-	sess, err := auth.AuthenticateWebUser(req)
+	sess, err := auth.AuthenticateWebUser(r.Context(), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -587,7 +556,7 @@ func (s *APIServer) authenticateSSHUser(auth ClientI, w http.ResponseWriter, r *
 		return nil, trace.Wrap(err)
 	}
 	req.Username = p.ByName("user")
-	return auth.AuthenticateSSHUser(req)
+	return auth.AuthenticateSSHUser(r.Context(), req)
 }
 
 // changePassword updates users password based on the old password.
@@ -912,7 +881,7 @@ func (s *APIServer) createSession(auth ClientI, w http.ResponseWriter, r *http.R
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
 	req.Session.Namespace = namespace
-	if err := auth.CreateSession(req.Session); err != nil {
+	if err := auth.CreateSession(r.Context(), req.Session); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
@@ -932,14 +901,14 @@ func (s *APIServer) updateSession(auth ClientI, w http.ResponseWriter, r *http.R
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
 	req.Update.Namespace = namespace
-	if err := auth.UpdateSession(req.Update); err != nil {
+	if err := auth.UpdateSession(r.Context(), req.Update); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
 }
 
 func (s *APIServer) deleteSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	err := auth.DeleteSession(p.ByName("namespace"), session.ID(p.ByName("id")))
+	err := auth.DeleteSession(r.Context(), p.ByName("namespace"), session.ID(p.ByName("id")))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -951,7 +920,7 @@ func (s *APIServer) getSessions(auth ClientI, w http.ResponseWriter, r *http.Req
 	if !types.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
-	sessions, err := auth.GetSessions(namespace)
+	sessions, err := auth.GetSessions(r.Context(), namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -967,7 +936,7 @@ func (s *APIServer) getSession(auth ClientI, w http.ResponseWriter, r *http.Requ
 	if !types.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
 	}
-	se, err := auth.GetSession(namespace, *sid)
+	se, err := auth.GetSession(r.Context(), namespace, *sid)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

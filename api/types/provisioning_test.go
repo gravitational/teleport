@@ -89,7 +89,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				Spec: ProvisionTokenSpecV2{
 					Roles: []SystemRole{RoleNode},
 					Allow: []*TokenRule{
-						&TokenRule{
+						{
 							AWSAccount: "1234",
 							AWSRole:    "1234/role",
 							AWSRegions: []string{"us-west-2"},
@@ -108,7 +108,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					Roles:      []SystemRole{RoleNode},
 					JoinMethod: "ec2",
 					Allow: []*TokenRule{
-						&TokenRule{
+						{
 							AWSAccount: "1234",
 							AWSRole:    "1234/role",
 							AWSRegions: []string{"us-west-2"},
@@ -127,7 +127,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				Spec: ProvisionTokenSpecV2{
 					Roles:      []SystemRole{RoleNode},
 					JoinMethod: "ec2",
-					Allow:      []*TokenRule{&TokenRule{AWSAccount: "1234"}},
+					Allow:      []*TokenRule{{AWSAccount: "1234"}},
 				},
 			},
 			expected: &ProvisionTokenV2{
@@ -140,7 +140,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				Spec: ProvisionTokenSpecV2{
 					Roles:      []SystemRole{RoleNode},
 					JoinMethod: "ec2",
-					Allow:      []*TokenRule{&TokenRule{AWSAccount: "1234"}},
+					Allow:      []*TokenRule{{AWSAccount: "1234"}},
 					AWSIIDTTL:  Duration(5 * time.Minute),
 				},
 			},
@@ -168,7 +168,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					Roles:      []SystemRole{RoleNode},
 					JoinMethod: "ec2",
 					Allow: []*TokenRule{
-						&TokenRule{
+						{
 							AWSAccount: "1234",
 							AWSARN:     "1234",
 						},
@@ -186,7 +186,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				Spec: ProvisionTokenSpecV2{
 					Roles:      []SystemRole{RoleNode},
 					JoinMethod: "ec2",
-					Allow:      []*TokenRule{&TokenRule{}},
+					Allow:      []*TokenRule{{}},
 				},
 			},
 			expectedErr: &trace.BadParameterError{},
@@ -200,7 +200,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				Spec: ProvisionTokenSpecV2{
 					Roles:      []SystemRole{RoleNode},
 					JoinMethod: "ec2",
-					Allow:      []*TokenRule{&TokenRule{AWSAccount: "1234"}},
+					Allow:      []*TokenRule{{AWSAccount: "1234"}},
 				},
 			},
 			expected: &ProvisionTokenV2{
@@ -213,7 +213,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				Spec: ProvisionTokenSpecV2{
 					Roles:      []SystemRole{RoleNode},
 					JoinMethod: "ec2",
-					Allow:      []*TokenRule{&TokenRule{AWSAccount: "1234"}},
+					Allow:      []*TokenRule{{AWSAccount: "1234"}},
 					AWSIIDTTL:  Duration(5 * time.Minute),
 				},
 			},
@@ -228,7 +228,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					Roles:      []SystemRole{RoleNode},
 					JoinMethod: "iam",
 					Allow: []*TokenRule{
-						&TokenRule{
+						{
 							AWSAccount: "1234",
 							AWSRole:    "1234/role",
 						},
@@ -247,7 +247,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					Roles:      []SystemRole{RoleNode},
 					JoinMethod: "iam",
 					Allow: []*TokenRule{
-						&TokenRule{
+						{
 							AWSAccount: "1234",
 							AWSRegions: []string{"us-west-2"},
 						},

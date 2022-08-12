@@ -100,7 +100,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = s.Identity.UpsertAppSession(ctx, session); err != nil {
+	if err = s.UpsertAppSession(ctx, session); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	log.Debugf("Generated application web session for %v with TTL %v.", req.Username, ttl)
@@ -225,9 +225,6 @@ func (s *Server) generateAppToken(ctx context.Context, username string, roles []
 }
 
 func (s *Server) createWebSession(ctx context.Context, req types.NewWebSessionRequest) (types.WebSession, error) {
-	// It's safe to extract the roles and traits directly from services.User
-	// because this occurs during the user creation process and services.User
-	// is not fetched from the backend.
 	session, err := s.NewWebSession(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -242,18 +239,18 @@ func (s *Server) createWebSession(ctx context.Context, req types.NewWebSessionRe
 }
 
 func (s *Server) createSessionCert(user types.User, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster string) ([]byte, []byte, error) {
-	// It's safe to extract the roles and traits directly from services.User
-	// because this occurs during the user creation process and services.User
-	// is not fetched from the backend.
-	accessInfo, err := services.AccessInfoFromUser(user, s.Access)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
+	// It's safe to extract the access info directly from services.User because
+	// this occurs during the initial login before the first certs have been
+	// generated, so there's no possibility of any active access requests.
+	accessInfo := services.AccessInfoFromUser(user)
 	clusterName, err := s.GetClusterName()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), s)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
 	certs, err := s.generateUserCert(certRequest{
 		user:              user,
@@ -303,7 +300,7 @@ func (s *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = s.Identity.UpsertSnowflakeSession(ctx, session); err != nil {
+	if err = s.UpsertSnowflakeSession(ctx, session); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	log.Debugf("Generated Snowflake web session for %v with TTL %v.", req.Username, ttl)

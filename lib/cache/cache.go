@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -38,8 +39,11 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/atomic"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -99,6 +103,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindLock},
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
+		{Kind: types.KindKubeServer},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -135,6 +140,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindDatabase},
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
+		{Kind: types.KindKubeServer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -165,6 +171,7 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindDatabase},
+		{Kind: types.KindKubeServer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -192,6 +199,7 @@ func ForOldRemoteProxy(cfg Config) Config {
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindKubeServer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -242,6 +250,7 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: types.KindRole},
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindKubeService},
+		{Kind: types.KindKubeServer},
 	}
 	cfg.QueueSize = defaults.KubernetesQueueSize
 	return cfg
@@ -437,7 +446,7 @@ func (c *Cache) read() (readGuard, error) {
 			apps:             c.appsCache,
 			databases:        c.databasesCache,
 			appSession:       c.appSessionCache,
-			snowflakeSession: c.SnowflakeSession,
+			snowflakeSession: c.snowflakeSessionCache,
 			webSession:       c.webSessionCache,
 			webToken:         c.webTokenCache,
 			release:          c.rw.RUnlock,
@@ -457,7 +466,7 @@ func (c *Cache) read() (readGuard, error) {
 		apps:             c.Config.Apps,
 		databases:        c.Config.Databases,
 		appSession:       c.Config.AppSession,
-		snowflakeSession: c.SnowflakeSession,
+		snowflakeSession: c.Config.SnowflakeSession,
 		webSession:       c.Config.WebSession,
 		webToken:         c.Config.WebToken,
 		windowsDesktops:  c.Config.WindowsDesktops,
@@ -581,6 +590,9 @@ type Config struct {
 	neverOK bool
 	// Tracer is used to create spans
 	Tracer oteltrace.Tracer
+	// Unstarted indicates that the cache should not be started during New. The
+	// cache is usable before it's started, but it will always hit the backend.
+	Unstarted bool
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -647,7 +659,7 @@ const (
 
 // New creates a new instance of Cache
 func New(config Config) (*Cache, error) {
-	if err := utils.RegisterPrometheusCollectors(cacheCollectors...); err != nil {
+	if err := metrics.RegisterPrometheusCollectors(cacheCollectors...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := config.CheckAndSetDefaults(); err != nil {
@@ -705,34 +717,48 @@ func New(config Config) (*Cache, error) {
 	}
 	cs.collections = collections
 
-	retry, err := utils.NewLinear(utils.LinearConfig{
-		First:  utils.HalfJitter(cs.MaxRetryPeriod / 10),
-		Step:   cs.MaxRetryPeriod / 5,
-		Max:    cs.MaxRetryPeriod,
-		Jitter: utils.NewHalfJitter(),
-		Clock:  cs.Clock,
-	})
-	if err != nil {
+	if config.Unstarted {
+		return cs, nil
+	}
+
+	if err := cs.Start(); err != nil {
 		cs.Close()
 		return nil, trace.Wrap(err)
 	}
 
-	go cs.update(ctx, retry)
+	return cs, nil
+}
+
+// Starts the cache. Should only be called once.
+func (c *Cache) Start() error {
+	retry, err := utils.NewLinear(utils.LinearConfig{
+		First:  utils.HalfJitter(c.MaxRetryPeriod / 10),
+		Step:   c.MaxRetryPeriod / 5,
+		Max:    c.MaxRetryPeriod,
+		Jitter: utils.NewHalfJitter(),
+		Clock:  c.Clock,
+	})
+	if err != nil {
+		c.Close()
+		return trace.Wrap(err)
+	}
+
+	go c.update(c.ctx, retry)
 
 	select {
-	case <-cs.initC:
-		if cs.initErr == nil {
-			cs.Infof("Cache %q first init succeeded.", cs.Config.target)
+	case <-c.initC:
+		if c.initErr == nil {
+			c.Infof("Cache %q first init succeeded.", c.Config.target)
 		} else {
-			cs.WithError(cs.initErr).Warnf("Cache %q first init failed, continuing re-init attempts in background.", cs.Config.target)
+			c.WithError(c.initErr).Warnf("Cache %q first init failed, continuing re-init attempts in background.", c.Config.target)
 		}
-	case <-ctx.Done():
-		cs.Close()
-		return nil, trace.Wrap(ctx.Err(), "context closed during cache init")
-	case <-time.After(cs.Config.CacheInitTimeout):
-		cs.Warningf("Cache init is taking too long, will continue in background.")
+	case <-c.ctx.Done():
+		c.Close()
+		return trace.Wrap(c.ctx.Err(), "context closed during cache init")
+	case <-time.After(c.Config.CacheInitTimeout):
+		c.Warningf("Cache init is taking too long, will continue in background.")
 	}
-	return cs, nil
+	return nil
 }
 
 // NewWatcher returns a new event watcher. In case of a cache
@@ -1126,15 +1152,100 @@ func (c *Cache) Close() error {
 	return nil
 }
 
-func (c *Cache) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	applyfns := make([]func(ctx context.Context) error, 0, len(c.collections))
-	for _, collection := range c.collections {
-		applyfn, err := collection.fetch(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		applyfns = append(applyfns, applyfn)
+// applyFn applies the fetched resources for a
+// particular collection
+type applyFn func(ctx context.Context) error
+
+// tracedApplyFn wraps an apply function with a span that is
+// a child of the provided parent span. Since the context provided
+// to the applyFn won't be from fetch, we need to manually link
+// the spans.
+func tracedApplyFn(parent oteltrace.Span, tracer oteltrace.Tracer, kind resourceKind, f applyFn) applyFn {
+	return func(ctx context.Context) (err error) {
+		ctx, span := tracer.Start(
+			oteltrace.ContextWithSpan(ctx, parent),
+			fmt.Sprintf("cache/apply/%s", kind.String()),
+			oteltrace.WithAttributes(
+				attribute.String("version", kind.version),
+			),
+		)
+
+		defer func() {
+			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
+			}
+			span.End()
+		}()
+
+		return f(ctx)
 	}
+}
+
+// fetchLimit determines the parallelism of the
+// fetch operations based on the target. Both the
+// auth and proxy caches are permitted to run parallel
+// fetches for resources, while all other targets are
+// throttled to limit load spiking during a mass
+// restart of nodes
+func fetchLimit(target string) int {
+	switch target {
+	case "auth", "proxy":
+		return 5
+	}
+
+	return 1
+}
+
+func (c *Cache) fetch(ctx context.Context) (fn applyFn, err error) {
+	ctx, fetchSpan := c.Tracer.Start(ctx, "cache/fetch", oteltrace.WithAttributes(attribute.String("target", c.target)))
+	defer func() {
+		if err != nil {
+			fetchSpan.RecordError(err)
+			fetchSpan.SetStatus(codes.Error, err.Error())
+		}
+		fetchSpan.End()
+	}()
+
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(fetchLimit(c.target))
+	applyfns := make([]applyFn, len(c.collections))
+	i := 0
+	for kind, collection := range c.collections {
+		kind, collection := kind, collection
+		ii := i
+		i++
+
+		g.Go(func() (err error) {
+			ctx, span := c.Tracer.Start(
+				ctx,
+				fmt.Sprintf("cache/fetch/%s", kind.String()),
+				oteltrace.WithAttributes(
+					attribute.String("target", c.target),
+				),
+			)
+			defer func() {
+				if err != nil {
+					span.RecordError(err)
+					span.SetStatus(codes.Error, err.Error())
+				}
+				span.End()
+			}()
+
+			applyfn, err := collection.fetch(ctx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			applyfns[ii] = tracedApplyFn(fetchSpan, c.Tracer, kind, applyfn)
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return func(ctx context.Context) error {
 		for _, applyfn := range applyfns {
 			if err := applyfn(ctx); err != nil {
@@ -1696,6 +1807,8 @@ func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns [
 }
 
 // GetKubeServices is a part of auth.Cache implementation
+//
+// DELETE IN 12.0.0 Deprecated, use GetKubernetesServers.
 func (c *Cache) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetKubeServices")
 	defer span.End()
@@ -1706,6 +1819,19 @@ func (c *Cache) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 	}
 	defer rg.Release()
 	return rg.presence.GetKubeServices(ctx)
+}
+
+// GetKubernetesServers is a part of auth.Cache implementation
+func (c *Cache) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesServers")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.presence.GetKubernetesServers(ctx)
 }
 
 // GetApplicationServers returns all registered application servers.
