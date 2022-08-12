@@ -57,3 +57,24 @@ with leaf clusters for use with OpenSSH. You can track support for this on the
 
 We currently do not support Application Access, Database Access or Kubernetes
 Access to resources in leaf clusters.
+
+## Should I define allowed logins as user traits or within roles?
+
+When defining the logins that your bot will be allowed to use, there are two
+options:
+
+- Directly adding the login to the `logins` section of the role that your bot
+  will impersonate.
+- Adding the login to the logins trait of the bot user, and impersonating a role
+  that includes the `{{ internal.logins }}` role variable.
+
+For simpler scenarios, where you only expect to configure your bot with a single 
+destination or role, it is permissible to add the login to the logins trait of 
+the bot user. This will allow you to leverage existing roles like `access`.
+
+For situations where your bot is producing certificates for different roles in
+different destinations it is important to consider if using login traits will 
+grant access to resources that you were not intending to grant. For this reason,
+we recommend that in this situation you create bespoke roles that directly
+include the logins that you wish to grant to the certificates output in that
+destination.
