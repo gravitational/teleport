@@ -159,9 +159,6 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 		return trace.Wrap(err)
 	}
 	defer tlsConn.Close()
-	if err := tlsConn.Handshake(); err != nil {
-		return trace.Wrap(err)
-	}
 
 	var upstreamConn net.Conn = tlsConn
 	if common.IsPingProtocol(common.Protocol(tlsConn.ConnectionState().NegotiatedProtocol)) {
