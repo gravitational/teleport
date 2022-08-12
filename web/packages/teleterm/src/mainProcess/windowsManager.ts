@@ -2,7 +2,6 @@ import path from 'path';
 
 import { BrowserWindow, Menu, Rectangle, screen } from 'electron';
 
-import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
 import { FileStorage } from 'teleterm/services/fileStorage';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 import theme from 'teleterm/ui/ThemeProvider/theme';
@@ -43,7 +42,6 @@ export class WindowsManager {
       minHeight: 300,
       autoHideMenuBar: true,
       title: 'Teleport Connect Preview',
-      icon: getAssetPath('icon.png'),
       webPreferences: {
         devTools: this.settings.dev,
         webgl: false,
