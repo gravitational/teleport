@@ -48,6 +48,9 @@ func NewInstallerV1(script string) (*InstallerV1, error) {
 	return installer, nil
 }
 
+// MustNewInstallerV1 creates a new installer resource from the provided script.
+//
+// Panics in case of any error when creating the resource.
 func MustNewInstallerV1(script string) *InstallerV1 {
 	inst, err := NewInstallerV1(script)
 	if err != nil {

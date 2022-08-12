@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/installers"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -4221,6 +4222,9 @@ func (g *GRPCServer) GetInstaller(ctx context.Context, _ *empty.Empty) (*types.I
 	}
 	res, err := auth.GetInstaller(ctx)
 	if err != nil {
+		if trace.IsNotFound(err) {
+			return installers.DefaultInstaller, nil
+		}
 		return nil, trace.Wrap(err)
 	}
 	inst, ok := res.(*types.InstallerV1)
