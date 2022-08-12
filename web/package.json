@@ -10,6 +10,7 @@
     "tdd": "jest --watch",
     "package-term": "yarn workspace @gravitational/teleterm package",
     "build-term": "yarn workspace @gravitational/teleterm build",
+    "build-native-deps-for-term": "yarn workspace @gravitational/teleterm build-native-deps",
     "build-and-package-term": "yarn build-term && yarn package-term",
     "start-term": "yarn workspace @gravitational/teleterm start",
     "start-teleport": "yarn workspace @gravitational/teleport start",
