@@ -853,26 +853,35 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	stream, err := streamproto.NewSessionStream(ws, streamproto.ServerHandshake{MFARequired: session.PresenceEnabled})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if err := func() error {
+		stream, err := streamproto.NewSessionStream(ws, streamproto.ServerHandshake{MFARequired: session.PresenceEnabled})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		client := &websocketClientStreams{stream}
+		party := newParty(*ctx, stream.Mode, client)
+		go func() {
+			<-stream.Done()
+			session.mu.Lock()
+			defer session.mu.Unlock()
+			session.leave(party.ID)
+		}()
+
+		err = session.join(party)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		<-party.closeC
+		return nil
+	}(); err != nil {
+		writeErr := ws.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseInternalServerErr, err.Error()), time.Now().Add(time.Second*10))
+		if writeErr != nil {
+			f.log.WithError(writeErr).Warn("Failed to send early-exit websocket close message.")
+		}
 	}
 
-	client := &websocketClientStreams{stream}
-	party := newParty(*ctx, stream.Mode, client)
-	go func() {
-		<-stream.Done()
-		session.mu.Lock()
-		defer session.mu.Unlock()
-		session.leave(party.ID)
-	}()
-
-	err = session.join(party)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	<-party.closeC
 	return nil, nil
 }
 
