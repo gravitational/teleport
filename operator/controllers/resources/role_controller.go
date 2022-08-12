@@ -18,7 +18,10 @@ package resources
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
@@ -32,12 +35,12 @@ import (
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const TeleportRoleKind = "TeleportRole"
+const teleportRoleKind = "TeleportRole"
 
-var TeleportRoleGVK = schema.GroupVersionKind{
+var teleportRoleGVK = schema.GroupVersionKind{
 	Group:   resourcesv5.GroupVersion.Group,
 	Version: resourcesv5.GroupVersion.Version,
-	Kind:    TeleportRoleKind,
+	Kind:    teleportRoleKind,
 }
 
 // RoleReconciler reconciles a TeleportRole object
@@ -66,7 +69,7 @@ func (r *RoleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	// To handle this more gracefully we unmarshall first in an unstructured object.
 	// The unstructured object will be converted later to a typed one, in r.UpsertExternal.
 	// See `/operator/crdgen/schemagen.go` and https://github.com/gravitational/teleport/issues/15204 for context.
-	obj := getUnstructuredObjectFromGVK(TeleportRoleGVK)
+	obj := getUnstructuredObjectFromGVK(teleportRoleGVK)
 	return ResourceBaseReconciler{
 		Client:         r.Client,
 		DeleteExternal: r.Delete,
@@ -81,7 +84,7 @@ func (r *RoleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// To handle this more gracefully we unmarshall first in an unstructured object.
 	// The unstructured object will be converted later to a typed one, in r.UpsertExternal.
 	// See `/operator/crdgen/schemagen.go` and https://github.com/gravitational/teleport/issues/15204 for context
-	obj := getUnstructuredObjectFromGVK(TeleportRoleGVK)
+	obj := getUnstructuredObjectFromGVK(teleportRoleGVK)
 	return ctrl.NewControllerManagedBy(mgr).
 		For(obj).
 		Complete(r)
@@ -111,41 +114,46 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 	newStructureCondition := getStructureConditionFromError(err)
 	meta.SetStatusCondition(&k8sResource.Status.Conditions, newStructureCondition)
 	if err != nil {
-		// We update the status conditions on exit and aggregate the eventual error with the original one.
-		return trace.NewAggregate(
-			trace.WrapWithMessage(
-				err,
-				fmt.Sprintf("failed to convert unstructured Object into resource object: %T", k8sResource)),
-			trace.Wrap(r.Status().Update(ctx, k8sResource)),
-		)
+		// We update the status conditions on exit
+		statusErr := r.Status().Update(ctx, k8sResource)
+		if statusErr != nil && !errors.Is(statusErr, &json.UnmarshalTypeError{}) {
+			log.Errorf("Failed to report error in status conditions: %s", statusErr)
+		}
+		return trace.Wrap(err)
 	}
 
 	// Converting the Kubernetes resource into a Teleport one, checking potential ownership issues.
 	teleportResource := k8sResource.ToTeleport()
 	teleportClient, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
-		return trace.NewAggregate(
-			trace.Wrap(err),
-			trace.Wrap(r.Status().Update(ctx, k8sResource)),
-		)
+		// We update the status conditions on exit
+		statusErr := r.Status().Update(ctx, k8sResource)
+		if statusErr != nil {
+			log.Errorf("Failed to report error in status conditions: %s", statusErr)
+		}
+		return trace.Wrap(err)
 	}
 
 	existingResource, err := teleportClient.GetRole(ctx, teleportResource.GetName())
 	if err != nil && !trace.IsNotFound(err) {
-		return trace.NewAggregate(
-			trace.Wrap(err),
-			trace.Wrap(r.Status().Update(ctx, k8sResource)),
-		)
+		// We update the status conditions on exit
+		statusErr := r.Status().Update(ctx, k8sResource)
+		if statusErr != nil {
+			log.Errorf("Failed to report error in status conditions: %s", statusErr)
+		}
+		return trace.Wrap(err)
 	}
 
 	// If an error happens we want to put it in status.conditions before returning.
 	newOwnershipCondition, err := checkOwnership(existingResource)
 	meta.SetStatusCondition(&k8sResource.Status.Conditions, newOwnershipCondition)
 	if err != nil {
-		return trace.NewAggregate(
-			trace.Wrap(err),
-			trace.Wrap(r.Status().Update(ctx, k8sResource)),
-		)
+		// We update the status conditions on exit
+		statusErr := r.Status().Update(ctx, k8sResource)
+		if statusErr != nil {
+			log.Errorf("Failed to report error in status conditions: %s", statusErr)
+		}
+		return trace.Wrap(err)
 	}
 
 	r.addTeleportResourceOrigin(teleportResource)
@@ -154,10 +162,18 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 	err = teleportClient.UpsertRole(ctx, teleportResource)
 	newReconciliationCondition := getReconciliationConditionFromError(err)
 	meta.SetStatusCondition(&k8sResource.Status.Conditions, newReconciliationCondition)
-	return trace.NewAggregate(
-		trace.Wrap(err),
-		trace.Wrap(r.Status().Update(ctx, k8sResource)),
-	)
+	if err != nil {
+		// We update the status conditions on exit
+		statusErr := r.Status().Update(ctx, k8sResource)
+		if statusErr != nil {
+			log.Errorf("Error while writing status conditions: %s", statusErr)
+		}
+		return trace.Wrap(err)
+	}
+
+	// We update the status conditions on exit
+	statusErr := r.Status().Update(ctx, k8sResource)
+	return trace.Wrap(statusErr)
 }
 
 func (r *RoleReconciler) addTeleportResourceOrigin(resource types.Role) {

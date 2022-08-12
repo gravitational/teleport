@@ -207,7 +207,7 @@ type testSetup struct {
 	namespace *core.Namespace
 }
 
-func setupKubernetesAndTeleport(t *testing.T, ctx context.Context) testSetup {
+func setupKubernetesAndTeleport(ctx context.Context, t *testing.T) testSetup {
 	teleportServer, operatorName := defaultTeleportServiceConfig(t)
 
 	require.NoError(t, teleportServer.Start())
@@ -219,7 +219,7 @@ func setupKubernetesAndTeleport(t *testing.T, ctx context.Context) testSetup {
 	return testSetup{tClient: tClient, k8sClient: k8sClient, namespace: ns}
 }
 
-func teleportCreateDummyRole(ctx context.Context, t *testing.T, roleName string, tClient auth.ClientI) error {
+func teleportCreateDummyRole(ctx context.Context, t *testing.T, roleName string, tClient auth.ClientI) {
 	// The role is created in Teleport
 	tRole, err := types.NewRole(roleName, types.RoleSpecV5{
 		Allow: types.RoleConditions{
@@ -233,5 +233,4 @@ func teleportCreateDummyRole(ctx context.Context, t *testing.T, roleName string,
 
 	err = tClient.UpsertRole(ctx, tRole)
 	require.NoError(t, err)
-	return err
 }
