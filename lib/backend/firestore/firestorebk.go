@@ -761,25 +761,21 @@ func (b *Backend) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
 
 type IndexList [][]*adminpb.Index_IndexField
 
-func (l *IndexList) Index(fields ...IndexField) {
+func (l *IndexList) Index(fields ...adminpb.Index_IndexField) {
 	list := []*adminpb.Index_IndexField{}
 	for _, field := range fields {
-		field(&list)
+		list = append(list, &field)
 	}
 
 	*l = append(*l, list)
 }
 
-type IndexField func(*[]*adminpb.Index_IndexField)
-
-func Field(name string, order adminpb.Index_IndexField_Order) IndexField {
-	return func(list *[]*adminpb.Index_IndexField) {
-		*list = append(*list, &adminpb.Index_IndexField{
-			FieldPath: name,
-			ValueMode: &adminpb.Index_IndexField_Order_{
-				Order: order,
-			},
-		})
+func Field(name string, order adminpb.Index_IndexField_Order) adminpb.Index_IndexField {
+	return adminpb.Index_IndexField{
+		FieldPath: name,
+		ValueMode: &adminpb.Index_IndexField_Order_{
+			Order: order,
+		},
 	}
 }
 
