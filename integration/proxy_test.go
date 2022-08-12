@@ -595,7 +595,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			err = client.Disconnect(context.Background())
 			require.NoError(t, err)
 		})
-		t.Run("connect to main cluster via proxy", func(t *testing.T) {
+		t.Run("connect to main cluster via proxy with ping protocol", func(t *testing.T) {
 			pingProxy := mustStartALPNLocalProxy(t, pack.root.cluster.SSHProxy, alpncommon.ProtocolWithPing(alpncommon.ProtocolMongoDB))
 			client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
 				AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),

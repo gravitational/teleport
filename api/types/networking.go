@@ -104,7 +104,7 @@ type ClusterNetworkingConfig interface {
 	// GetProxyPingInterval gets the proxy ping interval.
 	GetProxyPingInterval() time.Duration
 
-	// SetProxyPingInterval gets the proxy ping interval.
+	// SetProxyPingInterval sets the proxy ping interval.
 	SetProxyPingInterval(time.Duration)
 }
 

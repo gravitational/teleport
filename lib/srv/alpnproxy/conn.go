@@ -124,7 +124,7 @@ func (c *pingConn) Read(p []byte) (int, error) {
 
 	err := c.discardPingReads()
 	if err != nil {
-		return 0, err
+		return 0, trace.Wrap(err)
 	}
 
 	// Check if the current size is larger than the provided buffer.

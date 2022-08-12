@@ -453,7 +453,7 @@ func mkLocalProxy(ctx context.Context, opts localProxyOpts) (*alpnproxy.LocalPro
 
 	protocols := append([]alpncommon.Protocol{alpnProtocol}, opts.protocols...)
 	if alpncommon.HasPingSupport(alpnProtocol) {
-		protocols = append([]alpncommon.Protocol{alpncommon.ProtocolWithPing(alpnProtocol)}, protocols...)
+		protocols = append(alpncommon.ProtocolsWithPing(alpnProtocol), protocols...)
 	}
 
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
