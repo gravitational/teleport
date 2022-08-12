@@ -112,8 +112,6 @@ type pingConn struct {
 	muRead  sync.Mutex
 	muWrite sync.Mutex
 
-	// bytesRead number of bytes already read from the current packet.
-	bytesRead int
 	// currentSize size of bytes of the current packet.
 	currentSize uint32
 }
@@ -134,13 +132,7 @@ func (c *pingConn) Read(p []byte) (int, error) {
 	}
 
 	n, err := c.Conn.Read(p[:readSize])
-	c.bytesRead += n
-
-	// Check if it has read everything.
-	if uint32(c.bytesRead) >= c.currentSize {
-		c.bytesRead = 0
-		c.currentSize = 0
-	}
+	c.currentSize -= uint32(n)
 
 	return n, err
 }
@@ -156,14 +148,10 @@ func (c *pingConn) WritePing() error {
 // discardPingReads reads from the wrapped net.Conn until it encounters a
 // non-ping packet.
 func (c *pingConn) discardPingReads() error {
-	if c.bytesRead > 0 {
-		return nil
-	}
-
 	for c.currentSize == 0 {
 		err := binary.Read(c.Conn, binary.BigEndian, &c.currentSize)
 		if err != nil {
-			return err
+			return trace.Wrap(err)
 		}
 	}
 
@@ -174,7 +162,7 @@ func (c *pingConn) Write(p []byte) (int, error) {
 	c.muWrite.Lock()
 	defer c.muWrite.Unlock()
 
-	// Avoid casting into somthing bigger than acceptable.
+	// Avoid casting into something bigger than acceptable.
 	if len(p) > math.MaxUint32 {
 		return 0, trace.BadParameter("invalid content size, max size permitted is %d", math.MaxUint32)
 	}
@@ -186,7 +174,7 @@ func (c *pingConn) Write(p []byte) (int, error) {
 
 	// Write packet size.
 	if err := binary.Write(c.Conn, binary.BigEndian, size); err != nil {
-		return 0, err
+		return 0, trace.Wrap(err)
 	}
 
 	// Iterate until everything is written.
@@ -196,7 +184,7 @@ func (c *pingConn) Write(p []byte) (int, error) {
 		written += n
 
 		if err != nil {
-			return written, err
+			return written, trace.Wrap(err)
 		}
 	}
 
