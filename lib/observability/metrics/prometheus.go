@@ -14,16 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package utils
+package metrics
 
 import (
 	"runtime"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
-
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/gravitational/teleport"
 )
 
 // RegisterPrometheusCollectors is a wrapper around prometheus.Register that
