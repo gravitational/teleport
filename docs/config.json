@@ -1442,6 +1442,11 @@
     	"source": "/enterprise/workflow/role-requests/",
     	"destination": "/access-controls/access-requests/role-requests/",
     	"permanent": true
+    },
+    {
+    	"source": "/user-manual/",
+    	"destination": "/",
+    	"permanent": true
     }
   ]
 }
