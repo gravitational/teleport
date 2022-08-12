@@ -62,7 +62,7 @@ func TestCheckFileCopyingAllowed(t *testing.T) {
 					Kind: types.KindNode,
 					Spec: types.RoleSpecV5{
 						Options: types.RoleOptions{
-							SSHFileCopying: types.NewBoolOption(false),
+							SSHFileCopy: types.NewBoolOption(false),
 						},
 					},
 				},
@@ -77,7 +77,7 @@ func TestCheckFileCopyingAllowed(t *testing.T) {
 					Kind: types.KindNode,
 					Spec: types.RoleSpecV5{
 						Options: types.RoleOptions{
-							SSHFileCopying: types.NewBoolOption(true),
+							SSHFileCopy: types.NewBoolOption(true),
 						},
 					},
 				},
@@ -92,7 +92,7 @@ func TestCheckFileCopyingAllowed(t *testing.T) {
 					Kind: types.KindNode,
 					Spec: types.RoleSpecV5{
 						Options: types.RoleOptions{
-							SSHFileCopying: types.NewBoolOption(true),
+							SSHFileCopy: types.NewBoolOption(true),
 						},
 					},
 				},
@@ -100,7 +100,7 @@ func TestCheckFileCopyingAllowed(t *testing.T) {
 					Kind: types.KindNode,
 					Spec: types.RoleSpecV5{
 						Options: types.RoleOptions{
-							SSHFileCopying: types.NewBoolOption(false),
+							SSHFileCopy: types.NewBoolOption(false),
 						},
 					},
 				},

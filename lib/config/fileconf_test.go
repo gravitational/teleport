@@ -518,7 +518,7 @@ func TestSSHSection(t *testing.T) {
 		}, {
 			desc: "File copying is enabled",
 			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["ssh_file_copying"] = true
+				cfg["ssh_service"].(cfgMap)["ssh_file_copy"] = true
 			},
 			expectError:       require.NoError,
 			expectEnabled:     require.True,
@@ -526,7 +526,7 @@ func TestSSHSection(t *testing.T) {
 		}, {
 			desc: "File copying is disabled",
 			mutate: func(cfg cfgMap) {
-				cfg["ssh_service"].(cfgMap)["ssh_file_copying"] = false
+				cfg["ssh_service"].(cfgMap)["ssh_file_copy"] = false
 			},
 			expectError:       require.NoError,
 			expectEnabled:     require.True,
@@ -677,7 +677,7 @@ func TestSSHSection(t *testing.T) {
 			}
 
 			if testCase.expectFileCopying != nil {
-				testCase.expectFileCopying(t, cfg.SSH.SSHFileCopying())
+				testCase.expectFileCopying(t, cfg.SSH.SSHFileCopy())
 			}
 
 			if testCase.expectedAWSSection != nil {

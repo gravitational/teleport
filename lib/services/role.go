@@ -2139,7 +2139,7 @@ func (set RoleSet) PermitX11Forwarding() bool {
 // one or more of the roles in the set has disabled it.
 func (set RoleSet) CanCopyFiles() bool {
 	for _, role := range set {
-		if !types.BoolDefaultTrue(role.GetOptions().SSHFileCopying) {
+		if !types.BoolDefaultTrue(role.GetOptions().SSHFileCopy) {
 			return false
 		}
 	}

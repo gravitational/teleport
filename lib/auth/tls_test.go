@@ -2108,7 +2108,7 @@ func TestGenerateCerts(t *testing.T) {
 		roleOptions := userRole.GetOptions()
 		roleOptions.ForwardAgent = types.NewBool(true)
 		roleOptions.PermitX11Forwarding = types.NewBool(true)
-		roleOptions.SSHFileCopying = types.NewBoolOption(true)
+		roleOptions.SSHFileCopy = types.NewBoolOption(true)
 		userRole.SetOptions(roleOptions)
 		err = srv.Auth().UpsertRole(ctx, userRole)
 		require.NoError(t, err)

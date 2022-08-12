@@ -201,7 +201,7 @@ func TestRoleParse(t *testing.T) {
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateHostUser:          types.NewBoolOption(false),
-						SSHFileCopying:          types.NewBoolOption(true),
+						SSHFileCopy:             types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{},
@@ -240,7 +240,7 @@ func TestRoleParse(t *testing.T) {
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateHostUser:          types.NewBoolOption(false),
-						SSHFileCopying:          types.NewBoolOption(true),
+						SSHFileCopy:             types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
 						Namespaces: []string{apidefaults.Namespace},
@@ -268,7 +268,7 @@ func TestRoleParse(t *testing.T) {
 							"enhanced_recording": ["command", "network"],
 							"desktop_clipboard": true,
 							"desktop_directory_sharing": true,
-							"ssh_file_copying" : true
+							"ssh_file_copy" : false
 						},
 						"allow": {
 							"node_labels": {"a": "b", "c-d": "e"},
@@ -317,7 +317,7 @@ func TestRoleParse(t *testing.T) {
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateHostUser:          types.NewBoolOption(false),
-						SSHFileCopying:          types.NewBoolOption(true),
+						SSHFileCopy:             types.NewBoolOption(false),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{"a": []string{"b"}, "c-d": []string{"e"}},
@@ -363,7 +363,7 @@ func TestRoleParse(t *testing.T) {
 							  "enhanced_recording": ["command", "network"],
 							  "desktop_clipboard": true,
 							  "desktop_directory_sharing": true,
-							  "ssh_file_copying" : true
+							  "ssh_file_copy" : true
 							},
 							"allow": {
 							  "node_labels": {"a": "b"},
@@ -410,7 +410,7 @@ func TestRoleParse(t *testing.T) {
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateHostUser:          types.NewBoolOption(false),
-						SSHFileCopying:          types.NewBoolOption(true),
+						SSHFileCopy:             types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{"a": []string{"b"}},
@@ -454,7 +454,7 @@ func TestRoleParse(t *testing.T) {
 							  "enhanced_recording": ["command", "network"],
 							  "desktop_clipboard": true,
 							  "desktop_directory_sharing": true,
-							  "ssh_file_copying" : true
+							  "ssh_file_copy" : true
 							},
 							"allow": {
 							  "node_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
@@ -490,7 +490,7 @@ func TestRoleParse(t *testing.T) {
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateHostUser:          types.NewBoolOption(false),
-						SSHFileCopying:          types.NewBoolOption(true),
+						SSHFileCopy:             types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels: types.Labels{
