@@ -19,20 +19,21 @@ package resources
 import (
 	"context"
 	"encoding/json"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/mitchellh/mapstructure"
-	"k8s.io/apimachinery/pkg/util/yaml"
 	"reflect"
 	"sort"
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/mitchellh/mapstructure"
 	"github.com/stretchr/testify/require"
+
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/yaml"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
 )
 
