@@ -128,10 +128,11 @@ func validateSTSHost(stsHost string) error {
 // ```
 func validateSTSIdentityRequest(req *http.Request, challenge string) (err error) {
 	defer func() {
-		// Always log a warning on the Auth server if the function detects and
-		// invalid request.
+		// Always log a warning on the Auth server if the function detects an
+		// invalid sts:GetCallerIdentity request, it's either going to be caused
+		// by a node in a unknown region or an attacker.
 		if err != nil {
-			log.WithError(err).Warn("Invalid sts:GetCallerIdentity detected by client attempting to use the IAM join method.")
+			log.WithError(err).Warn("Detected an invalid sts:GetCallerIdentity used by a client attempting to use the IAM join method.")
 		}
 	}()
 
