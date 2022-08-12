@@ -111,7 +111,7 @@ Be sure to configure the `token` and `ca_pins` fields to match the output from
 `tsh apps ls`. For this example, we're using the `grafana-example` app.
 
 Machine ID also allows you to use Linux ACLs to control access to certificates
-on disk. You will use this to ensure only your application has access to the
+on disk. You will use this to ensure only your automated service has access to the
 short-lived certificates Machine ID uses.
 
 We'll work with the assumption you will be running Machine ID as the Linux user
@@ -251,7 +251,7 @@ environments.
 
 ### Client application requires certificates with standard extensions
 
-If your client application requires TLS certificates with a specific file
+If your automated service requires TLS certificates with a specific file
 extension, you may also enable the `tls` config template in `tbot.yaml`:
 
 ```yaml
