@@ -39,7 +39,7 @@ When an SFTP request is first received on an SSH connection, the Teleport daemon
 will be re-executed as the logon user of the SSH connection. This will require
 adding a hidden `sftp` sub command to the `teleport` binary. The parent process will
 create 2 anonymous pipes and pass them to the child (`teleport sftp`) so the child
-can access the SFTP connection. The `disable_file_copy` option will be added to
+can access the SFTP connection. The `ssh_file_copying` option will be added to
 the `ssh_server` yaml config to control whether scp and sftp will be enabled or not
 for per node.
 
@@ -63,11 +63,11 @@ if users express a need for it.
 
 #### Roles
 
-A role option `disable_file_copy` will be added that will define if file
+A role option `ssh_file_copying` will be added that will define if file
 copying via scp/rcp or sftp protocols will be allowed. This role option will
-be false by default.
+be true by default.
 
-If a user has multiple roles that have different values for `disable_file_copy`,
+If a user has multiple roles that have different values for `ssh_file_copying`,
 then file copying will be disabled if the role restricting file copying matches
 the server the user is trying to access. For example:
 
@@ -77,7 +77,7 @@ version: v5
 metadata:
   name: allow-copy-test
 options:
-  disable_file_copy: true
+  ssh_file_copying: true
 spec:
   allow:
     labels:
@@ -88,7 +88,7 @@ version: v5
 metadata:
   name: deny-copy-prod
 options:
-  disable_file_copy: false
+  ssh_file_copying: false
 spec:
   allow:
     labels:
@@ -110,10 +110,9 @@ access and modify files they are allowed to.
 
 ### Auditing
 
-Two new auditing events will be added: a SFTP event that will be emitted whenever
-a SFTP file operation is attempted (ie Open, Read, Write, Close), and an event
-that will be emitted whenever a user attempts to preform file operations when
-the `disable_file_copy` role option is true.
+A new auditing event will be added: a SFTP event that will be emitted whenever
+a SFTP file operation is attempted (ie Open, Read, Write, Close). This will contain
+details of the SFTP request and any errors that result from the Teleport Node handling it.    
 
 ### UX
 
