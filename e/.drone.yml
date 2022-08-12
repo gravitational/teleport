@@ -73,7 +73,6 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets release OS=$OS ARCH=$ARCH
 
@@ -180,7 +179,6 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets release OS=$OS ARCH=$ARCH
 
@@ -291,7 +289,6 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
       - make -C build.assets release-fips VERSION=$VERSION OS=$OS ARCH=$ARCH FIPS=$FIPS
@@ -399,7 +396,6 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets release-windows-unsigned OS=$OS ARCH=$ARCH
 
@@ -657,8 +653,6 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-      - docker pull quay.io/gravitational/teleport-buildbox-arm:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets release-arm
 
@@ -765,8 +759,6 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-      - docker pull quay.io/gravitational/teleport-buildbox-arm:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets release-arm64
 
@@ -800,6 +792,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 9364a703b3856b66e7935a66302a81e1658021abf119ddde564c84ff31d50a30
+hmac: c084c66c157bb355adce77ccd08015a4dcdee2408f49206bc939f82508877863
 
 ...
