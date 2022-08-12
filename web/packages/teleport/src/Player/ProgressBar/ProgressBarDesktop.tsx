@@ -20,6 +20,7 @@ export const ProgressBarDesktop = (props: {
 }) => {
   const { playerClient, durationMs } = props;
   const intervalRef = useRef<NodeJS.Timer>();
+  let playSpeed = 1.0;
 
   const toHuman = (currentMs: number) => {
     return format(dateToUtc(new Date(currentMs)), 'mm:ss');
@@ -55,12 +56,12 @@ export const ProgressBarDesktop = (props: {
       // This ensures the bar continues to progress even during playbacks where there are long
       // intervals between TDP events sent to us by the server. The interval should be active
       // whenever the playback is in "play" mode.
-      const smoothOutProgress = () => {
+      const smoothOutProgress = (speed: number) => {
         const smoothingInterval = 25;
 
         intervalRef.current = setInterval(() => {
           setState(prevState => {
-            const nextTimeMs = prevState.current + smoothingInterval;
+            const nextTimeMs = prevState.current + smoothingInterval * speed;
             if (nextTimeMs <= durationMs) {
               return updateCurrentTime(prevState, nextTimeMs);
             } else {
@@ -72,7 +73,7 @@ export const ProgressBarDesktop = (props: {
       };
 
       // The player always starts in play mode, so call this initially.
-      smoothOutProgress();
+      smoothOutProgress(playSpeed);
 
       // Clears the smoothing interval and cancels any throttled updates,
       // should be called when the playback is paused or ended.
@@ -109,11 +110,26 @@ export const ProgressBarDesktop = (props: {
             stopProgress();
           } else {
             // play
-            smoothOutProgress();
+            smoothOutProgress(playSpeed);
           }
           return { ...prevState, isPlaying: !prevState.isPlaying };
         });
       });
+
+      playerClient.addListener(
+        PlayerClientEvent.PLAY_SPEED,
+        (speed: number) => {
+          playSpeed = speed;
+
+          setState(prevState => {
+            if (prevState.isPlaying) {
+              stopProgress();
+              smoothOutProgress(playSpeed);
+            }
+            return { ...prevState, isPlaying: prevState.isPlaying };
+          });
+        }
+      );
 
       return () => {
         playerClient.nuke();
@@ -126,6 +142,9 @@ export const ProgressBarDesktop = (props: {
     <ProgressBar
       {...state}
       toggle={() => playerClient.togglePlayPause()}
+      onPlaySpeedChange={(newSpeed: number) =>
+        playerClient.setPlaySpeed(newSpeed)
+      }
       move={() => {}}
       style={props.style}
       id={props.id}
