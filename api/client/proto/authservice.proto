@@ -467,6 +467,9 @@ message PingResponse {
     string ProxyPublicAddr = 4 [ (gogoproto.jsontag) = "proxy_public_addr" ];
     // IsBoring signals whether or not the server was compiled with BoringCrypto.
     bool IsBoring = 5 [ (gogoproto.jsontag) = "is_boring" ];
+    // RemoteAddr is the client peer addr as seen from the auth server (used to assist
+    // instances in guessing their external IP when none is configured).
+    string RemoteAddr = 7 [ (gogoproto.jsontag) = "remote_addr" ];
 }
 
 // Features are auth server features.
