@@ -1,32 +1,58 @@
 ARG DEB_SOURCE
 
 # Stage to download arch-specific Teleport debs from APT
-FROM ubuntu:20.04 AS download
+FROM ubuntu:20.04 AS apt
+
+ARG PACKAGE_NAME
+ARG PACKAGE_VERSION
+# Default to 30 minutes
+ARG TIMEOUT=1800
+ARG SLEEP_TIME=15
 
 WORKDIR /tmp
 
-# Install dependencies.
-RUN apk --update --no-cache add curl
+# Add the Teleport APT repo
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y ca-certificates curl && \
+    update-ca-certificates && \
+    curl https://apt.releases.teleport.dev/gpg -o /usr/share/keyrings/teleport-archive-keyring.asc && \
+    . /etc/os-release && \
+    MAJOR_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'.' -f 1) && \
+    echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/${ID?} \
+        ${VERSION_CODENAME?} stable/${MAJOR_VERSION}" > /etc/apt/sources.list.d/teleport.list
 
-# Download the repo signing key
-RUN curl https://apt.releases.teleport.dev/gpg \
-  -o /tmp/teleport-archive-keyring.asc
+# Wait for the package to become available and download it
+RUN END_TIME=$(( $(date +%s) + ${TIMEOUT} )) && \
+    TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2) && \
+    TIMED_OUT=true && \
+    while [ $(date +%s) -lt $END_TIME ]; do \
+        # This will error on new major versions where the "stable/${MAJOR_VERSION}" component doesn't exist yet,
+        # so we ignore it here.
+        echo "Running apt update..."; \
+        DEBIAN_FRONTEND=noninteractive apt-get update > /dev/null || true; \
+        [ $(apt-cache madison ${PACKAGE_NAME} | grep $TRIMMED_VERSION | wc -l) -eq 1 ] && TIMED_OUT=false && break; \
+        echo "Package not found yet, waiting another ${SLEEP_TIME} seconds..."; \
+        sleep ${SLEEP_TIME}; \
+    done && \
+    [ $TIMED_OUT = true ] && echo "Timed out while looking for APT package \"${PACKAGE_NAME}=$TRIMMED_VERSION\"" || \
+    echo "Found APT package, downloading..." && \
+    apt download ${PACKAGE_NAME}=$TRIMMED_VERSION && \
+    mv teleport*.deb /tmp/teleport.deb
 
 # Stage to copy the local built deb
-FROM alpine AS local_copy
+FROM alpine AS local
 
 ARG DEB_PATH
 
 COPY "$DEB_PATH" "/tmp/teleport.deb"
 
 # Stage to aggregate/choose the deb source
-FROM ${DEB_SOURCE} as deb_source
+# Dockerfile syntax does not support using a variable in copy's `--from=`
+# argument, so this is a workaround.
+FROM ${DEB_SOURCE} AS deb_source
 
 # Stage to build the actual image
 FROM ubuntu:20.04 AS teleport
-
-ARG MAJOR_VERSION
-ARG PACKAGE_NAME
 
 # Copy the deb archive
 COPY --from=deb_source /tmp/teleport.deb /tmp/teleport.deb
@@ -84,5 +110,5 @@ RUN apt-get update && \
 # By setting this entry point, we expose make target as command.
 ENTRYPOINT ["/usr/bin/dumb-init", "teleport", "start", "-c", "/etc/teleport/teleport.yaml"]
 
-FROM teleport as teleport-fips
+FROM teleport AS teleport-fips
 ENTRYPOINT ["/usr/bin/dumb-init", "teleport", "start", "-c", "/etc/teleport/teleport.yaml", "--fips"]

@@ -993,7 +993,7 @@ image: TARBALL_PATH_SECTION:=-s "$(shell pwd)"
 image: clean docker-binaries build-archive oss-deb
 	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
 	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE):$(VERSION) --target teleport \
-		--build-arg DEB_SOURCE="local_copy" --build-arg DEB_PATH="./teleport_$(VERSION)_$(ARCH).deb"
+		--build-arg DEB_SOURCE="local" --build-arg DEB_PATH="./teleport_$(VERSION)_$(ARCH).deb"
 	if [ -f e/Makefile ]; then $(MAKE) -C e image; fi
 
 # Docker image build for Teleport Operator
