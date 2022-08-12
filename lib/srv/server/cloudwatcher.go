@@ -43,9 +43,9 @@ const (
 type EC2Instances struct {
 	// Region is the AWS region where the instances are located.
 	Region string
-	// Document is the SSM document that should be executed on the EC2
+	// DocumentName is the SSM document that should be executed on the EC2
 	// instances.
-	Document string
+	DocumentName string
 	// Parameters are parameters passed to the SSM document.
 	Parameters map[string]string
 	// AccountID is the AWS account the instances belong to.
@@ -178,11 +178,11 @@ func (f *ec2InstanceFetcher) GetEC2Instances(ctx context.Context) ([]EC2Instance
 		func(dio *ec2.DescribeInstancesOutput, b bool) bool {
 			for _, res := range dio.Reservations {
 				instances = append(instances, EC2Instances{
-					AccountID:  aws.StringValue(res.OwnerId),
-					Region:     f.Region,
-					Document:   f.Document,
-					Instances:  res.Instances,
-					Parameters: f.Parameters,
+					AccountID:    aws.StringValue(res.OwnerId),
+					Region:       f.Region,
+					DocumentName: f.Document,
+					Instances:    res.Instances,
+					Parameters:   f.Parameters,
 				})
 			}
 			return true

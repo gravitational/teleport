@@ -19,7 +19,6 @@ package server
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -58,15 +57,16 @@ func TestSSMInstaller(t *testing.T) {
 
 	for _, tc := range []struct {
 		conf           SSMInstallerConfig
+		req            SSMRunRequest
 		expectedEvents []events.AuditEvent
-		mutate         func(*ssm.GetCommandInvocationOutput)
 	}{
 		{
-			conf: SSMInstallerConfig{
+			req: SSMRunRequest{
 				Instances: []*ec2.Instance{
 					{InstanceId: aws.String("instance-id-1")},
 				},
-				Params: map[string]string{"token": "abcdefg"},
+				DocumentName: document,
+				Params:       map[string]string{"token": "abcdefg"},
 				SSM: &mockSSMClient{
 					commandOutput: &ssm.SendCommandOutput{
 						Command: &ssm.Command{
@@ -78,10 +78,11 @@ func TestSSMInstaller(t *testing.T) {
 						ResponseCode: aws.Int64(0),
 					},
 				},
-				Emitter:   &mockEmitter{},
-				Ctx:       context.Background(),
 				Region:    "eu-central-1",
 				AccountID: "account-id",
+			},
+			conf: SSMInstallerConfig{
+				Emitter: &mockEmitter{},
 			},
 			expectedEvents: []events.AuditEvent{
 				&events.SSMRun{
@@ -99,7 +100,8 @@ func TestSSMInstaller(t *testing.T) {
 			},
 		},
 		{
-			conf: SSMInstallerConfig{
+			req: SSMRunRequest{
+				DocumentName: document,
 				Instances: []*ec2.Instance{
 					{InstanceId: aws.String("instance-id-1")},
 				},
@@ -115,10 +117,11 @@ func TestSSMInstaller(t *testing.T) {
 						ResponseCode: aws.Int64(1),
 					},
 				},
-				Emitter:   &mockEmitter{},
-				Ctx:       context.Background(),
 				Region:    "eu-central-1",
 				AccountID: "account-id",
+			},
+			conf: SSMInstallerConfig{
+				Emitter: &mockEmitter{},
 			},
 			expectedEvents: []events.AuditEvent{
 				&events.SSMRun{
@@ -139,20 +142,11 @@ func TestSSMInstaller(t *testing.T) {
 		// an event once completed
 	} {
 		inst := NewSSMInstaller(tc.conf)
-		timer := time.NewTicker(1)
-		defer timer.Stop()
-		inst.recheckTimer = timer
-
-		err := inst.Run(document)
+		inst.recheckDuration = 1
+		err := inst.Run(context.Background(), tc.req)
 		require.NoError(t, err)
 
-		if tc.mutate != nil {
-			cl := tc.conf.SSM.(*mockSSMClient)
-			tc.mutate(cl.invokeOutput)
-		}
-
-		emitter := inst.emitter.(*mockEmitter)
-
+		emitter := inst.Emitter.(*mockEmitter)
 		require.Equal(t, tc.expectedEvents, emitter.events)
 	}
 }

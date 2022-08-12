@@ -1049,25 +1049,51 @@ func (s *Server) getServerResource() (types.Resource, error) {
 	return s.getServerInfo(), nil
 }
 
-func (s *Server) filterExistingNodes(instances server.EC2Instances) (server.EC2Instances, error) {
+func (s *Server) filterExistingNodes(instances *server.EC2Instances) (*server.EC2Instances, error) {
 	var filtered []*ec2.Instance
-	nodes, err := s.auth.GetNodes(s.ctx, s.getNamespace())
+	nodes, err := s.GetAccessPoint().GetNodes(s.ctx, s.getNamespace())
 	if err != nil {
-		return server.EC2Instances{}, err
+		return nil, trace.Wrap(err)
 	}
-	for _, node := range nodes {
-		for _, inst := range instances.Instances {
-			result := types.MatchLabels(node, map[string]string{
+outer:
+	for _, inst := range instances.Instances {
+		for _, node := range nodes {
+			if types.MatchLabels(node, map[string]string{
 				types.AWSAccountIDLabel:  instances.AccountID,
 				types.AWSInstanceIDLabel: aws.StringValue(inst.InstanceId),
-			})
-			if result {
-				filtered = append(filtered, inst)
+			}) {
+				continue outer
 			}
 		}
+		filtered = append(filtered, inst)
 	}
 	instances.Instances = filtered
 	return instances, nil
+}
+
+func (s *Server) handleInstances(instances *server.EC2Instances) error {
+	client, err := s.clients.GetAWSSSMClient(instances.Region)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	filteredInstances, err := s.filterExistingNodes(instances)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(filteredInstances.Instances) == 0 {
+		return trace.NotFound("all fetched nodes already registered")
+	}
+
+	installer := server.NewSSMInstaller(server.SSMInstallerConfig{Emitter: s})
+	req := server.SSMRunRequest{
+		DocumentName: instances.DocumentName,
+		SSM:          client,
+		Instances:    filteredInstances.Instances,
+		Params:       filteredInstances.Parameters,
+		Region:       filteredInstances.Region,
+		AccountID:    filteredInstances.AccountID,
+	}
+	return trace.Wrap(installer.Run(s.ctx, req))
 }
 
 func (s *Server) handleEC2Discovery() {
@@ -1075,28 +1101,12 @@ func (s *Server) handleEC2Discovery() {
 	for {
 		select {
 		case instances := <-s.cloudWatcher.InstancesC:
-			client, err := s.clients.GetAWSSSMClient(instances.Region)
-			if err != nil {
-				log.Error("error getting AWS SSM client: ", err)
-				return
-			}
-			filteredInstances, err := s.filterExistingNodes(instances)
-			if err != nil {
-				log.Errorf("Error filtering existing nodes: %s", err)
-			}
-			installer := server.NewSSMInstaller(
-				server.SSMInstallerConfig{
-					SSM:       client,
-					Instances: filteredInstances.Instances,
-					Params:    filteredInstances.Parameters,
-					Emitter:   s,
-					Ctx:       s.ctx,
-					Region:    filteredInstances.Region,
-					AccountID: filteredInstances.AccountID,
-				})
-			if err := installer.Run(filteredInstances.Document); err != nil {
-				log.Error("error executing install: ", err)
-				return
+			if err := s.handleInstances(&instances); err != nil {
+				if trace.IsNotFound(err) {
+					log.Debug(err)
+				} else {
+					log.Error("Error sending commands: ", err)
+				}
 			}
 		case <-s.ctx.Done():
 		}

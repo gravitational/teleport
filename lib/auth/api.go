@@ -145,6 +145,9 @@ type ReadNodeAccessPoint interface {
 
 	// GetNetworkRestrictions returns networking restrictions for restricted shell to enforce
 	GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error)
+
+	// GetNodes returns a list of registered servers for this cluster.
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 }
 
 // NodeAccessPoint is an API interface implemented by a certificate authority (CA) to be

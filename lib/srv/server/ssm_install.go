@@ -18,33 +18,35 @@ package server
 
 import (
 	"context"
-	"errors"
-	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	"github.com/gravitational/teleport/api/types/events"
-	libevent "github.com/gravitational/teleport/lib/events"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
 )
-
-type SSMInstaller struct {
-	instances    []*string
-	SSM          ssmiface.SSMAPI
-	recheckTimer *time.Ticker
-	params       map[string][]*string
-	emitter      events.Emitter
-	ctx          context.Context
-	cancelfn     context.CancelFunc
-	region       string
-	accountID    string
-}
 
 // SSMInstallerConfig represents configuration for an SSM install
 // script executor.
 type SSMInstallerConfig struct {
+	// Emitter is an events emitter.
+	Emitter apievents.Emitter
+}
+
+// SSMInstaller handles running SSM commands that install Teleport on EC2 instances.
+type SSMInstaller struct {
+	SSMInstallerConfig
+}
+
+type SSMRunRequest struct {
+	// DocumentName is the name of the SSM document to run.
+	DocumentName string
 	// SSM is an SSM API client.
 	SSM ssmiface.SSMAPI
 	// Instances is the list of instances that will have the SSM
@@ -53,9 +55,6 @@ type SSMInstallerConfig struct {
 	// Params is a list of parameters to include when executing the
 	// SSM document.
 	Params map[string]string
-	// Emitter is an events emitter.
-	Emitter events.Emitter
-	Ctx     context.Context
 	// Region is the region instances are present in, used in audit
 	// events.
 	Region string
@@ -63,103 +62,89 @@ type SSMInstallerConfig struct {
 	AccountID string
 }
 
+// NewSSMInstaller returns a new instance of the SSM installer that installs Teleport on EC2 instances.
 func NewSSMInstaller(cfg SSMInstallerConfig) *SSMInstaller {
-	var ids []*string
-
-	for _, inst := range cfg.Instances {
-		ids = append(ids, inst.InstanceId)
-	}
-	ssmParams := make(map[string][]*string)
-
-	for key, val := range cfg.Params {
-		ssmParams[key] = []*string{aws.String(val)}
-	}
-
 	return &SSMInstaller{
-		instances:    ids,
-		SSM:          cfg.SSM,
-		recheckTimer: time.NewTicker(time.Second * 30),
-		params:       ssmParams,
-		emitter:      cfg.Emitter,
-		ctx:          cfg.Ctx,
-		region:       cfg.Region,
-		accountID:    cfg.AccountID,
+		SSMInstallerConfig: cfg,
 	}
-}
-
-var ErrCommandInProgress = errors.New("command in progress")
-
-func (i *SSMInstaller) checkCommands(commandID *string) error {
-	for _, inst := range i.instances {
-		cmdOut, err := i.SSM.GetCommandInvocation(&ssm.GetCommandInvocationInput{
-			CommandId:  commandID,
-			InstanceId: inst,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		status := aws.StringValue(cmdOut.Status)
-		if status == ssm.CommandStatusInProgress {
-			return trace.Wrap(ErrCommandInProgress)
-		}
-
-		var code string
-		if status == ssm.CommandStatusFailed {
-			code = libevent.SSMRunFailCode
-		} else {
-			code = libevent.SSMRunSuccessCode
-		}
-
-		event := events.SSMRun{
-			Metadata: events.Metadata{
-				Type: libevent.SSMRunEvent,
-				Code: code,
-			},
-			CommandID:  aws.StringValue(commandID),
-			InstanceID: aws.StringValue(inst),
-			AccountID:  i.accountID,
-			Region:     i.region,
-			ExitCode:   aws.Int64Value(cmdOut.ResponseCode),
-			Status:     status,
-		}
-
-		if err := i.emitter.EmitAuditEvent(i.ctx, &event); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
 }
 
 // Run executes the SSM document and then blocks until the command has completed.
-func (i *SSMInstaller) Run(document string) error {
-	output, err := i.SSM.SendCommand(&ssm.SendCommandInput{
-		DocumentName: aws.String(document),
-		InstanceIds:  i.instances,
-		Parameters:   i.params,
+func (i *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
+	ids := make([]*string, len(req.Instances))
+	for idx, inst := range req.Instances {
+		ids[idx] = inst.InstanceId
+	}
+	params := make(map[string][]*string)
+	for k, v := range req.Params {
+		params[k] = []*string{aws.String(v)}
+	}
+
+	output, err := req.SSM.SendCommand(&ssm.SendCommandInput{
+		DocumentName: aws.String(req.DocumentName),
+		InstanceIds:  ids,
+		Parameters:   params,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	commandID := output.Command.CommandId
-	for {
-		select {
-		case <-i.recheckTimer.C:
-		case <-i.ctx.Done():
-			return nil
-		}
-		err := i.checkCommands(commandID)
-		if err != nil {
-			if errors.Is(err, ErrCommandInProgress) {
-				continue
-			}
-			return err
-		}
-		return nil
+	var g errgroup.Group
+	for _, inst := range ids {
+		g.Go(func() error {
+			return trace.Wrap(i.checkCommand(ctx, req, output.Command.CommandId, inst))
+		})
 	}
+	return trace.Wrap(g.Wait())
 }
 
-// Stop cancels the command execution completion check loop.
-func (i *SSMInstaller) Stop() {
-	i.cancelfn()
+func checkAWSWaitErr(err error) error {
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok &&
+			aerr.Code() == request.WaiterResourceNotReadyErrorCode {
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (i *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, commandID, instanceID *string) error {
+	err := req.SSM.WaitUntilCommandExecutedWithContext(ctx, &ssm.GetCommandInvocationInput{
+		CommandId:  commandID,
+		InstanceId: instanceID,
+	})
+	if err := checkAWSWaitErr(err); err != nil {
+		return trace.Wrap(err)
+	}
+
+	cmdOut, err := req.SSM.GetCommandInvocation(&ssm.GetCommandInvocationInput{
+		CommandId:  commandID,
+		InstanceId: instanceID,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	status := aws.StringValue(cmdOut.Status)
+	var code string
+	if status == ssm.CommandStatusFailed {
+		code = libevents.SSMRunFailCode
+	} else {
+		code = libevents.SSMRunSuccessCode
+	}
+
+	event := events.SSMRun{
+		Metadata: events.Metadata{
+			Type: libevents.SSMRunEvent,
+			Code: code,
+		},
+		CommandID:  aws.StringValue(commandID),
+		InstanceID: aws.StringValue(instanceID),
+		AccountID:  req.AccountID,
+		Region:     req.Region,
+		ExitCode:   aws.Int64Value(cmdOut.ResponseCode),
+		Status:     aws.StringValue(cmdOut.Status),
+	}
+
+	return trace.Wrap(i.Emitter.EmitAuditEvent(ctx, &event))
 }
