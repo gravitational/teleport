@@ -339,14 +339,17 @@ func TestAuthenticateSSHUser(t *testing.T) {
 
 	// Register a kubernetes cluster to verify the defaulting logic in TLS cert
 	// generation.
-	_, err = s.a.UpsertKubeServiceV2(ctx, &types.ServerV2{
-		Metadata: types.Metadata{Name: "kube-service"},
-		Kind:     types.KindKubeService,
-		Version:  types.V2,
-		Spec: types.ServerSpecV2{
-			KubernetesClusters: []*types.KubernetesCluster{{Name: "root-kube-cluster"}},
+	kubeCluster, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name: "root-kube-cluster",
 		},
-	})
+		types.KubernetesClusterSpecV3{},
+	)
+	require.NoError(t, err)
+
+	kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, "host", "uuid")
+	require.NoError(t, err)
+	_, err = s.a.UpsertKubernetesServer(ctx, kubeServer)
 	require.NoError(t, err)
 
 	// Login specifying a valid kube cluster. It should appear in the TLS cert.

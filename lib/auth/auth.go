@@ -72,6 +72,7 @@ import (
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -96,7 +97,7 @@ type ServerOption func(*Server) error
 
 // NewServer creates and configures a new Server instance
 func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
-	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -562,11 +563,11 @@ func (a *Server) updateVersionMetrics() {
 		serverCheck(app)
 	}
 
-	kubeServices, err := a.GetKubeServices(a.closeCtx)
+	kubeServers, err := a.GetKubernetesServers(a.closeCtx)
 	if err != nil {
-		log.Debugf("Failed to get Kube services for teleport_registered_servers metric: %v", err)
+		log.Debugf("Failed to get Kube servers for teleport_registered_servers metric: %v", err)
 	}
-	for _, kubeService := range kubeServices {
+	for _, kubeService := range kubeServers {
 		serverCheck(kubeService)
 	}
 
@@ -2277,8 +2278,8 @@ func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryCont
 
 // MakeLocalInventoryControlStream sets up an in-memory control stream which automatically registers with this auth
 // server upon hello exchange.
-func (a *Server) MakeLocalInventoryControlStream() client.DownstreamInventoryControlStream {
-	upstream, downstream := client.InventoryControlStreamPipe()
+func (a *Server) MakeLocalInventoryControlStream(opts ...client.ICSPipeOption) client.DownstreamInventoryControlStream {
+	upstream, downstream := client.InventoryControlStreamPipe(opts...)
 	go func() {
 		select {
 		case msg := <-upstream.Recv():
@@ -3126,30 +3127,23 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
 		}
 		// Find the target cluster and check whether MFA is required.
-		svcs, err := a.GetKubeServices(ctx)
+		svcs, err := a.GetKubernetesServers(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		var cluster *types.KubernetesCluster
-		var server types.Server
-	outer:
+		var cluster types.KubeCluster
 		for _, svc := range svcs {
-			for _, c := range svc.GetKubernetesClusters() {
-				if c.Name == t.KubernetesCluster {
-					server = svc
-					cluster = c
-					break outer
-				}
+			kubeCluster := svc.GetCluster()
+			if kubeCluster.GetName() == t.KubernetesCluster {
+				cluster = kubeCluster
+				break
 			}
 		}
-		if cluster == nil || server == nil {
+		if cluster == nil {
 			return nil, trace.Wrap(notFoundErr)
 		}
-		k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(server.GetNamespace(), cluster)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		noMFAAccessErr = checker.CheckAccess(k8sV3, services.AccessMFAParams{})
+
+		noMFAAccessErr = checker.CheckAccess(cluster, services.AccessMFAParams{})
 
 	case *proto.IsMFARequiredRequest_Database:
 		notFoundErr = trace.NotFound("database service %q not found", t.Database.ServiceName)
