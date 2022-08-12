@@ -1,4 +1,35 @@
-FROM ubuntu:20.04
+ARG DEB_SOURCE
+
+# Stage to download arch-specific Teleport debs from APT
+FROM ubuntu:20.04 AS download
+
+WORKDIR /tmp
+
+# Install dependencies.
+RUN apk --update --no-cache add curl
+
+# Download the repo signing key
+RUN curl https://apt.releases.teleport.dev/gpg \
+  -o /tmp/teleport-archive-keyring.asc
+
+# Stage to copy the local built deb
+FROM alpine AS local_copy
+
+ARG DEB_PATH
+
+COPY "$DEB_PATH" "/tmp/teleport.deb"
+
+# Stage to aggregate/choose the deb source
+FROM ${DEB_SOURCE} as deb_source
+
+# Stage to build the actual image
+FROM ubuntu:20.04 AS teleport
+
+ARG MAJOR_VERSION
+ARG PACKAGE_NAME
+
+# Copy the deb archive
+COPY --from=deb_source /tmp/teleport.deb /tmp/teleport.deb
 
 # Install dumb-init and ca-certificates. The dumb-init package is to ensure
 # signals and orphaned processes are are handled correctly. The ca-certificate
@@ -35,22 +66,23 @@ FROM ubuntu:20.04
 #   * vi
 #   * wget
 
-# Note that /var/lib/apt/lists/* is cleaned up in the same RUN command as
-# "apt-get update" to reduce the size of the image.
+    # Update the base image
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get upgrade -y && \
+    # Install dependencies
     DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y ca-certificates dumb-init libelf1 && \
+    update-ca-certificates && \
+    # Install tools
     DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y net-tools iputils-ping inetutils-telnet netcat tcpdump busybox && \
     busybox --install -s && \
-    update-ca-certificates && \
+    # Install Teleport
+    dpkg -i /tmp/teleport.deb && \
+    # Cleanup
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Bundle "teleport", "tctl", "tbot", and "tsh" binaries into image.
-COPY teleport /usr/local/bin/teleport
-COPY tctl /usr/local/bin/tctl
-COPY tsh /usr/local/bin/tsh
-COPY tbot /usr/local/bin/tbot
-
 # By setting this entry point, we expose make target as command.
 ENTRYPOINT ["/usr/bin/dumb-init", "teleport", "start", "-c", "/etc/teleport/teleport.yaml"]
+
+FROM teleport as teleport-fips
+ENTRYPOINT ["/usr/bin/dumb-init", "teleport", "start", "-c", "/etc/teleport/teleport.yaml", "--fips"]
