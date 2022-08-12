@@ -239,12 +239,45 @@ The final configuration should look similar to this:
 <Tabs>
 <TabItem scopes={["cloud"]} label="Connect to the Proxy Service">
 ```yaml
-(!examples/resources/plugins/teleport-mattermost-cloud.toml!)
+# example mattermost configuration TOML file
+[teleport]
+auth_server = "myinstance.teleport.sh:443"                   # Teleport Cloud proxy HTTPS address
+identity = "/var/lib/teleport/plugins/mattermost/auth.pem"   # Identity file path
+
+[mattermost]
+url = "https://mattermost.example.com" # Mattermost Server URL
+token = "api-token"                    # Mattermost Bot OAuth token
+recipients = [
+  "myteam/general",
+  "first.last@example.com"
+]
+
+[log]
+output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/mattermost.log"
+severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
+
 ```
 </TabItem>
 <TabItem scopes={["oss", "enterprise"]} label="Connect to the Auth Service">
 ```yaml
-(!examples/resources/plugins/teleport-mattermost-self.toml!)
+# example mattermost configuration TOML file
+[teleport]
+auth_server = "example.com:3025"                             # Teleport Auth Server GRPC API address
+client_key = "/var/lib/teleport/plugins/mattermost/auth.key" # Teleport GRPC client secret key
+client_crt = "/var/lib/teleport/plugins/mattermost/auth.crt" # Teleport GRPC client certificate
+root_cas = "/var/lib/teleport/plugins/mattermost/auth.cas"   # Teleport cluster CA certs
+
+[mattermost]
+url = "https://mattermost.example.com" # Mattermost Server URL
+token = "api-token"                    # Mattermost Bot OAuth token
+recipients = [
+  "myteam/general",
+  "first.last@example.com"
+]
+
+[log]
+output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/mattermost.log"
+severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
 ```
 </TabItem>
 </Tabs>
