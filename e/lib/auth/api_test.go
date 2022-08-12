@@ -47,7 +47,6 @@ func (s *APISuite) SetUpSuite(c *check.C) {
 			PluginRegistry: registry,
 			AuthServer:     authServer.AuthServer,
 			Authorizer:     authServer.Authorizer,
-			SessionService: authServer.SessionServer,
 			AuditLog:       authServer.AuditLog,
 		},
 		AuthServer:    authServer,
