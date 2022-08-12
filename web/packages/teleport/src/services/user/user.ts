@@ -16,6 +16,7 @@ limitations under the License.
 
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
+import session from 'teleport/services/websession';
 
 import makeUserContext from './makeUserContext';
 import makeResetToken from './makeResetToken';
@@ -65,6 +66,10 @@ const service = {
 
   deleteUser(name: string) {
     return api.delete(cfg.getUserWithUsernameUrl(name));
+  },
+
+  applyUserTraits() {
+    return session.renewSession({ updateUserTraits: true });
   },
 };
 

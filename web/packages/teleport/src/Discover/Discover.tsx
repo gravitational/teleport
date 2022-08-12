@@ -33,6 +33,7 @@ import { SelectResource } from './SelectResource';
 import { DownloadScript } from './DownloadScript';
 import { LoginTrait } from './LoginTrait';
 import { TestConnection } from './TestConnection';
+import { Finished } from './Finished';
 
 import type { AgentKind } from './useDiscover';
 import type { AgentStepComponent } from './types';
@@ -42,7 +43,7 @@ export const agentViews: Record<AgentKind, AgentStepComponent[]> = {
   db: [],
   desktop: [],
   kube: [],
-  node: [SelectResource, DownloadScript, LoginTrait, TestConnection],
+  node: [SelectResource, DownloadScript, LoginTrait, TestConnection, Finished],
 };
 
 export default function Container() {
@@ -152,6 +153,7 @@ function SideNavAgentConnect({ currentStep }) {
     'Configure Resource',
     'Configure Role',
     'Test Connection',
+    '',
   ];
 
   return (
@@ -178,7 +180,7 @@ function SideNavAgentConnect({ currentStep }) {
           <Text bold>Resource Connection</Text>
         </Flex>
         <Box ml={4} mt={4}>
-          {agentStepTitles.map((step, index) => {
+          {agentStepTitles.map((stepTitle, index) => {
             let className = '';
             if (currentStep > index) {
               className = 'checked';
@@ -186,10 +188,16 @@ function SideNavAgentConnect({ currentStep }) {
               className = 'active';
             }
 
+            // All flows will have a finished step that
+            // does not have a title.
+            if (!stepTitle) {
+              return null;
+            }
+
             return (
-              <StepsContainer className={className} key={step}>
+              <StepsContainer className={className} key={stepTitle}>
                 <Bullet />
-                {step}
+                {stepTitle}
               </StepsContainer>
             );
           })}

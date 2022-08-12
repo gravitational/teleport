@@ -61,6 +61,7 @@ export function useTestConnection({ ctx, props }: Props) {
     logins: sortLogins((props.agentMeta as NodeMeta).node.sshLogins),
     runConnectionDiagnostic,
     diagnosis,
+    nextStep: props.nextStep,
   };
 }
 

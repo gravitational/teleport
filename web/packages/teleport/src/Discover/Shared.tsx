@@ -37,9 +37,11 @@ export const Header: React.FC = ({ children }) => (
 export const ActionButtons = ({
   onProceed,
   disableProceed,
+  lastStep,
 }: {
   onProceed?(): void;
   disableProceed?: boolean;
+  lastStep?: boolean;
 }) => {
   const [confirmExit, setConfirmExit] = React.useState(false);
   return (
@@ -51,7 +53,7 @@ export const ActionButtons = ({
           mr={3}
           disabled={disableProceed}
         >
-          Proceed
+          {lastStep ? 'Finish' : 'Proceed'}
         </ButtonPrimary>
       )}
       <ButtonSecondary

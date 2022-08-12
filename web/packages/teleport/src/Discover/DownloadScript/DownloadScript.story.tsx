@@ -57,4 +57,5 @@ const props: State = {
     expiry: new Date(),
   },
   regenerateScriptAndRepoll: () => null,
+  countdownTime: { minutes: 5, seconds: 0 },
 };

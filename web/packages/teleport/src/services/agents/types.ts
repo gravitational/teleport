@@ -81,8 +81,9 @@ export type ConnectionDiagnostic = {
 export type ConnectionDiagnosticTrace = {
   id: string;
   traceType: string;
-  status: string;
+  status: 'success' | 'failed';
   details: string;
+  error?: string;
 };
 
 // ConnectionDiagnosticRequest contains

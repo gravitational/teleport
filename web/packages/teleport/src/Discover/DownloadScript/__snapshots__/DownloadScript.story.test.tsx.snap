@@ -137,6 +137,7 @@ exports[`polling error state 1`] = `
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
+  margin-left: 8px;
 }
 
 .c11:active {
@@ -372,13 +373,13 @@ exports[`polling error state 1`] = `
         class="c10 icon icon-warning "
         color="danger"
       />
-      Timed out, failed to discover resource.
+      Timeout, script expired
        
       <button
         class="c11 c12"
         kind="text"
       >
-        Generate a new script and try again.
+        Regenerate Script
       </button>
     </div>
   </div>
@@ -600,18 +601,6 @@ exports[`polling state 1`] = `
   display: flex;
 }
 
-.c9 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  display: flex;
-  align-items: center;
-}
-
-.c9 .icon {
-  margin-right: 8px;
-}
-
 .c3 {
   box-sizing: border-box;
   padding: 16px;
@@ -619,6 +608,19 @@ exports[`polling state 1`] = `
   max-width: 800px;
   background-color: rgba(255,255,255,0.05);
   border: 2px solid #2F3659;
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  display: flex;
+  align-items: center;
+  white-space: pre;
+}
+
+.c9 .icon {
+  margin-right: 8px;
 }
 
 <div
@@ -674,7 +676,7 @@ exports[`polling state 1`] = `
         color="light"
         font-size="4"
       />
-      Waiting for resource discovery...
+      Waiting for node   |   05:00 minutes until this script expires
     </div>
   </div>
   <div
@@ -968,7 +970,7 @@ exports[`polling success state 1`] = `
         class="c10 icon icon-checkmark-circle "
         color="success"
       />
-      Successfully discovered resource
+      Successfully executed
     </div>
   </div>
   <div

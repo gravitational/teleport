@@ -13,32 +13,4 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import type { ConnectionDiagnostic, ConnectionDiagnosticTrace } from './types';
-
-export function makeConnectionDiagnostic(json: any): ConnectionDiagnostic {
-  json = json || {};
-  const { id, labels, success, message, traces } = json;
-
-  return {
-    id,
-    labels: labels ? labels : [],
-    success,
-    message,
-    traces: makeTraces(traces),
-  };
-}
-
-function makeTraces(traces: any): ConnectionDiagnosticTrace[] {
-  if (!traces) {
-    return [];
-  }
-
-  return traces.map(t => ({
-    id: t.id,
-    traceType: t.trace_type,
-    status: t.status,
-    details: t.details,
-    error: t.error,
-  }));
-}
+export { Finished } from './Finished';

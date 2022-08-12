@@ -14,31 +14,12 @@
  * limitations under the License.
  */
 
-import type { ConnectionDiagnostic, ConnectionDiagnosticTrace } from './types';
+import React from 'react';
 
-export function makeConnectionDiagnostic(json: any): ConnectionDiagnostic {
-  json = json || {};
-  const { id, labels, success, message, traces } = json;
+import { Finished } from './Finished';
 
-  return {
-    id,
-    labels: labels ? labels : [],
-    success,
-    message,
-    traces: makeTraces(traces),
-  };
-}
+export default {
+  title: 'Teleport/Discover/Finished',
+};
 
-function makeTraces(traces: any): ConnectionDiagnosticTrace[] {
-  if (!traces) {
-    return [];
-  }
-
-  return traces.map(t => ({
-    id: t.id,
-    traceType: t.trace_type,
-    status: t.status,
-    details: t.details,
-    error: t.error,
-  }));
-}
+export const Loaded = () => <Finished />;

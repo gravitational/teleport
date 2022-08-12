@@ -48,7 +48,7 @@ export function useLoginTrait({ ctx, props }: Props) {
     );
   }, []);
 
-  function nextStep(logins: string[]) {
+  async function nextStep(logins: string[]) {
     // Currently, fetching user for user traits does not
     // include the statically defined OS usernames, so
     // we combine it manually in memory with the logins
@@ -63,13 +63,17 @@ export function useLoginTrait({ ctx, props }: Props) {
 
     // Update the dynamic logins for the user in backend.
     setAttempt({ status: 'processing' });
-    ctx.userService
-      .updateUser({
+    try {
+      await ctx.userService.updateUser({
         ...user,
         traits: { ...user.traits, logins },
-      })
-      .then(props.nextStep)
-      .catch(handleError);
+      });
+
+      await ctx.userService.applyUserTraits();
+      props.nextStep();
+    } catch (err) {
+      handleError(err);
+    }
   }
 
   function addLogin(newLogin: string) {

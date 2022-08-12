@@ -16,7 +16,7 @@
 
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { ButtonPrimary, Text, Box, LabelInput, Flex } from 'design';
+import { ButtonOutlined, Text, Box, LabelInput, Flex } from 'design';
 import * as Icons from 'design/Icon';
 import Select from 'shared/components/Select';
 
@@ -41,6 +41,7 @@ export function TestConnection({
   logins,
   runConnectionDiagnostic,
   diagnosis,
+  nextStep,
 }: State) {
   const [usernameOpts] = useState(() =>
     logins.map(l => ({ value: l, label: l }))
@@ -87,7 +88,7 @@ export function TestConnection({
         <Text bold mb={3}>
           Step 1
         </Text>
-        <Box width="250px">
+        <Box width="320px">
           <LabelInput>Select OS Username</LabelInput>
           <Select
             value={selectedOpt}
@@ -102,13 +103,12 @@ export function TestConnection({
           Step 2
         </Text>
         <Flex alignItems="center">
-          <ButtonPrimary
-            width="200px"
+          <StyledButtonOutline
             onClick={() => runConnectionDiagnostic(selectedOpt.value)}
             disabled={attempt.status === 'processing'}
           >
             {diagnosis ? 'Restart Test' : 'Test Connection'}
-          </ButtonPrimary>
+          </StyledButtonOutline>
           <Box ml={4}>{$diagnosisStateComponent}</Box>
         </Flex>
         {showDiagnosisOutput && (
@@ -123,7 +123,29 @@ export function TestConnection({
             <Text bold>Output</Text>
             {attempt.status === 'failed' &&
               `Failed to Start Testing: ${attempt.statusText}`}
-            {attempt.status === 'success' && <Box>{diagnosis.message}</Box>}
+            {attempt.status === 'success' && (
+              <Box>
+                {diagnosis.traces.map(t => {
+                  if (t.status === 'failed') {
+                    return (
+                      <>
+                        <TextIcon>
+                          <Icons.Warning mr={1} color="danger" />
+                          {t.details}
+                        </TextIcon>
+                        <Box mt={2}>{t.error}</Box>
+                      </>
+                    );
+                  }
+                  return (
+                    <TextIcon>
+                      <Icons.CircleCheck mr={1} color="success" />
+                      {t.details}
+                    </TextIcon>
+                  );
+                })}
+              </Box>
+            )}
           </Box>
         )}
       </StyledBox>
@@ -131,15 +153,18 @@ export function TestConnection({
         <Text bold mb={3}>
           Step 3
         </Text>
-        <ButtonPrimary
-          width="200px"
+        <StyledButtonOutline
           onClick={() => startSshSession(selectedOpt.value)}
           disabled={attempt.status !== 'success' || !diagnosis?.success}
         >
           Start SSH Session
-        </ButtonPrimary>
+        </StyledButtonOutline>
       </StyledBox>
-      <ActionButtons />
+      <ActionButtons
+        onProceed={nextStep}
+        lastStep={true}
+        disableProceed={attempt.status !== 'success' || !diagnosis?.success}
+      />
     </Box>
   );
 }
@@ -149,4 +174,16 @@ const StyledBox = styled(Box)`
   background-color: rgba(255, 255, 255, 0.05);
   border-radius: 8px;
   padding: 20px;
+`;
+
+const StyledButtonOutline = styled(ButtonOutlined)`
+  width: 200px;
+  opacity: 1;
+  color: #a8afb2;
+  border-color: #a8afb2;
+
+  &:disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
 `;

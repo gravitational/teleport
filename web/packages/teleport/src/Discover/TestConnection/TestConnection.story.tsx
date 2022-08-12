@@ -17,7 +17,9 @@
 import React from 'react';
 
 import { TestConnection } from './TestConnection';
-import { State } from './useTestConnection';
+
+import type { ConnectionDiagnosticTrace } from 'teleport/services/agents';
+import type { State } from './useTestConnection';
 
 export default {
   title: 'Teleport/Discover/TestConnection',
@@ -33,9 +35,23 @@ export const LoadedWithDiagnosisSuccess = () => (
   <TestConnection {...props} diagnosis={mockDiagnosis} />
 );
 
-export const LoadedWithDiagnosisFailure = () => (
-  <TestConnection {...props} diagnosis={{ ...mockDiagnosis, success: false }} />
-);
+export const LoadedWithDiagnosisFailure = () => {
+  const diagnosisWithErr = {
+    ...mockDiagnosis,
+    success: false,
+    traces: [
+      ...mockDiagnosis.traces,
+      {
+        id: '',
+        traceType: 'some trace type',
+        status: 'failed',
+        details: 'Some failed detail.',
+        error: 'ssh: handshake failed: EOF',
+      } as ConnectionDiagnosticTrace,
+    ],
+  };
+  return <TestConnection {...props} diagnosis={diagnosisWithErr} />;
+};
 
 export const Failed = () => (
   <TestConnection
@@ -49,7 +65,44 @@ const mockDiagnosis = {
   labels: [],
   success: true,
   message: 'some diagnosis message',
-  traces: [],
+  traces: [
+    {
+      id: '',
+      traceType: 'rbac node',
+      status: 'success',
+      details: 'Resource exists.',
+    },
+    {
+      id: '',
+      traceType: 'network connectivity',
+      status: 'success',
+      details: 'Host is alive and reachable.',
+    },
+    {
+      id: '',
+      traceType: 'rbac principal',
+      status: 'success',
+      details: 'Successfully authenticated.',
+    },
+    {
+      id: '',
+      traceType: 'node ssh server',
+      status: 'success',
+      details: 'Established an SSH connection.',
+    },
+    {
+      id: '',
+      traceType: 'node ssh session',
+      status: 'success',
+      details: 'Created an SSH session.',
+    },
+    {
+      id: '',
+      traceType: 'node principal',
+      status: 'success',
+      details: 'User exists message.',
+    },
+  ] as ConnectionDiagnosticTrace[],
 };
 
 const props: State = {
@@ -60,5 +113,6 @@ const props: State = {
   logins: ['root', 'llama', 'george_washington_really_long_name_testing'],
   startSshSession: () => null,
   runConnectionDiagnostic: () => null,
+  nextStep: () => null,
   diagnosis: null,
 };
