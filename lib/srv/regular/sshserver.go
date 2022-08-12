@@ -2066,6 +2066,8 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ch ssh.Channel, ctx *sr
 		return parseProxySitesSubsys(r.Name, s)
 	case r.Name == sftpSubsystem:
 		if err := ctx.CheckFileCopyingAllowed(); err != nil {
+			// Add an extra newline here to separate this error message
+			// from a potential OpenSSH error message
 			writeStderr(ch, err.Error()+"\n")
 			return nil, trace.Wrap(err)
 		}

@@ -69,9 +69,9 @@ var (
 			Help: "Number of bytes received.",
 		},
 	)
-
-	errNodeFileCopyingNotPermitted = trace.AccessDenied("node does not allow file copying via SCP or SFTP")
 )
+
+var ErrNodeFileCopyingNotPermitted = trace.AccessDenied("node does not allow file copying via SCP or SFTP")
 
 func init() {
 	prometheus.MustRegister(serverTX)
@@ -345,7 +345,7 @@ type ServerContext struct {
 
 	// allowFileCopying controls if remote file operations via SCP/SFTP are allowed
 	// by the server.
-	allowFileCopying bool
+	AllowFileCopying bool
 
 	// x11rdy{r,w} is used to signal from the child process to the
 	// parent process when X11 forwarding is set up.
@@ -636,15 +636,15 @@ func (c *ServerContext) getSession() *session {
 }
 
 func (c *ServerContext) SetAllowFileCopying(allow bool) {
-	c.allowFileCopying = allow
+	c.AllowFileCopying = allow
 }
 
 // CheckFileCopyingAllowed returns an error if remote file operations via
 // SCP or SFTP are not allowed by the user's role or the node's config.
 func (c *ServerContext) CheckFileCopyingAllowed() error {
 	// Check if remote file operations are disabled for this node.
-	if !c.allowFileCopying {
-		return errNodeFileCopyingNotPermitted
+	if !c.AllowFileCopying {
+		return ErrNodeFileCopyingNotPermitted
 	}
 	// Check if the user's RBAC role allows remote file operations.
 	if !c.Identity.AccessChecker.CanCopyFiles() {

@@ -3552,6 +3552,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		regular.SetEmitter(streamEmitter),
 		regular.SetLockWatcher(lockWatcher),
 		regular.SetNodeWatcher(nodeWatcher),
+		// Allow Node-wide file copying checks to succeed so they can be
+		// accurately checked later when an SCP/SFTP request hits the
+		// destination Node.
+		regular.SetAllowFileCopying(true),
 	)
 	if err != nil {
 		return trace.Wrap(err)

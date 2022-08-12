@@ -42,7 +42,7 @@ func TestCheckFileCopyingAllowed(t *testing.T) {
 					Kind: types.KindNode,
 				},
 			},
-			expectedErr: errNodeFileCopyingNotPermitted,
+			expectedErr: ErrNodeFileCopyingNotPermitted,
 		},
 		{
 			name:                 "node allowed",
@@ -111,7 +111,7 @@ func TestCheckFileCopyingAllowed(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx.allowFileCopying = tt.nodeAllowFileCopying
+			ctx.AllowFileCopying = tt.nodeAllowFileCopying
 
 			roles := services.NewRoleSet(tt.roles...)
 
