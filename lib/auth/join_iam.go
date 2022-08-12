@@ -51,7 +51,7 @@ const (
 	// update our AWS SDK dependency. Since Auth should always be upgraded
 	// before nodes, we will have a chance to update the check on Auth if we
 	// ever have a need to allow a newer API version.
-	expectedStsIdentityRequestBody = "Action=GetCallerIdentity&Version=2011-06-15"
+	expectedSTSIdentityRequestBody = "Action=GetCallerIdentity&Version=2011-06-15"
 
 	// Used to check if we were unable to resolve the regional STS endpoint.
 	globalSTSEndpoint = "https://sts.amazonaws.com"
@@ -150,7 +150,7 @@ func validateSTSHost(stsHost string) error {
 	return trace.AccessDenied("unrecognized STS host %q", stsHost)
 }
 
-// validateStsIdentityRequest checks that a received sts:GetCallerIdentity
+// validateSTSIdentityRequest checks that a received sts:GetCallerIdentity
 // request is valid and includes the challenge as a signed header. An example
 // valid request looks like:
 // ```
@@ -167,7 +167,7 @@ func validateSTSHost(stsHost string) error {
 //
 // Action=GetCallerIdentity&Version=2011-06-15
 // ```
-func validateStsIdentityRequest(req *http.Request, challenge string) error {
+func validateSTSIdentityRequest(req *http.Request, challenge string) error {
 	if err := validateSTSHost(req.Host); err != nil {
 		return trace.Wrap(err)
 	}
@@ -195,8 +195,8 @@ func validateStsIdentityRequest(req *http.Request, challenge string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if !bytes.Equal([]byte(expectedStsIdentityRequestBody), body) {
-		return trace.BadParameter("sts request body %q does not equal expected %q", string(body), expectedStsIdentityRequestBody)
+	if !bytes.Equal([]byte(expectedSTSIdentityRequestBody), body) {
+		return trace.BadParameter("sts request body %q does not equal expected %q", string(body), expectedSTSIdentityRequestBody)
 	}
 
 	return nil
@@ -252,9 +252,9 @@ func stsClientFromContext(ctx context.Context) stsClient {
 	return http.DefaultClient
 }
 
-// executeStsIdentityRequest sends the sts:GetCallerIdentity HTTP request to the
+// executeSTSIdentityRequest sends the sts:GetCallerIdentity HTTP request to the
 // AWS API, parses the response, and returns the awsIdentity
-func executeStsIdentityRequest(ctx context.Context, req *http.Request) (*awsIdentity, error) {
+func executeSTSIdentityRequest(ctx context.Context, req *http.Request) (*awsIdentity, error) {
 	client := stsClientFromContext(ctx)
 
 	// set the http request context so it can be canceled
@@ -351,13 +351,13 @@ func (a *Server) checkIAMRequest(ctx context.Context, challenge string, req *pro
 
 	// validate that the host, method, and headers are correct and the expected
 	// challenge is included in the signed portion of the request
-	if err := validateStsIdentityRequest(identityRequest, challenge); err != nil {
+	if err := validateSTSIdentityRequest(identityRequest, challenge); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// send the signed request to the public AWS API and get the node identity
 	// from the response
-	identity, err := executeStsIdentityRequest(ctx, identityRequest)
+	identity, err := executeSTSIdentityRequest(ctx, identityRequest)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -424,9 +424,9 @@ func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse c
 	return certs, trace.Wrap(err)
 }
 
-// createSignedStsIdentityRequest is called on the client side and returns an
+// createSignedSTSIdentityRequest is called on the client side and returns an
 // sts:GetCallerIdentity request signed with the local AWS credentials
-func createSignedStsIdentityRequest(ctx context.Context, endpointOption stsEndpointOption, challenge string) ([]byte, error) {
+func createSignedSTSIdentityRequest(ctx context.Context, endpointOption stsEndpointOption, challenge string) ([]byte, error) {
 	stsClient, err := endpointOption(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

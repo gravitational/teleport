@@ -485,7 +485,7 @@ func registerUsingIAMMethod(joinServiceClient joinServiceClient, token string, p
 		// Call RegisterUsingIAMMethod and pass a callback to respond to the challenge with a signed join request.
 		certs, err := joinServiceClient.RegisterUsingIAMMethod(ctx, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
 			// create the signed sts:GetCallerIdentity request and include the challenge
-			signedRequest, err := createSignedStsIdentityRequest(ctx, s.opt, challenge)
+			signedRequest, err := createSignedSTSIdentityRequest(ctx, s.opt, challenge)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
