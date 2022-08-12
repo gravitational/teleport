@@ -2340,3 +2340,100 @@ func TestApplyConfigSessionRecording(t *testing.T) {
 		})
 	}
 }
+
+func TestJoinParams(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		desc             string
+		input            string
+		expectToken      string
+		expectJoinMethod types.JoinMethod
+		expectError      bool
+	}{
+		{
+			desc: "empty",
+		},
+		{
+			desc: "auth_token",
+			input: `
+teleport:
+  auth_token: xxxyyy
+`,
+			expectToken:      "xxxyyy",
+			expectJoinMethod: types.JoinMethodToken,
+		},
+		{
+			desc: "join_params token",
+			input: `
+teleport:
+  join_params:
+    token_name: xxxyyy
+    method: token
+`,
+			expectToken:      "xxxyyy",
+			expectJoinMethod: types.JoinMethodToken,
+		},
+		{
+			desc: "join_params ec2",
+			input: `
+teleport:
+  join_params:
+    token_name: xxxyyy
+    method: ec2
+`,
+			expectToken:      "xxxyyy",
+			expectJoinMethod: types.JoinMethodEC2,
+		},
+		{
+			desc: "join_params iam",
+			input: `
+teleport:
+  join_params:
+    token_name: xxxyyy
+    method: iam
+`,
+			expectToken:      "xxxyyy",
+			expectJoinMethod: types.JoinMethodIAM,
+		},
+		{
+			desc: "join_params invalid",
+			input: `
+teleport:
+  join_params:
+    token_name: xxxyyy
+    method: invalid
+`,
+			expectError: true,
+		},
+		{
+			desc: "both set",
+			input: `
+teleport:
+  auth_token: xxxyyy
+  join_params:
+    token_name: xxxyyy
+    method: iam
+`,
+			expectError: true,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			conf, err := ReadConfig(strings.NewReader(tc.input))
+			require.NoError(t, err)
+
+			cfg := service.MakeDefaultConfig()
+			err = ApplyFileConfig(conf, cfg)
+
+			if tc.expectError {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			token, err := cfg.Token()
+			require.NoError(t, err)
+			require.Equal(t, tc.expectToken, token)
+			require.Equal(t, tc.expectJoinMethod, cfg.JoinMethod)
+		})
+	}
+}
