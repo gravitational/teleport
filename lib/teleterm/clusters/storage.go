@@ -59,10 +59,10 @@ func (s *Storage) ReadAll() ([]*Cluster, error) {
 // GetByURI returns a cluster by URI
 func (s *Storage) GetByURI(clusterURI string) (*Cluster, error) {
 	URI := uri.New(clusterURI)
-	rootClusterName := URI.GetRootClusterName()
+	profileName := URI.GetProfileName()
 	leafClusterName := URI.GetLeafClusterName()
 
-	cluster, err := s.fromProfile(rootClusterName, leafClusterName)
+	cluster, err := s.fromProfile(profileName, leafClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
