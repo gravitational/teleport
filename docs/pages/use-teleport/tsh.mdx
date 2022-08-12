@@ -823,7 +823,7 @@ aliases:
 
 `tsh example 0 1 unused-2 3 unused-4` will expand to `bash -c 'echo first=0 0-1 3 unused-2 unused-4'`.
 
-An additional variable that can be used in alias definition is `$TSH`. It will be expanded to absolute path to current `tsh` executable. This can be useful if there are multiple `tsh` versions installed, or the currently used version is not in `PATH`.
+You can also add the `$TSH` variable to an alias definition. When invoking the alias, `tsh` will expand this to the absolute path to current `tsh` executable. This can be useful if there are multiple `tsh` versions installed, or the currently used version is not in `PATH`.
 
 ```yaml
 aliases:
