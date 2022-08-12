@@ -27,9 +27,9 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -82,7 +82,13 @@ func createBotRole(ctx context.Context, s *Server, botName string, resourceName 
 
 // createBotUser creates a new backing User for bot use. A role with a
 // matching name must already exist (see createBotRole).
-func createBotUser(ctx context.Context, s *Server, botName string, resourceName string) (types.User, error) {
+func createBotUser(
+	ctx context.Context,
+	s *Server,
+	botName string,
+	resourceName string,
+	traits wrappers.Traits,
+) (types.User, error) {
 	user, err := types.NewUser(resourceName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -96,13 +102,7 @@ func createBotUser(ctx context.Context, s *Server, botName string, resourceName 
 		types.BotGenerationLabel: "0",
 	}
 	user.SetMetadata(metadata)
-
-	// Traits need to be set to silence "failed to find roles or traits" warning
-	user.SetTraits(map[string][]string{
-		constants.TraitLogins:     {},
-		constants.TraitKubeUsers:  {},
-		constants.TraitKubeGroups: {},
-	})
+	user.SetTraits(traits)
 
 	if err := s.CreateUser(ctx, user); err != nil {
 		return nil, trace.Wrap(err)
@@ -165,7 +165,7 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 		return nil, trace.Wrap(err)
 	}
 
-	if _, err := createBotUser(ctx, s, req.Name, resourceName); err != nil {
+	if _, err := createBotUser(ctx, s, req.Name, resourceName, req.Traits); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -296,7 +296,7 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 	}
 
 	tokenSpec := types.ProvisionTokenSpecV2{
-		Roles:      []types.SystemRole{types.RoleBot},
+		Roles:      types.SystemRoles{types.RoleBot},
 		JoinMethod: types.JoinMethodToken,
 		BotName:    botName,
 	}

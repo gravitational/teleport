@@ -664,7 +664,10 @@ func TestApplyConfig(t *testing.T) {
 	err = ApplyFileConfig(conf, cfg)
 	require.NoError(t, err)
 
-	require.Equal(t, "join-token", cfg.Token)
+	token, err := cfg.Token()
+	require.NoError(t, err)
+
+	require.Equal(t, "join-token", token)
 	require.Equal(t, types.ProvisionTokensFromV1([]types.ProvisionTokenV1{
 		{
 			Token:   "xxx",
