@@ -204,7 +204,7 @@ func (ns *NodeSession) regularSession(ctx context.Context, callback func(s *ssh.
 type interactiveCallback func(serverSession *ssh.Session, shell io.ReadWriteCloser) error
 
 func (ns *NodeSession) createServerSession(ctx context.Context) (*ssh.Session, error) {
-	sess, err := ns.nodeClient.Client.NewSession()
+	sess, err := ns.nodeClient.Client.NewSession(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -241,7 +241,7 @@ func (ns *NodeSession) createServerSession(ctx context.Context) (*ssh.Session, e
 
 	if targetAgent != nil {
 		log.Debugf("Forwarding Selected Key Agent")
-		err = agent.ForwardToAgent(ns.nodeClient.Client, targetAgent)
+		err = agent.ForwardToAgent(ns.nodeClient.Client.Client, targetAgent)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -484,7 +484,7 @@ func (ns *NodeSession) runShell(ctx context.Context, callback ShellCreatedCallba
 		}
 		// call the client-supplied callback
 		if callback != nil {
-			exit, err := callback(s, ns.NodeClient().Client, shell)
+			exit, err := callback(s, ns.nodeClient.Client, shell)
 			if exit {
 				return trace.Wrap(err)
 			}

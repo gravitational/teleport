@@ -41,12 +41,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/acme"
-	"golang.org/x/crypto/acme/autocert"
-	"golang.org/x/crypto/ssh"
-	"google.golang.org/grpc"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -76,6 +70,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/plugin"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -95,9 +90,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/attribute"
+	"golang.org/x/crypto/acme"
+	"golang.org/x/crypto/acme/autocert"
+	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 )
 
 const (
@@ -177,6 +178,10 @@ const (
 	// WindowsDesktopReady is generated when the Teleport windows desktop
 	// service is ready to start accepting connections.
 	WindowsDesktopReady = "WindowsDesktopReady"
+
+	// TracingReady is generated when the Teleport tracing service is ready to
+	// start exporting spans.
+	TracingReady = "TracingReady"
 
 	// TeleportExitEvent is generated when the Teleport process begins closing
 	// all listening sockets and exiting.
@@ -327,6 +332,10 @@ type TeleportProcess struct {
 
 	// clusterFeatures contain flags for supported and unsupported features.
 	clusterFeatures proto.Features
+
+	// TracingProvider is the provider to be used for exporting traces. In the event
+	// that tracing is disabled this will be a no-op provider that drops all spans.
+	TracingProvider *tracing.Provider
 }
 
 type keyPairKey struct {
@@ -733,6 +742,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		id:                  processID,
 		keyPairs:            make(map[keyPairKey]KeyPair),
 		appDependCh:         make(chan Event, 1024),
+		TracingProvider:     tracing.NoopProvider(),
 	}
 
 	process.registerAppDepend()
@@ -749,6 +759,12 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		}
 	} else {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentDiagnostic), process.log)
+	}
+
+	if cfg.Tracing.Enabled {
+		if err := process.initTracingService(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Create a process wide key generator that will be shared. This is so the
@@ -791,6 +807,9 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	}
 	if cfg.WindowsDesktop.Enabled {
 		eventMapping.In = append(eventMapping.In, WindowsDesktopReady)
+	}
+	if cfg.Tracing.Enabled {
+		eventMapping.In = append(eventMapping.In, TracingReady)
 	}
 	process.RegisterEventMapping(eventMapping)
 
@@ -1371,6 +1390,23 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	go mux.Serve()
 	authMetrics := &auth.Metrics{GRPCServerLatency: cfg.Metrics.GRPCServerLatency}
+
+	traceClt := tracing.NewNoopClient()
+	if cfg.Tracing.Enabled {
+		traceConf, err := process.Config.Tracing.Config()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		traceConf.Logger = process.log.WithField(trace.Component, teleport.ComponentTracing)
+
+		clt, err := tracing.NewStartedClient(process.ExitContext(), *traceConf)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		traceClt = clt
+	}
+
 	tlsServer, err := auth.NewTLSServer(auth.TLSServerConfig{
 		TLS:           tlsConfig,
 		APIConfig:     *apiConf,
@@ -1380,6 +1416,7 @@ func (process *TeleportProcess) initAuthService() error {
 		ID:            process.id,
 		Listener:      mux.TLS(),
 		Metrics:       authMetrics,
+		TraceClient:   traceClt,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -2343,6 +2380,44 @@ func (process *TeleportProcess) initDiagnosticService() error {
 		log.Infof("Exited.")
 	})
 
+	return nil
+}
+
+func (process *TeleportProcess) initTracingService() error {
+	log := process.log.WithField(trace.Component, teleport.Component(teleport.ComponentTracing, process.id))
+	log.Info("Initializing tracing provider and exporter.")
+
+	attrs := []attribute.KeyValue{
+		attribute.String(tracing.ProcessIDKey, process.id),
+		attribute.String(tracing.HostnameKey, process.Config.Hostname),
+		attribute.String(tracing.HostIDKey, process.Config.HostUUID),
+	}
+
+	traceConf, err := process.Config.Tracing.Config(attrs...)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	traceConf.Logger = log
+
+	provider, err := tracing.NewTraceProvider(process.ExitContext(), *traceConf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	process.TracingProvider = provider
+
+	process.OnExit("tracing.shutdown", func(payload interface{}) {
+		if payload == nil {
+			log.Info("Shutting down immediately.")
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			warnOnErr(provider.Shutdown(ctx), log)
+		} else {
+			log.Infof("Shutting down gracefully.")
+			ctx := payloadContext(payload, log)
+			warnOnErr(provider.Shutdown(ctx), log)
+		}
+		process.log.Info("Exited.")
+	})
 	return nil
 }
 
@@ -3957,7 +4032,7 @@ func (process *TeleportProcess) initDebugApp() {
 // singleProcessModeResolver returns the reversetunnel.Resolver that should be used when running all components needed
 // within the same process. It's used for development and demo purposes.
 func (process *TeleportProcess) singleProcessModeResolver(mode types.ProxyListenerMode) reversetunnel.Resolver {
-	return func() (*utils.NetAddr, error) {
+	return func(context.Context) (*utils.NetAddr, error) {
 		addr, ok := process.singleProcessMode(mode)
 		if !ok {
 			return nil, trace.BadParameter(`failed to find reverse tunnel address, if running in single process mode, make sure "auth_service", "proxy_service", and "app_service" are all enabled`)

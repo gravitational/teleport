@@ -19,10 +19,12 @@ package config
 import (
 	"bytes"
 	"math"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -305,6 +307,74 @@ func TestAuthenticationSection(t *testing.T) {
 			tt.expectError(t, err)
 
 			require.Empty(t, cmp.Diff(cfg.Auth.Authentication, tt.expected))
+		})
+	}
+}
+
+func TestAuthenticationConfig_HandleSecondFactorOffOnWithoutQoutes(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		desc               string
+		input              string
+		expectError        require.ErrorAssertionFunc
+		expectSecondFactor require.ValueAssertionFunc
+	}{
+		{desc: "handle off with quotes", input: `
+auth_service:
+  enabled: yes
+  authentication:
+    type: local
+    second_factor: "off"
+teleport:
+  nodename: testing
+ssh_service:
+  enabled: yes`,
+			expectError:        require.NoError,
+			expectSecondFactor: requireEqual(constants.SecondFactorOff)},
+		{desc: "handle off without quotes", input: `
+auth_service:
+  enabled: yes
+  authentication:
+    type: local
+    second_factor: off
+teleport:
+  nodename: testing
+ssh_service:
+  enabled: yes`,
+			expectError:        require.NoError,
+			expectSecondFactor: requireEqual(constants.SecondFactorOff)},
+		{desc: "handle on without quotes", input: `
+auth_service:
+  enabled: yes
+  authentication:
+    type: local
+    second_factor: on
+teleport:
+  nodename: testing
+ssh_service:
+  enabled: yes`,
+			expectError:        require.NoError,
+			expectSecondFactor: requireEqual(constants.SecondFactorOn)},
+		{desc: "unsupported numeric type as second_factor", input: `
+auth_service:
+  enabled: yes
+  authentication:
+    type: local
+    second_factor: 4.4
+teleport:
+  nodename: testing
+ssh_service:
+  enabled: yes`,
+			expectError: require.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			cfg, err := ReadConfig(strings.NewReader(tt.input))
+			tt.expectError(t, err)
+			if tt.expectSecondFactor != nil {
+				tt.expectSecondFactor(t, cfg.Auth.Authentication.SecondFactor)
+			}
 		})
 	}
 }

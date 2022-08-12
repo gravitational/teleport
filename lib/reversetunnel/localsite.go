@@ -342,7 +342,7 @@ with the cluster.`, params.ConnType, dreq.Address, tunnelErr)
 
 	// If no tunnel connection was found, dial to the target host.
 	dialer := proxy.DialerFromEnvironment(params.To.String())
-	conn, directErr := dialer.DialTimeout(params.To.Network(), params.To.String(), apidefaults.DefaultDialTimeout)
+	conn, directErr := dialer.DialTimeout(s.srv.Context, params.To.Network(), params.To.String(), apidefaults.DefaultDialTimeout)
 	if directErr != nil {
 		s.log.WithError(directErr).WithField("address", params.To.String()).Debug("Error occurred while dialing directly.")
 		aggregateErr := trace.NewAggregate(tunnelErr, directErr)
