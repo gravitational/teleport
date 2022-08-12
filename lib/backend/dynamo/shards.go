@@ -55,27 +55,27 @@ type Shards struct {
 	OnRecords        func([]*dynamodbstreams.Record) error
 }
 
-func (s *Shards) AsyncPollStreams(ctx context.Context) error {
+func (b *Shards) AsyncPollStreams(ctx context.Context) error {
 	retry, err := utils.NewLinear(utils.LinearConfig{
-		Step: s.RetryPeriod / 10,
-		Max:  s.RetryPeriod,
+		Step: b.RetryPeriod / 10,
+		Max:  b.RetryPeriod,
 	})
 	if err != nil {
-		s.Log.Errorf("Bad retry parameters: %v", err)
+		b.Log.Errorf("Bad retry parameters: %v", err)
 		return trace.Wrap(err)
 	}
 
 	for {
-		err := s.pollStreams(ctx)
+		err := b.pollStreams(ctx)
 		if err != nil {
-			s.Log.Errorf("Poll streams returned with error: %v.", err)
+			b.Log.Errorf("Poll streams returned with error: %v.", err)
 		}
-		s.Log.Debugf("Reloading %v.", retry)
+		b.Log.Debugf("Reloading %v.", retry)
 		select {
 		case <-retry.After():
 			retry.Inc()
 		case <-ctx.Done():
-			s.Log.Debugf("Closed, returning from asyncPollStreams loop.")
+			b.Log.Debugf("Closed, returning from asyncPollStreams loop.")
 			return nil
 		}
 	}
