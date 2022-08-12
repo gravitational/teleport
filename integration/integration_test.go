@@ -6621,35 +6621,29 @@ func testJoinOverReverseTunnelOnly(t *testing.T, suite *integrationTestSuite) {
 	defer lib.SetInsecureDevMode(false)
 
 	// Create a Teleport instance with Auth/Proxy.
-	mainConfig := func() *service.Config {
-		tconf := suite.defaultServiceConfig()
-		tconf.Auth.Enabled = true
+	mainConfig := suite.defaultServiceConfig()
+	mainConfig.Auth.Enabled = true
 
-		tconf.Proxy.Enabled = true
-		tconf.Proxy.DisableWebService = false
-		tconf.Proxy.DisableWebInterface = true
+	mainConfig.Proxy.Enabled = true
+	mainConfig.Proxy.DisableWebService = false
+	mainConfig.Proxy.DisableWebInterface = true
 
-		tconf.SSH.Enabled = false
+	mainConfig.SSH.Enabled = false
 
-		return tconf
-	}
-	main := suite.NewTeleportWithConfig(t, nil, nil, mainConfig())
+	main := suite.NewTeleportWithConfig(t, nil, nil, mainConfig)
 	t.Cleanup(func() { require.NoError(t, main.StopAll()) })
 
 	// Create a Teleport instance with a Node.
-	nodeConfig := func() *service.Config {
-		tconf := suite.defaultServiceConfig()
-		tconf.Hostname = Host
-		tconf.Token = "token"
+	nodeConfig := suite.defaultServiceConfig()
+	nodeConfig.Hostname = Host
+	nodeConfig.SetToken("token")
 
-		tconf.Auth.Enabled = false
-		tconf.Proxy.Enabled = false
-		tconf.SSH.Enabled = true
+	nodeConfig.Auth.Enabled = false
+	nodeConfig.Proxy.Enabled = false
+	nodeConfig.SSH.Enabled = true
 
-		return tconf
-	}
-	_, err := main.StartNodeWithTargetPort(nodeConfig(), helpers.PortStr(t, main.ReverseTunnel))
-	require.NoError(t, err)
+	_, err := main.StartNodeWithTargetPort(nodeConfig, helpers.PortStr(t, main.ReverseTunnel))
+	require.NoError(t, err, "Node failed to join over reverse tunnel")
 }
 
 func testSFTP(t *testing.T, suite *integrationTestSuite) {

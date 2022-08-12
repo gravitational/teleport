@@ -3190,7 +3190,7 @@ func (process *TeleportProcess) initMinimalReverseTunnelListener(cfg *Config, li
 	listeners.reverseTunnel = listeners.reverseTunnelMux.SSH()
 	go func() {
 		if err := listeners.reverseTunnelMux.Serve(); err != nil {
-			process.Config.Log.WithError(err).Debug("Minimal reverse tunnel mux exited with error")
+			process.log.WithError(err).Debug("Minimal reverse tunnel mux exited with error")
 		}
 	}()
 	return nil
@@ -3947,7 +3947,9 @@ func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListene
 		ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentReverseTunnelServer),
 	}
 	process.RegisterCriticalFunc("proxy.reversetunnel.web", func() error {
-		utils.Consolef(cfg.Console, log, teleport.ComponentProxy, "Minimal web proxy service %s:%s is starting on %v.",
+		utils.Consolef(
+			cfg.Console, log, teleport.ComponentProxy,
+			"Minimal web proxy service %s:%s is starting on %v.",
 			teleport.Version, teleport.Gitref, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 		log.Infof("Minimal web proxy service %s:%s is starting on %v.", teleport.Version, teleport.Gitref, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 		defer minimalWebHandler.Close()

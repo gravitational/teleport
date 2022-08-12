@@ -349,27 +349,12 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 				h.log.WithError(err).Warn("Failed to generate CSRF token.")
 			}
 
-			session := struct {
-				Session string
-				XCSRF   string
-			}{
-				XCSRF: csrfToken,
-			}
-
-			ctx, err := h.AuthenticateRequest(w, r, false)
-			if err == nil {
-				resp, err := newSessionResponse(ctx)
-				if err == nil {
-					out, err := json.Marshal(resp)
-					if err == nil {
-						session.Session = base64.StdEncoding.EncodeToString(out)
-					}
-				} else {
-					h.log.WithError(err).Debug("Could not authenticate.")
-				}
-			} else {
+			session, err := h.authenticateWebSession(w, r)
+			if err != nil {
 				h.log.WithError(err).Debug("Could not authenticate.")
 			}
+			session.XCSRF = csrfToken
+
 			httplib.SetIndexHTMLHeaders(w.Header())
 			if err := indexPage.Execute(w, session); err != nil {
 				h.log.WithError(err).Error("Failed to execute index page template.")
@@ -412,6 +397,29 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	return &APIHandler{
 		handler:    h,
 		appHandler: appHandler,
+	}, nil
+}
+
+type webSession struct {
+	Session string
+	XCSRF   string
+}
+
+func (h *Handler) authenticateWebSession(w http.ResponseWriter, r *http.Request) (webSession, error) {
+	ctx, err := h.AuthenticateRequest(w, r, false)
+	if err != nil {
+		return webSession{}, trace.Wrap(err)
+	}
+	resp, err := newSessionResponse(ctx)
+	if err != nil {
+		return webSession{}, trace.Wrap(err)
+	}
+	out, err := json.Marshal(resp)
+	if err != nil {
+		return webSession{}, trace.Wrap(err)
+	}
+	return webSession{
+		Session: base64.StdEncoding.EncodeToString(out),
 	}, nil
 }
 

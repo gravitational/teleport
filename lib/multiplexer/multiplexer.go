@@ -366,21 +366,22 @@ var (
 	postgresCancelRequest = []byte{0x0, 0x0, 0x0, 0x10, 0x4, 0xd2, 0x16, 0x2e}
 )
 
+var httpMethods = [...][]byte{
+	[]byte("GET"),
+	[]byte("POST"),
+	[]byte("PUT"),
+	[]byte("DELETE"),
+	[]byte("HEAD"),
+	[]byte("CONNECT"),
+	[]byte("OPTIONS"),
+	[]byte("TRACE"),
+	[]byte("PATCH"),
+}
+
 // isHTTP returns true if the first few bytes of the prefix indicate
 // the use of an HTTP method.
 func isHTTP(in []byte) bool {
-	methods := [...][]byte{
-		[]byte("GET"),
-		[]byte("POST"),
-		[]byte("PUT"),
-		[]byte("DELETE"),
-		[]byte("HEAD"),
-		[]byte("CONNECT"),
-		[]byte("OPTIONS"),
-		[]byte("TRACE"),
-		[]byte("PATCH"),
-	}
-	for _, verb := range methods {
+	for _, verb := range httpMethods {
 		if bytes.HasPrefix(in, verb) {
 			return true
 		}
