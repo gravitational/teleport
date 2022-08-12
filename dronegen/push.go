@@ -17,8 +17,15 @@ package main
 import "fmt"
 
 // pushCheckoutCommands builds a list of commands for Drone to check out a git commit on a push build
-func pushCheckoutCommands(fips bool) []string {
-	commands := []string{
+func pushCheckoutCommands(b buildType) []string {
+	var commands []string
+
+	if b.hasTeleportConnect() {
+		// TODO(zmb3): remove /go/src/github.com/gravitational/webapps after webapps->teleport migration
+		commands = append(commands, `mkdir -p /go/src/github.com/gravitational/webapps`)
+	}
+
+	commands = append(commands,
 		`mkdir -p /go/src/github.com/gravitational/teleport /go/cache`,
 		`cd /go/src/github.com/gravitational/teleport`,
 		`git init && git remote add origin ${DRONE_REMOTE_URL}`,
@@ -33,8 +40,9 @@ func pushCheckoutCommands(fips bool) []string {
 		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
 		`git submodule update --init --recursive webassets || true`,
 		`rm -f /root/.ssh/id_rsa`,
-	}
-	if fips {
+	)
+
+	if b.fips {
 		commands = append(commands, `if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt`)
 	}
 	return commands
@@ -55,6 +63,10 @@ func pushBuildCommands(b buildType) []string {
 	commands = append(commands,
 		fmt.Sprintf(`make -C build.assets %s`, releaseMakefileTarget(b)),
 	)
+
+	if b.hasTeleportConnect() {
+		commands = append(commands, `make -C build.assets teleterm`)
+	}
 	return commands
 }
 
@@ -121,7 +133,7 @@ func pushPipeline(b buildType) pipeline {
 			Environment: map[string]value{
 				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
-			Commands: pushCheckoutCommands(b.fips),
+			Commands: pushCheckoutCommands(b),
 		},
 		waitForDockerStep(),
 		{

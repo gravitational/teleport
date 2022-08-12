@@ -105,9 +105,10 @@ type buildType struct {
 }
 
 // Description provides a human-facing description of the artifact, e.g.:
-//   Windows 64-bit (tsh client only)
-//   Linux ARMv7 (32-bit)
-//   MacOS Intel .pkg installer
+//
+//	Windows 64-bit (tsh client only)
+//	Linux ARMv7 (32-bit)
+//	MacOS Intel .pkg installer
 func (b *buildType) Description(packageType string, extraQualifications ...string) string {
 	var result string
 
@@ -180,7 +181,8 @@ func (b *buildType) Description(packageType string, extraQualifications ...strin
 }
 
 func (b *buildType) hasTeleportConnect() bool {
-	return b.os == "darwin" && b.arch == "amd64"
+	return (b.os == "darwin" && b.arch == "amd64") ||
+		(b.os == "linux" && b.arch == "amd64" && !b.centos7 && !b.fips)
 }
 
 // dockerService generates a docker:dind service
