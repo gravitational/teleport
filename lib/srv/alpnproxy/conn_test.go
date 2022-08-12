@@ -22,6 +22,7 @@ import (
 	"io"
 	"math"
 	"net"
+	"os"
 	"testing"
 	"time"
 
@@ -228,6 +229,10 @@ func TestPingConnection(t *testing.T) {
 	})
 
 	t.Run("LargeContent", func(t *testing.T) {
+		if os.Getenv("TELEPORT_TEST_PING_CONN_LARGE") == "" {
+			t.Skip()
+		}
+
 		t.Run("SingleRead", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			defer cancel()
