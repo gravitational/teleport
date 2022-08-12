@@ -48,7 +48,7 @@ var (
 	triggerPromote = trigger{
 		Event:  triggerRef{Include: []string{"promote"}},
 		Target: triggerRef{Include: []string{"production"}},
-		Repo:   triggerRef{Include: []string{"gravitational/*"}},
+		Repo:   triggerRef{Include: []string{"gravitational/teleport"}},
 	}
 
 	volumeDocker = volume{
@@ -122,9 +122,10 @@ type buildType struct {
 }
 
 // Description provides a human-facing description of the artifact, e.g.:
-//   Windows 64-bit (tsh client only)
-//   Linux ARMv7 (32-bit)
-//   MacOS Intel .pkg installer
+//
+//	Windows 64-bit (tsh client only)
+//	Linux ARMv7 (32-bit)
+//	MacOS Intel .pkg installer
 func (b *buildType) Description(packageType string, extraQualifications ...string) string {
 	var result string
 

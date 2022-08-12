@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func cronBuildContainerImagePipelines() []pipeline {
+func buildContainerImagePipelines() []pipeline {
 	// This needs to be updated on each major release.
 	teleportVersions := []teleportVersion{
 		{MajorVersion: "v10", RelativeVersionName: "current-version"},
@@ -14,9 +14,32 @@ func cronBuildContainerImagePipelines() []pipeline {
 		{MajorVersion: "v8", RelativeVersionName: "previous-version-two"},
 	}
 
+	promoteTrigger := triggerPromote
+	promoteTrigger.Target.Include = append(promoteTrigger.Target.Include, "promote-docker")
+	triggers := map[string]trigger{
+		"cron":    cronTrigger([]string{"teleport-container-images-cron"}),
+		"promote": promoteTrigger,
+	}
+
+	pipelines := make([]pipeline, 0, len(teleportVersions))
+	for triggerName, trigger := range triggers {
+		pipelines = append(pipelines, BuildTriggerPipelines(trigger, triggerName, teleportVersions)...)
+	}
+
+	return pipelines
+}
+
+// Drone triggers must all evaluate to "true" for a pipeline to be executed.
+// As a result these pipelines are duplicated for each trigger.
+// See https://docs.drone.io/pipeline/triggers/ for details.
+func BuildTriggerPipelines(trigger trigger, triggerName string, teleportVersions []teleportVersion) []pipeline {
 	pipelines := make([]pipeline, 0, len(teleportVersions))
 	for _, teleportVersion := range teleportVersions {
-		pipelines = append(pipelines, teleportVersion.BuildVersionPipeline())
+		pipeline := teleportVersion.BuildVersionPipeline()
+		pipeline.Name += "-" + triggerName
+		pipeline.Trigger = trigger
+
+		pipelines = append(pipelines, pipeline)
 	}
 
 	return pipelines
@@ -28,10 +51,15 @@ type teleportVersion struct {
 }
 
 func (tv *teleportVersion) BuildVersionPipeline() pipeline {
-	pipelineName := fmt.Sprintf("teleport-docker-cron-%s", tv.RelativeVersionName)
+	pipelineName := fmt.Sprintf("teleport-container-images-%s", tv.RelativeVersionName)
+
+	trigger := cronTrigger([]string{pipelineName})
+	promoteTrigger := triggerPromote
+	trigger.Event = promoteTrigger.Event
+	trigger.Target = promoteTrigger.Target
 
 	pipeline := newKubePipeline(pipelineName)
-	pipeline.Trigger = cronTrigger([]string{pipelineName})
+	pipeline.Trigger = trigger
 	pipeline.Workspace = workspace{Path: "/go"}
 	pipeline.Services = []service{dockerService()}
 	pipeline.Volumes = dockerVolumes()

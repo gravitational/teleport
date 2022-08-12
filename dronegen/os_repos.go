@@ -20,6 +20,13 @@ import (
 	"strings"
 )
 
+func buildOsRepoPipelines() []pipeline {
+	pipelines := promoteBuildOsRepoPipelines()
+	pipelines = append(pipelines, artifactMigrationPipeline()...)
+
+	return pipelines
+}
+
 func promoteBuildOsRepoPipelines() []pipeline {
 	aptPipeline := promoteAptPipeline()
 	yumPipeline := promoteYumPipeline()
@@ -31,11 +38,11 @@ func promoteBuildOsRepoPipelines() []pipeline {
 
 // Used for one-off migrations of older versions.
 // Use cases include:
-//  * We want to support another OS while providing backwards compatibility
-//  * We want to support another OS version while providing backwards compatibility
-//  * A customer wants to be able to install an older version via APT/YUM even if we
-//      no longer support it
-//  * RPM migrations after new YUM pipeline is done
+//   - We want to support another OS while providing backwards compatibility
+//   - We want to support another OS version while providing backwards compatibility
+//   - A customer wants to be able to install an older version via APT/YUM even if we
+//     no longer support it
+//   - RPM migrations after new YUM pipeline is done
 func artifactMigrationPipeline() []pipeline {
 	migrationVersions := []string{
 		// These versions were migrated as a part of the new `promoteAptPipeline`
