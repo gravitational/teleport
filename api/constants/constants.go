@@ -328,6 +328,4 @@ const (
 	// https://docs.aws.amazon.com/cli/latest/reference/ec2/describe-instances.html
 	// Used for filtering instances for automatic EC2 discovery
 	AWSInstanceStateName = "instance-state-name"
-	// AWSVPCID is used to filter AWS describe-instances output by vpc
-	AWSVPCID = "vpc-id"
 )

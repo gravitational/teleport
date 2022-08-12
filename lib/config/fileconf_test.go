@@ -542,7 +542,7 @@ func TestSSHSection(t *testing.T) {
 							Method:    types.JoinMethodIAM,
 						},
 					},
-					SSM: AWSSSM{Document: defaults.AWSInstallerDocument},
+					SSM: AWSSSM{DocumentName: defaults.AWSInstallerDocument},
 				},
 			},
 		}, {
@@ -582,7 +582,7 @@ func TestSSHSection(t *testing.T) {
 							Method:    types.JoinMethodIAM,
 						},
 					},
-					SSM: AWSSSM{Document: "hello_document"},
+					SSM: AWSSSM{DocumentName: "hello_document"},
 				},
 			},
 		}, {
@@ -621,7 +621,7 @@ func TestSSHSection(t *testing.T) {
 			expectedAWSSection: []AWSMatcher{
 				{
 					SSM: AWSSSM{
-						Document: defaults.AWSInstallerDocument,
+						DocumentName: defaults.AWSInstallerDocument,
 					},
 					InstallParams: &InstallParams{
 						JoinParams: JoinParams{

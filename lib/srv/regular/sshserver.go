@@ -655,6 +655,7 @@ func SetTracerProvider(provider oteltrace.TracerProvider) ServerOption {
 	}
 }
 
+// SetCloudClients returns a server option that sets cloud API clients
 func SetCloudClients(clients cloud.Clients) ServerOption {
 	return func(s *Server) error {
 		s.clients = clients
@@ -788,7 +789,7 @@ func New(addr utils.NetAddr,
 			s.clients = cloud.NewClients()
 		}
 
-		s.cloudWatcher, err = server.NewCloudServerWatcher(s.ctx, s.awsMatchers, s.clients)
+		s.cloudWatcher, err = server.NewCloudWatcher(s.ctx, s.awsMatchers, s.clients)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

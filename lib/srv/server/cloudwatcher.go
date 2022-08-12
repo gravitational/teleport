@@ -47,6 +47,7 @@ type EC2Instances struct {
 	Instances []*ec2.Instance
 }
 
+// Watcher allows callers to discover AWS instances matching specified filters.
 type Watcher struct {
 	// InstancesC can be used to consume newly discovered EC2 instances
 	InstancesC chan EC2Instances
@@ -57,6 +58,7 @@ type Watcher struct {
 	cancel        context.CancelFunc
 }
 
+// Run starts the watcher's main watch loop.
 func (w *Watcher) Run() {
 	ticker := time.NewTicker(w.fetchInterval)
 	defer ticker.Stop()
@@ -64,10 +66,10 @@ func (w *Watcher) Run() {
 		for _, fetcher := range w.fetchers {
 			inst, err := fetcher.GetEC2Instances(w.ctx)
 			if err != nil {
+				if trace.IsNotFound(err) {
+					continue
+				}
 				log.WithError(err).Error("Failed to fetch EC2 instances")
-				continue
-			}
-			if inst == nil {
 				continue
 			}
 			select {
@@ -84,11 +86,13 @@ func (w *Watcher) Run() {
 	}
 }
 
+// Stop stops the watcher
 func (w *Watcher) Stop() {
 	w.cancel()
 }
 
-func NewCloudServerWatcher(ctx context.Context, matchers []services.AWSMatcher, clients cloud.Clients) (*Watcher, error) {
+// NewCloudWatcher creates a new cloud watcher instance.
+func NewCloudWatcher(ctx context.Context, matchers []services.AWSMatcher, clients cloud.Clients) (*Watcher, error) {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
 	watcher := Watcher{
 		fetchers:      []*ec2InstanceFetcher{},
@@ -106,7 +110,7 @@ func NewCloudServerWatcher(ctx context.Context, matchers []services.AWSMatcher, 
 			fetcher := newEC2InstanceFetcher(ec2FetcherConfig{
 				Matcher:   matcher,
 				Region:    region,
-				Document:  matcher.SSM.Document,
+				Document:  matcher.SSM.DocumentName,
 				EC2Client: cl,
 				Labels:    matcher.Tags,
 			})
@@ -122,7 +126,6 @@ type ec2FetcherConfig struct {
 	Document  string
 	EC2Client ec2iface.EC2API
 	Labels    types.Labels
-	VPC       string
 }
 
 type ec2InstanceFetcher struct {
@@ -138,12 +141,6 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 		Name:   aws.String(constants.AWSInstanceStateName),
 		Values: aws.StringSlice([]string{ec2.InstanceStateNameRunning}),
 	}}
-	if cfg.VPC != "" {
-		tagFilters = append(tagFilters, &ec2.Filter{
-			Name:   aws.String(constants.AWSInstanceStateName),
-			Values: aws.StringSlice([]string{cfg.VPC}),
-		})
-	}
 
 	for key, val := range cfg.Labels {
 		tagFilters = append(tagFilters, &ec2.Filter{
@@ -163,6 +160,7 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 	return &fetcherConfig
 }
 
+// GetEC2Instances fetches all EC2 instances matching configured filters.
 func (f *ec2InstanceFetcher) GetEC2Instances(ctx context.Context) (*EC2Instances, error) {
 	var instances []*ec2.Instance
 	var accountID string
@@ -184,7 +182,7 @@ func (f *ec2InstanceFetcher) GetEC2Instances(ctx context.Context) (*EC2Instances
 	}
 
 	if len(instances) == 0 {
-		return nil, nil
+		return nil, trace.NotFound("no ec2 instances found")
 	}
 
 	return &EC2Instances{

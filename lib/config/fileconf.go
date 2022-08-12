@@ -460,8 +460,8 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 			}
 		}
 
-		if matcher.SSM.Document == "" {
-			matcher.SSM.Document = defaults.AWSInstallerDocument
+		if matcher.SSM.DocumentName == "" {
+			matcher.SSM.DocumentName = defaults.AWSInstallerDocument
 		}
 		matchers = append(matchers, matcher)
 	}
@@ -1229,9 +1229,9 @@ type InstallParams struct {
 
 // AWSSSM provides options to use when executing SSM documents
 type AWSSSM struct {
-	// Document is the name of the document to use when executing an
+	// DocumentName is the name of the document to use when executing an
 	// SSM command
-	Document string `yaml:"document,omitempty"`
+	DocumentName string `yaml:"document_name,omitempty"`
 }
 
 // Database represents a single database proxied by the service.

@@ -31,9 +31,9 @@ type ResourceMatcher struct {
 
 // AWSSSM provides options to use when executing SSM documents
 type AWSSSM struct {
-	// Document is the name of the document to use when executing an
+	// DocumentName is the name of the document to use when executing an
 	// SSM command
-	Document string
+	DocumentName string
 }
 
 // InstallerParams are passed to the AWS SSM document
