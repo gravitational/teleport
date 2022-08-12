@@ -116,6 +116,8 @@ type pingConn struct {
 	currentSize uint32
 }
 
+// Read reads content from the underlaying connection, discarding any ping
+// messages it finds.
 func (c *pingConn) Read(p []byte) (int, error) {
 	c.muRead.Lock()
 	defer c.muRead.Unlock()
@@ -158,6 +160,8 @@ func (c *pingConn) discardPingReads() error {
 	return nil
 }
 
+// Write writes provided content to the underlaying connection with proper
+// protocol fields.
 func (c *pingConn) Write(p []byte) (int, error) {
 	c.muWrite.Lock()
 	defer c.muWrite.Unlock()
