@@ -68,30 +68,9 @@ const (
 // off an attacker-controlled URL as the STS endpoint, the entire security
 // mechanism of the IAM join method would be compromised.
 //
-// The simplest approach would be to make sure that the URL matches
-// "sts.(<region>.)?amazonaws.com(.cn)?" but this fails in a couple of ways:
-// - it seems that, at least in the past, Amazon was selling subdomains of
-//   "amazonaws.com", so we don't know who might control that endpoint.
-// - Second, it does not match endpoints in the AWS ISO partitions such as
-//   "sts.us-iso-east-1.c2s.ic.gov". We don't know if AWS will add more STS
-//   endpoints like this with different URL patterns.
-//
-// Probably the most secure approach would be to check the given STS URL against
-// a static list of known STS endpoints. This would be hard to maintain over
-// time as AWS adds new regions and partitions.
-//
-// Another option would be to query AWS at runtime to get the list of valid STS
-// endpoints. I couldn't find a suitable API to support this.
-//
-// The approach I've chosen here basically offloads the task of maintaining the
-// static list of STS endpoints to the AWS SDK. Since I can't get at the list
-// directly, I attempt to infer the region from the given URL, and then check if
-// the SDK will return an exact match for the given stsHost in that region. As
-// new STS endpoints come online, we will need to update the version of
-// aws-sdk-go used by Teleport.
-//
-// TestValidateSTSHost includes a list of all currently known valid STS
-// endpoints, and asserts that all pass this check.
+// To keep this validation simple and secure, we check the given endpoint
+// against a static list of known valid endpoints. We will need to update this
+// list as AWS adds new regions.
 func validateSTSHost(stsHost string) error {
 	valid := apiutils.SliceContainsStr(validSTSEndpoints, stsHost)
 	if valid {
