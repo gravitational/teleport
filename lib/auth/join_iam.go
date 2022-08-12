@@ -23,7 +23,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -94,60 +93,20 @@ const (
 // TestValidateSTSHost includes a list of all currently known valid STS
 // endpoints, and asserts that all pass this check.
 func validateSTSHost(stsHost string) error {
-	for _, p := range endpoints.DefaultPartitions() {
-		prefix := strings.TrimSuffix(stsHost, p.DNSSuffix())
-		if prefix == stsHost {
-			// The given stsHost does not match this partition's DNS suffix. We
-			// can continue early in this case, but multiple partitions may have
-			// the same suffix, e.g. GovCloud and the default partition.
-			continue
-		}
-
-		// It's important to include StrictMatchingOption here so that the SDK
-		// won't fill in a value for an unknown region, which could be used to
-		// make sts.attacker.amazonaws.com pass the check.
-		resolveOptions := []func(*endpoints.Options){
-			endpoints.StrictMatchingOption,
-			endpoints.STSRegionalEndpointOption,
-		}
-
-		// Known STS endpoints match "sts(-fips)?.(<region>.)?<suffix>"
-		parts := strings.Split(prefix, ".")
-		if len(parts) == 0 {
-			return trace.AccessDenied("invalid STS host %q", stsHost)
-		}
-
-		switch parts[0] {
-		case "sts":
-		case "sts-fips":
-			resolveOptions = append(resolveOptions, endpoints.UseFIPSEndpointOption)
-		default:
-			return trace.AccessDenied("invalid prefix %q for STS host %q", parts[0], stsHost)
-		}
-
-		region := ""
-		if len(parts) > 1 {
-			region = parts[1]
-		}
-
-		endpoint, err := p.EndpointFor(sts.ServiceName, region, resolveOptions...)
-		if errors.As(err, &endpoints.UnknownServiceError{}) || errors.As(err, &endpoints.UnknownEndpointError{}) || errors.As(err, &endpoints.EndpointNotFoundError{}) {
-			// This region is probably not valid in this partition, or there is
-			// no STS in this partition. Keep iterating.
-			continue
-		} else if err != nil {
-			return trace.AccessDenied("unexpected error resolving STS endpoint: %v", err)
-		}
-
-		if endpoint.URL == "https://"+stsHost {
-			// Found an exact match, this is a valid STS endpoint.
-			return nil
-		}
-		// Didn't find a matching endpoint in this partition, this can
-		// happen if checking the GovCloud partition for a region in the
-		// default partition or vice-versa. Continue iterating.
+	valid := apiutils.SliceContainsStr(validSTSEndpoints, stsHost)
+	if valid {
+		return nil
 	}
-	return trace.AccessDenied("unrecognized STS host %q", stsHost)
+
+	return trace.AccessDenied("IAM join request uses unknown STS host %q. "+
+		"This could mean that the Teleport Node attempting to join the cluster is "+
+		"running in a new AWS region which is unknown to this Teleport auth server. "+
+		"If this is the case, please check if the endpoint is included in the newest "+
+		"list of known valid endpoints at https://github.com/gravitational/teleport/blob/master/lib/auth/valid_sts_endpoints.go "+
+		"and consider upgrading your Teleport binary to the latest version. "+
+		"If it is not included there, please submit a GitHub issue and we will add it. "+
+		"Alternatively, if this URL looks suspicious, an attacker may be attempting to "+
+		"join your Teleport cluster.", stsHost)
 }
 
 // validateSTSIdentityRequest checks that a received sts:GetCallerIdentity
@@ -167,7 +126,15 @@ func validateSTSHost(stsHost string) error {
 //
 // Action=GetCallerIdentity&Version=2011-06-15
 // ```
-func validateSTSIdentityRequest(req *http.Request, challenge string) error {
+func validateSTSIdentityRequest(req *http.Request, challenge string) (err error) {
+	defer func() {
+		// Always log a warning on the Auth server if the function detects and
+		// invalid request.
+		if err != nil {
+			log.WithError(err).Warn("Invalid sts:GetCallerIdentity detected by client attempting to use the IAM join method.")
+		}
+	}()
+
 	if err := validateSTSHost(req.Host); err != nil {
 		return trace.Wrap(err)
 	}
