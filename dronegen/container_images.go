@@ -22,7 +22,7 @@ func buildContainerImagePipelines() []pipeline {
 
 	pipelines := make([]pipeline, 0, len(triggers))
 	for _, trigger := range triggers {
-		pipelines = append(pipelines, trigger.BuildPipelines()...)
+		pipelines = append(pipelines, trigger.buildPipelines()...)
 	}
 
 	return pipelines
@@ -88,10 +88,10 @@ func NewCronTrigger(latestMajorVersions []string) *TriggerInfo {
 // Drone triggers must all evaluate to "true" for a pipeline to be executed.
 // As a result these pipelines are duplicated for each trigger.
 // See https://docs.drone.io/pipeline/triggers/ for details.
-func (ti *TriggerInfo) BuildPipelines() []pipeline {
+func (ti *TriggerInfo) buildPipelines() []pipeline {
 	pipelines := make([]pipeline, 0, len(ti.SupportedVersions))
 	for _, teleportVersion := range ti.SupportedVersions {
-		pipeline := teleportVersion.BuildVersionPipeline(ti.SetupSteps)
+		pipeline := teleportVersion.buildVersionPipeline(ti.SetupSteps)
 		pipeline.Name += "-" + ti.Name
 		pipeline.Trigger = ti.Trigger
 
@@ -107,7 +107,7 @@ type teleportVersion struct {
 	RelativeVersionName string // The set of values for this should not change between major releases
 }
 
-func (tv *teleportVersion) BuildVersionPipeline(setupSteps []step) pipeline {
+func (tv *teleportVersion) buildVersionPipeline(setupSteps []step) pipeline {
 	pipelineName := fmt.Sprintf("teleport-container-images-%s", tv.RelativeVersionName)
 
 	setupStepNames := make([]string, 0, len(setupSteps))
@@ -143,7 +143,7 @@ func (tv *teleportVersion) buildSteps(setupStepNames []string) []step {
 	setupStepNames = append(setupStepNames, dockerStep.Name)
 
 	for _, teleportPackage := range teleportPackages {
-		steps = append(steps, teleportPackage.BuildSteps(tv, setupStepNames)...)
+		steps = append(steps, teleportPackage.buildSteps(tv, setupStepNames)...)
 	}
 
 	return steps
@@ -168,7 +168,7 @@ func (tp *teleportPackage) GetName() string {
 	return fmt.Sprintf("%s-fips", baseName)
 }
 
-func (tp *teleportPackage) BuildSteps(version *teleportVersion, setupSteps []string) []step {
+func (tp *teleportPackage) buildSteps(version *teleportVersion, setupSteps []string) []step {
 	// The base image (ubuntu:20.04) does not offer i386 images so we don't either
 	supportedArchs := []string{
 		"amd64",
@@ -205,8 +205,8 @@ func (tp *teleportPackage) BuildSteps(version *teleportVersion, setupSteps []str
 	}
 
 	for _, containerRepo := range containerRepos {
-		steps = append(steps, containerRepo.BuildSteps(teleportBuildStepDetails)...)
-		steps = append(steps, containerRepo.BuildSteps(labBuildStepDetails)...)
+		steps = append(steps, containerRepo.buildSteps(teleportBuildStepDetails)...)
+		steps = append(steps, containerRepo.buildSteps(labBuildStepDetails)...)
 	}
 
 	return steps
@@ -402,7 +402,7 @@ func GetContainerRepos() []*ContainerRepo {
 	}
 }
 
-func (cr *ContainerRepo) BuildSteps(buildStepDetails []*buildStepOutput) []step {
+func (cr *ContainerRepo) buildSteps(buildStepDetails []*buildStepOutput) []step {
 	if len(buildStepDetails) == 0 {
 		return nil
 	}
