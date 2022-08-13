@@ -27,6 +27,7 @@ import (
 	"net/http/httptest"
 	"os"
 	os_exec "os/exec"
+	"path/filepath"
 	"syscall"
 	"testing"
 	"time"
@@ -52,11 +53,9 @@ func TestWatch(t *testing.T) {
 	// BPF programs.
 	if !bpfTestEnabled() {
 		t.Skip("BPF testing is disabled")
-		return
 	}
 	if !isRoot() {
 		t.Skip("Tests for package bpf can only be run as root.")
-		return
 	}
 
 	// Create temporary directory where cgroup2 hierarchy will be mounted.
@@ -97,7 +96,7 @@ func TestWatch(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, cgroupID > 0, true)
+	require.Greater(t, cgroupID, 0)
 
 	// Find "ls" binary.
 	lsPath, err := os_exec.LookPath("ls")
@@ -135,11 +134,9 @@ func TestObfuscate(t *testing.T) {
 	// BPF programs.
 	if !bpfTestEnabled() {
 		t.Skip("BPF testing is disabled")
-		return
 	}
 	if !isRoot() {
 		t.Skip("Tests for package bpf can only be run as root.")
-		return
 	}
 
 	// Find the programs needed to run these tests on the host.
@@ -160,27 +157,19 @@ func TestObfuscate(t *testing.T) {
 	// in a loop. The second waits for an exec event to show up the reports "ls"
 	// has been executed.
 	go func() {
-		// Create temporary file.
-		file, err := os.CreateTemp("", "test-script")
-		require.NoError(t, err)
-		defer os.Remove(file.Name())
-
-		// Write script to file.
+		// Create obfuscated script.
 		shellContents := fmt.Sprintf("#!%v\necho bHM= | %v --decode | %v",
 			shellPath, decoderPath, shellPath)
-		_, err = file.Write([]byte(shellContents))
-		require.NoError(t, err)
-		err = file.Close()
-		require.NoError(t, err)
 
-		// Make script executable.
-		err = os.Chmod(file.Name(), 0700)
+		// Write script to a temporary folder.
+		fileName := filepath.Join(t.TempDir(), "test-script")
+		err = os.WriteFile(fileName, []byte(shellContents), 0700)
 		require.NoError(t, err)
 
 		for {
 			// Run script.
-			err = os_exec.Command(file.Name()).Run()
-			require.NoError(t, err)
+			err = os_exec.Command(fileName).Run()
+			t.Logf("Failed to run script: %v.", err)
 
 			// Delay.
 			time.Sleep(250 * time.Millisecond)
@@ -238,25 +227,16 @@ func TestScript(t *testing.T) {
 	// in a loop. The second waits for an exec event to show up the reports "ls"
 	// has been executed.
 	go func() {
-		// Create temporary file.
-		file, err := os.CreateTemp("", "test-script")
-		require.NoError(t, err)
-		defer os.Remove(file.Name())
-
-		// Write script to file.
-		_, err = file.Write([]byte("#!/bin/sh\nls"))
-		require.NoError(t, err)
-		err = file.Close()
-		require.NoError(t, err)
-
-		// Make script executable.
-		err = os.Chmod(file.Name(), 0700)
+		// Write script to a temporary folder.
+		fileName := filepath.Join(t.TempDir(), "test-script")
+		err = os.WriteFile(fileName, []byte("#!/bin/sh\nls"), 0700)
 		require.NoError(t, err)
 
 		for {
 			// Run script.
-			err = os_exec.Command(file.Name()).Run()
-			require.NoError(t, err)
+			err = os_exec.Command(fileName).Run()
+			t.Logf("Failed to run script: %v.", err)
+
 			// Delay.
 			time.Sleep(250 * time.Millisecond)
 		}
@@ -364,9 +344,9 @@ func TestPrograms(t *testing.T) {
 		// trigger an event.
 		go waitForEvent(doneContext, doneFunc, tt.inEventCh)
 		if tt.inHTTP {
-			go executeHTTP(c, doneContext, ts.URL)
+			go executeHTTP(t, doneContext, ts.URL)
 		} else {
-			go executeCommand(c, doneContext, tt.inCommand)
+			go executeCommand(t, doneContext, tt.inCommand)
 		}
 
 		// Wait for an event to arrive from execsnoop. If an event does not arrive
@@ -393,7 +373,7 @@ func TestBPFCounter(t *testing.T) {
 
 	counterTestBPF, err := embedFS.ReadFile("bytecode/counter_test.bpf.o")
 	if err != nil {
-		c.Skip(fmt.Sprintf("Tests for package bpf can not be run: %v.", err))
+		t.Skip(fmt.Sprintf("Tests for package bpf can not be run: %v.", err))
 	}
 
 	module, err := libbpfgo.NewModuleFromBuffer(counterTestBPF, "counter_test")
@@ -412,7 +392,7 @@ func TestBPFCounter(t *testing.T) {
 	require.NoError(t, err)
 
 	// Make sure the counter starts with 0
-	require.Equal(t, testutil.ToFloat64(promCounter), float64(0))
+	require.Zero(t, testutil.ToFloat64(promCounter))
 
 	// close(1234) will cause the counter to get incremented.
 	magicFD := 1234
@@ -427,7 +407,7 @@ func TestBPFCounter(t *testing.T) {
 	time.Sleep(time.Second)
 
 	// Make sure all are accounted for
-	require.Equal(t, testutil.ToFloat64(promCounter), float64(gentleBumps))
+	require.Equal(t, float64(gentleBumps), testutil.ToFloat64(promCounter))
 
 	// Next, pound the counter to hopefully overflow the doorbell.
 	poundingBumps := 100000
@@ -439,7 +419,7 @@ func TestBPFCounter(t *testing.T) {
 	time.Sleep(time.Second)
 
 	// Make sure all are accounted for
-	require.Equal(t, testutil.ToFloat64(promCounter), float64(gentleBumps+poundingBumps))
+	require.Equal(t, float64(gentleBumps+poundingBumps), testutil.ToFloat64(promCounter))
 
 	counter.Close()
 }
@@ -459,15 +439,17 @@ func waitForEvent(ctx context.Context, cancel context.CancelFunc, eventCh <-chan
 
 // executeCommand will execute some command in a loop.
 func executeCommand(t *testing.T, doneContext context.Context, file string) {
+	t.Helper()
+
 	for {
 		// Lookup and run the requested command.
 		path, err := os_exec.LookPath(file)
 		if err != nil {
-			c.Fatalf("Failed to find execute %q: %v.", file, err)
+			t.Logf("Failed to find execute %q: %v.", file, err)
 		}
 		err = os_exec.Command(path).Run()
 		if err != nil {
-			c.Fatalf("Failed to run command %q: %v.", file, err)
+			t.Logf("Failed to run command %q: %v.", file, err)
 		}
 
 		time.Sleep(250 * time.Millisecond)
@@ -479,7 +461,7 @@ func executeHTTP(t *testing.T, doneContext context.Context, endpoint string) {
 	for {
 		// Perform HTTP GET to the requested endpoint.
 		_, err := http.Get(endpoint)
-		require.NoError(t, err)
+		t.Logf("HTTP request failed: %v.", err)
 
 		time.Sleep(250 * time.Millisecond)
 	}
