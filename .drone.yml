@@ -5689,7 +5689,7 @@ steps:
   - Tag and push "quay.io/gravitational/teleport-lab:10-amd64" to Quay
   - Tag and push "quay.io/gravitational/teleport-lab:10-arm64" to Quay
   - Tag and push "quay.io/gravitational/teleport-lab:10-arm" to Quay
-- name: Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-amd64"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-amd64"
     to ECR - staging
   image: docker
   commands:
@@ -5697,8 +5697,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-v10-amd64" "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-amd64"
-  - docker push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-amd64"
+  - docker tag "teleport-v10-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-amd64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-amd64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -5710,7 +5710,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-amd64"
-- name: Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm64"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm64"
     to ECR - staging
   image: docker
   commands:
@@ -5718,8 +5718,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-v10-arm64" "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm64"
-  - docker push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm64"
+  - docker tag "teleport-v10-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -5731,7 +5731,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-arm64"
-- name: Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm"
     to ECR - staging
   image: docker
   commands:
@@ -5739,8 +5739,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-v10-arm" "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm"
-  - docker push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm"
+  - docker tag "teleport-v10-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -5752,7 +5752,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-arm"
-- name: Create manifest and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -5760,11 +5760,11 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP"
-    --amend "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-amd64"
-    --amend "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm64"
-    --amend "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm"
-  - docker manifest push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP"
+  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-amd64"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm64"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm"
+  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -5775,13 +5775,13 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-amd64"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-amd64"
     to ECR - staging
-  - Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm64"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm64"
     to ECR - staging
-  - Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm"
     to ECR - staging
-- name: Tag and push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-amd64"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-amd64"
     to ECR - staging
   image: docker
   commands:
@@ -5789,8 +5789,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-lab-v10-amd64" "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-amd64"
-  - docker push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-amd64"
+  - docker tag "teleport-lab-v10-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-amd64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-amd64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -5802,7 +5802,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-amd64"
-- name: Tag and push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm64"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm64"
     to ECR - staging
   image: docker
   commands:
@@ -5810,8 +5810,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-lab-v10-arm64" "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm64"
-  - docker push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm64"
+  - docker tag "teleport-lab-v10-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -5823,7 +5823,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-arm64"
-- name: Tag and push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm"
     to ECR - staging
   image: docker
   commands:
@@ -5831,8 +5831,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-lab-v10-arm" "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm"
-  - docker push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm"
+  - docker tag "teleport-lab-v10-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -5844,7 +5844,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-arm"
-- name: Create manifest and push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -5852,11 +5852,11 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP"
-    --amend "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-amd64"
-    --amend "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm64"
-    --amend "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm"
-  - docker manifest push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP"
+  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-amd64"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm64"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm"
+  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -5867,21 +5867,21 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-amd64"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-amd64"
     to ECR - staging
-  - Tag and push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm64"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm64"
     to ECR - staging
-  - Tag and push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm"
     to ECR - staging
-- name: Tag and push "teleport/gravitational/public.ecr.aws:10-amd64" to ECR - production
+- name: Tag and push "public.ecr.aws/gravitational/teleport:10-amd64" to ECR - production
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-v10-amd64" "teleport/gravitational/public.ecr.aws:10-amd64"
-  - docker push "teleport/gravitational/public.ecr.aws:10-amd64"
+  - docker tag "teleport-v10-amd64" "public.ecr.aws/gravitational/teleport:10-amd64"
+  - docker push "public.ecr.aws/gravitational/teleport:10-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -5893,15 +5893,15 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-amd64"
-- name: Tag and push "teleport/gravitational/public.ecr.aws:10-arm64" to ECR - production
+- name: Tag and push "public.ecr.aws/gravitational/teleport:10-arm64" to ECR - production
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-v10-arm64" "teleport/gravitational/public.ecr.aws:10-arm64"
-  - docker push "teleport/gravitational/public.ecr.aws:10-arm64"
+  - docker tag "teleport-v10-arm64" "public.ecr.aws/gravitational/teleport:10-arm64"
+  - docker push "public.ecr.aws/gravitational/teleport:10-arm64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -5913,15 +5913,15 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-arm64"
-- name: Tag and push "teleport/gravitational/public.ecr.aws:10-arm" to ECR - production
+- name: Tag and push "public.ecr.aws/gravitational/teleport:10-arm" to ECR - production
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-v10-arm" "teleport/gravitational/public.ecr.aws:10-arm"
-  - docker push "teleport/gravitational/public.ecr.aws:10-arm"
+  - docker tag "teleport-v10-arm" "public.ecr.aws/gravitational/teleport:10-arm"
+  - docker push "public.ecr.aws/gravitational/teleport:10-arm"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -5933,7 +5933,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-arm"
-- name: Create manifest and push "teleport/gravitational/public.ecr.aws:10" to ECR
+- name: Create manifest and push "public.ecr.aws/gravitational/teleport:10" to ECR
     - production
   image: docker
   commands:
@@ -5941,9 +5941,9 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "teleport/gravitational/public.ecr.aws:10" --amend "teleport/gravitational/public.ecr.aws:10-amd64"
-    --amend "teleport/gravitational/public.ecr.aws:10-arm64" --amend "teleport/gravitational/public.ecr.aws:10-arm"
-  - docker manifest push "teleport/gravitational/public.ecr.aws:10"
+  - docker manifest create "public.ecr.aws/gravitational/teleport:10" --amend "public.ecr.aws/gravitational/teleport:10-amd64"
+    --amend "public.ecr.aws/gravitational/teleport:10-arm64" --amend "public.ecr.aws/gravitational/teleport:10-arm"
+  - docker manifest push "public.ecr.aws/gravitational/teleport:10"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -5954,10 +5954,10 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport/gravitational/public.ecr.aws:10-amd64" to ECR - production
-  - Tag and push "teleport/gravitational/public.ecr.aws:10-arm64" to ECR - production
-  - Tag and push "teleport/gravitational/public.ecr.aws:10-arm" to ECR - production
-- name: Tag and push "teleport-lab/gravitational/public.ecr.aws:10-amd64" to ECR -
+  - Tag and push "public.ecr.aws/gravitational/teleport:10-amd64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport:10-arm64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport:10-arm" to ECR - production
+- name: Tag and push "public.ecr.aws/gravitational/teleport-lab:10-amd64" to ECR -
     production
   image: docker
   commands:
@@ -5965,8 +5965,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-lab-v10-amd64" "teleport-lab/gravitational/public.ecr.aws:10-amd64"
-  - docker push "teleport-lab/gravitational/public.ecr.aws:10-amd64"
+  - docker tag "teleport-lab-v10-amd64" "public.ecr.aws/gravitational/teleport-lab:10-amd64"
+  - docker push "public.ecr.aws/gravitational/teleport-lab:10-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -5978,7 +5978,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-amd64"
-- name: Tag and push "teleport-lab/gravitational/public.ecr.aws:10-arm64" to ECR -
+- name: Tag and push "public.ecr.aws/gravitational/teleport-lab:10-arm64" to ECR -
     production
   image: docker
   commands:
@@ -5986,8 +5986,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-lab-v10-arm64" "teleport-lab/gravitational/public.ecr.aws:10-arm64"
-  - docker push "teleport-lab/gravitational/public.ecr.aws:10-arm64"
+  - docker tag "teleport-lab-v10-arm64" "public.ecr.aws/gravitational/teleport-lab:10-arm64"
+  - docker push "public.ecr.aws/gravitational/teleport-lab:10-arm64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -5999,15 +5999,15 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-arm64"
-- name: Tag and push "teleport-lab/gravitational/public.ecr.aws:10-arm" to ECR - production
+- name: Tag and push "public.ecr.aws/gravitational/teleport-lab:10-arm" to ECR - production
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-lab-v10-arm" "teleport-lab/gravitational/public.ecr.aws:10-arm"
-  - docker push "teleport-lab/gravitational/public.ecr.aws:10-arm"
+  - docker tag "teleport-lab-v10-arm" "public.ecr.aws/gravitational/teleport-lab:10-arm"
+  - docker push "public.ecr.aws/gravitational/teleport-lab:10-arm"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -6019,7 +6019,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-arm"
-- name: Create manifest and push "teleport-lab/gravitational/public.ecr.aws:10" to
+- name: Create manifest and push "public.ecr.aws/gravitational/teleport-lab:10" to
     ECR - production
   image: docker
   commands:
@@ -6027,10 +6027,10 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "teleport-lab/gravitational/public.ecr.aws:10" --amend
-    "teleport-lab/gravitational/public.ecr.aws:10-amd64" --amend "teleport-lab/gravitational/public.ecr.aws:10-arm64"
-    --amend "teleport-lab/gravitational/public.ecr.aws:10-arm"
-  - docker manifest push "teleport-lab/gravitational/public.ecr.aws:10"
+  - docker manifest create "public.ecr.aws/gravitational/teleport-lab:10" --amend
+    "public.ecr.aws/gravitational/teleport-lab:10-amd64" --amend "public.ecr.aws/gravitational/teleport-lab:10-arm64"
+    --amend "public.ecr.aws/gravitational/teleport-lab:10-arm"
+  - docker manifest push "public.ecr.aws/gravitational/teleport-lab:10"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -6041,9 +6041,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport-lab/gravitational/public.ecr.aws:10-amd64" to ECR - production
-  - Tag and push "teleport-lab/gravitational/public.ecr.aws:10-arm64" to ECR - production
-  - Tag and push "teleport-lab/gravitational/public.ecr.aws:10-arm" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport-lab:10-amd64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport-lab:10-arm64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport-lab:10-arm" to ECR - production
 - name: Build teleport image "teleport-v10-ent-amd64"
   image: docker
   commands:
@@ -6086,15 +6086,12 @@ steps:
     path: /var/run
   depends_on:
   - Wait for docker
-- name: Tag and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=10)-amd64" to Quay
+- name: Tag and push "quay.io/gravitational/teleport-ent:10-amd64" to Quay
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker tag "teleport-v10-ent-amd64" "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=10)-amd64"
-  - docker push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=10)-amd64"
+  - docker tag "teleport-v10-ent-amd64" "quay.io/gravitational/teleport-ent:10-amd64"
+  - docker push "quay.io/gravitational/teleport-ent:10-amd64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -6106,15 +6103,12 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-ent-amd64"
-- name: Tag and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=10)-arm64" to Quay
+- name: Tag and push "quay.io/gravitational/teleport-ent:10-arm64" to Quay
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker tag "teleport-v10-ent-arm64" "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=10)-arm64"
-  - docker push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=10)-arm64"
+  - docker tag "teleport-v10-ent-arm64" "quay.io/gravitational/teleport-ent:10-arm64"
+  - docker push "quay.io/gravitational/teleport-ent:10-arm64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -6126,15 +6120,12 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-ent-arm64"
-- name: Tag and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=10)-arm" to Quay
+- name: Tag and push "quay.io/gravitational/teleport-ent:10-arm" to Quay
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker tag "teleport-v10-ent-arm" "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=10)-arm"
-  - docker push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=10)-arm"
+  - docker tag "teleport-v10-ent-arm" "quay.io/gravitational/teleport-ent:10-arm"
+  - docker push "quay.io/gravitational/teleport-ent:10-arm"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -6146,18 +6137,13 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-ent-arm"
-- name: Create manifest and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=10)" to Quay
+- name: Create manifest and push "quay.io/gravitational/teleport-ent:10" to Quay
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=10)" --amend "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=10)-amd64" --amend "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=10)-arm64" --amend "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=10)-arm"
-  - docker manifest push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=10)"
+  - docker manifest create "quay.io/gravitational/teleport-ent:10" --amend "quay.io/gravitational/teleport-ent:10-amd64"
+    --amend "quay.io/gravitational/teleport-ent:10-arm64" --amend "quay.io/gravitational/teleport-ent:10-arm"
+  - docker manifest push "quay.io/gravitational/teleport-ent:10"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -6168,13 +6154,10 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=10)-amd64" to Quay
-  - Tag and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=10)-arm64" to Quay
-  - Tag and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=10)-arm" to Quay
-- name: Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-amd64"
+  - Tag and push "quay.io/gravitational/teleport-ent:10-amd64" to Quay
+  - Tag and push "quay.io/gravitational/teleport-ent:10-arm64" to Quay
+  - Tag and push "quay.io/gravitational/teleport-ent:10-arm" to Quay
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-amd64"
     to ECR - staging
   image: docker
   commands:
@@ -6182,8 +6165,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-v10-ent-amd64" "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-amd64"
-  - docker push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-amd64"
+  - docker tag "teleport-v10-ent-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-amd64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-amd64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -6195,7 +6178,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-ent-amd64"
-- name: Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-arm64"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm64"
     to ECR - staging
   image: docker
   commands:
@@ -6203,8 +6186,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-v10-ent-arm64" "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-arm64"
-  - docker push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-arm64"
+  - docker tag "teleport-v10-ent-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -6216,7 +6199,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-ent-arm64"
-- name: Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-arm"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm"
     to ECR - staging
   image: docker
   commands:
@@ -6224,8 +6207,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-v10-ent-arm" "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-arm"
-  - docker push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-arm"
+  - docker tag "teleport-v10-ent-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -6237,7 +6220,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-ent-arm"
-- name: Create manifest and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -6245,11 +6228,11 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP"
-    --amend "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-amd64"
-    --amend "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-arm64"
-    --amend "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-arm"
-  - docker manifest push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP"
+  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-amd64"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm64"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm"
+  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -6260,13 +6243,13 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-amd64"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-amd64"
     to ECR - staging
-  - Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-arm64"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm64"
     to ECR - staging
-  - Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-arm"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm"
     to ECR - staging
-- name: Tag and push "teleport/gravitational/public.ecr.aws-ent:10-amd64" to ECR -
+- name: Tag and push "public.ecr.aws/gravitational/teleport-ent:10-amd64" to ECR -
     production
   image: docker
   commands:
@@ -6274,8 +6257,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-v10-ent-amd64" "teleport/gravitational/public.ecr.aws-ent:10-amd64"
-  - docker push "teleport/gravitational/public.ecr.aws-ent:10-amd64"
+  - docker tag "teleport-v10-ent-amd64" "public.ecr.aws/gravitational/teleport-ent:10-amd64"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:10-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -6287,7 +6270,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-ent-amd64"
-- name: Tag and push "teleport/gravitational/public.ecr.aws-ent:10-arm64" to ECR -
+- name: Tag and push "public.ecr.aws/gravitational/teleport-ent:10-arm64" to ECR -
     production
   image: docker
   commands:
@@ -6295,8 +6278,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-v10-ent-arm64" "teleport/gravitational/public.ecr.aws-ent:10-arm64"
-  - docker push "teleport/gravitational/public.ecr.aws-ent:10-arm64"
+  - docker tag "teleport-v10-ent-arm64" "public.ecr.aws/gravitational/teleport-ent:10-arm64"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:10-arm64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -6308,15 +6291,15 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-ent-arm64"
-- name: Tag and push "teleport/gravitational/public.ecr.aws-ent:10-arm" to ECR - production
+- name: Tag and push "public.ecr.aws/gravitational/teleport-ent:10-arm" to ECR - production
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-v10-ent-arm" "teleport/gravitational/public.ecr.aws-ent:10-arm"
-  - docker push "teleport/gravitational/public.ecr.aws-ent:10-arm"
+  - docker tag "teleport-v10-ent-arm" "public.ecr.aws/gravitational/teleport-ent:10-arm"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:10-arm"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -6328,7 +6311,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-ent-arm"
-- name: Create manifest and push "teleport/gravitational/public.ecr.aws-ent:10" to
+- name: Create manifest and push "public.ecr.aws/gravitational/teleport-ent:10" to
     ECR - production
   image: docker
   commands:
@@ -6336,10 +6319,10 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "teleport/gravitational/public.ecr.aws-ent:10" --amend
-    "teleport/gravitational/public.ecr.aws-ent:10-amd64" --amend "teleport/gravitational/public.ecr.aws-ent:10-arm64"
-    --amend "teleport/gravitational/public.ecr.aws-ent:10-arm"
-  - docker manifest push "teleport/gravitational/public.ecr.aws-ent:10"
+  - docker manifest create "public.ecr.aws/gravitational/teleport-ent:10" --amend
+    "public.ecr.aws/gravitational/teleport-ent:10-amd64" --amend "public.ecr.aws/gravitational/teleport-ent:10-arm64"
+    --amend "public.ecr.aws/gravitational/teleport-ent:10-arm"
+  - docker manifest push "public.ecr.aws/gravitational/teleport-ent:10"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -6350,9 +6333,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport/gravitational/public.ecr.aws-ent:10-amd64" to ECR - production
-  - Tag and push "teleport/gravitational/public.ecr.aws-ent:10-arm64" to ECR - production
-  - Tag and push "teleport/gravitational/public.ecr.aws-ent:10-arm" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport-ent:10-amd64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport-ent:10-arm64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport-ent:10-arm" to ECR - production
 - name: Build teleport image "teleport-v10-ent-fips-amd64"
   image: docker
   commands:
@@ -6401,7 +6384,7 @@ steps:
     path: /var/run
   depends_on:
   - Tag and push "quay.io/gravitational/teleport-ent:10-fips-amd64" to Quay
-- name: Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-fips-$TIMESTAMP-amd64"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-fips-$TIMESTAMP-amd64"
     to ECR - staging
   image: docker
   commands:
@@ -6409,8 +6392,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-v10-ent-fips-amd64" "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-fips-$TIMESTAMP-amd64"
-  - docker push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-fips-$TIMESTAMP-amd64"
+  - docker tag "teleport-v10-ent-fips-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-fips-$TIMESTAMP-amd64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-fips-$TIMESTAMP-amd64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -6422,7 +6405,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-ent-fips-amd64"
-- name: Create manifest and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-fips-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-fips-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -6430,9 +6413,9 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-fips-$TIMESTAMP"
-    --amend "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-fips-$TIMESTAMP-amd64"
-  - docker manifest push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-fips-$TIMESTAMP"
+  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-fips-$TIMESTAMP"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-fips-$TIMESTAMP-amd64"
+  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-fips-$TIMESTAMP"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -6443,9 +6426,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-fips-$TIMESTAMP-amd64"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-fips-$TIMESTAMP-amd64"
     to ECR - staging
-- name: Tag and push "teleport/gravitational/public.ecr.aws-ent:10-fips-amd64" to
+- name: Tag and push "public.ecr.aws/gravitational/teleport-ent:10-fips-amd64" to
     ECR - production
   image: docker
   commands:
@@ -6453,8 +6436,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-v10-ent-fips-amd64" "teleport/gravitational/public.ecr.aws-ent:10-fips-amd64"
-  - docker push "teleport/gravitational/public.ecr.aws-ent:10-fips-amd64"
+  - docker tag "teleport-v10-ent-fips-amd64" "public.ecr.aws/gravitational/teleport-ent:10-fips-amd64"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:10-fips-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -6466,7 +6449,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-ent-fips-amd64"
-- name: Create manifest and push "teleport/gravitational/public.ecr.aws-ent:10-fips"
+- name: Create manifest and push "public.ecr.aws/gravitational/teleport-ent:10-fips"
     to ECR - production
   image: docker
   commands:
@@ -6474,9 +6457,9 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "teleport/gravitational/public.ecr.aws-ent:10-fips" --amend
-    "teleport/gravitational/public.ecr.aws-ent:10-fips-amd64"
-  - docker manifest push "teleport/gravitational/public.ecr.aws-ent:10-fips"
+  - docker manifest create "public.ecr.aws/gravitational/teleport-ent:10-fips" --amend
+    "public.ecr.aws/gravitational/teleport-ent:10-fips-amd64"
+  - docker manifest push "public.ecr.aws/gravitational/teleport-ent:10-fips"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -6487,7 +6470,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport/gravitational/public.ecr.aws-ent:10-fips-amd64" to ECR
+  - Tag and push "public.ecr.aws/gravitational/teleport-ent:10-fips-amd64" to ECR
     - production
 services:
 - name: Start Docker
@@ -6764,7 +6747,7 @@ steps:
   - Tag and push "quay.io/gravitational/teleport-lab:9-amd64" to Quay
   - Tag and push "quay.io/gravitational/teleport-lab:9-arm64" to Quay
   - Tag and push "quay.io/gravitational/teleport-lab:9-arm" to Quay
-- name: Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-amd64"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:9-$TIMESTAMP-amd64"
     to ECR - staging
   image: docker
   commands:
@@ -6772,8 +6755,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-v9-amd64" "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-amd64"
-  - docker push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-amd64"
+  - docker tag "teleport-v9-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:9-$TIMESTAMP-amd64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:9-$TIMESTAMP-amd64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -6785,7 +6768,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v9-amd64"
-- name: Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-arm64"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:9-$TIMESTAMP-arm64"
     to ECR - staging
   image: docker
   commands:
@@ -6793,8 +6776,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-v9-arm64" "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-arm64"
-  - docker push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-arm64"
+  - docker tag "teleport-v9-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:9-$TIMESTAMP-arm64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:9-$TIMESTAMP-arm64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -6806,7 +6789,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v9-arm64"
-- name: Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-arm"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:9-$TIMESTAMP-arm"
     to ECR - staging
   image: docker
   commands:
@@ -6814,8 +6797,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-v9-arm" "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-arm"
-  - docker push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-arm"
+  - docker tag "teleport-v9-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:9-$TIMESTAMP-arm"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:9-$TIMESTAMP-arm"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -6827,7 +6810,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v9-arm"
-- name: Create manifest and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:9-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -6835,11 +6818,11 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP"
-    --amend "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-amd64"
-    --amend "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-arm64"
-    --amend "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-arm"
-  - docker manifest push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP"
+  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:9-$TIMESTAMP"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:9-$TIMESTAMP-amd64"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:9-$TIMESTAMP-arm64"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:9-$TIMESTAMP-arm"
+  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:9-$TIMESTAMP"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -6850,13 +6833,13 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-amd64"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:9-$TIMESTAMP-amd64"
     to ECR - staging
-  - Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-arm64"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:9-$TIMESTAMP-arm64"
     to ECR - staging
-  - Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-arm"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:9-$TIMESTAMP-arm"
     to ECR - staging
-- name: Tag and push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-amd64"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:9-$TIMESTAMP-amd64"
     to ECR - staging
   image: docker
   commands:
@@ -6864,8 +6847,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-lab-v9-amd64" "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-amd64"
-  - docker push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-amd64"
+  - docker tag "teleport-lab-v9-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:9-$TIMESTAMP-amd64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:9-$TIMESTAMP-amd64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -6877,7 +6860,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v9-amd64"
-- name: Tag and push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-arm64"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:9-$TIMESTAMP-arm64"
     to ECR - staging
   image: docker
   commands:
@@ -6885,8 +6868,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-lab-v9-arm64" "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-arm64"
-  - docker push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-arm64"
+  - docker tag "teleport-lab-v9-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:9-$TIMESTAMP-arm64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:9-$TIMESTAMP-arm64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -6898,7 +6881,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v9-arm64"
-- name: Tag and push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-arm"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:9-$TIMESTAMP-arm"
     to ECR - staging
   image: docker
   commands:
@@ -6906,8 +6889,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-lab-v9-arm" "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-arm"
-  - docker push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-arm"
+  - docker tag "teleport-lab-v9-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:9-$TIMESTAMP-arm"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:9-$TIMESTAMP-arm"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -6919,7 +6902,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v9-arm"
-- name: Create manifest and push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:9-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -6927,11 +6910,11 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP"
-    --amend "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-amd64"
-    --amend "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-arm64"
-    --amend "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-arm"
-  - docker manifest push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP"
+  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:9-$TIMESTAMP"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:9-$TIMESTAMP-amd64"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:9-$TIMESTAMP-arm64"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:9-$TIMESTAMP-arm"
+  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:9-$TIMESTAMP"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -6942,21 +6925,21 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-amd64"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:9-$TIMESTAMP-amd64"
     to ECR - staging
-  - Tag and push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-arm64"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:9-$TIMESTAMP-arm64"
     to ECR - staging
-  - Tag and push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:9-$TIMESTAMP-arm"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:9-$TIMESTAMP-arm"
     to ECR - staging
-- name: Tag and push "teleport/gravitational/public.ecr.aws:9-amd64" to ECR - production
+- name: Tag and push "public.ecr.aws/gravitational/teleport:9-amd64" to ECR - production
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-v9-amd64" "teleport/gravitational/public.ecr.aws:9-amd64"
-  - docker push "teleport/gravitational/public.ecr.aws:9-amd64"
+  - docker tag "teleport-v9-amd64" "public.ecr.aws/gravitational/teleport:9-amd64"
+  - docker push "public.ecr.aws/gravitational/teleport:9-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -6968,15 +6951,15 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v9-amd64"
-- name: Tag and push "teleport/gravitational/public.ecr.aws:9-arm64" to ECR - production
+- name: Tag and push "public.ecr.aws/gravitational/teleport:9-arm64" to ECR - production
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-v9-arm64" "teleport/gravitational/public.ecr.aws:9-arm64"
-  - docker push "teleport/gravitational/public.ecr.aws:9-arm64"
+  - docker tag "teleport-v9-arm64" "public.ecr.aws/gravitational/teleport:9-arm64"
+  - docker push "public.ecr.aws/gravitational/teleport:9-arm64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -6988,15 +6971,15 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v9-arm64"
-- name: Tag and push "teleport/gravitational/public.ecr.aws:9-arm" to ECR - production
+- name: Tag and push "public.ecr.aws/gravitational/teleport:9-arm" to ECR - production
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-v9-arm" "teleport/gravitational/public.ecr.aws:9-arm"
-  - docker push "teleport/gravitational/public.ecr.aws:9-arm"
+  - docker tag "teleport-v9-arm" "public.ecr.aws/gravitational/teleport:9-arm"
+  - docker push "public.ecr.aws/gravitational/teleport:9-arm"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7008,7 +6991,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v9-arm"
-- name: Create manifest and push "teleport/gravitational/public.ecr.aws:9" to ECR
+- name: Create manifest and push "public.ecr.aws/gravitational/teleport:9" to ECR
     - production
   image: docker
   commands:
@@ -7016,9 +6999,9 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "teleport/gravitational/public.ecr.aws:9" --amend "teleport/gravitational/public.ecr.aws:9-amd64"
-    --amend "teleport/gravitational/public.ecr.aws:9-arm64" --amend "teleport/gravitational/public.ecr.aws:9-arm"
-  - docker manifest push "teleport/gravitational/public.ecr.aws:9"
+  - docker manifest create "public.ecr.aws/gravitational/teleport:9" --amend "public.ecr.aws/gravitational/teleport:9-amd64"
+    --amend "public.ecr.aws/gravitational/teleport:9-arm64" --amend "public.ecr.aws/gravitational/teleport:9-arm"
+  - docker manifest push "public.ecr.aws/gravitational/teleport:9"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7029,10 +7012,10 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport/gravitational/public.ecr.aws:9-amd64" to ECR - production
-  - Tag and push "teleport/gravitational/public.ecr.aws:9-arm64" to ECR - production
-  - Tag and push "teleport/gravitational/public.ecr.aws:9-arm" to ECR - production
-- name: Tag and push "teleport-lab/gravitational/public.ecr.aws:9-amd64" to ECR -
+  - Tag and push "public.ecr.aws/gravitational/teleport:9-amd64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport:9-arm64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport:9-arm" to ECR - production
+- name: Tag and push "public.ecr.aws/gravitational/teleport-lab:9-amd64" to ECR -
     production
   image: docker
   commands:
@@ -7040,8 +7023,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-lab-v9-amd64" "teleport-lab/gravitational/public.ecr.aws:9-amd64"
-  - docker push "teleport-lab/gravitational/public.ecr.aws:9-amd64"
+  - docker tag "teleport-lab-v9-amd64" "public.ecr.aws/gravitational/teleport-lab:9-amd64"
+  - docker push "public.ecr.aws/gravitational/teleport-lab:9-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7053,7 +7036,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v9-amd64"
-- name: Tag and push "teleport-lab/gravitational/public.ecr.aws:9-arm64" to ECR -
+- name: Tag and push "public.ecr.aws/gravitational/teleport-lab:9-arm64" to ECR -
     production
   image: docker
   commands:
@@ -7061,8 +7044,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-lab-v9-arm64" "teleport-lab/gravitational/public.ecr.aws:9-arm64"
-  - docker push "teleport-lab/gravitational/public.ecr.aws:9-arm64"
+  - docker tag "teleport-lab-v9-arm64" "public.ecr.aws/gravitational/teleport-lab:9-arm64"
+  - docker push "public.ecr.aws/gravitational/teleport-lab:9-arm64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7074,15 +7057,15 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v9-arm64"
-- name: Tag and push "teleport-lab/gravitational/public.ecr.aws:9-arm" to ECR - production
+- name: Tag and push "public.ecr.aws/gravitational/teleport-lab:9-arm" to ECR - production
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-lab-v9-arm" "teleport-lab/gravitational/public.ecr.aws:9-arm"
-  - docker push "teleport-lab/gravitational/public.ecr.aws:9-arm"
+  - docker tag "teleport-lab-v9-arm" "public.ecr.aws/gravitational/teleport-lab:9-arm"
+  - docker push "public.ecr.aws/gravitational/teleport-lab:9-arm"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7094,7 +7077,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v9-arm"
-- name: Create manifest and push "teleport-lab/gravitational/public.ecr.aws:9" to
+- name: Create manifest and push "public.ecr.aws/gravitational/teleport-lab:9" to
     ECR - production
   image: docker
   commands:
@@ -7102,9 +7085,9 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "teleport-lab/gravitational/public.ecr.aws:9" --amend "teleport-lab/gravitational/public.ecr.aws:9-amd64"
-    --amend "teleport-lab/gravitational/public.ecr.aws:9-arm64" --amend "teleport-lab/gravitational/public.ecr.aws:9-arm"
-  - docker manifest push "teleport-lab/gravitational/public.ecr.aws:9"
+  - docker manifest create "public.ecr.aws/gravitational/teleport-lab:9" --amend "public.ecr.aws/gravitational/teleport-lab:9-amd64"
+    --amend "public.ecr.aws/gravitational/teleport-lab:9-arm64" --amend "public.ecr.aws/gravitational/teleport-lab:9-arm"
+  - docker manifest push "public.ecr.aws/gravitational/teleport-lab:9"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7115,9 +7098,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport-lab/gravitational/public.ecr.aws:9-amd64" to ECR - production
-  - Tag and push "teleport-lab/gravitational/public.ecr.aws:9-arm64" to ECR - production
-  - Tag and push "teleport-lab/gravitational/public.ecr.aws:9-arm" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport-lab:9-amd64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport-lab:9-arm64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport-lab:9-arm" to ECR - production
 - name: Build teleport image "teleport-v9-ent-amd64"
   image: docker
   commands:
@@ -7160,15 +7143,12 @@ steps:
     path: /var/run
   depends_on:
   - Wait for docker
-- name: Tag and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=9)-amd64" to Quay
+- name: Tag and push "quay.io/gravitational/teleport-ent:9-amd64" to Quay
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker tag "teleport-v9-ent-amd64" "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=9)-amd64"
-  - docker push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=9)-amd64"
+  - docker tag "teleport-v9-ent-amd64" "quay.io/gravitational/teleport-ent:9-amd64"
+  - docker push "quay.io/gravitational/teleport-ent:9-amd64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -7180,15 +7160,12 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v9-ent-amd64"
-- name: Tag and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=9)-arm64" to Quay
+- name: Tag and push "quay.io/gravitational/teleport-ent:9-arm64" to Quay
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker tag "teleport-v9-ent-arm64" "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=9)-arm64"
-  - docker push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=9)-arm64"
+  - docker tag "teleport-v9-ent-arm64" "quay.io/gravitational/teleport-ent:9-arm64"
+  - docker push "quay.io/gravitational/teleport-ent:9-arm64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -7200,15 +7177,12 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v9-ent-arm64"
-- name: Tag and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=9)-arm" to Quay
+- name: Tag and push "quay.io/gravitational/teleport-ent:9-arm" to Quay
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker tag "teleport-v9-ent-arm" "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=9)-arm"
-  - docker push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=9)-arm"
+  - docker tag "teleport-v9-ent-arm" "quay.io/gravitational/teleport-ent:9-arm"
+  - docker push "quay.io/gravitational/teleport-ent:9-arm"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -7220,18 +7194,13 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v9-ent-arm"
-- name: Create manifest and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=9)" to Quay
+- name: Create manifest and push "quay.io/gravitational/teleport-ent:9" to Quay
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=9)" --amend "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=9)-amd64" --amend "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=9)-arm64" --amend "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=9)-arm"
-  - docker manifest push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=9)"
+  - docker manifest create "quay.io/gravitational/teleport-ent:9" --amend "quay.io/gravitational/teleport-ent:9-amd64"
+    --amend "quay.io/gravitational/teleport-ent:9-arm64" --amend "quay.io/gravitational/teleport-ent:9-arm"
+  - docker manifest push "quay.io/gravitational/teleport-ent:9"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -7242,13 +7211,10 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=9)-amd64" to Quay
-  - Tag and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=9)-arm64" to Quay
-  - Tag and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=9)-arm" to Quay
-- name: Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:9-$TIMESTAMP-amd64"
+  - Tag and push "quay.io/gravitational/teleport-ent:9-amd64" to Quay
+  - Tag and push "quay.io/gravitational/teleport-ent:9-arm64" to Quay
+  - Tag and push "quay.io/gravitational/teleport-ent:9-arm" to Quay
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-$TIMESTAMP-amd64"
     to ECR - staging
   image: docker
   commands:
@@ -7256,8 +7222,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-v9-ent-amd64" "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:9-$TIMESTAMP-amd64"
-  - docker push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:9-$TIMESTAMP-amd64"
+  - docker tag "teleport-v9-ent-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-$TIMESTAMP-amd64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-$TIMESTAMP-amd64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7269,7 +7235,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v9-ent-amd64"
-- name: Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:9-$TIMESTAMP-arm64"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-$TIMESTAMP-arm64"
     to ECR - staging
   image: docker
   commands:
@@ -7277,8 +7243,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-v9-ent-arm64" "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:9-$TIMESTAMP-arm64"
-  - docker push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:9-$TIMESTAMP-arm64"
+  - docker tag "teleport-v9-ent-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-$TIMESTAMP-arm64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-$TIMESTAMP-arm64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7290,7 +7256,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v9-ent-arm64"
-- name: Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:9-$TIMESTAMP-arm"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-$TIMESTAMP-arm"
     to ECR - staging
   image: docker
   commands:
@@ -7298,8 +7264,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-v9-ent-arm" "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:9-$TIMESTAMP-arm"
-  - docker push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:9-$TIMESTAMP-arm"
+  - docker tag "teleport-v9-ent-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-$TIMESTAMP-arm"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-$TIMESTAMP-arm"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7311,7 +7277,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v9-ent-arm"
-- name: Create manifest and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:9-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -7319,11 +7285,11 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:9-$TIMESTAMP"
-    --amend "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:9-$TIMESTAMP-amd64"
-    --amend "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:9-$TIMESTAMP-arm64"
-    --amend "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:9-$TIMESTAMP-arm"
-  - docker manifest push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:9-$TIMESTAMP"
+  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-$TIMESTAMP"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-$TIMESTAMP-amd64"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-$TIMESTAMP-arm64"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-$TIMESTAMP-arm"
+  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-$TIMESTAMP"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7334,13 +7300,13 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:9-$TIMESTAMP-amd64"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-$TIMESTAMP-amd64"
     to ECR - staging
-  - Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:9-$TIMESTAMP-arm64"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-$TIMESTAMP-arm64"
     to ECR - staging
-  - Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:9-$TIMESTAMP-arm"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-$TIMESTAMP-arm"
     to ECR - staging
-- name: Tag and push "teleport/gravitational/public.ecr.aws-ent:9-amd64" to ECR -
+- name: Tag and push "public.ecr.aws/gravitational/teleport-ent:9-amd64" to ECR -
     production
   image: docker
   commands:
@@ -7348,8 +7314,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-v9-ent-amd64" "teleport/gravitational/public.ecr.aws-ent:9-amd64"
-  - docker push "teleport/gravitational/public.ecr.aws-ent:9-amd64"
+  - docker tag "teleport-v9-ent-amd64" "public.ecr.aws/gravitational/teleport-ent:9-amd64"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:9-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7361,7 +7327,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v9-ent-amd64"
-- name: Tag and push "teleport/gravitational/public.ecr.aws-ent:9-arm64" to ECR -
+- name: Tag and push "public.ecr.aws/gravitational/teleport-ent:9-arm64" to ECR -
     production
   image: docker
   commands:
@@ -7369,8 +7335,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-v9-ent-arm64" "teleport/gravitational/public.ecr.aws-ent:9-arm64"
-  - docker push "teleport/gravitational/public.ecr.aws-ent:9-arm64"
+  - docker tag "teleport-v9-ent-arm64" "public.ecr.aws/gravitational/teleport-ent:9-arm64"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:9-arm64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7382,15 +7348,15 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v9-ent-arm64"
-- name: Tag and push "teleport/gravitational/public.ecr.aws-ent:9-arm" to ECR - production
+- name: Tag and push "public.ecr.aws/gravitational/teleport-ent:9-arm" to ECR - production
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-v9-ent-arm" "teleport/gravitational/public.ecr.aws-ent:9-arm"
-  - docker push "teleport/gravitational/public.ecr.aws-ent:9-arm"
+  - docker tag "teleport-v9-ent-arm" "public.ecr.aws/gravitational/teleport-ent:9-arm"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:9-arm"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7402,7 +7368,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v9-ent-arm"
-- name: Create manifest and push "teleport/gravitational/public.ecr.aws-ent:9" to
+- name: Create manifest and push "public.ecr.aws/gravitational/teleport-ent:9" to
     ECR - production
   image: docker
   commands:
@@ -7410,9 +7376,9 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "teleport/gravitational/public.ecr.aws-ent:9" --amend "teleport/gravitational/public.ecr.aws-ent:9-amd64"
-    --amend "teleport/gravitational/public.ecr.aws-ent:9-arm64" --amend "teleport/gravitational/public.ecr.aws-ent:9-arm"
-  - docker manifest push "teleport/gravitational/public.ecr.aws-ent:9"
+  - docker manifest create "public.ecr.aws/gravitational/teleport-ent:9" --amend "public.ecr.aws/gravitational/teleport-ent:9-amd64"
+    --amend "public.ecr.aws/gravitational/teleport-ent:9-arm64" --amend "public.ecr.aws/gravitational/teleport-ent:9-arm"
+  - docker manifest push "public.ecr.aws/gravitational/teleport-ent:9"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7423,9 +7389,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport/gravitational/public.ecr.aws-ent:9-amd64" to ECR - production
-  - Tag and push "teleport/gravitational/public.ecr.aws-ent:9-arm64" to ECR - production
-  - Tag and push "teleport/gravitational/public.ecr.aws-ent:9-arm" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport-ent:9-amd64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport-ent:9-arm64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport-ent:9-arm" to ECR - production
 - name: Build teleport image "teleport-v9-ent-fips-amd64"
   image: docker
   commands:
@@ -7474,7 +7440,7 @@ steps:
     path: /var/run
   depends_on:
   - Tag and push "quay.io/gravitational/teleport-ent:9-fips-amd64" to Quay
-- name: Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:9-fips-$TIMESTAMP-amd64"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-fips-$TIMESTAMP-amd64"
     to ECR - staging
   image: docker
   commands:
@@ -7482,8 +7448,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-v9-ent-fips-amd64" "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:9-fips-$TIMESTAMP-amd64"
-  - docker push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:9-fips-$TIMESTAMP-amd64"
+  - docker tag "teleport-v9-ent-fips-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-fips-$TIMESTAMP-amd64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-fips-$TIMESTAMP-amd64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7495,7 +7461,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v9-ent-fips-amd64"
-- name: Create manifest and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:9-fips-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-fips-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -7503,9 +7469,9 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:9-fips-$TIMESTAMP"
-    --amend "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:9-fips-$TIMESTAMP-amd64"
-  - docker manifest push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:9-fips-$TIMESTAMP"
+  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-fips-$TIMESTAMP"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-fips-$TIMESTAMP-amd64"
+  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-fips-$TIMESTAMP"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7516,9 +7482,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:9-fips-$TIMESTAMP-amd64"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-fips-$TIMESTAMP-amd64"
     to ECR - staging
-- name: Tag and push "teleport/gravitational/public.ecr.aws-ent:9-fips-amd64" to ECR
+- name: Tag and push "public.ecr.aws/gravitational/teleport-ent:9-fips-amd64" to ECR
     - production
   image: docker
   commands:
@@ -7526,8 +7492,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-v9-ent-fips-amd64" "teleport/gravitational/public.ecr.aws-ent:9-fips-amd64"
-  - docker push "teleport/gravitational/public.ecr.aws-ent:9-fips-amd64"
+  - docker tag "teleport-v9-ent-fips-amd64" "public.ecr.aws/gravitational/teleport-ent:9-fips-amd64"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:9-fips-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7539,7 +7505,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v9-ent-fips-amd64"
-- name: Create manifest and push "teleport/gravitational/public.ecr.aws-ent:9-fips"
+- name: Create manifest and push "public.ecr.aws/gravitational/teleport-ent:9-fips"
     to ECR - production
   image: docker
   commands:
@@ -7547,9 +7513,9 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "teleport/gravitational/public.ecr.aws-ent:9-fips" --amend
-    "teleport/gravitational/public.ecr.aws-ent:9-fips-amd64"
-  - docker manifest push "teleport/gravitational/public.ecr.aws-ent:9-fips"
+  - docker manifest create "public.ecr.aws/gravitational/teleport-ent:9-fips" --amend
+    "public.ecr.aws/gravitational/teleport-ent:9-fips-amd64"
+  - docker manifest push "public.ecr.aws/gravitational/teleport-ent:9-fips"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7560,7 +7526,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport/gravitational/public.ecr.aws-ent:9-fips-amd64" to ECR -
+  - Tag and push "public.ecr.aws/gravitational/teleport-ent:9-fips-amd64" to ECR -
     production
 services:
 - name: Start Docker
@@ -7837,7 +7803,7 @@ steps:
   - Tag and push "quay.io/gravitational/teleport-lab:8-amd64" to Quay
   - Tag and push "quay.io/gravitational/teleport-lab:8-arm64" to Quay
   - Tag and push "quay.io/gravitational/teleport-lab:8-arm" to Quay
-- name: Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-amd64"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:8-$TIMESTAMP-amd64"
     to ECR - staging
   image: docker
   commands:
@@ -7845,8 +7811,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-v8-amd64" "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-amd64"
-  - docker push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-amd64"
+  - docker tag "teleport-v8-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:8-$TIMESTAMP-amd64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:8-$TIMESTAMP-amd64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7858,7 +7824,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v8-amd64"
-- name: Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-arm64"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:8-$TIMESTAMP-arm64"
     to ECR - staging
   image: docker
   commands:
@@ -7866,8 +7832,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-v8-arm64" "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-arm64"
-  - docker push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-arm64"
+  - docker tag "teleport-v8-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:8-$TIMESTAMP-arm64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:8-$TIMESTAMP-arm64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7879,7 +7845,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v8-arm64"
-- name: Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-arm"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:8-$TIMESTAMP-arm"
     to ECR - staging
   image: docker
   commands:
@@ -7887,8 +7853,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-v8-arm" "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-arm"
-  - docker push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-arm"
+  - docker tag "teleport-v8-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:8-$TIMESTAMP-arm"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:8-$TIMESTAMP-arm"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7900,7 +7866,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v8-arm"
-- name: Create manifest and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:8-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -7908,11 +7874,11 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP"
-    --amend "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-amd64"
-    --amend "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-arm64"
-    --amend "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-arm"
-  - docker manifest push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP"
+  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:8-$TIMESTAMP"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:8-$TIMESTAMP-amd64"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:8-$TIMESTAMP-arm64"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:8-$TIMESTAMP-arm"
+  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:8-$TIMESTAMP"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7923,13 +7889,13 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-amd64"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:8-$TIMESTAMP-amd64"
     to ECR - staging
-  - Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-arm64"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:8-$TIMESTAMP-arm64"
     to ECR - staging
-  - Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-arm"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:8-$TIMESTAMP-arm"
     to ECR - staging
-- name: Tag and push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-amd64"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:8-$TIMESTAMP-amd64"
     to ECR - staging
   image: docker
   commands:
@@ -7937,8 +7903,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-lab-v8-amd64" "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-amd64"
-  - docker push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-amd64"
+  - docker tag "teleport-lab-v8-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:8-$TIMESTAMP-amd64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:8-$TIMESTAMP-amd64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7950,7 +7916,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v8-amd64"
-- name: Tag and push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-arm64"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:8-$TIMESTAMP-arm64"
     to ECR - staging
   image: docker
   commands:
@@ -7958,8 +7924,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-lab-v8-arm64" "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-arm64"
-  - docker push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-arm64"
+  - docker tag "teleport-lab-v8-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:8-$TIMESTAMP-arm64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:8-$TIMESTAMP-arm64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7971,7 +7937,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v8-arm64"
-- name: Tag and push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-arm"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:8-$TIMESTAMP-arm"
     to ECR - staging
   image: docker
   commands:
@@ -7979,8 +7945,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-lab-v8-arm" "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-arm"
-  - docker push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-arm"
+  - docker tag "teleport-lab-v8-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:8-$TIMESTAMP-arm"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:8-$TIMESTAMP-arm"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -7992,7 +7958,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v8-arm"
-- name: Create manifest and push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:8-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -8000,11 +7966,11 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP"
-    --amend "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-amd64"
-    --amend "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-arm64"
-    --amend "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-arm"
-  - docker manifest push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP"
+  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:8-$TIMESTAMP"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:8-$TIMESTAMP-amd64"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:8-$TIMESTAMP-arm64"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:8-$TIMESTAMP-arm"
+  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:8-$TIMESTAMP"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8015,21 +7981,21 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-amd64"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:8-$TIMESTAMP-amd64"
     to ECR - staging
-  - Tag and push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-arm64"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:8-$TIMESTAMP-arm64"
     to ECR - staging
-  - Tag and push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:8-$TIMESTAMP-arm"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:8-$TIMESTAMP-arm"
     to ECR - staging
-- name: Tag and push "teleport/gravitational/public.ecr.aws:8-amd64" to ECR - production
+- name: Tag and push "public.ecr.aws/gravitational/teleport:8-amd64" to ECR - production
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-v8-amd64" "teleport/gravitational/public.ecr.aws:8-amd64"
-  - docker push "teleport/gravitational/public.ecr.aws:8-amd64"
+  - docker tag "teleport-v8-amd64" "public.ecr.aws/gravitational/teleport:8-amd64"
+  - docker push "public.ecr.aws/gravitational/teleport:8-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8041,15 +8007,15 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v8-amd64"
-- name: Tag and push "teleport/gravitational/public.ecr.aws:8-arm64" to ECR - production
+- name: Tag and push "public.ecr.aws/gravitational/teleport:8-arm64" to ECR - production
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-v8-arm64" "teleport/gravitational/public.ecr.aws:8-arm64"
-  - docker push "teleport/gravitational/public.ecr.aws:8-arm64"
+  - docker tag "teleport-v8-arm64" "public.ecr.aws/gravitational/teleport:8-arm64"
+  - docker push "public.ecr.aws/gravitational/teleport:8-arm64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8061,15 +8027,15 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v8-arm64"
-- name: Tag and push "teleport/gravitational/public.ecr.aws:8-arm" to ECR - production
+- name: Tag and push "public.ecr.aws/gravitational/teleport:8-arm" to ECR - production
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-v8-arm" "teleport/gravitational/public.ecr.aws:8-arm"
-  - docker push "teleport/gravitational/public.ecr.aws:8-arm"
+  - docker tag "teleport-v8-arm" "public.ecr.aws/gravitational/teleport:8-arm"
+  - docker push "public.ecr.aws/gravitational/teleport:8-arm"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8081,7 +8047,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v8-arm"
-- name: Create manifest and push "teleport/gravitational/public.ecr.aws:8" to ECR
+- name: Create manifest and push "public.ecr.aws/gravitational/teleport:8" to ECR
     - production
   image: docker
   commands:
@@ -8089,9 +8055,9 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "teleport/gravitational/public.ecr.aws:8" --amend "teleport/gravitational/public.ecr.aws:8-amd64"
-    --amend "teleport/gravitational/public.ecr.aws:8-arm64" --amend "teleport/gravitational/public.ecr.aws:8-arm"
-  - docker manifest push "teleport/gravitational/public.ecr.aws:8"
+  - docker manifest create "public.ecr.aws/gravitational/teleport:8" --amend "public.ecr.aws/gravitational/teleport:8-amd64"
+    --amend "public.ecr.aws/gravitational/teleport:8-arm64" --amend "public.ecr.aws/gravitational/teleport:8-arm"
+  - docker manifest push "public.ecr.aws/gravitational/teleport:8"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8102,10 +8068,10 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport/gravitational/public.ecr.aws:8-amd64" to ECR - production
-  - Tag and push "teleport/gravitational/public.ecr.aws:8-arm64" to ECR - production
-  - Tag and push "teleport/gravitational/public.ecr.aws:8-arm" to ECR - production
-- name: Tag and push "teleport-lab/gravitational/public.ecr.aws:8-amd64" to ECR -
+  - Tag and push "public.ecr.aws/gravitational/teleport:8-amd64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport:8-arm64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport:8-arm" to ECR - production
+- name: Tag and push "public.ecr.aws/gravitational/teleport-lab:8-amd64" to ECR -
     production
   image: docker
   commands:
@@ -8113,8 +8079,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-lab-v8-amd64" "teleport-lab/gravitational/public.ecr.aws:8-amd64"
-  - docker push "teleport-lab/gravitational/public.ecr.aws:8-amd64"
+  - docker tag "teleport-lab-v8-amd64" "public.ecr.aws/gravitational/teleport-lab:8-amd64"
+  - docker push "public.ecr.aws/gravitational/teleport-lab:8-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8126,7 +8092,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v8-amd64"
-- name: Tag and push "teleport-lab/gravitational/public.ecr.aws:8-arm64" to ECR -
+- name: Tag and push "public.ecr.aws/gravitational/teleport-lab:8-arm64" to ECR -
     production
   image: docker
   commands:
@@ -8134,8 +8100,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-lab-v8-arm64" "teleport-lab/gravitational/public.ecr.aws:8-arm64"
-  - docker push "teleport-lab/gravitational/public.ecr.aws:8-arm64"
+  - docker tag "teleport-lab-v8-arm64" "public.ecr.aws/gravitational/teleport-lab:8-arm64"
+  - docker push "public.ecr.aws/gravitational/teleport-lab:8-arm64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8147,15 +8113,15 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v8-arm64"
-- name: Tag and push "teleport-lab/gravitational/public.ecr.aws:8-arm" to ECR - production
+- name: Tag and push "public.ecr.aws/gravitational/teleport-lab:8-arm" to ECR - production
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-lab-v8-arm" "teleport-lab/gravitational/public.ecr.aws:8-arm"
-  - docker push "teleport-lab/gravitational/public.ecr.aws:8-arm"
+  - docker tag "teleport-lab-v8-arm" "public.ecr.aws/gravitational/teleport-lab:8-arm"
+  - docker push "public.ecr.aws/gravitational/teleport-lab:8-arm"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8167,7 +8133,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v8-arm"
-- name: Create manifest and push "teleport-lab/gravitational/public.ecr.aws:8" to
+- name: Create manifest and push "public.ecr.aws/gravitational/teleport-lab:8" to
     ECR - production
   image: docker
   commands:
@@ -8175,9 +8141,9 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "teleport-lab/gravitational/public.ecr.aws:8" --amend "teleport-lab/gravitational/public.ecr.aws:8-amd64"
-    --amend "teleport-lab/gravitational/public.ecr.aws:8-arm64" --amend "teleport-lab/gravitational/public.ecr.aws:8-arm"
-  - docker manifest push "teleport-lab/gravitational/public.ecr.aws:8"
+  - docker manifest create "public.ecr.aws/gravitational/teleport-lab:8" --amend "public.ecr.aws/gravitational/teleport-lab:8-amd64"
+    --amend "public.ecr.aws/gravitational/teleport-lab:8-arm64" --amend "public.ecr.aws/gravitational/teleport-lab:8-arm"
+  - docker manifest push "public.ecr.aws/gravitational/teleport-lab:8"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8188,9 +8154,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport-lab/gravitational/public.ecr.aws:8-amd64" to ECR - production
-  - Tag and push "teleport-lab/gravitational/public.ecr.aws:8-arm64" to ECR - production
-  - Tag and push "teleport-lab/gravitational/public.ecr.aws:8-arm" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport-lab:8-amd64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport-lab:8-arm64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport-lab:8-arm" to ECR - production
 - name: Build teleport image "teleport-v8-ent-amd64"
   image: docker
   commands:
@@ -8233,15 +8199,12 @@ steps:
     path: /var/run
   depends_on:
   - Wait for docker
-- name: Tag and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=8)-amd64" to Quay
+- name: Tag and push "quay.io/gravitational/teleport-ent:8-amd64" to Quay
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker tag "teleport-v8-ent-amd64" "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=8)-amd64"
-  - docker push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=8)-amd64"
+  - docker tag "teleport-v8-ent-amd64" "quay.io/gravitational/teleport-ent:8-amd64"
+  - docker push "quay.io/gravitational/teleport-ent:8-amd64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -8253,15 +8216,12 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v8-ent-amd64"
-- name: Tag and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=8)-arm64" to Quay
+- name: Tag and push "quay.io/gravitational/teleport-ent:8-arm64" to Quay
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker tag "teleport-v8-ent-arm64" "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=8)-arm64"
-  - docker push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=8)-arm64"
+  - docker tag "teleport-v8-ent-arm64" "quay.io/gravitational/teleport-ent:8-arm64"
+  - docker push "quay.io/gravitational/teleport-ent:8-arm64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -8273,15 +8233,12 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v8-ent-arm64"
-- name: Tag and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=8)-arm" to Quay
+- name: Tag and push "quay.io/gravitational/teleport-ent:8-arm" to Quay
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker tag "teleport-v8-ent-arm" "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=8)-arm"
-  - docker push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=8)-arm"
+  - docker tag "teleport-v8-ent-arm" "quay.io/gravitational/teleport-ent:8-arm"
+  - docker push "quay.io/gravitational/teleport-ent:8-arm"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -8293,18 +8250,13 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v8-ent-arm"
-- name: Create manifest and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=8)" to Quay
+- name: Create manifest and push "quay.io/gravitational/teleport-ent:8" to Quay
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=8)" --amend "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=8)-amd64" --amend "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=8)-arm64" --amend "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=8)-arm"
-  - docker manifest push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=8)"
+  - docker manifest create "quay.io/gravitational/teleport-ent:8" --amend "quay.io/gravitational/teleport-ent:8-amd64"
+    --amend "quay.io/gravitational/teleport-ent:8-arm64" --amend "quay.io/gravitational/teleport-ent:8-arm"
+  - docker manifest push "quay.io/gravitational/teleport-ent:8"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -8315,13 +8267,10 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=8)-amd64" to Quay
-  - Tag and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=8)-arm64" to Quay
-  - Tag and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=8)-arm" to Quay
-- name: Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:8-$TIMESTAMP-amd64"
+  - Tag and push "quay.io/gravitational/teleport-ent:8-amd64" to Quay
+  - Tag and push "quay.io/gravitational/teleport-ent:8-arm64" to Quay
+  - Tag and push "quay.io/gravitational/teleport-ent:8-arm" to Quay
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-$TIMESTAMP-amd64"
     to ECR - staging
   image: docker
   commands:
@@ -8329,8 +8278,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-v8-ent-amd64" "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:8-$TIMESTAMP-amd64"
-  - docker push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:8-$TIMESTAMP-amd64"
+  - docker tag "teleport-v8-ent-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-$TIMESTAMP-amd64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-$TIMESTAMP-amd64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8342,7 +8291,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v8-ent-amd64"
-- name: Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:8-$TIMESTAMP-arm64"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-$TIMESTAMP-arm64"
     to ECR - staging
   image: docker
   commands:
@@ -8350,8 +8299,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-v8-ent-arm64" "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:8-$TIMESTAMP-arm64"
-  - docker push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:8-$TIMESTAMP-arm64"
+  - docker tag "teleport-v8-ent-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-$TIMESTAMP-arm64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-$TIMESTAMP-arm64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8363,7 +8312,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v8-ent-arm64"
-- name: Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:8-$TIMESTAMP-arm"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-$TIMESTAMP-arm"
     to ECR - staging
   image: docker
   commands:
@@ -8371,8 +8320,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-v8-ent-arm" "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:8-$TIMESTAMP-arm"
-  - docker push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:8-$TIMESTAMP-arm"
+  - docker tag "teleport-v8-ent-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-$TIMESTAMP-arm"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-$TIMESTAMP-arm"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8384,7 +8333,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v8-ent-arm"
-- name: Create manifest and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:8-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -8392,11 +8341,11 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:8-$TIMESTAMP"
-    --amend "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:8-$TIMESTAMP-amd64"
-    --amend "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:8-$TIMESTAMP-arm64"
-    --amend "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:8-$TIMESTAMP-arm"
-  - docker manifest push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:8-$TIMESTAMP"
+  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-$TIMESTAMP"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-$TIMESTAMP-amd64"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-$TIMESTAMP-arm64"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-$TIMESTAMP-arm"
+  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-$TIMESTAMP"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8407,13 +8356,13 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:8-$TIMESTAMP-amd64"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-$TIMESTAMP-amd64"
     to ECR - staging
-  - Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:8-$TIMESTAMP-arm64"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-$TIMESTAMP-arm64"
     to ECR - staging
-  - Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:8-$TIMESTAMP-arm"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-$TIMESTAMP-arm"
     to ECR - staging
-- name: Tag and push "teleport/gravitational/public.ecr.aws-ent:8-amd64" to ECR -
+- name: Tag and push "public.ecr.aws/gravitational/teleport-ent:8-amd64" to ECR -
     production
   image: docker
   commands:
@@ -8421,8 +8370,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-v8-ent-amd64" "teleport/gravitational/public.ecr.aws-ent:8-amd64"
-  - docker push "teleport/gravitational/public.ecr.aws-ent:8-amd64"
+  - docker tag "teleport-v8-ent-amd64" "public.ecr.aws/gravitational/teleport-ent:8-amd64"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:8-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8434,7 +8383,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v8-ent-amd64"
-- name: Tag and push "teleport/gravitational/public.ecr.aws-ent:8-arm64" to ECR -
+- name: Tag and push "public.ecr.aws/gravitational/teleport-ent:8-arm64" to ECR -
     production
   image: docker
   commands:
@@ -8442,8 +8391,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-v8-ent-arm64" "teleport/gravitational/public.ecr.aws-ent:8-arm64"
-  - docker push "teleport/gravitational/public.ecr.aws-ent:8-arm64"
+  - docker tag "teleport-v8-ent-arm64" "public.ecr.aws/gravitational/teleport-ent:8-arm64"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:8-arm64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8455,15 +8404,15 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v8-ent-arm64"
-- name: Tag and push "teleport/gravitational/public.ecr.aws-ent:8-arm" to ECR - production
+- name: Tag and push "public.ecr.aws/gravitational/teleport-ent:8-arm" to ECR - production
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-v8-ent-arm" "teleport/gravitational/public.ecr.aws-ent:8-arm"
-  - docker push "teleport/gravitational/public.ecr.aws-ent:8-arm"
+  - docker tag "teleport-v8-ent-arm" "public.ecr.aws/gravitational/teleport-ent:8-arm"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:8-arm"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8475,7 +8424,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v8-ent-arm"
-- name: Create manifest and push "teleport/gravitational/public.ecr.aws-ent:8" to
+- name: Create manifest and push "public.ecr.aws/gravitational/teleport-ent:8" to
     ECR - production
   image: docker
   commands:
@@ -8483,9 +8432,9 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "teleport/gravitational/public.ecr.aws-ent:8" --amend "teleport/gravitational/public.ecr.aws-ent:8-amd64"
-    --amend "teleport/gravitational/public.ecr.aws-ent:8-arm64" --amend "teleport/gravitational/public.ecr.aws-ent:8-arm"
-  - docker manifest push "teleport/gravitational/public.ecr.aws-ent:8"
+  - docker manifest create "public.ecr.aws/gravitational/teleport-ent:8" --amend "public.ecr.aws/gravitational/teleport-ent:8-amd64"
+    --amend "public.ecr.aws/gravitational/teleport-ent:8-arm64" --amend "public.ecr.aws/gravitational/teleport-ent:8-arm"
+  - docker manifest push "public.ecr.aws/gravitational/teleport-ent:8"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8496,9 +8445,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport/gravitational/public.ecr.aws-ent:8-amd64" to ECR - production
-  - Tag and push "teleport/gravitational/public.ecr.aws-ent:8-arm64" to ECR - production
-  - Tag and push "teleport/gravitational/public.ecr.aws-ent:8-arm" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport-ent:8-amd64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport-ent:8-arm64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport-ent:8-arm" to ECR - production
 - name: Build teleport image "teleport-v8-ent-fips-amd64"
   image: docker
   commands:
@@ -8547,7 +8496,7 @@ steps:
     path: /var/run
   depends_on:
   - Tag and push "quay.io/gravitational/teleport-ent:8-fips-amd64" to Quay
-- name: Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:8-fips-$TIMESTAMP-amd64"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-fips-$TIMESTAMP-amd64"
     to ECR - staging
   image: docker
   commands:
@@ -8555,8 +8504,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-v8-ent-fips-amd64" "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:8-fips-$TIMESTAMP-amd64"
-  - docker push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:8-fips-$TIMESTAMP-amd64"
+  - docker tag "teleport-v8-ent-fips-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-fips-$TIMESTAMP-amd64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-fips-$TIMESTAMP-amd64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8568,7 +8517,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v8-ent-fips-amd64"
-- name: Create manifest and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:8-fips-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-fips-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -8576,9 +8525,9 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:8-fips-$TIMESTAMP"
-    --amend "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:8-fips-$TIMESTAMP-amd64"
-  - docker manifest push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:8-fips-$TIMESTAMP"
+  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-fips-$TIMESTAMP"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-fips-$TIMESTAMP-amd64"
+  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-fips-$TIMESTAMP"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8589,9 +8538,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:8-fips-$TIMESTAMP-amd64"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-fips-$TIMESTAMP-amd64"
     to ECR - staging
-- name: Tag and push "teleport/gravitational/public.ecr.aws-ent:8-fips-amd64" to ECR
+- name: Tag and push "public.ecr.aws/gravitational/teleport-ent:8-fips-amd64" to ECR
     - production
   image: docker
   commands:
@@ -8599,8 +8548,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-v8-ent-fips-amd64" "teleport/gravitational/public.ecr.aws-ent:8-fips-amd64"
-  - docker push "teleport/gravitational/public.ecr.aws-ent:8-fips-amd64"
+  - docker tag "teleport-v8-ent-fips-amd64" "public.ecr.aws/gravitational/teleport-ent:8-fips-amd64"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:8-fips-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8612,7 +8561,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v8-ent-fips-amd64"
-- name: Create manifest and push "teleport/gravitational/public.ecr.aws-ent:8-fips"
+- name: Create manifest and push "public.ecr.aws/gravitational/teleport-ent:8-fips"
     to ECR - production
   image: docker
   commands:
@@ -8620,9 +8569,9 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "teleport/gravitational/public.ecr.aws-ent:8-fips" --amend
-    "teleport/gravitational/public.ecr.aws-ent:8-fips-amd64"
-  - docker manifest push "teleport/gravitational/public.ecr.aws-ent:8-fips"
+  - docker manifest create "public.ecr.aws/gravitational/teleport-ent:8-fips" --amend
+    "public.ecr.aws/gravitational/teleport-ent:8-fips-amd64"
+  - docker manifest push "public.ecr.aws/gravitational/teleport-ent:8-fips"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8633,7 +8582,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport/gravitational/public.ecr.aws-ent:8-fips-amd64" to ECR -
+  - Tag and push "public.ecr.aws/gravitational/teleport-ent:8-fips-amd64" to ECR -
     production
 services:
 - name: Start Docker
@@ -8941,7 +8890,7 @@ steps:
   - Tag and push "quay.io/gravitational/teleport-lab:10-amd64" to Quay
   - Tag and push "quay.io/gravitational/teleport-lab:10-arm64" to Quay
   - Tag and push "quay.io/gravitational/teleport-lab:10-arm" to Quay
-- name: Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-amd64"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-amd64"
     to ECR - staging
   image: docker
   commands:
@@ -8949,8 +8898,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-v10-amd64" "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-amd64"
-  - docker push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-amd64"
+  - docker tag "teleport-v10-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-amd64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-amd64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8962,7 +8911,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-amd64"
-- name: Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm64"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm64"
     to ECR - staging
   image: docker
   commands:
@@ -8970,8 +8919,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-v10-arm64" "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm64"
-  - docker push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm64"
+  - docker tag "teleport-v10-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -8983,7 +8932,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-arm64"
-- name: Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm"
     to ECR - staging
   image: docker
   commands:
@@ -8991,8 +8940,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-v10-arm" "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm"
-  - docker push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm"
+  - docker tag "teleport-v10-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9004,7 +8953,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-arm"
-- name: Create manifest and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -9012,11 +8961,11 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP"
-    --amend "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-amd64"
-    --amend "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm64"
-    --amend "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm"
-  - docker manifest push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP"
+  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-amd64"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm64"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm"
+  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9027,13 +8976,13 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-amd64"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-amd64"
     to ECR - staging
-  - Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm64"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm64"
     to ECR - staging
-  - Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm"
     to ECR - staging
-- name: Tag and push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-amd64"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-amd64"
     to ECR - staging
   image: docker
   commands:
@@ -9041,8 +8990,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-lab-v10-amd64" "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-amd64"
-  - docker push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-amd64"
+  - docker tag "teleport-lab-v10-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-amd64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-amd64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9054,7 +9003,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-amd64"
-- name: Tag and push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm64"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm64"
     to ECR - staging
   image: docker
   commands:
@@ -9062,8 +9011,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-lab-v10-arm64" "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm64"
-  - docker push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm64"
+  - docker tag "teleport-lab-v10-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9075,7 +9024,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-arm64"
-- name: Tag and push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm"
     to ECR - staging
   image: docker
   commands:
@@ -9083,8 +9032,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-lab-v10-arm" "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm"
-  - docker push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm"
+  - docker tag "teleport-lab-v10-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9096,7 +9045,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-arm"
-- name: Create manifest and push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -9104,11 +9053,11 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP"
-    --amend "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-amd64"
-    --amend "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm64"
-    --amend "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm"
-  - docker manifest push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP"
+  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-amd64"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm64"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm"
+  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9119,21 +9068,21 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-amd64"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-amd64"
     to ECR - staging
-  - Tag and push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm64"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm64"
     to ECR - staging
-  - Tag and push "teleport-lab/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com:10-$TIMESTAMP-arm"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm"
     to ECR - staging
-- name: Tag and push "teleport/gravitational/public.ecr.aws:10-amd64" to ECR - production
+- name: Tag and push "public.ecr.aws/gravitational/teleport:10-amd64" to ECR - production
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-v10-amd64" "teleport/gravitational/public.ecr.aws:10-amd64"
-  - docker push "teleport/gravitational/public.ecr.aws:10-amd64"
+  - docker tag "teleport-v10-amd64" "public.ecr.aws/gravitational/teleport:10-amd64"
+  - docker push "public.ecr.aws/gravitational/teleport:10-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9145,15 +9094,15 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-amd64"
-- name: Tag and push "teleport/gravitational/public.ecr.aws:10-arm64" to ECR - production
+- name: Tag and push "public.ecr.aws/gravitational/teleport:10-arm64" to ECR - production
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-v10-arm64" "teleport/gravitational/public.ecr.aws:10-arm64"
-  - docker push "teleport/gravitational/public.ecr.aws:10-arm64"
+  - docker tag "teleport-v10-arm64" "public.ecr.aws/gravitational/teleport:10-arm64"
+  - docker push "public.ecr.aws/gravitational/teleport:10-arm64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9165,15 +9114,15 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-arm64"
-- name: Tag and push "teleport/gravitational/public.ecr.aws:10-arm" to ECR - production
+- name: Tag and push "public.ecr.aws/gravitational/teleport:10-arm" to ECR - production
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-v10-arm" "teleport/gravitational/public.ecr.aws:10-arm"
-  - docker push "teleport/gravitational/public.ecr.aws:10-arm"
+  - docker tag "teleport-v10-arm" "public.ecr.aws/gravitational/teleport:10-arm"
+  - docker push "public.ecr.aws/gravitational/teleport:10-arm"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9185,7 +9134,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-arm"
-- name: Create manifest and push "teleport/gravitational/public.ecr.aws:10" to ECR
+- name: Create manifest and push "public.ecr.aws/gravitational/teleport:10" to ECR
     - production
   image: docker
   commands:
@@ -9193,9 +9142,9 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "teleport/gravitational/public.ecr.aws:10" --amend "teleport/gravitational/public.ecr.aws:10-amd64"
-    --amend "teleport/gravitational/public.ecr.aws:10-arm64" --amend "teleport/gravitational/public.ecr.aws:10-arm"
-  - docker manifest push "teleport/gravitational/public.ecr.aws:10"
+  - docker manifest create "public.ecr.aws/gravitational/teleport:10" --amend "public.ecr.aws/gravitational/teleport:10-amd64"
+    --amend "public.ecr.aws/gravitational/teleport:10-arm64" --amend "public.ecr.aws/gravitational/teleport:10-arm"
+  - docker manifest push "public.ecr.aws/gravitational/teleport:10"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9206,10 +9155,10 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport/gravitational/public.ecr.aws:10-amd64" to ECR - production
-  - Tag and push "teleport/gravitational/public.ecr.aws:10-arm64" to ECR - production
-  - Tag and push "teleport/gravitational/public.ecr.aws:10-arm" to ECR - production
-- name: Tag and push "teleport-lab/gravitational/public.ecr.aws:10-amd64" to ECR -
+  - Tag and push "public.ecr.aws/gravitational/teleport:10-amd64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport:10-arm64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport:10-arm" to ECR - production
+- name: Tag and push "public.ecr.aws/gravitational/teleport-lab:10-amd64" to ECR -
     production
   image: docker
   commands:
@@ -9217,8 +9166,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-lab-v10-amd64" "teleport-lab/gravitational/public.ecr.aws:10-amd64"
-  - docker push "teleport-lab/gravitational/public.ecr.aws:10-amd64"
+  - docker tag "teleport-lab-v10-amd64" "public.ecr.aws/gravitational/teleport-lab:10-amd64"
+  - docker push "public.ecr.aws/gravitational/teleport-lab:10-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9230,7 +9179,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-amd64"
-- name: Tag and push "teleport-lab/gravitational/public.ecr.aws:10-arm64" to ECR -
+- name: Tag and push "public.ecr.aws/gravitational/teleport-lab:10-arm64" to ECR -
     production
   image: docker
   commands:
@@ -9238,8 +9187,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-lab-v10-arm64" "teleport-lab/gravitational/public.ecr.aws:10-arm64"
-  - docker push "teleport-lab/gravitational/public.ecr.aws:10-arm64"
+  - docker tag "teleport-lab-v10-arm64" "public.ecr.aws/gravitational/teleport-lab:10-arm64"
+  - docker push "public.ecr.aws/gravitational/teleport-lab:10-arm64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9251,15 +9200,15 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-arm64"
-- name: Tag and push "teleport-lab/gravitational/public.ecr.aws:10-arm" to ECR - production
+- name: Tag and push "public.ecr.aws/gravitational/teleport-lab:10-arm" to ECR - production
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-lab-v10-arm" "teleport-lab/gravitational/public.ecr.aws:10-arm"
-  - docker push "teleport-lab/gravitational/public.ecr.aws:10-arm"
+  - docker tag "teleport-lab-v10-arm" "public.ecr.aws/gravitational/teleport-lab:10-arm"
+  - docker push "public.ecr.aws/gravitational/teleport-lab:10-arm"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9271,7 +9220,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-arm"
-- name: Create manifest and push "teleport-lab/gravitational/public.ecr.aws:10" to
+- name: Create manifest and push "public.ecr.aws/gravitational/teleport-lab:10" to
     ECR - production
   image: docker
   commands:
@@ -9279,10 +9228,10 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "teleport-lab/gravitational/public.ecr.aws:10" --amend
-    "teleport-lab/gravitational/public.ecr.aws:10-amd64" --amend "teleport-lab/gravitational/public.ecr.aws:10-arm64"
-    --amend "teleport-lab/gravitational/public.ecr.aws:10-arm"
-  - docker manifest push "teleport-lab/gravitational/public.ecr.aws:10"
+  - docker manifest create "public.ecr.aws/gravitational/teleport-lab:10" --amend
+    "public.ecr.aws/gravitational/teleport-lab:10-amd64" --amend "public.ecr.aws/gravitational/teleport-lab:10-arm64"
+    --amend "public.ecr.aws/gravitational/teleport-lab:10-arm"
+  - docker manifest push "public.ecr.aws/gravitational/teleport-lab:10"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9293,9 +9242,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport-lab/gravitational/public.ecr.aws:10-amd64" to ECR - production
-  - Tag and push "teleport-lab/gravitational/public.ecr.aws:10-arm64" to ECR - production
-  - Tag and push "teleport-lab/gravitational/public.ecr.aws:10-arm" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport-lab:10-amd64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport-lab:10-arm64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport-lab:10-arm" to ECR - production
 - name: Build teleport image "teleport-v10-ent-amd64"
   image: docker
   commands:
@@ -9347,15 +9296,12 @@ steps:
   - Check out code
   - Check if tag is prerelease
   - Wait for docker
-- name: Tag and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=10)-amd64" to Quay
+- name: Tag and push "quay.io/gravitational/teleport-ent:10-amd64" to Quay
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker tag "teleport-v10-ent-amd64" "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=10)-amd64"
-  - docker push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=10)-amd64"
+  - docker tag "teleport-v10-ent-amd64" "quay.io/gravitational/teleport-ent:10-amd64"
+  - docker push "quay.io/gravitational/teleport-ent:10-amd64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -9367,15 +9313,12 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-ent-amd64"
-- name: Tag and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=10)-arm64" to Quay
+- name: Tag and push "quay.io/gravitational/teleport-ent:10-arm64" to Quay
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker tag "teleport-v10-ent-arm64" "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=10)-arm64"
-  - docker push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=10)-arm64"
+  - docker tag "teleport-v10-ent-arm64" "quay.io/gravitational/teleport-ent:10-arm64"
+  - docker push "quay.io/gravitational/teleport-ent:10-arm64"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -9387,15 +9330,12 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-ent-arm64"
-- name: Tag and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=10)-arm" to Quay
+- name: Tag and push "quay.io/gravitational/teleport-ent:10-arm" to Quay
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker tag "teleport-v10-ent-arm" "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=10)-arm"
-  - docker push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=10)-arm"
+  - docker tag "teleport-v10-ent-arm" "quay.io/gravitational/teleport-ent:10-arm"
+  - docker push "quay.io/gravitational/teleport-ent:10-arm"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -9407,18 +9347,13 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-ent-arm"
-- name: Create manifest and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=10)" to Quay
+- name: Create manifest and push "quay.io/gravitational/teleport-ent:10" to Quay
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
-  - docker manifest create "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=10)" --amend "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=10)-amd64" --amend "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=10)-arm64" --amend "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=10)-arm"
-  - docker manifest push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s,
-    string=teleport, string=10)"
+  - docker manifest create "quay.io/gravitational/teleport-ent:10" --amend "quay.io/gravitational/teleport-ent:10-amd64"
+    --amend "quay.io/gravitational/teleport-ent:10-arm64" --amend "quay.io/gravitational/teleport-ent:10-arm"
+  - docker manifest push "quay.io/gravitational/teleport-ent:10"
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
@@ -9429,13 +9364,10 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=10)-amd64" to Quay
-  - Tag and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=10)-arm64" to Quay
-  - Tag and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
-    string=10)-arm" to Quay
-- name: Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-amd64"
+  - Tag and push "quay.io/gravitational/teleport-ent:10-amd64" to Quay
+  - Tag and push "quay.io/gravitational/teleport-ent:10-arm64" to Quay
+  - Tag and push "quay.io/gravitational/teleport-ent:10-arm" to Quay
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-amd64"
     to ECR - staging
   image: docker
   commands:
@@ -9443,8 +9375,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-v10-ent-amd64" "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-amd64"
-  - docker push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-amd64"
+  - docker tag "teleport-v10-ent-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-amd64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-amd64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9456,7 +9388,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-ent-amd64"
-- name: Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-arm64"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm64"
     to ECR - staging
   image: docker
   commands:
@@ -9464,8 +9396,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-v10-ent-arm64" "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-arm64"
-  - docker push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-arm64"
+  - docker tag "teleport-v10-ent-arm64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9477,7 +9409,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-ent-arm64"
-- name: Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-arm"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm"
     to ECR - staging
   image: docker
   commands:
@@ -9485,8 +9417,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-v10-ent-arm" "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-arm"
-  - docker push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-arm"
+  - docker tag "teleport-v10-ent-arm" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9498,7 +9430,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-ent-arm"
-- name: Create manifest and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -9506,11 +9438,11 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP"
-    --amend "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-amd64"
-    --amend "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-arm64"
-    --amend "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-arm"
-  - docker manifest push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP"
+  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-amd64"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm64"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm"
+  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9521,13 +9453,13 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-amd64"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-amd64"
     to ECR - staging
-  - Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-arm64"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm64"
     to ECR - staging
-  - Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-$TIMESTAMP-arm"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm"
     to ECR - staging
-- name: Tag and push "teleport/gravitational/public.ecr.aws-ent:10-amd64" to ECR -
+- name: Tag and push "public.ecr.aws/gravitational/teleport-ent:10-amd64" to ECR -
     production
   image: docker
   commands:
@@ -9535,8 +9467,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-v10-ent-amd64" "teleport/gravitational/public.ecr.aws-ent:10-amd64"
-  - docker push "teleport/gravitational/public.ecr.aws-ent:10-amd64"
+  - docker tag "teleport-v10-ent-amd64" "public.ecr.aws/gravitational/teleport-ent:10-amd64"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:10-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9548,7 +9480,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-ent-amd64"
-- name: Tag and push "teleport/gravitational/public.ecr.aws-ent:10-arm64" to ECR -
+- name: Tag and push "public.ecr.aws/gravitational/teleport-ent:10-arm64" to ECR -
     production
   image: docker
   commands:
@@ -9556,8 +9488,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-v10-ent-arm64" "teleport/gravitational/public.ecr.aws-ent:10-arm64"
-  - docker push "teleport/gravitational/public.ecr.aws-ent:10-arm64"
+  - docker tag "teleport-v10-ent-arm64" "public.ecr.aws/gravitational/teleport-ent:10-arm64"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:10-arm64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9569,15 +9501,15 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-ent-arm64"
-- name: Tag and push "teleport/gravitational/public.ecr.aws-ent:10-arm" to ECR - production
+- name: Tag and push "public.ecr.aws/gravitational/teleport-ent:10-arm" to ECR - production
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-v10-ent-arm" "teleport/gravitational/public.ecr.aws-ent:10-arm"
-  - docker push "teleport/gravitational/public.ecr.aws-ent:10-arm"
+  - docker tag "teleport-v10-ent-arm" "public.ecr.aws/gravitational/teleport-ent:10-arm"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:10-arm"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9589,7 +9521,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-ent-arm"
-- name: Create manifest and push "teleport/gravitational/public.ecr.aws-ent:10" to
+- name: Create manifest and push "public.ecr.aws/gravitational/teleport-ent:10" to
     ECR - production
   image: docker
   commands:
@@ -9597,10 +9529,10 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "teleport/gravitational/public.ecr.aws-ent:10" --amend
-    "teleport/gravitational/public.ecr.aws-ent:10-amd64" --amend "teleport/gravitational/public.ecr.aws-ent:10-arm64"
-    --amend "teleport/gravitational/public.ecr.aws-ent:10-arm"
-  - docker manifest push "teleport/gravitational/public.ecr.aws-ent:10"
+  - docker manifest create "public.ecr.aws/gravitational/teleport-ent:10" --amend
+    "public.ecr.aws/gravitational/teleport-ent:10-amd64" --amend "public.ecr.aws/gravitational/teleport-ent:10-arm64"
+    --amend "public.ecr.aws/gravitational/teleport-ent:10-arm"
+  - docker manifest push "public.ecr.aws/gravitational/teleport-ent:10"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9611,9 +9543,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport/gravitational/public.ecr.aws-ent:10-amd64" to ECR - production
-  - Tag and push "teleport/gravitational/public.ecr.aws-ent:10-arm64" to ECR - production
-  - Tag and push "teleport/gravitational/public.ecr.aws-ent:10-arm" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport-ent:10-amd64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport-ent:10-arm64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitational/teleport-ent:10-arm" to ECR - production
 - name: Build teleport image "teleport-v10-ent-fips-amd64"
   image: docker
   commands:
@@ -9665,7 +9597,7 @@ steps:
     path: /var/run
   depends_on:
   - Tag and push "quay.io/gravitational/teleport-ent:10-fips-amd64" to Quay
-- name: Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-fips-$TIMESTAMP-amd64"
+- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-fips-$TIMESTAMP-amd64"
     to ECR - staging
   image: docker
   commands:
@@ -9673,8 +9605,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker tag "teleport-v10-ent-fips-amd64" "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-fips-$TIMESTAMP-amd64"
-  - docker push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-fips-$TIMESTAMP-amd64"
+  - docker tag "teleport-v10-ent-fips-amd64" "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-fips-$TIMESTAMP-amd64"
+  - docker push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-fips-$TIMESTAMP-amd64"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9686,7 +9618,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-ent-fips-amd64"
-- name: Create manifest and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-fips-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-fips-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -9694,9 +9626,9 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - docker manifest create "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-fips-$TIMESTAMP"
-    --amend "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-fips-$TIMESTAMP-amd64"
-  - docker manifest push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-fips-$TIMESTAMP"
+  - docker manifest create "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-fips-$TIMESTAMP"
+    --amend "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-fips-$TIMESTAMP-amd64"
+  - docker manifest push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-fips-$TIMESTAMP"
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9707,9 +9639,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport/gravitational/146628656107.dkr.ecr.us-west-2.amazonaws.com-ent:10-fips-$TIMESTAMP-amd64"
+  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-fips-$TIMESTAMP-amd64"
     to ECR - staging
-- name: Tag and push "teleport/gravitational/public.ecr.aws-ent:10-fips-amd64" to
+- name: Tag and push "public.ecr.aws/gravitational/teleport-ent:10-fips-amd64" to
     ECR - production
   image: docker
   commands:
@@ -9717,8 +9649,8 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker tag "teleport-v10-ent-fips-amd64" "teleport/gravitational/public.ecr.aws-ent:10-fips-amd64"
-  - docker push "teleport/gravitational/public.ecr.aws-ent:10-fips-amd64"
+  - docker tag "teleport-v10-ent-fips-amd64" "public.ecr.aws/gravitational/teleport-ent:10-fips-amd64"
+  - docker push "public.ecr.aws/gravitational/teleport-ent:10-fips-amd64"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9730,7 +9662,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-ent-fips-amd64"
-- name: Create manifest and push "teleport/gravitational/public.ecr.aws-ent:10-fips"
+- name: Create manifest and push "public.ecr.aws/gravitational/teleport-ent:10-fips"
     to ECR - production
   image: docker
   commands:
@@ -9738,9 +9670,9 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     public.ecr.aws
-  - docker manifest create "teleport/gravitational/public.ecr.aws-ent:10-fips" --amend
-    "teleport/gravitational/public.ecr.aws-ent:10-fips-amd64"
-  - docker manifest push "teleport/gravitational/public.ecr.aws-ent:10-fips"
+  - docker manifest create "public.ecr.aws/gravitational/teleport-ent:10-fips" --amend
+    "public.ecr.aws/gravitational/teleport-ent:10-fips-amd64"
+  - docker manifest push "public.ecr.aws/gravitational/teleport-ent:10-fips"
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
@@ -9751,7 +9683,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "teleport/gravitational/public.ecr.aws-ent:10-fips-amd64" to ECR
+  - Tag and push "public.ecr.aws/gravitational/teleport-ent:10-fips-amd64" to ECR
     - production
 services:
 - name: Start Docker
@@ -10242,6 +10174,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 6473cc35ddb2543aa276bd830a28e32a40a40dd93d4a9b9d7745214469a34095
+hmac: f113729990324c3675f725ad48951541d5f4e49b8d51cb2b3e805bf453b7caef
 
 ...

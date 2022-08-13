@@ -318,9 +318,14 @@ type containerRepo struct {
 	FipsEntImageName func(buildName, version string) string
 }
 
-func NewEcrContainerRepo(name, accessKeyIdSecret, secretAccessKeySecret, domain string, isStaging bool) *containerRepo {
+func NewEcrContainerRepo(accessKeyIdSecret, secretAccessKeySecret, domain string, isStaging bool) *containerRepo {
+	nameSuffix := "staging"
+	if !isStaging {
+		nameSuffix = "production"
+	}
+
 	return &containerRepo{
-		Name: fmt.Sprintf("ECR - %s", name),
+		Name: fmt.Sprintf("ECR - %s", nameSuffix),
 		Environment: map[string]value{
 			"AWS_ACCESS_KEY_ID": {
 				fromSecret: accessKeyIdSecret,
@@ -336,7 +341,7 @@ func NewEcrContainerRepo(name, accessKeyIdSecret, secretAccessKeySecret, domain 
 			fmt.Sprintf("aws ecr get-login-password --region=us-west-2 | docker login -u=\"AWS\" --password-stdin %s", domain),
 		},
 		OssImageName: func(buildName, majorVersion string) string {
-			baseTag := fmt.Sprintf("%s/gravitational/%s:%s", buildName, domain, trimV(majorVersion))
+			baseTag := fmt.Sprintf("%s/gravitational/%s:%s", domain, buildName, trimV(majorVersion))
 
 			if !isStaging {
 				return baseTag
@@ -344,7 +349,7 @@ func NewEcrContainerRepo(name, accessKeyIdSecret, secretAccessKeySecret, domain 
 			return fmt.Sprintf("%s-%s", baseTag, "$TIMESTAMP")
 		},
 		EntImageName: func(buildName, majorVersion string) string {
-			baseTag := fmt.Sprintf("%s/gravitational/%s-ent:%s", buildName, domain, trimV(majorVersion))
+			baseTag := fmt.Sprintf("%s/gravitational/%s-ent:%s", domain, buildName, trimV(majorVersion))
 
 			if !isStaging {
 				return baseTag
@@ -352,7 +357,7 @@ func NewEcrContainerRepo(name, accessKeyIdSecret, secretAccessKeySecret, domain 
 			return fmt.Sprintf("%s-%s", baseTag, "$TIMESTAMP")
 		},
 		FipsEntImageName: func(buildName, majorVersion string) string {
-			baseTag := fmt.Sprintf("%s/gravitational/%s-ent:%s-fips", buildName, domain, trimV(majorVersion))
+			baseTag := fmt.Sprintf("%s/gravitational/%s-ent:%s-fips", domain, buildName, trimV(majorVersion))
 
 			if !isStaging {
 				return baseTag
@@ -373,18 +378,18 @@ func NewQuayContainerRepo(dockerUsername, dockerPassword string) *containerRepo 
 				fromSecret: dockerPassword,
 			},
 		},
-		RegistryDomain: "quay.io",
+		RegistryDomain: ProductionRegistryQuay,
 		LoginCommands: []string{
-			"docker login -u=\"$QUAY_USERNAME\" -p=\"$QUAY_PASSWORD\" \"quay.io\"",
+			fmt.Sprintf("docker login -u=\"$QUAY_USERNAME\" -p=\"$QUAY_PASSWORD\" %q", ProductionRegistryQuay),
 		},
 		OssImageName: func(buildName, majorVersion string) string {
-			return fmt.Sprintf("quay.io/gravitational/%s:%s", buildName, trimV(majorVersion))
+			return fmt.Sprintf("%s/gravitational/%s:%s", ProductionRegistryQuay, buildName, trimV(majorVersion))
 		},
 		EntImageName: func(buildName, majorVersion string) string {
-			return fmt.Sprintf(buildName, "quay.io/gravitational/%s-ent:%s", buildName, trimV(majorVersion))
+			return fmt.Sprintf("%s/gravitational/%s-ent:%s", ProductionRegistryQuay, buildName, trimV(majorVersion))
 		},
 		FipsEntImageName: func(buildName, majorVersion string) string {
-			return fmt.Sprintf("quay.io/gravitational/%s-ent:%s-fips", buildName, trimV(majorVersion))
+			return fmt.Sprintf("%s/gravitational/%s-ent:%s-fips", ProductionRegistryQuay, buildName, trimV(majorVersion))
 		},
 	}
 }
@@ -392,8 +397,8 @@ func NewQuayContainerRepo(dockerUsername, dockerPassword string) *containerRepo 
 func GetContainerRepos() []*containerRepo {
 	return []*containerRepo{
 		NewQuayContainerRepo("PRODUCTION_QUAYIO_DOCKER_USERNAME", "PRODUCTION_QUAYIO_DOCKER_PASSWORD"),
-		NewEcrContainerRepo("staging", "STAGING_TELEPORT_DRONE_USER_ECR_KEY", "STAGING_TELEPORT_DRONE_USER_ECR_SECRET", "146628656107.dkr.ecr.us-west-2.amazonaws.com", true),
-		NewEcrContainerRepo("production", "PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY", "PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET", "public.ecr.aws", false),
+		NewEcrContainerRepo("STAGING_TELEPORT_DRONE_USER_ECR_KEY", "STAGING_TELEPORT_DRONE_USER_ECR_SECRET", StagingRegistry, true),
+		NewEcrContainerRepo("PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY", "PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET", ProductionRegistry, false),
 	}
 }
 
