@@ -193,32 +193,12 @@ func (optpb *OsPackageToolPipelineBuilder) buildPromoteOsPackagePipeline() pipel
 	pipelineName := fmt.Sprintf("publish-%s", optpb.pipelineNameSuffix)
 	checkoutPath := "/go/src/github.com/gravitational/teleport"
 	commitName := "${DRONE_TAG}"
-	checkoutStepName := "Check out code"
 
-	p := optpb.buildBaseOsPackagePipeline(pipelineName, checkoutStepName, checkoutPath, commitName)
+	p := optpb.buildBaseOsPackagePipeline(pipelineName, checkoutPath, commitName)
 	p.Trigger = triggerPromote
 	p.Trigger.Repo.Include = []string{"gravitational/teleport"}
 
-	setupSteps := []step{
-		{
-			Name:  "Verify build is tagged",
-			Image: "alpine:latest",
-			Commands: []string{
-				"[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)",
-			},
-		},
-	}
-	setupSteps = append(setupSteps, p.Steps...)
-	setupSteps = append(setupSteps,
-		step{
-			Name:  "Check if tag is prerelease",
-			Image: "golang:1.17-alpine",
-			Commands: []string{
-				fmt.Sprintf("cd %q", path.Join(checkoutPath, "build.assets", "tooling")),
-				"go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is a prerelease, not publishing ${DRONE_TAG} packages to APT repos' && exit 78)",
-			},
-		},
-	)
+	setupSteps := verifyValidPromoteRunSteps(checkoutPath, commitName)
 
 	setupStepNames := make([]string, 0, len(setupSteps))
 	for _, setupStep := range setupSteps {
@@ -247,14 +227,13 @@ func (optpb *OsPackageToolPipelineBuilder) buildMigrateOsPackagePipeline(trigger
 	// DRONE_TAG is not available outside of promotion pipelines and will cause drone to fail with a
 	// "migrate-apt-new-repos: bad substitution" error if used here
 	commitName := "${DRONE_COMMIT}"
-	checkoutStepName := "Check out code"
 
 	// If migrations are not configured then don't run
 	if triggerBranch == "" || len(migrationVersions) == 0 {
 		return buildNeverTriggerPipeline(pipelineName)
 	}
 
-	p := optpb.buildBaseOsPackagePipeline(pipelineName, checkoutStepName, checkoutPath, commitName)
+	p := optpb.buildBaseOsPackagePipeline(pipelineName, checkoutPath, commitName)
 	p.Trigger = trigger{
 		Repo:   triggerRef{Include: []string{"gravitational/teleport"}},
 		Event:  triggerRef{Include: []string{"push"}},
@@ -297,7 +276,7 @@ func buildNeverTriggerPipeline(pipelineName string) pipeline {
 // Functions that use this method should add at least:
 // * a Trigger
 // * Steps for checkout
-func (optpb *OsPackageToolPipelineBuilder) buildBaseOsPackagePipeline(pipelineName, checkoutStepName, checkoutPath, commit string) pipeline {
+func (optpb *OsPackageToolPipelineBuilder) buildBaseOsPackagePipeline(pipelineName, checkoutPath, commit string) pipeline {
 	p := newKubePipeline(pipelineName)
 	p.Workspace = workspace{Path: "/go"}
 	p.Volumes = []volume{
@@ -309,13 +288,7 @@ func (optpb *OsPackageToolPipelineBuilder) buildBaseOsPackagePipeline(pipelineNa
 		},
 		volumeTmpfs,
 	}
-	p.Steps = []step{
-		{
-			Name:     checkoutStepName,
-			Image:    "alpine/git:latest",
-			Commands: toolCheckoutCommands(checkoutPath, commit),
-		},
-	}
+	p.Steps = []step{cloneRepoStep(checkoutPath, commit)}
 	setStepResourceLimits(p.Steps)
 
 	return p
@@ -336,17 +309,6 @@ func setStepResourceLimits(steps []step) {
 	// 	step.Resources.Requests.Cpu = 100
 	// 	step.Resources.Requests.Memory = (*resourceQuantity)(resource.NewQuantity(100*1024*1024, resource.BinarySI))
 	// }
-}
-
-// Note that tags are also valid here as a tag refers to a specific commit
-func toolCheckoutCommands(checkoutPath, commit string) []string {
-	commands := []string{
-		fmt.Sprintf("mkdir -p %q", checkoutPath),
-		fmt.Sprintf("cd %q", checkoutPath),
-		`git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .`,
-		fmt.Sprintf("git checkout %q", commit),
-	}
-	return commands
 }
 
 func (optpb *OsPackageToolPipelineBuilder) getDroneTagVersionSteps(codePath string) []step {

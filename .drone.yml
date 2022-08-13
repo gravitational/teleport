@@ -4976,7 +4976,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:277
+# Generated at dronegen/os_repos.go:256
 ################################################
 
 kind: pipeline
@@ -5004,7 +5004,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:301
+# Generated at dronegen/os_repos.go:280
 ################################################
 
 kind: pipeline
@@ -5038,11 +5038,11 @@ steps:
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
   - git checkout "${DRONE_TAG}"
 - name: Check if tag is prerelease
-  image: golang:1.17-alpine
+  image: golang:1.18-alpine
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not publishing ${DRONE_TAG} packages to APT repos' && exit 78)
+    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
 - name: Download artifacts for "${DRONE_TAG}"
   image: amazon/aws-cli
   commands:
@@ -5113,7 +5113,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:277
+# Generated at dronegen/os_repos.go:256
 ################################################
 
 kind: pipeline
@@ -5141,7 +5141,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:301
+# Generated at dronegen/os_repos.go:280
 ################################################
 
 kind: pipeline
@@ -5175,11 +5175,11 @@ steps:
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
   - git checkout "${DRONE_TAG}"
 - name: Check if tag is prerelease
-  image: golang:1.17-alpine
+  image: golang:1.18-alpine
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not publishing ${DRONE_TAG} packages to APT repos' && exit 78)
+    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
 - name: Download artifacts for "${DRONE_TAG}"
   image: amazon/aws-cli
   commands:
@@ -5429,7 +5429,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:115
+# Generated at dronegen/container_images.go:123
 ################################################
 
 kind: pipeline
@@ -6504,7 +6504,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:115
+# Generated at dronegen/container_images.go:123
 ################################################
 
 kind: pipeline
@@ -7577,7 +7577,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:115
+# Generated at dronegen/container_images.go:123
 ################################################
 
 kind: pipeline
@@ -8650,7 +8650,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:115
+# Generated at dronegen/container_images.go:123
 ################################################
 
 kind: pipeline
@@ -8672,6 +8672,24 @@ workspace:
 clone:
   disable: true
 steps:
+- name: Verify build is tagged
+  image: alpine:latest
+  commands:
+  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+    && exit 1)'
+- name: Check out code
+  image: alpine/git:latest
+  commands:
+  - mkdir -p "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
+  - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
+  - git checkout "$DRONE_TAG"
+- name: Check if tag is prerelease
+  image: golang:1.18-alpine
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
+    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
 - name: Wait for docker
   image: docker
   commands:
@@ -8692,6 +8710,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
+  - Verify build is tagged
+  - Check out code
+  - Check if tag is prerelease
   - Wait for docker
 - name: Build teleport-lab image "teleport-lab-v10-amd64"
   image: docker
@@ -8723,6 +8744,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
+  - Verify build is tagged
+  - Check out code
+  - Check if tag is prerelease
   - Wait for docker
 - name: Build teleport-lab image "teleport-lab-v10-arm64"
   image: docker
@@ -8754,6 +8778,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
+  - Verify build is tagged
+  - Check out code
+  - Check if tag is prerelease
   - Wait for docker
 - name: Build teleport-lab image "teleport-lab-v10-arm"
   image: docker
@@ -9282,6 +9309,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
+  - Verify build is tagged
+  - Check out code
+  - Check if tag is prerelease
   - Wait for docker
 - name: Build teleport image "teleport-v10-ent-arm64"
   image: docker
@@ -9296,6 +9326,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
+  - Verify build is tagged
+  - Check out code
+  - Check if tag is prerelease
   - Wait for docker
 - name: Build teleport image "teleport-v10-ent-arm"
   image: docker
@@ -9310,6 +9343,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
+  - Verify build is tagged
+  - Check out code
+  - Check if tag is prerelease
   - Wait for docker
 - name: Tag and push "teleport%!(EXTRA string=quay.io/gravitational/%s-ent:%s, string=teleport,
     string=10)-amd64" to Quay
@@ -9591,6 +9627,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
+  - Verify build is tagged
+  - Check out code
+  - Check if tag is prerelease
   - Wait for docker
 - name: Tag and push "quay.io/gravitational/teleport-ent:10-fips-amd64" to Quay
   image: docker
@@ -10203,6 +10242,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 8805a8f6f7413199c264d040caebebcc081eaddd5c350ce21f67b048aacc0cdd
+hmac: 6473cc35ddb2543aa276bd830a28e32a40a40dd93d4a9b9d7745214469a34095
 
 ...

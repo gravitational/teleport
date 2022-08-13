@@ -32,11 +32,13 @@ type triggerInfo struct {
 	Trigger           trigger
 	Name              string
 	SupportedVersions []*teleportVersion
+	SetupSteps        []step
 }
 
 func NewPromoteTrigger(branchMajorVersion string) *triggerInfo {
 	promoteTrigger := triggerPromote
 	promoteTrigger.Target.Include = append(promoteTrigger.Target.Include, "promote-docker")
+	checkoutPath := "/go/src/github.com/gravitational/teleport"
 
 	return &triggerInfo{
 		Trigger: promoteTrigger,
@@ -48,6 +50,7 @@ func NewPromoteTrigger(branchMajorVersion string) *triggerInfo {
 				RelativeVersionName: "drone-tag",
 			},
 		},
+		SetupSteps: verifyValidPromoteRunSteps(checkoutPath, "$DRONE_TAG"),
 	}
 }
 
@@ -88,7 +91,7 @@ func NewCronTrigger(latestMajorVersions []string) *triggerInfo {
 func (ti *triggerInfo) BuildPipelines() []pipeline {
 	pipelines := make([]pipeline, 0, len(ti.SupportedVersions))
 	for _, teleportVersion := range ti.SupportedVersions {
-		pipeline := teleportVersion.BuildVersionPipeline()
+		pipeline := teleportVersion.BuildVersionPipeline(ti.SetupSteps)
 		pipeline.Name += "-" + ti.Name
 		pipeline.Trigger = ti.Trigger
 
@@ -104,8 +107,13 @@ type teleportVersion struct {
 	RelativeVersionName string // The set of values for this should not change between major releases
 }
 
-func (tv *teleportVersion) BuildVersionPipeline() pipeline {
+func (tv *teleportVersion) BuildVersionPipeline(setupSteps []step) pipeline {
 	pipelineName := fmt.Sprintf("teleport-container-images-%s", tv.RelativeVersionName)
+
+	setupStepNames := make([]string, 0, len(setupSteps))
+	for _, setupStep := range setupSteps {
+		setupStepNames = append(setupStepNames, setupStep.Name)
+	}
 
 	trigger := cronTrigger([]string{pipelineName})
 	promoteTrigger := triggerPromote
@@ -117,12 +125,12 @@ func (tv *teleportVersion) BuildVersionPipeline() pipeline {
 	pipeline.Workspace = workspace{Path: "/go"}
 	pipeline.Services = []service{dockerService()}
 	pipeline.Volumes = dockerVolumes()
-	pipeline.Steps = tv.buildSteps()
+	pipeline.Steps = append(setupSteps, tv.buildSteps(setupStepNames)...)
 
 	return pipeline
 }
 
-func (tv *teleportVersion) buildSteps() []step {
+func (tv *teleportVersion) buildSteps(setupStepNames []string) []step {
 	teleportPackages := []teleportPackage{
 		{IsEnterprise: false, IsFIPS: false}, // OSS
 		{IsEnterprise: true, IsFIPS: false},  // Enterprise
@@ -130,11 +138,12 @@ func (tv *teleportVersion) buildSteps() []step {
 	}
 	steps := make([]step, 0)
 
-	setupStep := waitForDockerStep()
-	steps = append(steps, setupStep)
+	dockerStep := waitForDockerStep()
+	steps = append(steps, dockerStep)
+	setupStepNames = append(setupStepNames, dockerStep.Name)
 
 	for _, teleportPackage := range teleportPackages {
-		steps = append(steps, teleportPackage.BuildSteps(tv, setupStep.Name)...)
+		steps = append(steps, teleportPackage.BuildSteps(tv, setupStepNames)...)
 	}
 
 	return steps
@@ -159,7 +168,7 @@ func (tp *teleportPackage) GetName() string {
 	return fmt.Sprintf("%s-fips", baseName)
 }
 
-func (tp *teleportPackage) BuildSteps(version *teleportVersion, setupStep string) []step {
+func (tp *teleportPackage) BuildSteps(version *teleportVersion, setupSteps []string) []step {
 	// The base image (ubuntu:20.04) does not offer i386 images so we don't either
 	supportedArchs := []string{
 		"amd64",
@@ -180,7 +189,7 @@ func (tp *teleportPackage) BuildSteps(version *teleportVersion, setupStep string
 
 		// Setup Teleport build steps
 		teleportBuildArchStep, teleportBuildArchStepDetails := tp.buildTeleportArchStep(version, supportedArch)
-		teleportBuildArchStep.DependsOn = []string{setupStep}
+		teleportBuildArchStep.DependsOn = setupSteps
 		steps = append(steps, teleportBuildArchStep)
 		teleportBuildStepDetails = append(teleportBuildStepDetails, teleportBuildArchStepDetails)
 

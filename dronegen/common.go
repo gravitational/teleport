@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"path"
 	"strings"
 )
 
@@ -257,5 +258,48 @@ func waitForDockerStep() step {
 			`timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'`,
 		},
 		Volumes: dockerVolumeRefs(),
+	}
+}
+
+func verifyValidPromoteRunSteps(checkoutPath, commit string) []step {
+	return []step{
+		verifyTaggedStep(),
+		cloneRepoStep(checkoutPath, commit),
+		verifyNotPrereleaseStep(checkoutPath),
+	}
+}
+
+func verifyTaggedStep() step {
+	return step{
+		Name:  "Verify build is tagged",
+		Image: "alpine:latest",
+		Commands: []string{
+			"[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)",
+		},
+	}
+}
+
+// Note that tags are also valid here as a tag refers to a specific commit
+func cloneRepoStep(checkoutPath, commit string) step {
+	return step{
+		Name:  "Check out code",
+		Image: "alpine/git:latest",
+		Commands: []string{
+			fmt.Sprintf("mkdir -p %q", checkoutPath),
+			fmt.Sprintf("cd %q", checkoutPath),
+			`git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .`,
+			fmt.Sprintf("git checkout %q", commit),
+		},
+	}
+}
+
+func verifyNotPrereleaseStep(checkoutPath string) step {
+	return step{
+		Name:  "Check if tag is prerelease",
+		Image: "golang:1.18-alpine",
+		Commands: []string{
+			fmt.Sprintf("cd %q", path.Join(checkoutPath, "build.assets", "tooling")),
+			"go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)",
+		},
 	}
 }
