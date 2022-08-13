@@ -30,13 +30,14 @@ RUN END_TIME=$(( $(date +%s) + ${TIMEOUT} )) && \
         # so we ignore it here.
         echo "Running apt update..."; \
         DEBIAN_FRONTEND=noninteractive apt-get update > /dev/null || true; \
-        [ $(apt-cache madison ${PACKAGE_NAME} | grep $TRIMMED_VERSION | wc -l) -eq 1 ] && TIMED_OUT=false && break; \
+        [ $(apt-cache madison ${PACKAGE_NAME} | grep $TRIMMED_VERSION | wc -l) -ge 1 ] && TIMED_OUT=false && break; \
         echo "Package not found yet, waiting another ${SLEEP_TIME} seconds..."; \
         sleep ${SLEEP_TIME}; \
     done && \
-    [ $TIMED_OUT = true ] && echo "Timed out while looking for APT package \"${PACKAGE_NAME}=$TRIMMED_VERSION\"" || \
-    echo "Found APT package, downloading..." && \
-    apt download ${PACKAGE_NAME}=$TRIMMED_VERSION && \
+    [ $TIMED_OUT = true ] && echo "Timed out while looking for APT package \"${PACKAGE_NAME}\" matching $TRIMMED_VERSION" || \
+    FULL_VERSION=$(apt-cache madison ${PACKAGE_NAME} | grep $TRIMMED_VERSION | cut -d'|' -f 2 | tr -d ' ' | head -n 1) && \
+    echo "Found APT package, downloading \"${PACKAGE_NAME}=${FULL_VERSION}\"..." && \
+    apt download ${PACKAGE_NAME}=$FULL_VERSION && \
     mv teleport*.deb /tmp/teleport.deb
 
 # Stage to copy the local built deb

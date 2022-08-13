@@ -7,37 +7,90 @@ import (
 )
 
 func buildContainerImagePipelines() []pipeline {
-	// This needs to be updated on each major release.
-	teleportVersions := []teleportVersion{
-		{MajorVersion: "v10", RelativeVersionName: "current-version"},
-		{MajorVersion: "v9", RelativeVersionName: "previous-version-one"},
-		{MajorVersion: "v8", RelativeVersionName: "previous-version-two"},
+	// These need to be updated on each major release.
+	latestMajorVersions := []string{"v10", "v9", "v8"}
+	branchMajorVersion := "v10"
+
+	if len(latestMajorVersions) == 0 {
+		return []pipeline{}
 	}
 
-	promoteTrigger := triggerPromote
-	promoteTrigger.Target.Include = append(promoteTrigger.Target.Include, "promote-docker")
-	triggers := map[string]trigger{
-		"cron":    cronTrigger([]string{"teleport-container-images-cron"}),
-		"promote": promoteTrigger,
+	triggers := []*triggerInfo{
+		NewPromoteTrigger(branchMajorVersion),
+		NewCronTrigger(latestMajorVersions),
 	}
 
-	pipelines := make([]pipeline, 0, len(teleportVersions))
-	for triggerName, trigger := range triggers {
-		pipelines = append(pipelines, BuildTriggerPipelines(trigger, triggerName, teleportVersions)...)
+	pipelines := make([]pipeline, 0, len(triggers))
+	for _, trigger := range triggers {
+		pipelines = append(pipelines, trigger.BuildPipelines()...)
 	}
 
 	return pipelines
 }
 
+type triggerInfo struct {
+	Trigger           trigger
+	Name              string
+	SupportedVersions []*teleportVersion
+}
+
+func NewPromoteTrigger(branchMajorVersion string) *triggerInfo {
+	promoteTrigger := triggerPromote
+	promoteTrigger.Target.Include = append(promoteTrigger.Target.Include, "promote-docker")
+
+	return &triggerInfo{
+		Trigger: promoteTrigger,
+		Name:    "promote",
+		SupportedVersions: []*teleportVersion{
+			{
+				MajorVersion:        branchMajorVersion,
+				SearchVersion:       "$DRONE_TAG",
+				RelativeVersionName: "drone-tag",
+			},
+		},
+	}
+}
+
+func NewCronTrigger(latestMajorVersions []string) *triggerInfo {
+	if len(latestMajorVersions) == 0 {
+		return nil
+	}
+
+	supportedVersions := make([]*teleportVersion, 0, len(latestMajorVersions))
+	if len(latestMajorVersions) > 0 {
+		supportedVersions = append(supportedVersions, &teleportVersion{
+			MajorVersion:        latestMajorVersions[0],
+			SearchVersion:       latestMajorVersions[0],
+			RelativeVersionName: "current-version",
+		})
+
+		if len(latestMajorVersions) > 1 {
+			for i, latestMajorVersion := range latestMajorVersions[1:] {
+				supportedVersions = append(supportedVersions, &teleportVersion{
+					MajorVersion:        latestMajorVersion,
+					SearchVersion:       latestMajorVersion,
+					RelativeVersionName: fmt.Sprintf("previous-version-%d", i+1),
+				})
+			}
+		}
+	}
+
+	return &triggerInfo{
+		Trigger:           cronTrigger([]string{"teleport-container-images-cron"}),
+		Name:              "cron",
+		SupportedVersions: supportedVersions,
+	}
+}
+
 // Drone triggers must all evaluate to "true" for a pipeline to be executed.
 // As a result these pipelines are duplicated for each trigger.
 // See https://docs.drone.io/pipeline/triggers/ for details.
-func BuildTriggerPipelines(trigger trigger, triggerName string, teleportVersions []teleportVersion) []pipeline {
-	pipelines := make([]pipeline, 0, len(teleportVersions))
-	for _, teleportVersion := range teleportVersions {
+func (ti *triggerInfo) BuildPipelines() []pipeline {
+	pipelines := make([]pipeline, 0, len(ti.SupportedVersions))
+	for _, teleportVersion := range ti.SupportedVersions {
 		pipeline := teleportVersion.BuildVersionPipeline()
-		pipeline.Name += "-" + triggerName
-		pipeline.Trigger = trigger
+		pipeline.Name += "-" + ti.Name
+		pipeline.Trigger = ti.Trigger
 
 		pipelines = append(pipelines, pipeline)
 	}
@@ -46,7 +99,8 @@ func BuildTriggerPipelines(trigger trigger, triggerName string, teleportVersions
 }
 
 type teleportVersion struct {
-	MajorVersion        string
+	MajorVersion        string // This is the major version of a given build. `SearchVersion` should match this when evaluated.
+	SearchVersion       string // This value will be evaluated by the shell in the context of a Drone step
 	RelativeVersionName string // The set of values for this should not change between major releases
 }
 
@@ -80,7 +134,7 @@ func (tv *teleportVersion) buildSteps() []step {
 	steps = append(steps, setupStep)
 
 	for _, teleportPackage := range teleportPackages {
-		steps = append(steps, teleportPackage.BuildSteps(tv.MajorVersion, setupStep.Name)...)
+		steps = append(steps, teleportPackage.BuildSteps(tv, setupStep.Name)...)
 	}
 
 	return steps
@@ -105,7 +159,7 @@ func (tp *teleportPackage) GetName() string {
 	return fmt.Sprintf("%s-fips", baseName)
 }
 
-func (tp *teleportPackage) BuildSteps(majorVersion, setupStep string) []step {
+func (tp *teleportPackage) BuildSteps(version *teleportVersion, setupStep string) []step {
 	// The base image (ubuntu:20.04) does not offer i386 images so we don't either
 	supportedArchs := []string{
 		"amd64",
@@ -125,7 +179,7 @@ func (tp *teleportPackage) BuildSteps(majorVersion, setupStep string) []step {
 		}
 
 		// Setup Teleport build steps
-		teleportBuildArchStep, teleportBuildArchStepDetails := tp.buildTeleportArchStep(majorVersion, supportedArch)
+		teleportBuildArchStep, teleportBuildArchStepDetails := tp.buildTeleportArchStep(version, supportedArch)
 		teleportBuildArchStep.DependsOn = []string{setupStep}
 		steps = append(steps, teleportBuildArchStep)
 		teleportBuildStepDetails = append(teleportBuildStepDetails, teleportBuildArchStepDetails)
@@ -152,8 +206,8 @@ func (tp *teleportPackage) BuildSteps(majorVersion, setupStep string) []step {
 func (tp *teleportPackage) buildTeleportLabArchStep(teleportBuildStepDetail *buildStepOutput) (step, *buildStepOutput) {
 	dockerfile := "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
 
-	step, stepDetail := tp.createBuildStep("teleport-lab", teleportBuildStepDetail.MajorVersion, teleportBuildStepDetail.BuiltImageArch,
-		dockerfile, "", []string{fmt.Sprintf("BASE_IMAGE=%q", teleportBuildStepDetail.BuiltImageName)})
+	step, stepDetail := tp.createBuildStep("teleport-lab", teleportBuildStepDetail.BuiltImageArch,
+		dockerfile, "", []string{fmt.Sprintf("BASE_IMAGE=%q", teleportBuildStepDetail.BuiltImageName)}, teleportBuildStepDetail.Version)
 	step.Commands = append(
 		cloneRepoCommands(),
 		step.Commands...,
@@ -163,14 +217,20 @@ func (tp *teleportPackage) buildTeleportLabArchStep(teleportBuildStepDetail *bui
 	return step, stepDetail
 }
 
-func (tp *teleportPackage) buildTeleportArchStep(majorVersion, arch string) (step, *buildStepOutput) {
+func (tp *teleportPackage) buildTeleportArchStep(version *teleportVersion, arch string) (step, *buildStepOutput) {
 	workingDirectory := path.Join("/", "go", "build")
 	dockerfile := path.Join(workingDirectory, "Dockerfile-cron")
 	// Other dockerfiles can be added/configured here if needed in the future
 	downloadUrl := "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
 
-	step, stepDetail := tp.createBuildStep("teleport", majorVersion, arch, dockerfile, "teleport",
-		[]string{fmt.Sprintf("MAJOR_VERSION=%q", majorVersion), fmt.Sprintf("PACKAGE_NAME=%q", tp.GetName())})
+	target := "teleport"
+	if tp.IsFIPS {
+		target += "fips"
+	}
+
+	step, stepDetail := tp.createBuildStep("teleport", arch, dockerfile, target,
+		[]string{"DEB_SOURCE=apt", fmt.Sprintf("PACKAGE_VERSION=%q", version.SearchVersion), fmt.Sprintf("PACKAGE_NAME=%q", tp.GetName())},
+		version)
 
 	// Add setup commands to download the dockerfile
 	step.Commands = append(
@@ -184,14 +244,14 @@ func (tp *teleportPackage) buildTeleportArchStep(majorVersion, arch string) (ste
 	return step, stepDetail
 }
 
-func (tp *teleportPackage) createBuildStep(buildName, majorVersion, arch, dockerfile, target string, buildArgs []string) (step, *buildStepOutput) {
+func (tp *teleportPackage) createBuildStep(buildName, arch, dockerfile, target string, buildArgs []string, version *teleportVersion) (step, *buildStepOutput) {
 	packageName := tp.GetName()
 	// This makes the image name a little more intuitive
 	imageNamePackageSection := ""
 	if strings.HasPrefix(packageName, buildName) {
 		imageNamePackageSection = strings.TrimPrefix(packageName, buildName)
 	}
-	imageName := fmt.Sprintf("%s-%s%s-%s", buildName, majorVersion, imageNamePackageSection, arch)
+	imageName := fmt.Sprintf("%s-%s%s-%s", buildName, version.MajorVersion, imageNamePackageSection, arch)
 	workingDirectory := path.Join("/", "go", "build")
 
 	if target == "" {
@@ -223,7 +283,7 @@ func (tp *teleportPackage) createBuildStep(buildName, majorVersion, arch, docker
 		BuildName:       buildName,
 		BuiltImageName:  imageName,
 		BuiltImageArch:  arch,
-		MajorVersion:    majorVersion,
+		Version:         version,
 		TeleportPackage: tp,
 	}
 }
@@ -235,7 +295,7 @@ type buildStepOutput struct {
 	BuildName       string
 	BuiltImageName  string
 	BuiltImageArch  string
-	MajorVersion    string
+	Version         *teleportVersion
 	TeleportPackage *teleportPackage
 }
 
@@ -244,9 +304,9 @@ type containerRepo struct {
 	Environment      map[string]value
 	RegistryDomain   string
 	LoginCommands    []string
-	OssImageName     func(buildName, majorVersion string) string
-	EntImageName     func(buildName, majorVersion string) string
-	FipsEntImageName func(buildName, majorVersion string) string
+	OssImageName     func(buildName, version string) string
+	EntImageName     func(buildName, version string) string
+	FipsEntImageName func(buildName, version string) string
 }
 
 func NewEcrContainerRepo(name, accessKeyIdSecret, secretAccessKeySecret, domain string, isStaging bool) *containerRepo {
@@ -375,14 +435,14 @@ func (cr *containerRepo) BuildImageName(buildName, majorVersion string, teleport
 
 type pushStepOutput struct {
 	BuildName       string
-	MajorVersion    string
+	Version         *teleportVersion
 	TeleportPackage *teleportPackage
 	PushedImageName string
 	StepName        string
 }
 
 func (cr *containerRepo) tagAndPushStep(buildStepDetails *buildStepOutput) (step, *pushStepOutput) {
-	repoImageTag := fmt.Sprintf("%s-%s", cr.BuildImageName(buildStepDetails.BuildName, buildStepDetails.MajorVersion,
+	repoImageTag := fmt.Sprintf("%s-%s", cr.BuildImageName(buildStepDetails.BuildName, buildStepDetails.Version.MajorVersion,
 		buildStepDetails.TeleportPackage), buildStepDetails.BuiltImageArch)
 	step := step{
 		Name:        fmt.Sprintf("Tag and push %q to %s", repoImageTag, cr.Name),
@@ -400,7 +460,7 @@ func (cr *containerRepo) tagAndPushStep(buildStepDetails *buildStepOutput) (step
 
 	return step, &pushStepOutput{
 		BuildName:       buildStepDetails.BuildName,
-		MajorVersion:    buildStepDetails.MajorVersion,
+		Version:         buildStepDetails.Version,
 		TeleportPackage: buildStepDetails.TeleportPackage,
 		PushedImageName: repoImageTag,
 		StepName:        step.Name,
@@ -409,7 +469,7 @@ func (cr *containerRepo) tagAndPushStep(buildStepDetails *buildStepOutput) (step
 
 func (cr *containerRepo) createAndPushManifestStep(pushStepDetails []*pushStepOutput) step {
 	stepDetail := pushStepDetails[0]
-	repoImageTag := cr.BuildImageName(stepDetail.BuildName, stepDetail.MajorVersion, stepDetail.TeleportPackage)
+	repoImageTag := cr.BuildImageName(stepDetail.BuildName, stepDetail.Version.MajorVersion, stepDetail.TeleportPackage)
 
 	manifestCommandArgs := make([]string, 0, len(pushStepDetails))
 	pushStepNames := make([]string, 0, len(pushStepDetails))
