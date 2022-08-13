@@ -24,14 +24,13 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -39,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -123,160 +121,6 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 			require.WithinDuration(t, start.Add(test.expiresIn), x509.NotAfter, 1*time.Second)
 		})
 	}
-}
-
-func renewBotCerts(
-	srv *TestTLSServer, tlsCert tls.Certificate, botUser string,
-	publicKey []byte, privateKey []byte,
-) (*Client, *proto.Certs, tls.Certificate, error) {
-	client := srv.NewClientWithCert(tlsCert)
-
-	certs, err := client.GenerateUserCerts(context.Background(), proto.UserCertsRequest{
-		PublicKey: publicKey,
-		Username:  botUser,
-		Expires:   time.Now().Add(1 * time.Hour),
-	})
-	if err != nil {
-		return nil, nil, tls.Certificate{}, trace.Wrap(err)
-	}
-
-	// Make sure to overwrite tlsCert with the new certs.
-	tlsCert, err = tls.X509KeyPair(certs.TLS, privateKey)
-	if err != nil {
-		return nil, nil, tls.Certificate{}, trace.Wrap(err)
-	}
-
-	return client, certs, tlsCert, nil
-}
-
-// TestBotCertificateGenerationCheck ensures bot cert generation checks work
-// in ordinary conditions, with several rapid renewals.
-func TestBotCertificateGenerationCheck(t *testing.T) {
-	t.Parallel()
-	srv := newTestTLSServer(t)
-
-	_, err := CreateRole(context.Background(), srv.Auth(), "example", types.RoleSpecV5{})
-	require.NoError(t, err)
-
-	// Create a new bot.
-	bot, err := srv.Auth().createBot(context.Background(), &proto.CreateBotRequest{
-		Name:  "test",
-		Roles: []string{"example"},
-	})
-	require.NoError(t, err)
-
-	privateKey, publicKey, err := native.GenerateKeyPair()
-	require.NoError(t, err)
-	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
-	require.NoError(t, err)
-	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
-	require.NoError(t, err)
-
-	certs, err := Register(RegisterParams{
-		Token: bot.TokenID,
-		ID: IdentityID{
-			Role: types.RoleBot,
-		},
-		Servers:      []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
-		PublicTLSKey: tlsPublicKey,
-		PublicSSHKey: publicKey,
-	})
-	require.NoError(t, err)
-
-	tlsCert, err := tls.X509KeyPair(certs.TLS, privateKey)
-	require.NoError(t, err)
-
-	// Renew the cert a bunch of times.
-	for i := 0; i < 10; i++ {
-		_, certs, tlsCert, err = renewBotCerts(srv, tlsCert, bot.UserName, publicKey, privateKey)
-		require.NoError(t, err)
-
-		// Parse the Identity
-		impersonatedTLSCert, err := tlsca.ParseCertificatePEM(certs.TLS)
-		require.NoError(t, err)
-		impersonatedIdent, err := tlsca.FromSubject(impersonatedTLSCert.Subject, impersonatedTLSCert.NotAfter)
-		require.NoError(t, err)
-
-		// Cert must be renewable.
-		require.True(t, impersonatedIdent.Renewable)
-		require.False(t, impersonatedIdent.DisallowReissue)
-
-		// Initial certs have generation=1 and we start the loop with a renewal, so add 2
-		require.Equal(t, uint64(i+2), impersonatedIdent.Generation)
-	}
-}
-
-// TestBotCertificateGenerationStolen simulates a stolen renewable certificate
-// where a generation check is expected to fail.
-func TestBotCertificateGenerationStolen(t *testing.T) {
-	t.Parallel()
-	srv := newTestTLSServer(t)
-
-	_, err := CreateRole(context.Background(), srv.Auth(), "example", types.RoleSpecV5{})
-	require.NoError(t, err)
-
-	// Create a new bot.
-	bot, err := srv.Auth().createBot(context.Background(), &proto.CreateBotRequest{
-		Name:  "test",
-		Roles: []string{"example"},
-	})
-	require.NoError(t, err)
-
-	privateKey, publicKey, err := native.GenerateKeyPair()
-	require.NoError(t, err)
-	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
-	require.NoError(t, err)
-	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
-	require.NoError(t, err)
-
-	certs, err := Register(RegisterParams{
-		Token: bot.TokenID,
-		ID: IdentityID{
-			Role: types.RoleBot,
-		},
-		Servers:      []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
-		PublicTLSKey: tlsPublicKey,
-		PublicSSHKey: publicKey,
-	})
-	require.NoError(t, err)
-
-	tlsCert, err := tls.X509KeyPair(certs.TLS, privateKey)
-	require.NoError(t, err)
-
-	// Renew the certs once (e.g. this is the actual bot process)
-	_, certsReal, _, err := renewBotCerts(srv, tlsCert, bot.UserName, publicKey, privateKey)
-	require.NoError(t, err)
-
-	// Check the generation, it should be 2.
-	impersonatedTLSCert, err := tlsca.ParseCertificatePEM(certsReal.TLS)
-	require.NoError(t, err)
-	impersonatedIdent, err := tlsca.FromSubject(impersonatedTLSCert.Subject, impersonatedTLSCert.NotAfter)
-	require.NoError(t, err)
-	require.Equal(t, uint64(2), impersonatedIdent.Generation)
-
-	// Meanwhile, the initial set of certs was stolen. Let's try to renew those.
-	_, _, _, err = renewBotCerts(srv, tlsCert, bot.UserName, publicKey, privateKey)
-	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err))
-
-	// The user should now be locked.
-	locks, err := srv.Auth().GetLocks(context.Background(), true, types.LockTarget{
-		User: "bot-test",
-	})
-	require.NoError(t, err)
-	require.NotEmpty(t, locks)
-}
-
-// TestBotNoRoles attempts to create a bot with an empty role list.
-func TestBotNoRoles(t *testing.T) {
-	t.Parallel()
-	srv := newTestTLSServer(t)
-
-	// Create a new bot without roles specified. This should fail.
-	_, err := srv.Auth().createBot(context.Background(), &proto.CreateBotRequest{
-		Name: "test",
-	})
-	require.True(t, trace.IsBadParameter(err))
 }
 
 // TestSSOUserCanReissueCert makes sure that SSO user can reissue certificate
@@ -574,7 +418,8 @@ func TestOIDCAuthRequest(t *testing.T) {
 					Roles: []string{"access"},
 				},
 			},
-		}}
+		},
+	}
 
 	tests := []struct {
 		desc               string
@@ -898,7 +743,6 @@ func TestSSODiagnosticInfo(t *testing.T) {
 	info, err = clientPriv.GetSSODiagnosticInfo(ctx, types.KindSAML, "ABC123")
 	require.NoError(t, err)
 	require.Equal(t, &infoCreate, info)
-
 }
 
 func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
@@ -922,10 +766,21 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	loginsTraitsRole, err := CreateRole(ctx, srv.Auth(), "test-access-traits", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Logins: []string{"{{internal.logins}}"},
+		},
+	})
+	require.NoError(t, err)
+
 	impersonatorRole, err := CreateRole(ctx, srv.Auth(), "test-impersonator", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Impersonate: &types.ImpersonateConditions{
-				Roles: []string{accessFooRole.GetName(), accessBarRole.GetName()},
+				Roles: []string{
+					accessFooRole.GetName(),
+					accessBarRole.GetName(),
+					loginsTraitsRole.GetName(),
+				},
 			},
 		},
 	})
@@ -959,6 +814,7 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 	tests := []struct {
 		desc             string
 		username         string
+		userTraits       wrappers.Traits
 		roles            []string
 		roleRequests     []string
 		useRoleRequests  bool
@@ -975,12 +831,32 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			expectPrincipals: []string{"foo", "bar"},
 		},
 		{
-			desc:             "requesting a subset of allowed roles",
-			username:         "bob",
+			desc:     "requesting a subset of allowed roles",
+			username: "bob",
+			userTraits: wrappers.Traits{
+				// We don't expect this login trait to appear in the principals
+				// as "test-access-foo" does not contain {{internal.logins}}
+				constants.TraitLogins: []string{"trait-login"},
+			},
 			roles:            []string{emptyRole.GetName(), impersonatorRole.GetName()},
 			roleRequests:     []string{accessFooRole.GetName()},
 			useRoleRequests:  true,
 			expectPrincipals: []string{"foo"},
+		},
+		{
+			// Users traits should be preserved in role impersonation
+			desc:     "requesting a role preserves user traits",
+			username: "ash",
+			userTraits: wrappers.Traits{
+				constants.TraitLogins: []string{"trait-login"},
+			},
+			roles: []string{
+				emptyRole.GetName(),
+				impersonatorRole.GetName(),
+			},
+			roleRequests:     []string{loginsTraitsRole.GetName()},
+			useRoleRequests:  true,
+			expectPrincipals: []string{"trait-login"},
 		},
 		{
 			// Users not using role requests should keep their own roles
@@ -1061,6 +937,9 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			})
 			for _, role := range tt.roles {
 				user.AddRole(role)
+			}
+			if tt.userTraits != nil {
+				user.SetTraits(tt.userTraits)
 			}
 			err = srv.Auth().UpsertUser(user)
 			require.NoError(t, err)
@@ -1595,7 +1474,6 @@ func serverWithAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.
 
 	return &ServerWithRoles{
 		authServer: srv.AuthServer,
-		sessions:   srv.SessionServer,
 		alog:       srv.AuditLog,
 		context:    *authContext,
 	}
@@ -2258,7 +2136,6 @@ func TestReplaceRemoteLocksRBAC(t *testing.T) {
 
 			s := &ServerWithRoles{
 				authServer: srv.AuthServer,
-				sessions:   srv.SessionServer,
 				alog:       srv.AuditLog,
 				context:    *authContext,
 			}
@@ -2452,7 +2329,6 @@ func TestKindClusterConfig(t *testing.T) {
 		require.NoError(t, err, trace.DebugReport(err))
 		s := &ServerWithRoles{
 			authServer: srv.AuthServer,
-			sessions:   srv.SessionServer,
 			alog:       srv.AuditLog,
 			context:    *authContext,
 		}
@@ -3012,7 +2888,6 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 
 	s := &ServerWithRoles{
 		authServer: srv.AuthServer,
-		sessions:   srv.SessionServer,
 		alog:       srv.AuditLog,
 		context:    *authContext,
 	}

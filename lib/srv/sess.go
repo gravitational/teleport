@@ -115,10 +115,6 @@ func (sc *SessionRegistryConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("server is required")
 	}
 
-	if sc.Srv.GetSessionServer() == nil {
-		return trace.BadParameter("session server is required")
-	}
-
 	if sc.clock == nil {
 		sc.clock = sc.Srv.GetClock()
 	}
@@ -528,32 +524,6 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 		rsess.TerminalParams.H = int(winsize.Height)
 	}
 
-	// get the session server where session information lives. if the recording
-	// proxy is being used and this is a node, then a discard session server will
-	// be returned here.
-	sessionServer := r.Srv.GetSessionServer()
-
-	err := sessionServer.CreateSession(ctx, rsess)
-	if err != nil {
-		if trace.IsAlreadyExists(err) {
-			// if session already exists, make sure they are compatible
-			// Login matches existing login
-			existing, err := sessionServer.GetSession(ctx, r.Srv.GetNamespace(), id)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if existing.Login != rsess.Login && rsess.Login != teleport.SSHSessionJoinPrincipal {
-				return nil, trace.AccessDenied(
-					"can't switch users from %v to %v for session %v",
-					rsess.Login, existing.Login, id)
-			}
-		}
-		// return nil, trace.Wrap(err)
-		// No need to abort. Perhaps the auth server is down?
-		// Log the error and continue:
-		r.log.Errorf("Failed to create new session: %v.", err)
-	}
-
 	policySets := scx.Identity.AccessChecker.SessionPolicySets()
 
 	sess := &session{
@@ -589,6 +559,7 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 		}
 	}()
 
+	var err error
 	if err = sess.trackSession(scx.Identity.TeleportUser, policySets); err != nil {
 		if trace.IsNotImplemented(err) {
 			return nil, trace.NotImplemented("Attempted to use Moderated Sessions with an Auth Server below the minimum version of 9.0.0.")
@@ -685,16 +656,6 @@ func (s *session) Close() error {
 	}
 
 	s.registry.removeSession(s)
-
-	// Remove the session from the backend.
-	if s.scx.srv.GetSessionServer() != nil {
-		err := s.scx.srv.GetSessionServer().DeleteSession(s.serverCtx, s.scx.srv.GetNamespace(), s.id)
-		if err != nil {
-			s.log.Errorf("Failed to remove active session: %v: %v. "+
-				"Access to backend may be degraded, check connectivity to backend.",
-				s.id, err)
-		}
-	}
 
 	// Complete the session recording
 	if recorder := s.Recorder(); recorder != nil {
@@ -1031,10 +992,6 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 	s.term.Continue()
 
 	scx.Debug("Got continue signal")
-
-	// Start a heartbeat that marks this session as active with current members
-	// of party in the backend.
-	go s.heartbeat(ctx, scx)
 
 	// wait for exec.Cmd (or receipt of "exit-status" for a forwarding node),
 	// once it is received wait for the io.Copy above to finish, then broadcast
@@ -1391,71 +1348,6 @@ func (s *session) lingerAndDie(ctx context.Context, party *party) {
 	}
 }
 
-// exportPartyMembers exports participants in the in-memory map of party
-// members.
-func (s *session) exportPartyMembers() []rsession.Party {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	var partyList []rsession.Party
-	for _, p := range s.parties {
-		partyList = append(partyList, rsession.Party{
-			ID:         p.id,
-			User:       p.user,
-			ServerID:   p.serverID,
-			RemoteAddr: p.site,
-			LastActive: p.getLastActive(),
-		})
-	}
-
-	return partyList
-}
-
-// heartbeat will loop as long as the session is not closed and mark it as
-// active and update the list of party members. If the session are recorded at
-// the proxy, then this function does nothing as it's counterpart
-// in the proxy will do this work.
-func (s *session) heartbeat(ctx context.Context, scx *ServerContext) {
-	// If sessions are being recorded at the proxy, an identical version of this
-	// goroutine is running in the proxy, which means it does not need to run here.
-	if services.IsRecordAtProxy(scx.SessionRecordingConfig.GetMode()) &&
-		s.registry.Srv.Component() == teleport.ComponentNode {
-		return
-	}
-
-	// If no session server (endpoint interface for active sessions) is passed in
-	// (for example Teleconsole does this) then nothing to sync.
-	sessionServer := s.registry.Srv.GetSessionServer()
-	if sessionServer == nil {
-		return
-	}
-
-	s.log.Debugf("Starting poll and sync of terminal size to all parties.")
-	defer s.log.Debugf("Stopping poll and sync of terminal size to all parties.")
-
-	tickerCh := time.NewTicker(defaults.SessionRefreshPeriod)
-	defer tickerCh.Stop()
-
-	// Loop as long as the session is active, updating the session in the backend.
-	for {
-		select {
-		case <-tickerCh.C:
-			partyList := s.exportPartyMembers()
-
-			err := sessionServer.UpdateSession(ctx, rsession.UpdateRequest{
-				Namespace: scx.srv.GetNamespace(),
-				ID:        s.id,
-				Parties:   &partyList,
-			})
-			if err != nil {
-				s.log.Warnf("Unable to update session %v as active: %v", s.id, err)
-			}
-		case <-s.stopC:
-			return
-		}
-	}
-}
-
 func (s *session) checkPresence() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1679,12 +1571,6 @@ func (p *party) updateActivity() {
 	p.lastActive = time.Now()
 }
 
-func (p *party) getLastActive() time.Time {
-	p.Lock()
-	defer p.Unlock()
-	return p.lastActive
-}
-
 func (p *party) Read(bytes []byte) (int, error) {
 	p.updateActivity()
 	return p.ch.Read(bytes)
@@ -1745,7 +1631,13 @@ func (s *session) trackSession(teleportUser string, policySet []*types.SessionTr
 
 	s.log.Debug("Creating session tracker")
 	var err error
-	s.tracker, err = NewSessionTracker(s.serverCtx, trackerSpec, s.registry.SessionTrackerService)
+
+	// if doing proxy recording, don't propagate tracker to the cluster level
+	if s.registry.Srv.Component() == teleport.ComponentNode && services.IsRecordAtProxy(s.scx.SessionRecordingConfig.GetMode()) {
+		s.tracker, err = NewSessionTracker(s.serverCtx, trackerSpec, nil)
+	} else {
+		s.tracker, err = NewSessionTracker(s.serverCtx, trackerSpec, s.registry.SessionTrackerService)
+	}
 	if err != nil {
 		return trace.Wrap(err)
 	}
