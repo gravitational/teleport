@@ -574,6 +574,7 @@ steps:
   - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
   - rustup override set $RUST_VERSION
   - export BUILD_NUMBER=$DRONE_BUILD_NUMBER
+  - export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83
   - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
   - security find-identity -v
   - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
@@ -841,6 +842,7 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
+>>>>>>> master
 name: teleport-helm-cron
 
 trigger:
@@ -2897,6 +2899,7 @@ steps:
   - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
   - rustup override set $RUST_VERSION
   - export BUILD_NUMBER=$DRONE_BUILD_NUMBER
+  - export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83
   - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
   - security find-identity -v
   - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
@@ -4634,10 +4637,6 @@ steps:
       GOPATH: /go
       OS: linux
       ARCH: amd64
-      QUAY_USERNAME:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      QUAY_PASSWORD:
-        from_secret: QUAYIO_DOCKER_PASSWORD
       AWS_ACCESS_KEY_ID:
         from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
       AWS_SECRET_ACCESS_KEY:
@@ -4648,7 +4647,6 @@ steps:
     commands:
       - apk add --no-cache make bash aws-cli
       - chown -R $UID:$GID /go
-      - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" quay.io
       - aws ecr get-login-password --region us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
       - cd /go/src/github.com/gravitational/teleport
       - make publish-operator-ci
@@ -5297,6 +5295,7 @@ steps:
   - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
   - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}
   - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
+  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$${VERSION}
   - echo "---> Tagging images for $${VERSION}"
   - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
     public.ecr.aws/gravitational/teleport:$${VERSION}
@@ -5304,6 +5303,8 @@ steps:
     public.ecr.aws/gravitational/teleport-ent:$${VERSION}
   - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
     public.ecr.aws/gravitational/teleport-ent:$${VERSION}-fips
+  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$${VERSION}
+    public.ecr.aws/gravitational/teleport-operator:$${VERSION}
   - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -5311,6 +5312,7 @@ steps:
   - docker push public.ecr.aws/gravitational/teleport:$${VERSION}
   - docker push public.ecr.aws/gravitational/teleport-ent:$${VERSION}
   - docker push public.ecr.aws/gravitational/teleport-ent:$${VERSION}-fips
+  - docker push public.ecr.aws/gravitational/teleport-operator:$${VERSION}
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
@@ -5334,7 +5336,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/promote.go:82
+# Generated at dronegen/promote.go:85
 ################################################
 
 kind: pipeline
@@ -5374,14 +5376,13 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - export VERSION=${DRONE_TAG##v}
-  - docker login -u="$STAGING_QUAY_USERNAME" -p="$STAGING_QUAY_PASSWORD" quay.io
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
   - echo "---> Pulling images for $${VERSION}"
   - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
   - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}
   - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
-  - docker pull quay.io/gravitational/teleport-operator-ci:$${VERSION}
+  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$${VERSION}
   - echo "---> Tagging images for $${VERSION}"
   - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
     quay.io/gravitational/teleport:$${VERSION}
@@ -5389,8 +5390,8 @@ steps:
     quay.io/gravitational/teleport-ent:$${VERSION}
   - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
     quay.io/gravitational/teleport-ent:$${VERSION}-fips
-  - docker tag quay.io/gravitational/teleport-operator-ci:$${VERSION} quay.io/gravitational/teleport-operator:$${VERSION}
-  - docker logout quay.io
+  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$${VERSION}
+    quay.io/gravitational/teleport-operator:$${VERSION}
   - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" quay.io
   - echo "---> Pushing images for $${VERSION}"
@@ -5414,6 +5415,9 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  depends_on:
+  - Tag and push "public.ecr.aws/gravitational/teleport-ent:10-fips-amd64" to ECR
+    - production
 services:
 - name: Start Docker
   image: docker:dind

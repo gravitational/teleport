@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -570,7 +571,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		}
 	} else {
 		// Auth server is remote, so we need a provisioning token.
-		if process.Config.Token == "" {
+		if !process.Config.HasToken() {
 			return nil, trace.BadParameter("%v must join a cluster and needs a provisioning token", role)
 		}
 
@@ -581,8 +582,13 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			return nil, trace.Wrap(err)
 		}
 
+		token, err := process.Config.Token()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		certs, err := auth.Register(auth.RegisterParams{
-			Token:                process.Config.Token,
+			Token:                token,
 			ID:                   id,
 			Servers:              process.Config.AuthServers,
 			AdditionalPrincipals: additionalPrincipals,
@@ -1131,8 +1137,8 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 
 	var dialOpts []grpc.DialOption
 	if role == types.RoleProxy {
-		grpcMetrics := utils.CreateGRPCClientMetrics(process.Config.Metrics.GRPCClientLatency, prometheus.Labels{teleport.TagClient: "teleport-proxy"})
-		if err := utils.RegisterPrometheusCollectors(grpcMetrics); err != nil {
+		grpcMetrics := metrics.CreateGRPCClientMetrics(process.Config.Metrics.GRPCClientLatency, prometheus.Labels{teleport.TagClient: "teleport-proxy"})
+		if err := metrics.RegisterPrometheusCollectors(grpcMetrics); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		dialOpts = append(dialOpts, []grpc.DialOption{
