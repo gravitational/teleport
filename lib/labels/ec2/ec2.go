@@ -116,7 +116,7 @@ func (l *EC2) Sync(ctx context.Context) error {
 			// Only show the error the first time around.
 			if !l.loggedInstanceTagsNotFound {
 				l.loggedInstanceTagsNotFound = true
-				l.c.Log.Warning("could not fetch tags, please ensure 'allow instance tags in metadata' is enabled on the instance")
+				l.c.Log.Warning("Could not fetch EC2 instance's tags, please ensure 'allow instance tags in metadata' is enabled on the instance.")
 			}
 			return nil
 		}
