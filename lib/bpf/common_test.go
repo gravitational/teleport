@@ -73,8 +73,8 @@ func TestCheckAndSetDefaults(t *testing.T) {
 	for _, tt := range tests {
 		err := tt.inConfig.CheckAndSetDefaults()
 		require.NoError(t, err)
-		require.Equal(t, *tt.inConfig.CommandBufferSize, *tt.outConfig.CommandBufferSize)
-		require.Equal(t, *tt.inConfig.DiskBufferSize, *tt.outConfig.DiskBufferSize)
-		require.Equal(t, *tt.inConfig.NetworkBufferSize, *tt.outConfig.NetworkBufferSize)
+		require.Equal(t, *tt.outConfig.CommandBufferSize, *tt.inConfig.CommandBufferSize)
+		require.Equal(t, *tt.outConfig.DiskBufferSize, *tt.inConfig.DiskBufferSize)
+		require.Equal(t, *tt.outConfig.NetworkBufferSize, *tt.inConfig.NetworkBufferSize)
 	}
 }

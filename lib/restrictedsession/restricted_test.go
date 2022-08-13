@@ -39,7 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/google/go-cmp/cmp"
+	go_cmp "github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -142,6 +142,7 @@ type bpfContext struct {
 
 func setupBPFContext(t *testing.T) *bpfContext {
 	tt := bpfContext{}
+	t.Cleanup(func() { tt.Close(t) })
 
 	utils.InitLoggerForTests()
 
@@ -158,8 +159,7 @@ func setupBPFContext(t *testing.T) *bpfContext {
 
 	var err error
 	// Create temporary directory where cgroup2 hierarchy will be mounted.
-	tt.cgroupDir, err = os.MkdirTemp("", "cgroup-test")
-	require.NoError(t, err)
+	tt.cgroupDir = t.TempDir()
 
 	// Create BPF service since we piggy-back on it
 	tt.enhancedRecorder, err = bpf.New(&bpf.Config{
@@ -325,12 +325,11 @@ func (tt *bpfContext) expectedAuditEvent(ver int, ip string, op apievents.Sessio
 }
 
 func TestNetwork(t *testing.T) {
-	tt := setupBPFContext(t)
-	t.Cleanup(func() { tt.Close(t) })
-
 	if !bpfTestEnabled() {
 		t.Skip("BPF testing is disabled")
 	}
+
+	tt := setupBPFContext(t)
 
 	type testCase struct {
 		ver      int
@@ -357,7 +356,7 @@ func TestNetwork(t *testing.T) {
 
 	// Nothing should be reported to the audit log
 	time.Sleep(100 * time.Millisecond)
-	require.Len(t, tt.emitter.Events(), 0)
+	require.Empty(t, tt.emitter.Events())
 
 	// Open the restricted session
 	tt.openSession(t)
@@ -380,7 +379,7 @@ func TestNetwork(t *testing.T) {
 
 	// Check that the emitted audit events are correct
 	actualAuditEvents := tt.emitter.Events()
-	require.Empty(t, cmp.Diff(actualAuditEvents, tt.expectedAuditEvents))
+	require.Empty(t, go_cmp.Diff(actualAuditEvents, tt.expectedAuditEvents))
 
 	// Clear out the expected and actual evetns
 	tt.expectedAuditEvents = nil
@@ -394,7 +393,7 @@ func TestNetwork(t *testing.T) {
 
 	// Nothing should be reported to the audit log
 	time.Sleep(100 * time.Millisecond)
-	require.Len(t, tt.emitter.Events(), 0)
+	require.Empty(t, tt.emitter.Events())
 }
 
 func mustParseIPSpec(cidr string) *net.IPNet {
@@ -433,9 +432,8 @@ func mustParseIP(addr string) net.IP {
 	ip := net.ParseIP(addr)
 	if is4 {
 		return ip.To4()
-	} else {
-		return ip.To16()
 	}
+	return ip.To16()
 }
 
 func testSocket(ver, typ int, ip net.IP) (int, syscall.Sockaddr, error) {
