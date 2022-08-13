@@ -30,14 +30,13 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/observability/tracing"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -48,13 +47,15 @@ import (
 	"github.com/gravitational/teleport/lib/utils/socks"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 // ProxyClient implements ssh client to a teleport proxy
 // It can provide list of nodes or connect to nodes
 type ProxyClient struct {
 	teleportClient  *TeleportClient
-	Client          *ssh.Client
+	Client          *tracessh.Client
 	hostLogin       string
 	proxyAddress    string
 	proxyPrincipal  string
@@ -68,7 +69,7 @@ type ProxyClient struct {
 // NodeClient can run shell and commands or upload and download files.
 type NodeClient struct {
 	Namespace string
-	Client    *ssh.Client
+	Client    *tracessh.Client
 	Proxy     *ProxyClient
 	TC        *TeleportClient
 }
@@ -76,8 +77,8 @@ type NodeClient struct {
 // GetSites returns list of the "sites" (AKA teleport clusters) connected to the proxy
 // Each site is returned as an instance of its auth server
 //
-func (proxy *ProxyClient) GetSites() ([]types.Site, error) {
-	proxySession, err := proxy.Client.NewSession()
+func (proxy *ProxyClient) GetSites(ctx context.Context) ([]types.Site, error) {
+	proxySession, err := proxy.Client.NewSession(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -667,7 +668,7 @@ func (proxy *ProxyClient) ListResources(ctx context.Context, namespace, resource
 // and could be cached based on the access policy
 func (proxy *ProxyClient) CurrentClusterAccessPoint(ctx context.Context, quiet bool) (auth.ClientI, error) {
 	// get the current cluster:
-	cluster, err := proxy.currentCluster()
+	cluster, err := proxy.currentCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -693,7 +694,7 @@ func (proxy *ProxyClient) ClusterAccessPoint(ctx context.Context, clusterName st
 // if 'quiet' is set to true, no errors will be printed to stdout, otherwise
 // any connection errors are visible to a user.
 func (proxy *ProxyClient) ConnectToCurrentCluster(ctx context.Context, quiet bool) (auth.ClientI, error) {
-	cluster, err := proxy.currentCluster()
+	cluster, err := proxy.currentCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -826,6 +827,71 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 	return clt, nil
 }
 
+// NewTracingClient connects to the auth server of the given cluster via proxy.
+// It returns a connected and authenticated tracing.Client that will export spans
+// to the auth server, where they will be forwarded onto the configured exporter.
+func (proxy *ProxyClient) NewTracingClient(ctx context.Context, clusterName string) (*tracing.Client, error) {
+	dialer := client.ContextDialerFunc(func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return proxy.dialAuthServer(ctx, clusterName)
+	})
+
+	switch {
+	case proxy.teleportClient.TLSRoutingEnabled:
+		tlsConfig, err := proxy.loadTLS()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		clt, err := client.NewTracingClient(ctx, client.Config{
+			Addrs:            []string{proxy.teleportClient.WebProxyAddr},
+			DialInBackground: true,
+			Credentials: []client.Credentials{
+				client.LoadTLS(tlsConfig),
+			},
+			ALPNSNIAuthDialClusterName: clusterName,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return clt, nil
+	case proxy.teleportClient.SkipLocalAuth:
+		clt, err := client.NewTracingClient(ctx, client.Config{
+			Dialer:           dialer,
+			DialInBackground: true,
+			Credentials: []client.Credentials{
+				client.LoadTLS(proxy.teleportClient.TLS),
+			},
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return clt, nil
+	default:
+		tlsKey, err := proxy.localAgent().GetCoreKey()
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to fetch TLS key for %v", proxy.teleportClient.Username)
+		}
+
+		tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to generate client TLS config")
+		}
+		tlsConfig.InsecureSkipVerify = proxy.teleportClient.InsecureSkipVerify
+
+		clt, err := client.NewTracingClient(ctx, client.Config{
+			Dialer:           dialer,
+			DialInBackground: true,
+			Credentials: []client.Credentials{
+				client.LoadTLS(tlsConfig),
+			},
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return clt, nil
+	}
+}
+
 // nodeName removes the port number from the hostname, if present
 func nodeName(node string) string {
 	n, _, err := net.SplitHostPort(node)
@@ -843,7 +909,7 @@ type proxyResponse struct {
 // isRecordingProxy returns true if the proxy is in recording mode. Note, this
 // function can only be called after authentication has occurred and should be
 // called before the first session is created.
-func (proxy *ProxyClient) isRecordingProxy() (bool, error) {
+func (proxy *ProxyClient) isRecordingProxy(ctx context.Context) (bool, error) {
 	responseCh := make(chan proxyResponse)
 
 	// we have to run this in a goroutine because older version of Teleport handled
@@ -852,7 +918,7 @@ func (proxy *ProxyClient) isRecordingProxy() (bool, error) {
 	// don't hear anything back, most likley we are trying to connect to an older
 	// version of Teleport and we should not try and forward our agent.
 	go func() {
-		ok, responseBytes, err := proxy.Client.SendRequest(teleport.RecordingProxyReqType, true, nil)
+		ok, responseBytes, err := proxy.Client.SendRequest(ctx, teleport.RecordingProxyReqType, true, nil)
 		if err != nil {
 			responseCh <- proxyResponse{isRecord: false, err: trace.Wrap(err)}
 			return
@@ -900,7 +966,7 @@ func (proxy *ProxyClient) dialAuthServer(ctx context.Context, clusterName string
 		return nil, trace.Wrap(err)
 	}
 
-	proxySession, err := proxy.Client.NewSession()
+	proxySession, err := proxy.Client.NewSession(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1013,12 +1079,12 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 
 	// after auth but before we create the first session, find out if the proxy
 	// is in recording mode or not
-	recordingProxy, err := proxy.isRecordingProxy()
+	recordingProxy, err := proxy.isRecordingProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	proxySession, err := proxy.Client.NewSession()
+	proxySession, err := proxy.Client.NewSession(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1051,7 +1117,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 		if proxy.teleportClient.localAgent == nil {
 			return nil, trace.BadParameter("cluster is in proxy recording mode and requires agent forwarding for connections, but no agent was initialized")
 		}
-		err = agent.ForwardToAgent(proxy.Client, proxy.teleportClient.localAgent.Agent)
+		err = agent.ForwardToAgent(proxy.Client.Client, proxy.teleportClient.localAgent.Agent)
 		if err != nil && !strings.Contains(err.Error(), "agent: already have handler for") {
 			return nil, trace.Wrap(err)
 		}
@@ -1102,10 +1168,8 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 	emptyCh := make(chan *ssh.Request)
 	close(emptyCh)
 
-	client := ssh.NewClient(conn, chans, emptyCh)
-
 	nc := &NodeClient{
-		Client:    client,
+		Client:    tracessh.NewClient(conn, chans, emptyCh),
 		Proxy:     proxy,
 		Namespace: apidefaults.Namespace,
 		TC:        proxy.teleportClient,
@@ -1131,7 +1195,7 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 
 	// after auth but before we create the first session, find out if the proxy
 	// is in recording mode or not
-	recordingProxy, err := proxy.isRecordingProxy()
+	recordingProxy, err := proxy.isRecordingProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1144,7 +1208,7 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 		if proxy.teleportClient.localAgent == nil {
 			return nil, trace.BadParameter("cluster is in proxy recording mode and requires agent forwarding for connections, but no agent was initialized")
 		}
-		err = agent.ForwardToAgent(proxy.Client, proxy.teleportClient.localAgent.Agent)
+		err = agent.ForwardToAgent(proxy.Client.Client, proxy.teleportClient.localAgent.Agent)
 		if err != nil && !strings.Contains(err.Error(), "agent: already have handler for") {
 			return nil, trace.Wrap(err)
 		}
@@ -1174,10 +1238,8 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 	emptyCh := make(chan *ssh.Request)
 	close(emptyCh)
 
-	client := ssh.NewClient(conn, chans, emptyCh)
-
 	nc := &NodeClient{
-		Client:    client,
+		Client:    tracessh.NewClient(conn, chans, emptyCh),
 		Proxy:     proxy,
 		Namespace: apidefaults.Namespace,
 		TC:        proxy.teleportClient,
@@ -1279,7 +1341,7 @@ func (c *NodeClient) ExecuteSCP(ctx context.Context, cmd scp.Command) error {
 		return trace.Wrap(err)
 	}
 
-	s, err := c.Client.NewSession()
+	s, err := c.Client.NewSession(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1536,8 +1598,8 @@ func (c *NodeClient) Close() error {
 }
 
 // currentCluster returns the connection to the API of the current cluster
-func (proxy *ProxyClient) currentCluster() (*types.Site, error) {
-	sites, err := proxy.GetSites()
+func (proxy *ProxyClient) currentCluster(ctx context.Context) (*types.Site, error) {
+	sites, err := proxy.GetSites(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

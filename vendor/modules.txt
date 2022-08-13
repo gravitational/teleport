@@ -494,6 +494,8 @@ github.com/gravitational/teleport/api/constants
 github.com/gravitational/teleport/api/defaults
 github.com/gravitational/teleport/api/identityfile
 github.com/gravitational/teleport/api/metadata
+github.com/gravitational/teleport/api/observability/tracing
+github.com/gravitational/teleport/api/observability/tracing/ssh
 github.com/gravitational/teleport/api/profile
 github.com/gravitational/teleport/api/types
 github.com/gravitational/teleport/api/types/events

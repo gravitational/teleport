@@ -72,7 +72,7 @@ func TestDatabaseLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	// Log into Teleport cluster.
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login", "--insecure", "--debug", "--auth", connector.GetName(), "--proxy", proxyAddr.String(),
 	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
@@ -85,7 +85,7 @@ func TestDatabaseLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	// Log into test Postgres database.
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"db", "login", "--debug", "postgres",
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
@@ -97,7 +97,7 @@ func TestDatabaseLogin(t *testing.T) {
 	require.Len(t, keys, 0)
 
 	// Log into test Mongo database.
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"db", "login", "--debug", "--db-user", "admin", "mongo",
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
@@ -112,6 +112,7 @@ func TestDatabaseLogin(t *testing.T) {
 func TestListDatabase(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
+	ctx := context.Background()
 
 	tshHome := t.TempDir()
 	t.Setenv(types.HomeEnvVar, tshHome)
@@ -140,7 +141,7 @@ func TestListDatabase(t *testing.T) {
 	mustLogin(t, s)
 
 	captureStdout := new(bytes.Buffer)
-	err := Run([]string{
+	err := Run(ctx, []string{
 		"db",
 		"ls",
 		"--insecure",
@@ -153,7 +154,7 @@ func TestListDatabase(t *testing.T) {
 	require.Contains(t, captureStdout.String(), "root-postgres")
 
 	captureStdout.Reset()
-	err = Run([]string{
+	err = Run(ctx, []string{
 		"db",
 		"ls",
 		"--cluster",
