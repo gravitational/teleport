@@ -198,6 +198,10 @@
           "slug": "/setup/guides/",
           "entries": [
             {
+              "title": "Kubernetes Operator (Preview)",
+              "slug": "/setup/guides/teleport-operator/"
+            },
+            {
               "title": "Terraform Provider",
               "slug": "/setup/guides/terraform-provider/"
             },
@@ -489,6 +493,10 @@
             {
               "title": "AWS ElastiCache & MemoryDB",
               "slug": "/database-access/guides/redis-aws/"
+            },
+            {
+              "title": "AWS DynamoDB",
+              "slug": "/database-access/guides/dynamodb/"
             },
             {
               "title": "GCP Cloud SQL PostgreSQL",
@@ -1011,7 +1019,7 @@
       "last_report": "August 9th, 2022"
     },
     "cloud": {
-      "version": "9.3.10",
+      "version": "10.1.2",
       "sla": {
         "monthly_percentage": "99.5%",
         "monthly_downtime": "3 hours 40 minutes"

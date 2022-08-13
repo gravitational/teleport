@@ -570,6 +570,7 @@ steps:
   - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
   - rustup override set $RUST_VERSION
   - export BUILD_NUMBER=$DRONE_BUILD_NUMBER
+  - export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83
   - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
   - security find-identity -v
   - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
@@ -3286,6 +3287,7 @@ steps:
   - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
   - rustup override set $RUST_VERSION
   - export BUILD_NUMBER=$DRONE_BUILD_NUMBER
+  - export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83
   - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
   - security find-identity -v
   - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
@@ -6191,6 +6193,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 9d6c58c06c367ebd21b20bc2129b6615187562463ae1551746a35879c63cb8fa
+hmac: e78510aabb5eff65181051ddb23310c1644e85e130c00ce417f1c86b2f231dd4
 
 ...

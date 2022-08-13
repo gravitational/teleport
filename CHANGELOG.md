@@ -1,5 +1,31 @@
 # Changelog
 
+## 10.1.3
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with `--allow-passwordless` flag being ignored for `tsh mfa add`. [#15137](https://github.com/gravitational/teleport/pull/15137)
+* Fixed issues with MFA registration via web UI. [#14984](https://github.com/gravitational/teleport/pull/14984)
+* Fixed issue with LetsEncrypt state not being properly synced when Auth Servers are in an ASG. [#15214](https://github.com/gravitational/teleport/pull/15214)
+* Fixed issue with node names not being populated in audit log in proxy session recording mode. [#14992](https://github.com/gravitational/teleport/pull/14992)
+* Fixed issue with `--no-enable-escape-sequences` flag not being respected by `tsh`. [#14456](https://github.com/gravitational/teleport/pull/14456)
+* Fixed issue with non-existent target directory when using `teleport configure`. [#15352](https://github.com/gravitational/teleport/pull/15352)
+* Fixed issue with unknown audit log events when using TCP app access. [#15406](https://github.com/gravitational/teleport/pull/15406)
+* Fixed issue with cluster name missing on `session.upload` events. [#15239](https://github.com/gravitational/teleport/pull/15239)
+* Fixed issue with automatic node join script expecting `teleport` binary to be present in PATH. [#15473](https://github.com/gravitational/teleport/pull/15473)
+* Fixed issue with Desktop Access always trying to use LDAP servers for DNS requests. [#15255](https://github.com/gravitational/teleport/pull/15255)
+* Fixed potential panic in Auth Server during concurrent streams of the same session. [#15360](https://github.com/gravitational/teleport/pull/15360)
+* Added ability to control session recording mode in `teleport-cluster` Helm chart. [#15003](https://github.com/gravitational/teleport/pull/15003)
+* Added ability to control DynamoDB auto-scaling in `teleport-cluster` Helm chart. [#15122](https://github.com/gravitational/teleport/pull/15122)
+* Added passwordless support to Teleport Connect. [#15265](https://github.com/gravitational/teleport/pull/15265)
+* Added proxy protocol support to the SSH proxy endpoint. [#15086](https://github.com/gravitational/teleport/pull/15086)
+* Added `teleport install systemd` command that installs Teleport as a systemd service. [#15270](https://github.com/gravitational/teleport/pull/15270)
+* Added tracing to SSH sessions. [#15228](https://github.com/gravitational/teleport/pull/15228)
+* Improved error handling when using Yubikeys. [#15395](https://github.com/gravitational/teleport/pull/15395)
+* Updated `tctl users update` commmand to allow setting additional user traits. [#15108](https://github.com/gravitational/teleport/pull/15108)
+* Updated Machine ID generated certificate names to be compatible with default OpenSSH configuration. [#15297](https://github.com/gravitational/teleport/pull/15297)
+* Updated AWS CLI access to capture AWS requests in the audit log. [#15207](https://github.com/gravitational/teleport/pull/15207)
+
 ## 10.1.2
 
 Teleport 10.1 is a minor release that brings the following new features:
@@ -42,6 +68,7 @@ Other improvements and bug fixes:
 * Added Prometheus metrics for S3 requests. [#14664](https://github.com/gravitational/teleport/pull/14664)
 * Added Prometheus metrics for DynamoDB requests. [#14757](https://github.com/gravitational/teleport/pull/14757)
 * Added support for exporting traces to a file. [#14746](https://github.com/gravitational/teleport/pull/14746)
+* Added SFTP subsystem support. [#14209](https://github.com/gravitational/teleport/pull/14209)
 
 ## 10.0.2
 
