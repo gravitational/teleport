@@ -17,6 +17,7 @@ limitations under the License.
 package service
 
 import (
+	"crypto/tls"
 	"crypto/x509"
 	"fmt"
 	"io"
@@ -30,12 +31,7 @@ import (
 	"strings"
 	"time"
 
-	"go.mongodb.org/mongo-driver/mongo/readpref"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/net/http/httpguts"
-	"k8s.io/apimachinery/pkg/util/validation"
-
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -47,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/plugin"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
@@ -61,6 +58,12 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
+	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
+	"go.opentelemetry.io/otel/attribute"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/net/http/httpguts"
+	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 // Rate describes a rate ratio, i.e. the number of "events" that happen over
@@ -82,9 +85,6 @@ type Config struct {
 
 	// Hostname is a node host name
 	Hostname string
-
-	// Token is used to register this Teleport instance with the auth server
-	Token string
 
 	// JoinMethod is the method the instance will use to join the auth server
 	JoinMethod types.JoinMethod
@@ -261,25 +261,41 @@ type Config struct {
 	// TeleportHome is the path to tsh configuration and data, used
 	// for loading profiles when TELEPORT_HOME is set
 	TeleportHome string
+
+	// token is either the token needed to join the auth server, or a path pointing to a file
+	// that contains the token
+	//
+	// This is private to avoid external packages reading the value - the value should be obtained
+	// using Token()
+	token string
 }
 
-// ApplyToken assigns a given token to all internal services but only if token
-// is not an empty string.
+// Token returns token needed to join the auth server
 //
-// returns:
-// true, nil if the token has been modified
-// false, nil if the token has not been modified
-// false, err if there was an error
-func (cfg *Config) ApplyToken(token string) (bool, error) {
-	if token != "" {
-		var err error
-		cfg.Token, err = utils.TryReadValueAsFile(token)
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-		return true, nil
+// If the value stored points to a file, it will attempt to read the token value from the file
+// and return an error if it wasn't successful
+// If the value stored doesn't point to a file, it'll return the value stored
+// If the token hasn't been set, an empty string will be returned
+func (cfg *Config) Token() (string, error) {
+	token, err := utils.TryReadValueAsFile(cfg.token)
+	if err != nil {
+		return "", trace.Wrap(err)
 	}
-	return false, nil
+
+	return token, nil
+}
+
+// SetToken stores the value for --token or auth_token in the config
+//
+// This can be either the token or an absolute path to a file containing the token.
+func (cfg *Config) SetToken(token string) {
+	cfg.token = token
+}
+
+// HasToken gives the ability to check if there has been a token value stored
+// in the config
+func (cfg *Config) HasToken() bool {
+	return cfg.token != ""
 }
 
 // ApplyCAPins assigns the given CA pin(s), filtering out empty pins.
@@ -1003,6 +1019,51 @@ type TracingConfig struct {
 	// SamplingRate is the sampling rate for the exporter.
 	// 1.0 will record and export all spans and 0.0 won't record any spans.
 	SamplingRate float64
+}
+
+// Config generates a tracing.Config that is populated from the values
+// provided to the tracing_service
+func (t TracingConfig) Config(attrs ...attribute.KeyValue) (*tracing.Config, error) {
+	traceConf := &tracing.Config{
+		Service:      teleport.ComponentTeleport,
+		Attributes:   attrs,
+		ExporterURL:  t.ExporterURL,
+		SamplingRate: t.SamplingRate,
+	}
+
+	tlsConfig := &tls.Config{}
+	// if a custom CA is specified, use a custom cert pool
+	if len(t.CACerts) > 0 {
+		pool := x509.NewCertPool()
+		for _, caCertPath := range t.CACerts {
+			caCert, err := os.ReadFile(caCertPath)
+			if err != nil {
+				return nil, trace.Wrap(err, "failed to read tracing CA certificate %+v", caCertPath)
+			}
+
+			if !pool.AppendCertsFromPEM(caCert) {
+				return nil, trace.BadParameter("failed to parse tracing CA certificate: %+v", caCertPath)
+			}
+		}
+		tlsConfig.ClientCAs = pool
+		tlsConfig.RootCAs = pool
+	}
+
+	// add any custom certificates for mTLS
+	if len(t.KeyPairs) > 0 {
+		for _, pair := range t.KeyPairs {
+			certificate, err := tls.LoadX509KeyPair(pair.Certificate, pair.PrivateKey)
+			if err != nil {
+				return nil, trace.Wrap(err, "failed to read keypair: %+v", err)
+			}
+			tlsConfig.Certificates = append(tlsConfig.Certificates, certificate)
+		}
+	}
+
+	if len(t.CACerts) > 0 || len(t.KeyPairs) > 0 {
+		traceConf.TLSConfig = tlsConfig
+	}
+	return traceConf, nil
 }
 
 // WindowsDesktopConfig specifies the configuration for the Windows Desktop
