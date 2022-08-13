@@ -15,7 +15,7 @@ func buildContainerImagePipelines() []pipeline {
 		return []pipeline{}
 	}
 
-	triggers := []*triggerInfo{
+	triggers := []*TriggerInfo{
 		NewPromoteTrigger(branchMajorVersion),
 		NewCronTrigger(latestMajorVersions),
 	}
@@ -28,19 +28,19 @@ func buildContainerImagePipelines() []pipeline {
 	return pipelines
 }
 
-type triggerInfo struct {
+type TriggerInfo struct {
 	Trigger           trigger
 	Name              string
 	SupportedVersions []*teleportVersion
 	SetupSteps        []step
 }
 
-func NewPromoteTrigger(branchMajorVersion string) *triggerInfo {
+func NewPromoteTrigger(branchMajorVersion string) *TriggerInfo {
 	promoteTrigger := triggerPromote
 	promoteTrigger.Target.Include = append(promoteTrigger.Target.Include, "promote-docker")
 	checkoutPath := "/go/src/github.com/gravitational/teleport"
 
-	return &triggerInfo{
+	return &TriggerInfo{
 		Trigger: promoteTrigger,
 		Name:    "promote",
 		SupportedVersions: []*teleportVersion{
@@ -54,7 +54,7 @@ func NewPromoteTrigger(branchMajorVersion string) *triggerInfo {
 	}
 }
 
-func NewCronTrigger(latestMajorVersions []string) *triggerInfo {
+func NewCronTrigger(latestMajorVersions []string) *TriggerInfo {
 	if len(latestMajorVersions) == 0 {
 		return nil
 	}
@@ -78,7 +78,7 @@ func NewCronTrigger(latestMajorVersions []string) *triggerInfo {
 		}
 	}
 
-	return &triggerInfo{
+	return &TriggerInfo{
 		Trigger:           cronTrigger([]string{"teleport-container-images-cron"}),
 		Name:              "cron",
 		SupportedVersions: supportedVersions,
@@ -88,7 +88,7 @@ func NewCronTrigger(latestMajorVersions []string) *triggerInfo {
 // Drone triggers must all evaluate to "true" for a pipeline to be executed.
 // As a result these pipelines are duplicated for each trigger.
 // See https://docs.drone.io/pipeline/triggers/ for details.
-func (ti *triggerInfo) BuildPipelines() []pipeline {
+func (ti *TriggerInfo) BuildPipelines() []pipeline {
 	pipelines := make([]pipeline, 0, len(ti.SupportedVersions))
 	for _, teleportVersion := range ti.SupportedVersions {
 		pipeline := teleportVersion.BuildVersionPipeline(ti.SetupSteps)
@@ -230,7 +230,7 @@ func (tp *teleportPackage) buildTeleportArchStep(version *teleportVersion, arch 
 	workingDirectory := path.Join("/", "go", "build")
 	dockerfile := path.Join(workingDirectory, "Dockerfile-cron")
 	// Other dockerfiles can be added/configured here if needed in the future
-	downloadUrl := "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+	downloadURL := "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
 
 	target := "teleport"
 	if tp.IsFIPS {
@@ -245,7 +245,7 @@ func (tp *teleportPackage) buildTeleportArchStep(version *teleportVersion, arch 
 	step.Commands = append(
 		[]string{
 			"apk --update --no-cache add curl",
-			fmt.Sprintf("curl -Ls -o %q %q", dockerfile, downloadUrl),
+			fmt.Sprintf("curl -Ls -o %q %q", dockerfile, downloadURL),
 		},
 		step.Commands...,
 	)
@@ -308,7 +308,7 @@ type buildStepOutput struct {
 	TeleportPackage *teleportPackage
 }
 
-type containerRepo struct {
+type ContainerRepo struct {
 	Name             string
 	Environment      map[string]value
 	RegistryDomain   string
@@ -318,17 +318,17 @@ type containerRepo struct {
 	FipsEntImageName func(buildName, version string) string
 }
 
-func NewEcrContainerRepo(accessKeyIdSecret, secretAccessKeySecret, domain string, isStaging bool) *containerRepo {
+func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, domain string, isStaging bool) *ContainerRepo {
 	nameSuffix := "staging"
 	if !isStaging {
 		nameSuffix = "production"
 	}
 
-	return &containerRepo{
+	return &ContainerRepo{
 		Name: fmt.Sprintf("ECR - %s", nameSuffix),
 		Environment: map[string]value{
 			"AWS_ACCESS_KEY_ID": {
-				fromSecret: accessKeyIdSecret,
+				fromSecret: accessKeyIDSecret,
 			},
 			"AWS_SECRET_ACCESS_KEY": {
 				fromSecret: secretAccessKeySecret,
@@ -367,8 +367,8 @@ func NewEcrContainerRepo(accessKeyIdSecret, secretAccessKeySecret, domain string
 	}
 }
 
-func NewQuayContainerRepo(dockerUsername, dockerPassword string) *containerRepo {
-	return &containerRepo{
+func NewQuayContainerRepo(dockerUsername, dockerPassword string) *ContainerRepo {
+	return &ContainerRepo{
 		Name: "Quay",
 		Environment: map[string]value{
 			"QUAY_USERNAME": {
@@ -394,15 +394,15 @@ func NewQuayContainerRepo(dockerUsername, dockerPassword string) *containerRepo 
 	}
 }
 
-func GetContainerRepos() []*containerRepo {
-	return []*containerRepo{
+func GetContainerRepos() []*ContainerRepo {
+	return []*ContainerRepo{
 		NewQuayContainerRepo("PRODUCTION_QUAYIO_DOCKER_USERNAME", "PRODUCTION_QUAYIO_DOCKER_PASSWORD"),
 		NewEcrContainerRepo("STAGING_TELEPORT_DRONE_USER_ECR_KEY", "STAGING_TELEPORT_DRONE_USER_ECR_SECRET", StagingRegistry, true),
 		NewEcrContainerRepo("PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY", "PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET", ProductionRegistry, false),
 	}
 }
 
-func (cr *containerRepo) BuildSteps(buildStepDetails []*buildStepOutput) []step {
+func (cr *ContainerRepo) BuildSteps(buildStepDetails []*buildStepOutput) []step {
 	if len(buildStepDetails) == 0 {
 		return nil
 	}
@@ -422,11 +422,11 @@ func (cr *containerRepo) BuildSteps(buildStepDetails []*buildStepOutput) []step 
 	return steps
 }
 
-func (cr *containerRepo) logoutCommand() string {
+func (cr *ContainerRepo) logoutCommand() string {
 	return fmt.Sprintf("docker logout %q", cr.RegistryDomain)
 }
 
-func (cr *containerRepo) buildCommandsWithLogin(wrappedCommands []string) []string {
+func (cr *ContainerRepo) buildCommandsWithLogin(wrappedCommands []string) []string {
 	commands := make([]string, 0)
 	commands = append(commands, cr.LoginCommands...)
 	commands = append(commands, wrappedCommands...)
@@ -435,7 +435,7 @@ func (cr *containerRepo) buildCommandsWithLogin(wrappedCommands []string) []stri
 	return commands
 }
 
-func (cr *containerRepo) BuildImageName(buildName, majorVersion string, teleportPackage *teleportPackage) string {
+func (cr *ContainerRepo) BuildImageName(buildName, majorVersion string, teleportPackage *teleportPackage) string {
 	if !teleportPackage.IsEnterprise {
 		return cr.OssImageName(buildName, majorVersion)
 	}
@@ -455,7 +455,7 @@ type pushStepOutput struct {
 	StepName        string
 }
 
-func (cr *containerRepo) tagAndPushStep(buildStepDetails *buildStepOutput) (step, *pushStepOutput) {
+func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput) (step, *pushStepOutput) {
 	repoImageTag := fmt.Sprintf("%s-%s", cr.BuildImageName(buildStepDetails.BuildName, buildStepDetails.Version.MajorVersion,
 		buildStepDetails.TeleportPackage), buildStepDetails.BuiltImageArch)
 	step := step{
@@ -481,7 +481,7 @@ func (cr *containerRepo) tagAndPushStep(buildStepDetails *buildStepOutput) (step
 	}
 }
 
-func (cr *containerRepo) createAndPushManifestStep(pushStepDetails []*pushStepOutput) step {
+func (cr *ContainerRepo) createAndPushManifestStep(pushStepDetails []*pushStepOutput) step {
 	stepDetail := pushStepDetails[0]
 	repoImageTag := cr.BuildImageName(stepDetail.BuildName, stepDetail.Version.MajorVersion, stepDetail.TeleportPackage)
 
