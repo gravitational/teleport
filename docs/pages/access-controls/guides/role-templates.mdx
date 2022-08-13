@@ -368,7 +368,7 @@ Available interpolation functions include:
 Function | Description
 --- | ---
 `email.local(variable)` | Extracts the local part of an email address. `email.local(alice@example.com)` evaluates to `alice`.
-`regexp.replace(variable, expression, replacement)` | Finds all matches of `expression` and replaces them with `replacement`. This supports expansion, e.g. `regexp.replace(external.email, "^(.*)@example.com$", "$1")`. Values which do not match the expression will be filtered out.
+`regexp.replace(variable, expression, replacement)` | Finds all matches of `expression` and replaces them with `replacement`. This supports expansion, e.g. `regexp.replace(external.email, "^(.*)@example.com$", "$1")`. Values which do not match the expression will be filtered out. `$N` is used to refer to the Nth captured group, starting at `$1`.
 
 ## Templating in Access Requests
 
