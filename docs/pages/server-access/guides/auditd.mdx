@@ -1,0 +1,58 @@
+---
+title: Configure SSH with the Linux Auditing System
+description: How to configure Teleport SSH with Auditd (Linux Auditing System).
+h1: Linux Auditing System (Auditd)
+---
+
+Teleport's SSH Service can be configured to integrate with Linux Auditing System (auditd).
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- A running Teleport Node. See the [Server Access Getting Started Guide](../getting-started.mdx) for  how to add a Node to your Teleport cluster.
+- Auditd should be installed and running.
+- Linux kernel 2.6.6+ compiled with `CONFIG_AUDIT`. Most Linux distributions have this options enabled by default.
+- `auditctl` to check auditd status (optional)
+
+(!docs/pages/includes/tctl.mdx!)
+
+## Step 1/3. Check system configuration.
+
+Teleport automatically sends auditd event when it discovers that auditd is enabled in the system.
+You can verify that by calling `auditctl -s` as a root.
+
+Here is an example output from that command:
+
+```bash
+$ sudo auditctl -s
+enabled 1
+failure 1
+pid 879
+rate_limit 0
+backlog_limit 8192
+lost 0
+backlog 0
+backlog_wait_time 60000
+backlog_wait_time_actual 0
+loginuid_immutable 0 unlocked
+```
+The first field `enabled 1` means that auditd is enabled and Teleport should be able to
+
+## Step 2/3. Start Teleport.
+
+It's important to run Teleport as a system service (systemd service for example) with root permission in order to make it work.
+Otherwise, Teleport won't send any events to auditd due to lack of permissions.
+
+<Admonition type="warning">
+
+  Make sure that the Teleport process has login UID unset. Otherwise, session ID won't be set correctly in the logs.
+
+</Admonition>
+
+## Step 3/3. Enable PAM integration (optional).
+
+Teleport will send additional events when PAM (Pluggable Authentication Modules) is enabled. To enable PAM integration
+in Teleport please refer to [PAM](./ssh-pam/#set-up-pam-on-a-linux-machine-running-teleport).
+
+
