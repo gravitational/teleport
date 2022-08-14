@@ -1758,7 +1758,7 @@ pub type CGOSharedDirectoryDeleteResponse = SharedDirectoryCreateResponse;
 pub type SharedDirectoryListRequest = SharedDirectoryInfoRequest;
 pub type CGOSharedDirectoryListRequest = CGOSharedDirectoryInfoRequest;
 /// SharedDirectoryMoveResponse is sent by the TDP client to the server
-/// to acknowledge a SharedDirectoryMoveRequest was received and expected.
+/// to acknowledge a SharedDirectoryMoveRequest was received and executed.
 pub type SharedDirectoryMoveResponse = SharedDirectoryCreateResponse;
 pub type CGOSharedDirectoryMoveResponse = CGOSharedDirectoryCreateResponse;
 
