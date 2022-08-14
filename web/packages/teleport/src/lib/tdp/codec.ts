@@ -43,6 +43,8 @@ export enum MessageType {
   SHARED_DIRECTORY_INFO_RESPONSE = 14,
   SHARED_DIRECTORY_CREATE_REQUEST = 15,
   SHARED_DIRECTORY_CREATE_RESPONSE = 16,
+  SHARED_DIRECTORY_DELETE_REQUEST = 17,
+  SHARED_DIRECTORY_DELETE_RESPONSE = 18,
   SHARED_DIRECTORY_READ_REQUEST = 19,
   SHARED_DIRECTORY_READ_RESPONSE = 20,
   SHARED_DIRECTORY_WRITE_REQUEST = 21,
@@ -139,6 +141,19 @@ export type SharedDirectoryCreateResponse = {
   completionId: number;
   errCode: SharedDirectoryErrCode;
   fso: FileSystemObject;
+};
+
+// | message type (17) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte |
+export type SharedDirectoryDeleteRequest = {
+  completionId: number;
+  directoryId: number;
+  path: string;
+};
+
+// | message type (18) | completion_id uint32 | err_code uint32 |
+export type SharedDirectoryDeleteResponse = {
+  completionId: number;
+  errCode: SharedDirectoryErrCode;
 };
 
 // | message type (19) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte | offset uint64 | length uint32 |
@@ -615,6 +630,25 @@ export default class Codec {
     ]).buffer;
   }
 
+  // | message type (18) | completion_id uint32 | err_code uint32 |
+  encodeSharedDirectoryDeleteResponse(
+    res: SharedDirectoryDeleteResponse
+  ): Message {
+    const bufLen = byteLength + 2 * uint32Length;
+    const buffer = new ArrayBuffer(bufLen);
+    const view = new DataView(buffer);
+    let offset = 0;
+
+    view.setUint8(offset, MessageType.SHARED_DIRECTORY_DELETE_RESPONSE);
+    offset += byteLength;
+    view.setUint32(offset, res.completionId);
+    offset += uint32Length;
+    view.setUint32(offset, res.errCode);
+    offset += uint32Length;
+
+    return buffer;
+  }
+
   // | message type (20) | completion_id uint32 | err_code uint32 | read_data_length uint32 | read_data []byte |
   encodeSharedDirectoryReadResponse(res: SharedDirectoryReadResponse): Message {
     const bufLen =
@@ -862,6 +896,27 @@ export default class Codec {
       completionId,
       directoryId,
       fileType,
+      path,
+    };
+  }
+
+  // | message type (17) | completion_id uint32 | directory_id uint32 | path_length uint32 | path []byte |
+  decodeSharedDirectoryDeleteRequest(
+    buffer: ArrayBuffer
+  ): SharedDirectoryDeleteRequest {
+    const dv = new DataView(buffer);
+    let offset = 0;
+    offset += byteLength; // eat message type
+    const completionId = dv.getUint32(offset);
+    offset += uint32Length; // eat completion_id
+    const directoryId = dv.getUint32(offset);
+    offset += uint32Length; // eat directory_id
+    offset += uint32Length; // eat path_length
+    const path = this.decoder.decode(new Uint8Array(buffer.slice(offset)));
+
+    return {
+      completionId,
+      directoryId,
       path,
     };
   }

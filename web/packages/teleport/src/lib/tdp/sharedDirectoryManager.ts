@@ -171,6 +171,27 @@ export class SharedDirectoryManager {
   }
 
   /**
+   * Deletes a file or directory at path.
+   * If the path doesn't exist, this operation is effectively ignored.
+   * @throws Anything potentially thrown by getFileHandle/getDirectoryHandle.
+   * @throws {PathDoesNotExistError} if the path isn't a valid path to a directory.
+   */
+  async delete(path: string): Promise<void> {
+    let splitPath = path.split('/');
+    const fileOrDirName = splitPath.pop();
+    const dirPath = splitPath.join('/');
+
+    const dirHandle = await this.walkPath(dirPath);
+    if (dirHandle.kind !== 'directory') {
+      throw new PathDoesNotExistError(
+        'destination was a file, not a directory'
+      );
+    }
+
+    await dirHandle.removeEntry(fileOrDirName, { recursive: true });
+  }
+
+  /**
    * walkPath walks a pathstr (assumed to be in the qualified Unix format specified
    * in the TDP spec), returning the FileSystemDirectoryHandle | FileSystemFileHandle
    * it finds at its end.

@@ -33,6 +33,7 @@ import Codec, {
   SharedDirectoryReadResponse,
   SharedDirectoryWriteResponse,
   SharedDirectoryCreateResponse,
+  SharedDirectoryDeleteResponse,
   FileSystemObject,
 } from './codec';
 import {
@@ -146,6 +147,9 @@ export default class Client extends EventEmitterWebAuthnSender {
           // until the create has successfully completed, or else we might get an error
           // trying to write to a file that hasn't been created yet.
           await this.handleSharedDirectoryCreateRequest(buffer);
+          break;
+        case MessageType.SHARED_DIRECTORY_DELETE_REQUEST:
+          this.handleSharedDirectoryDeleteRequest(buffer);
           break;
         case MessageType.SHARED_DIRECTORY_READ_REQUEST:
           this.handleSharedDirectoryReadRequest(buffer);
@@ -304,6 +308,24 @@ export default class Client extends EventEmitterWebAuthnSender {
           size: BigInt(0),
           path: req.path,
         },
+      });
+      this.handleError(e, TdpClientEvent.CLIENT_ERROR, false);
+    }
+  }
+
+  async handleSharedDirectoryDeleteRequest(buffer: ArrayBuffer) {
+    const req = this.codec.decodeSharedDirectoryDeleteRequest(buffer);
+
+    try {
+      await this.sdManager.delete(req.path);
+      this.sendSharedDirectoryDeleteResponse({
+        completionId: req.completionId,
+        errCode: SharedDirectoryErrCode.Nil,
+      });
+    } catch (e) {
+      this.sendSharedDirectoryDeleteResponse({
+        completionId: req.completionId,
+        errCode: SharedDirectoryErrCode.Failed,
       });
       this.handleError(e, TdpClientEvent.CLIENT_ERROR, false);
     }
@@ -493,6 +515,10 @@ export default class Client extends EventEmitterWebAuthnSender {
 
   sendSharedDirectoryCreateResponse(response: SharedDirectoryCreateResponse) {
     this.send(this.codec.encodeSharedDirectoryCreateResponse(response));
+  }
+
+  sendSharedDirectoryDeleteResponse(response: SharedDirectoryDeleteResponse) {
+    this.send(this.codec.encodeSharedDirectoryDeleteResponse(response));
   }
 
   resize(spec: ClientScreenSpec) {
