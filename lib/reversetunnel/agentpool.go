@@ -476,7 +476,7 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 	options := []proxy.DialerOptionFunc{proxy.WithInsecureSkipTLSVerify(lib.IsInsecureDevMode())}
 	if p.runtimeConfig.useALPNRouting() {
 		tlsRoutingDialerConfig := &client.TLSRoutingDialerConfig{
-			ALPNConnUpgradeRequired: p.runtimeConfig.alpnConnUpgradeRequired,
+			ALPNConnUpgradeRequired: client.IsHTTPConnUpgradeRequired(addr.Addr, lib.IsInsecureDevMode()),
 			TLSConfig: &tls.Config{
 				NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
 			},
@@ -593,8 +593,6 @@ type agentPoolRuntimeConfig struct {
 	// the agent pools sequential webclient.Find and ssh dial, the Find call will always reach
 	// Proxy A and the ssh dial call will always be forwarded to Proxy B.
 	remoteTLSRoutingEnabled bool
-	// TODO
-	alpnConnUpgradeRequired bool
 	// lastRemotePing is the time of the last ping attempt.
 	lastRemotePing *time.Time
 
@@ -674,7 +672,7 @@ func (c *agentPoolRuntimeConfig) updateRemote(ctx context.Context, addr *utils.N
 	ctx, cancel := context.WithTimeout(ctx, defaults.DefaultDialTimeout)
 	defer cancel()
 
-	var tlsRoutingEnabled, alpnConnUpgradeRequired bool
+	tlsRoutingEnabled := false
 
 	ping, err := webclient.Find(&webclient.Config{
 		Context:   ctx,
@@ -689,7 +687,6 @@ func (c *agentPoolRuntimeConfig) updateRemote(ctx context.Context, addr *utils.N
 		}
 	} else {
 		tlsRoutingEnabled = ping.Proxy.TLSRoutingEnabled
-		alpnConnUpgradeRequired = client.IsHTTPConnUpgradeRequired(addr.Addr, lib.IsInsecureDevMode())
 	}
 
 	c.mu.Lock()
@@ -698,7 +695,6 @@ func (c *agentPoolRuntimeConfig) updateRemote(ctx context.Context, addr *utils.N
 	c.lastRemotePing = &now
 
 	c.remoteTLSRoutingEnabled = tlsRoutingEnabled
-	c.alpnConnUpgradeRequired = alpnConnUpgradeRequired
 	return nil
 }
 
