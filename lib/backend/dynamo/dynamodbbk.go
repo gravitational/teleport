@@ -520,7 +520,7 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 		"#v": aws.String("Value"),
 	})
 	input.SetExpressionAttributeValues(map[string]*dynamodb.AttributeValue{
-		":prev": &dynamodb.AttributeValue{
+		":prev": {
 			B: expected.Value,
 		},
 	})

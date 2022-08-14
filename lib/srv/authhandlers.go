@@ -32,6 +32,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -96,7 +97,7 @@ type AuthHandlers struct {
 
 // NewAuthHandlers initializes authorization and authentication handlers
 func NewAuthHandlers(config *AuthHandlerConfig) (*AuthHandlers, error) {
-	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

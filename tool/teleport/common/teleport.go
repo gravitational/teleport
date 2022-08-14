@@ -381,7 +381,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 			utils.FatalError(err)
 		}
 		if !options.InitOnly {
-			err = OnStart(conf)
+			err = OnStart(ccf, conf)
 		}
 	case scpc.FullCommand():
 		err = onSCP(&scpFlags)
@@ -422,7 +422,12 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 }
 
 // OnStart is the handler for "start" CLI command
-func OnStart(config *service.Config) error {
+func OnStart(clf config.CommandLineFlags, config *service.Config) error {
+	if clf.ConfigFile != "" {
+		config.Log.Infof("Starting Teleport v%s", teleport.Version)
+	} else {
+		config.Log.Infof("Starting Teleport v%s with a config file located at %q", teleport.Version, clf.ConfigFile)
+	}
 	return service.Run(context.TODO(), *config, nil)
 }
 
@@ -513,7 +518,7 @@ func onConfigDump(flags dumpFlags) error {
 	}
 
 	if modules.GetModules().BuildType() != modules.BuildOSS {
-		flags.LicensePath = filepath.Join(defaults.DataDir, "license.pem")
+		flags.LicensePath = filepath.Join(flags.DataDir, "license.pem")
 	}
 
 	if flags.KeyFile != "" && !filepath.IsAbs(flags.KeyFile) {
@@ -562,11 +567,36 @@ func onConfigDump(flags dumpFlags) error {
 	}
 
 	if configPath != "" {
-		if modules.GetModules().BuildType() == modules.BuildOSS {
-			fmt.Printf("Wrote config to file %q. Now you can start the server. Happy Teleporting!\n", configPath)
-		} else {
-			fmt.Printf("Wrote config to file %q. Add your license file to %v and start the server. Happy Teleporting!\n", configPath, flags.LicensePath)
+		canWriteToDataDir, err := utils.CanUserWriteTo(flags.DataDir)
+		if err != nil && !trace.IsNotImplemented(err) {
+			fmt.Fprintf(os.Stderr, "Failed to check data dir permissions: %+v", err)
 		}
+		canWriteToConfDir, err := utils.CanUserWriteTo(filepath.Dir(configPath))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to check config dir permissions: %+v", err)
+		}
+		requiresRoot := !canWriteToDataDir || !canWriteToConfDir
+
+		fmt.Printf("\nA Teleport configuration file has been created at %q.\n", configPath)
+		if modules.GetModules().BuildType() != modules.BuildOSS {
+			fmt.Printf("Add your Teleport license file to %q.\n", flags.LicensePath)
+		}
+		fmt.Printf("To start Teleport with this configuration file, run:\n\n")
+		if requiresRoot {
+			fmt.Printf("sudo teleport start --config=%q\n\n", configPath)
+			fmt.Printf("Note that starting a Teleport server with this configuration will require root access as:\n")
+			if !canWriteToConfDir {
+				fmt.Printf("- The Teleport configuration is located at %q.\n", configPath)
+			}
+			if !canWriteToDataDir {
+				fmt.Printf("- Teleport will be storing data at %q. To change that, run \"teleport configure\" with the \"--data-dir\" flag.\n", flags.DataDir)
+			}
+			fmt.Println()
+		} else {
+			fmt.Printf("teleport start --config=%q\n\n", configPath)
+		}
+
+		fmt.Printf("Happy Teleporting!\n")
 	}
 
 	return nil
@@ -593,7 +623,7 @@ func dumpConfigFile(outputURI, contents, comment string) (string, error) {
 		}
 
 		configDir := path.Dir(outputURI)
-		err := os.MkdirAll(configDir, 0755)
+		err := os.MkdirAll(configDir, 0o755)
 		err = trace.ConvertSystemError(err)
 		if err != nil {
 			if trace.IsAccessDenied(err) {
@@ -678,8 +708,7 @@ func onSCP(scpFlags *scp.Flags) (err error) {
 	return trace.Wrap(cmd.Execute(&StdReadWriter{}))
 }
 
-type StdReadWriter struct {
-}
+type StdReadWriter struct{}
 
 func (rw *StdReadWriter) Read(b []byte) (int, error) {
 	return os.Stdin.Read(b)

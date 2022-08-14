@@ -369,7 +369,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 				for {
 					select {
 					case <-tickCh:
-						nodesInSite, err := site.GetNodes(ctx, apidefaults.Namespace)
+						nodesInSite, err := site.GetNodes(ctx, defaults.Namespace)
 						if err != nil && !trace.IsNotFound(err) {
 							return trace.Wrap(err)
 						}
@@ -385,7 +385,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// should have no sessions:
-			sessions, err := site.GetSessions(ctx, apidefaults.Namespace)
+			sessions, err := site.GetActiveSessionTrackers(ctx)
 			require.NoError(t, err)
 			require.Empty(t, sessions)
 
@@ -409,27 +409,27 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			}()
 
 			// wait until we've found the session in the audit log
-			getSession := func(site auth.ClientI) (*session.Session, error) {
+			getSession := func(site auth.ClientI) (types.SessionTracker, error) {
 				timeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
-				sessions, err := waitForSessionToBeEstablished(timeout, apidefaults.Namespace, site)
+				sessions, err := waitForSessionToBeEstablished(timeout, defaults.Namespace, site)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				return &sessions[0], nil
+				return sessions[0], nil
 			}
-			session, err := getSession(site)
+			tracker, err := getSession(site)
 			require.NoError(t, err)
-			sessionID := session.ID
+			sessionID := tracker.GetSessionID()
 
 			// wait for the user to join this session:
-			for len(session.Parties) == 0 {
+			for len(tracker.GetParticipants()) == 0 {
 				time.Sleep(time.Millisecond * 5)
-				session, err = site.GetSession(ctx, apidefaults.Namespace, sessionID)
+				tracker, err = site.GetSessionTracker(ctx, tracker.GetSessionID())
 				require.NoError(t, err)
 			}
 			// make sure it's us who joined! :)
-			require.Equal(t, suite.Me.Username, session.Parties[0].User)
+			require.Equal(t, suite.Me.Username, tracker.GetParticipants()[0].User)
 
 			// lets type "echo hi" followed by "enter" and then "exit" + "enter":
 
@@ -448,15 +448,15 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			for {
 				select {
 				case event := <-teleport.UploadEventsC:
-					if event.SessionID != string(session.ID) {
-						t.Logf("Skipping mismatching session %v, expecting upload of %v.", event.SessionID, session.ID)
+					if event.SessionID != tracker.GetSessionID() {
+						t.Logf("Skipping mismatching session %v, expecting upload of %v.", event.SessionID, tracker.GetSessionID())
 						continue
 					}
 					break loop
 				case <-timeoutC:
 					dumpGoroutineProfile()
 					t.Fatalf("%s: Timeout waiting for upload of session %v to complete to %v",
-						tt.comment, session.ID, tt.auditSessionsURI)
+						tt.comment, tracker.GetSessionID(), tt.auditSessionsURI)
 				}
 			}
 
@@ -464,7 +464,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			// everything because the session is closing)
 			var sessionStream []byte
 			for i := 0; i < 6; i++ {
-				sessionStream, err = site.GetSessionChunk(apidefaults.Namespace, session.ID, 0, events.MaxChunkBytes)
+				sessionStream, err = site.GetSessionChunk(apidefaults.Namespace, session.ID(tracker.GetSessionID()), 0, events.MaxChunkBytes)
 				require.NoError(t, err)
 				if strings.Contains(string(sessionStream), "exit") {
 					break
@@ -496,7 +496,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 					select {
 					case <-tickCh:
 						// Get all session events from the backend.
-						sessionEvents, err := site.GetSessionEvents(apidefaults.Namespace, session.ID, 0, false)
+						sessionEvents, err := site.GetSessionEvents(apidefaults.Namespace, session.ID(tracker.GetSessionID()), 0, false)
 						if err != nil {
 							return nil, trace.Wrap(err)
 						}
@@ -555,7 +555,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			start := findByType(events.SessionStartEvent)
 			require.Equal(t, first, start)
 			require.Equal(t, 0, start.GetInt("bytes"))
-			require.Equal(t, string(sessionID), start.GetString(events.SessionEventID))
+			require.Equal(t, sessionID, start.GetString(events.SessionEventID))
 			require.NotEmpty(t, start.GetString(events.TerminalSize))
 
 			// make sure data is recorded properly
@@ -571,13 +571,13 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			end := findByType(events.SessionEndEvent)
 			require.NotNil(t, end)
 			require.Equal(t, 0, end.GetInt("bytes"))
-			require.Equal(t, string(sessionID), end.GetString(events.SessionEventID))
+			require.Equal(t, sessionID, end.GetString(events.SessionEventID))
 
 			// there should always be 'session.leave' event
 			leave := findByType(events.SessionLeaveEvent)
 			require.NotNil(t, leave)
 			require.Equal(t, 0, leave.GetInt("bytes"))
-			require.Equal(t, string(sessionID), leave.GetString(events.SessionEventID))
+			require.Equal(t, sessionID, leave.GetString(events.SessionEventID))
 
 			// all of them should have a proper time
 			for _, e := range history {
@@ -719,7 +719,7 @@ func (s *integrationTestSuite) newTeleportIoT(t *testing.T, logins []string) *he
 	nodeConfig := func() *service.Config {
 		tconf := s.defaultServiceConfig()
 		tconf.Hostname = Host
-		tconf.Token = "token"
+		tconf.SetToken("token")
 		tconf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
@@ -796,7 +796,7 @@ func testUUIDBasedProxy(t *testing.T, suite *integrationTestSuite) {
 			for {
 				select {
 				case <-tickCh:
-					nodesInSite, err := site.GetNodes(ctx, apidefaults.Namespace)
+					nodesInSite, err := site.GetNodes(ctx, defaults.Namespace)
 					if err != nil && !trace.IsNotFound(err) {
 						return trace.Wrap(err)
 					}
@@ -1089,11 +1089,11 @@ func testCustomReverseTunnel(t *testing.T, suite *integrationTestSuite) {
 	// Create a Teleport instance with a Node.
 	nodeConf := suite.defaultServiceConfig()
 	nodeConf.Hostname = Host
-	nodeConf.Token = "token"
+	nodeConf.SetToken("token")
 	nodeConf.Auth.Enabled = false
 	nodeConf.Proxy.Enabled = false
 	nodeConf.SSH.Enabled = true
-	t.Setenv(apidefaults.TunnelPublicAddrEnvar, main.Web)
+	t.Setenv(defaults.TunnelPublicAddrEnvar, main.Web)
 
 	// verify the node is able to join the cluster
 	_, err = main.StartReverseTunnelNode(nodeConf)
@@ -1251,13 +1251,13 @@ func verifySessionJoin(t *testing.T, username string, teleport *helpers.TeleInst
 	joinSession := func() {
 		sessionTimeoutCtx, sessionTimeoutCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer sessionTimeoutCancel()
-		sessions, err := waitForSessionToBeEstablished(sessionTimeoutCtx, apidefaults.Namespace, site)
+		sessions, err := waitForSessionToBeEstablished(sessionTimeoutCtx, defaults.Namespace, site)
 		if err != nil {
 			sessionB <- trace.Wrap(err)
 			return
 		}
 
-		sessionID := string(sessions[0].ID)
+		sessionID := sessions[0].GetSessionID()
 		cl, err := teleport.NewClient(helpers.ClientConfig{
 			Login:   username,
 			Cluster: helpers.Site,
@@ -1280,7 +1280,7 @@ func verifySessionJoin(t *testing.T, username string, teleport *helpers.TeleInst
 				return
 
 			case <-ticker.C:
-				err := cl.Join(context.TODO(), types.SessionPeerMode, apidefaults.Namespace, session.ID(sessionID), personB)
+				err := cl.Join(context.TODO(), types.SessionPeerMode, defaults.Namespace, session.ID(sessionID), personB)
 				if err == nil {
 					sessionB <- nil
 					return
@@ -1513,7 +1513,7 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 				timeoutCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
 				defer cancel()
 
-				ss, err := waitForSessionToBeEstablished(timeoutCtx, apidefaults.Namespace, site)
+				ss, err := waitForSessionToBeEstablished(timeoutCtx, defaults.Namespace, site)
 				require.NoError(t, err)
 				require.Len(t, ss, 1)
 				require.Nil(t, teleport.StopAuth(false))
@@ -1939,7 +1939,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 		eventTypes := []string{events.ExecEvent}
 
 		return func() bool {
-			eventsInSite, _, err := site.SearchEvents(now, now.Add(1*time.Hour), apidefaults.Namespace, eventTypes, 0, types.EventOrderAscending, "")
+			eventsInSite, _, err := site.SearchEvents(now, now.Add(1*time.Hour), defaults.Namespace, eventTypes, 0, types.EventOrderAscending, "")
 			require.NoError(t, err)
 			return len(eventsInSite) == count
 		}
@@ -2197,7 +2197,7 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	// correct nodes that identity aware GetNodes is done in TestList.
 	var nodes []types.Server
 	for i := 0; i < 10; i++ {
-		nodes, err = aux.Process.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
+		nodes, err = aux.Process.GetAuthServer().GetNodes(ctx, defaults.Namespace)
 		require.NoError(t, err)
 		if len(nodes) != 2 {
 			time.Sleep(100 * time.Millisecond)
@@ -2743,7 +2743,7 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	nodeConfig := func() *service.Config {
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = tunnelNodeHostname
-		tconf.Token = "token"
+		tconf.SetToken("token")
 		tconf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
@@ -3143,7 +3143,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 	nodeConfig := func() *service.Config {
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = "cluster-main-node"
-		tconf.Token = "token"
+		tconf.SetToken("token")
 		tconf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
@@ -3279,7 +3279,7 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 	nodeConfig := func() *service.Config {
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = "cluster-main-node"
-		tconf.Token = "token"
+		tconf.SetToken("token")
 		tconf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
@@ -3418,7 +3418,7 @@ func waitForNodeCount(ctx context.Context, t *helpers.TeleInstance, clusterName 
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		nodes, err := accessPoint.GetNodes(ctx, apidefaults.Namespace)
+		nodes, err := accessPoint.GetNodes(ctx, defaults.Namespace)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -3812,7 +3812,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	require.NotNil(t, site)
 
 	// should have no sessions in it to start with
-	sessions, _ := site.GetSessions(ctx, apidefaults.Namespace)
+	sessions, _ := site.GetActiveSessionTrackers(ctx)
 	require.Len(t, sessions, 0)
 
 	// create interactive session (this goroutine is this user's terminal time)
@@ -3836,18 +3836,18 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	// wait until there's a session in there:
 	timeoutCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	sessions, err = waitForSessionToBeEstablished(timeoutCtx, apidefaults.Namespace, site)
+	sessions, err = waitForSessionToBeEstablished(timeoutCtx, defaults.Namespace, site)
 	require.NoError(t, err)
-	session := &sessions[0]
+	tracker := sessions[0]
 
 	// wait for the user to join this session
-	for len(session.Parties) == 0 {
+	for len(tracker.GetParticipants()) == 0 {
 		time.Sleep(time.Millisecond * 5)
-		session, err = site.GetSession(ctx, apidefaults.Namespace, sessions[0].ID)
+		tracker, err = site.GetSessionTracker(ctx, sessions[0].GetSessionID())
 		require.NoError(t, err)
 	}
 	// make sure it's us who joined! :)
-	require.Equal(t, suite.Me.Username, session.Parties[0].User)
+	require.Equal(t, suite.Me.Username, tracker.GetParticipants()[0].User)
 
 	// lets type "echo hi" followed by "enter" and then "exit" + "enter":
 	myTerm.Type("\aecho hi\n\r\aexit\n\r\a")
@@ -3864,7 +3864,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 
 	// however, attempts to read the actual sessions should fail because it was
 	// not actually recorded
-	_, err = site.GetSessionChunk(apidefaults.Namespace, session.ID, 0, events.MaxChunkBytes)
+	_, err = site.GetSessionChunk(apidefaults.Namespace, session.ID(tracker.GetSessionID()), 0, events.MaxChunkBytes)
 	require.Error(t, err)
 }
 
@@ -4696,9 +4696,9 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 		// Find the existing session in the backend.
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		sessions, err := waitForSessionToBeEstablished(timeoutCtx, apidefaults.Namespace, site)
+		sessions, err := waitForSessionToBeEstablished(timeoutCtx, defaults.Namespace, site)
 		require.NoError(t, err)
-		sessionID := string(sessions[0].ID)
+		sessionID := sessions[0].GetSessionID()
 
 		cl, err := teleport.NewClient(helpers.ClientConfig{
 			Login:   suite.Me.Username,
@@ -4721,7 +4721,7 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 		}
 
 		for i := 0; i < 10; i++ {
-			err = cl.Join(ctx, types.SessionPeerMode, apidefaults.Namespace, session.ID(sessionID), personB)
+			err = cl.Join(ctx, types.SessionPeerMode, defaults.Namespace, session.ID(sessionID), personB)
 			if err == nil || isSSHError(err) {
 				err = nil
 				break
@@ -4835,7 +4835,7 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 		for {
 			select {
 			case <-tickCh:
-				nodesInCluster, err := clt.GetNodes(ctx, apidefaults.Namespace)
+				nodesInCluster, err := clt.GetNodes(ctx, defaults.Namespace)
 				if err != nil && !trace.IsNotFound(err) {
 					return trace.Wrap(err)
 				}
@@ -6431,7 +6431,7 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 			conf.Proxy.Enabled = false
 
 			conf.DataDir = t.TempDir()
-			conf.Token = "token"
+			conf.SetToken("token")
 			conf.UploadEventsC = i.UploadEventsC
 			conf.AuthServers = []utils.NetAddr{
 				*utils.MustParseAddr(net.JoinHostPort(i.Hostname, helpers.PortStr(t, i.Web))),
