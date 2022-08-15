@@ -93,16 +93,6 @@
               "forScopes": ["enterprise"]
             },
             {
-              "title": "FedRAMP",
-              "slug": "/deploy-a-cluster/teleport-enterprise/fedramp/",
-              "forScopes": ["enterprise"]
-            },
-            {
-              "title": "SOC 2",
-              "slug": "/deploy-a-cluster/teleport-enterprise/soc2/",
-              "forScopes": ["enterprise", "cloud"]
-            },
-            {
               "title": "HSM",
               "slug": "/deploy-a-cluster/teleport-enterprise/hsm/",
               "forScopes": ["enterprise"]
@@ -331,6 +321,24 @@
           ]
         },
         {
+          "title": "Compliance Frameworks",
+          "slug": "/access-controls/compliance-frameworks/",
+          "forScopes": ["enterprise", "cloud"],
+          "entries": [
+            {
+              "title": "FedRAMP",
+              "slug": "/access-controls/compliance-frameworks/fedramp/",
+              "forScopes": ["enterprise"]
+            },
+            {
+              "title": "SOC 2",
+              "slug": "/access-controls/compliance-frameworks/soc2/",
+              "forScopes": ["enterprise", "cloud"]
+            }
+          ]
+        },
+
+        {
           "title": "Reference",
           "slug": "/access-controls/reference/"
         },
@@ -461,15 +469,20 @@
     },
     {
       "icon": "connect",
-      "title": "Use Teleport",
+      "title": "Connect your Client",
       "entries": [
         {
           "title": "Using tsh",
-          "slug": "/use-teleport/tsh/"
+          "slug": "/connect-your-client/tsh/"
         },
         {
           "title": "Using Teleport Connect",
-          "slug": "/use-teleport/teleport-connect/"
+          "slug": "/connect-your-client/teleport-connect/"
+        },
+
+        {
+          "title": "Database GUI Clients",
+          "slug": "/connect-your-client/gui-clients/"
         }
       ]
     },
@@ -703,10 +716,6 @@
             {
               "title": "Snowflake (Preview)",
               "slug": "/database-access/guides/snowflake/"
-            },
-            {
-              "title": "Database GUI Clients",
-              "slug": "/database-access/guides/gui-clients/"
             },
             {
               "title": "Dynamic Registration",
@@ -1138,7 +1147,7 @@
     },
     {
       "source": "/enterprise/ssh-kubernetes-fedramp/",
-      "destination": "/deploy-a-cluster/teleport-enterprise/fedramp/",
+      "destination": "/access-controls/compliance-frameworks/fedramp/",
       "permanent": true
     },
     {
@@ -1323,7 +1332,7 @@
     },
     {
       "source": "/server-access/guides/tsh/",
-      "destination": "/use-teleport/tsh/",
+      "destination": "/connect-your-client/tsh/",
       "permanent": true
     },
     {
@@ -1447,14 +1456,14 @@
       "permanent": true
     },
     {
-    	"source": "/enterprise/workflow/role-requests/",
-    	"destination": "/access-controls/access-requests/role-requests/",
-    	"permanent": true
+      "source": "/enterprise/workflow/role-requests/",
+      "destination": "/access-controls/access-requests/role-requests/",
+      "permanent": true
     },
     {
-    	"source": "/user-manual/",
-    	"destination": "/",
-    	"permanent": true
+      "source": "/user-manual/",
+      "destination": "/",
+      "permanent": true
     }
   ]
 }
