@@ -468,7 +468,7 @@ func TestSSHSection(t *testing.T) {
 		expectError               require.ErrorAssertionFunc
 		expectEnabled             require.BoolAssertionFunc
 		expectAllowsTCPForwarding require.BoolAssertionFunc
-		expectedAWSSection        []AWSMatcher
+		expectedAWSSection        []AWSEC2Matcher
 	}{
 		{
 			desc:                      "default",
@@ -529,12 +529,14 @@ func TestSSHSection(t *testing.T) {
 					},
 				}
 			},
-			expectedAWSSection: []AWSMatcher{
+			expectedAWSSection: []AWSEC2Matcher{
 				{
-					Types:   []string{"ec2"},
-					Regions: []string{"eu-central-1"},
-					Tags: map[string]apiutils.Strings{
-						"discover_teleport": []string{"yes"},
+					Matcher: AWSMatcher{
+						Types:   []string{"ec2"},
+						Regions: []string{"eu-central-1"},
+						Tags: map[string]apiutils.Strings{
+							"discover_teleport": []string{"yes"},
+						},
 					},
 					InstallParams: &InstallParams{
 						JoinParams: JoinParams{
@@ -564,17 +566,19 @@ func TestSSHSection(t *testing.T) {
 							},
 						},
 						"ssm": cfgMap{
-							"document": "hello_document",
+							"document_name": "hello_document",
 						},
 					},
 				}
 			},
-			expectedAWSSection: []AWSMatcher{
+			expectedAWSSection: []AWSEC2Matcher{
 				{
-					Types:   []string{"ec2"},
-					Regions: []string{"eu-central-1"},
-					Tags: map[string]apiutils.Strings{
-						"discover_teleport": []string{"yes"},
+					Matcher: AWSMatcher{
+						Types:   []string{"ec2"},
+						Regions: []string{"eu-central-1"},
+						Tags: map[string]apiutils.Strings{
+							"discover_teleport": []string{"yes"},
+						},
 					},
 					InstallParams: &InstallParams{
 						JoinParams: JoinParams{
@@ -618,7 +622,7 @@ func TestSSHSection(t *testing.T) {
 					},
 				}
 			},
-			expectedAWSSection: []AWSMatcher{
+			expectedAWSSection: []AWSEC2Matcher{
 				{
 					SSM: AWSSSM{
 						DocumentName: defaults.AWSInstallerDocument,
