@@ -80,8 +80,12 @@ This reference details available values for the `teleport-cluster` chart.
 | `string` | `""` | No | `auth_service.authentication.connector_name` | ❌ |
 
 `authentication.connectorName` sets the default authentication connector.
-See [the SSO documentation](../../enterprise/sso.mdx). Other possible values are `local` and
-[`passwordless`](../../access-controls/guides/passwordless.mdx#optional-enable-passwordless-by-default).
+[The SSO documentation](../../enterprise/sso.mdx) explains how to create authentication connectors for common identity
+providers. In addition to SSO connector names, the following built-in connectors are supported:
+- [`local`](../admin/users.mdx) for local users
+- [`passwordless`](../../access-controls/guides/passwordless.mdx#optional-enable-passwordless-by-default) to enable by
+default passwordless authentication.
+
 Defaults to `local`.
 
 ### `authentication.localAuth`
@@ -101,8 +105,11 @@ When disabled, users can only log in through authentication connectors like `sam
 | - | - | - | - | - |
 | `string` | `""` | No | `auth_service.authentication.locking_mode` | ❌ |
 
-`authentication.lockingMode` controls the locking mode cluster-wide.
-See [the locking modes documentation](../../access-controls/guides/locking.mdx#next-steps-locking-modes)
+`authentication.lockingMode` controls the locking mode cluster-wide. Possible values are `best_effort` and `strict`.
+See [the locking modes documentation](../../access-controls/guides/locking.mdx#next-steps-locking-modes) for more
+details.
+
+Defaults to Teleport's binary default when empty: `best_effort`.
 
 ### `authentication.secondFactor`
 
