@@ -6,13 +6,11 @@ If your `tsh db connect` error includes the following text, you likely have an R
 x509: certificate relies on legacy Common Name field, use SANs instead
 ```
 
-AWS provides instructions to rotate your [SSL/TLS certificate](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL-certificate-rotation.html). Even if
-your database is using the `rda-ca-2019` certificate and was created before July 28, 2020 that 
-will require rotation.
+AWS provides instructions to rotate your [SSL/TLS certificate](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL-certificate-rotation.html).
 
 ### No credential providers error
 
-If you see the error ` NoCredentialProviders: no valid providers in chain` in logs then Teleport
+If you see the error ` NoCredentialProviders: no valid providers in chain` in Database Service logs then Teleport
 is not detecting the required Credentials to connect via AWS IAM permissions.  Check
 the credentials or security role has been applied in the machine running the Teleport Database Service.
 
