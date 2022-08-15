@@ -220,7 +220,7 @@ func (d TLSRoutingDialer) DialContext(ctx context.Context, network, addr string)
 
 	tlsConn := tls.Client(netConn, d.TLSConfig)
 	if err := tlsConn.HandshakeContext(ctx); err != nil {
-		defer netConn.Close()
+		defer tlsConn.Close()
 		return nil, trace.Wrap(err)
 	}
 

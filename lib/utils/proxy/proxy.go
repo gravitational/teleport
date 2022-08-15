@@ -197,7 +197,7 @@ type dialerOptions struct {
 	insecureSkipTLSVerify bool
 	// tlsRoutingEnabled indicates that proxy is running in TLSRouting mode.
 	tlsRoutingEnabled bool
-	// tlsConfig is the TLS config to use.
+	// tlsConfig is the TLS config to use for TLS routing.
 	tlsConfig *tls.Config
 	// alpnConnUpgradeRootCAs is the root CAs pool used when dialing inside ALPN
 	// connection upgrade.

@@ -174,6 +174,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer upstreamConn.Close()
 
 	errC := make(chan error, 2)
 	go func() {

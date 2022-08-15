@@ -2869,7 +2869,7 @@ func formatConnectToProxyErr(err error) error {
 	return err
 }
 
-// IsALPNConnUpgradeRequired requries true if ALPN connection upgrade is
+// IsALPNConnUpgradeRequired returns true if ALPN connection upgrade is
 // required.
 func (tc *TeleportClient) IsALPNConnUpgradeRequired() bool {
 	tc.alpnConnUpgradeRequiredOnce.Do(func() {
@@ -2986,17 +2986,16 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 	}
 
 	return &ProxyClient{
-		teleportClient:          tc,
-		Client:                  sshClient,
-		proxyAddress:            sshProxyAddr,
-		proxyPrincipal:          sshConfig.User,
-		hostKeyCallback:         sshConfig.HostKeyCallback,
-		authMethods:             sshConfig.Auth,
-		hostLogin:               tc.HostLogin,
-		siteName:                clusterName(),
-		clientAddr:              tc.ClientAddr,
-		Tracer:                  tc.Tracer,
-		alpnConnUpgradeRequired: tc.IsALPNConnUpgradeRequired(),
+		teleportClient:  tc,
+		Client:          sshClient,
+		proxyAddress:    sshProxyAddr,
+		proxyPrincipal:  sshConfig.User,
+		hostKeyCallback: sshConfig.HostKeyCallback,
+		authMethods:     sshConfig.Auth,
+		hostLogin:       tc.HostLogin,
+		siteName:        clusterName(),
+		clientAddr:      tc.ClientAddr,
+		Tracer:          tc.Tracer,
 	}, nil
 }
 

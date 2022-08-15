@@ -63,8 +63,6 @@ func onListDatabases(cf *CLIConf) error {
 	var proxy *client.ProxyClient
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
 		proxy, err = tc.ConnectToProxy(cf.Context)
-		if err != nil {
-		}
 		return trace.Wrap(err)
 	})
 	if err != nil {
