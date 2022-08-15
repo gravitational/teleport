@@ -486,7 +486,7 @@ func (a *Agent) processRequests(conn *tracessh.Client) error {
 	ticker := time.NewTicker(netConfig.GetKeepAliveInterval())
 	defer ticker.Stop()
 
-	hb, reqC, err := conn.OpenChannel(chanHeartbeat, nil)
+	hb, reqC, err := conn.OpenChannel(a.ctx, chanHeartbeat, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -494,7 +494,7 @@ func (a *Agent) processRequests(conn *tracessh.Client) error {
 	newDiscoveryC := conn.HandleChannelOpen(chanDiscovery)
 
 	// send first ping right away, then start a ping timer:
-	if _, err := hb.SendRequest("ping", false, nil); err != nil {
+	if _, err := hb.SendRequest(a.ctx, "ping", false, nil); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -506,7 +506,7 @@ func (a *Agent) processRequests(conn *tracessh.Client) error {
 		// time to ping:
 		case <-ticker.C:
 			bytes, _ := a.Clock.Now().UTC().MarshalText()
-			_, err := hb.SendRequest("ping", false, bytes)
+			_, err := hb.SendRequest(a.ctx, "ping", false, bytes)
 			if err != nil {
 				a.log.Error(err)
 				return trace.Wrap(err)
