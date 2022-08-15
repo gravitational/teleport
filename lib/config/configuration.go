@@ -2126,12 +2126,10 @@ func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.AuthToken != "" {
 		cfg.JoinMethod = types.JoinMethodToken
 		cfg.SetToken(fc.AuthToken)
-
-		return nil
 	}
 
 	if fc.JoinParams != (JoinParams{}) {
-		if !cfg.HasToken() {
+		if cfg.HasToken() {
 			return trace.BadParameter("only one of auth_token or join_params should be set")
 		}
 
@@ -2144,5 +2142,6 @@ func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.BadParameter(`unknown value for join_params.method: %q, expected one of %v`, fc.JoinParams.Method, []types.JoinMethod{types.JoinMethodEC2, types.JoinMethodIAM, types.JoinMethodToken})
 		}
 	}
+
 	return nil
 }
