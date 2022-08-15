@@ -131,12 +131,12 @@ func (s *NOP) Close() error {
 }
 
 // OpenSession opens a NOP session. Note this function does nothing.
-func (s *NOP) OpenSession(ctx *SessionContext) (uint64, error) {
+func (s *NOP) OpenSession(_ *SessionContext) (uint64, error) {
 	return 0, nil
 }
 
 // CloseSession closes a NOP session. Note this function does nothing.
-func (s *NOP) CloseSession(ctx *SessionContext) error {
+func (s *NOP) CloseSession(_ *SessionContext) error {
 	return nil
 }
 

@@ -118,6 +118,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newWebTokenParser()
 		case types.KindRemoteCluster:
 			parser = newRemoteClusterParser()
+		case types.KindKubeServer:
+			parser = newKubeServerParser()
 		case types.KindKubeService:
 			parser = newKubeServiceParser()
 		case types.KindDatabaseServer:
@@ -134,6 +136,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newWindowsDesktopServicesParser()
 		case types.KindWindowsDesktop:
 			parser = newWindowsDesktopsParser()
+		case types.KindInstaller:
+			parser = newInstallerParser()
 		default:
 			return nil, trace.BadParameter("watcher on object kind %q is not supported", kind.Kind)
 		}
@@ -947,6 +951,43 @@ func (p *webTokenParser) parse(event backend.Event) (types.Resource, error) {
 	}
 }
 
+func newKubeServerParser() *kubeServerParser {
+	return &kubeServerParser{
+		baseParser: newBaseParser(backend.Key(kubeServersPrefix)),
+	}
+}
+
+type kubeServerParser struct {
+	baseParser
+}
+
+func (p *kubeServerParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		hostID, name, err := baseTwoKeys(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &types.KubernetesServerV3{
+			Kind:    types.KindKubeServer,
+			Version: types.V3,
+			Metadata: types.Metadata{
+				Name:        name,
+				Namespace:   apidefaults.Namespace,
+				Description: hostID, // Pass host ID via description field for the cache.
+			},
+		}, nil
+	case types.OpPut:
+		return services.UnmarshalKubeServer(
+			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
 func newKubeServiceParser() *kubeServiceParser {
 	return &kubeServiceParser{
 		baseParser: newBaseParser(backend.Key(kubeServicesPrefix)),
@@ -1219,6 +1260,39 @@ func (p *windowsDesktopsParser) parse(event backend.Event) (types.Resource, erro
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+type installerParser struct {
+	baseParser
+}
+
+func newInstallerParser() *installerParser {
+	return &installerParser{
+		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, installerScriptPrefix)),
+	}
+}
+
+func (p *installerParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		h, err := resourceHeader(event, types.KindInstaller, types.V1, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		h.SetName(types.MetaNameClusterInstallerScript)
+		return h, nil
+	case types.OpPut:
+		inst, err := services.UnmarshalInstaller(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return inst, nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

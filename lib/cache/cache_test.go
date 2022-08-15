@@ -2600,12 +2600,14 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindWebToken:                &types.WebTokenV3{},
 		types.KindRemoteCluster:           &types.RemoteClusterV3{},
 		types.KindKubeService:             &types.ServerV2{},
+		types.KindKubeServer:              &types.KubernetesServerV3{},
 		types.KindDatabaseServer:          &types.DatabaseServerV3{},
 		types.KindDatabase:                &types.DatabaseV3{},
 		types.KindNetworkRestrictions:     &types.NetworkRestrictionsV4{},
 		types.KindLock:                    &types.LockV2{},
 		types.KindWindowsDesktopService:   &types.WindowsDesktopServiceV3{},
 		types.KindWindowsDesktop:          &types.WindowsDesktopV3{},
+		types.KindInstaller:               &types.InstallerV1{},
 	}
 
 	for name, cfg := range cases {

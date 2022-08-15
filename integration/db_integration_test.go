@@ -488,7 +488,7 @@ func (p *databasePack) testMongoConnectionCount(t *testing.T) {
 	// Wait until the server reports no more connections. This usually happens
 	// really quick but wait a little longer just in case.
 	waitUntilNoConnections := func() bool {
-		return 0 == p.root.mongo.GetActiveConnectionsCount()
+		return p.root.mongo.GetActiveConnectionsCount() == 0
 	}
 	require.Eventually(t, waitUntilNoConnections, 5*time.Second, 100*time.Millisecond)
 }
@@ -1103,7 +1103,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	}
 	rdConf := service.MakeDefaultConfig()
 	rdConf.DataDir = t.TempDir()
-	rdConf.Token = "static-token-value"
+	rdConf.SetToken("static-token-value")
 	rdConf.AuthServers = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
@@ -1141,7 +1141,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 	}
 	ldConf := service.MakeDefaultConfig()
 	ldConf.DataDir = t.TempDir()
-	ldConf.Token = "static-token-value"
+	ldConf.SetToken("static-token-value")
 	ldConf.AuthServers = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
@@ -1303,7 +1303,7 @@ type databaseAgentStartParams struct {
 func (p *databasePack) startRootDatabaseAgent(t *testing.T, params databaseAgentStartParams) (*service.TeleportProcess, *auth.Client) {
 	conf := service.MakeDefaultConfig()
 	conf.DataDir = t.TempDir()
-	conf.Token = "static-token-value"
+	conf.SetToken("static-token-value")
 	conf.DiagnosticAddr = *utils.MustParseAddr(helpers.NewListener(t, service.ListenerDiagnostic, &conf.FileDescriptors))
 	conf.AuthServers = []utils.NetAddr{
 		{

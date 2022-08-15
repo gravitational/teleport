@@ -46,10 +46,12 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/installers"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/joinserver"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -948,6 +950,12 @@ func (g *GRPCServer) Ping(ctx context.Context, req *proto.PingRequest) (*proto.P
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// attempt to set remote addr.
+	if p, ok := peer.FromContext(ctx); ok {
+		rsp.RemoteAddr = p.Addr.String()
+	}
+
 	return &rsp, nil
 }
 
@@ -1837,6 +1845,45 @@ func (g *GRPCServer) DeleteAllKubeServices(ctx context.Context, req *proto.Delet
 		return nil, trace.Wrap(err)
 	}
 
+	return &empty.Empty{}, nil
+}
+
+// UpsertKubernetesServer registers an kubernetes server.
+func (g *GRPCServer) UpsertKubernetesServer(ctx context.Context, req *proto.UpsertKubernetesServerRequest) (*types.KeepAlive, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	keepAlive, err := auth.UpsertKubernetesServer(ctx, req.GetServer())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return keepAlive, nil
+}
+
+// DeleteKubernetesServer deletes a kubernetes server.
+func (g *GRPCServer) DeleteKubernetesServer(ctx context.Context, req *proto.DeleteKubernetesServerRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = auth.DeleteKubernetesServer(ctx, req.GetHostID(), req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// DeleteAllKubernetesServers deletes all registered kubernetes servers.
+func (g *GRPCServer) DeleteAllKubernetesServers(ctx context.Context, req *proto.DeleteAllKubernetesServersRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = auth.DeleteAllKubernetesServers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &empty.Empty{}, nil
 }
 
@@ -3946,6 +3993,13 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubeService{KubeService: srv}}
+		case types.KindKubeServer:
+			srv, ok := resource.(*types.KubernetesServerV3)
+			if !ok {
+				return nil, trace.BadParameter("kubernetes server has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubernetesServer{KubernetesServer: srv}}
 		case types.KindWindowsDesktop:
 			desktop, ok := resource.(*types.WindowsDesktopV3)
 			if !ok {
@@ -4145,7 +4199,50 @@ func (g *GRPCServer) CreateConnectionDiagnostic(ctx context.Context, connectionD
 	if err := auth.ServerWithRoles.CreateConnectionDiagnostic(ctx, connectionDiagnostic); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return &empty.Empty{}, nil
+}
 
+// SetInstaller sets the installer script resource
+func (g *GRPCServer) SetInstaller(ctx context.Context, req *types.InstallerV1) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.SetInstaller(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// GetInstaller retrieves the installer script resource
+func (g *GRPCServer) GetInstaller(ctx context.Context, _ *empty.Empty) (*types.InstallerV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	res, err := auth.GetInstaller(ctx)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return installers.DefaultInstaller, nil
+		}
+		return nil, trace.Wrap(err)
+	}
+	inst, ok := res.(*types.InstallerV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected installer type %T", res)
+	}
+	return inst, nil
+}
+
+// DeleteInstaller sets the installer script resource to its default
+func (g *GRPCServer) DeleteInstaller(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.DeleteInstaller(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &empty.Empty{}, nil
 }
 
@@ -4179,7 +4276,7 @@ func (cfg *GRPCServerConfig) CheckAndSetDefaults() error {
 
 // NewGRPCServer returns a new instance of GRPC server
 func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
-	err := utils.RegisterPrometheusCollectors(heartbeatConnectionsReceived, watcherEventsEmitted, watcherEventSizes, connectedResources)
+	err := metrics.RegisterPrometheusCollectors(heartbeatConnectionsReceived, watcherEventsEmitted, watcherEventSizes, connectedResources)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4251,7 +4348,6 @@ func serverWithNopRole(cfg GRPCServerConfig) (*ServerWithRoles, error) {
 	return &ServerWithRoles{
 		authServer: cfg.AuthServer,
 		context:    *nopCtx,
-		sessions:   cfg.SessionService,
 		alog:       cfg.AuthServer,
 	}, nil
 }
@@ -4286,7 +4382,6 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 		ServerWithRoles: &ServerWithRoles{
 			authServer: g.AuthServer,
 			context:    *authContext,
-			sessions:   g.SessionService,
 			alog:       g.AuthServer,
 		},
 	}, nil
