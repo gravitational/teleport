@@ -14,20 +14,22 @@ to dynamic `where` conditions in the same manner as RFD 44.
 ## Why
 
 Session tracker visibility is currently tightly coupled with the permission to join a given session.
-They are invisible by default and may only be read by users with the permission to join a session in some mode
+They are invisible by default and may only be read by users with permission to join a session in some mode
 using the `join_sessions` primitive from Moderated Sessions. The functionality proposed by this RFD will allow
 one to configure access to list/read session tracker resources without being able to join the sessions in question.
 
 ## Details
 
-Only the `list` and `read` verbs are supported for session tracker resources. Supporting other verbs make little
+### API
+
+Only the `list` and `read` verbs are supported for session tracker resources. Supporting other verbs makes little
 sense as tracker resources may only be safely managed by the node that created them. The `list` verb will allow access
 to the `GetActiveSessionTrackers` RPC while `read` will provide access to the `GetSessionTracker` RPC.
 
-The `where` clause may be used to specify an expression which will be used to selectively filter or allow/deny a request
+The `where` clause may be used to specify an expression that will be used to selectively filter or allow/deny a request
 based on tracker contents.
 
-The environment which the expression will execute in defines the following variables derived from the tracker object and request user:
+The environment in which the expression will execute defines the following variables derived from the tracker object and request user:
 - `user`: standard user object as defined in RFD 44
 - `tracker`: object
   - `session_id`: string
@@ -40,6 +42,7 @@ The environment which the expression will execute in defines the following varia
   - `cluster`: string
   - `kube_cluster`: string
   - `host_user`: string
+  - `host_roles`: array of strings
 
 Configuration example that denies list/read access to all sessions you are a participant of:
 
@@ -51,3 +54,16 @@ spec:
       verbs: [list, read]
       where: 'contains(tracker.participants, user.metadata.name)'
 ```
+
+### Effects on the default `auditor` role
+
+To preserve earlier functionality from the legacy session metadata system, we should allow the auditor to list all active sessions by default but without the ability to join them. This involves adding this section to the predefined role definition:
+
+```yaml
+spec:
+  allow:
+    rules:
+    - resources: [session_tracker]
+      verbs: [list, read]
+```
+
