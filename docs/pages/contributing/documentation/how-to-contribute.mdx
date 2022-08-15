@@ -6,6 +6,7 @@ description: Follow this guide to get started contributing changes to Teleport's
 This guide describes the general workflow for making documentation changes
 
 ## Step 1/4 Set up your local environment
+
 Clone the `gravitational/docs` repository via `git clone`:
 
 ```code
@@ -52,7 +53,9 @@ $ yarn markdown-lint-external-links
 ```
 
 ## Step 3/4 Create a pull request
-Commit your changes and push your branch to `gravitational/teleport` (if you work at Teleport) or a fork of `gravitational/teleport`.
+
+Commit your changes and push your branch to `gravitational/teleport` (if you
+work at Teleport) or a fork of `gravitational/teleport`.
 
 ```code
 # If you are an external contributor, create a fork and push to it.
@@ -63,19 +66,73 @@ $ git rebase origin/master
 $ git push -u fork my-branch
 ```
 
-Visit https://github.com/gravitational/teleport and create a pull request (PR) against your branch. Our continuous integration (CI) pipeline will automatically assign reviewers to your PR.
+Visit https://github.com/gravitational/teleport and create a pull request (PR)
+against your branch. Our continuous integration (CI) pipeline will automatically
+assign reviewers to your PR.
 
 ## Step 4/4 Backport your changes
-Since our docs site is versioned, we want to ensure that any changes you make to the most recent version of our documentation are reflected for the versions of Teleport we currently support.
+
+Since our docs site is versioned, we want to ensure that any changes you make to
+the most recent version of our documentation are reflected for the versions of
+Teleport we currently support.
 
 <Admonition type="tip" title="Supported Versions">
 You can find our list of currently supported versions in the FAQ:
 https://goteleport.com/docs/faq/#which-version-of-teleport-is-supported
 </Admonition>
 
-We will illustrate a backport for Teleport version 8.x.x. In this example, we have created a PR against `origin/master` from the branch `my-branch`, which has been committed to our fork.
+There are many ways to create a backport, and we will illustrate three common
+methods for backporting Teleport documentation PRs.
 
-Copy the hash of the commit we made to `my-branch`, then run the following commands:
+<Tabs>
+<TabItem label="Using GitHub Labels">
+
+When you open a pull request, add labels of the format `backport/branch/v[0-9]+`
+to backport your PR to different versioned branches of `gravitational/teleport`.
+
+For example, to backport a change to v10 of the documentation, you would add the
+label, `backport/branch/v10`.
+
+When you merge your PR, our continuous integration pipeline will create a table
+of links in the comments of the PR that let you create additional PRs for your
+backports.
+
+<Notice>
+
+The label method will fail for forks of `gravitational/teleport`.
+
+</Notice>
+
+</TabItem>
+<TabItem label="Using make">
+
+Navigate to the root of your `gravitational/teleport` clone and run the
+following command, assigning the `PR` variable to the ID of your GitHub PR and
+the `TO` variable to a comma-separated list of versioned branch names:
+
+```code
+$ PR=0000 TO=branch/v10 make backport
+```
+
+This script will automatically generate backport branches and open PRs for them.
+
+<Notice>
+
+The `make backport` method will fail for forks of `gravitational/teleport`.
+
+</Notice>
+
+</TabItem>
+<TabItem label="Manually">
+
+If automatic backport methods have failed, you will need to backport manually.
+
+We will illustrate a backport for Teleport version 8.x.x. In this example, we
+have created a PR against `origin/master` from the branch `my-branch`, which has
+been committed to our fork.
+
+Copy the hash of the commit we made to `my-branch`, then run the following
+commands:
 
 ```code
 $ git fetch origin
@@ -86,6 +143,9 @@ $ git push -u fork my-branch-backport-v8
 ```
 
 Finally, create a PR for your backport.
+
+</TabItem>
+</Tabs>
 
 ## Next steps
 - Consult our [style guide](./style-guide.mdx) to ensure your docs page is consistent with the rest of our docs.
