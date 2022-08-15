@@ -47,7 +47,7 @@ var teleportUserGVK = schema.GroupVersionKind{
 
 func TestUserCreation(t *testing.T) {
 	ctx := context.Background()
-	setup := setupKubernetesAndTeleport(ctx, t)
+	setup := setupKubernetesAndTeleport(t)
 	userName := validRandomResourceName("user-")
 
 	teleportCreateDummyRole(ctx, t, "a", setup.tClient)
@@ -80,7 +80,7 @@ func TestUserCreation(t *testing.T) {
 }
 func TestUserCreationFromYAML(t *testing.T) {
 	ctx := context.Background()
-	setup := setupKubernetesAndTeleport(ctx, t)
+	setup := setupKubernetesAndTeleport(t)
 	teleportCreateDummyRole(ctx, t, "a", setup.tClient)
 	tests := []struct {
 		name         string
@@ -226,7 +226,7 @@ func compareUserSpecs(t *testing.T, expectedUser, actualUser types.User) {
 
 func TestUserDeletionDrift(t *testing.T) {
 	ctx := context.Background()
-	setup := setupKubernetesAndTeleport(ctx, t)
+	setup := setupKubernetesAndTeleport(t)
 	userName := validRandomResourceName("user-")
 
 	teleportCreateDummyRole(ctx, t, "a", setup.tClient)
@@ -272,7 +272,7 @@ func TestUserDeletionDrift(t *testing.T) {
 
 func TestUserUpdate(t *testing.T) {
 	ctx := context.Background()
-	setup := setupKubernetesAndTeleport(ctx, t)
+	setup := setupKubernetesAndTeleport(t)
 	teleportCreateDummyRole(ctx, t, "a", setup.tClient)
 	teleportCreateDummyRole(ctx, t, "b", setup.tClient)
 	teleportCreateDummyRole(ctx, t, "x", setup.tClient)
