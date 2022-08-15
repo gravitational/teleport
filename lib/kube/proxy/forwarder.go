@@ -1447,7 +1447,7 @@ func (f *Forwarder) newClusterSessionRemoteCluster(ctx authContext) (*clusterSes
 		// encoded in the TLS certificate. We're setting the dial endpoint to a hardcoded
 		// `kube.teleport.cluster.local` value to indicate this is a Kubernetes proxy request
 		kubeClusterEndpoints: []kubeClusterEndpoint{{addr: reversetunnel.LocalKubernetes}},
-		tlsConfig:            tlsConfig,
+		tlsConfig:            tlsConfig.Clone(),
 	}
 
 	transport := f.newTransport(sess.Dial, sess.tlsConfig)
@@ -1518,7 +1518,7 @@ func (f *Forwarder) newClusterSessionLocal(ctx authContext) (*clusterSession, er
 		authContext:          ctx,
 		creds:                creds,
 		kubeClusterEndpoints: []kubeClusterEndpoint{{addr: creds.targetAddr}},
-		tlsConfig:            creds.tlsConfig,
+		tlsConfig:            creds.tlsConfig.Clone(),
 	}
 
 	// When running inside Kubernetes cluster or using auth/exec providers,
@@ -1561,7 +1561,7 @@ func (f *Forwarder) newClusterSessionDirect(ctx authContext, endpoints []kubeClu
 		parent:               f,
 		authContext:          ctx,
 		kubeClusterEndpoints: endpoints,
-		tlsConfig:            tlsConfig,
+		tlsConfig:            tlsConfig.Clone(),
 		// This session talks to a kubernetes_service, which should handle
 		// audit logging. Avoid duplicate logging.
 		noAuditEvents: true,
