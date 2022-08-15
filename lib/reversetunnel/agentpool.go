@@ -675,8 +675,13 @@ func (c *agentPoolRuntimeConfig) updateRemote(ctx context.Context, addr *utils.N
 		if ok := errors.As(err, &tls.RecordHeaderError{}); !ok {
 			return trace.Wrap(err)
 		}
-		// Only use the ping results if they weren't from a minimal api handler on the reverse tunnel port.
-	} else if addr.Addr != ping.Proxy.SSH.TunnelListenAddr || ping.Proxy.SSH.TunnelListenAddr == ping.Proxy.SSH.WebListenAddr {
+	}
+
+	// Only use the ping results if they weren't from a minimal handler.
+	// The minimal API handler only exists when the proxy and reverse tunnel are
+	// listening on separate ports, so it will never do TLS routing.
+	isMinimalHandler := addr.Addr == ping.Proxy.SSH.TunnelListenAddr && ping.Proxy.SSH.TunnelListenAddr != ping.Proxy.SSH.WebListenAddr
+	if !isMinimalHandler {
 		tlsRoutingEnabled = ping.Proxy.TLSRoutingEnabled
 	}
 
