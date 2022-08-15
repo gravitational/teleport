@@ -102,6 +102,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindLock},
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
+		{Kind: types.KindInstaller},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -138,6 +139,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindDatabase},
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
+		{Kind: types.KindInstaller},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -168,6 +170,7 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindDatabase},
+		{Kind: types.KindInstaller},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -1489,6 +1492,21 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 		return cachedCfg.Clone(), nil
 	}
 	return rg.clusterConfig.GetClusterName(opts...)
+}
+
+// GetInstaller gets the installer script resource for the cluster
+func (c *Cache) GetInstaller(ctx context.Context) (types.Installer, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetInstaller")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	inst, err := rg.clusterConfig.GetInstaller(ctx)
+	return inst, trace.Wrap(err)
 }
 
 // GetRoles is a part of auth.Cache implementation
