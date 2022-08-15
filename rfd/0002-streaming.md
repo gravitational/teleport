@@ -17,7 +17,7 @@ issues.
 In pre 4.3 implementation events were buffered on disk on proxies or nodes.
 This required encryption at rest, and allowed attackers to tamper
 with event data. Session recording was uploaded as a single tarball,
-auth server had to unpack the tarball in memory to validate it's contents,
+auth server had to unpack the tarball in memory to validate its contents,
 causing OOM and other performance issues. Events were not structured, and often
 clients were omitting and sending wrong fields not validated by the server.
 
@@ -84,7 +84,7 @@ type AuditEvent interface {
 Session events embed session metadata:
 
 ```
-// SesssionMetadata is a common session event metadata
+// SessionMetadata is a common session event metadata
 message SessionMetadata {
     // SessionID is a unique UUID of the session.
     string SessionID = 1;
@@ -117,7 +117,7 @@ event classes without casting to specific type:
 
 **Other event types**
 
-Other event types, such as events dealing with connections embed other  metadata,
+Other event types, such as events dealing with connections embed other metadata,
 for example connection metadata events:
 
 ```go

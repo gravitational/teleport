@@ -118,10 +118,10 @@ type Batch interface {
 //
 // Here is an example of renewing object TTL:
 //
-// lease, err := backend.Create()
-// lease.Expires = time.Now().Add(time.Second)
-// Item TTL is extended
-// err = backend.KeepAlive(lease)
+// item.Expires = time.Now().Add(10 * time.Second)
+// lease, err := backend.Create(ctx, item)
+// expires := time.Now().Add(20 * time.Second)
+// err = backend.KeepAlive(ctx, lease, expires)
 //
 type Lease struct {
 	// Key is an object representing lease
