@@ -219,7 +219,7 @@ func (s *SessionStream) Write(data []byte) (int, error) {
 		return 0, trace.Wrap(err)
 	}
 
-	return len(data), trace.Wrap(err)
+	return len(data), nil
 }
 
 // Resize sends a resize request to the other party.
