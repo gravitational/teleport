@@ -104,13 +104,13 @@ func cronTrigger(cronJobNames []string) trigger {
 	}
 }
 
-func cloneRepoCommands() []string {
+func cloneRepoCommands(cloneDirectory, commit string) []string {
 	return []string{
-		`mkdir -p /go/src/github.com/gravitational/teleport`,
-		`cd /go/src/github.com/gravitational/teleport`,
+		fmt.Sprintf("mkdir -pv %q", cloneDirectory),
+		fmt.Sprintf("cd %q", cloneDirectory),
 		`git init && git remote add origin ${DRONE_REMOTE_URL}`,
 		`git fetch origin`,
-		`git checkout -qf ${DRONE_COMMIT_SHA}`,
+		fmt.Sprintf("git checkout -qf %q", commit),
 	}
 }
 
@@ -280,16 +280,11 @@ func verifyTaggedStep() step {
 }
 
 // Note that tags are also valid here as a tag refers to a specific commit
-func cloneRepoStep(checkoutPath, commit string) step {
+func cloneRepoStep(clonePath, commit string) step {
 	return step{
-		Name:  "Check out code",
-		Image: "alpine/git:latest",
-		Commands: []string{
-			fmt.Sprintf("mkdir -p %q", checkoutPath),
-			fmt.Sprintf("cd %q", checkoutPath),
-			`git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .`,
-			fmt.Sprintf("git checkout %q", commit),
-		},
+		Name:     "Check out code",
+		Image:    "alpine/git:latest",
+		Commands: cloneRepoCommands(clonePath, commit),
 	}
 }
 

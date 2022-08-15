@@ -18,8 +18,9 @@ import "fmt"
 
 // pushCheckoutCommands builds a list of commands for Drone to check out a git commit on a push build
 func pushCheckoutCommands(fips bool) []string {
+	cloneDirectory := "/go/src/github.com/gravitational/teleport"
 	commands := make([]string, 0)
-	commands = append(commands, cloneRepoCommands()...)
+	commands = append(commands, cloneRepoCommands(cloneDirectory, "${DRONE_COMMIT_SHA}")...)
 	commands = append(commands,
 		`mkdir -p /go/cache`,
 		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
