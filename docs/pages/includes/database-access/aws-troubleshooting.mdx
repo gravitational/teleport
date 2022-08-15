@@ -1,6 +1,6 @@
 ### Certificate Error
 
-If your `tsh db connect` error includes the following text you likely have a RDS database created before July 28, 2020.
+If your `tsh db connect` error includes the following text, you likely have an RDS database created before July 28, 2020, which presents an X.509 certificate that is incompatible with Teleport:
 
 ```code
 x509: certificate relies on legacy Common Name field, use SANs instead
