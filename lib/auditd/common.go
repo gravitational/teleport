@@ -13,7 +13,6 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * /
  */
 
 package auditd
@@ -23,6 +22,8 @@ import (
 	"github.com/mdlayher/netlink"
 )
 
+// EventType represent auditd message type.
+// Values comes from https://github.com/torvalds/linux/blob/08145b087e4481458f6075f3af58021a3cf8a940/include/uapi/linux/audit.h#L54
 type EventType int
 
 const (
@@ -39,7 +40,7 @@ const (
 	Failed  ResultType = "failed"
 )
 
-var ErrAuditdDisabled = trace.Errorf("audutd is disabled")
+var ErrAuditdDisabled = trace.Errorf("auditd is disabled")
 
 type NetlinkConnecter interface {
 	Execute(m netlink.Message) ([]netlink.Message, error)

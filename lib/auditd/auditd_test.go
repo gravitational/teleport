@@ -1,3 +1,5 @@
+//go:build linux
+
 /*
  *
  * Copyright 2022 Gravitational, Inc.
@@ -13,7 +15,6 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * /
  */
 
 package auditd
@@ -34,6 +35,8 @@ type msgOrErr struct {
 	err error
 }
 
+// netlinkMock is a mock of netlink client. Otherwise, we would need run this test as a root with installed
+// and enabled auditd.
 type netlinkMock struct {
 	t                *testing.T
 	expectedMessages []msgOrErr

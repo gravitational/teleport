@@ -13,7 +13,6 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * /
  */
 
 package auditd
@@ -51,7 +50,7 @@ type Client struct {
 
 // auditStatus represent auditd status.
 // Struct comes https://github.com/linux-audit/audit-userspace/blob/222dbaf5de27ab85e7aafcc7ea2cb68af2eab9b9/docs/audit_request_status.3#L19
-// and has been updated to include fields added the kernel more recently.
+// and has been updated to include fields added to the kernel more recently.
 type auditStatus struct {
 	Mask                  uint32 /* Bit mask for valid entries */
 	Enabled               uint32 /* 1 = enabled, 0 = disabled */
@@ -87,8 +86,7 @@ func IsLoginUIDSet() bool {
 	}
 
 	// if value is not set, logind PAM module will set it to the correct value
-	// after fork.
-	// 4294967295 is -1 converted to uint32
+	// after fork. 4294967295 is -1 converted to uint32.
 	return loginuid != 4294967295
 }
 
@@ -105,6 +103,8 @@ func getSelfLoginUID() (int64, error) {
 	return loginuid, nil
 }
 
+// SendEvent sends a single auditd event. Each request create a new netlink connection.
+// This function returns no error if it runs with no root permissions.
 func SendEvent(event EventType, result ResultType, msg Message) error {
 	if !hasCapabilities() {
 		// Disable auditd when not running as a root.
@@ -113,15 +113,15 @@ func SendEvent(event EventType, result ResultType, msg Message) error {
 
 	msg.SetDefaults()
 
-	auditd := NewClient(msg)
+	client := NewClient(msg)
 	defer func() {
-		err := auditd.Close()
+		err := client.Close()
 		if err != nil {
 			log.WithError(err).Error("failed to close auditd client")
 		}
 	}()
 
-	if err := auditd.SendMsg(event, result); err != nil {
+	if err := client.SendMsg(event, result); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -157,6 +157,7 @@ func (c *Client) connect() error {
 	return nil
 }
 
+// NewClient creates a new auditd client. Client is not connected when is returned.
 func NewClient(msg Message) *Client {
 	msg.SetDefaults()
 
@@ -217,6 +218,7 @@ func getAuditStatus(conn NetlinkConnecter) (*auditStatus, error) {
 	return status, nil
 }
 
+// SendMsg sends a message. Client will create a new connection if not connected already.
 func (c *Client) SendMsg(event EventType, result ResultType) error {
 	extraData := ""
 
@@ -259,7 +261,13 @@ func (c *Client) sendMsg(eventType netlink.HeaderType, MsgData []byte) error {
 }
 
 func (c *Client) Close() error {
-	return c.conn.Close()
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	err := c.conn.Close()
+	// reset to avoid a potential use of closed connection.
+	c.conn = nil
+	return err
 }
 
 func hasCapabilities() bool {
