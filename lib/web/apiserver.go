@@ -42,6 +42,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -72,6 +73,7 @@ import (
 	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/mod/semver"
 )
 
 const (
@@ -194,6 +196,10 @@ type Config struct {
 	// MinimalReverseTunnelRoutesOnly mode handles only the endpoints required for
 	// a reverse tunnel agent to establish a connection.
 	MinimalReverseTunnelRoutesOnly bool
+
+	// PublicProxyAddr is used to template the public proxy address
+	// into the installer script responses
+	PublicProxyAddr string
 }
 
 type APIHandler struct {
@@ -450,6 +456,10 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 
 	// Unauthenticated access to the message of the day
 	h.GET("/webapi/motd", httplib.MakeHandler(h.motd))
+
+	// Unauthenticated access to retrieving the script used to install
+	// Teleport
+	h.GET("/webapi/scripts/installer", httplib.MakeHandler(h.installer))
 
 	// DELETE IN: 5.1.0
 	//
@@ -1409,6 +1419,30 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	return redirectURL.String()
+}
+
+func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	httplib.SetScriptHeaders(w.Header())
+	installer, err := h.auth.proxyClient.GetInstaller(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ping, err := h.auth.Ping(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// semver parsing requires a 'v' at the beginning of the version string.
+	version := semver.Major("v" + ping.ServerVersion)
+	instTmpl, err := template.New("").Parse(installer.GetScript())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tmpl := installers.Template{
+		PublicProxyAddr: h.cfg.PublicProxyAddr,
+		MajorVersion:    version,
+	}
+	err = instTmpl.Execute(w, tmpl)
+	return nil, trace.Wrap(err)
 }
 
 // AuthParams are used to construct redirect URL containing auth

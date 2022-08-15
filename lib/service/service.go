@@ -3433,6 +3433,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			StaticFS:         fs,
 			ClusterFeatures:  process.getClusterFeatures(),
 			ProxySettings:    proxySettings,
+			PublicProxyAddr:  process.proxyPublicAddr().Addr,
 		}
 		webHandler, err = web.NewHandler(webConfig)
 		if err != nil {
