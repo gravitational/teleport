@@ -145,7 +145,7 @@ func TestAuthSection(t *testing.T) {
 				cfg["auth_service"].(cfgMap)["proxy_ping_interval"] = "10s"
 			},
 			expectError:             require.NoError,
-			expectProxyPingInterval: requireEqual(types.Duration(10 * time.Minute)),
+			expectProxyPingInterval: requireEqual(types.Duration(10 * time.Second)),
 		}, {
 			desc: "Proxy ping interval (invalid)",
 			mutate: func(cfg cfgMap) {
@@ -176,6 +176,10 @@ func TestAuthSection(t *testing.T) {
 
 			if tt.expectWebIdleTimeout != nil {
 				tt.expectWebIdleTimeout(t, cfg.Auth.WebIdleTimeout)
+			}
+
+			if tt.expectProxyPingInterval != nil {
+				tt.expectProxyPingInterval(t, cfg.Auth.ProxyPingInterval)
 			}
 		})
 	}
