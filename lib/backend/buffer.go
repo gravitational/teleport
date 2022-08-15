@@ -74,10 +74,6 @@ type CircularBuffer struct {
 	sync.Mutex
 	*log.Entry
 	cfg          bufferConfig
-	events       []Event
-	start        int
-	end          int
-	size         int
 	init, closed bool
 	watchers     *watcherTree
 }
@@ -97,10 +93,6 @@ func NewCircularBuffer(opts ...BufferOption) *CircularBuffer {
 			trace.Component: teleport.ComponentBuffer,
 		}),
 		cfg:      cfg,
-		events:   make([]Event, cfg.capacity),
-		start:    -1,
-		end:      -1,
-		size:     0,
 		watchers: newWatcherTree(),
 	}
 }
@@ -130,12 +122,6 @@ func (c *CircularBuffer) clear() {
 		w.closeWatcher()
 	})
 	c.watchers = newWatcherTree()
-	c.start = -1
-	c.end = -1
-	c.size = 0
-	for i := 0; i < len(c.events); i++ {
-		c.events[i] = Event{}
-	}
 }
 
 // SetInit puts the buffer into an initialized state if it isn't already.  Any watchers already queued
@@ -177,29 +163,6 @@ func (c *CircularBuffer) Close() error {
 	return nil
 }
 
-// Events returns a copy of records as arranged from start to end
-func (c *CircularBuffer) Events() []Event {
-	c.Lock()
-	defer c.Unlock()
-	return c.eventsCopy()
-}
-
-// eventsCopy returns a copy of events as arranged from start to end
-func (c *CircularBuffer) eventsCopy() []Event {
-	if c.size == 0 {
-		return nil
-	}
-	var out []Event
-	for i := 0; i < c.size; i++ {
-		index := (c.start + i) % len(c.events)
-		if out == nil {
-			out = make([]Event, 0, c.size)
-		}
-		out = append(out, c.events[index])
-	}
-	return out
-}
-
 // Emit emits events to currently registered watchers and stores them to
 // the buffer.  Panics if called before SetInit(), and returns false if called
 // after Close().
@@ -221,19 +184,6 @@ func (c *CircularBuffer) emit(r Event) {
 	if !c.init {
 		panic("push called on uninitialized buffer instance")
 	}
-	if c.size == 0 {
-		c.start = 0
-		c.end = 0
-		c.size = 1
-	} else if c.size < len(c.events) {
-		c.end = (c.end + 1) % len(c.events)
-		c.events[c.end] = r
-		c.size++
-	} else {
-		c.end = c.start
-		c.start = (c.start + 1) % len(c.events)
-	}
-	c.events[c.end] = r
 	c.fanOutEvent(r)
 }
 
@@ -287,7 +237,7 @@ func (c *CircularBuffer) NewWatcher(ctx context.Context, watch Watch) (Watcher, 
 	}
 
 	if watch.QueueSize == 0 {
-		watch.QueueSize = len(c.events)
+		watch.QueueSize = c.cfg.capacity
 	}
 
 	if len(watch.Prefixes) == 0 {
