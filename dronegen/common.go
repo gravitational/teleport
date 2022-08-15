@@ -261,12 +261,17 @@ func waitForDockerStep() step {
 	}
 }
 
-func verifyValidPromoteRunSteps(checkoutPath, commit string) []step {
-	return []step{
-		verifyTaggedStep(),
-		cloneRepoStep(checkoutPath, commit),
-		verifyNotPrereleaseStep(checkoutPath),
+func verifyValidPromoteRunSteps(checkoutPath, commit string, isParallelismEnabled bool) []step {
+	tagStep := verifyTaggedStep()
+	cloneStep := cloneRepoStep(checkoutPath, commit)
+	verifyStep := verifyNotPrereleaseStep(checkoutPath)
+
+	if isParallelismEnabled {
+		cloneStep.DependsOn = []string{tagStep.Name}
+		verifyStep.DependsOn = []string{cloneStep.Name}
 	}
+
+	return []step{tagStep, cloneStep, verifyStep}
 }
 
 func verifyTaggedStep() step {

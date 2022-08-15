@@ -53,7 +53,7 @@ func NewPromoteTrigger(branchMajorVersion string) *TriggerInfo {
 				RelativeVersionName: "drone-tag",
 			},
 		},
-		SetupSteps: verifyValidPromoteRunSteps(checkoutPath, "$DRONE_TAG"),
+		SetupSteps: verifyValidPromoteRunSteps(checkoutPath, "$DRONE_TAG", true),
 	}
 }
 
