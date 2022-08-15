@@ -1028,6 +1028,7 @@
     },
     "cloud": {
       "version": "10.1.2",
+      "major_version": "10",
       "sla": {
         "monthly_percentage": "99.5%",
         "monthly_downtime": "3 hours 40 minutes"
