@@ -97,6 +97,16 @@ func pushTriggerForBranch(branches ...string) trigger {
 	return t
 }
 
+func cloneRepoCommands(cloneDirectory, commit string) []string {
+	return []string{
+		fmt.Sprintf("mkdir -pv %q", cloneDirectory),
+		fmt.Sprintf("cd %q", cloneDirectory),
+		`git init && git remote add origin ${DRONE_REMOTE_URL}`,
+		`git fetch origin`,
+		fmt.Sprintf("git checkout -qf %q", commit),
+	}
+}
+
 type buildType struct {
 	os              string
 	arch            string
