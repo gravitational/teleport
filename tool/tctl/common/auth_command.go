@@ -681,12 +681,25 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 	}
 	key.TrustedCA = auth.AuthoritiesToTrustedCerts(hostCAs)
 
+	networkConfig, err := clusterAPI.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	kubeTLSServerName := ""
+	// Is TLS routing enabled?
+	if networkConfig.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex {
+		// If we're in multiplexed mode get SNI name for kube from single multiplexed proxy addr
+		kubeTLSServerName = client.GetKubeTLSServerName(a.config.Proxy.WebAddr.Host())
+	}
+
 	// write the cert+private key to the output:
 	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
 		OutputPath:           a.output,
 		Key:                  key,
 		Format:               a.outputFormat,
 		KubeProxyAddr:        a.proxyAddr,
+		KubeTLSServerName:    kubeTLSServerName,
 		OverwriteDestination: a.signOverwrite,
 	})
 	if err != nil {
