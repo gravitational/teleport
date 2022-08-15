@@ -235,11 +235,11 @@ func TestPingConnection(t *testing.T) {
 
 		t.Run("SingleRead", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-			defer cancel()
+			t.Cleanup(cancel)
 
 			r, w := makePingConn(t)
-			defer r.Close()
-			defer w.Close()
+			t.Cleanup(r.Close)
+			t.Cleanup(w.Close)
 
 			largeSlice := make([]byte, math.MaxUint32)
 			errChan := make(chan error, 2)
