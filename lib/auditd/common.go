@@ -70,16 +70,3 @@ func (m *Message) SetDefaults() {
 		m.TTYName = "teleport"
 	}
 }
-
-func eventToOp(event EventType) string {
-	switch event {
-	case AuditUserEnd:
-		return "session_close"
-	case AuditUserLogin:
-		return "login"
-	case AuditUserErr:
-		return "invalid_user"
-	default:
-		return "?"
-	}
-}

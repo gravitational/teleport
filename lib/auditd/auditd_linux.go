@@ -270,6 +270,19 @@ func (c *Client) Close() error {
 	return err
 }
 
+func eventToOp(event EventType) string {
+	switch event {
+	case AuditUserEnd:
+		return "session_close"
+	case AuditUserLogin:
+		return "login"
+	case AuditUserErr:
+		return "invalid_user"
+	default:
+		return "?"
+	}
+}
+
 func hasCapabilities() bool {
 	return os.Getuid() == 0
 }
