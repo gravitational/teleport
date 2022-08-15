@@ -2499,7 +2499,7 @@ func (tc *TeleportClient) runCommandOnNodes(
 
 // runCommand executes a given bash command on an established NodeClient.
 func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient, command []string) error {
-	nodeSession, err := newSession(nodeClient, nil, tc.Config.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient), tc.EnableEscapeSequences)
+	nodeSession, err := newSession(nodeClient, nil, tc.Config.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(ctx, nodeClient), tc.EnableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2541,7 +2541,7 @@ func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, 
 		env[key] = value
 	}
 
-	nodeSession, err := newSession(nodeClient, sessToJoin, env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(nodeClient), tc.EnableEscapeSequences)
+	nodeSession, err := newSession(nodeClient, sessToJoin, env, tc.Stdin, tc.Stdout, tc.Stderr, tc.useLegacyID(ctx, nodeClient), tc.EnableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3641,8 +3641,8 @@ func (tc *TeleportClient) AskPassword() (pwd string, err error) {
 //
 // useLegacyID returns true if an old style (UUIDv1) session ID should be
 // generated because the client is talking with a older server.
-func (tc *TeleportClient) useLegacyID(nodeClient *NodeClient) bool {
-	_, err := tc.getServerVersion(nodeClient)
+func (tc *TeleportClient) useLegacyID(ctx context.Context, nodeClient *NodeClient) bool {
+	_, err := tc.getServerVersion(ctx, nodeClient)
 	return trace.IsNotFound(err)
 }
 
@@ -3653,11 +3653,11 @@ type serverResponse struct {
 
 // getServerVersion makes a SSH global request to the server to request the
 // version.
-func (tc *TeleportClient) getServerVersion(nodeClient *NodeClient) (string, error) {
+func (tc *TeleportClient) getServerVersion(ctx context.Context, nodeClient *NodeClient) (string, error) {
 	responseCh := make(chan serverResponse)
 
 	go func() {
-		ok, payload, err := nodeClient.Client.SendRequest(teleport.VersionRequest, true, nil)
+		ok, payload, err := nodeClient.Client.SendRequest(ctx, teleport.VersionRequest, true, nil)
 		if err != nil {
 			responseCh <- serverResponse{err: trace.NotFound(err.Error())}
 		} else if !ok {
