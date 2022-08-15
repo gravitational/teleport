@@ -238,8 +238,10 @@ func TestPingConnection(t *testing.T) {
 			t.Cleanup(cancel)
 
 			r, w := makePingConn(t)
-			t.Cleanup(r.Close)
-			t.Cleanup(w.Close)
+			t.Cleanup(func() {
+				r.Close()
+				w.Close()
+			})
 
 			largeSlice := make([]byte, math.MaxUint32)
 			errChan := make(chan error, 2)

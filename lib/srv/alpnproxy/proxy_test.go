@@ -23,17 +23,13 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
 	"testing"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -532,8 +528,6 @@ func TestMatchMySQLConn(t *testing.T) {
 }
 
 func TestProxyPingConnections(t *testing.T) {
-	log.SetLevel(log.DebugLevel)
-	log.SetFormatter(utils.NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
 	dataWritten := "message ping connection"
 
 	suite := NewSuite(t)
