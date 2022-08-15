@@ -1,6 +1,6 @@
 # Changelog
 
-## 10.1.3
+## 10.1.4
 
 This release of Teleport contains multiple improvements and bug fixes.
 
@@ -15,12 +15,16 @@ This release of Teleport contains multiple improvements and bug fixes.
 * Fixed issue with automatic node join script expecting `teleport` binary to be present in PATH. [#15473](https://github.com/gravitational/teleport/pull/15473)
 * Fixed issue with Desktop Access always trying to use LDAP servers for DNS requests. [#15255](https://github.com/gravitational/teleport/pull/15255)
 * Fixed potential panic in Auth Server during concurrent streams of the same session. [#15360](https://github.com/gravitational/teleport/pull/15360)
+* Fixed issue with `kubectl` getting "malformed HTTP response" error during simultaneous use. [#15464](https://github.com/gravitational/teleport/pull/15464)
 * Added ability to control session recording mode in `teleport-cluster` Helm chart. [#15003](https://github.com/gravitational/teleport/pull/15003)
 * Added ability to control DynamoDB auto-scaling in `teleport-cluster` Helm chart. [#15122](https://github.com/gravitational/teleport/pull/15122)
 * Added passwordless support to Teleport Connect. [#15265](https://github.com/gravitational/teleport/pull/15265)
 * Added proxy protocol support to the SSH proxy endpoint. [#15086](https://github.com/gravitational/teleport/pull/15086)
 * Added `teleport install systemd` command that installs Teleport as a systemd service. [#15270](https://github.com/gravitational/teleport/pull/15270)
 * Added tracing to SSH sessions. [#15228](https://github.com/gravitational/teleport/pull/15228)
+* Added `tsh recordings ls` command that displays available session recordings. [#15429](https://github.com/gravitational/teleport/pull/15429)
+* Added variable playback speed to Desktop Access session recordings. [#15326](https://github.com/gravitational/teleport/pull/15326)
+* Added support for login traits to Machine ID bots. [#15470](https://github.com/gravitational/teleport/pull/15470)
 * Improved error handling when using Yubikeys. [#15395](https://github.com/gravitational/teleport/pull/15395)
 * Updated `tctl users update` commmand to allow setting additional user traits. [#15108](https://github.com/gravitational/teleport/pull/15108)
 * Updated Machine ID generated certificate names to be compatible with default OpenSSH configuration. [#15297](https://github.com/gravitational/teleport/pull/15297)
