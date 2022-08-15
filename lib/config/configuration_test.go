@@ -2364,17 +2364,6 @@ teleport:
 			expectJoinMethod: types.JoinMethodToken,
 		},
 		{
-			desc: "join_params token",
-			input: `
-teleport:
-  join_params:
-    token_name: xxxyyy
-    method: token
-`,
-			expectToken:      "xxxyyy",
-			expectJoinMethod: types.JoinMethodToken,
-		},
-		{
 			desc: "join_params ec2",
 			input: `
 teleport:
