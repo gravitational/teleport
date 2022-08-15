@@ -147,7 +147,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 				Server:               shtl,
 				FIPS:                 process.Config.FIPS,
 				ConnectedProxyGetter: proxyGetter,
-				TLSRootCAs:           tlsConfig.RootCAs,
+				ServerTLSRootCAs:     tlsConfig.RootCAs,
 			})
 		if err != nil {
 			return trace.Wrap(err)

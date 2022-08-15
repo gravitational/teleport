@@ -31,6 +31,7 @@ import (
 
 type upgradeHandler func(ctx context.Context, conn net.Conn) error
 
+// selectConnectionUpgradeType selects the requested upgrade type.
 func (h *Handler) selectConnectionUpgradeType(r *http.Request) (string, upgradeHandler, error) {
 	upgrades := r.Header.Values(constants.ConnectionUpgradeHeader)
 	for _, upgradeType := range upgrades {
@@ -43,8 +44,8 @@ func (h *Handler) selectConnectionUpgradeType(r *http.Request) (string, upgradeH
 	return "", nil, trace.BadParameter("unsupported upgrade types: %v", upgrades)
 }
 
+// connectionUpgrade handles connection upgrades.
 func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-
 	upgradeType, handler, err := h.selectConnectionUpgradeType(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -69,12 +70,13 @@ func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p ht
 	return nil, trace.Wrap(handler(r.Context(), conn))
 }
 
+// upgradeToALPN handles upgraded ALPN connection.
 func (h *Handler) upgradeToALPN(ctx context.Context, conn net.Conn) error {
 	if h.cfg.ALPNHandler == nil {
 		return trace.BadParameter("missing ALPNHandler")
 	}
 
-	// TODO add pingconn
+	// TODO add ping conn
 
 	err := h.cfg.ALPNHandler.HandleConnection(ctx, conn)
 	if err != nil && !utils.IsOKNetworkError(err) {

@@ -18,7 +18,6 @@ package main
 
 import (
 	"context"
-	"crypto/x509"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -72,18 +71,6 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	defer proxy.Close()
-
-	ac, err := proxy.ConnectToCurrentCluster(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer ac.Close()
-
-	cn, err := ac.GetClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	log.Warnf("-->> cluster name %v", cn)
 
 	databases, err := proxy.FindDatabasesByFiltersForCluster(cf.Context, *tc.DefaultResourceFilter(), tc.SiteName)
 	if err != nil {
@@ -636,17 +623,16 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
 		alpnConnUpgradeRequired: arg.teleportClient.IsALPNConnUpgradeRequired(),
 	}
 
-	// TODO
+	// If ALPN connection upgrade is required, explicitly use the profile CAs
+	// since the tunnelled TLS routing connection serves the Host cert instead
+	// of the Web cert.
 	if arg.teleportClient.IsALPNConnUpgradeRequired() {
-		tlsCAs, err := arg.profile.CACertsForCluster(arg.teleportClient.SiteName)
+		rootCAs, err := arg.profile.CACertPoolForCluster(arg.teleportClient.SiteName)
 		if err != nil {
 			return localProxyOpts{}, trace.Wrap(err)
 		}
 
-		opts.rootCAs = x509.NewCertPool()
-		for _, tlsCA := range tlsCAs {
-			opts.rootCAs.AddCert(tlsCA)
-		}
+		opts.rootCAs = rootCAs
 	}
 
 	// For SQL Server connections, local proxy must be configured with the

@@ -90,13 +90,15 @@ func (conn readOnlyConn) SetDeadline(t time.Time) error      { return nil }
 func (conn readOnlyConn) SetReadDeadline(t time.Time) error  { return nil }
 func (conn readOnlyConn) SetWriteDeadline(t time.Time) error { return nil }
 
-// TODO add docs
+// waitConn is a net.Conn that provides a "WaitForClose" to wait until someone
+// closes the connection.
 type waitConn struct {
 	net.Conn
 	ctx    context.Context
 	cancel context.CancelFunc
 }
 
+// newWaitConn creates a new waitConn.
 func newWaitConn(ctx context.Context, conn net.Conn) *waitConn {
 	ctx, cancel := context.WithCancel(ctx)
 	return &waitConn{
@@ -106,10 +108,12 @@ func newWaitConn(ctx context.Context, conn net.Conn) *waitConn {
 	}
 }
 
+// WaitForClose blocks until the Close() function of this connection is called.
 func (conn *waitConn) WaitForClose() {
 	<-conn.ctx.Done()
 }
 
+// Close implements net.Conn.
 func (conn *waitConn) Close() error {
 	err := conn.Conn.Close()
 	conn.cancel()

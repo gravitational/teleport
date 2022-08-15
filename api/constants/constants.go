@@ -275,11 +275,12 @@ const (
 )
 
 const (
-	// ConnectionUpgradeWebAPI is the web API to make the HTTP upgrade.
+	// ConnectionUpgradeWebAPI is the HTTP web API to make the connection
+	// upgrade call.
 	ConnectionUpgradeWebAPI = "/webapi/connectionupgrade"
 
-	// ConnectionUpgradeHeader is a custom Teleport HTTP header used to
-	// indicate requested connection upgrade types.
+	// ConnectionUpgradeHeader is the HTTP header used to indicate requested
+	// connection upgrade types.
 	ConnectionUpgradeHeader = "Upgrade"
 
 	// ConnectionUpgradeTypeALPN is the requested connection upgrade type for

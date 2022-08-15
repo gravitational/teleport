@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/sirupsen/logrus"
 
@@ -31,8 +32,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// IsHTTPConnUpgradeRequired returns true if a tunnel is required through a HTTP
-// upgrade.
+// IsALPNConnUpgradeRequired returns true if a tunnel is required through a HTTP
+// connection upgrade.
 //
 // The function makes a test connection to the Proxy Service and checks if the
 // Teleport custom ALPN protocols are preserved. If not, the Proxy Service is
@@ -40,11 +41,11 @@ import (
 // and SNI information on the way to our Proxy Service.
 //
 // In those cases, the client makes a HTTP "upgrade" call to the Proxy Service
-// to establish a tunnel for the origianlly planned traffic.
-func IsHTTPConnUpgradeRequired(addr string, insecure bool) bool {
-	logrus.Debugf("-->> alpnHandshakeTest test for %v", addr)
-
+// to establish a tunnel for the origianlly planned traffic to preserve the
+// ALPN and SNI information.
+func IsALPNConnUpgradeRequired(addr string, insecure bool) bool {
 	if utils.IsLoopback(addr) || utils.IsUnspecified(addr) {
+		logrus.Debugf("ALPN connection upgrade not required because %q is either unspecified or a loopback.", addr)
 		return false
 	}
 
@@ -56,34 +57,45 @@ func IsHTTPConnUpgradeRequired(addr string, insecure bool) bool {
 		InsecureSkipVerify: insecure,
 	})
 	if err != nil {
-		// TODO log?
+		logrus.Infof("ALPN connection upgrade test failed for %q: %v.", addr, err)
 		return false
 	}
-
 	defer testConn.Close()
-	return testConn.ConnectionState().NegotiatedProtocol == ""
+
+	result := testConn.ConnectionState().NegotiatedProtocol == ""
+	logrus.Debugf("ALPN connection upgrade is required for %q: %v.", addr, result)
+	return result
 }
 
-// TODO
-type httpConnUpgradeDialer struct {
-	insecure bool
+// alpnConnUpgradeDialer makes an "HTTP" upgrade call to the Proxy Service then
+// tunnels the connection with this connection upgrade.
+type alpnConnUpgradeDialer struct {
+	netDialer *net.Dialer
+	insecure  bool
 }
 
-func newHTTPConnUpgradeDialer(insecure bool) ContextDialer {
-	return &httpConnUpgradeDialer{
+// newALPNConnUpgradeDialer creates a new alpnConnUpgradeDialer.
+func newALPNConnUpgradeDialer(keepAlivePeriod, dialTimeout time.Duration, insecure bool) ContextDialer {
+	return &alpnConnUpgradeDialer{
 		insecure: insecure,
+		netDialer: &net.Dialer{
+			KeepAlive: keepAlivePeriod,
+			Timeout:   dialTimeout,
+		},
 	}
 }
 
-func (d httpConnUpgradeDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
-	conn, err := tls.Dial("tcp", addr, &tls.Config{
+// DialContext implements ContextDialer
+func (d alpnConnUpgradeDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	// Make a TLS connection for the https call.
+	tlsConn, err := tls.DialWithDialer(d.netDialer, network, addr, &tls.Config{
 		InsecureSkipVerify: d.insecure,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
-
 	}
 
+	// Prepare the upgrade request.
 	url := url.URL{
 		Host:   addr,
 		Scheme: "https",
@@ -91,25 +103,32 @@ func (d httpConnUpgradeDialer) DialContext(ctx context.Context, network, addr st
 	}
 	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
+		defer tlsConn.Close()
 		return nil, trace.Wrap(err)
 	}
 
 	// For now, only ALPN is supported.
 	req.Header.Add(constants.ConnectionUpgradeHeader, constants.ConnectionUpgradeTypeALPN)
 
-	if err = req.Write(conn); err != nil {
+	// Send the request and checks if upgrade is successful.
+	if err = req.Write(tlsConn); err != nil {
+		defer tlsConn.Close()
 		return nil, trace.Wrap(err)
 	}
-	resp, err := http.ReadResponse(bufio.NewReader(conn), req)
+	resp, err := http.ReadResponse(bufio.NewReader(tlsConn), req)
 	if err != nil {
+		defer tlsConn.Close()
 		return nil, trace.Wrap(err)
 	}
 	defer resp.Body.Close()
 
 	if http.StatusSwitchingProtocols != resp.StatusCode {
+		defer tlsConn.Close()
+
 		if http.StatusNotFound == resp.StatusCode {
 			return nil, trace.NotImplemented(
-				"connection upgrade failed with status code %v. please upgrade the server and try again.",
+				"connection upgrade call to %q failed with status code %v. Please upgrade the server and try again.",
+				constants.ConnectionUpgradeWebAPI,
 				resp.StatusCode,
 			)
 		}
@@ -117,5 +136,5 @@ func (d httpConnUpgradeDialer) DialContext(ctx context.Context, network, addr st
 	}
 
 	// TODO add ping conn
-	return conn, nil
+	return tlsConn, nil
 }

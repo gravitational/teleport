@@ -70,9 +70,9 @@ type LocalProxyConfig struct {
 	Certs []tls.Certificate
 	// AWSCredentials are AWS Credentials used by LocalProxy for request's signature verification.
 	AWSCredentials *credentials.Credentials
-	// TODO
+	// RootCAs overwrites the root CAs used in tls.Config if specified.
 	RootCAs *x509.CertPool
-	// TODO
+	// ALPNConnUpgradeRequired specifies if ALPN connection upgrade is required.
 	ALPNConnUpgradeRequired bool
 }
 
@@ -147,7 +147,7 @@ func (l *LocalProxy) GetAddr() string {
 	return l.cfg.Listener.Addr().String()
 }
 
-// TODO
+// getUpstreamDialer returns the ContextDialer used for making upstream connection.
 func (l *LocalProxy) getUpstreamDialer() (client.ContextDialer, error) {
 	return client.NewTLSRoutingDialer(client.TLSRoutingDialerConfig{
 		ALPNConnUpgradeRequired: l.cfg.ALPNConnUpgradeRequired,

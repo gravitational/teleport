@@ -105,7 +105,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 
 	// Dialed out to a proxy, start servicing the reverse tunnel as a listener.
 	case useTunnel && cfg.WindowsDesktop.ListenAddr.IsEmpty():
-		tlsRootCAs, err := conn.ServerIdentity.TLSRootCAs()
+		tlsRootCAs, err := conn.ServerIdentity.TLSCACertPool()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -126,7 +126,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 				Server:               shtl,
 				FIPS:                 process.Config.FIPS,
 				ConnectedProxyGetter: proxyGetter,
-				TLSRootCAs:           tlsRootCAs,
+				ServerTLSRootCAs:     tlsRootCAs,
 			})
 		if err != nil {
 			return trace.Wrap(err)

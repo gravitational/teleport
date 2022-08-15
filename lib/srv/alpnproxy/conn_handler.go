@@ -24,19 +24,32 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// connectionHandlerOptions contains options when ALPN server handles an
+// incoming connection.
 type connectionHandlerOptions struct {
+	// waitForAsyncHandlers makes the connection handler wait until the
+	// connection is closed for async handlers.
 	waitForAsyncHandlers bool
-	defaultTLSConfig     *tls.Config
+	// defaultTLSConfig is the default TLS config served to the incoming
+	// connection during TLS handshake, if HandlerDesc does not provide a
+	// tls.Config.
+	defaultTLSConfig *tls.Config
 }
 
+// ConnectionHandlerOption defines an option function for specifying connection
+// handler options.
 type ConnectionHandlerOption func(*connectionHandlerOptions)
 
+// WithWaitForAsyncHandlers is an option function that makes the server wait
+// for async handlers to close the connections.
 func WithWaitForAsyncHandlers() ConnectionHandlerOption {
 	return func(opt *connectionHandlerOptions) {
 		opt.waitForAsyncHandlers = true
 	}
 }
 
+// WithDefaultTLSconfig is an option function that provides a default TLS
+// config.
 func WithDefaultTLSconfig(tlsConfig *tls.Config) ConnectionHandlerOption {
 	return func(opt *connectionHandlerOptions) {
 		opt.defaultTLSConfig = tlsConfig
@@ -70,7 +83,7 @@ func (w *ConnectionHandlerWrapper) Set(h ConnectionHandler) {
 // HandleConnection implements ConnectionHandler.
 func (w ConnectionHandlerWrapper) HandleConnection(ctx context.Context, conn net.Conn) error {
 	if w.ConnectionHandler == nil {
-		return trace.NotImplemented("missing ConnectionHandler")
+		return trace.NotFound("missing ConnectionHandler")
 	}
 	return w.ConnectionHandler.HandleConnection(ctx, conn)
 }

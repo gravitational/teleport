@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -134,8 +133,8 @@ type AgentPoolConfig struct {
 	// LocalAuthAddresses is a list of auth servers to use when dialing back to
 	// the local cluster.
 	LocalAuthAddresses []string
-	// TODO
-	TLSRootCAs *x509.CertPool
+	// ServerTLSRootCAs is a cert pool of server identity's TLS CAs.
+	ServerTLSRootCAs *x509.CertPool
 }
 
 // CheckAndSetDefaults checks and sets defaults.
@@ -475,24 +474,17 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 
 	options := []proxy.DialerOptionFunc{proxy.WithInsecureSkipTLSVerify(lib.IsInsecureDevMode())}
 	if p.runtimeConfig.useALPNRouting() {
-		tlsRoutingDialerConfig := &client.TLSRoutingDialerConfig{
-			ALPNConnUpgradeRequired: client.IsHTTPConnUpgradeRequired(addr.Addr, lib.IsInsecureDevMode()),
-			TLSConfig: &tls.Config{
-				NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
-			},
+		tlsConfig := &tls.Config{
+			NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
 		}
 
 		if p.runtimeConfig.useReverseTunnelV2() {
-			tlsRoutingDialerConfig.TLSConfig.NextProtos = []string{
+			tlsConfig.NextProtos = []string{
 				string(alpncommon.ProtocolReverseTunnelV2),
 				string(alpncommon.ProtocolReverseTunnel),
 			}
 		}
-		if tlsRoutingDialerConfig.ALPNConnUpgradeRequired {
-			tlsRoutingDialerConfig.TLSConfig.RootCAs = p.TLSRootCAs
-		}
-
-		options = append(options, proxy.WithTLSRoutingDialer(tlsRoutingDialerConfig))
+		options = append(options, proxy.WithTLSRoutingDialer(tlsConfig, p.ServerTLSRootCAs))
 	}
 
 	dialer := &agentDialer{

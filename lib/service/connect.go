@@ -1093,7 +1093,7 @@ func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAd
 		ClientConfig:          sshConfig,
 		Log:                   process.log,
 		InsecureSkipTLSVerify: lib.IsInsecureDevMode(),
-		TLSRootCAs:            tlsConfig.RootCAs,
+		ServerTLSRootCAs:      tlsConfig.RootCAs,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

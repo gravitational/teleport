@@ -18,6 +18,8 @@ package proxy
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"net"
 	"net/url"
 	"time"
@@ -59,7 +61,12 @@ type directDial struct {
 
 // getTLSRoutingDialerConfig creates the ALPN dialer config with provided specified
 // address and timeout.
-func (d directDial) getTLSRoutingDialerConfig(serverName *utils.NetAddr, timeout time.Duration) (client.TLSRoutingDialerConfig, error) {
+func (d directDial) getTLSRoutingDialerConfig(address string, timeout time.Duration) (client.TLSRoutingDialerConfig, error) {
+	serverName, err := utils.ParseAddr(address)
+	if err != nil {
+		return client.TLSRoutingDialerConfig{}, trace.Wrap(err)
+	}
+
 	if d.tlsRoutingDialerConfig == nil || d.tlsRoutingDialerConfig.TLSConfig == nil {
 		return client.TLSRoutingDialerConfig{}, trace.BadParameter("missing TLS config")
 	}
@@ -88,11 +95,7 @@ func (d directDial) Dial(ctx context.Context, network string, addr string, confi
 // DialTimeout acts like Dial but takes a timeout.
 func (d directDial) DialTimeout(ctx context.Context, network, address string, timeout time.Duration) (net.Conn, error) {
 	if d.tlsRoutingEnabled {
-		serverName, err := utils.ParseAddr(address)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		dialerConfig, err := d.getTLSRoutingDialerConfig(serverName, timeout)
+		dialerConfig, err := d.getTLSRoutingDialerConfig(address, timeout)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -130,7 +133,11 @@ type proxyDial struct {
 
 // getTLSRoutingDialerConfig creates the ALPN dialer config with provided specified
 // address and timeout.
-func (d proxyDial) getTLSRoutingDialerConfig(serverName *utils.NetAddr, timeout time.Duration) (client.TLSRoutingDialerConfig, error) {
+func (d proxyDial) getTLSRoutingDialerConfig(address string, timeout time.Duration) (client.TLSRoutingDialerConfig, error) {
+	serverName, err := utils.ParseAddr(address)
+	if err != nil {
+		return client.TLSRoutingDialerConfig{}, trace.Wrap(err)
+	}
 	if d.tlsRoutingDialerConfig == nil || d.tlsRoutingDialerConfig.TLSConfig == nil {
 		return client.TLSRoutingDialerConfig{}, trace.BadParameter("missing TLS config")
 	}
@@ -160,11 +167,7 @@ func (d proxyDial) DialTimeout(ctx context.Context, network, address string, tim
 		return nil, trace.Wrap(err)
 	}
 	if d.tlsRoutingEnabled {
-		serverName, err := utils.ParseAddr(address)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		dialerConfig, err := d.getTLSRoutingDialerConfig(serverName, timeout)
+		dialerConfig, err := d.getTLSRoutingDialerConfig(address, timeout)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -194,15 +197,35 @@ type dialerOptions struct {
 	insecureSkipTLSVerify bool
 	// tlsRoutingEnabled indicates that proxy is running in TLSRouting mode.
 	tlsRoutingEnabled bool
-	// tlsRoutingDialerConfig is the config for ALPN dialer when TLSRouting is enabled.
+	// tlsConfig is the TLS config to use.
+	tlsConfig *tls.Config
+	// alpnConnUpgradeRootCAs is the root CAs pool used when dialing inside ALPN
+	// connection upgrade.
+	alpnConnUpgradeRootCAs *x509.CertPool
+	// tlsRoutingDialerConfig is the config for TLSRoutingDialer dialer used
+	// when TLS Routing is enabled.
 	tlsRoutingDialerConfig *client.TLSRoutingDialerConfig
 }
 
 // DialerOptionFunc allows setting options as functional arguments to DialerFromEnvironment
 type DialerOptionFunc func(options *dialerOptions)
 
-// WithTLSRoutingDialer creates a dialer that allows to Teleport running in single-port mode.
-func WithTLSRoutingDialer(tlsRoutingDialerConfig *client.TLSRoutingDialerConfig) DialerOptionFunc {
+// WithTLSRoutingDialer creates a dialer that allows Teleport running in
+// single-port mode.
+//
+// This option will make an ALPN connection upgrade test first then creates the
+// TLSRoutingDialerConfig with provided parameters according to the test result.
+func WithTLSRoutingDialer(tlsConfig *tls.Config, alpnConnUpgradeRootCAs *x509.CertPool) DialerOptionFunc {
+	return func(options *dialerOptions) {
+		options.tlsRoutingEnabled = true
+		options.tlsConfig = tlsConfig
+		options.alpnConnUpgradeRootCAs = alpnConnUpgradeRootCAs
+	}
+}
+
+// WithTLSRoutingDialerConfig creates a dialer that allows Teleport running in
+// single-port mode, with provided TLSRoutingDialerConfig.
+func WithTLSRoutingDialerConfig(tlsRoutingDialerConfig *client.TLSRoutingDialerConfig) DialerOptionFunc {
 	return func(options *dialerOptions) {
 		options.tlsRoutingEnabled = true
 		options.tlsRoutingDialerConfig = tlsRoutingDialerConfig
@@ -227,6 +250,18 @@ func DialerFromEnvironment(addr string, opts ...DialerOptionFunc) Dialer {
 	var options dialerOptions
 	for _, opt := range opts {
 		opt(&options)
+	}
+
+	// If TLS Routing dialer config is nil, populate it here.
+	if options.tlsRoutingEnabled && options.tlsRoutingDialerConfig == nil {
+		options.tlsRoutingDialerConfig = &client.TLSRoutingDialerConfig{
+			TLSConfig: options.tlsConfig.Clone(),
+		}
+
+		if client.IsALPNConnUpgradeRequired(addr, options.insecureSkipTLSVerify) {
+			options.tlsRoutingDialerConfig.ALPNConnUpgradeRequired = true
+			options.tlsRoutingDialerConfig.TLSConfig.RootCAs = options.alpnConnUpgradeRootCAs
+		}
 	}
 
 	// If no proxy settings are in environment return regular ssh dialer,

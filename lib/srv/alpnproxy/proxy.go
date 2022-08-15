@@ -347,14 +347,6 @@ func (p *Proxy) MakeConnectionHandler(opts ...ConnectionHandlerOption) Connectio
 	})
 }
 
-// TODO
-func (p *Proxy) defaultHandleConnOptions() *connectionHandlerOptions {
-	return &connectionHandlerOptions{
-		waitForAsyncHandlers: false,
-		defaultTLSConfig:     p.cfg.WebTLSConfig,
-	}
-}
-
 // ConnectionInfo contains details about TLS connection.
 type ConnectionInfo struct {
 	// SNI is ServerName value obtained from TLS hello message.
@@ -525,7 +517,7 @@ func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo
 		protocol := common.Protocol(v)
 		if common.IsDBTLSProtocol(protocol) {
 			if p.cfg.Router.databaseTLSHandler == nil {
-				return nil, trace.BadParameter("database handle not enabled")
+				return nil, trace.BadParameter("missing database TLS handler")
 			}
 			return &HandlerDesc{
 				MatchFunc:           MatchByProtocol(protocol),
@@ -568,9 +560,19 @@ func (p *Proxy) Close() error {
 	return nil
 }
 
+// closeClientConnAndLogError is a helper function that closes the provided
+// client connection and logs an error if close fails.
 func (p *Proxy) closeClientConnAndLogError(clientConn net.Conn) {
 	err := clientConn.Close()
 	if err != nil && !utils.IsOKNetworkError(err) {
 		p.log.WithError(err).Warnf("Failed to close client connection.")
+	}
+}
+
+// defaultHandleConnOptions creates the default connection handler options.
+func (p *Proxy) defaultHandleConnOptions() *connectionHandlerOptions {
+	return &connectionHandlerOptions{
+		waitForAsyncHandlers: false,
+		defaultTLSConfig:     p.cfg.WebTLSConfig,
 	}
 }

@@ -192,7 +192,8 @@ type Config struct {
 	// ProxySettings allows fetching the current proxy settings.
 	ProxySettings proxySettingsGetter
 
-	// ALPNHandler is the ALPN connection handler for tunneling ALPN traffic.
+	// ALPNHandler is the ALPN connection handler for handling upgraded ALPN
+	// connection through a HTTP upgrade call.
 	ALPNHandler alpnproxy.ConnectionHandler
 }
 

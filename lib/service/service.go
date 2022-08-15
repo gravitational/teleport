@@ -2309,7 +2309,7 @@ func (process *TeleportProcess) initSSH() error {
 			// Broadcast that the node has started.
 			process.BroadcastEvent(Event{Name: NodeSSHReady, Payload: nil})
 		} else {
-			tlsRootCAs, err := conn.ServerIdentity.TLSRootCAs()
+			tlsRootCAs, err := conn.ServerIdentity.TLSCACertPool()
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -2333,7 +2333,7 @@ func (process *TeleportProcess) initSSH() error {
 					Server:               s,
 					FIPS:                 process.Config.FIPS,
 					ConnectedProxyGetter: proxyGetter,
-					TLSRootCAs:           tlsRootCAs,
+					ServerTLSRootCAs:     tlsRootCAs,
 				})
 			if err != nil {
 				return trace.Wrap(err)
@@ -4263,7 +4263,7 @@ func (process *TeleportProcess) initApps() {
 				Cluster:              clusterName,
 				FIPS:                 process.Config.FIPS,
 				ConnectedProxyGetter: proxyGetter,
-				TLSRootCAs:           tlsConfig.RootCAs,
+				ServerTLSRootCAs:     tlsConfig.RootCAs,
 			})
 		if err != nil {
 			return trace.Wrap(err)

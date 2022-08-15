@@ -54,23 +54,27 @@ func newDirectDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 	}
 }
 
-// TODO
+// DialerConfig is the config used for NewDialer.
 type DialerConfig struct {
-	KeepAlivePeriod         time.Duration
-	DialTimeout             time.Duration
+	// KeepAlivePeriod defines period between keep alives.
+	KeepAlivePeriod time.Duration
+	// DialTimeout defines how long to attempt dialing before timing out.
+	DialTimeout time.Duration
+	// ALPNConnUpgradeRequired specifies if ALPN connection upgrade is required.
 	ALPNConnUpgradeRequired bool
-	ALPNConnUpgradeInsecure bool
+	// InsecureSkipTLSVerify specifies whether to skip certificate validation
+	// for TLS connections.
+	InsecureSkipTLSVerify bool
 }
 
-// NewDialer makes a new dialer that connects to an Auth server either directly or via an HTTP proxy, depending
-// on the environment.
+// NewDialer makes a new dialer that connects to an Auth server either directly
+// or via an ALPN connection upgrade tunnel, and on top of that the dialer may
+// also connect through an HTTP proxy depending on the environment.
 func NewDialer(config DialerConfig) ContextDialer {
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
-		var dialer ContextDialer
+		dialer := newDirectDialer(config.KeepAlivePeriod, config.DialTimeout)
 		if config.ALPNConnUpgradeRequired {
-			dialer = newHTTPConnUpgradeDialer(config.ALPNConnUpgradeInsecure)
-		} else {
-			dialer = newDirectDialer(config.KeepAlivePeriod, config.DialTimeout)
+			dialer = newALPNConnUpgradeDialer(config.KeepAlivePeriod, config.DialTimeout, config.InsecureSkipTLSVerify)
 		}
 
 		if proxyURL := proxy.GetProxyURL(addr); proxyURL != nil {
@@ -118,7 +122,7 @@ func newTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Dur
 
 // newTLSRoutingTunnelDialer makes a reverse tunnel TLS Routing dialer to connect to an Auth server
 // through the SSH reverse tunnel on the proxy.
-func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration, discoveryAddr string, insecure bool) ContextDialer {
+func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration, discoveryAddr string, insecure, alpnConnUpgradeRequired bool) ContextDialer {
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
 		tunnelAddr, err := webclient.GetTunnelAddr(
 			&webclient.Config{Context: ctx, ProxyAddr: discoveryAddr, Insecure: insecure})
@@ -132,8 +136,9 @@ func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeou
 		}
 
 		tlsDialer := NewTLSRoutingDialer(TLSRoutingDialerConfig{
-			KeepAlivePeriod: keepAlivePeriod,
-			DialTimeout:     dialTimeout,
+			KeepAlivePeriod:         keepAlivePeriod,
+			DialTimeout:             dialTimeout,
+			ALPNConnUpgradeRequired: alpnConnUpgradeRequired,
 			TLSConfig: &tls.Config{
 				NextProtos:         []string{constants.ALPNSNIProtocolReverseTunnel},
 				InsecureSkipVerify: insecure,
@@ -172,43 +177,50 @@ func sshConnect(ctx context.Context, conn net.Conn, ssh ssh.ClientConfig, dialTi
 	return conn, nil
 }
 
-// TODO
+// TLSRoutingDialerConfig is the config for TLSRoutingDialer.
 type TLSRoutingDialerConfig struct {
-	KeepAlivePeriod         time.Duration
-	DialTimeout             time.Duration
-	TLSConfig               *tls.Config
+	// KeepAlivePeriod defines period between keep alives.
+	KeepAlivePeriod time.Duration
+	// DialTimeout defines how long to attempt dialing before timing out.
+	DialTimeout time.Duration
+	// TLSConfig is the TLS config used for the TLS connection.
+	TLSConfig *tls.Config
+	// ALPNConnUpgradeRequired specifies if ALPN connection upgrade is required.
 	ALPNConnUpgradeRequired bool
 }
 
+// TLSRoutingDialer is a ContextDialer that dials a connection to the Proxy
+// Service that has TLS routing enabled (aka single-port mode).
 type TLSRoutingDialer struct {
 	TLSRoutingDialerConfig
 }
 
+// TLSRoutingDialer creates a new TLSRoutingDialer.
 func NewTLSRoutingDialer(cfg TLSRoutingDialerConfig) ContextDialer {
 	return &TLSRoutingDialer{
 		TLSRoutingDialerConfig: cfg,
 	}
 }
 
+// DialContext implements ContextDialer.
 func (d TLSRoutingDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	if d.TLSConfig == nil {
 		return nil, trace.BadParameter("missing TLS config")
 	}
 
-	var dialer ContextDialer
+	netDialer := newDirectDialer(d.KeepAlivePeriod, d.DialTimeout)
 	if d.ALPNConnUpgradeRequired {
-		dialer = newHTTPConnUpgradeDialer(d.TLSConfig.InsecureSkipVerify)
-	} else {
-		dialer = newDirectDialer(d.KeepAlivePeriod, d.DialTimeout)
+		netDialer = newALPNConnUpgradeDialer(d.KeepAlivePeriod, d.DialTimeout, d.TLSConfig.InsecureSkipVerify)
 	}
-	conn, err := dialer.DialContext(ctx, network, addr)
+
+	netConn, err := netDialer.DialContext(ctx, network, addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	tlsConn := tls.Client(conn, d.TLSConfig)
+	tlsConn := tls.Client(netConn, d.TLSConfig)
 	if err := tlsConn.HandshakeContext(ctx); err != nil {
-		defer conn.Close()
+		defer netConn.Close()
 		return nil, trace.Wrap(err)
 	}
 

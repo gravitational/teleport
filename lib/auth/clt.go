@@ -133,12 +133,16 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 		if len(cfg.Addrs) == 0 {
 			return nil, trace.BadParameter("no addresses to dial")
 		}
-		contextDialer := client.NewDialer(client.DialerConfig{
-			KeepAlivePeriod:         cfg.KeepAlivePeriod,
-			DialTimeout:             cfg.DialTimeout,
-			ALPNConnUpgradeRequired: cfg.ALPNConnUpgradeRequired,
-			ALPNConnUpgradeInsecure: cfg.InsecureAddressDiscovery,
-		})
+
+		contextDialerConfig := client.DialerConfig{
+			KeepAlivePeriod: cfg.KeepAlivePeriod,
+			DialTimeout:     cfg.DialTimeout,
+		}
+		if tls != nil && cfg.ALPNSNIAuthDialClusterName != "" {
+			contextDialerConfig.ALPNConnUpgradeRequired = cfg.ALPNConnUpgradeRequired
+			contextDialerConfig.InsecureSkipTLSVerify = tls.InsecureSkipVerify
+		}
+		contextDialer := client.NewDialer(contextDialerConfig)
 		dialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
 				conn, err = contextDialer.DialContext(ctx, network, addr)

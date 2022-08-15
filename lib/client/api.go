@@ -612,14 +612,24 @@ func (p *ProfileStatus) CACertPathForCluster(cluster string) string {
 	return filepath.Join(keypaths.ProxyKeyDir(p.Dir, p.Name), "cas", cluster+".pem")
 }
 
-// TODO
-func (p *ProfileStatus) CACertsForCluster(cluster string) ([]*x509.Certificate, error) {
+// CACertPoolForCluster reads CA certificates for this profile and returns them
+// in a x509.CertPool.
+func (p *ProfileStatus) CACertPoolForCluster(cluster string) (*x509.CertPool, error) {
 	bytes, err := os.ReadFile(p.CACertPathForCluster(cluster))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return utils.ReadCertificateChain(bytes)
+	cas, err := utils.ReadCertificateChain(bytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pool := x509.NewCertPool()
+	for _, ca := range cas {
+		pool.AddCert(ca)
+	}
+	return pool, nil
 }
 
 // KeyPath returns path to the private key for this profile.
@@ -1397,7 +1407,11 @@ type TeleportClient struct {
 	// TeleportClient NOT safe for concurrent use.
 	lastPing *webclient.PingResponse
 
-	alpnConnUpgradeRequired     bool
+	// alpnConnUpgradeRequired specifies whether ALPN connection upgrade is
+	// required.
+	alpnConnUpgradeRequired bool
+	// alpnConnUpgradeRequiredOnce is a sync.Once that makes sure the ALPN
+	// connection upgrade test is only performed once.
 	alpnConnUpgradeRequiredOnce sync.Once
 }
 
@@ -2855,10 +2869,11 @@ func formatConnectToProxyErr(err error) error {
 	return err
 }
 
-// TODO
+// IsALPNConnUpgradeRequired requries true if ALPN connection upgrade is
+// required.
 func (tc *TeleportClient) IsALPNConnUpgradeRequired() bool {
 	tc.alpnConnUpgradeRequiredOnce.Do(func() {
-		tc.alpnConnUpgradeRequired = client.IsHTTPConnUpgradeRequired(tc.WebProxyAddr, tc.InsecureSkipVerify)
+		tc.alpnConnUpgradeRequired = client.IsALPNConnUpgradeRequired(tc.WebProxyAddr, tc.InsecureSkipVerify)
 	})
 	return tc.alpnConnUpgradeRequired
 }
@@ -3043,10 +3058,13 @@ func makeProxySSHClientWithTLSWrapper(ctx context.Context, tc *TeleportClient, s
 	}
 
 	tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
-	dialer := proxy.DialerFromEnvironment(tc.Config.WebProxyAddr, proxy.WithTLSRoutingDialer(&client.TLSRoutingDialerConfig{
+	tlsRoutingDialerConfig := &client.TLSRoutingDialerConfig{
+		DialTimeout:             sshConfig.Timeout,
 		TLSConfig:               tlsConfig,
 		ALPNConnUpgradeRequired: tc.IsALPNConnUpgradeRequired(),
-	}))
+	}
+
+	dialer := proxy.DialerFromEnvironment(tc.Config.WebProxyAddr, proxy.WithTLSRoutingDialerConfig(tlsRoutingDialerConfig))
 	return dialer.Dial(ctx, "tcp", proxyAddr, sshConfig)
 }
 
