@@ -363,7 +363,7 @@ exports[`list of all events 1`] = `
            of
            
           <strong>
-            125
+            126
           </strong>
         </div>
         <button
@@ -457,6 +457,43 @@ exports[`list of all events 1`] = `
           style="min-width: 120px;"
         >
           2022-08-10T19:54:40.444Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Session Recording Accessed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [ops@gravitational.io] accessed a session recording [44c6cea8-362f-11ea-83aa-125400432324]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2022-07-14T18:04:37.067Z
         </td>
         <td
           align="right"
@@ -4085,43 +4122,6 @@ exports[`list of all events 1`] = `
           style="word-break: break-word;"
         >
           User [root] failed to change attributes of file [/tmp/file] on node [[::1]:3022]: [EOF]
-        </td>
-        <td
-          style="min-width: 120px;"
-        >
-          2019-04-22T19:41:23Z
-        </td>
-        <td
-          align="right"
-        >
-          <button
-            class="c16"
-            kind="border"
-            width="87px"
-          >
-            Details
-          </button>
-        </td>
-      </tr>
-      <tr>
-        <td
-          style="vertical-align: inherit;"
-        >
-          <div
-            class="c14"
-          >
-            <span
-              class="c10 c15 icon icon-folder-plus c10 c15"
-              color="light"
-              font-size="3"
-            />
-            SFTP Fsetstat
-          </div>
-        </td>
-        <td
-          style="word-break: break-word;"
-        >
-          User [root] changed attributes of file [/tmp/file] on node [[::1]:3022]
         </td>
         <td
           style="min-width: 120px;"

@@ -164,6 +164,7 @@ export const eventCodes = {
   SESSION_START: 'T2000I',
   SESSION_UPLOAD: 'T2005I',
   SESSION_CONNECT: 'T2010I',
+  SESSION_RECORDING_ACCESS: 'T2012I',
   SUBSYSTEM_FAILURE: 'T3001E',
   SUBSYSTEM: 'T3001I',
   TERMINAL_RESIZE: 'T2002I',
@@ -859,6 +860,13 @@ export type RawEvents = {
     typeof eventCodes.UPGRADE_WINDOW_UPDATED,
     {
       upgrade_window_start: string;
+    }
+  >;
+  [eventCodes.SESSION_RECORDING_ACCESS]: RawEvent<
+    typeof eventCodes.SESSION_RECORDING_ACCESS,
+    {
+      sid: string;
+      user: string;
     }
   >;
 };
