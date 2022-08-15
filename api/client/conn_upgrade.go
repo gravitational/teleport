@@ -28,12 +28,13 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 )
 
 // IsALPNConnUpgradeRequired returns true if a tunnel is required through a HTTP
-// connection upgrade.
+// connection upgrade for ALPN connections.
 //
 // The function makes a test connection to the Proxy Service and checks if the
 // Teleport custom ALPN protocols are preserved. If not, the Proxy Service is
@@ -49,21 +50,37 @@ func IsALPNConnUpgradeRequired(addr string, insecure bool) bool {
 		return false
 	}
 
-	// Use an old but stable protocol for testing to reduce false
-	// positives in case remote is running a different version.
-	testProtocol := constants.ALPNSNIProtocolReverseTunnel
-	testConn, err := tls.Dial("tcp", addr, &tls.Config{
-		NextProtos:         []string{testProtocol},
+	// TODO make dial timeout configurable.
+	return alpnConnUpgradeTest(addr, insecure, defaults.DefaultDialTimeout)
+}
+
+// alpnConnUpgradeTest performs the ALPN connection test.
+func alpnConnUpgradeTest(addr string, insecure bool, timeout time.Duration) (upgradeRequired bool) {
+	netDialer := &net.Dialer{
+		Timeout: timeout,
+	}
+	tlsConfig := &tls.Config{
+		NextProtos: []string{
+			// Use an old but stable protocol for testing to reduce false
+			// positives in case remote is running a different version.
+			constants.ALPNSNIProtocolReverseTunnel,
+		},
 		InsecureSkipVerify: insecure,
-	})
+	}
+	testConn, err := tls.DialWithDialer(netDialer, "tcp", addr, tlsConfig)
 	if err != nil {
-		logrus.Infof("ALPN connection upgrade test failed for %q: %v.", addr, err)
+		// If TLS dial fails for any reason, we assume connection upgrade is
+		// not required so it will fallback to original connection method.
+		//
+		// This includes handshake failures where both peers support ALPN but
+		// no common protocol is getting negotiated.
+		logrus.Errorf("ALPN connection upgrade test failed for %q: %v.", addr, err)
 		return false
 	}
 	defer testConn.Close()
 
 	result := testConn.ConnectionState().NegotiatedProtocol == ""
-	logrus.Debugf("ALPN connection upgrade is required for %q: %v.", addr, result)
+	logrus.Debugf("ALPN connection upgrade required for %q: %v.", addr, result)
 	return result
 }
 
@@ -76,6 +93,10 @@ type alpnConnUpgradeDialer struct {
 
 // newALPNConnUpgradeDialer creates a new alpnConnUpgradeDialer.
 func newALPNConnUpgradeDialer(keepAlivePeriod, dialTimeout time.Duration, insecure bool) ContextDialer {
+	if dialTimeout == 0 {
+		dialTimeout = defaults.DefaultDialTimeout
+	}
+
 	return &alpnConnUpgradeDialer{
 		insecure: insecure,
 		netDialer: &net.Dialer{

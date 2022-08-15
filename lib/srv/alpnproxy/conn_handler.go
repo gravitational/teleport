@@ -38,12 +38,12 @@ type connectionHandlerOptions struct {
 
 // ConnectionHandlerOption defines an option function for specifying connection
 // handler options.
-type ConnectionHandlerOption func(*connectionHandlerOptions)
+type ConnectionHandlerOption func(*connectionHandlerOptions, []string)
 
 // WithWaitForAsyncHandlers is an option function that makes the server wait
 // for async handlers to close the connections.
 func WithWaitForAsyncHandlers() ConnectionHandlerOption {
-	return func(opt *connectionHandlerOptions) {
+	return func(opt *connectionHandlerOptions, _ []string) {
 		opt.waitForAsyncHandlers = true
 	}
 }
@@ -51,8 +51,9 @@ func WithWaitForAsyncHandlers() ConnectionHandlerOption {
 // WithDefaultTLSconfig is an option function that provides a default TLS
 // config.
 func WithDefaultTLSconfig(tlsConfig *tls.Config) ConnectionHandlerOption {
-	return func(opt *connectionHandlerOptions) {
-		opt.defaultTLSConfig = tlsConfig
+	return func(opt *connectionHandlerOptions, supportedProtocols []string) {
+		opt.defaultTLSConfig = tlsConfig.Clone()
+		opt.defaultTLSConfig.NextProtos = supportedProtocols
 	}
 }
 

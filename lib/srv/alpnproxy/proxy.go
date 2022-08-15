@@ -308,8 +308,7 @@ func (p *Proxy) Serve(ctx context.Context) error {
 	p.cancel = cancel
 	p.mu.Unlock()
 
-	p.cfg.WebTLSConfig.NextProtos = common.ProtocolsToString(p.supportedProtocols)
-	opts := p.defaultHandleConnOptions()
+	options := p.getHandleConnOptions()
 	for {
 		clientConn, err := p.cfg.Listener.Accept()
 		if err != nil {
@@ -319,7 +318,7 @@ func (p *Proxy) Serve(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 		go func() {
-			if err := p.handleConn(ctx, clientConn, opts); err != nil {
+			if err := p.handleConn(ctx, clientConn, options); err != nil {
 				// Try to close clientConn in case err happens before
 				// clientConn is closed.
 				p.closeClientConnAndLogError(clientConn)
@@ -337,11 +336,7 @@ func (p *Proxy) Serve(ctx context.Context) error {
 // MakeConnectionHandler creates a ConnectionHandler which provides a callback
 // to handle incoming connections by this ALPN proxy server.
 func (p *Proxy) MakeConnectionHandler(opts ...ConnectionHandlerOption) ConnectionHandler {
-	options := p.defaultHandleConnOptions()
-	for _, applyOpt := range opts {
-		applyOpt(options)
-	}
-
+	options := p.getHandleConnOptions(opts...)
 	return ConnectionHandlerFunc(func(ctx context.Context, conn net.Conn) error {
 		return p.handleConn(ctx, conn, options)
 	})
@@ -569,10 +564,18 @@ func (p *Proxy) closeClientConnAndLogError(clientConn net.Conn) {
 	}
 }
 
-// defaultHandleConnOptions creates the default connection handler options.
-func (p *Proxy) defaultHandleConnOptions() *connectionHandlerOptions {
-	return &connectionHandlerOptions{
-		waitForAsyncHandlers: false,
-		defaultTLSConfig:     p.cfg.WebTLSConfig,
+// getHandleConnOptions creates the connection handler options.
+func (p *Proxy) getHandleConnOptions(opts ...ConnectionHandlerOption) *connectionHandlerOptions {
+	options := &connectionHandlerOptions{}
+
+	// Setup defaults.
+	opts = append([]ConnectionHandlerOption{
+		WithDefaultTLSconfig(p.cfg.WebTLSConfig),
+	}, opts...)
+
+	// Apply options.
+	for _, applyOpt := range opts {
+		applyOpt(options, common.ProtocolsToString(p.supportedProtocols))
 	}
+	return options
 }
