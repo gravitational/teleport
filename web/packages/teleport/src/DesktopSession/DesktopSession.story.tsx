@@ -57,9 +57,12 @@ const props: State = {
   disconnected: false,
   setDisconnected: () => {},
   setClipboardState: () => {},
-  canShareDirectory: true,
-  isSharingDirectory: false,
-  setIsSharingDirectory: () => {},
+  directorySharingState: {
+    canShare: true,
+    isSharing: false,
+    browserError: false,
+  },
+  setDirectorySharingState: () => {},
   onPngFrame: () => {},
   onTdpError: () => {},
   onKeyDown: () => {},
@@ -79,6 +82,7 @@ const props: State = {
     authenticate: () => {},
     setState: () => {},
   },
+  isUsingChrome: true,
 };
 
 export const Processing = () => (
@@ -141,7 +145,11 @@ export const ConnectedSettingsTrue = () => {
         permission: { state: 'granted' },
         errorText: '',
       }}
-      isSharingDirectory={true}
+      directorySharingState={{
+        canShare: true,
+        isSharing: true,
+        browserError: false,
+      }}
       onPngFrame={(ctx: CanvasRenderingContext2D) => {
         fillGray(ctx.canvas);
       }}

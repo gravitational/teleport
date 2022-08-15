@@ -43,6 +43,8 @@ declare global {
 
 export function DesktopSession(props: State) {
   const {
+    directorySharingState,
+    setDirectorySharingState,
     clipboardState,
     fetchAttempt,
     tdpConnection,
@@ -62,14 +64,11 @@ export function DesktopSession(props: State) {
   // onDialogClose is called when a user
   // dismisses a non-fatal error dialog.
   const onDialogClose = () => {
-    // This setTdpConnection call will cause the useEffect below
-    // to calculate the errorDialog state.
+    // The following state-setting calls will
+    // cause the useEffect below to calculate the
+    // errorDialog state.
+
     setTdpConnection(prevState => {
-      // onDialogClose should only be called when
-      // the user dismisses a non-fatal error dialog,
-      // and prevState.status === '' means non-fatal
-      // error dialog, so the below if statement should
-      // always be true.
       if (prevState.status === '') {
         // If prevState.status was a non-fatal error,
         // we assume that the TDP connection remains open.
@@ -77,6 +76,11 @@ export function DesktopSession(props: State) {
       }
       return prevState;
     });
+
+    setDirectorySharingState(prevState => ({
+      ...prevState,
+      browserError: false,
+    }));
   };
 
   const computeErrorDialog = () => {
@@ -100,9 +104,18 @@ export function DesktopSession(props: State) {
       errorText = clipboardState.errorText || 'clipboard sharing failed';
     } else if (unknownConnectionError) {
       errorText = 'Session disconnected for an unknown reason.';
+    } else if (directorySharingState.browserError) {
+      errorText =
+        'Your user role supports directory sharing over desktop access, \
+      however this feature is only available by default on some Chromium \
+      based browsers like Google Chrome or Microsoft Edge. Brave users can \
+      use the feature by navigating to brave://flags/#file-system-access-api \
+      and selecting "Enable". Please switch to a supported browser.';
     }
     const open = errorText !== '';
-    const fatal = tdpConnection.status !== '';
+    const fatal = !(
+      tdpConnection.status === '' || directorySharingState.browserError
+    );
 
     return { open, text: errorText, fatal };
   };
@@ -194,9 +207,8 @@ function Session(props: PropsWithChildren<State>) {
     hostname,
     clipboardState,
     setClipboardState,
-    canShareDirectory,
-    isSharingDirectory,
-    setIsSharingDirectory,
+    directorySharingState,
+    setDirectorySharingState,
     onPngFrame,
     onClipboardData,
     onTdpError,
@@ -229,16 +241,29 @@ function Session(props: PropsWithChildren<State>) {
     clipboardSuccess;
 
   const onShareDirectory = () => {
-    window
-      .showDirectoryPicker()
-      .then(sharedDirHandle => {
-        setIsSharingDirectory(true);
-        tdpClient.addSharedDirectory(sharedDirHandle);
-        tdpClient.sendSharedDirectoryAnnounce();
-      })
-      .catch(() => {
-        setIsSharingDirectory(false);
-      });
+    try {
+      window
+        .showDirectoryPicker()
+        .then(sharedDirHandle => {
+          setDirectorySharingState(prevState => ({
+            ...prevState,
+            isSharing: true,
+          }));
+          tdpClient.addSharedDirectory(sharedDirHandle);
+          tdpClient.sendSharedDirectoryAnnounce();
+        })
+        .catch(() => {
+          setDirectorySharingState(prevState => ({
+            ...prevState,
+            isSharing: false,
+          }));
+        });
+    } catch (e) {
+      setDirectorySharingState(prevState => ({
+        ...prevState,
+        browserError: true,
+      }));
+    }
   };
 
   return (
@@ -250,13 +275,16 @@ function Session(props: PropsWithChildren<State>) {
             ...prevState,
             enabled: false,
           }));
-          setIsSharingDirectory(false);
+          setDirectorySharingState(prevState => ({
+            ...prevState,
+            isSharing: false,
+          }));
           tdpClient.nuke();
         }}
         userHost={`${username}@${hostname}`}
         clipboardSharingEnabled={clipboardSharingActive}
-        canShareDirectory={canShareDirectory}
-        isSharingDirectory={isSharingDirectory}
+        canShareDirectory={directorySharingState.canShare}
+        isSharingDirectory={directorySharingState.isSharing}
         onShareDirectory={onShareDirectory}
       />
 
