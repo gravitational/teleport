@@ -1060,9 +1060,9 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	for _, matcher := range fc.SSH.AWSMatchers {
 		cfg.SSH.AWSMatchers = append(cfg.SSH.AWSMatchers,
 			services.AWSMatcher{
-				Types:   matcher.Types,
-				Regions: matcher.Regions,
-				Tags:    matcher.Tags,
+				Types:   matcher.Matcher.Types,
+				Regions: matcher.Matcher.Regions,
+				Tags:    matcher.Matcher.Tags,
 				Params: services.InstallerParams{
 					JoinMethod: matcher.InstallParams.JoinParams.Method,
 					JoinToken:  matcher.InstallParams.JoinParams.TokenName,

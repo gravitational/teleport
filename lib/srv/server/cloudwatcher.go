@@ -23,13 +23,20 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+)
+
+const (
+	// AWSInstanceStateName represents the state of the AWS EC2
+	// instance - (pending | running | shutting-down | terminated | stopping | stopped )
+	// https://docs.aws.amazon.com/cli/latest/reference/ec2/describe-instances.html
+	// Used for filtering instances for automatic EC2 discovery
+	AWSInstanceStateName = "instance-state-name"
 )
 
 // EC2Instances contains information required to send SSM commands to EC2 instances
@@ -64,7 +71,7 @@ func (w *Watcher) Run() {
 	defer ticker.Stop()
 	for {
 		for _, fetcher := range w.fetchers {
-			inst, err := fetcher.GetEC2Instances(w.ctx)
+			instancesColl, err := fetcher.GetEC2Instances(w.ctx)
 			if err != nil {
 				if trace.IsNotFound(err) {
 					continue
@@ -72,9 +79,11 @@ func (w *Watcher) Run() {
 				log.WithError(err).Error("Failed to fetch EC2 instances")
 				continue
 			}
-			select {
-			case w.InstancesC <- *inst:
-			case <-w.ctx.Done():
+			for _, inst := range instancesColl {
+				select {
+				case w.InstancesC <- inst:
+				case <-w.ctx.Done():
+				}
 			}
 		}
 		select {
@@ -99,7 +108,7 @@ func NewCloudWatcher(ctx context.Context, matchers []services.AWSMatcher, client
 		ctx:           cancelCtx,
 		cancel:        cancelFn,
 		fetchInterval: time.Minute,
-		InstancesC:    make(chan EC2Instances),
+		InstancesC:    make(chan EC2Instances, 2),
 	}
 	for _, matcher := range matchers {
 		for _, region := range matcher.Regions {
@@ -137,8 +146,8 @@ type ec2InstanceFetcher struct {
 }
 
 func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
-	tagFilters := []*ec2.Filter{&ec2.Filter{
-		Name:   aws.String(constants.AWSInstanceStateName),
+	tagFilters := []*ec2.Filter{{
+		Name:   aws.String(AWSInstanceStateName),
 		Values: aws.StringSlice([]string{ec2.InstanceStateNameRunning}),
 	}}
 
@@ -161,18 +170,20 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 }
 
 // GetEC2Instances fetches all EC2 instances matching configured filters.
-func (f *ec2InstanceFetcher) GetEC2Instances(ctx context.Context) (*EC2Instances, error) {
-	var instances []*ec2.Instance
-	var accountID string
+func (f *ec2InstanceFetcher) GetEC2Instances(ctx context.Context) ([]EC2Instances, error) {
+	var instances []EC2Instances
 	err := f.EC2.DescribeInstancesPagesWithContext(ctx, &ec2.DescribeInstancesInput{
 		Filters: f.Filters,
 	},
 		func(dio *ec2.DescribeInstancesOutput, b bool) bool {
 			for _, res := range dio.Reservations {
-				if accountID == "" {
-					accountID = aws.StringValue(res.OwnerId)
-				}
-				instances = append(instances, res.Instances...)
+				instances = append(instances, EC2Instances{
+					AccountID:  aws.StringValue(res.OwnerId),
+					Region:     f.Region,
+					Document:   f.Document,
+					Instances:  res.Instances,
+					Parameters: f.Parameters,
+				})
 			}
 			return true
 		})
@@ -185,11 +196,5 @@ func (f *ec2InstanceFetcher) GetEC2Instances(ctx context.Context) (*EC2Instances
 		return nil, trace.NotFound("no ec2 instances found")
 	}
 
-	return &EC2Instances{
-		AccountID:  accountID,
-		Region:     f.Region,
-		Document:   f.Document,
-		Instances:  instances,
-		Parameters: f.Parameters,
-	}, nil
+	return instances, nil
 }

@@ -437,7 +437,7 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 		}
 	}
 
-	matchers := make([]AWSMatcher, 0, len(conf.SSH.AWSMatchers))
+	matchers := make([]AWSEC2Matcher, 0, len(conf.SSH.AWSMatchers))
 
 	for _, matcher := range conf.SSH.AWSMatchers {
 		if matcher.InstallParams == nil {
@@ -1027,7 +1027,7 @@ type SSH struct {
 	DisableCreateHostUser bool `yaml:"disable_create_host_user,omitempty"`
 
 	// AWSMatchers are used to match EC2 instances
-	AWSMatchers []AWSMatcher `yaml:"aws,omitempty"`
+	AWSMatchers []AWSEC2Matcher `yaml:"aws,omitempty"`
 }
 
 // AllowTCPForwarding checks whether the config file allows TCP forwarding or not.
@@ -1214,6 +1214,12 @@ type AWSMatcher struct {
 	Regions []string `yaml:"regions,omitempty"`
 	// Tags are AWS tags to match.
 	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
+}
+
+// AWSEC2Matcher matches EC2 instances
+type AWSEC2Matcher struct {
+	// Matcher is used to match EC2 instances based on tags
+	Matcher AWSMatcher `yaml:",inline"`
 	// InstallParams sets the join method when installing on
 	// discovered EC2 nodes
 	InstallParams *InstallParams `yaml:"install,omitempty"`

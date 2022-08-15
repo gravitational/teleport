@@ -20,7 +20,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
@@ -45,10 +45,42 @@ type mockEC2Client struct {
 	output *ec2.DescribeInstancesOutput
 }
 
+func instanceMatches(inst *ec2.Instance, filters []*ec2.Filter) bool {
+	allMatched := true
+	for _, filter := range filters {
+		name := aws.StringValue(filter.Name)
+		val := aws.StringValue(filter.Values[0])
+		if name == AWSInstanceStateName && aws.StringValue(inst.State.Name) != ec2.InstanceStateNameRunning {
+			return false
+		}
+		for _, tag := range inst.Tags {
+			if aws.StringValue(tag.Key) != name[4:] {
+				continue
+			}
+			allMatched = allMatched && aws.StringValue(tag.Value) != val
+		}
+	}
+
+	return !allMatched
+}
+
 func (m *mockEC2Client) DescribeInstancesPagesWithContext(
 	ctx context.Context, input *ec2.DescribeInstancesInput,
 	f func(dio *ec2.DescribeInstancesOutput, b bool) bool, opts ...request.Option) error {
-	f(m.output, true)
+	output := &ec2.DescribeInstancesOutput{}
+	for _, res := range m.output.Reservations {
+		var instances []*ec2.Instance
+		for _, inst := range res.Instances {
+			if instanceMatches(inst, input.Filters) {
+				instances = append(instances, inst)
+			}
+		}
+		output.Reservations = append(output.Reservations, &ec2.Reservation{
+			Instances: instances,
+		})
+	}
+
+	f(output, true)
 	return nil
 }
 
@@ -61,11 +93,13 @@ func TestEC2Watcher(t *testing.T) {
 			Types:   []string{"EC2"},
 			Regions: []string{"us-west-2"},
 			Tags:    map[string]utils.Strings{"teleport": {"yes"}},
+			SSM:     &services.AWSSSM{},
 		},
 		{
 			Types:   []string{"EC2"},
 			Regions: []string{"us-west-2"},
 			Tags:    map[string]utils.Strings{"env": {"dev"}},
+			SSM:     &services.AWSSSM{},
 		},
 	}
 	ctx := context.Background()
@@ -130,12 +164,14 @@ func TestEC2Watcher(t *testing.T) {
 
 	result := <-watcher.InstancesC
 	require.Equal(t, EC2Instances{
-		Region:    "us-west-2",
-		Instances: []*ec2.Instance{&present},
+		Region:     "us-west-2",
+		Instances:  []*ec2.Instance{&present},
+		Parameters: map[string]string{"token": ""},
 	}, result)
 	result = <-watcher.InstancesC
 	require.Equal(t, EC2Instances{
-		Region:    "us-west-2",
-		Instances: []*ec2.Instance{&presentOther},
+		Region:     "us-west-2",
+		Instances:  []*ec2.Instance{&presentOther},
+		Parameters: map[string]string{"token": ""},
 	}, result)
 }
