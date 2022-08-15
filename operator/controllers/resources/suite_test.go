@@ -220,6 +220,8 @@ func setupKubernetesAndTeleport(t *testing.T) testSetup {
 	t.Cleanup(func() {
 		err := tClient.Close()
 		require.NoError(t, err)
+		err = teleportServer.StopAll()
+		require.NoError(t, err)
 	})
 	return testSetup{tClient: tClient, k8sClient: k8sClient, namespace: ns}
 }
