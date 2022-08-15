@@ -98,16 +98,16 @@ const (
 	SessionDataCode = "T2006I"
 	// AppSessionStartCode is the application session start code.
 	AppSessionStartCode = "T2007I"
-	// AppSessionEndCode is the application session end event code.
-	AppSessionEndCode = "T2011I"
 	// AppSessionChunkCode is the application session chunk create code.
 	AppSessionChunkCode = "T2008I"
 	// AppSessionRequestCode is the application request/response code.
 	AppSessionRequestCode = "T2009I"
 	// SessionConnectCode is the session connect event code.
 	SessionConnectCode = "T2010I"
+	// AppSessionEndCode is the application session end event code.
+	AppSessionEndCode = "T2011I"
 	// SessionRecordingAccessCode is the session recording view data event code.
-	SessionRecordingAccessCode = "T2011I"
+	SessionRecordingAccessCode = "T2012I"
 
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"
