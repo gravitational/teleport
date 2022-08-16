@@ -3101,3 +3101,33 @@ func TestShowSessions(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, expected, buf.String())
 }
+
+func TestSetClientWebProxyAddr(t *testing.T) {
+	for _, test := range []struct {
+		proxyFlag        string
+		wantWebProxyAddr string
+		wantSSHProxyAddr string
+	}{
+		{
+			// specify only web proxy port
+			proxyFlag:        "teleport.example.com:3088",
+			wantWebProxyAddr: "teleport.example.com:3088",
+			wantSSHProxyAddr: "teleport.example.com:3023",
+		},
+		{
+			// specify web proxy and SSH proxy ports
+			proxyFlag:        "teleport.example.com:3088,3089",
+			wantWebProxyAddr: "teleport.example.com:3088",
+			wantSSHProxyAddr: "teleport.example.com:3089",
+		},
+	} {
+		t.Run(test.proxyFlag, func(t *testing.T) {
+			cf := &CLIConf{Proxy: test.proxyFlag}
+			var c client.Config
+
+			require.NoError(t, setClientWebProxyAddr(cf, &c))
+			require.Equal(t, test.wantWebProxyAddr, c.WebProxyAddr)
+			require.Equal(t, test.wantSSHProxyAddr, c.SSHProxyAddr)
+		})
+	}
+}

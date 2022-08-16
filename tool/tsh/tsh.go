@@ -1187,14 +1187,15 @@ func serializeVersion(format string, proxyVersion string) (string, error) {
 // onPlay is used to interact with recorded sessions.
 // It has several modes:
 //
-// 1. If --format is "pty" (the default), then the recorded
-//    session is played back in the user's terminal.
-// 2. Otherwise, `tsh play` is used to export a session from the
-//    binary protobuf format into YAML or JSON.
+//  1. If --format is "pty" (the default), then the recorded
+//     session is played back in the user's terminal.
+//  2. Otherwise, `tsh play` is used to export a session from the
+//     binary protobuf format into YAML or JSON.
 //
 // Each of these modes has two subcases:
 // a) --session-id ends with ".tar" - tsh operates on a local file
 //    containing a previously downloaded session
+//
 // b) --session-id is the ID of a session - tsh operates on the session
 //    recording by connecting to the Teleport cluster
 func onPlay(cf *CLIConf) error {
@@ -3174,10 +3175,8 @@ var defaultWebProxyPorts = []int{
 //
 // If successful, setClientWebProxyAddr will modify the client Config in-place.
 func setClientWebProxyAddr(cf *CLIConf, c *client.Config) error {
-	// If the user has specified a proxy on the command line, and one has not
-	// already been specified from configuration...
-
-	if cf.Proxy != "" && c.WebProxyAddr == "" {
+	// If the user has specified a proxy on the command line.
+	if cf.Proxy != "" {
 		parsedAddrs, err := client.ParseProxyHost(cf.Proxy)
 		if err != nil {
 			return trace.Wrap(err)
