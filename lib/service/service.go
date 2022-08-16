@@ -363,6 +363,10 @@ type TeleportProcess struct {
 	// clusterFeatures contain flags for supported and unsupported features.
 	clusterFeatures proto.Features
 
+	// authSubjectiveAddr is the peer address of this process as seen by the auth
+	// server during the most recent ping (may be empty).
+	authSubjectiveAddr string
+
 	// cloudLabels is a set of labels imported from a cloud provider and shared between
 	// services.
 	cloudLabels labels.Importer
@@ -543,6 +547,24 @@ func (process *TeleportProcess) getClusterFeatures() proto.Features {
 	defer process.Unlock()
 
 	return process.clusterFeatures
+}
+
+// setAuthSubjectiveAddr records the peer address that the auth server observed
+// for this process during the most recent ping.
+func (process *TeleportProcess) setAuthSubjectiveAddr(ip string) {
+	process.Lock()
+	defer process.Unlock()
+	if ip != "" {
+		process.authSubjectiveAddr = ip
+	}
+}
+
+// getAuthSubjectiveAddr accesses the peer address reported by the auth server
+// during the most recent ping. May be empty.
+func (process *TeleportProcess) getAuthSubjectiveAddr() string {
+	process.Lock()
+	defer process.Unlock()
+	return process.authSubjectiveAddr
 }
 
 // GetIdentity returns the process identity (credentials to the auth server) for a given
@@ -1190,7 +1212,10 @@ func (process *TeleportProcess) makeInventoryControlStreamWhenReady(ctx context.
 func (process *TeleportProcess) makeInventoryControlStream(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
 	// if local auth exists, create an in-memory control stream
 	if auth := process.getLocalAuth(); auth != nil {
-		return auth.MakeLocalInventoryControlStream(), nil
+		// we use getAuthSubjectiveAddr to guess our peer address even through we are
+		// using an in-memory pipe. this works because heartbeat operations don't start
+		// until after their respective services have successfully pinged the auth server.
+		return auth.MakeLocalInventoryControlStream(client.ICSPipePeerAddrFn(process.getAuthSubjectiveAddr)), nil
 	}
 
 	// fallback to using the instance client
@@ -1483,6 +1508,22 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
+	traceClt := tracing.NewNoopClient()
+	if cfg.Tracing.Enabled {
+		traceConf, err := process.Config.Tracing.Config()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		traceConf.Logger = process.log.WithField(trace.Component, teleport.ComponentTracing)
+
+		clt, err := tracing.NewStartedClient(process.ExitContext(), *traceConf)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		traceClt = clt
+	}
+
 	// first, create the AuthServer
 	authServer, err := auth.Init(auth.InitConfig{
 		Backend:                 b,
@@ -1514,6 +1555,7 @@ func (process *TeleportProcess) initAuthService() error {
 		KeyStoreConfig:          cfg.Auth.KeyStore,
 		Emitter:                 checkingEmitter,
 		Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
+		TraceClient:             traceClt,
 	}, func(as *auth.Server) error {
 		if !process.Config.CachePolicy.Enabled {
 			return nil
@@ -1641,22 +1683,6 @@ func (process *TeleportProcess) initAuthService() error {
 	go mux.Serve()
 	authMetrics := &auth.Metrics{GRPCServerLatency: cfg.Metrics.GRPCServerLatency}
 
-	traceClt := tracing.NewNoopClient()
-	if cfg.Tracing.Enabled {
-		traceConf, err := process.Config.Tracing.Config()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		traceConf.Logger = process.log.WithField(trace.Component, teleport.ComponentTracing)
-
-		clt, err := tracing.NewStartedClient(process.ExitContext(), *traceConf)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		traceClt = clt
-	}
-
 	tlsServer, err := auth.NewTLSServer(auth.TLSServerConfig{
 		TLS:           tlsConfig,
 		APIConfig:     *apiConf,
@@ -1666,7 +1692,6 @@ func (process *TeleportProcess) initAuthService() error {
 		ID:            process.id,
 		Listener:      mux.TLS(),
 		Metrics:       authMetrics,
-		TraceClient:   traceClt,
 	})
 	if err != nil {
 		return trace.Wrap(err)

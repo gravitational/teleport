@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"os"
 	"os/user"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -73,6 +74,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		configureDatabaseAWSCreateFlags configureDatabaseAWSCreateFlags
 		configureDatabaseBootstrapFlags configureDatabaseBootstrapFlags
 		dbConfigCreateFlags             createDatabaseConfigFlags
+		systemdInstallFlags             installSystemdFlags
 	)
 
 	// define commands:
@@ -283,6 +285,16 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbConfigureAWSCreateIAM.Flag("role", "IAM role name to attach policy to. Mutually exclusive with --user").StringVar(&configureDatabaseAWSCreateFlags.role)
 	dbConfigureAWSCreateIAM.Flag("user", "IAM user name to attach policy to. Mutually exclusive with --role").StringVar(&configureDatabaseAWSCreateFlags.user)
 
+	// "teleport install" command and its subcommands
+	installCmd := app.Command("install", "Teleport install commands.")
+	systemdInstall := installCmd.Command("systemd", "Creates a systemd unit file configuration.")
+	systemdInstall.Flag("env-file", "Full path to the environment file.").Default(config.SystemdDefaultEnvironmentFile).StringVar(&systemdInstallFlags.EnvironmentFile)
+	systemdInstall.Flag("pid-file", "Full path to the PID file.").Default(config.SystemdDefaultPIDFile).StringVar(&systemdInstallFlags.PIDFile)
+	systemdInstall.Flag("fd-limit", "Maximum number of open file descriptors.").Default(fmt.Sprintf("%v", config.SystemdDefaultFileDescriptorLimit)).IntVar(&systemdInstallFlags.FileDescriptorLimit)
+	systemdInstall.Flag("teleport-path", "Full path to the Teleport binary.").StringVar(&systemdInstallFlags.TeleportInstallationFile)
+	systemdInstall.Flag("output", "Write to stdout with -o=stdout or custom path with -o=file:///path").Short('o').Default(teleport.SchemeStdout).StringVar(&systemdInstallFlags.output)
+	systemdInstall.Alias(systemdInstallExamples) // We're using "alias" section to display usage examples.
+
 	// define a hidden 'scp' command (it implements server-side implementation of handling
 	// 'scp' requests)
 	scpc.Flag("t", "sink mode (data consumer)").Short('t').Default("false").BoolVar(&scpFlags.Sink)
@@ -399,6 +411,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		err = onConfigureDatabasesAWSCreate(configureDatabaseAWSCreateFlags)
 	case dbConfigureBootstrap.FullCommand():
 		err = onConfigureDatabaseBootstrap(configureDatabaseBootstrapFlags)
+	case systemdInstall.FullCommand():
+		err = onDumpSystemdUnitFile(systemdInstallFlags)
 	}
 	if err != nil {
 		utils.FatalError(err)
@@ -576,6 +590,18 @@ func dumpConfigFile(outputURI, contents, comment string) (string, error) {
 		if !filepath.IsAbs(uri.Path) {
 			return "", trace.BadParameter("please use absolute path for file %v", uri.Path)
 		}
+
+		configDir := path.Dir(outputURI)
+		err := os.MkdirAll(configDir, 0755)
+		err = trace.ConvertSystemError(err)
+		if err != nil {
+			if trace.IsAccessDenied(err) {
+				return "", trace.Wrap(err, "permission denied creating directory %s", configDir)
+			}
+
+			return "", trace.Wrap(err, "error creating config file directory %s", configDir)
+		}
+
 		f, err := os.OpenFile(uri.Path, os.O_RDWR|os.O_CREATE|os.O_EXCL, teleport.FileMaskOwnerOnly)
 		err = trace.ConvertSystemError(err)
 		if err != nil {

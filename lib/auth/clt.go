@@ -1694,6 +1694,7 @@ type ClientI interface {
 	session.Service
 	services.ClusterConfiguration
 	services.SessionTrackerService
+	services.ConnectionsDiagnostic
 	types.Events
 
 	types.WebSessionsGetter

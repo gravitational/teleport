@@ -726,7 +726,7 @@ func (s *integrationTestSuite) newTeleportIoT(t *testing.T, logins []string) *Te
 	nodeConfig := func() *service.Config {
 		tconf := s.defaultServiceConfig()
 		tconf.Hostname = Host
-		tconf.Token = "token"
+		tconf.SetToken("token")
 		tconf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
@@ -944,16 +944,10 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 		return term, errCh
 	}
 
+	// waitSessionTermination wait until the errCh returns something and assert
+	// it with the provided function.
 	waitSessionTermination := func(t *testing.T, errCh chan error, errorAssertion require.ErrorAssertionFunc) {
-		require.Eventually(t, func() bool {
-			select {
-			case err := <-errCh:
-				errorAssertion(t, err)
-				return true
-			default:
-				return false
-			}
-		}, 10*time.Second, 500*time.Millisecond)
+		errorAssertion(t, waitForError(errCh, 10*time.Second))
 	}
 
 	// enableDiskFailure changes the OpenFileFunc on filesession package. The
@@ -1103,7 +1097,7 @@ func testCustomReverseTunnel(t *testing.T, suite *integrationTestSuite) {
 	// Create a Teleport instance with a Node.
 	nodeConf := suite.defaultServiceConfig()
 	nodeConf.Hostname = Host
-	nodeConf.Token = "token"
+	nodeConf.SetToken("token")
 	nodeConf.Auth.Enabled = false
 	nodeConf.Proxy.Enabled = false
 	nodeConf.SSH.Enabled = true
@@ -2704,7 +2698,7 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	nodeConfig := func() *service.Config {
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = tunnelNodeHostname
-		tconf.Token = "token"
+		tconf.SetToken("token")
 		tconf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
@@ -3104,7 +3098,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 	nodeConfig := func() *service.Config {
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = "cluster-main-node"
-		tconf.Token = "token"
+		tconf.SetToken("token")
 		tconf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
@@ -3240,7 +3234,7 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 	nodeConfig := func() *service.Config {
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = "cluster-main-node"
-		tconf.Token = "token"
+		tconf.SetToken("token")
 		tconf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
@@ -4622,6 +4616,7 @@ func runAndMatch(tc *client.TeleportClient, attempts int, command []string, patt
 func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
+	ctx := context.Background()
 
 	teleport := suite.newTeleport(t, nil, true)
 	defer teleport.StopAll()
@@ -4645,7 +4640,7 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 		cl.Stdout = personA
 		cl.Stdin = personA
 
-		err = cl.SSH(context.TODO(), []string{}, false)
+		err = cl.SSH(ctx, []string{}, false)
 		if !isSSHError(err) {
 			require.NoError(t, err)
 		}
@@ -4672,8 +4667,8 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 		cl.Stdin = personB
 
 		// Change the size of the window immediately after it is created.
-		cl.OnShellCreated = func(s *ssh.Session, c *tracessh.Client, terminal io.ReadWriteCloser) (exit bool, err error) {
-			err = s.WindowChange(48, 160)
+		cl.OnShellCreated = func(s *tracessh.Session, c *tracessh.Client, terminal io.ReadWriteCloser) (exit bool, err error) {
+			err = s.WindowChange(ctx, 48, 160)
 			if err != nil {
 				return true, trace.Wrap(err)
 			}
@@ -4681,7 +4676,7 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 		}
 
 		for i := 0; i < 10; i++ {
-			err = cl.Join(context.TODO(), types.SessionPeerMode, apidefaults.Namespace, session.ID(sessionID), personB)
+			err = cl.Join(ctx, types.SessionPeerMode, apidefaults.Namespace, session.ID(sessionID), personB)
 			if err == nil || isSSHError(err) {
 				err = nil
 				break
@@ -6399,7 +6394,7 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 			conf.Proxy.Enabled = false
 
 			conf.DataDir = t.TempDir()
-			conf.Token = "token"
+			conf.SetToken("token")
 			conf.UploadEventsC = i.UploadEventsC
 			conf.AuthServers = []utils.NetAddr{
 				*utils.MustParseAddr(net.JoinHostPort(i.Hostname, i.GetPortWeb())),

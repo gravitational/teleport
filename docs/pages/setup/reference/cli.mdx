@@ -1963,37 +1963,3 @@ $ tsh ls --search=staging,mac
 # with key `env` equal to `staging` and key `os` equal to `mac`.
 $ tsh ls --query='labels["env"] == "staging" && equals(labels["os"], "mac")'
 ```
-
-## Experimental features
-
-### tctl access ls
-
-Displays user accesses to SSH nodes
-
-```code
-tctl access ls [--user <user> | --login <login> | --node <hostname>][<flags>]
-```
-
-#### Flags
-
-| Name | Default Value(s) | Allowed Value(s) | Description |
-| - | - | - | - |
-| `--user` | none | existing user | Teleport user name |
-| `--login` | none | user login | Teleport user login |
-| `--node` | none | existing hostname | Teleport Node hostname |
-| `--namespace` | default | existing namespace | Teleport namespace |
-
-#### Examples
-
-```code
-# Get all user accesses over all nodes
-tctl access ls
-# Get accesses for user 'joe'
-tctl access ls --user joe
-# Get accesses for node 'prod'
-tctl access ls --node prod
-# Get accesses for login 'root'
-tctl access ls --login root
-# Get accesses for user 'joe', node 'prod', and login 'root'
-tctl access ls --user joe --login root --node prod
-```
