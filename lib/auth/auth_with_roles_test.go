@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -1508,6 +1509,74 @@ func TestGetAndList_Nodes(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resp.Resources, 1)
 	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
+}
+
+// TestStreamSessionEvents_User ensures that when a user streams a session's events, it emits an audit event.
+func TestStreamSessionEvents_User(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	username := "user"
+	user, _, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// ignore the response as we don't want the events or the error (the session will not exist)
+	_, _ = clt.StreamSessionEvents(ctx, "44c6cea8-362f-11ea-83aa-125400432324", 0)
+
+	// we need to wait for a short period to ensure the event is returned
+	time.Sleep(500 * time.Millisecond)
+
+	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(
+		srv.Clock().Now().Add(-time.Hour),
+		srv.Clock().Now().Add(time.Hour),
+		defaults.Namespace,
+		[]string{events.SessionRecordingAccessEvent},
+		1,
+		types.EventOrderDescending,
+		"",
+	)
+	require.NoError(t, err)
+
+	event := searchEvents[0].(*apievents.SessionRecordingAccess)
+	require.Equal(t, username, event.User)
+}
+
+// TestStreamSessionEvents_Builtin ensures that when a builtin role streams a session's events, it does not emit
+// an audit event.
+func TestStreamSessionEvents_Builtin(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	identity := TestBuiltin(types.RoleProxy)
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// ignore the response as we don't want the events or the error (the session will not exist)
+	_, _ = clt.StreamSessionEvents(ctx, "44c6cea8-362f-11ea-83aa-125400432324", 0)
+
+	// we need to wait for a short period to ensure the event is returned
+	time.Sleep(500 * time.Millisecond)
+
+	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(
+		srv.Clock().Now().Add(-time.Hour),
+		srv.Clock().Now().Add(time.Hour),
+		defaults.Namespace,
+		[]string{events.SessionRecordingAccessEvent},
+		1,
+		types.EventOrderDescending,
+		"",
+	)
+	require.NoError(t, err)
+
+	require.Equal(t, 0, len(searchEvents))
 }
 
 // TestAPILockedOut tests Auth API when there are locks involved.
