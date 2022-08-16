@@ -180,10 +180,6 @@ service AuthService {
 message GetPrivateKeyRequirementRequest {}
 
 message GetPrivateKeyRequirementResponse {
-    PrivateKeyRequirements private_key_requirements = 1;
-}
-
-message PrivateKeyRequirements {
     PrivateKeyMode mode = 1;
 }
 
