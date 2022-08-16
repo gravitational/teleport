@@ -600,8 +600,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	recordings := app.Command("recordings", "View and control session recordings.").Alias("recording")
 	lsRecordings := recordings.Command("ls", "List recorded sessions.")
 	lsRecordings.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+". Defaults to 'text'.").Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
-	lsRecordings.Flag("from-utc", fmt.Sprintf("Start of time range in which recordings are listed. Format %s. Defaults to 24 hours ago.", time.RFC3339)).StringVar(&cf.FromUTC)
-	lsRecordings.Flag("to-utc", fmt.Sprintf("End of time range in which recordings are listed. Format %s. Defaults to current time.", time.RFC3339)).StringVar(&cf.ToUTC)
+	lsRecordings.Flag("from-utc", fmt.Sprintf("Start of time range in which recordings are listed. Format %s. Defaults to 24 hours ago.", defaults.TshTctlSessionListTimeFormat)).StringVar(&cf.FromUTC)
+	lsRecordings.Flag("to-utc", fmt.Sprintf("End of time range in which recordings are listed. Format %s. Defaults to current time.", defaults.TshTctlSessionListTimeFormat)).StringVar(&cf.ToUTC)
 	lsRecordings.Flag("limit", fmt.Sprintf("Maximum number of recordings to show. Default %s.", defaults.TshTctlSessionListLimit)).Default(defaults.TshTctlSessionListLimit).IntVar(&cf.maxRecordingsToShow)
 
 	// Local TLS proxy.
@@ -3889,7 +3889,7 @@ func serializeAppsWithClusters(apps []appListing, format string) (string, error)
 func onRecordings(cf *CLIConf) error {
 	fromUTC, toUTC, err := defaults.SearchSessionRange(clockwork.NewRealClock(), cf.FromUTC, cf.ToUTC)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Errorf("cannot request recordings: %v", err)
 	}
 	tc, err := makeClient(cf, false)
 	if err != nil {

@@ -773,8 +773,10 @@ const (
 
 // Default values for tsh and tctl commands.
 const (
-	TshTctlSessionListLimit = "50"
-	TshTctlSessionDayLimit  = 365
+	// Use more human readable format than RFC3339
+	TshTctlSessionListTimeFormat = "2006-01-02"
+	TshTctlSessionListLimit      = "50"
+	TshTctlSessionDayLimit       = 365
 )
 
 // DefaultFormats is the default set of formats to use for commands that have the --format flag.
@@ -789,18 +791,26 @@ func SearchSessionRange(clock clockwork.Clock, fromUTC, toUTC string) (from time
 	from = clock.Now().Add(time.Hour * -24)
 	to = clock.Now()
 	if fromUTC != "" {
-		from, err = time.Parse(time.RFC3339, fromUTC)
+		from, err = time.Parse(TshTctlSessionListTimeFormat, fromUTC)
 		if err != nil {
 			return time.Time{}, time.Time{},
-				trace.BadParameter("failed to parse session recording listing start time: expected format %s, got %s.", time.RFC3339, fromUTC)
+				trace.BadParameter("failed to parse session recording listing start time: expected format %s, got %s.", TshTctlSessionListTimeFormat, fromUTC)
 		}
 	}
 	if toUTC != "" {
-		to, err = time.Parse(time.RFC3339, toUTC)
+		to, err = time.Parse(TshTctlSessionListTimeFormat, toUTC)
 		if err != nil {
 			return time.Time{}, time.Time{},
-				trace.BadParameter("failed to parse session recording listing end time: expected format %s, got %s.", time.RFC3339, toUTC)
+				trace.BadParameter("failed to parse session recording listing end time: expected format %s, got %s.", TshTctlSessionListTimeFormat, toUTC)
 		}
+	}
+	if from.After(to) {
+		return time.Time{}, time.Time{},
+			trace.BadParameter("invalid '--from-utc' time: 'from' must be before '--to-utc'")
+	}
+	if to.After(clock.Now()) {
+		return time.Time{}, time.Time{},
+			trace.BadParameter("invalid '--to-utc': '--to-utc' cannot be in the future")
 	}
 	return from, to, nil
 }
