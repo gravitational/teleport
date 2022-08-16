@@ -1,14 +1,14 @@
 ---
 title: Teleport Cloud Architecture
-description: Cloud security, availability and networking details.
+description: Cloud security, availability, and networking details.
 ---
 
 ## Security
 
-We have designed the Teleport Cloud environment to be secure; however we are still in the process of
-scrutinizing and executing on our security roadmap and working with independent security
-auditors to identify any gaps. Only once this is complete, the team will evaluate
-whether the Teleport Cloud is ready for strict compliance use-cases.
+We have designed the Teleport Cloud environment to be secure. We work with independent
+security auditors on a regular basis to identify and correct any gaps, while also
+continuing to iterate on improvements to fortify the platform for the most strict of
+compliance use-cases.
 
 ## Compliance
 
@@ -18,7 +18,7 @@ whether the Teleport Cloud is ready for strict compliance use-cases.
 
 SSH sessions are recorded [on nodes](../architecture/nodes.mdx#session-recording).
 Teleport Cloud Proxy does not terminate SSH sessions when using OpenSSH and `tsh` sessions.
-The Cloud Proxy terminates TLS for Application, Database and Kubernetes sessions.
+The Cloud Proxy terminates TLS for Application, Database, and Kubernetes sessions.
 
 ## Data retention
 Data retention cannot currently be configured by customers. All Teleport Cloud
@@ -46,7 +46,6 @@ The Teleport [proxy service](https://goteleport.com/docs/architecture/proxy/) ca
 - sa-east-1
 
 The multi-region option is currently opt-in by default. Once you have an account, please reach out to your account manager, customer success engineer, or support@goteleport.com. A future update will expand the region availability and make all regions available by default.
-
 
 ## Service Level Agreement
 
