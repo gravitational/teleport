@@ -3,7 +3,7 @@ title: Getting Started With Access Controls
 description: Get started using Teleport Access Controls.
 ---
 
-In Teleport, any local, SSO, or robot user can assigned one or several roles.
+In Teleport, any local, SSO, or robot user can be assigned one or several roles.
 Roles govern access to databases, SSH servers, Kubernetes clusters, Windows
 desktops, and web apps.
 
@@ -123,13 +123,13 @@ users within your SSO solution to Teleport roles.
       <?xml !!! Make sure to shift all lines in XML descriptor
       with 4 spaces, otherwise things will not work
   ```
-  
+
   Create the `saml` resource:
 
   ```code
   $ tctl create okta.yaml
   ```
-    
+
   </TabItem>
   <TabItem label="OIDC">
 
@@ -173,7 +173,7 @@ spec:
     logins: ['readonly']
     # Assigns users with this role to the built-in Kubernetes group "view"
     kubernetes_groups: ["view"]
-    # Allow access to SSH nodes, Kubernetes clusters, apps or databases 
+    # Allow access to SSH nodes, Kubernetes clusters, apps or databases
     # labeled with "staging" or "test"
     node_labels:
       'env': ['staging', 'test']
