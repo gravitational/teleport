@@ -130,6 +130,8 @@ message Event {
         // KubernetesCluster is an Kubernetes cluster resource.
         types.KubernetesClusterV3 KubernetesCluster = 33
             [ (gogoproto.jsontag) = "kubernetes_cluster,omitempty" ];
+        // Installer is an installer resource
+        types.InstallerV1 Installer = 34 [ (gogoproto.jsontag) = "installer,omitempty" ];
     }
 }
 
@@ -2464,6 +2466,8 @@ service AuthService {
 
     // CreateConnectionDiagnostic creates a new connection diagnostic.
     rpc CreateConnectionDiagnostic(types.ConnectionDiagnosticV1) returns (google.protobuf.Empty);
+    // UpdateConnectionDiagnostic updates a connection diagnostic.
+    rpc UpdateConnectionDiagnostic(types.ConnectionDiagnosticV1) returns (google.protobuf.Empty);
     // GetConnectionDiagnostic reads a connection diagnostic.
     rpc GetConnectionDiagnostic(GetConnectionDiagnosticRequest)
         returns (types.ConnectionDiagnosticV1);
@@ -2534,6 +2538,15 @@ service AuthService {
     // re-authenticates with their second factor device. Privilege token lasts PrivilegeTokenTTL and
     // is used to gain access to privileged actions eg: deleting/adding a MFA device.
     rpc CreatePrivilegeToken(CreatePrivilegeTokenRequest) returns (types.UserTokenV3);
+
+    // GetInstaller retrieves the installer script resource
+    rpc GetInstaller(google.protobuf.Empty) returns (types.InstallerV1);
+
+    // SetInstaller sets the installer script resource
+    rpc SetInstaller(types.InstallerV1) returns (google.protobuf.Empty);
+
+    // DeleteInstaller removes the installer script resource
+    rpc DeleteInstaller(google.protobuf.Empty) returns (google.protobuf.Empty);
 
     // ListResources retrieves a paginated list of resources.
     rpc ListResources(ListResourcesRequest) returns (ListResourcesResponse);
