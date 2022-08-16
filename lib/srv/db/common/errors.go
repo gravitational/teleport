@@ -122,8 +122,13 @@ func ConvertConnectError(err error, sessionCtx *Session) error {
 
 	err = ConvertError(err)
 
-	if trace.IsAccessDenied(err) && sessionCtx.Database.IsRDS() {
-		return createRDSAccessDeniedError(err, sessionCtx)
+	if trace.IsAccessDenied(err) {
+		switch {
+		case sessionCtx.Database.IsRDS():
+			return createRDSAccessDeniedError(err, sessionCtx)
+		case sessionCtx.Database.IsAzure():
+			return createAzureAccessDeniedError(err, sessionCtx)
+		}
 	}
 
 	return trace.Wrap(err)
@@ -157,6 +162,31 @@ take a few minutes to propagate):
 %v
 `, err, sessionCtx.DatabaseUser, sessionCtx.Database.GetIAMPolicy())
 
+	default:
+		return trace.Wrap(err)
+	}
+}
+
+// createAzureAccessDeniedError creates an error with help message to setup AAD
+// auth for PostgreSQL/MySQL.
+func createAzureAccessDeniedError(err error, sessionCtx *Session) error {
+	switch sessionCtx.Database.GetProtocol() {
+	case defaults.ProtocolMySQL:
+		return trace.AccessDenied(`Could not connect to database:
+
+  %v
+
+Make sure that Azure Active Directory auth is configured for MySQL user %q and the Teleport database
+agent's service principal. See: https://goteleport.com/docs/database-access/guides/azure-postgres-mysql/
+`, err, sessionCtx.DatabaseUser)
+	case defaults.ProtocolPostgres:
+		return trace.AccessDenied(`Could not connect to database:
+
+  %v
+
+Make sure that Azure Active Directory auth is configured for Postgres user %q and the Teleport database
+agent's service principal. See: https://goteleport.com/docs/database-access/guides/azure-postgres-mysql/
+`, err, sessionCtx.DatabaseUser)
 	default:
 		return trace.Wrap(err)
 	}
