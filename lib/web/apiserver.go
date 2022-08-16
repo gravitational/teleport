@@ -59,7 +59,6 @@ import (
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -194,7 +193,7 @@ type Config struct {
 
 	// ALPNHandler is the ALPN connection handler for handling upgraded ALPN
 	// connection through a HTTP upgrade call.
-	ALPNHandler alpnproxy.ConnectionHandler
+	ALPNHandler ConnectionHandler
 }
 
 type APIHandler struct {
@@ -202,6 +201,11 @@ type APIHandler struct {
 
 	// appHandler is a http.Handler to forward requests to applications.
 	appHandler *app.Handler
+}
+
+// ConnectionHandler is an interface for serving incoming connections.
+type ConnectionHandler interface {
+	HandleConnection(ctx context.Context, conn net.Conn) error
 }
 
 // Check if this request should be forwarded to an application handler to
