@@ -881,6 +881,12 @@ enter-root:
 enter/centos7:
 	make -C build.assets enter/centos7
 
+# Interactively enters a Docker container (which you can build and run Teleport Connect inside of).
+# Similar to `enter`, but uses the teleterm container.
+.PHONY:enter/teleterm
+enter/teleterm:
+	make -C build.assets enter/teleterm
+
 # grpc generates GRPC stubs from service definitions.
 # This target runs in the buildbox container.
 .PHONY: grpc

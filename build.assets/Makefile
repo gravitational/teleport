@@ -369,6 +369,14 @@ enter/centos7: buildbox
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_CENTOS7) /bin/bash
 
 #
+# Starts shell inside the teleterm container
+#
+.PHONY:enter/teleterm
+enter/teleterm: buildbox-teleterm
+	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
+		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_TELETERM) /bin/bash
+
+#
 # Create a Teleport package using the build container.
 # Don't use this target directly; call named Makefile targets like release-amd64.
 #
