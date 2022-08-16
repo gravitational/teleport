@@ -334,10 +334,8 @@ func ParseSAMLInResponseTo(response string) (string, error) {
 		return "", trace.BadParameter("unable to parse response")
 	}
 
-	// teleport only supports sending party initiated flows (Teleport sends an
-	// AuthnRequest to the IdP and gets a SAMLResponse from the IdP). identity
-	// provider initiated flows (where Teleport gets an unsolicited SAMLResponse
-	// from the IdP) are not supported.
+	// Try to find the InResponseTo attribute in the SAML response. If we can't find this, return
+	// a predictable error message so the caller can choose to interpret it as an IdP-initiated payload.
 	el := doc.Root()
 	responseTo := el.SelectAttr("InResponseTo")
 	if responseTo == nil {
