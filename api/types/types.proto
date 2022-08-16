@@ -379,15 +379,15 @@ message Azure {
 // e.g.
 // /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}
 message AzureResourceID {
-    // TODO(gavin)
+    // SubscriptionID is the ID of the Azure subcription.
     string SubscriptionID = 1 [ (gogoproto.jsontag) = "subscription_id,omitempty" ];
-    // TODO(gavin)
+    // ResourceGroup is the name of the Azure resource group.
     string ResourceGroup = 2 [ (gogoproto.jsontag) = "resource_group,omitempty" ];
-    // TODO(gavin)
+    // ProviderNamespace is the Azure namespace, e.g. "Microsoft.DBforMySQL"
     string ProviderNamespace = 3 [ (gogoproto.jsontag) = "provider_namespace,omitempty" ];
-    // TODO(gavin)
+    // ResourceType is the type of the resource, e.g. "servers"
     string ResourceType = 4 [ (gogoproto.jsontag) = "resource_type,omitempty" ];
-    // TODO(gavin)
+    // ResourceName is the name of the resource
     string ResourceName = 5 [ (gogoproto.jsontag) = "resource_name,omitempty" ];
 }
 

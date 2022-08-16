@@ -1387,15 +1387,15 @@ var xxx_messageInfo_Azure proto.InternalMessageInfo
 // e.g.
 // /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}
 type AzureResourceID struct {
-	// TODO(gavin)
+	// SubscriptionID is the ID of the Azure subcription.
 	SubscriptionID string `protobuf:"bytes,1,opt,name=SubscriptionID,proto3" json:"subscription_id,omitempty"`
-	// TODO(gavin)
+	// ResourceGroup is the name of the Azure resource group.
 	ResourceGroup string `protobuf:"bytes,2,opt,name=ResourceGroup,proto3" json:"resource_group,omitempty"`
-	// TODO(gavin)
+	// ProviderNamespace is the Azure namespace, e.g. "Microsoft.DBforMySQL"
 	ProviderNamespace string `protobuf:"bytes,3,opt,name=ProviderNamespace,proto3" json:"provider_namespace,omitempty"`
-	// TODO(gavin)
+	// ResourceType is the type of the resource, e.g. "servers"
 	ResourceType string `protobuf:"bytes,4,opt,name=ResourceType,proto3" json:"resource_type,omitempty"`
-	// TODO(gavin)
+	// ResourceName is the name of the resource
 	ResourceName         string   `protobuf:"bytes,5,opt,name=ResourceName,proto3" json:"resource_name,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
