@@ -817,13 +817,17 @@ func SearchSessionRange(clock clockwork.Clock, fromUTC, toUTC, recordingsSince s
 		from = to.Add(-since)
 	}
 
-	if from.After(to) {
-		return time.Time{}, time.Time{},
-			trace.BadParameter("invalid '--from-utc' time: 'from' must be before '--to-utc'")
-	}
 	if to.After(clock.Now()) {
 		return time.Time{}, time.Time{},
 			trace.BadParameter("invalid '--to-utc': '--to-utc' cannot be in the future")
+	}
+	if from.After(clock.Now()) {
+		return time.Time{}, time.Time{},
+			trace.BadParameter("invalid '--from-utc': '--from-utc' cannot be in the future")
+	}
+	if from.After(to) {
+		return time.Time{}, time.Time{},
+			trace.BadParameter("invalid '--from-utc' time: 'from' must be before '--to-utc'")
 	}
 	return from, to, nil
 }
