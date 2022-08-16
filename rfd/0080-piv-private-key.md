@@ -180,7 +180,7 @@ service AuthService {
 message GetPrivateKeyRequirementRequest {}
 
 message GetPrivateKeyRequirementResponse {
-    PrivateKeyRequirements PrivateKeyRequirements = 1;
+    PrivateKeyRequirements private_key_requirements = 1;
 }
 
 message PrivateKeyRequirements {
