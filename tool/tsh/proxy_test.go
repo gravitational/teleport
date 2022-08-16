@@ -18,6 +18,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -82,7 +83,9 @@ func TestSSH(t *testing.T) {
 
 func testRootClusterSSHAccess(t *testing.T, s *suite) {
 	tshHome := mustLogin(t, s)
-	err := Run([]string{
+	ctx := context.Background()
+
+	err := Run(ctx, []string{
 		"ssh",
 		s.root.Config.Hostname,
 		"echo", "hello",
@@ -90,7 +93,7 @@ func testRootClusterSSHAccess(t *testing.T, s *suite) {
 	require.NoError(t, err)
 
 	identityFile := mustLoginIdentity(t, s)
-	err = Run([]string{
+	err = Run(ctx, []string{
 		"--proxy", s.root.Config.Proxy.WebAddr.String(),
 		"--insecure",
 		"-i", identityFile,
@@ -103,8 +106,9 @@ func testRootClusterSSHAccess(t *testing.T, s *suite) {
 
 func testLeafClusterSSHAccess(t *testing.T, s *suite) {
 	tshHome := mustLogin(t, s, s.leaf.Config.Auth.ClusterName.GetClusterName())
+	ctx := context.Background()
 	require.Eventually(t, func() bool {
-		err := Run([]string{
+		err := Run(ctx, []string{
 			"ssh",
 			s.leaf.Config.Hostname,
 			"echo", "hello",
@@ -113,7 +117,7 @@ func testLeafClusterSSHAccess(t *testing.T, s *suite) {
 	}, 5*time.Second, time.Second)
 
 	identityFile := mustLoginIdentity(t, s)
-	err := Run([]string{
+	err := Run(ctx, []string{
 		"--proxy", s.root.Config.Proxy.WebAddr.String(),
 		"--insecure",
 		"-i", identityFile,
@@ -128,9 +132,9 @@ func testLeafClusterSSHAccess(t *testing.T, s *suite) {
 func testJumpHostSSHAccess(t *testing.T, s *suite) {
 	// login to root
 	tshHome := mustLogin(t, s, s.root.Config.Auth.ClusterName.GetClusterName())
-
+	ctx := context.Background()
 	// Switch to leaf cluster
-	err := Run([]string{
+	err := Run(ctx, []string{
 		"login",
 		"--insecure",
 		s.leaf.Config.Auth.ClusterName.GetClusterName(),
@@ -138,7 +142,7 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 	require.NoError(t, err)
 
 	// Connect to leaf node though jump host set to leaf proxy SSH port.
-	err = Run([]string{
+	err = Run(ctx, []string{
 		"ssh",
 		"--insecure",
 		"-J", s.leaf.Config.Proxy.SSHAddr.Addr,
@@ -149,7 +153,7 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 
 	t.Run("root cluster online", func(t *testing.T) {
 		// Connect to leaf node though jump host set to proxy web port where TLS Routing is enabled.
-		err = Run([]string{
+		err = Run(ctx, []string{
 			"ssh",
 			"--insecure",
 			"-J", s.leaf.Config.Proxy.WebAddr.Addr,
@@ -165,7 +169,7 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 		require.NoError(t, err)
 
 		// Check JumpHost flow when root cluster is offline.
-		err = Run([]string{
+		err = Run(ctx, []string{
 			"ssh",
 			"--insecure",
 			"-J", s.leaf.Config.Proxy.WebAddr.Addr,
@@ -212,7 +216,7 @@ func TestProxySSH(t *testing.T) {
 				s.root.Config.SSH.Addr.Port(defaults.SSHServerListenPort))
 
 			runProxySSH := func(proxyRequest string, opts ...cliOption) error {
-				return Run([]string{
+				return Run(context.Background(), []string{
 					"--insecure",
 					"--proxy", s.root.Config.Proxy.WebAddr.Addr,
 					"proxy", "ssh", proxyRequest,
@@ -417,7 +421,7 @@ func mustLogin(t *testing.T, s *suite, args ...string) string {
 		"--debug",
 		"--proxy", s.root.Config.Proxy.WebAddr.String(),
 	}, args...)
-	err := Run(args, setMockSSOLogin(t, s), setHomePath(tshHome))
+	err := Run(context.Background(), args, setMockSSOLogin(t, s), setHomePath(tshHome))
 	require.NoError(t, err)
 	return tshHome
 }
@@ -434,7 +438,7 @@ func mustLoginSetEnv(t *testing.T, s *suite, args ...string) string {
 		"--debug",
 		"--proxy", s.root.Config.Proxy.WebAddr.String(),
 	}, args...)
-	err := Run(args, setMockSSOLogin(t, s), setHomePath(tshHome))
+	err := Run(context.Background(), args, setMockSSOLogin(t, s), setHomePath(tshHome))
 	require.NoError(t, err)
 	return tshHome
 }
@@ -447,7 +451,7 @@ func mustLoginIdentity(t *testing.T, s *suite, opts ...cliOption) string {
 
 func mustGetOpenSSHConfigFile(t *testing.T) string {
 	var buff bytes.Buffer
-	err := Run([]string{
+	err := Run(context.Background(), []string{
 		"config",
 	}, func(cf *CLIConf) error {
 		cf.overrideStdout = &buff

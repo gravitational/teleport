@@ -37,11 +37,6 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
-
-	"github.com/stretchr/testify/require"
-
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -56,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -64,11 +60,13 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
-	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
+	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 )
 
 const (
@@ -415,7 +413,7 @@ func SetupUserCreds(tc *client.TeleportClient, proxyHost string, creds UserCreds
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = tc.AddTrustedCA(creds.HostCA)
+	err = tc.AddTrustedCA(context.Background(), creds.HostCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -733,7 +731,7 @@ func (i *TeleInstance) startNode(tconf *service.Config, authPort string) (*servi
 
 	authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, authPort))
 	tconf.AuthServers = append(tconf.AuthServers, *authServer)
-	tconf.Token = "token"
+	tconf.SetToken("token")
 	tconf.UploadEventsC = i.UploadEventsC
 	tconf.CachePolicy = service.CachePolicy{
 		Enabled: true,
@@ -790,7 +788,7 @@ func (i *TeleInstance) StartApp(conf *service.Config) (*service.TeleportProcess,
 			Addr:        net.JoinHostPort(Loopback, i.GetPortWeb()),
 		},
 	}
-	conf.Token = "token"
+	conf.SetToken("token")
 	conf.UploadEventsC = i.UploadEventsC
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
@@ -842,7 +840,7 @@ func (i *TeleInstance) StartApps(configs []*service.Config) ([]*service.Teleport
 					Addr:        net.JoinHostPort(Loopback, i.GetPortWeb()),
 				},
 			}
-			cfg.Token = "token"
+			cfg.SetToken("token")
 			cfg.UploadEventsC = i.UploadEventsC
 			cfg.Auth.Enabled = false
 			cfg.Proxy.Enabled = false
@@ -906,7 +904,7 @@ func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportPro
 			Addr:        net.JoinHostPort(Loopback, i.GetPortWeb()),
 		},
 	}
-	conf.Token = "token"
+	conf.SetToken("token")
 	conf.UploadEventsC = i.UploadEventsC
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
@@ -969,7 +967,7 @@ func (i *TeleInstance) StartKube(conf *service.Config, clusterName string) (*ser
 			Addr:        net.JoinHostPort(Loopback, i.GetPortWeb()),
 		},
 	}
-	conf.Token = "token"
+	conf.SetToken("token")
 	conf.UploadEventsC = i.UploadEventsC
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
@@ -1018,7 +1016,7 @@ func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, pro
 	tconf.Log = i.log
 	authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, i.GetPortAuth()))
 	tconf.AuthServers = append(tconf.AuthServers, *authServer)
-	tconf.Token = "token"
+	tconf.SetToken("token")
 	tconf.HostUUID = name
 	tconf.Hostname = name
 	tconf.UploadEventsC = i.UploadEventsC
@@ -1110,7 +1108,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error)
 	tconf.UploadEventsC = i.UploadEventsC
 	tconf.HostUUID = cfg.Name
 	tconf.Hostname = cfg.Name
-	tconf.Token = "token"
+	tconf.SetToken("token")
 
 	tconf.Auth.Enabled = false
 
@@ -1363,6 +1361,7 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		Interactive:           cfg.Interactive,
 		TLSRoutingEnabled:     i.isSinglePortSetup,
 		EnableEscapeSequences: cfg.EnableEscapeSequences,
+		Tracer:                tracing.NoopProvider().Tracer("test"),
 	}
 
 	// JumpHost turns on jump host mode
@@ -1404,7 +1403,7 @@ func (i *TeleInstance) NewClient(cfg ClientConfig) (*client.TeleportClient, erro
 		return nil, trace.Wrap(err)
 	}
 	for _, ca := range cas {
-		err = tc.AddTrustedCA(ca)
+		err = tc.AddTrustedCA(context.Background(), ca)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1497,12 +1496,6 @@ func (i *TeleInstance) StopAll() error {
 }
 
 func startAndWait(process *service.TeleportProcess, expectedEvents []string) ([]service.Event, error) {
-	// register to listen for all ready events on the broadcast channel
-	broadcastCh := make(chan service.Event)
-	for _, eventName := range expectedEvents {
-		process.WaitForEvent(context.TODO(), eventName, broadcastCh)
-	}
-
 	// start the process
 	err := process.Start()
 	if err != nil {
@@ -1511,17 +1504,18 @@ func startAndWait(process *service.TeleportProcess, expectedEvents []string) ([]
 
 	// wait for all events to arrive or a timeout. if all the expected events
 	// from above are not received, this instance will not start
-	receivedEvents := []service.Event{}
-	timeoutCh := time.After(10 * time.Second)
-
-	for idx := 0; idx < len(expectedEvents); idx++ {
-		select {
-		case e := <-broadcastCh:
-			receivedEvents = append(receivedEvents, e)
-		case <-timeoutCh:
-			return nil, trace.BadParameter("timed out, only %v/%v events received. received: %v, expected: %v",
-				len(receivedEvents), len(expectedEvents), receivedEvents, expectedEvents)
+	receivedEvents := make([]service.Event, 0, len(expectedEvents))
+	ctx, cancel := context.WithTimeout(process.ExitContext(), 10*time.Second)
+	defer cancel()
+	for _, eventName := range expectedEvents {
+		if event, err := process.WaitForEvent(ctx, eventName); err == nil {
+			receivedEvents = append(receivedEvents, event)
 		}
+	}
+
+	if len(receivedEvents) < len(expectedEvents) {
+		return nil, trace.BadParameter("timed out, only %v/%v events received. received: %v, expected: %v",
+			len(receivedEvents), len(expectedEvents), receivedEvents, expectedEvents)
 	}
 
 	// Not all services follow a non-blocking Start/Wait pattern. This means a

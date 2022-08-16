@@ -606,6 +606,14 @@
           "slug": "/machine-id/getting-started/"
         },
         {
+          "title": "Troubleshooting",
+          "slug": "/machine-id/troubleshooting/"
+        },
+        {
+          "title": "FAQ",
+          "slug": "/machine-id/faq/"
+        },
+        {
           "title": "Reference",
           "slug": "/machine-id/reference/",
           "entries": [
@@ -863,10 +871,6 @@
           "slug": "/architecture/proxy/"
         },
         {
-          "title": "Trusted Clusters",
-          "slug": "/trustedclusters/"
-        },
-        {
           "title": "TLS Routing",
           "slug": "/architecture/tls-routing/"
         }
@@ -921,10 +925,10 @@
       "control_url": "https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control?version=5.1&number="
     },
     "soc2": {
-      "last_report": "April 12th, 2021"
+      "last_report": "August 9th, 2022"
     },
     "cloud": {
-      "version": "9.3.10",
+      "version": "9.3.14",
       "sla": {
         "monthly_percentage": "99.5%",
         "monthly_downtime": "3 hours 40 minutes"
@@ -1136,11 +1140,6 @@
       "permanent": true
     },
     {
-      "source": "/enterprise/sso/ssh-gsuite/",
-      "destination": "/enterprise/sso/ssh-google-workspace/",
-      "permanent": true
-    },
-    {
       "source": "/features/enhanced-session-recording/",
       "destination": "/server-access/guides/bpf-session-recording/",
       "permanent": true
@@ -1237,17 +1236,17 @@
     },
     {
       "source": "/docs/kubernetes-access/getting-started/agent/",
-      "destination": "/docs/kubernetes-access/getting-started/",
+      "destination": "/kubernetes-access/getting-started/",
       "permanent": true
     },
     {
       "source": "/docs/kubernetes-access/getting-started/cluster/",
-      "destination": "/docs/getting-started/kubernetes-cluster/",
+      "destination": "/getting-started/kubernetes-cluster/",
       "permanent": true
     },
     {
       "source": "/docs/kubernetes-access/getting-started/local/",
-      "destination": "/docs/getting-started/local-kubernetes/",
+      "destination": "/getting-started/local-kubernetes/",
       "permanent": true
     },
     {
