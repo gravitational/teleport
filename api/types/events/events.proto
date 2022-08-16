@@ -2562,7 +2562,7 @@ message SessionRecordingAccess {
     // Metadata is a common event metadata.
     Metadata Metadata = 1
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
-    // SessionID is the ID of the application session.
+    // SessionID is the ID of the session.
     string SessionID = 2 [ (gogoproto.jsontag) = "sid" ];
     // UserMetadata is a common user event metadata.
     UserMetadata UserMetadata = 3
