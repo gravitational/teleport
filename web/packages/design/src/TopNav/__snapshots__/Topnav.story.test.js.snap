@@ -28,8 +28,7 @@ exports[`rendering of TopNav and TopNavItem 1`] = `
   text-decoration: none;
 }
 
-.c1:hover,
-.c1:focus {
+.c1:hover {
   background: rgba(255,255,255,.06);
 }
 
@@ -67,8 +66,7 @@ exports[`rendering of TopNav and TopNavItem 1`] = `
   max-width: 250px;
 }
 
-.c2:hover,
-.c2:focus {
+.c2:hover {
   background: rgba(255,255,255,.06);
 }
 

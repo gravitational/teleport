@@ -50,17 +50,17 @@ export function SideNav(props: ReturnType<typeof useSideNav>) {
 
   return (
     <Nav>
-      <LogoItem pl="4" width="208px" as={Link} to={cfg.routes.root}>
-        <Image src={logoSvg} mx="3" maxHeight="24px" maxWidth="160px" />
-      </LogoItem>
-      <div
-        style={{ display: 'flex', flexDirection: 'column', overflow: 'auto' }}
-      >
-        {$items}
-      </div>
+      <Logo />
+      <Content>{$items}</Content>
     </Nav>
   );
 }
+
+export const Logo = () => (
+  <LogoItem pl="4" width="208px" as={Link} to={cfg.routes.root}>
+    <Image src={logoSvg} mx="3" maxHeight="24px" maxWidth="160px" />
+  </LogoItem>
+);
 
 const LogoItem = styled(Flex)(
   props => `
@@ -77,7 +77,7 @@ const LogoItem = styled(Flex)(
 `
 );
 
-const Nav = styled.nav`
+export const Nav = styled.nav`
   background: ${props => props.theme.colors.primary.light};
   border-right: 1px solid ${props => props.theme.colors.primary.dark};
   min-width: 240px;
@@ -86,4 +86,10 @@ const Nav = styled.nav`
   height: 100%;
   display: flex;
   flex-direction: column;
+`;
+
+export const Content = styled.div`
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
 `;

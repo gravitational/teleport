@@ -17,12 +17,15 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import styled from 'styled-components';
-import { Flex, ButtonPrimary, Text, Box, Image, Indicator } from 'design';
+import { Flex, ButtonPrimary, Text, Box, Indicator } from 'design';
 import TopNavUserMenu from 'design/TopNav/TopNavUserMenu';
 import { Danger } from 'design/Alert';
 import * as Icons from 'design/Icon';
 import { MenuItem, MenuItemIcon } from 'shared/components/MenuAction';
-import logoSvg from 'design/assets/images/teleport-logo.svg';
+
+import * as main from 'teleport/Main';
+import * as sideNav from 'teleport/SideNav';
+import { FeatureBox } from 'teleport/components/Layout';
 
 import cfg from 'teleport/config';
 
@@ -70,27 +73,23 @@ export function Discover({
   return (
     <MainContainer>
       {initAttempt.status === 'processing' && (
-        <Box textAlign="center" m={10}>
+        <main.StyledIndicator>
           <Indicator />
-        </Box>
+        </main.StyledIndicator>
       )}
       {initAttempt.status === 'failed' && (
         <Danger>{initAttempt.statusText}</Danger>
       )}
       {initAttempt.status === 'success' && (
-        <Flex>
-          <Flex>
-            <SideNavAgentConnect currentStep={currentStep} />
-          </Flex>
-          <Flex flexWrap="wrap">
-            <Box style={{ width: '100%' }}>
-              <TopBar onLogout={logout} username={username} />
-            </Box>
-            <Box width="100%" height="100%" minWidth="0" pl={5} pt={5}>
+        <>
+          <SideNavAgentConnect currentStep={currentStep} />
+          <main.HorizontalSplit>
+            <TopBar onLogout={logout} username={username} />
+            <FeatureBox pt={4}>
               {AgentComponent && <AgentComponent {...agentProps} />}
-            </Box>
-          </Flex>
-        </Flex>
+            </FeatureBox>
+          </main.HorizontalSplit>
+        </>
       )}
     </MainContainer>
   );
@@ -157,53 +156,55 @@ function SideNavAgentConnect({ currentStep }) {
   ];
 
   return (
-    <SideNavContainer>
-      <Image src={logoSvg} width="141px" mb="6" />
-      <Box
-        border="1px solid rgba(255,255,255,0.1);"
-        borderRadius="8px"
-        css={{ backgroundColor: 'rgba(255,255,255,0.02);' }}
-        p={4}
-      >
-        <Flex alignItems="center">
-          <Flex
-            borderRadius={5}
-            alignItems="center"
-            justifyContent="center"
-            bg="secondary.main"
-            height="30px"
-            width="30px"
-            mr={2}
-          >
-            <Icons.Database />
+    <StyledNav>
+      <sideNav.Logo />
+      <StyledNavContent>
+        <Box
+          border="1px solid rgba(255,255,255,0.1);"
+          borderRadius="8px"
+          css={{ backgroundColor: 'rgba(255,255,255,0.02);' }}
+          p={4}
+        >
+          <Flex alignItems="center">
+            <Flex
+              borderRadius={5}
+              alignItems="center"
+              justifyContent="center"
+              bg="secondary.main"
+              height="30px"
+              width="30px"
+              mr={2}
+            >
+              <Icons.Database />
+            </Flex>
+            <Text bold>Resource Connection</Text>
           </Flex>
-          <Text bold>Resource Connection</Text>
-        </Flex>
-        <Box ml={4} mt={4}>
-          {agentStepTitles.map((stepTitle, index) => {
-            let className = '';
-            if (currentStep > index) {
-              className = 'checked';
-            } else if (currentStep === index) {
-              className = 'active';
-            }
+          <Box ml={4} mt={4}>
+            {agentStepTitles.map((stepTitle, index) => {
+              let className = '';
+              if (currentStep > index) {
+                className = 'checked';
+              } else if (currentStep === index) {
+                className = 'active';
+              }
 
-            // All flows will have a finished step that
-            // does not have a title.
-            if (!stepTitle) {
-              return null;
-            }
+              // All flows will have a finished step that
+              // does not have a title.
+              if (!stepTitle) {
+                return null;
+              }
 
-            return (
-              <StepsContainer className={className} key={stepTitle}>
-                <Bullet />
-                {stepTitle}
-              </StepsContainer>
-            );
-          })}
+              return (
+                <StepsContainer className={className} key={stepTitle}>
+                  <Bullet />
+                  {stepTitle}
+                </StepsContainer>
+              );
+            })}
+          </Box>
         </Box>
-      </Box>
-    </SideNavContainer>
+      </StyledNavContent>
+    </StyledNav>
   );
 }
 
@@ -251,17 +252,21 @@ const StepsContainer = styled(Text)`
   }
 `;
 
-const SideNavContainer = styled.nav`
-  background-color: ${props => props.theme.colors.primary.light};
-  box-sizing: border-box;
-  width: 348px;
-  padding: 22px 32px;
+const StyledNav = styled(sideNav.Nav)`
+  min-width: 350px;
+  width: 350px;
 `;
 
-export const MainContainer = styled.div`
-  display: flex;
-  width: 100%;
-  height: 100%;
-  position: absolute;
-  min-width: 1000px;
+const StyledNavContent = styled(sideNav.Content)`
+  padding: 20px 32px 32px 32px;
+`;
+
+// TODO (lisa) we should look into reducing this width.
+// Any smaller than this will produce a double stacked horizontal scrollbar
+// making navigation harder.
+//
+// Our SelectResource component is the widest and can use some space
+// tightening. Also look into shrinking the side nav if possible.
+const MainContainer = styled(main.MainContainer)`
+  min-width: 1460px;
 `;

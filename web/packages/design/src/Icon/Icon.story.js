@@ -44,6 +44,7 @@ export const ListOfIcons = () => (
     <IconBox IconCmpt={Icon.ArrowUp} text="ArrowUp" />
     <IconBox IconCmpt={Icon.AlarmRing} text="AlarmRing" />
     <IconBox IconCmpt={Icon.BagDollar} text="BagDollar" />
+    <IconBox IconCmpt={Icon.OpenBox} text="OpenBox" />
     <IconBox IconCmpt={Icon.Bubble} text="Bubble" />
     <IconBox IconCmpt={Icon.Camera} text="Camera" />
     <IconBox IconCmpt={Icon.CardView} text="CardView" />

@@ -1,7 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`rendering of SideNav 1`] = `
-.c5 {
+.c6 {
   display: inline-block;
   transition: color 0.3s;
   margin-left: -40px;
@@ -10,7 +10,7 @@ exports[`rendering of SideNav 1`] = `
   font-size: 16px;
 }
 
-.c8 {
+.c9 {
   display: inline-block;
   transition: color 0.3s;
   margin-left: auto;
@@ -18,7 +18,7 @@ exports[`rendering of SideNav 1`] = `
   color: inherit;
 }
 
-.c12 {
+.c13 {
   display: inline-block;
   transition: color 0.3s;
   margin-left: -40px;
@@ -44,7 +44,7 @@ exports[`rendering of SideNav 1`] = `
   max-height: 24px;
 }
 
-.c6 {
+.c7 {
   display: inline-block;
   transition: color 0.3s;
   margin-left: -40px;
@@ -53,7 +53,7 @@ exports[`rendering of SideNav 1`] = `
   font-size: 16px;
 }
 
-.c13 {
+.c14 {
   display: inline-block;
   transition: color 0.3s;
   margin-left: -40px;
@@ -62,7 +62,7 @@ exports[`rendering of SideNav 1`] = `
   font-size: 14px;
 }
 
-.c4 {
+.c5 {
   box-sizing: border-box;
   display: flex;
   align-items: center;
@@ -85,29 +85,29 @@ exports[`rendering of SideNav 1`] = `
   min-height: 56px;
 }
 
-.c4:active,
-.c4.active {
+.c5:active,
+.c5.active {
   border-left-color: #651FFF;
   background: #2C3A73;
   color: #FFFFFF;
   font-weight: 600;
 }
 
-.c4:active .marker,
-.c4.active .marker {
+.c5:active .marker,
+.c5.active .marker {
   background: #651FFF;
 }
 
-.c4:hover {
+.c5:hover {
   background: #2C3A73;
 }
 
-.c4:focus,
-.c4:hover {
+.c5:focus,
+.c5:hover {
   color: #FFFFFF;
 }
 
-.c10 {
+.c11 {
   box-sizing: border-box;
   display: flex;
   align-items: center;
@@ -130,33 +130,33 @@ exports[`rendering of SideNav 1`] = `
   min-height: 40px;
 }
 
-.c10:active,
-.c10.active {
+.c11:active,
+.c11.active {
   border-left-color: none;
   background: #2C3A73;
   color: #FFFFFF;
   font-weight: 600;
 }
 
-.c10:active .marker,
-.c10.active .marker {
+.c11:active .marker,
+.c11.active .marker {
   background: #651FFF;
 }
 
-.c10:hover {
+.c11:hover {
   background: #2C3A73;
 }
 
-.c10:focus,
-.c10:hover {
+.c11:focus,
+.c11:hover {
   color: #FFFFFF;
 }
 
-.c9 {
+.c10 {
   background: linefar-gradient(140deg,#2C3A73,#222C59);
 }
 
-.c11 {
+.c12 {
   height: 8px;
   width: 8px;
   position: absolute;
@@ -164,7 +164,7 @@ exports[`rendering of SideNav 1`] = `
   left: 26px;
 }
 
-.c7 {
+.c8 {
   margin: 0;
   box-sizing: border-box;
   display: flex;
@@ -187,22 +187,22 @@ exports[`rendering of SideNav 1`] = `
   min-height: 56px;
 }
 
-.c7.active {
+.c8.active {
   border-left-color: #651FFF;
   background: #2C3A73;
   color: #FFFFFF;
 }
 
-.c7.active .marker {
+.c8.active .marker {
   background: #651FFF;
 }
 
-.c7:hover {
+.c8:hover {
   background: #2C3A73;
 }
 
-.c7:hover,
-.c7:focus {
+.c8:hover,
+.c8:focus {
   color: #FFFFFF;
 }
 
@@ -235,6 +235,12 @@ exports[`rendering of SideNav 1`] = `
   flex-direction: column;
 }
 
+.c4 {
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
 <div
   class="c0"
   height="100%"
@@ -256,69 +262,69 @@ exports[`rendering of SideNav 1`] = `
       />
     </a>
     <div
-      style="display: flex; flex-direction: column; overflow: auto;"
+      class="c4"
     >
       <a
-        class="c4"
+        class="c5"
         href="/web/cluster/one/nodes"
       >
         <span
-          class="c5 icon icon-server sc-AxjAm c6"
+          class="c6 icon icon-server sc-AxjAm c7"
           color="inherit"
           font-size="16px"
         />
         Servers
       </a>
       <a
-        class="c4"
+        class="c5"
         href="/web/cluster/one/apps"
       >
         <span
-          class="c5 icon icon-new-tab sc-AxjAm c6"
+          class="c6 icon icon-new-tab sc-AxjAm c7"
           color="inherit"
           font-size="16px"
         />
         Applications
       </a>
       <a
-        class="c4"
+        class="c5"
         href="/web/cluster/one/kubes"
       >
         <span
-          class="c5 icon icon-kubernetes sc-AxjAm c6"
+          class="c6 icon icon-kubernetes sc-AxjAm c7"
           color="inherit"
           font-size="16px"
         />
         Kubernetes
       </a>
       <button
-        class="c7 actives"
+        class="c8 actives"
       >
         <span
-          class="c5 icon icon-users2 sc-AxjAm c6"
+          class="c6 icon icon-users2 sc-AxjAm c7"
           color="inherit"
           font-size="16px"
         />
         Team
         <span
-          class="c8 icon icon-chevron-down "
+          class="c9 icon icon-chevron-down "
           color="inherit"
           style="font-size: 14px;"
         />
       </button>
       <div
-        class="c9"
+        class="c10"
         style="display: block;"
       >
         <a
-          class="c10"
+          class="c11"
           href="/web/users"
         >
           <div
-            class="c11 marker"
+            class="c12 marker"
           />
           <span
-            class="c12 icon icon-users2 sc-AxjAm c13"
+            class="c13 icon icon-users2 sc-AxjAm c14"
             color="inherit"
             font-size="2"
           />
@@ -326,28 +332,28 @@ exports[`rendering of SideNav 1`] = `
         </a>
         <a
           aria-current="page"
-          class="c10 active"
+          class="c11 active"
           href="/web/roles"
         >
           <div
-            class="c11 marker"
+            class="c12 marker"
           />
           <span
-            class="c12 icon icon-profile sc-AxjAm c13"
+            class="c13 icon icon-profile sc-AxjAm c14"
             color="inherit"
             font-size="2"
           />
           Roles
         </a>
         <a
-          class="c10"
+          class="c11"
           href="/web/sso"
         >
           <div
-            class="c11 marker"
+            class="c12 marker"
           />
           <span
-            class="c12 icon icon-lock sc-AxjAm c13"
+            class="c13 icon icon-lock sc-AxjAm c14"
             color="inherit"
             font-size="2"
           />
@@ -355,61 +361,61 @@ exports[`rendering of SideNav 1`] = `
         </a>
       </div>
       <button
-        class="c7"
+        class="c8"
       >
         <span
-          class="c5 icon icon-alarm-ringing sc-AxjAm c6"
+          class="c6 icon icon-alarm-ringing sc-AxjAm c7"
           color="inherit"
           font-size="16px"
         />
         Activity
         <span
-          class="c8 icon icon-chevron-right "
+          class="c9 icon icon-chevron-right "
           color="inherit"
           style="font-size: 14px;"
         />
       </button>
       <div
-        class="c9"
+        class="c10"
         style="display: none;"
       >
         <a
-          class="c10"
+          class="c11"
           href="/web/cluster/one/sessions"
         >
           <div
-            class="c11 marker"
+            class="c12 marker"
           />
           <span
-            class="c12 icon icon-cli sc-AxjAm c13"
+            class="c13 icon icon-cli sc-AxjAm c14"
             color="inherit"
             font-size="2"
           />
           Active Sessions
         </a>
         <a
-          class="c10"
+          class="c11"
           href="/web/cluster/one/recordings"
         >
           <div
-            class="c11 marker"
+            class="c12 marker"
           />
           <span
-            class="c12 icon icon-play-circle sc-AxjAm c13"
+            class="c13 icon icon-play-circle sc-AxjAm c14"
             color="inherit"
             font-size="2"
           />
           Session Recordings
         </a>
         <a
-          class="c10"
+          class="c11"
           href="/web/cluster/one/audit"
         >
           <div
-            class="c11 marker"
+            class="c12 marker"
           />
           <span
-            class="c12 icon icon-list1 sc-AxjAm c13"
+            class="c13 icon icon-list1 sc-AxjAm c14"
             color="inherit"
             font-size="2"
           />
@@ -417,47 +423,47 @@ exports[`rendering of SideNav 1`] = `
         </a>
       </div>
       <button
-        class="c7"
+        class="c8"
       >
         <span
-          class="c5 icon icon-icons2 sc-AxjAm c6"
+          class="c6 icon icon-icons2 sc-AxjAm c7"
           color="inherit"
           font-size="16px"
         />
         Clusters
         <span
-          class="c8 icon icon-chevron-right "
+          class="c9 icon icon-chevron-right "
           color="inherit"
           style="font-size: 14px;"
         />
       </button>
       <div
-        class="c9"
+        class="c10"
         style="display: none;"
       >
         <a
-          class="c10"
+          class="c11"
           href="/web/clusters"
         >
           <div
-            class="c11 marker"
+            class="c12 marker"
           />
           <span
-            class="c12 icon icon-equalizer1 sc-AxjAm c13"
+            class="c13 icon icon-equalizer1 sc-AxjAm c14"
             color="inherit"
             font-size="2"
           />
           Manage Clusters
         </a>
         <a
-          class="c10"
+          class="c11"
           href="/web/trust"
         >
           <div
-            class="c11 marker"
+            class="c12 marker"
           />
           <span
-            class="c12 icon icon-site-map sc-AxjAm c13"
+            class="c13 icon icon-site-map sc-AxjAm c14"
             color="inherit"
             font-size="2"
           />
