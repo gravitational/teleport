@@ -186,6 +186,36 @@ Since trait transforms will be evaluated during login, they only need to be
 created in the root cluster and the transformed traits will be visible and
 usable in all leaf clusters.
 
+### Creating and modifying trait transforms
+
+Trait transforms will be a new backend resource.
+
+They should be written in a YAML file and created by the usual means of
+`tctl create resource.yaml`. `tctl get trait_transforms/example` can be used to
+fetch the current resource, and `tctl rm trait_transforms/example` can be used
+to delete the resource.
+
+### Validating and testing trait transforms
+
+A new `tctl` command will be introduced, which can be used to experiment with
+trait transforms and test what their effect will be before deploying them to
+your cluster.
+
+```bash
+$ tctl test trait_transform \
+  --load transform1.yaml \
+  --load transform2.yaml \
+  --load-from-cluster \
+  --input_traits '{"groups": ["splunk"], "email": "nic@goteleport.com", "username": "nklaassen"}'
+```
+
+You can load multiple yaml files with `--load resource.yaml`, optionally load
+existing trait transforms from the cluster with `--load-from-cluster`, and
+provide a set of input traits to test with.
+
+The command will report any syntax errors, and will print the output traits for
+the given input.
+
 ### Extra Examples
 
 Coming soon....
