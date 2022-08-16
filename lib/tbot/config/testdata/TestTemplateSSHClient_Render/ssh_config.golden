@@ -5,7 +5,7 @@
 Host *.black-mesa tele.blackmesa.gov
     UserKnownHostsFile "/test/dir/known_hosts"
     IdentityFile "/test/dir/key"
-    CertificateFile "/test/dir/sshcert"
+    CertificateFile "/test/dir/key-cert.pub"
     HostKeyAlgorithms ssh-rsa-cert-v01@openssh.com
     PubkeyAcceptedAlgorithms +ssh-rsa-cert-v01@openssh.com
 

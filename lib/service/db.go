@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func (process *TeleportProcess) shouldInitDatabases() bool {
@@ -74,6 +73,8 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		}
 	}
 
+	clusterName := conn.ServerIdentity.ClusterName
+
 	// Start uploader that will scan a path on disk and upload completed
 	// sessions to the auth server.
 	uploaderCfg := filesessions.UploaderConfig{
@@ -82,6 +83,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	}
 	completerCfg := events.UploadCompleterConfig{
 		SessionTracker: conn.Client,
+		ClusterName:    clusterName,
 	}
 	err = process.initUploaderService(uploaderCfg, completerCfg)
 	if err != nil {
@@ -146,8 +148,6 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		}
 		databases = append(databases, db)
 	}
-
-	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{

@@ -712,7 +712,7 @@ func ExtractFromIdentity(access UserGetter, identity tlsca.Identity) ([]string, 
 			return nil, nil, trace.Wrap(err)
 		}
 
-		log.Warnf("Failed to find roles or traits in x509 identity for %v. Fetching	"+
+		log.Warnf("Failed to find roles in x509 identity for %v. Fetching "+
 			"from backend. If the identity provider allows username changes, this can "+
 			"potentially allow an attacker to change the role of the existing user.",
 			identity.Username)
@@ -2098,8 +2098,8 @@ func (set RoleSet) DesktopClipboard() bool {
 }
 
 // DesktopDirectorySharing returns true if the role set has directory sharing
-// enabled. This setting is enabled if one or more of the roles in the set has
-// enabled it.
+// enabled. This setting is disabled if one or more of the roles in the set has
+// disabled it.
 func (set RoleSet) DesktopDirectorySharing() bool {
 	for _, role := range set {
 		if !types.BoolDefaultTrue(role.GetOptions().DesktopDirectorySharing) {

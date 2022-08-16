@@ -1935,9 +1935,9 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		cfg.PIDFile = clf.PIDFile
 	}
 
-	// apply --token flag:
-	if _, err := cfg.ApplyToken(clf.AuthToken); err != nil {
-		return trace.Wrap(err)
+	if clf.AuthToken != "" {
+		// store the value of the --token flag:
+		cfg.SetToken(clf.AuthToken)
 	}
 
 	// Apply flags used for the node to validate the Auth Server.
@@ -2125,17 +2125,16 @@ func splitRoles(roles string) []string {
 func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.AuthToken != "" {
 		cfg.JoinMethod = types.JoinMethodToken
-		_, err := cfg.ApplyToken(fc.AuthToken)
-		return trace.Wrap(err)
+		cfg.SetToken(fc.AuthToken)
 	}
+
 	if fc.JoinParams != (JoinParams{}) {
-		if cfg.Token != "" {
+		if cfg.HasToken() {
 			return trace.BadParameter("only one of auth_token or join_params should be set")
 		}
-		_, err := cfg.ApplyToken(fc.JoinParams.TokenName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+
+		cfg.SetToken(fc.JoinParams.TokenName)
+
 		switch fc.JoinParams.Method {
 		case types.JoinMethodEC2, types.JoinMethodIAM, types.JoinMethodToken:
 			cfg.JoinMethod = fc.JoinParams.Method
@@ -2143,5 +2142,6 @@ func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.BadParameter(`unknown value for join_params.method: %q, expected one of %v`, fc.JoinParams.Method, []types.JoinMethod{types.JoinMethodEC2, types.JoinMethodIAM, types.JoinMethodToken})
 		}
 	}
+
 	return nil
 }

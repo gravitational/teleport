@@ -198,6 +198,10 @@
           "slug": "/setup/guides/",
           "entries": [
             {
+              "title": "Kubernetes Operator (Preview)",
+              "slug": "/setup/guides/teleport-operator/"
+            },
+            {
               "title": "Terraform Provider",
               "slug": "/setup/guides/terraform-provider/"
             },
@@ -491,6 +495,10 @@
               "slug": "/database-access/guides/redis-aws/"
             },
             {
+              "title": "AWS DynamoDB",
+              "slug": "/database-access/guides/dynamodb/"
+            },
+            {
               "title": "GCP Cloud SQL PostgreSQL",
               "slug": "/database-access/guides/postgres-cloudsql/"
             },
@@ -675,16 +683,24 @@
           "slug": "/machine-id/guides/",
           "entries": [
             {
-              "title": "Machine ID with Ansible",
+              "title": "Ansible",
               "slug": "/machine-id/guides/ansible/"
             },
             {
-              "title": "Machine ID with Jenkins",
+              "title": "Jenkins",
               "slug": "/machine-id/guides/jenkins/"
             },
             {
-              "title": "Machine ID with Databases",
+              "title": "Databases",
               "slug": "/machine-id/guides/databases/"
+            },
+            {
+              "title": "Kubernetes",
+              "slug": "/machine-id/guides/kubernetes/"
+            },
+            {
+              "title": "Applications",
+              "slug": "/machine-id/guides/applications/"
             }
           ]
         }
@@ -703,7 +719,7 @@
           "slug": "/access-controls/getting-started/"
         },
         {
-          "title": "Guides",
+          "title": "Cluster Access and RBAC",
           "slug": "/access-controls/guides/",
           "entries": [
             {
@@ -742,6 +758,46 @@
             }
           ]
         },
+	{
+	    "title": "Access Requests",
+	    "slug": "/access-controls/access-requests/",
+	    "entries": [
+		{
+		    "title": "Role Requests",
+		    "slug":"/access-controls/access-requests/role-requests/"
+		},
+		{
+		    "title": "Resource Requests",
+		    "slug":"/access-controls/access-requests/resource-requests/"
+		}
+	    ]
+	},
+	{
+	    "title": "Access Request Plugins",
+	    "slug": "/access-controls/access-request-plugins/",
+	    "entries": [
+		{
+		    "title": "Mattermost",
+		    "slug":"/access-controls/access-request-plugins/ssh-approval-mattermost/"
+		},
+		{
+		    "title": "PagerDuty",
+		    "slug":"/access-controls/access-request-plugins/ssh-approval-pagerduty/"
+		},
+                {
+                    "title": "Jira Server",
+                    "slug":"/access-controls/access-request-plugins/ssh-approval-jira-server/"
+                },
+		{
+		    "title": "Jira Cloud",
+		    "slug":"/access-controls/access-request-plugins/ssh-approval-jira-cloud/"
+		},
+		{
+		    "title": "Slack",
+		    "slug":"/access-controls/access-request-plugins/ssh-approval-slack/"
+		}
+	    ]
+	},
         {
           "title": "Reference",
           "slug": "/access-controls/reference/"
@@ -832,22 +888,6 @@
               "title": "Okta",
               "slug": "/enterprise/sso/okta/",
               "forScopes": ["enterprise", "cloud"]
-            }
-          ]
-        },
-        {
-          "title": "Access Requests",
-          "slug": "/enterprise/workflow/",
-          "entries": [
-            {
-              "title": "Resource Access Requests",
-              "slug": "/enterprise/workflow/resource-requests/",
-              "forScopes": ["enterprise", "cloud"]
-            },
-            {
-              "title": "Role Access Requests",
-              "slug": "/enterprise/workflow/role-requests/",
-              "forScopes": ["oss", "enterprise", "cloud"]
             }
           ]
         },
@@ -984,10 +1024,11 @@
       "control_url": "https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/release-search#!/control?version=5.1&number="
     },
     "soc2": {
-      "last_report": "April 12th, 2021"
+      "last_report": "August 9th, 2022"
     },
     "cloud": {
-      "version": "9.3.10",
+      "version": "10.1.2",
+      "major_version": "10",
       "sla": {
         "monthly_percentage": "99.5%",
         "monthly_downtime": "3 hours 40 minutes"
@@ -1392,6 +1433,46 @@
       "source": "/setup/admin/graceful-restarts/",
       "destination": "/setup/admin/upgrading-the-teleport-binary/",
       "permanent": true
+    },
+    {
+       "source": "/enterprise/workflow/",
+       "destination": "/access-controls/access-requests/",
+       "permanent": true
+    },
+    {
+    	"source": "/enterprise/workflow/ssh-approval-mattermost/",
+    	"destination": "/access-controls/access-request-plugins/ssh-approval-mattermost/",
+    	"permanent": true
+    },
+    {
+    	"source": "/enterprise/workflow/ssh-approval-mattermost/",
+    	"destination": "/access-controls/access-request-plugins/ssh-approval-pagerduty/",
+    	"permanent": true
+    },
+    {
+    	"source": "/enterprise/workflow/ssh-approval-jira-server/",
+    	"destination": "/access-controls/access-request-plugins/ssh-approval-jira-server/",
+    	"permanent": true
+    },
+    {
+    	"source": "/enterprise/workflow/ssh-approval-jira-cloud/",
+    	"destination": "/access-controls/access-request-plugins/ssh-approval-jira-cloud/",
+    	"permanent": true
+    },
+    {
+    	"source": "/enterprise/workflow/ssh-approval-slack/",
+    	"destination": "/access-controls/access-request-plugins/ssh-approval-slack/",
+    	"permanent": true
+    },
+    {
+    	"source": "/enterprise/workflow/resource-requests/",
+    	"destination": "/access-controls/access-requests/resource-requests/",
+    	"permanent": true
+    },
+    {
+    	"source": "/enterprise/workflow/role-requests/",
+    	"destination": "/access-controls/access-requests/role-requests/",
+    	"permanent": true
     }
   ]
 }
