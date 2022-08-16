@@ -2104,3 +2104,29 @@ func TestEnforcerGetLicenseCheckResult(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, expected, heartbeat.Spec.Notifications)
 }
+
+func TestInstallerCRUD(t *testing.T) {
+	t.Parallel()
+	s := newAuthSuite(t)
+	ctx := context.Background()
+
+	var inst types.Installer
+	var err error
+	contents := "#! just some script contents"
+	inst, err = types.NewInstallerV1(contents)
+	require.NoError(t, err)
+
+	require.NoError(t, s.a.SetInstaller(ctx, inst))
+
+	inst, err = s.a.GetInstaller(ctx)
+	require.NoError(t, err)
+	require.Equal(t, contents, inst.GetScript())
+
+	// resets to the default installer
+	err = s.a.DeleteInstaller(ctx)
+	require.NoError(t, err)
+
+	_, err = s.a.GetInstaller(ctx)
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err))
+}

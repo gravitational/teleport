@@ -270,9 +270,33 @@ func TestGetCodeReviewers(t *testing.T) {
 			setA:   []string{"1", "2", "3"},
 			setB:   []string{"5"},
 		},
+		{
+			desc: "docs reviewers submitting code changes are treated as internal authors",
+			assignments: &Assignments{
+				c: &Config{
+					CodeReviewers: map[string]Reviewer{
+						"code-1": {Team: "Core", Owner: true},
+						"code-2": {Team: "Core", Owner: false},
+					},
+					DocsReviewers: map[string]Reviewer{
+						"docs-1": {Team: "Core", Owner: true},
+					},
+					Admins: []string{"code-1", "code-2"},
+				},
+			},
+			author: "docs-1",
+			setA:   []string{"code-1"},
+			setB:   []string{"code-2"},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
+			// We just want to validate that this test gets to the point where it's
+			// checking for approvals. This means the bot did not reject the PR
+			// as an external author.
+			require.ErrorContains(t, test.assignments.checkCodeReviews(test.author, nil),
+				"at least one approval required from each set")
+
 			setA, setB := test.assignments.getCodeReviewerSets(test.author)
 			require.ElementsMatch(t, setA, test.setA)
 			require.ElementsMatch(t, setB, test.setB)
