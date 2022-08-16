@@ -1,7 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { Box } from 'design';
-import { StyledMain } from 'teleport/Main';
+import { MainContainer } from 'teleport/Main';
 
 import useTeleport from 'e-teleport/useTeleportE';
 
@@ -41,7 +41,7 @@ export const Banner: React.FC = ({ children }) => {
 export default Banner;
 
 const BannersWrapper = styled(Box)`
-  ${StyledMain} {
+  ${MainContainer} {
     height: calc(100% - ${props => props.banners * 48}px);
   }
   min-width: 1000px;
