@@ -156,6 +156,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("ListResourcesAcrossClusters", suite.bind(testListResourcesAcrossClusters))
 	t.Run("SessionRecordingModes", suite.bind(testSessionRecordingModes))
 	t.Run("DifferentPinnedIP", suite.bind(testDifferentPinnedIP))
+	t.Run("JoinOverReverseTunnelOnly", suite.bind(testJoinOverReverseTunnelOnly))
 	t.Run("SFTP", suite.bind(testSFTP))
 	t.Run("EscapeSequenceTriggers", suite.bind(testEscapeSequenceTriggers))
 	t.Run("AuthLocalNodeControlStream", suite.bind(testAuthLocalNodeControlStream))
@@ -6613,6 +6614,36 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 			require.ElementsMatch(t, test.expected, clusters)
 		})
 	}
+}
+
+func testJoinOverReverseTunnelOnly(t *testing.T, suite *integrationTestSuite) {
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	// Create a Teleport instance with Auth/Proxy.
+	mainConfig := suite.defaultServiceConfig()
+	mainConfig.Auth.Enabled = true
+
+	mainConfig.Proxy.Enabled = true
+	mainConfig.Proxy.DisableWebService = false
+	mainConfig.Proxy.DisableWebInterface = true
+
+	mainConfig.SSH.Enabled = false
+
+	main := suite.NewTeleportWithConfig(t, nil, nil, mainConfig)
+	t.Cleanup(func() { require.NoError(t, main.StopAll()) })
+
+	// Create a Teleport instance with a Node.
+	nodeConfig := suite.defaultServiceConfig()
+	nodeConfig.Hostname = Host
+	nodeConfig.SetToken("token")
+
+	nodeConfig.Auth.Enabled = false
+	nodeConfig.Proxy.Enabled = false
+	nodeConfig.SSH.Enabled = true
+
+	_, err := main.StartNodeWithTargetPort(nodeConfig, helpers.PortStr(t, main.ReverseTunnel))
+	require.NoError(t, err, "Node failed to join over reverse tunnel")
 }
 
 func testSFTP(t *testing.T, suite *integrationTestSuite) {
