@@ -235,7 +235,7 @@ func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig
 		// reversetunnel.TunnelAuthDialer will take care of creating a net.Conn
 		// within an SSH tunnel.
 		dialer, err := reversetunnel.NewTunnelAuthDialer(reversetunnel.TunnelAuthDialerConfig{
-			Resolver:              reversetunnel.WebClientResolver(ctx, cfg.AuthServers, clientConfig.TLS.InsecureSkipVerify),
+			Resolver:              reversetunnel.WebClientResolver(cfg.AuthServers, clientConfig.TLS.InsecureSkipVerify),
 			ClientConfig:          clientConfig.SSH,
 			Log:                   cfg.Log,
 			InsecureSkipTLSVerify: clientConfig.TLS.InsecureSkipVerify,
