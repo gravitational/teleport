@@ -76,6 +76,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/conntest"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -3637,7 +3638,7 @@ func TestDiagnoseConnection(t *testing.T) {
 
 	createConnectionEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "diagnostics", "connections")
 
-	resp, err := pack.clt.PostJSON(ctx, createConnectionEndpoint, client.DiagnoseConnectionRequest{
+	resp, err := pack.clt.PostJSON(ctx, createConnectionEndpoint, conntest.TestConnectionRequest{
 		ResourceKind: "node",
 		ResourceName: "host1",
 		SSHPrincipal: username,

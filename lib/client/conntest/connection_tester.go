@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package client
+package conntest
 
 import (
 	"context"
@@ -24,25 +24,26 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// DiagnoseConnectionRequest contains
+// TestConnectionRequest contains
 // - the identification of the resource kind and resource name to test
 // - additional paramenters which depend on the actual kind of resource to test
 // As an example, for SSH Node it also includes the User/Principal that will be used to login.
-type DiagnoseConnectionRequest struct {
+type TestConnectionRequest struct {
 	ResourceKind string `json:"resource_kind"`
 	ResourceName string `json:"resource_name"`
 
-	// Specific to SSHTester
+	// SSHPrincipal is the Linux username to use in a connection test.
+	// Specific to SSHTester.
 	SSHPrincipal string `json:"ssh_principal,omitempty"`
 }
 
 // CheckAndSetDefaults validates the Request has the required fields.
-func (d *DiagnoseConnectionRequest) CheckAndSetDefaults() error {
-	if d.ResourceKind == "" {
+func (r *TestConnectionRequest) CheckAndSetDefaults() error {
+	if r.ResourceKind == "" {
 		return trace.BadParameter("missing required parameter ResourceKind")
 	}
 
-	if d.ResourceName == "" {
+	if r.ResourceName == "" {
 		return trace.BadParameter("missing required parameter ResourceName")
 	}
 
@@ -60,7 +61,7 @@ type ConnectionTester interface {
 	// They should create a ConnectionDiagnostic and pass its id in their certificate when trying to connect to the resource.
 	// The agent/server/node should check for the id in the certificate and add traces to the ConnectionDiagnostic
 	// according to whether it passed certain checkpoints.
-	TestConnection(context.Context, DiagnoseConnectionRequest) (types.ConnectionDiagnostic, error)
+	TestConnection(context.Context, TestConnectionRequest) (types.ConnectionDiagnostic, error)
 }
 
 // ConnectionTesterForKind returns the proper Tester given a resource name.

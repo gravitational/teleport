@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package client
+package conntest
 
 import (
 	"context"
@@ -48,7 +48,7 @@ func NewSSHConnectionTester(cd services.ConnectionsDiagnostic) *SSHConnectionTes
 //   - SSH Node receives the cert and extracts the ConnectionDiagnostiID
 //   - the SSH Node will append a trace indicating if the has access (RBAC)
 //   - the SSH Node will append a trace indicating if the requested principal is valid for the target Node
-func (s *SSHConnectionTester) TestConnection(ctx context.Context, req DiagnoseConnectionRequest) (types.ConnectionDiagnostic, error) {
+func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnectionRequest) (types.ConnectionDiagnostic, error) {
 	id := uuid.NewString()
 	connectionDiagnostic, err := types.NewConnectionDiagnosticV1(id, map[string]string{},
 		types.ConnectionDiagnosticSpecV1{
@@ -67,7 +67,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req DiagnoseCo
 	// - create ssh client using that certificate
 	// - if connection fails because of a network error, a trace must be included indicating that the host is not reachable
 	// - other traces will be added by the Node itself (rbac checks, principal)
-	connectionDiagnostic.SetMessage(types.DiagnosticMessageDryRun)
+	connectionDiagnostic.SetMessage("dry-run")
 	connectionDiagnostic.SetSuccess(true)
 
 	if err := s.cd.UpdateConnectionDiagnostic(ctx, connectionDiagnostic); err != nil {

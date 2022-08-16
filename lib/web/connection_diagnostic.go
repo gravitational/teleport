@@ -19,7 +19,7 @@ package web
 import (
 	"net/http"
 
-	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/conntest"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -40,18 +40,8 @@ func (h *Handler) getConnectionDiagnostic(w http.ResponseWriter, r *http.Request
 		return nil, trace.Wrap(err)
 	}
 
-	resLabels := connectionDiagnostic.GetAllLabels()
-	uiLabels := make([]ui.Label, len(resLabels))
-	for labelName, labelValue := range resLabels {
-		uiLabels = append(uiLabels, ui.Label{
-			Name:  labelName,
-			Value: labelValue,
-		})
-	}
-
 	return ui.ConnectionDiagnostic{
 		ID:      connectionDiagnostic.GetName(),
-		Labels:  uiLabels,
 		Success: connectionDiagnostic.IsSuccess(),
 		Message: connectionDiagnostic.GetMessage(),
 		Traces:  connectionDiagnostic.GetTraces(),
@@ -60,7 +50,7 @@ func (h *Handler) getConnectionDiagnostic(w http.ResponseWriter, r *http.Request
 
 // diagnoseConnection executes and returns a connection diagnostic.
 func (h *Handler) diagnoseConnection(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	req := client.DiagnoseConnectionRequest{}
+	req := conntest.TestConnectionRequest{}
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -74,7 +64,7 @@ func (h *Handler) diagnoseConnection(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	tester, err := client.ConnectionTesterForKind(req.ResourceKind, clt)
+	tester, err := conntest.ConnectionTesterForKind(req.ResourceKind, clt)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -84,18 +74,8 @@ func (h *Handler) diagnoseConnection(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	resLabels := connectionDiagnostic.GetAllLabels()
-	uiLabels := make([]ui.Label, len(resLabels))
-	for labelName, labelValue := range resLabels {
-		uiLabels = append(uiLabels, ui.Label{
-			Name:  labelName,
-			Value: labelValue,
-		})
-	}
-
 	return ui.ConnectionDiagnostic{
 		ID:      connectionDiagnostic.GetName(),
-		Labels:  uiLabels,
 		Success: connectionDiagnostic.IsSuccess(),
 		Message: connectionDiagnostic.GetMessage(),
 		Traces:  connectionDiagnostic.GetTraces(),
