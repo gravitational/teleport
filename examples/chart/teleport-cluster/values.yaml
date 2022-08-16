@@ -34,6 +34,7 @@ authentication:
   localAuth: true
 
   # Controls the locking mode: in case of network split should Teleport guarantee availability or integrity ?
+  # Possible values are "best_effort" and "strict". When not defined, Teleport defaults to "best_effort".
   # See https://goteleport.com/docs/access-controls/guides/locking/#next-steps-locking-modes.
   lockingMode: ""
 
