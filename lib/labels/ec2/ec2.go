@@ -70,6 +70,9 @@ type EC2 struct {
 	labels map[string]string
 
 	closeCh chan struct{}
+	// loggedInstanceTagsNotFound is used to ensure that the error message for
+	// incorrectly configured instance metadata is only logged once.
+	loggedInstanceTagsNotFound bool
 }
 
 func New(ctx context.Context, c *Config) (*EC2, error) {
@@ -110,11 +113,16 @@ func (l *EC2) Sync(ctx context.Context) error {
 	tags, err := l.c.Client.GetTagKeys(ctx)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			l.c.Log.Warningf("Could not fetch tags, please ensure 'allow instance tags in metadata' is enabled on the instance")
+			// Only show the error the first time around.
+			if !l.loggedInstanceTagsNotFound {
+				l.loggedInstanceTagsNotFound = true
+				l.c.Log.Warning("Could not fetch EC2 instance's tags, please ensure 'allow instance tags in metadata' is enabled on the instance.")
+			}
 			return nil
 		}
 		return trace.Wrap(err)
 	}
+	l.loggedInstanceTagsNotFound = false
 
 	currentLabels := l.Get()
 	var errors []error
