@@ -1579,6 +1579,41 @@ func TestStreamSessionEvents_Builtin(t *testing.T) {
 	require.Equal(t, 0, len(searchEvents))
 }
 
+// TestGetSessionEvents ensures that when a user streams a session's events, it emits an audit event.
+func TestGetSessionEvents(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestTLSServer(t)
+
+	username := "user"
+	user, _, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// ignore the response as we don't want the events or the error (the session will not exist)
+	_, _ = clt.GetSessionEvents(defaults.Namespace, "44c6cea8-362f-11ea-83aa-125400432324", 0, false)
+
+	// we need to wait for a short period to ensure the event is returned
+	time.Sleep(500 * time.Millisecond)
+
+	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(
+		srv.Clock().Now().Add(-time.Hour),
+		srv.Clock().Now().Add(time.Hour),
+		defaults.Namespace,
+		[]string{events.SessionRecordingAccessEvent},
+		1,
+		types.EventOrderDescending,
+		"",
+	)
+	require.NoError(t, err)
+
+	event := searchEvents[0].(*apievents.SessionRecordingAccess)
+	require.Equal(t, username, event.User)
+}
+
 // TestAPILockedOut tests Auth API when there are locks involved.
 func TestAPILockedOut(t *testing.T) {
 	t.Parallel()
