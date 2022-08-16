@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -89,21 +90,15 @@ const (
 
 // SupportedProtocols is the list of supported ALPN protocols.
 var SupportedProtocols = append(
-	ProtocolsWithPing(ProtocolsWithPingSupport...),
-	[]Protocol{
+	ProtocolsWithPing(DatabaseProtocols...),
+	append([]Protocol{
 		ProtocolHTTP2,
 		ProtocolHTTP,
-		ProtocolPostgres,
-		ProtocolMySQL,
-		ProtocolMongoDB,
-		ProtocolRedisDB,
-		ProtocolSQLServer,
-		ProtocolSnowflake,
 		ProtocolProxySSH,
 		ProtocolReverseTunnel,
 		ProtocolAuth,
 		ProtocolTCP,
-	}...,
+	}, DatabaseProtocols...)...,
 )
 
 // ProtocolsToString converts the list of Protocols to the list of strings.
@@ -148,15 +143,14 @@ func IsDBTLSProtocol(protocol Protocol) bool {
 		ProtocolSnowflake,
 	}
 
-	return protocolListContains(
+	return slices.Contains(
 		append(dbTLSProtocols, ProtocolsWithPing(dbTLSProtocols...)...),
 		protocol,
 	)
 }
 
-// ProtocolsWithPingSupport is the list of protocols that Ping connection is
-// supported.
-var ProtocolsWithPingSupport = []Protocol{
+// DatabaseProtocols is the list of the database protocols supported.
+var DatabaseProtocols = []Protocol{
 	ProtocolPostgres,
 	ProtocolMySQL,
 	ProtocolMongoDB,
@@ -164,6 +158,10 @@ var ProtocolsWithPingSupport = []Protocol{
 	ProtocolSQLServer,
 	ProtocolSnowflake,
 }
+
+// ProtocolsWithPingSupport is the list of protocols that Ping connection is
+// supported. For now, only database protocols are supported.
+var ProtocolsWithPingSupport = DatabaseProtocols
 
 // ProtocolsWithPing receives a list a protocols and returns a list of them with
 // the Ping protocol suffix.
@@ -189,16 +187,6 @@ func IsPingProtocol(protocol Protocol) bool {
 
 // HasPingSupport checks if the provided protocol supports Ping protocol.
 func HasPingSupport(protocol Protocol) bool {
-	return protocolListContains(ProtocolsWithPingSupport, protocol)
+	return slices.Contains(ProtocolsWithPingSupport, protocol)
 }
 
-// protocolListContains checks if a protocol is present on the list.
-func protocolListContains(protocols []Protocol, protocol Protocol) bool {
-	for _, listProtocol := range protocols {
-		if protocol == listProtocol {
-			return true
-		}
-	}
-
-	return false
-}
