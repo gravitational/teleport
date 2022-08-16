@@ -1,0 +1,20 @@
+timeout: 25m
+
+options:
+   machineType: E2_HIGHCPU_32
+
+steps:
+  - name: quay.io/gravitational/teleport-buildbox:teleport11
+    id: build-teleport
+    dir: /workspace
+    entrypoint: "/bin/bash"
+    args: 
+      - '-c'
+      - 'make -j$$(nproc) build/tctl build/tsh build/tbot build/teleport'
+    timeout: 10m
+  - name: gcr.io/cloud-builders/docker
+    id: run-tests
+    entrypoint: "/bin/bash"
+    args: 
+      - './build.assets/build-test-compat.sh'
+    timeout: 10m
