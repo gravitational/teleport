@@ -126,6 +126,10 @@ func (a *dbAuth) GetRDSAuthToken(sessionCtx *Session) (string, error) {
 		sessionCtx.DatabaseUser,
 		awsSession.Config.Credentials)
 	if err != nil {
+		policy, getPolicyErr := sessionCtx.Database.GetIAMPolicy()
+		if getPolicyErr != nil {
+			policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
+		}
 		return "", trace.AccessDenied(`Could not generate RDS IAM auth token:
 
   %v
@@ -134,7 +138,7 @@ Make sure that Teleport database agent's IAM policy is attached and has "rds-con
 permissions (note that IAM changes may take a few minutes to propagate):
 
 %v
-`, err, sessionCtx.Database.GetIAMPolicy())
+`, err, policy)
 	}
 	return token, nil
 }
@@ -159,6 +163,10 @@ func (a *dbAuth) GetRedshiftAuthToken(sessionCtx *Session) (string, string, erro
 		DbGroups: []*string{},
 	})
 	if err != nil {
+		policy, getPolicyErr := sessionCtx.Database.GetIAMPolicy()
+		if getPolicyErr != nil {
+			policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
+		}
 		return "", "", trace.AccessDenied(`Could not generate Redshift IAM auth token:
 
   %v
@@ -168,7 +176,7 @@ to generate Redshift credentials (note that IAM changes may take a few minutes t
 propagate):
 
 %v
-`, err, sessionCtx.Database.GetIAMPolicy())
+`, err, policy)
 	}
 	return *resp.DbUser, *resp.DbPassword, nil
 }
