@@ -171,7 +171,7 @@ func NewDatabaseFromAzureServer(server *azure.DBServer) (types.Database, error) 
 		setDBName(types.Metadata{
 			Description: fmt.Sprintf("Azure %v server in %v", protocol, server.Location),
 			Labels:      labels,
-		}, metadata.ResourceID.ResourceName),
+		}, server.Name),
 		types.DatabaseSpecV3{
 			Protocol: protocol,
 			URI:      fmt.Sprintf("%v:%v", fqdn, port),

@@ -110,7 +110,6 @@ func TestServerConversion(t *testing.T) {
 
 			require.Equal(t, dbName, server.Name)
 			require.Equal(t, dbName, rid.Name)
-			require.Equal(t, tt.provider+"/servers", server.Type)
 			require.Equal(t, region, server.Location)
 			require.Equal(t, tags, server.Tags)
 			require.Equal(t, fqdn, server.Properties.FullyQualifiedDomainName)

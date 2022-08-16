@@ -31,7 +31,6 @@ type DBServer struct {
 	Name       string
 	Location   string
 	ID         string
-	Type       string
 	Properties struct {
 		FullyQualifiedDomainName string
 		UserVisibleState         string
