@@ -192,22 +192,22 @@ func makeAWSFetchers(clients common.CloudClients, matchers []services.AWSMatcher
 }
 
 func makeAzureFetchers(ctx context.Context, clients common.CloudClients, matchers []services.AzureMatcher) (result []Fetcher, err error) {
-	subClient, err := clients.GetAzureSubscriptionsClient()
+	subIDsClient, err := clients.GetAzureSubscriptionIDsClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	for _, matcher := range matchers {
-		subscriptions := matcher.Subscriptions
-		if utils.SliceContainsStr(subscriptions, types.Wildcard) {
+		subIDs := matcher.Subscriptions
+		if utils.SliceContainsStr(subIDs, types.Wildcard) {
 			// hit the subscriptions API at most once
-			subscriptions, err = subClient.ListSubscriptions(ctx, common.MaxPages, true /*useCache*/)
-			if err != nil {
+			subIDs, err = subIDsClient.ListSubscriptionIDs(ctx, common.MaxPages, true /*useCache*/)
+			if err != nil && !trace.IsNotFound(err) {
 				return nil, common.ConvertError(err)
 			}
 		}
-		for _, matcherType := range matcher.Types {
-			for _, sub := range subscriptions {
-				var client azure.ServersClient
+		for _, sub := range subIDs {
+			for _, matcherType := range matcher.Types {
+				var client azure.DBServersClient
 				var err error
 				switch matcherType {
 				case services.AzureMatcherMySQL:
@@ -221,9 +221,9 @@ func makeAzureFetchers(ctx context.Context, clients common.CloudClients, matcher
 					return nil, trace.Wrap(err)
 				}
 				for _, group := range matcher.ResourceGroups {
-					fetcher, err := newAzureFetcher(client, group, matcher.Regions, matcher.Tags)
+					fetcher, err := newAzureFetcher(client, sub, group, matcher.Regions, matcher.Tags)
 					if err != nil {
-						return nil, common.ConvertError(err)
+						return nil, trace.Wrap(err)
 					}
 					result = append(result, fetcher)
 				}

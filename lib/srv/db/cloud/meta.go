@@ -107,7 +107,7 @@ func (m *Metadata) updateAzure(ctx context.Context, database types.Database, fet
 // fetchAzureMetadata fetches metadata for the provided Azure or Aurora database.
 func (m *Metadata) fetchAzureMetadata(ctx context.Context, database types.Database) (*types.Azure, error) {
 	id := database.GetAzure().ResourceID
-	var server azure.Server
+	var server *azure.DBServer
 	var err error
 	switch database.GetProtocol() {
 	case defaults.ProtocolMySQL:
@@ -123,7 +123,7 @@ func (m *Metadata) fetchAzureMetadata(ctx context.Context, database types.Databa
 }
 
 // fetchAzureMySQLServer returns Azure server for the specified ID.
-func (m *Metadata) fetchAzureMySQLServer(ctx context.Context, id *types.AzureResourceID) (azure.Server, error) {
+func (m *Metadata) fetchAzureMySQLServer(ctx context.Context, id *types.AzureResourceID) (*azure.DBServer, error) {
 	client, err := m.cfg.Clients.GetAzureMySQLClient(id.SubscriptionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -133,7 +133,7 @@ func (m *Metadata) fetchAzureMySQLServer(ctx context.Context, id *types.AzureRes
 }
 
 // fetchAzurePostgresServer returns Azure server for the specified ID.
-func (m *Metadata) fetchAzurePostgresServer(ctx context.Context, id *types.AzureResourceID) (azure.Server, error) {
+func (m *Metadata) fetchAzurePostgresServer(ctx context.Context, id *types.AzureResourceID) (*azure.DBServer, error) {
 	client, err := m.cfg.Clients.GetAzurePostgresClient(id.SubscriptionID)
 	if err != nil {
 		return nil, trace.Wrap(err)

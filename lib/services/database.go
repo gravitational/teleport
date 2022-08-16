@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
@@ -136,39 +137,41 @@ func setDBName(meta types.Metadata, firstNamePart string, extraNameParts ...stri
 }
 
 // NewDatabaseFromAzureServer creates a database resource from an AzureDB server.
-func NewDatabaseFromAzureServer(server azure.Server) (types.Database, error) {
-	endpoint := server.Endpoint()
-	if endpoint == "" {
-		return nil, trace.BadParameter("empty endpoint")
-	}
-
-	name := server.Name()
-	if name == "" {
-		return nil, trace.BadParameter("empty server name")
-	}
-
-	protocol := server.Protocol()
-	if protocol == "" {
-		return nil, trace.BadParameter("empty server protocol")
-	}
-
+func NewDatabaseFromAzureServer(server *azure.DBServer) (types.Database, error) {
 	metadata, err := MetadataFromAzureServer(server)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	fqdn := server.Properties.FullyQualifiedDomainName
+	if fqdn == "" {
+		return nil, trace.BadParameter("empty FQDN")
+	}
+
+	var protocol string
+	var port string
+	switch metadata.ResourceID.ProviderNamespace {
+	case azure.MySQLNamespace:
+		protocol = defaults.ProtocolMySQL
+		port = azure.MySQLPort
+	case azure.PostgreSQLNamespace:
+		protocol = defaults.ProtocolPostgres
+		port = azure.PostgresPort
 	}
 
 	labels, err := labelsFromAzureServer(server, metadata)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return types.NewDatabaseV3(
 		setDBName(types.Metadata{
-			Description: fmt.Sprintf("Azure %v server in %v", protocol, server.Region()),
+			Description: fmt.Sprintf("Azure %v server in %v", protocol, server.Location),
 			Labels:      labels,
-		}, name),
+		}, metadata.ResourceID.ResourceName),
 		types.DatabaseSpecV3{
 			Protocol: protocol,
-			URI:      fmt.Sprintf("%v", endpoint),
+			URI:      fmt.Sprintf("%v:%v", fqdn, port),
 			Azure:    *metadata,
 		})
 }
@@ -380,13 +383,22 @@ func NewDatabaseFromMemoryDBCluster(cluster *memorydb.Cluster, extraLabels map[s
 		})
 }
 
-// MetadataFromAzureServer creates Azure metadata from the provided Azure Server.
-func MetadataFromAzureServer(server azure.Server) (*types.Azure, error) {
-	// TODO(gavin): check for missing info (this func returns error)
+// MetadataFromAzureServer creates Azure metadata from the provided Azure DBServer.
+func MetadataFromAzureServer(server *azure.DBServer) (*types.Azure, error) {
+	rid, err := arm.ParseResourceID(server.ID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &types.Azure{
-		Name:       server.Name(),
-		Region:     server.Region(),
-		ResourceID: server.ID(),
+		Name:   rid.Name,
+		Region: server.Location,
+		ResourceID: types.AzureResourceID{
+			SubscriptionID:    rid.SubscriptionID,
+			ResourceGroup:     rid.ResourceGroupName,
+			ProviderNamespace: rid.ResourceType.Namespace,
+			ResourceType:      rid.ResourceType.Type,
+			ResourceName:      rid.Name,
+		},
 	}, nil
 }
 
@@ -562,15 +574,14 @@ func engineToProtocol(engine string) string {
 }
 
 // labelsFromAzureServer creates database labels for the provided Azure DB server.
-func labelsFromAzureServer(server azure.Server, meta *types.Azure) (map[string]string, error) {
-	labels := azureTagsToLabels(server.Tags())
-	resourceID := server.ID()
+func labelsFromAzureServer(server *azure.DBServer, meta *types.Azure) (map[string]string, error) {
+	labels := azureTagsToLabels(server.Tags)
 	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = meta.Region
-	labels[labelEngine] = resourceID.ProviderNamespace
-	labels[labelEngineVersion] = server.Version()
-	labels[labelResourceGroup] = resourceID.ResourceGroup
-	labels[labelSubscriptionID] = resourceID.SubscriptionID
+	labels[labelEngine] = meta.ResourceID.ProviderNamespace
+	labels[labelEngineVersion] = server.Properties.Version
+	labels[labelResourceGroup] = meta.ResourceID.ResourceGroup
+	labels[labelSubscriptionID] = meta.ResourceID.SubscriptionID
 	return labels, nil
 }
 

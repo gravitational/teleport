@@ -19,48 +19,42 @@ package azure
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 )
 
-// ServersClient provides an interface for getting MySQL servers.
-type ServersClient interface {
-	// ListServers lists all Azure MySQL servers within an Azure subscription by resource group.
-	// If the resource group is "*", then all resources are queried.
-	ListServers(ctx context.Context, group string, maxPages int) ([]Server, error)
-	// TODO(gavin)
-	Kind() string
-	// TODO(gavin)
-	Subscription() string
-	// TODO(gavin)
-	Get(ctx context.Context, group, name string) (Server, error)
+// DBServersClient provides an interface for getting Azure DB servers.
+type DBServersClient interface {
+	// ListServers lists all Azure DB servers within an Azure subscription by resource group.
+	// If the resource group is "*", then all resources within the subscription are queried.
+	ListServers(ctx context.Context, group string, maxPages int) ([]*DBServer, error)
+	// Get returns a DBServer with an Azure subscription, queried by group and name
+	Get(ctx context.Context, group, name string) (*DBServer, error)
 }
 
-// TODO(gavin)
-type SubscriptionsClient interface {
-	// TODO(gavin)
-	ListSubscriptions(ctx context.Context, maxPages int, useCache bool) ([]string, error)
+// SubscriptionsAPI provides an interface for armsubscription.SubscriptionsClient so that client can be mocked.
+type SubscriptionsAPI interface {
+	NewListPager(opts *armsubscription.SubscriptionsClientListOptions) *runtime.Pager[armsubscription.SubscriptionsClientListResponse]
 }
 
-// TODO(gavin)
-type Server interface {
-	// TODO(gavin)
-	Name() string
-	// TODO(gavin)
-	Region() string
-	// TODO(gavin)
-	Version() string
-	// TODO(gavin)
-	Endpoint() string
-	// TODO(gavin)
-	Protocol() string
-	// TODO(gavin)
-	State() string
-	// TODO(gavin)
-	ID() types.AzureResourceID
-	// TODO(gavin)
-	Tags() map[string]string
-	// TODO(gavin)
-	IsVersionSupported() bool
-	// TODO(gavin)
-	IsAvailable() bool
+var _ SubscriptionsAPI = (*armsubscription.SubscriptionsClient)(nil)
+
+// MySQLAPI is an interface for armmysql.ServersClient so that the client can be mocked.
+type MySQLAPI interface {
+	Get(ctx context.Context, group, name string, opts *armmysql.ServersClientGetOptions) (armmysql.ServersClientGetResponse, error)
+	NewListPager(opts *armmysql.ServersClientListOptions) *runtime.Pager[armmysql.ServersClientListResponse]
+	NewListByResourceGroupPager(group string, opts *armmysql.ServersClientListByResourceGroupOptions) *runtime.Pager[armmysql.ServersClientListByResourceGroupResponse]
 }
+
+var _ MySQLAPI = (*armmysql.ServersClient)(nil)
+
+// PostgresAPI is an interface for armpostgresql.ServersClient so that the client can be mocked.
+type PostgresAPI interface {
+	Get(ctx context.Context, group, name string, opts *armpostgresql.ServersClientGetOptions) (armpostgresql.ServersClientGetResponse, error)
+	NewListPager(opts *armpostgresql.ServersClientListOptions) *runtime.Pager[armpostgresql.ServersClientListResponse]
+	NewListByResourceGroupPager(group string, opts *armpostgresql.ServersClientListByResourceGroupOptions) *runtime.Pager[armpostgresql.ServersClientListByResourceGroupResponse]
+}
+
+var _ PostgresAPI = (*armpostgresql.ServersClient)(nil)

@@ -23,7 +23,11 @@ import (
 
 	gcpcredentials "cloud.google.com/go/iam/credentials/apiv1"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/aws/aws-sdk-go/aws"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/elasticache"
@@ -76,11 +80,11 @@ type CloudClients interface {
 	// GetAzureCredential returns Azure default token credential chain.
 	GetAzureCredential() (azcore.TokenCredential, error)
 	// GetAzureMySQLClient returns Azure MySQL client for the specified subscription.
-	GetAzureMySQLClient(subscription string) (azure.ServersClient, error)
+	GetAzureMySQLClient(subscription string) (azure.DBServersClient, error)
 	// GetAzurePostgresClient returns Azure Postgres client for the specified subscription.
-	GetAzurePostgresClient(subscription string) (azure.ServersClient, error)
-	// GetAzureSubscriptionsClient returns an Azure Subscriptions client
-	GetAzureSubscriptionsClient() (azure.SubscriptionsClient, error)
+	GetAzurePostgresClient(subscription string) (azure.DBServersClient, error)
+	// GetAzureSubscriptionIDsClient returns an Azure Subscriptions client
+	GetAzureSubscriptionIDsClient() (*azure.SubscriptionIDsClient, error)
 	// Closer closes all initialized clients.
 	io.Closer
 }
@@ -89,8 +93,8 @@ type CloudClients interface {
 func NewCloudClients() CloudClients {
 	return &cloudClients{
 		awsSessions:          make(map[string]*awssession.Session),
-		azureMySQLClients:    make(map[string]azure.ServersClient),
-		azurePostgresClients: make(map[string]azure.ServersClient),
+		azureMySQLClients:    make(map[string]azure.DBServersClient),
+		azurePostgresClients: make(map[string]azure.DBServersClient),
 	}
 }
 
@@ -107,11 +111,11 @@ type cloudClients struct {
 	// azureCredential is the cached Azure credential.
 	azureCredential azcore.TokenCredential
 	// azureMySQLClients is the cached Azure MySQL Server clients.
-	azureMySQLClients map[string]azure.ServersClient
+	azureMySQLClients map[string]azure.DBServersClient
 	// azurePostgresClients is the cached Azure Postgres Server clients.
-	azurePostgresClients map[string]azure.ServersClient
+	azurePostgresClients map[string]azure.DBServersClient
 	// azureSubscriptionsClient is the cached Azure Subscriptions client.
-	azureSubscriptionsClient azure.SubscriptionsClient
+	azureSubscriptionsClient *azure.SubscriptionIDsClient
 	// mtx is used for locking.
 	mtx sync.RWMutex
 }
@@ -224,7 +228,7 @@ func (c *cloudClients) GetAzureCredential() (azcore.TokenCredential, error) {
 }
 
 // GetAzureMySQLClient returns an AzureClient for MySQL for the given subscription.
-func (c *cloudClients) GetAzureMySQLClient(subscription string) (azure.ServersClient, error) {
+func (c *cloudClients) GetAzureMySQLClient(subscription string) (azure.DBServersClient, error) {
 	c.mtx.RLock()
 	if client, ok := c.azureMySQLClients[subscription]; ok {
 		c.mtx.RUnlock()
@@ -235,7 +239,7 @@ func (c *cloudClients) GetAzureMySQLClient(subscription string) (azure.ServersCl
 }
 
 // GetAzurePostgresClient returns an AzureClient for Postgres for the given subscription.
-func (c *cloudClients) GetAzurePostgresClient(subscription string) (azure.ServersClient, error) {
+func (c *cloudClients) GetAzurePostgresClient(subscription string) (azure.DBServersClient, error) {
 	c.mtx.RLock()
 	if client, ok := c.azurePostgresClients[subscription]; ok {
 		c.mtx.RUnlock()
@@ -245,8 +249,8 @@ func (c *cloudClients) GetAzurePostgresClient(subscription string) (azure.Server
 	return c.initAzurePostgresClient(subscription)
 }
 
-// GetAzureSubscriptionsClient returns an Azure client for listing subscriptions.
-func (c *cloudClients) GetAzureSubscriptionsClient() (azure.SubscriptionsClient, error) {
+// GetAzureSubscriptionIDsClient returns an Azure client for listing subscriptions.
+func (c *cloudClients) GetAzureSubscriptionIDsClient() (*azure.SubscriptionIDsClient, error) {
 	c.mtx.RLock()
 	if c.azureSubscriptionsClient != nil {
 		defer c.mtx.RUnlock()
@@ -334,7 +338,7 @@ func (c *cloudClients) initAzureCredential() (azcore.TokenCredential, error) {
 	return cred, nil
 }
 
-func (c *cloudClients) initAzureMySQLClient(subscription string) (azure.ServersClient, error) {
+func (c *cloudClients) initAzureMySQLClient(subscription string) (azure.DBServersClient, error) {
 	cred, err := c.GetAzureCredential()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -347,15 +351,18 @@ func (c *cloudClients) initAzureMySQLClient(subscription string) (azure.ServersC
 	}
 
 	logrus.Debug("Initializing Azure MySQL servers client.")
-	client, err := azure.NewMySQLClient(subscription, cred)
+	// TODO(gavin): if/when we support AzureChina/AzureGovernment, we will need to specify the cloud in these options
+	options := &arm.ClientOptions{}
+	api, err := armmysql.NewServersClient(subscription, cred, options)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	client := azure.NewMySQLClient(api)
 	c.azureMySQLClients[subscription] = client
 	return client, nil
 }
 
-func (c *cloudClients) initAzurePostgresClient(subscription string) (azure.ServersClient, error) {
+func (c *cloudClients) initAzurePostgresClient(subscription string) (azure.DBServersClient, error) {
 	cred, err := c.GetAzureCredential()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -367,15 +374,18 @@ func (c *cloudClients) initAzurePostgresClient(subscription string) (azure.Serve
 		return client, nil
 	}
 	logrus.Debug("Initializing Azure Postgres servers client.")
-	client, err := azure.NewPostgresClient(subscription, cred)
+	// TODO(gavin): if/when we support AzureChina/AzureGovernment, we will need to specify the cloud in these options
+	options := &arm.ClientOptions{}
+	armClient, err := armpostgresql.NewServersClient(subscription, cred, options)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	client := azure.NewPostgresClient(armClient)
 	c.azurePostgresClients[subscription] = client
 	return client, nil
 }
 
-func (c *cloudClients) initAzureSubscriptionsClient() (azure.SubscriptionsClient, error) {
+func (c *cloudClients) initAzureSubscriptionsClient() (*azure.SubscriptionIDsClient, error) {
 	cred, err := c.GetAzureCredential()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -387,10 +397,14 @@ func (c *cloudClients) initAzureSubscriptionsClient() (azure.SubscriptionsClient
 		return c.azureSubscriptionsClient, nil
 	}
 	logrus.Debug("Initializing Azure subscriptions client.")
-	client, err := azure.NewSubscriptionsClient(cred)
+	// TODO(gavin): if/when we support AzureChina/AzureGovernment,
+	// we will need to specify the cloud in these options
+	opts := &arm.ClientOptions{}
+	armClient, err := armsubscription.NewSubscriptionsClient(cred, opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	client := azure.NewSubscriptionIDsClient(armClient)
 	c.azureSubscriptionsClient = client
 	return client, nil
 }
@@ -400,20 +414,20 @@ var _ CloudClients = (*TestCloudClients)(nil)
 
 // TestCloudClients are used in tests.
 type TestCloudClients struct {
-	RDS                      rdsiface.RDSAPI
-	RDSPerRegion             map[string]rdsiface.RDSAPI
-	Redshift                 redshiftiface.RedshiftAPI
-	ElastiCache              elasticacheiface.ElastiCacheAPI
-	MemoryDB                 memorydbiface.MemoryDBAPI
-	SecretsManager           secretsmanageriface.SecretsManagerAPI
-	IAM                      iamiface.IAMAPI
-	STS                      stsiface.STSAPI
-	GCPSQL                   GCPSQLAdminClient
-	AzureMySQL               azure.ServersClient
-	AzureMySQLPerSub         map[string]azure.ServersClient
-	AzurePostgres            azure.ServersClient
-	AzurePostgresPerSub      map[string]azure.ServersClient
-	AzureSubscriptionsClient azure.SubscriptionsClient
+	RDS                        rdsiface.RDSAPI
+	RDSPerRegion               map[string]rdsiface.RDSAPI
+	Redshift                   redshiftiface.RedshiftAPI
+	ElastiCache                elasticacheiface.ElastiCacheAPI
+	MemoryDB                   memorydbiface.MemoryDBAPI
+	SecretsManager             secretsmanageriface.SecretsManagerAPI
+	IAM                        iamiface.IAMAPI
+	STS                        stsiface.STSAPI
+	GCPSQL                     GCPSQLAdminClient
+	AzureMySQL                 azure.DBServersClient
+	AzureMySQLPerSub           map[string]azure.DBServersClient
+	AzurePostgres              azure.DBServersClient
+	AzurePostgresPerSub        map[string]azure.DBServersClient
+	AzureSubscriptionIDsClient *azure.SubscriptionIDsClient
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -477,7 +491,7 @@ func (c *TestCloudClients) GetAzureCredential() (azcore.TokenCredential, error) 
 }
 
 // GetAzureMySQLClient returns an AzureMySQLClient for the specified subscription
-func (c *TestCloudClients) GetAzureMySQLClient(subscription string) (azure.ServersClient, error) {
+func (c *TestCloudClients) GetAzureMySQLClient(subscription string) (azure.DBServersClient, error) {
 	if len(c.AzureMySQLPerSub) != 0 {
 		return c.AzureMySQLPerSub[subscription], nil
 	}
@@ -485,16 +499,16 @@ func (c *TestCloudClients) GetAzureMySQLClient(subscription string) (azure.Serve
 }
 
 // GetAzurePostgresClient returns an AzurePostgresClient for the specified subscription
-func (c *TestCloudClients) GetAzurePostgresClient(subscription string) (azure.ServersClient, error) {
+func (c *TestCloudClients) GetAzurePostgresClient(subscription string) (azure.DBServersClient, error) {
 	if len(c.AzurePostgresPerSub) != 0 {
 		return c.AzurePostgresPerSub[subscription], nil
 	}
 	return c.AzurePostgres, nil
 }
 
-// GetAzureSubscriptionsClient returns an Azure SubscriptionsClient for the specified subscription
-func (c *TestCloudClients) GetAzureSubscriptionsClient() (azure.SubscriptionsClient, error) {
-	return c.AzureSubscriptionsClient, nil
+// GetAzureSubscriptionIDsClient returns an Azure SubscriptionsClient for the specified subscription
+func (c *TestCloudClients) GetAzureSubscriptionIDsClient() (*azure.SubscriptionIDsClient, error) {
+	return c.AzureSubscriptionIDsClient, nil
 }
 
 // Close closes all initialized clients.

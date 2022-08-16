@@ -21,6 +21,11 @@ import (
 	"crypto/tls"
 	"sync"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/elasticache"
@@ -35,73 +40,177 @@ import (
 	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/trace"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 )
 
-// AzureClientMock implements AzureClient
-var _ azure.ServersClient = (*AzureClientMock)(nil)
-
-// AzureClientMock mocks AzureClient.
-type AzureClientMock struct {
-	DBServers []azure.Server
+type AzureMySQLMock struct {
+	DBServers []*armmysql.Server
+	NoAuth    bool
 }
 
-func (m *AzureClientMock) ListServers(ctx context.Context, group string, _ int) ([]azure.Server, error) {
-	if group == types.Wildcard {
-		return m.DBServers, nil
+var _ azure.MySQLAPI = (*AzureMySQLMock)(nil)
+
+func (m *AzureMySQLMock) Get(_ context.Context, group, name string, _ *armmysql.ServersClientGetOptions) (armmysql.ServersClientGetResponse, error) {
+	if m.NoAuth {
+		return armmysql.ServersClientGetResponse{}, trace.AccessDenied("unauthorized")
 	}
-	servers := make([]azure.Server, 0, len(m.DBServers))
-	for _, server := range m.DBServers {
-		if server.ID().ResourceGroup == group {
-			servers = append(servers, server)
+	for _, s := range m.DBServers {
+		if name == *s.Name {
+			id, err := arm.ParseResourceID(*s.ID)
+			if err != nil {
+				return armmysql.ServersClientGetResponse{}, trace.Wrap(err)
+			}
+			if group == id.ResourceGroupName {
+				return armmysql.ServersClientGetResponse{Server: *s}, nil
+			}
 		}
 	}
-	return servers, nil
+	return armmysql.ServersClientGetResponse{}, trace.NotFound("resource %v in group %v not found", name, group)
 }
 
-func (m *AzureClientMock) Kind() string {
-	return "mock"
+func (m *AzureMySQLMock) NewListPager(_ *armmysql.ServersClientListOptions) *runtime.Pager[armmysql.ServersClientListResponse] {
+	return runtime.NewPager(runtime.PagingHandler[armmysql.ServersClientListResponse]{
+		More: func(_ armmysql.ServersClientListResponse) bool {
+			return false
+		},
+		Fetcher: func(_ context.Context, _ *armmysql.ServersClientListResponse) (armmysql.ServersClientListResponse, error) {
+			if m.NoAuth {
+				return armmysql.ServersClientListResponse{}, trace.AccessDenied("unauthorized")
+			}
+			return armmysql.ServersClientListResponse{
+				ServerListResult: armmysql.ServerListResult{
+					Value: m.DBServers,
+				},
+			}, nil
+		},
+	})
 }
 
-func (m *AzureClientMock) Subscription() string {
-	return "mocksub"
+func (m *AzureMySQLMock) NewListByResourceGroupPager(group string, _ *armmysql.ServersClientListByResourceGroupOptions) *runtime.Pager[armmysql.ServersClientListByResourceGroupResponse] {
+	return runtime.NewPager(runtime.PagingHandler[armmysql.ServersClientListByResourceGroupResponse]{
+		More: func(_ armmysql.ServersClientListByResourceGroupResponse) bool {
+			return false
+		},
+		Fetcher: func(_ context.Context, _ *armmysql.ServersClientListByResourceGroupResponse) (armmysql.ServersClientListByResourceGroupResponse, error) {
+			if m.NoAuth {
+				return armmysql.ServersClientListByResourceGroupResponse{}, trace.AccessDenied("unauthorized")
+			}
+			var servers []*armmysql.Server
+			for _, s := range m.DBServers {
+				id, err := arm.ParseResourceID(*s.ID)
+				if err != nil {
+					return armmysql.ServersClientListByResourceGroupResponse{}, trace.Wrap(err)
+				}
+				if group == id.ResourceGroupName {
+					servers = append(servers, s)
+				}
+			}
+			return armmysql.ServersClientListByResourceGroupResponse{
+				ServerListResult: armmysql.ServerListResult{
+					Value: servers,
+				},
+			}, nil
+		},
+	})
 }
 
-func (m *AzureClientMock) Get(ctx context.Context, group, name string) (azure.Server, error) {
-	for _, server := range m.DBServers {
-		if server.ID().ResourceGroup == group && server.ID().ResourceName == name {
-			return server, nil
+type AzurePostgresMock struct {
+	DBServers []*armpostgresql.Server
+	NoAuth    bool
+}
+
+var _ azure.PostgresAPI = (*AzurePostgresMock)(nil)
+
+func (m *AzurePostgresMock) Get(_ context.Context, group, name string, _ *armpostgresql.ServersClientGetOptions) (armpostgresql.ServersClientGetResponse, error) {
+	if m.NoAuth {
+		return armpostgresql.ServersClientGetResponse{}, trace.AccessDenied("unauthorized")
+	}
+	for _, s := range m.DBServers {
+		if name == *s.Name {
+			id, err := arm.ParseResourceID(*s.ID)
+			if err != nil {
+				return armpostgresql.ServersClientGetResponse{}, trace.Wrap(err)
+			}
+			if group == id.ResourceGroupName {
+				return armpostgresql.ServersClientGetResponse{Server: *s}, nil
+			}
 		}
 	}
-	return nil, trace.NotFound("server %v in group %v not found.", name, group)
+	return armpostgresql.ServersClientGetResponse{}, trace.NotFound("resource %v in group %v not found", name, group)
 }
 
-// AzureClientMockUnauth implements AzureClient
-var _ azure.ServersClient = (*AzureClientMockUnauth)(nil)
-
-// AzureClientMockUnauth mocks AzureClient.
-type AzureClientMockUnauth struct {
-	DBServers []azure.Server
+func (m *AzurePostgresMock) NewListPager(_ *armpostgresql.ServersClientListOptions) *runtime.Pager[armpostgresql.ServersClientListResponse] {
+	return runtime.NewPager(runtime.PagingHandler[armpostgresql.ServersClientListResponse]{
+		More: func(_ armpostgresql.ServersClientListResponse) bool {
+			return false
+		},
+		Fetcher: func(_ context.Context, _ *armpostgresql.ServersClientListResponse) (armpostgresql.ServersClientListResponse, error) {
+			if m.NoAuth {
+				return armpostgresql.ServersClientListResponse{}, trace.AccessDenied("unauthorized")
+			}
+			return armpostgresql.ServersClientListResponse{
+				ServerListResult: armpostgresql.ServerListResult{
+					Value: m.DBServers,
+				},
+			}, nil
+		},
+	})
 }
 
-func (m *AzureClientMockUnauth) ListServers(ctx context.Context, group string, _ int) ([]azure.Server, error) {
-	return nil, trace.AccessDenied("unauthorized")
+func (m *AzurePostgresMock) NewListByResourceGroupPager(group string, _ *armpostgresql.ServersClientListByResourceGroupOptions) *runtime.Pager[armpostgresql.ServersClientListByResourceGroupResponse] {
+	return runtime.NewPager(runtime.PagingHandler[armpostgresql.ServersClientListByResourceGroupResponse]{
+		More: func(_ armpostgresql.ServersClientListByResourceGroupResponse) bool {
+			return false
+		},
+		Fetcher: func(_ context.Context, _ *armpostgresql.ServersClientListByResourceGroupResponse) (armpostgresql.ServersClientListByResourceGroupResponse, error) {
+			if m.NoAuth {
+				return armpostgresql.ServersClientListByResourceGroupResponse{}, trace.AccessDenied("unauthorized")
+			}
+			var servers []*armpostgresql.Server
+			for _, s := range m.DBServers {
+				id, err := arm.ParseResourceID(*s.ID)
+				if err != nil {
+					return armpostgresql.ServersClientListByResourceGroupResponse{}, trace.Wrap(err)
+				}
+				if group == id.ResourceGroupName {
+					servers = append(servers, s)
+				}
+			}
+			return armpostgresql.ServersClientListByResourceGroupResponse{
+				ServerListResult: armpostgresql.ServerListResult{
+					Value: servers,
+				},
+			}, nil
+		},
+	})
 }
 
-func (m *AzureClientMockUnauth) Get(ctx context.Context, group, name string) (azure.Server, error) {
-	return nil, trace.AccessDenied("unauthorized")
+type AzureSubscriptionsMock struct {
+	Subscriptions []*armsubscription.Subscription
+	NoAuth        bool
 }
 
-func (m *AzureClientMockUnauth) Kind() string {
-	return "mock"
-}
+var _ azure.SubscriptionsAPI = (*AzureSubscriptionsMock)(nil)
 
-func (m *AzureClientMockUnauth) Subscription() string {
-	return "mocksub"
+func (m *AzureSubscriptionsMock) NewListPager(_ *armsubscription.SubscriptionsClientListOptions) *runtime.Pager[armsubscription.SubscriptionsClientListResponse] {
+	return runtime.NewPager(runtime.PagingHandler[armsubscription.SubscriptionsClientListResponse]{
+		More: func(page armsubscription.SubscriptionsClientListResponse) bool {
+			return page.NextLink != nil && len(*page.NextLink) > 0
+		},
+		Fetcher: func(ctx context.Context, page *armsubscription.SubscriptionsClientListResponse) (armsubscription.SubscriptionsClientListResponse, error) {
+			if m.NoAuth {
+				return armsubscription.SubscriptionsClientListResponse{}, trace.AccessDenied("unauthorized")
+			}
+			return armsubscription.SubscriptionsClientListResponse{
+				ListResult: armsubscription.ListResult{
+					Value: m.Subscriptions,
+				},
+			}, nil
+		},
+	})
 }
 
 // STSMock mocks AWS STS API.
