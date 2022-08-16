@@ -109,7 +109,7 @@ func getLatestSemverStep(majorVersion string, majorVersionVarDirectory string) s
 }
 
 func readCronShellVersionCommand(majorVersionDirectory, majorVersion string) string {
-	return fmt.Sprintf("$(cat %q)", path.Join(majorVersionDirectory, majorVersion))
+	return fmt.Sprintf("$(cat '%s')", path.Join(majorVersionDirectory, majorVersion))
 }
 
 // Drone triggers must all evaluate to "true" for a pipeline to be executed.
@@ -269,6 +269,14 @@ func (tp *teleportPackage) buildSteps(version *teleportVersion, versionSetupStep
 	}
 
 	return steps
+}
+
+type product struct {
+	Name string
+}
+
+func (p *product) BuildStep() {
+
 }
 
 func (tp *teleportPackage) buildTeleportLabArchStep(teleportBuildStepDetail *buildStepOutput, cloneDirectory string) (step, *buildStepOutput) {
@@ -521,16 +529,16 @@ type pushStepOutput struct {
 }
 
 func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput) (step, *pushStepOutput) {
-	repoImageTag := fmt.Sprintf("%s-%s", cr.BuildImageName(buildStepDetails.BuildName, buildStepDetails.Version.MajorVersion,
+	repoImageName := fmt.Sprintf("%s-%s", cr.BuildImageName(buildStepDetails.BuildName, buildStepDetails.Version.MajorVersion,
 		buildStepDetails.TeleportPackage), buildStepDetails.BuiltImageArch)
 	step := step{
-		Name:        fmt.Sprintf("Tag and push %q to %s", repoImageTag, cr.Name),
+		Name:        fmt.Sprintf("Tag and push %q to %s", repoImageName, cr.Name),
 		Image:       "docker",
 		Volumes:     dockerVolumeRefs(),
 		Environment: cr.Environment,
 		Commands: cr.buildCommandsWithLogin([]string{
-			fmt.Sprintf("docker tag %q %q", buildStepDetails.BuiltImageName, repoImageTag),
-			fmt.Sprintf("docker push %q", repoImageTag),
+			fmt.Sprintf("docker tag %q %q", buildStepDetails.BuiltImageName, repoImageName),
+			fmt.Sprintf("docker push %q", repoImageName),
 		}),
 		DependsOn: []string{
 			buildStepDetails.StepName,
@@ -548,7 +556,7 @@ func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput) (step
 
 func (cr *ContainerRepo) createAndPushManifestStep(pushStepDetails []*pushStepOutput) step {
 	stepDetail := pushStepDetails[0]
-	repoImageTag := cr.BuildImageName(stepDetail.BuildName, stepDetail.Version.MajorVersion, stepDetail.TeleportPackage)
+	repoImageName := cr.BuildImageName(stepDetail.BuildName, stepDetail.Version.MajorVersion, stepDetail.TeleportPackage)
 
 	manifestCommandArgs := make([]string, 0, len(pushStepDetails))
 	pushStepNames := make([]string, 0, len(pushStepDetails))
@@ -558,13 +566,13 @@ func (cr *ContainerRepo) createAndPushManifestStep(pushStepDetails []*pushStepOu
 	}
 
 	return step{
-		Name:        fmt.Sprintf("Create manifest and push %q to %s", repoImageTag, cr.Name),
+		Name:        fmt.Sprintf("Create manifest and push %q to %s", repoImageName, cr.Name),
 		Image:       "docker",
 		Volumes:     dockerVolumeRefs(),
 		Environment: cr.Environment,
 		Commands: cr.buildCommandsWithLogin([]string{
-			fmt.Sprintf("docker manifest create %q %s", repoImageTag, strings.Join(manifestCommandArgs, " ")),
-			fmt.Sprintf("docker manifest push %q", repoImageTag),
+			fmt.Sprintf("docker manifest create %q %s", repoImageName, strings.Join(manifestCommandArgs, " ")),
+			fmt.Sprintf("docker manifest push %q", repoImageName),
 		}),
 		DependsOn: pushStepNames,
 	}
