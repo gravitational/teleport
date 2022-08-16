@@ -19,9 +19,10 @@ package azure
 import (
 	"encoding/json"
 
+	"github.com/gravitational/trace"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
-	"github.com/gravitational/trace"
 )
 
 // DBServer represents an Azure DB Server.

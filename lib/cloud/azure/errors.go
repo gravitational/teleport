@@ -20,6 +20,7 @@ import (
 	"net/http"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+
 	"github.com/gravitational/trace"
 )
 
