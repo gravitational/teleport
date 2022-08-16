@@ -45,6 +45,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -2182,7 +2183,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	auxCAS, err := aux.Secrets.GetCAs()
 	require.NoError(t, err)
 	for _, auxCA := range auxCAS {
-		err = tc.AddTrustedCA(auxCA)
+		err = tc.AddTrustedCA(ctx, auxCA)
 		require.NoError(t, err)
 	}
 
@@ -4464,7 +4465,7 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 		cl.Stdin = personB
 
 		// Change the size of the window immediately after it is created.
-		cl.OnShellCreated = func(s *ssh.Session, c *ssh.Client, terminal io.ReadWriteCloser) (exit bool, err error) {
+		cl.OnShellCreated = func(s *ssh.Session, c *tracessh.Client, terminal io.ReadWriteCloser) (exit bool, err error) {
 			err = s.WindowChange(48, 160)
 			if err != nil {
 				return true, trace.Wrap(err)
@@ -5955,7 +5956,7 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 		proxyClient.Close()
 	})
 
-	sftpClient, err := sftp.NewClient(proxyClient.Client)
+	sftpClient, err := sftp.NewClient(proxyClient.Client.Client)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, sftpClient.Close())

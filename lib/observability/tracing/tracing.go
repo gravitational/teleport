@@ -17,27 +17,23 @@ package tracing
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"net"
 	"net/url"
+	"strings"
 	"time"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/observability/tracing"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-
-	"github.com/gravitational/teleport"
 )
 
 const (
@@ -73,7 +69,13 @@ type Config struct {
 	DialTimeout time.Duration
 	// Logger is the logger to use.
 	Logger logrus.FieldLogger
+	// Client is the client to use to export traces. This takes precedence over creating a
+	// new client with the ExporterURL. Ownership of the client is transferred to the
+	// tracing provider. It should **NOT** be closed by the caller.
+	Client *tracing.Client
 
+	// exporterURL is the parsed value of ExporterURL that is populated
+	// by CheckAndSetDefaults
 	exporterURL *url.URL
 }
 
@@ -83,25 +85,8 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("service name cannot be empty")
 	}
 
-	if c.ExporterURL == "" {
+	if c.Client == nil && c.ExporterURL == "" {
 		return trace.BadParameter("exporter URL cannot be empty")
-	}
-
-	// first check if a network address is specified, if it was, default
-	// to using grpc. If provided a URL, ensure that it is valid
-	_, _, err := net.SplitHostPort(c.ExporterURL)
-	if err == nil {
-		c.exporterURL = &url.URL{
-			Scheme: "grpc",
-			Host:   c.ExporterURL,
-		}
-	} else {
-		exporterURL, err := url.Parse(c.ExporterURL)
-		if err != nil {
-			return trace.BadParameter("failed to parse exporter URL: %v", err)
-		}
-		c.exporterURL = exporterURL
-
 	}
 
 	if c.DialTimeout <= 0 {
@@ -112,49 +97,44 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Logger = logrus.WithField(trace.Component, teleport.ComponentTracing)
 	}
 
+	if c.Client != nil {
+		return nil
+	}
+
+	// first check if a network address is specified, if it was, default
+	// to using grpc. If provided a URL, ensure that it is valid
+	h, _, err := net.SplitHostPort(c.ExporterURL)
+	if err != nil || h == "file" {
+		exporterURL, err := url.Parse(c.ExporterURL)
+		if err != nil {
+			return trace.BadParameter("failed to parse exporter URL: %v", err)
+		}
+		c.exporterURL = exporterURL
+		return nil
+	}
+
+	c.exporterURL = &url.URL{
+		Scheme: "grpc",
+		Host:   c.ExporterURL,
+	}
 	return nil
 }
 
-// NewExporter returns a new exporter that is configured per the provided Config.
-func NewExporter(ctx context.Context, cfg Config) (sdktrace.SpanExporter, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+// Endpoint provides the properly formatted endpoint that the otlp client libraries
+// are expecting.
+func (c *Config) Endpoint() string {
+	uri := *c.exporterURL
+
+	if uri.Scheme == "file" {
+		uri.RawQuery = ""
 	}
+	uri.Scheme = ""
 
-	var httpOptions []otlptracehttp.Option
-	grpcOptions := []otlptracegrpc.Option{otlptracegrpc.WithDialOption(grpc.WithBlock())}
-
-	if cfg.TLSConfig != nil {
-		httpOptions = append(httpOptions, otlptracehttp.WithTLSClientConfig(cfg.TLSConfig.Clone()))
-		grpcOptions = append(grpcOptions, otlptracegrpc.WithTLSCredentials(credentials.NewTLS(cfg.TLSConfig.Clone())))
-	} else {
-		httpOptions = append(httpOptions, otlptracehttp.WithInsecure())
-		grpcOptions = append(grpcOptions, otlptracegrpc.WithInsecure())
+	s := uri.String()
+	if strings.HasPrefix(s, "//") {
+		return s[2:]
 	}
-
-	var traceClient otlptrace.Client
-	switch cfg.exporterURL.Scheme {
-	case "http", "https":
-		httpOptions = append(httpOptions, otlptracehttp.WithEndpoint(cfg.ExporterURL[len(cfg.exporterURL.Scheme)+3:]))
-		traceClient = otlptracehttp.NewClient(httpOptions...)
-	case "grpc":
-		grpcOptions = append(grpcOptions, otlptracegrpc.WithEndpoint(cfg.ExporterURL[len(cfg.exporterURL.Scheme)+3:]))
-		traceClient = otlptracegrpc.NewClient(grpcOptions...)
-	default:
-		return nil, trace.BadParameter("unsupported exporter scheme: %q", cfg.exporterURL.Scheme)
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, cfg.DialTimeout)
-	defer cancel()
-	exporter, err := otlptrace.New(ctx, traceClient)
-	switch {
-	case errors.Is(err, context.DeadlineExceeded):
-		return nil, trace.ConnectionProblem(err, "failed to connect to tracing exporter %s: %v", cfg.ExporterURL, err)
-	case err != nil:
-		return nil, trace.NewAggregate(err, traceClient.Stop(context.Background()))
-	}
-
-	return exporter, nil
+	return s
 }
 
 // Provider wraps the OpenTelemetry tracing provider to provide common tags for all tracers.
@@ -182,9 +162,16 @@ func (p *Provider) Shutdown(ctx context.Context) error {
 
 // NoopProvider creates a new Provider that never samples any spans.
 func NoopProvider() *Provider {
-	return &Provider{provider: sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(sdktrace.NeverSample()),
-	)}
+	return &Provider{
+		provider: sdktrace.NewTracerProvider(
+			sdktrace.WithSampler(sdktrace.NeverSample()),
+		),
+	}
+}
+
+// NoopTracer creates a new Tracer that never samples any spans.
+func NoopTracer(instrumentationName string) oteltrace.Tracer {
+	return NoopProvider().Tracer(instrumentationName)
 }
 
 // NewTraceProvider creates a new Provider that is configured per the provided Config.
@@ -233,11 +220,13 @@ func NewTraceProvider(ctx context.Context, cfg Config) (*Provider, error) {
 	}))
 
 	// set global provider to our provider wrapper to have all tracers use the common TracerOptions
-	provider := &Provider{provider: sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(cfg.SamplingRate))),
-		sdktrace.WithResource(res),
-		sdktrace.WithSpanProcessor(sdktrace.NewBatchSpanProcessor(exporter)),
-	)}
+	provider := &Provider{
+		provider: sdktrace.NewTracerProvider(
+			sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(cfg.SamplingRate))),
+			sdktrace.WithResource(res),
+			sdktrace.WithSpanProcessor(sdktrace.NewBatchSpanProcessor(exporter)),
+		),
+	}
 	otel.SetTracerProvider(provider)
 
 	return provider, nil

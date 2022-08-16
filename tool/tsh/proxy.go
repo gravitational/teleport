@@ -103,7 +103,7 @@ func sshProxyWithTLSRouting(cf *CLIConf, tc *libclient.TeleportClient, targetHos
 		return trace.Wrap(err)
 	}
 	defer lp.Close()
-	if err := lp.SSHProxy(tc.LocalAgent()); err != nil {
+	if err := lp.SSHProxy(cf.Context, tc.LocalAgent()); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
