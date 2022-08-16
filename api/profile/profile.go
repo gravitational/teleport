@@ -71,10 +71,7 @@ type Profile struct {
 	// Username is the Teleport username for the client.
 	Username string `yaml:"user,omitempty"`
 
-	// AuthType (like "google")
-	AuthType string `yaml:"auth_type,omitempty"`
-
-	// SiteName is equivalient to --cluster argument
+	// SiteName is equivalent to the --cluster flag
 	SiteName string `yaml:"cluster,omitempty"`
 
 	// ForwardedPorts is the list of ports to forward to the target node.
@@ -90,6 +87,10 @@ type Profile struct {
 	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
 	TLSRoutingEnabled bool `yaml:"tls_routing_enabled,omitempty"`
+
+	// AuthConnector (like "google", "passwordless").
+	// Equivalent to the --auth tsh flag.
+	AuthConnector string `yaml:"auth_connector,omitempty"`
 }
 
 // Name returns the name of the profile.
