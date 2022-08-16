@@ -100,16 +100,7 @@ func MatchByProtocol(protocols ...common.Protocol) MatchFunc {
 // MatchByProtocolWithPing creates match function based on client TLS APLN
 // protocol matching also their ping protocol variations.
 func MatchByProtocolWithPing(protocols ...common.Protocol) MatchFunc {
-	m := make(map[common.Protocol]struct{})
-	for _, v := range protocols {
-		m[common.ProtocolWithPing(v)] = struct{}{}
-		m[v] = struct{}{}
-	}
-
-	return func(_, alpn string) bool {
-		_, ok := m[common.Protocol(alpn)]
-		return ok
-	}
+	return MatchByProtocol(append(protocol, ProtocolsWithPing(protocols)...))
 }
 
 // MatchByALPNPrefix creates match function based on client TLS ALPN protocol prefix.
