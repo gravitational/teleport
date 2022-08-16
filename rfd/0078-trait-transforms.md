@@ -169,7 +169,7 @@ to normal traits which are typically reference by `{{external.<trait_name>}}`.
 
 Trait transforms will be evaluated during each user login.
 This will occur after the SSO provider has returned its assertions/claims, and
-before Teleport maps these to internal Teleport roles via `traits_to_roles` or
+before Teleport maps these to internal Teleport roles via `attributes_to_roles` or
 `claims_to_roles` so that transformed traits can be used for this mapping.
 
 The predicate expression should only need to be parsed a single time during the
@@ -219,6 +219,16 @@ the given input.
 ### Extra Examples
 
 Coming soon....
+
+### Future Work
+
+The existing `claims_to_roles` and `attributes_to_roles` offer only a simple
+static mapping.
+This could also be factored out of the SAML and OIDC connecter specifications
+into a new resource which could leverage the predicate language to create more
+powerful expressions to determine which roles a user should receive.
+This will give us a complete system for solving the problem of incomplete data
+coming from identity providers
 
 --- 
 
