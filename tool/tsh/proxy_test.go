@@ -37,6 +37,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -69,6 +70,7 @@ func TestSSH(t *testing.T) {
 	}{
 		{"ssh root cluster access", testRootClusterSSHAccess},
 		{"ssh leaf cluster access", testLeafClusterSSHAccess},
+		{"ssh leaf via root login blocked by default", testRootLoginLeafSSHBlocked},
 		{"ssh jump host access", testJumpHostSSHAccess},
 	}
 
@@ -125,6 +127,20 @@ func testLeafClusterSSHAccess(t *testing.T, s *suite) {
 	require.NoError(t, err)
 }
 
+// testRootLoginLeafSSHBlocked tests that a client cannot ssh into a leaf node when
+// logged in to the root cluster by default (i.e. no --cluster flag).
+func testRootLoginLeafSSHBlocked(t *testing.T, s *suite) {
+	tshHome := mustLogin(t, s)
+	require.Never(t, func() bool {
+		err := Run(context.Background(), []string{
+			"ssh",
+			s.leaf.Config.Hostname,
+			"echo", "hello",
+		}, setHomePath(tshHome))
+		return err == nil
+	}, 5*time.Second, time.Second)
+}
+
 func testJumpHostSSHAccess(t *testing.T, s *suite) {
 	// login to root
 	tshHome := mustLogin(t, s, s.root.Config.Auth.ClusterName.GetClusterName())
@@ -174,6 +190,38 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 		}, setMockSSOLogin(t, s), setHomePath(tshHome))
 		require.NoError(t, err)
 	})
+}
+
+// TestSSHLeafFromRoot tests that a user can ssh into a leaf node while logged in to
+// the root cluster without the --cluster flag if SendAllHostCAs is true.
+func TestSSHLeafFromRoot(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	s := newTestSuite(t,
+		withRootConfigFunc(func(cfg *service.Config) {
+			cfg.Version = defaults.TeleportConfigVersionV2
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.Auth.SendAllHostCAs = true
+		}),
+		withLeafCluster(),
+		withLeafConfigFunc(func(cfg *service.Config) {
+			cfg.Version = defaults.TeleportConfigVersionV2
+			cfg.Proxy.SSHAddr.Addr = localListenerAddr()
+		}),
+	)
+	tshHome := mustLogin(t, s, s.root.Config.Auth.ClusterName.GetClusterName())
+	leafPort := helpers.PortStr(t, s.leaf.Config.SSH.Addr.Addr)
+	require.Eventually(t, func() bool {
+		err := Run(context.Background(), []string{
+			"ssh",
+			"--insecure",
+			"-p", leafPort,
+			s.leaf.Config.Hostname,
+			"echo", "hello",
+		}, setHomePath(tshHome))
+		return err == nil
+	}, 10*time.Second, time.Second)
 }
 
 // TestProxySSH verifies "tsh proxy ssh" functionality

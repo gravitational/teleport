@@ -396,27 +396,6 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		require.Equal(t, *gotID, wantID)
 	})
 
-	t.Run("Login to root, include leaf CAs", func(t *testing.T) {
-		t.Parallel()
-		s := newAuthSuite(t, withLeafCluster("leaf.localhost"))
-		createUser(t, s.a)
-		// Login to the root cluster, but include certs from leaf.
-		s.a.sendAllHostCAs = true
-		resp, err := s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-			AuthenticateUserRequest: AuthenticateUserRequest{
-				Username: user,
-				Pass:     &PassCreds{Password: pass},
-			},
-			PublicKey:      pub,
-			TTL:            time.Hour,
-			RouteToCluster: s.clusterName.GetClusterName(),
-		})
-		require.NoError(t, err)
-		require.Equal(t, resp.Username, user)
-		// Auth server should send leaf cluster's host CA in addition to the root cluster's.
-		require.Len(t, resp.HostSigners, 2)
-	})
-
 	t.Run("Login, specify valid kube cluster", func(t *testing.T) {
 		t.Parallel()
 		s := newAuthSuite(t)

@@ -465,24 +465,15 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 		return nil, trace.Wrap(err)
 	}
 
-	var hostCertAuthorities []types.CertAuthority
-	if s.sendAllHostCAs {
-		hostCertAuthorities, err = s.GetCertAuthorities(ctx, types.HostCA, false)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		// Return the host CA for this cluster only.
-		authority, err := s.GetCertAuthority(ctx, types.CertAuthID{
-			Type:       types.HostCA,
-			DomainName: clusterName.GetClusterName(),
-		}, false)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		hostCertAuthorities = []types.CertAuthority{
-			authority,
-		}
+	authority, err := s.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.HostCA,
+		DomainName: clusterName.GetClusterName(),
+	}, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	hostCertAuthorities := []types.CertAuthority{
+		authority,
 	}
 
 	sourceIP := ""

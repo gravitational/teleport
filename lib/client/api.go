@@ -279,6 +279,10 @@ type Config struct {
 	// if omitted, first available site will be selected
 	SiteName string
 
+	// ExplicitSiteNameis is true if SiteName was initially set by the end-user
+	// (for example, using command-line flags).
+	ExplicitSiteName bool
+
 	// KubernetesCluster specifies the kubernetes cluster for any relevant
 	// operations. If empty, the auth server will choose one using stable (same
 	// cluster every time) but unspecified logic.
@@ -1857,14 +1861,31 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		return trace.BadParameter("no target host specified")
 	}
 
-	nodeClient, err := proxyClient.ConnectToNode(
+	nodeClient, connectErr := proxyClient.ConnectToNode(
 		ctx,
 		NodeAddr{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: siteInfo.Name},
 		tc.Config.HostLogin,
 	)
-	if err != nil {
-		tc.ExitStatus = 1
-		return trace.Wrap(err)
+	if connectErr != nil {
+		if tc.ExplicitSiteName {
+			tc.ExitStatus = 1
+			return trace.Wrap(connectErr)
+		}
+		pr, err := tc.Ping(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if !pr.Auth.SendAllHostCAs {
+			tc.ExitStatus = 1
+			return trace.Wrap(connectErr)
+		}
+
+		// If the user didn't provide a cluster and the auth server says to load all CAs,
+		// try to guess the cluster.
+		nodeClient, err = tc.tryConnectToNodeAnyCluster(ctx, proxyClient, nodeAddrs[0])
+		if err != nil {
+			return trace.NewAggregate(connectErr, err)
+		}
 	}
 	defer nodeClient.Close()
 
@@ -1910,6 +1931,32 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %v\n", nodeAddrs[0])
 	}
 	return tc.runShell(ctx, nodeClient, types.SessionPeerMode, nil, nil)
+}
+
+// tryConnectToNodeAnyCluster attempts to connect to a node in an unknown cluster.
+func (tc *TeleportClient) tryConnectToNodeAnyCluster(ctx context.Context, proxyClient *ProxyClient, nodeAddr string) (*NodeClient, error) {
+	sites, err := proxyClient.GetSites(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var errors []error
+	for _, site := range sites {
+		// Assume that the current cluster was already checked.
+		if site.Name == tc.SiteName {
+			continue
+		}
+		tc.localAgent.UpdateCluster(site.Name)
+		nodeClient, err := proxyClient.ConnectToNode(
+			ctx,
+			NodeAddr{Addr: nodeAddr, Namespace: tc.Namespace, Cluster: site.Name},
+			tc.Config.HostLogin,
+		)
+		if err == nil {
+			return nodeClient, nil
+		}
+		errors = append(errors, err)
+	}
+	return nil, trace.NewAggregate(errors...)
 }
 
 func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) error {

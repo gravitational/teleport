@@ -831,6 +831,11 @@ func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.Au
 	}
 
 	as.HasMessageOfTheDay = cap.GetMessageOfTheDay() != ""
+	pingResp, err := authClient.Ping(ctx)
+	if err != nil {
+		return webclient.AuthenticationSettings{}, trace.Wrap(err)
+	}
+	as.SendAllHostCAs = pingResp.SendAllHostCAs
 
 	return as, nil
 }
