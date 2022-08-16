@@ -46,7 +46,7 @@ Multiple migrations can be performed at once. To run a migration do the followin
 9. Run `tsh app login drone` and follow any prompts.
 10. Run `tsh proxy app drone` and copy the printed socket. This should look something like `127.0.0.1:60982`
 11. Switch back to your previous terminal.
-12. Run `export DRONE_SERVER=http://{socket}`, replaceing `{socket}` with the data you copied in (10)
+12. Run `export DRONE_SERVER=http://{host:port}`, replacing `{host:port}` with the data you copied in (10)
 13. Run `make dronegen`
 14. Commit the two changed files and push/publish the branch
 15. Open a PR merging your changes into master via https://github.com/gravitational/teleport/compare
