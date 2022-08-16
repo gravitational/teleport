@@ -38,6 +38,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"go.uber.org/atomic"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -1099,15 +1100,50 @@ func (c *Cache) Close() error {
 	return nil
 }
 
-func (c *Cache) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	applyfns := make([]func(ctx context.Context) error, 0, len(c.collections))
-	for _, collection := range c.collections {
-		applyfn, err := collection.fetch(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		applyfns = append(applyfns, applyfn)
+// applyFn applies the fetched resources for a
+// particular collection
+type applyFn func(ctx context.Context) error
+
+// fetchLimit determines the parallelism of the
+// fetch operations based on the target. Both the
+// auth and proxy caches are permitted to run parallel
+// fetches for resources, while all other targets are
+// throttled to limit load spiking during a mass
+// restart of nodes
+func fetchLimit(target string) int {
+	switch target {
+	case "auth", "proxy":
+		return 5
 	}
+
+	return 1
+}
+
+func (c *Cache) fetch(ctx context.Context) (fn applyFn, err error) {
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(fetchLimit(c.target))
+	applyfns := make([]applyFn, len(c.collections))
+	i := 0
+	for _, collection := range c.collections {
+		collection := collection
+		ii := i
+		i++
+
+		g.Go(func() (err error) {
+			applyfn, err := collection.fetch(ctx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			applyfns[ii] = applyfn
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return func(ctx context.Context) error {
 		for _, applyfn := range applyfns {
 			if err := applyfn(ctx); err != nil {

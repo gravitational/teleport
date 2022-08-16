@@ -26,6 +26,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"time"
 
 	"go.uber.org/zap/zapcore"
 )
@@ -50,8 +51,6 @@ type Logger struct {
 	addStack zapcore.LevelEnabler
 
 	callerSkip int
-
-	clock zapcore.Clock
 }
 
 // New constructs a new Logger from the provided zapcore.Core and Options. If
@@ -72,7 +71,6 @@ func New(core zapcore.Core, options ...Option) *Logger {
 		core:        core,
 		errorOutput: zapcore.Lock(os.Stderr),
 		addStack:    zapcore.FatalLevel + 1,
-		clock:       zapcore.DefaultClock,
 	}
 	return log.WithOptions(options...)
 }
@@ -87,7 +85,6 @@ func NewNop() *Logger {
 		core:        zapcore.NewNopCore(),
 		errorOutput: zapcore.AddSync(ioutil.Discard),
 		addStack:    zapcore.FatalLevel + 1,
-		clock:       zapcore.DefaultClock,
 	}
 }
 
@@ -273,7 +270,7 @@ func (log *Logger) check(lvl zapcore.Level, msg string) *zapcore.CheckedEntry {
 	// log message will actually be written somewhere.
 	ent := zapcore.Entry{
 		LoggerName: log.name,
-		Time:       log.clock.Now(),
+		Time:       time.Now(),
 		Level:      lvl,
 		Message:    msg,
 	}
@@ -310,7 +307,7 @@ func (log *Logger) check(lvl zapcore.Level, msg string) *zapcore.CheckedEntry {
 	if log.addCaller {
 		frame, defined := getCallerFrame(log.callerSkip + callerSkipOffset)
 		if !defined {
-			fmt.Fprintf(log.errorOutput, "%v Logger.check error: failed to get caller\n", ent.Time.UTC())
+			fmt.Fprintf(log.errorOutput, "%v Logger.check error: failed to get caller\n", time.Now().UTC())
 			log.errorOutput.Sync()
 		}
 
