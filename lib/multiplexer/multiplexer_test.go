@@ -868,3 +868,25 @@ func (noopListener) Close() error {
 func (l noopListener) Addr() net.Addr {
 	return l.addr
 }
+
+func TestIsHTTP(t *testing.T) {
+	t.Parallel()
+	for _, verb := range httpMethods {
+		t.Run(fmt.Sprintf("Accept %v", string(verb)), func(t *testing.T) {
+			data := fmt.Sprintf("%v /some/path HTTP/1.1", string(verb))
+			require.True(t, isHTTP([]byte(data)))
+		})
+	}
+
+	rejectedInputs := []string{
+		"some random junk",
+		"FAKE /some/path HTTP/1.1",
+		// This case checks for a bug where the arguments to bytes.HasPrefix are reversed.
+		"GE",
+	}
+	for _, input := range rejectedInputs {
+		t.Run(fmt.Sprintf("Reject %q", input), func(t *testing.T) {
+			require.False(t, isHTTP([]byte(input)))
+		})
+	}
+}
