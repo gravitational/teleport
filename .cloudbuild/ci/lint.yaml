@@ -1,5 +1,5 @@
 steps:
-  - name: quay.io/gravitational/teleport-buildbox:teleport8
+  - name: public.ecr.aws/gravitational/teleport-buildbox:teleport8
     id: lint
     args: ['make', 'lint']
 options:
