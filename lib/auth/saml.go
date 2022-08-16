@@ -335,7 +335,7 @@ func ParseSAMLInResponseTo(response string) (string, error) {
 	}
 
 	// Try to find the InResponseTo attribute in the SAML response. If we can't find this, return
-	// a predictable error message so the caller can choose to interpret it as an IdP-initiated payload.
+	// a predictable error message so the caller may choose interpret it as an IdP-initiated payload.
 	el := doc.Root()
 	responseTo := el.SelectAttr("InResponseTo")
 	if responseTo == nil {
