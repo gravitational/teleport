@@ -29,9 +29,6 @@ import (
 	"syscall"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/escape"
@@ -42,7 +39,10 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 const (
@@ -101,7 +101,9 @@ type NodeSession struct {
 // newSession creates a new Teleport session with the given remote node
 // if 'joinSession' is given, the session will join the existing session
 // of another user
-func newSession(client *NodeClient,
+func newSession(
+	ctx context.Context,
+	client *NodeClient,
 	joinSession *session.Session,
 	env map[string]string,
 	stdin io.Reader,
@@ -167,7 +169,7 @@ func newSession(client *NodeClient,
 	// Determine if terminal should clear on exit.
 	ns.shouldClearOnExit = isFIPS()
 	if client.Proxy != nil {
-		boring, err := client.Proxy.isAuthBoring(context.TODO())
+		boring, err := client.Proxy.isAuthBoring(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

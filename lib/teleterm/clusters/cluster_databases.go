@@ -115,7 +115,7 @@ func (c *Cluster) ReissueDBCerts(ctx context.Context, user, dbName string, db ty
 	}
 
 	// Update the database-specific connection profile file.
-	err = dbprofile.Add(c.clusterClient, tlsca.RouteToDatabase{
+	err = dbprofile.Add(ctx, c.clusterClient, tlsca.RouteToDatabase{
 		ServiceName: db.GetName(),
 		Protocol:    db.GetProtocol(),
 		Username:    user,
@@ -136,7 +136,7 @@ func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, dbURI string) ([]
 	}
 	defer proxyClient.Close()
 
-	authClient, err := proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName, true)
+	authClient, err := proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
