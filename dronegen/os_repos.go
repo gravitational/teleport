@@ -31,11 +31,11 @@ func promoteBuildOsRepoPipelines() []pipeline {
 
 // Used for one-off migrations of older versions.
 // Use cases include:
-//  * We want to support another OS while providing backwards compatibility
-//  * We want to support another OS version while providing backwards compatibility
-//  * A customer wants to be able to install an older version via APT/YUM even if we
-//      no longer support it
-//  * RPM migrations after new YUM pipeline is done
+//   - We want to support another OS while providing backwards compatibility
+//   - We want to support another OS version while providing backwards compatibility
+//   - A customer wants to be able to install an older version via APT/YUM even if we
+//     no longer support it
+//   - RPM migrations after new YUM pipeline is done
 func artifactMigrationPipeline() []pipeline {
 	migrationVersions := []string{
 		// These versions were migrated as a part of the new `promoteAptPipeline`
@@ -83,9 +83,12 @@ func artifactMigrationPipeline() []pipeline {
 		// "v9.3.10",
 		// "v9.3.12",
 		// "v9.3.13",
+		// "v9.3.14",
 		// "v10.0.0",
 		// "v10.0.1",
 		// "v10.0.2",
+		// "v10.1.2",
+		// "v10.1.4",
 	}
 	// Pushing to this branch will trigger the listed versions to be migrated. Typically this should be
 	// the branch that these changes are being committed to.
@@ -192,26 +195,7 @@ func (optpb *OsPackageToolPipelineBuilder) buildPromoteOsPackagePipeline() pipel
 	p.Trigger = triggerPromote
 	p.Trigger.Repo.Include = []string{"gravitational/teleport"}
 
-	setupSteps := []step{
-		{
-			Name:  "Verify build is tagged",
-			Image: "alpine:latest",
-			Commands: []string{
-				"[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)",
-			},
-		},
-	}
-	setupSteps = append(setupSteps, p.Steps...)
-	setupSteps = append(setupSteps,
-		step{
-			Name:  "Check if tag is prerelease",
-			Image: "golang:1.17-alpine",
-			Commands: []string{
-				fmt.Sprintf("cd %q", path.Join(checkoutPath, "build.assets", "tooling")),
-				"go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is a prerelease, not publishing ${DRONE_TAG} packages to APT repos' && exit 78)",
-			},
-		},
-	)
+	setupSteps := verifyValidPromoteRunSteps(checkoutPath, commitName, true)
 
 	setupStepNames := make([]string, 0, len(setupSteps))
 	for _, setupStep := range setupSteps {
