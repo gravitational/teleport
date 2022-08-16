@@ -469,9 +469,9 @@ message PingResponse {
     bool IsBoring = 5 [ (gogoproto.jsontag) = "is_boring" ];
     // LicenseWarnings is a list of license compliance warnings.
     repeated string LicenseWarnings = 6 [ (gogoproto.jsontag) = "license_warnings" ];
-    // SendAllHostCAs signals whether or not tsh should load all host CAs when trying
+    // LoadAllHostCAs signals whether or not tsh should load all host CAs when trying
     // to ssh into a node.
-    bool SendAllHostCAs = 7 [ (gogoproto.jsontag) = "send_all_host_cas" ];
+    bool LoadAllHostCAs = 7 [ (gogoproto.jsontag) = "load_all_host_cas" ];
 }
 
 // Features are auth server features.

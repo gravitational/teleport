@@ -835,7 +835,7 @@ func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.Au
 	if err != nil {
 		return webclient.AuthenticationSettings{}, trace.Wrap(err)
 	}
-	as.SendAllHostCAs = pingResp.SendAllHostCAs
+	as.LoadAllHostCAs = pingResp.LoadAllHostCAs
 
 	return as, nil
 }

@@ -193,7 +193,7 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 }
 
 // TestSSHLeafFromRoot tests that a user can ssh into a leaf node while logged in to
-// the root cluster without the --cluster flag if SendAllHostCAs is true.
+// the root cluster without the --cluster flag if LoadAllHostCAs is true.
 func TestSSHLeafFromRoot(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
@@ -202,7 +202,7 @@ func TestSSHLeafFromRoot(t *testing.T) {
 		withRootConfigFunc(func(cfg *service.Config) {
 			cfg.Version = defaults.TeleportConfigVersionV2
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-			cfg.Auth.SendAllHostCAs = true
+			cfg.Auth.LoadAllHostCAs = true
 		}),
 		withLeafCluster(),
 		withLeafConfigFunc(func(cfg *service.Config) {

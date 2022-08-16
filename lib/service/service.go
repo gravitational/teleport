@@ -1531,7 +1531,7 @@ func (process *TeleportProcess) initAuthService() error {
 		Emitter:                 checkingEmitter,
 		Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
 		TraceClient:             traceClt,
-		SendAllHostCAs:          cfg.Auth.SendAllHostCAs,
+		LoadAllHostCAs:          cfg.Auth.LoadAllHostCAs,
 	}, func(as *auth.Server) error {
 		if !process.Config.CachePolicy.Enabled {
 			return nil

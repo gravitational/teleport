@@ -178,9 +178,8 @@ type InitConfig struct {
 	// ConnectionsDiagnostic is a service that manages Connection Diagnostics resources.
 	ConnectionsDiagnostic services.ConnectionsDiagnostic
 
-	// SendAllHostCAs sends the host CAs of all clusters to SSH clients logging in when
-	// enabled, instead of just the host CA for the current cluster.
-	SendAllHostCAs bool
+	// LoadAllHostCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
+	LoadAllHostCAs bool
 
 	// TraceClient is used to forward spans to the upstream telemetry collector
 	TraceClient otlptrace.Client

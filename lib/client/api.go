@@ -1875,7 +1875,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if !pr.Auth.SendAllHostCAs {
+		if !pr.Auth.LoadAllHostCAs {
 			tc.ExitStatus = 1
 			return trace.Wrap(connectErr)
 		}

@@ -644,7 +644,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
-	cfg.Auth.SendAllHostCAs = fc.Auth.SendAllHostCAs
+	cfg.Auth.LoadAllHostCAs = fc.Auth.LoadAllHostCAs
 
 	return nil
 }
