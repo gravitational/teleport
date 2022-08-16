@@ -1016,8 +1016,8 @@ image-ci: clean docker-binaries
 
 # DOCKER_CLI_EXPERIMENTAL=enabled is set to allow inspecting the manifest for present images.
 # https://docs.docker.com/engine/reference/commandline/cli/#experimental-features
-# The internal staging images use amazon ECR's immutable repository settings. This makes overwrites impossible currently. 
-# This can cause issues when drone tagging pipelines must be re-run due to failures. 
+# The internal staging images use amazon ECR's immutable repository settings. This makes overwrites impossible currently.
+# This can cause issues when drone tagging pipelines must be re-run due to failures.
 # Currently the work around for this is to not attempt to push to the image when it already exists.
 .PHONY: publish-ci
 publish-ci: image-ci
@@ -1035,8 +1035,8 @@ image-operator-ci:
 
 # DOCKER_CLI_EXPERIMENTAL=enabled is set to allow inspecting the manifest for present images.
 # https://docs.docker.com/engine/reference/commandline/cli/#experimental-features
-# The internal staging images use amazon ECR's immutable repository settings. This makes overwrites impossible currently. 
-# This can cause issues when drone tagging pipelines must be re-run due to failures. 
+# The internal staging images use amazon ECR's immutable repository settings. This makes overwrites impossible currently.
+# This can cause issues when drone tagging pipelines must be re-run due to failures.
 # Currently the work around for this is to not attempt to push to the image when it already exists.
 .PHONY: publish-operator-ci
 publish-operator-ci: image-operator-ci
@@ -1147,6 +1147,13 @@ update-webassets:
 	build.assets/webapps/update-teleport-webassets.sh -w $(WEBASSETS_BRANCH) -t $(TELEPORT_BRANCH)
 
 # dronegen generates .drone.yml config
+#
+#    Usage:
+#    - install github.com/gravitational/tdr
+#    - set $DRONE_TOKEN and $DRONE_SERVER (https://drone.platform.teleport.sh)
+#    - tsh login --proxy=platform.teleport.sh
+#    - tsh app login drone
+#    - make dronegen
 .PHONY: dronegen
 dronegen:
 	go run ./dronegen

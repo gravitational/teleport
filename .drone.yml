@@ -30,7 +30,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:104
+# Generated at dronegen/push.go (main.pushPipeline)
 ################################################
 
 kind: pipeline
@@ -62,6 +62,7 @@ steps:
 - name: Check out code
   image: docker:git
   commands:
+  - mkdir -p /go/src/github.com/gravitational/webapps
   - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
   - cd /go/src/github.com/gravitational/teleport
   - git init && git remote add origin ${DRONE_REMOTE_URL}
@@ -91,6 +92,7 @@ steps:
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
   - make -C build.assets release-amd64-centos7
+  - make -C build.assets teleterm
   environment:
     ARCH: amd64
     GID: "1000"
@@ -133,7 +135,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:104
+# Generated at dronegen/push.go (main.pushPipeline)
 ################################################
 
 kind: pipeline
@@ -236,7 +238,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:104
+# Generated at dronegen/push.go (main.pushPipeline)
 ################################################
 
 kind: pipeline
@@ -343,7 +345,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:104
+# Generated at dronegen/push.go (main.pushPipeline)
 ################################################
 
 kind: pipeline
@@ -446,7 +448,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/mac.go:39
+# Generated at dronegen/mac.go (main.newDarwinPipeline)
 ################################################
 
 kind: pipeline
@@ -631,7 +633,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:104
+# Generated at dronegen/push.go (main.pushPipeline)
 ################################################
 
 kind: pipeline
@@ -734,7 +736,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:104
+# Generated at dronegen/push.go (main.pushPipeline)
 ################################################
 
 kind: pipeline
@@ -1366,7 +1368,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go (main.tagPipeline)
 ################################################
 
 kind: pipeline
@@ -1526,7 +1528,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go (main.tagPipeline)
 ################################################
 
 kind: pipeline
@@ -1685,7 +1687,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go (main.tagPipeline)
 ################################################
 
 kind: pipeline
@@ -1712,6 +1714,7 @@ steps:
 - name: Check out code
   image: docker:git
   commands:
+  - mkdir -p /go/src/github.com/gravitational/webapps
   - mkdir -p /go/src/github.com/gravitational/teleport
   - cd /go/src/github.com/gravitational/teleport
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
@@ -1721,6 +1724,12 @@ steps:
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
   - git submodule update --init --recursive webassets || true
+  - cd /go/src/github.com/gravitational/webapps
+  - git init && git remote add origin git@github.com:gravitational/webapps
+  - git fetch origin
+  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
+  - git submodule update --init packages/webapps.e
+  - cd -
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
   - |-
@@ -1747,6 +1756,7 @@ steps:
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
   - make -C build.assets release-amd64-centos7
+  - make -C build.assets teleterm
   environment:
     ARCH: amd64
     GID: "1000"
@@ -1765,6 +1775,8 @@ steps:
     \;
   - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts
     \;
+  - cp /go/src/github.com/gravitational/webapps/packages/teleterm/build/release/teleconnect*.{tar.gz,deb,rpm}
+    /go/artifacts/
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
 - name: Upload to S3
@@ -1842,7 +1854,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go (main.tagPipeline)
 ################################################
 
 kind: pipeline
@@ -1999,7 +2011,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go (main.tagPackagePipeline)
 ################################################
 
 kind: pipeline
@@ -2183,7 +2195,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go (main.tagPackagePipeline)
 ################################################
 
 kind: pipeline
@@ -2364,7 +2376,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go (main.tagPackagePipeline)
 ################################################
 
 kind: pipeline
@@ -2390,6 +2402,7 @@ steps:
 - name: Check out code
   image: docker:git
   commands:
+  - mkdir -p /go/src/github.com/gravitational/webapps
   - mkdir -p /go/src/github.com/gravitational/teleport
   - cd /go/src/github.com/gravitational/teleport
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
@@ -2399,6 +2412,12 @@ steps:
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
   - git submodule update --init --recursive webassets || true
+  - cd /go/src/github.com/gravitational/webapps
+  - git init && git remote add origin git@github.com:gravitational/webapps
+  - git fetch origin
+  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
+  - git submodule update --init packages/webapps.e
+  - cd -
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
   - |-
@@ -2534,7 +2553,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go (main.tagPackagePipeline)
 ################################################
 
 kind: pipeline
@@ -2701,7 +2720,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go (main.tagPipeline)
 ################################################
 
 kind: pipeline
@@ -2858,7 +2877,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go (main.tagPackagePipeline)
 ################################################
 
 kind: pipeline
@@ -3042,7 +3061,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go (main.tagPackagePipeline)
 ################################################
 
 kind: pipeline
@@ -3212,7 +3231,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/mac.go:39
+# Generated at dronegen/mac.go (main.newDarwinPipeline)
 ################################################
 
 kind: pipeline
@@ -3460,7 +3479,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/mac.go:39
+# Generated at dronegen/mac.go (main.newDarwinPipeline)
 ################################################
 
 kind: pipeline
@@ -3649,7 +3668,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/mac.go:39
+# Generated at dronegen/mac.go (main.newDarwinPipeline)
 ################################################
 
 kind: pipeline
@@ -3838,7 +3857,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go (main.tagPipeline)
 ################################################
 
 kind: pipeline
@@ -3995,7 +4014,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go (main.tagPipeline)
 ################################################
 
 kind: pipeline
@@ -4152,7 +4171,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go (main.tagPackagePipeline)
 ################################################
 
 kind: pipeline
@@ -4322,7 +4341,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go (main.tagPackagePipeline)
 ################################################
 
 kind: pipeline
@@ -4492,7 +4511,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go (main.tagPackagePipeline)
 ################################################
 
 kind: pipeline
@@ -4676,7 +4695,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go (main.tagPackagePipeline)
 ################################################
 
 kind: pipeline
@@ -4860,7 +4879,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go (main.tagPipeline)
 ################################################
 
 kind: pipeline
@@ -5337,7 +5356,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/buildbox.go:83
+# Generated at dronegen/buildbox.go (main.buildboxPipeline)
 ################################################
 
 kind: pipeline
@@ -5545,7 +5564,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:270
+# Generated at dronegen/os_repos.go (main.buildNeverTriggerPipeline)
 ################################################
 
 kind: pipeline
@@ -5573,7 +5592,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:294
+# Generated at dronegen/os_repos.go (main.(*OsPackageToolPipelineBuilder).buildBaseOsPackagePipeline)
 ################################################
 
 kind: pipeline
@@ -5682,7 +5701,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:270
+# Generated at dronegen/os_repos.go (main.buildNeverTriggerPipeline)
 ################################################
 
 kind: pipeline
@@ -5710,7 +5729,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:294
+# Generated at dronegen/os_repos.go (main.(*OsPackageToolPipelineBuilder).buildBaseOsPackagePipeline)
 ################################################
 
 kind: pipeline
@@ -5820,7 +5839,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/promote.go:28
+# Generated at dronegen/promote.go (main.buildDockerPromotionPipelineECR)
 ################################################
 
 kind: pipeline
@@ -5907,7 +5926,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/promote.go:85
+# Generated at dronegen/promote.go (main.buildDockerPromotionPipelineQuay)
 ################################################
 
 kind: pipeline
@@ -6471,6 +6490,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 733409db7e7bf4d9fa981e163359c19d9157b4bdd4e80e5f3397cb94ff421219
+hmac: 1d64dc325fa199e283ce9c4d3d440da0ee00f0f7b4fbab012fc5cd7e94e053f6
 
 ...

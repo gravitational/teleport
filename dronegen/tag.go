@@ -29,8 +29,15 @@ const (
 const releasesHost = "https://releases-staging.platform.teleport.sh"
 
 // tagCheckoutCommands builds a list of commands for Drone to check out a git commit on a tag build
-func tagCheckoutCommands(fips bool) []string {
-	commands := []string{
+func tagCheckoutCommands(b buildType) []string {
+	var commands []string
+
+	if b.hasTeleportConnect() {
+		// TODO(zmb3): remove /go/src/github.com/gravitational/webapps after webapps->teleport migration
+		commands = append(commands, `mkdir -p /go/src/github.com/gravitational/webapps`)
+	}
+
+	commands = append(commands,
 		`mkdir -p /go/src/github.com/gravitational/teleport`,
 		`cd /go/src/github.com/gravitational/teleport`,
 		`git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .`,
@@ -41,6 +48,22 @@ func tagCheckoutCommands(fips bool) []string {
 		`git submodule update --init e`,
 		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
 		`git submodule update --init --recursive webassets || true`,
+	)
+
+	if b.hasTeleportConnect() {
+		// TODO(zmb3): this can be removed after webapps migration
+		// clone webapps for the Teleport Connect Source code
+		commands = append(commands,
+			`cd /go/src/github.com/gravitational/webapps`,
+			`git init && git remote add origin git@github.com:gravitational/webapps`,
+			`git fetch origin`,
+			`git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)`,
+			`git submodule update --init packages/webapps.e`,
+			`cd -`,
+		)
+	}
+
+	commands = append(commands,
 		`rm -f /root/.ssh/id_rsa`,
 		// create necessary directories
 		`mkdir -p /go/cache /go/artifacts`,
@@ -51,7 +74,7 @@ if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
   exit 1
 fi
 echo "$$VERSION" > /go/.version.txt`,
-	}
+	)
 	return commands
 }
 
@@ -84,11 +107,16 @@ func tagBuildCommands(b buildType) []string {
 
 	// Build Teleport Connect on suported OS/arch
 	if b.hasTeleportConnect() {
-		commands = append(commands,
-			`cd /go/src/github.com/gravitational/webapps`,
-			`yarn install --frozen-lockfile && yarn build-term && yarn package-term`,
-			`cd -`,
-		)
+		switch b.os {
+		case "linux":
+			commands = append(commands, `make -C build.assets teleterm`)
+		case "mac":
+			commands = append(commands,
+				`cd /go/src/github.com/gravitational/webapps`,
+				`yarn install --frozen-lockfile && yarn build-term && yarn package-term`,
+				`cd -`,
+			)
+		}
 
 	}
 
@@ -146,6 +174,12 @@ func tagCopyArtifactCommands(b buildType) []string {
 				`mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos7-fips-bin.tar.gz`,
 			)
 		}
+	}
+
+	if b.hasTeleportConnect() {
+		commands = append(commands,
+			`cp /go/src/github.com/gravitational/webapps/packages/teleterm/build/release/teleconnect*.{tar.gz,deb,rpm} /go/artifacts/`,
+		)
 	}
 
 	// generate checksums
@@ -265,7 +299,7 @@ func tagPipeline(b buildType) pipeline {
 			Environment: map[string]value{
 				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
-			Commands: tagCheckoutCommands(b.fips),
+			Commands: tagCheckoutCommands(b),
 		},
 		waitForDockerStep(),
 		{
@@ -292,8 +326,8 @@ func tagPipeline(b buildType) pipeline {
 			Commands: tagCreateReleaseAssetCommands(b, "", extraQualifications),
 			Failure:  "ignore",
 			Environment: map[string]value{
-				"RELEASES_CERT": value{fromSecret: "RELEASES_CERT_STAGING"},
-				"RELEASES_KEY":  value{fromSecret: "RELEASES_KEY_STAGING"},
+				"RELEASES_CERT": {fromSecret: "RELEASES_CERT_STAGING"},
+				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY_STAGING"},
 			},
 		},
 	}
@@ -476,7 +510,7 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			Environment: map[string]value{
 				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
-			Commands: tagCheckoutCommands(b.fips),
+			Commands: tagCheckoutCommands(b),
 		},
 		waitForDockerStep(),
 		{
@@ -514,8 +548,8 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			Commands: tagCreateReleaseAssetCommands(b, strings.ToUpper(packageType), nil),
 			Failure:  "ignore",
 			Environment: map[string]value{
-				"RELEASES_CERT": value{fromSecret: "RELEASES_CERT_STAGING"},
-				"RELEASES_KEY":  value{fromSecret: "RELEASES_KEY_STAGING"},
+				"RELEASES_CERT": {fromSecret: "RELEASES_CERT_STAGING"},
+				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY_STAGING"},
 			},
 		},
 	}
