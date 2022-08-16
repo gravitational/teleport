@@ -145,7 +145,7 @@ func NewDatabaseFromAzureServer(server *azure.DBServer) (types.Database, error) 
 
 	fqdn := server.Properties.FullyQualifiedDomainName
 	if fqdn == "" {
-		return nil, trace.BadParameter("empty FQDN")
+		return nil, trace.BadParameter("empty FQDN for Azure DB server %q", server.Name)
 	}
 
 	var protocol string
@@ -157,6 +157,9 @@ func NewDatabaseFromAzureServer(server *azure.DBServer) (types.Database, error) 
 	case azure.PostgreSQLNamespace:
 		protocol = defaults.ProtocolPostgres
 		port = azure.PostgresPort
+	default:
+		return nil, trace.BadParameter("unknown Azure provider namespace %q for Azure DB server %q",
+			metadata.ResourceID.ProviderNamespace, server.Name)
 	}
 
 	labels, err := labelsFromAzureServer(server, metadata)
