@@ -27,13 +27,14 @@ import (
 	"testing"
 	"time"
 
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/sshutils"
+
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/check.v1"
-
-	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	"github.com/gravitational/teleport/lib/sshutils"
 )
 
 type ClientTestSuite struct {
@@ -51,6 +52,7 @@ func (s *ClientTestSuite) SetUpSuite(c *check.C) {
 	// create the client:
 	config := &Config{
 		KeysDir: c.MkDir(),
+		Tracer:  tracing.NoopProvider().Tracer("test"),
 	}
 	err := config.ParseProxyHost("localhost")
 	c.Assert(err, check.IsNil)
@@ -63,10 +65,12 @@ func (s *ClientTestSuite) SetUpSuite(c *check.C) {
 func (s *ClientTestSuite) TestNewSession(c *check.C) {
 	nc := &NodeClient{
 		Namespace: "blue",
+		Tracer:    tracing.NoopProvider().Tracer("test"),
 	}
 
+	ctx := context.Background()
 	// defaults:
-	ses, err := newSession(nc, nil, nil, nil, nil, nil, false, true)
+	ses, err := newSession(ctx, nc, nil, nil, nil, nil, nil, false, true)
 	c.Assert(err, check.IsNil)
 	c.Assert(ses, check.NotNil)
 	c.Assert(ses.NodeClient(), check.Equals, nc)
@@ -80,7 +84,7 @@ func (s *ClientTestSuite) TestNewSession(c *check.C) {
 	env := map[string]string{
 		sshutils.SessionEnvVar: "session-id",
 	}
-	ses, err = newSession(nc, nil, env, nil, nil, nil, false, true)
+	ses, err = newSession(ctx, nc, nil, env, nil, nil, nil, false, true)
 	c.Assert(err, check.IsNil)
 	c.Assert(ses, check.NotNil)
 	c.Assert(ses.env, check.DeepEquals, env)
@@ -214,6 +218,7 @@ func TestListenAndForwardCancel(t *testing.T) {
 						Conn: &fakeSSHConn{},
 					},
 				},
+				Tracer: tracing.NoopProvider().Tracer("test"),
 			}
 
 			// Create two anchors. An "accept" anchor that unblocks once the listener has
