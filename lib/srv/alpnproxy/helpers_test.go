@@ -106,7 +106,7 @@ func (s *Suite) GetCertPool() *x509.CertPool {
 	return pool
 }
 
-func (s *Suite) Start(t *testing.T) {
+func (s *Suite) CreateProxyServer(t *testing.T) *Proxy {
 	serverCert := mustGenCertSignedWithCA(t, s.ca)
 	tlsConfig := &tls.Config{
 		ClientAuth: tls.VerifyClientCertIfGiven,
@@ -130,6 +130,11 @@ func (s *Suite) Start(t *testing.T) {
 	require.NoError(t, err)
 	// Reset GetConfigForClient to simplify test setup.
 	svr.cfg.IdentityTLSConfig.GetConfigForClient = nil
+	return svr
+}
+
+func (s *Suite) Start(t *testing.T) {
+	svr := s.CreateProxyServer(t)
 
 	go func() {
 		err := svr.Serve(context.Background())

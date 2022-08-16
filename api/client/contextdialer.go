@@ -208,17 +208,17 @@ func (d TLSRoutingDialer) DialContext(ctx context.Context, network, addr string)
 		return nil, trace.BadParameter("missing TLS config")
 	}
 
-	netDialer := newDirectDialer(d.KeepAlivePeriod, d.DialTimeout)
+	dialer := newDirectDialer(d.KeepAlivePeriod, d.DialTimeout)
 	if d.ALPNConnUpgradeRequired {
-		netDialer = newALPNConnUpgradeDialer(d.KeepAlivePeriod, d.DialTimeout, d.TLSConfig.InsecureSkipVerify)
+		dialer = newALPNConnUpgradeDialer(d.KeepAlivePeriod, d.DialTimeout, d.TLSConfig.InsecureSkipVerify)
 	}
 
-	netConn, err := netDialer.DialContext(ctx, network, addr)
+	conn, err := dialer.DialContext(ctx, network, addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	tlsConn := tls.Client(netConn, d.TLSConfig)
+	tlsConn := tls.Client(conn, d.TLSConfig)
 	if err := tlsConn.HandshakeContext(ctx); err != nil {
 		defer tlsConn.Close()
 		return nil, trace.Wrap(err)

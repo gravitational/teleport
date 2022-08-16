@@ -17,13 +17,16 @@ limitations under the License.
 package alpnproxy
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"fmt"
 	"net"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -294,9 +297,6 @@ func TestProxyHTTPConnection(t *testing.T) {
 	suite := NewSuite(t)
 	l := mustCreateLocalListener(t)
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(rw http.ResponseWriter, r *http.Request) {})
-
 	lw := NewMuxListenerWrapper(l, suite.serverListener)
 
 	mustStartHTTPServer(t, lw)
@@ -319,6 +319,76 @@ func TestProxyHTTPConnection(t *testing.T) {
 	}
 
 	mustSuccessfullyCallHTTPSServer(t, suite.GetServerAddress(), client)
+}
+
+// TestProxyMakeConnectionHandler creates a ConnectionHandler from the ALPN
+// proxy server, and verifies ALPN protocol is properly handled through the
+// ConnectionHandler.
+func TestProxyMakeConnectionHandler(t *testing.T) {
+	t.Parallel()
+
+	suite := NewSuite(t)
+
+	// Create a HTTP server and register the listener to ALPN server.
+	lw := NewMuxListenerWrapper(nil, suite.serverListener)
+	mustStartHTTPServer(t, lw)
+
+	suite.router = NewRouter()
+	suite.router.Add(HandlerDesc{
+		MatchFunc: MatchByProtocol(common.ProtocolHTTP2, common.ProtocolHTTP),
+		Handler:   lw.HandleConnection,
+		IsAsync:   true,
+	})
+
+	svr := suite.CreateProxyServer(t)
+	customCA := mustGenSelfSignedCert(t)
+	alpnConnHandler := svr.MakeConnectionHandler(
+		WithWaitForAsyncHandlers(),
+		WithDefaultTLSconfig(&tls.Config{
+			Certificates: []tls.Certificate{
+				mustGenCertSignedWithCA(t, customCA),
+			},
+		}),
+	)
+
+	// Prepare net.Conn to be used for the created alpnConnHandler.
+	serverConn, clientConn := net.Pipe()
+	defer clientConn.Close()
+	defer serverConn.Close()
+
+	responseCodeChan := make(chan int, 1)
+	go func() {
+		req, err := http.NewRequest("GET", "https://localhost/test", nil)
+		require.NoError(t, err)
+
+		// Use the customCA to validate WithDefaultTLSconfig.
+		pool := x509.NewCertPool()
+		pool.AddCert(customCA.Cert)
+
+		clientTLSConn := tls.Client(clientConn, &tls.Config{
+			RootCAs:    pool,
+			ServerName: "localhost",
+		})
+		defer clientTLSConn.Close()
+
+		require.NoError(t, clientTLSConn.Handshake())
+		require.NoError(t, req.Write(clientTLSConn))
+
+		response, err := http.ReadResponse(bufio.NewReader(clientTLSConn), req)
+		require.NoError(t, err)
+		responseCodeChan <- response.StatusCode
+	}()
+
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	t.Cleanup(cancel)
+
+	alpnConnHandler.HandleConnection(timeoutCtx, serverConn)
+	require.NoError(t, timeoutCtx.Err())
+
+	// Since HandleConnection is created with WithWaitForAsyncHandlers, we
+	// should have the response once HandleConnection is finished.
+	require.Len(t, responseCodeChan, 1)
+	require.Equal(t, http.StatusOK, <-responseCodeChan)
 }
 
 // TestProxyALPNProtocolsRouting tests the routing based on client TLS NextProtos values.

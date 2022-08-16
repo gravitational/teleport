@@ -74,11 +74,13 @@ func alpnConnUpgradeTest(addr string, insecure bool, timeout time.Duration) (upg
 		//
 		// This includes handshake failures where both peers support ALPN but
 		// no common protocol is getting negotiated.
-		logrus.Errorf("ALPN connection upgrade test failed for %q: %v.", addr, err)
+		logrus.Warnf("ALPN connection upgrade test failed for %q: %v.", addr, err)
 		return false
 	}
 	defer testConn.Close()
 
+	// Upgrade required when ALPN is not supported on the remote side so
+	// NegotiatedProtocol comes back as empty.
 	result := testConn.ConnectionState().NegotiatedProtocol == ""
 	logrus.Debugf("ALPN connection upgrade required for %q: %v.", addr, result)
 	return result

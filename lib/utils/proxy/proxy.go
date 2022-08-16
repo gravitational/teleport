@@ -18,8 +18,6 @@ package proxy
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"net"
 	"net/url"
 	"time"
@@ -197,11 +195,6 @@ type dialerOptions struct {
 	insecureSkipTLSVerify bool
 	// tlsRoutingEnabled indicates that proxy is running in TLSRouting mode.
 	tlsRoutingEnabled bool
-	// tlsConfig is the TLS config to use for TLS routing.
-	tlsConfig *tls.Config
-	// alpnConnUpgradeRootCAs is the root CAs pool used when dialing inside ALPN
-	// connection upgrade.
-	alpnConnUpgradeRootCAs *x509.CertPool
 	// tlsRoutingDialerConfig is the config for TLSRoutingDialer dialer used
 	// when TLS Routing is enabled.
 	tlsRoutingDialerConfig *client.TLSRoutingDialerConfig
@@ -212,23 +205,10 @@ type DialerOptionFunc func(options *dialerOptions)
 
 // WithTLSRoutingDialer creates a dialer that allows Teleport running in
 // single-port mode.
-//
-// This option will make an ALPN connection upgrade test first then creates the
-// TLSRoutingDialerConfig with provided parameters according to the test result.
-func WithTLSRoutingDialer(tlsConfig *tls.Config, alpnConnUpgradeRootCAs *x509.CertPool) DialerOptionFunc {
+func WithTLSRoutingDialer(dialerConfig *client.TLSRoutingDialerConfig) DialerOptionFunc {
 	return func(options *dialerOptions) {
 		options.tlsRoutingEnabled = true
-		options.tlsConfig = tlsConfig
-		options.alpnConnUpgradeRootCAs = alpnConnUpgradeRootCAs
-	}
-}
-
-// WithTLSRoutingDialerConfig creates a dialer that allows Teleport running in
-// single-port mode, with provided TLSRoutingDialerConfig.
-func WithTLSRoutingDialerConfig(tlsRoutingDialerConfig *client.TLSRoutingDialerConfig) DialerOptionFunc {
-	return func(options *dialerOptions) {
-		options.tlsRoutingEnabled = true
-		options.tlsRoutingDialerConfig = tlsRoutingDialerConfig
+		options.tlsRoutingDialerConfig = dialerConfig
 	}
 }
 
@@ -250,18 +230,6 @@ func DialerFromEnvironment(addr string, opts ...DialerOptionFunc) Dialer {
 	var options dialerOptions
 	for _, opt := range opts {
 		opt(&options)
-	}
-
-	// If TLS Routing dialer config is nil, populate it here.
-	if options.tlsRoutingEnabled && options.tlsRoutingDialerConfig == nil {
-		options.tlsRoutingDialerConfig = &client.TLSRoutingDialerConfig{
-			TLSConfig: options.tlsConfig.Clone(),
-		}
-
-		if client.IsALPNConnUpgradeRequired(addr, options.insecureSkipTLSVerify) {
-			options.tlsRoutingDialerConfig.ALPNConnUpgradeRequired = true
-			options.tlsRoutingDialerConfig.TLSConfig.RootCAs = options.alpnConnUpgradeRootCAs
-		}
 	}
 
 	// If no proxy settings are in environment return regular ssh dialer,

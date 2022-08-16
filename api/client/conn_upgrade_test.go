@@ -34,6 +34,7 @@ import (
 func TestALPNConnUpgradeTest(t *testing.T) {
 	server1 := newMockALPNServer(t, nil) // Use nil for NextProtos to simulate no ALPN support.
 	server2 := newMockALPNServer(t, []string{constants.ALPNSNIProtocolReverseTunnel})
+	server3 := newMockALPNServer(t, []string{"unknown"})
 
 	tests := []struct {
 		name           string
@@ -46,8 +47,13 @@ func TestALPNConnUpgradeTest(t *testing.T) {
 			expectedResult: true,
 		},
 		{
-			name:           "upgrade not required",
+			name:           "upgrade not required (proto neogotiated)",
 			serverAddr:     server2.listener.Addr().String(),
+			expectedResult: false,
+		},
+		{
+			name:           "upgrade not required (handshake error)",
+			serverAddr:     server3.listener.Addr().String(),
 			expectedResult: false,
 		},
 	}
@@ -102,6 +108,9 @@ type mockALPNServer struct {
 }
 
 func newMockALPNServer(t *testing.T, supportedProtos []string) *mockALPNServer {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
 	cert, err := tls.X509KeyPair(tlsCert, keyPEM)
 	require.NoError(t, err)
 
@@ -126,7 +135,7 @@ func newMockALPNServer(t *testing.T, supportedProtos []string) *mockALPNServer {
 			}
 
 			go func() {
-				clientConn.Write([]byte("hello world"))
+				clientConn.(*tls.Conn).HandshakeContext(ctx)
 				clientConn.Close()
 			}()
 		}
@@ -155,7 +164,6 @@ func (h mockConnUpgradeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	defer conn.Close()
 
 	response := &http.Response{
-		Status:     http.StatusText(http.StatusSwitchingProtocols),
 		StatusCode: http.StatusSwitchingProtocols,
 		ProtoMajor: 1,
 		ProtoMinor: 1,

@@ -474,17 +474,17 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 
 	options := []proxy.DialerOptionFunc{proxy.WithInsecureSkipTLSVerify(lib.IsInsecureDevMode())}
 	if p.runtimeConfig.useALPNRouting() {
-		tlsConfig := &tls.Config{
-			NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
-		}
+		protos := []string{string(alpncommon.ProtocolReverseTunnel)}
 
 		if p.runtimeConfig.useReverseTunnelV2() {
-			tlsConfig.NextProtos = []string{
+			protos = []string{
 				string(alpncommon.ProtocolReverseTunnelV2),
 				string(alpncommon.ProtocolReverseTunnel),
 			}
 		}
-		options = append(options, proxy.WithTLSRoutingDialer(tlsConfig, p.ServerTLSRootCAs))
+
+		dialerConfig := tlsRoutingDialerConfig(addr, protos, lib.IsInsecureDevMode(), p.ServerTLSRootCAs)
+		options = append(options, proxy.WithTLSRoutingDialer(dialerConfig))
 	}
 
 	dialer := &agentDialer{
