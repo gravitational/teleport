@@ -436,16 +436,6 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 			return trace.BadParameter("MAC algorithm %q is not supported; supported algorithms: %q", m, sc.MACs)
 		}
 	}
-
-	for i := 0; i < len(conf.Databases.AzureMatchers); i++ {
-		matcher := &conf.Databases.AzureMatchers[i]
-		if len(matcher.Subscriptions) == 0 || apiutils.SliceContainsStr(matcher.Subscriptions, types.Wildcard) {
-			matcher.Subscriptions = []string{types.Wildcard}
-		}
-		if len(matcher.ResourceGroups) == 0 || apiutils.SliceContainsStr(matcher.ResourceGroups, types.Wildcard) {
-			matcher.ResourceGroups = []string{types.Wildcard}
-		}
-	}
 	return nil
 }
 

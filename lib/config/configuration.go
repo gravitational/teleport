@@ -1126,6 +1126,12 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 			})
 	}
 	for _, matcher := range fc.Databases.AzureMatchers {
+		if len(matcher.Subscriptions) == 0 || apiutils.SliceContainsStr(matcher.Subscriptions, types.Wildcard) {
+			matcher.Subscriptions = []string{types.Wildcard}
+		}
+		if len(matcher.ResourceGroups) == 0 || apiutils.SliceContainsStr(matcher.ResourceGroups, types.Wildcard) {
+			matcher.ResourceGroups = []string{types.Wildcard}
+		}
 		cfg.Databases.AzureMatchers = append(cfg.Databases.AzureMatchers,
 			services.AzureMatcher{
 				Subscriptions:  matcher.Subscriptions,

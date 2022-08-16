@@ -439,8 +439,8 @@ func TestConfigReading(t *testing.T) {
 					},
 				},
 				{
-					Subscriptions:  []string{"*"},
-					ResourceGroups: []string{"*"},
+					Subscriptions:  nil,
+					ResourceGroups: nil,
 					Types:          []string{"mysql", "postgres"},
 					Regions:        []string{"centralus"},
 					Tags: map[string]apiutils.Strings{
@@ -782,6 +782,30 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.Equal(t, 1, *cfg.Auth.KeyStore.SlotNumber)
 	require.Equal(t, "example_pin", cfg.Auth.KeyStore.Pin)
 	require.ElementsMatch(t, []string{"ca-pin-from-string", "ca-pin-from-file1", "ca-pin-from-file2"}, cfg.CAPins)
+
+	require.True(t, cfg.Databases.Enabled)
+	require.Empty(t, cmp.Diff(cfg.Databases.AzureMatchers,
+		[]services.AzureMatcher{
+			{
+				Subscriptions:  []string{"sub1", "sub2"},
+				ResourceGroups: []string{"group1", "group2"},
+				Types:          []string{"postgres", "mysql"},
+				Regions:        []string{"eastus", "centralus"},
+				Tags: map[string]apiutils.Strings{
+					"a": {"b"},
+				},
+			},
+			{
+				Subscriptions:  []string{"*"},
+				ResourceGroups: []string{"*"},
+				Types:          []string{"postgres", "mysql"},
+				Regions:        []string{"westus"},
+				Tags: map[string]apiutils.Strings{
+					"c": {"d"},
+				},
+			},
+		},
+		cmp.AllowUnexported(Service{})))
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
