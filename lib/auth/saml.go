@@ -480,6 +480,10 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 
 	if idpInitiated {
 		if err := a.checkIDPInitiatedSAML(ctx, connector, assertionInfo); err != nil {
+			if trace.IsAccessDenied(err) {
+				log.Warnf("Failed to process IdP-initiated login request. IdP-initiated login is disabled for this connector: %v.", err)
+			}
+
 			return nil, trace.Wrap(err)
 		}
 	}
