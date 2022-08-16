@@ -60,6 +60,7 @@ func TestSearchSessionRange(t *testing.T) {
 		name     string
 		fromUTC  string
 		toUTC    string
+		since    string
 		wantFrom string
 		wantTo   string
 		err      bool
@@ -105,9 +106,22 @@ func TestSearchSessionRange(t *testing.T) {
 			toUTC:   "2019-10-12",
 			err:     true,
 		},
+		{
+			name:    "since and from/to specified",
+			fromUTC: "2020-11-12",
+			toUTC:   "2019-10-12",
+			since:   "10d",
+			err:     true,
+		},
+		{
+			name:     "since specified",
+			wantTo:   "2019-10-12",
+			wantFrom: "2019-10-11",
+			since:    "24h",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			gotFrom, gotTo, err := SearchSessionRange(clockwork.NewFakeClockAt(baseFakeTime), tc.fromUTC, tc.toUTC)
+			gotFrom, gotTo, err := SearchSessionRange(clockwork.NewFakeClockAt(baseFakeTime), tc.fromUTC, tc.toUTC, tc.since)
 			if tc.err {
 				require.True(t, trace.IsBadParameter(err))
 				return

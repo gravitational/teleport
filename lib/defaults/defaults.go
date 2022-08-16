@@ -787,7 +787,11 @@ func FormatFlagDescription(formats ...string) string {
 	return fmt.Sprintf("Format output (%s)", strings.Join(formats, ", "))
 }
 
-func SearchSessionRange(clock clockwork.Clock, fromUTC, toUTC string) (from time.Time, to time.Time, err error) {
+func SearchSessionRange(clock clockwork.Clock, fromUTC, toUTC, recordingsSince string) (from time.Time, to time.Time, err error) {
+	if (fromUTC != "" || toUTC != "") && recordingsSince != "" {
+		return time.Time{}, time.Time{},
+			trace.BadParameter("use of 'since' is mutually exclusive with 'from-utc' and 'to-utc' flags")
+	}
 	from = clock.Now().Add(time.Hour * -24)
 	to = clock.Now()
 	if fromUTC != "" {
@@ -804,6 +808,15 @@ func SearchSessionRange(clock clockwork.Clock, fromUTC, toUTC string) (from time
 				trace.BadParameter("failed to parse session recording listing end time: expected format %s, got %s.", TshTctlSessionListTimeFormat, toUTC)
 		}
 	}
+	if recordingsSince != "" {
+		since, err := time.ParseDuration(recordingsSince)
+		if err != nil {
+			return time.Time{}, time.Time{},
+				trace.BadParameter("invalid duration provided to 'since': %s: expected format: '5h30m40s'", recordingsSince)
+		}
+		from = to.Add(-since)
+	}
+
 	if from.After(to) {
 		return time.Time{}, time.Time{},
 			trace.BadParameter("invalid '--from-utc' time: 'from' must be before '--to-utc'")
