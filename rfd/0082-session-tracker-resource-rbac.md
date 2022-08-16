@@ -67,3 +67,5 @@ spec:
       verbs: [list, read]
 ```
 
+For existing clusters, we preserve the current auditor role if the user has modified it from the preset definition.
+If it has not been modified, we append the above configuration rule to the role to which will put the functionality on par with Teleport 9. We will check this by comparing the deserialized role definition against the template minus the new rule.
