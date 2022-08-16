@@ -3,7 +3,197 @@ authors: Nic Klaassen (nic@goteleport.com)
 state: draft
 ---
 
-# RFD 78 - Role Variables
+# RFD 78 - Trait Transforms
+
+## What
+
+A new feature which allows admins to filter, transform, and extend incoming
+SAML assertions and OIDC claims from their identity provider before they are
+embedded in the traits of their Teleport user's certificates.
+
+## Why
+
+Teleport admins often do not have control over their company's SSO provider and
+which claims will be provided to Teleport.
+All of these claims will be embedded in each user's Teleport certificate as
+`traits`.
+
+SSO providers can include hundreds to thousands of claims which are not
+necessary or used by Teleport at all, unecessarily bloating the certificate size
+of all users.
+This can adversly impact latency and throughput of Teleport operations, and in
+an extreme case could reach a limit which would render Teleport unusable with
+that identity provider.
+Trait Transforms will allow the Teleport admin to filter out claims which are
+unecessary before they make it into the Teleport certificate.
+
+Admins often wish to extend an incoming claim with extra values which make sense
+for their Teleport deployment.
+For example, users within the `splunk` group should also be added to the `dbs`
+group within Teleport so that they can access databases.
+Trait Transforms will allow the Teleport admins to modify existing traits and
+add new ones to solve these problems.
+
+If teleport admins cannot add or change the claims provided by their SSO
+provider, making simple rules like this can be extremely cumbersome or
+impossible within teleport.
+There are currently teleport users with deployments which automatically generate
+hundreds to thousands of roles to get around these limitations.
+
+## Details
+
+Example trait transform spec:
+
+```yaml
+kind: trait_transform
+version: v1
+metadata:
+  name: example
+spec:
+  # priority can be used to order the evaluation of multiple trait transforms in
+  # a cluster. Lower priorities will be evaluated first. Trait transforms with
+  # the same priority will be ordered by a lexicographical sort by their names. 
+  priority: 0
+
+  # filter is a predicate expression which will be applied to each incoming
+  # trait. `trait.key` and `trait.values` will be available to use in the
+  # expression. If the expression returns `false` for a given trait, it will be
+  # filtered out and excluded from further steps in the trait transform and from
+  # the user's certificate.
+  #
+  # In this example, only the "groups", "username", and "email" traits will be
+  # included. More powerful expressions are possible and will be explored later.
+  filter: >
+    contains(list("groups", "username", "email"), trait.key)
+
+  # override holds a map of trait keys to predicate expressions which should
+  # return the desired value for that trait. This can be used to override
+  # existing traits, or add new ones.
+  #
+  # All incoming traits are available for use in the expression by
+  # `external.<trait_name>` or `external["<trait_name>"]`.
+  #
+  # Various helper functions are provided, which will be explained later in the
+  # RFD.
+  override:
+    # groups will override the existing groups trait by appending the "dbs"
+    # group if the user's current groups includes "splunk".
+    groups: >
+      match(contains(external.groups, "splunk"),
+        option(true, list(external.groups, "dbs")),
+        option(false, external.groups))
+
+    # logins will be a new trait added to the cert.
+    logins: >
+      list(
+        "ubuntu",
+
+        regexp.replace(external.username, "-", "_"),
+
+        match(external.email,
+          option("nic@goteleport.com", "root")),
+
+        match(regexp.replace(external.email, "^.*@goteleport.com$", "teleporter"),
+          option("teleporter", email.local(external.email)),
+          default_option("contractor")))
+```
+
+### Predicate Helper Functions
+
+A set of helper functions to be used in the predicate expressions will be
+included.
+Part of the reasoning for using the
+[predicate language](https://github.com/vulcand/predicate)
+is so that it will be extensible.
+As the need arises, we can always add new helper function.
+
+The predicate parser is based on the `Go` language parser, so `Go` keywords
+which may be better names (such as `select`, `default`) must unfortunately be
+avoided.
+
+#### `list(...items)`
+
+`list()` returns a flattened list of all of its arguments. `list("a", list("b",
+"c"), list())` will return ["a", "b", "c"]
+
+
+#### `contains(list, value)`
+
+`contains(list, value)` returns `true` if any item in the list is an exact match
+for `value`, else it returns false. `contains(list("a", "b"), "b")` returns
+true.
+
+#### `match(value, ...options)`
+
+`match(value, ...options)` returns the value of the first `option` which is a
+match for `value`.
+
+`match("c", option("a", "foo"), option("b", "bar"), option("c", "baz"))` returns
+`"baz"`
+
+`match(true, option(false, list("a", "b")), option(true, list("c", "d")))`
+returns `["c", "d"]`
+
+`default_option(value)` will match for any input value.
+
+`match("xyz", option("abc", "go"), default_option("stop"))` returns `"stop"`.
+
+We could easily add `regexp_option` which would match based on a regular
+expression, and/or `match_all` which would return the concatenation of all
+matching options.
+
+#### `email.local(email)`
+
+Has the same meaning it currently does in
+[role templates](https://goteleport.com/docs/access-controls/guides/role-templates/#interpolation-rules).
+
+Returns the local part of an email field.
+
+#### `regexp.replace(variable, expression, replacement)`
+
+Has the same meaning it currently does in
+[role templates](https://goteleport.com/docs/access-controls/guides/role-templates/#interpolation-rules).
+
+Finds all matches of expression and replaces them with replacement. This
+supports expansion, e.g.
+`regexp.replace(external.email, "^(.*)@example.com$", "$1")`
+
+### Using transformed traits in roles
+
+Trait transforms transparently filter, override, and extend incoming traits
+during login.
+To the rest of the cluster, including role templates, they will appear identical
+to normal traits which are typically reference by `{{external.<trait_name>}}`.
+
+### When trait transforms will be parsed and evaluated
+
+Trait transforms will be evaluated during each user login.
+This will occur after the SSO provider has returned its assertions/claims, and
+before Teleport maps these to internal Teleport roles via `traits_to_roles` or
+`claims_to_roles` so that transformed traits can be used for this mapping.
+
+The predicate expression should only need to be parsed a single time during the
+first user login, the parsed value can be permanently cached in memory.
+The parsed expression will be evaluated during login with the context of the
+unique user's traits.
+
+During login, the auth server will load all `trait_transform` resources in the
+cluster, sort them by `priority` and `name`, and apply all of them in order.
+
+### Trusted clusters
+
+Since trait transforms will be evaluated during login, they only need to be
+created in the root cluster and the transformed traits will be visible and
+usable in all leaf clusters.
+
+### Extra Examples
+
+Coming soon....
+
+--- 
+
+## Previous design discussed below, no longer relevant
+## RFD 78 - Role Variables
 
 ## What
 
