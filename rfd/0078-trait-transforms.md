@@ -113,8 +113,8 @@ avoided.
 
 #### `list(...items)`
 
-`list()` returns a flattened list of all of its arguments. `list("a", list("b",
-"c"), list())` will return ["a", "b", "c"]
+`list()` returns a flattened and deduplicated list of all of its arguments. `list("a", list("b",
+"c"), list(), list("a"))` will return ["a", "b", "c"]
 
 
 #### `contains(list, value)`
@@ -216,10 +216,6 @@ provide a set of input traits to test with.
 The command will report any syntax errors, and will print the output traits for
 the given input.
 
-### Extra Examples
-
-Coming soon....
-
 ### Future Work
 
 The existing `claims_to_roles` and `attributes_to_roles` offer only a simple
@@ -229,6 +225,33 @@ into a new resource which could leverage the predicate language to create more
 powerful expressions to determine which roles a user should receive.
 This will give us a complete system for solving the problem of incomplete data
 coming from identity providers
+
+## Extra Examples
+
+### Static list defined per group
+
+```yaml
+kind: trait_transform
+version: v1
+metadata:
+  name: example
+spec:
+  priority: 0
+  override:
+    # For a single-valued external.group, the following will work:
+    allow_env: >
+      match(external.group,
+        option(list("dev"), list("dev", "staging")),
+        option(list("qa"), list("qa", "staging")),
+        option(list("admin"), list("dev", "qa", "staging", "prod")))
+
+    # If external.groups is a list, you can match on each one
+    allow_env: >
+      list(
+        match(true, option(contains(external.groups, "dev"), list("dev", "staging"))),
+        match(true, option(contains(external.groups, "qa"), list("qa", "staging"))),
+        match(true, option(contains(external.groups, "admin"), list("dev", "qa", "staging", "prod"))))
+```
 
 --- 
 
