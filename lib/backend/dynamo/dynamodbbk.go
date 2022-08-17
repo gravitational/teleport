@@ -279,13 +279,13 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	}
 
 	// Enable TTL on table.
-	err = b.turnOnTimeToLive(ctx)
+	err = TurnOnTimeToLive(ctx, b.svc, b.TableName, ttlKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Turn on DynamoDB streams, needed to implement events.
-	err = b.turnOnStreams(ctx)
+	err = TurnOnStreams(ctx, b.svc, b.TableName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
