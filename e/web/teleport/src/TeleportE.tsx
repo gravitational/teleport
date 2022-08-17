@@ -8,6 +8,7 @@ import Teleport, {
 
 import cfg from 'e-teleport/config';
 import WaitingRoom from 'e-teleport/WaitingRoom';
+import { Discover } from 'e-teleport/Discover';
 
 import Login from './Login';
 import Recovery from './Recovery';
@@ -43,7 +44,7 @@ function publicRoutes() {
 }
 
 function privateRoutes() {
-  return <WaitingRoom>{renderPrivateRoutes(Main)}</WaitingRoom>;
+  return <WaitingRoom>{renderPrivateRoutes(Main, Discover)}</WaitingRoom>;
 }
 
 export default TeleportE;
