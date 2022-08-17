@@ -164,6 +164,23 @@ proxy_service:
   mysql_public_addr: mysql.example:3306
   mongo_listen_addr: webhost:27017
   mongo_public_addr: mongo.example:27017
+
+db_service:
+  enabled: yes
+  resources:
+    - labels:
+        "*": "*"
+  azure:
+    - subscriptions: ["sub1", "sub2"]
+      resource_groups: ["group1", "group2"]
+      types: ["postgres", "mysql"]
+      regions: ["eastus", "centralus"]
+      tags:
+        "a": "b"
+    - types: ["postgres", "mysql"]
+      regions: ["westus"]
+      tags:
+        "c": "d"
 `
 
 // NoServicesConfigString is a configuration file with no services enabled
