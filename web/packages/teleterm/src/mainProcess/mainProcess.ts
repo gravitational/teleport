@@ -72,6 +72,8 @@ export default class MainProcess {
 
   private _initTshd() {
     const { binaryPath, flags, homeDir } = this.settings.tshd;
+    this.logger.info(`Starting tsh daemon from ${binaryPath}`);
+
     this.tshdProcess = spawn(binaryPath, flags, {
       stdio: 'pipe',
       windowsHide: true,

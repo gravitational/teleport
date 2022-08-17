@@ -17,7 +17,7 @@
     "build-main": "webpack build --config webpack.main.config.js --progress --mode=production",
     "build-renderer": "webpack build --config webpack.renderer.prod.config.js --progress",
     "build-native-deps": "electron-builder install-app-deps",
-    "package": "electron-builder build --publish never -c.extraMetadata.name=teleconnect",
+    "package": "electron-builder build --config electron-builder-config.js --publish never -c.extraMetadata.name=teleconnect",
     "generate-grpc-shared": "npx -y --target_arch=x64 --package=grpc_tools_node_protoc_ts@5.3.2 --package=grpc-tools@1.11.2 -- grpc_tools_node_protoc -I=src/sharedProcess/api/proto --ts_out=service=grpc-node,mode=grpc-js:src/sharedProcess/api/protogen --grpc_out=grpc_js:src/sharedProcess/api/protogen --js_out=import_style=commonjs,binary:src/sharedProcess/api/protogen src/sharedProcess/api/proto/*.proto"
   },
   "repository": {
@@ -55,81 +55,5 @@
     "xterm": "^4.15.0",
     "xterm-addon-fit": "^0.5.0"
   },
-  "productName": "Teleport Connect",
-  "build": {
-    "appId": "gravitational.teleport.connect",
-    "asar": true,
-    "asarUnpack": "**\\*.{node,dll}",
-    "afterSign": "notarize.js",
-    "files": [
-      "build/app/dist"
-    ],
-    "mac": {
-      "target": "dmg",
-      "type": "distribution",
-      "hardenedRuntime": true,
-      "entitlements": "assets/entitlements.mac.plist",
-      "entitlementsInherit": "assets/entitlements.mac.plist",
-      "gatekeeperAssess": false,
-      "icon": "assets/icon-mac.png",
-      "extraResources": [
-        {
-          "from": "../../../teleport/build/tsh",
-          "to": "./bin/tsh"
-        }
-      ]
-    },
-    "dmg": {
-      "contents": [
-        {
-          "x": 130,
-          "y": 220
-        },
-        {
-          "x": 410,
-          "y": 220,
-          "type": "link",
-          "path": "/Applications"
-        }
-      ]
-    },
-    "win": {
-      "target": [
-        "nsis"
-      ],
-      "artifactName": "${productName} Setup-${version}.${ext}",
-      "icon": "assets/icon-win.ico",
-      "extraResources": [
-        {
-          "from": "../../../teleport/build/tsh.exe",
-          "to": "./bin/tsh.exe"
-        }
-      ]
-    },
-    "linux": {
-      "target": [
-        "deb"
-      ],
-      "category": "Development",
-      "icon": "assets/icon-linux",
-      "extraResources": [
-        {
-          "from": "../../../teleport/build/tsh",
-          "to": "./bin/tsh"
-        }
-      ]
-    },
-    "directories": {
-      "buildResources": "assets",
-      "output": "build/release"
-    },
-    "extraResources": [
-      "./assets/**"
-    ],
-    "publish": {
-      "provider": "github",
-      "owner": "gravitational",
-      "repo": "webapps"
-    }
-  }
+  "productName": "Teleport Connect"
 }

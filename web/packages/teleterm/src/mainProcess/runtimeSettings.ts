@@ -14,6 +14,8 @@ const RESOURCES_PATH = app.isPackaged
   ? process.resourcesPath
   : path.join(__dirname, '../../../../');
 
+const TSH_BIN_ENV_VAR = 'TELETERM_TSH_PATH';
+
 const dev = env.NODE_ENV === 'development' || env.DEBUG_PROD === 'true';
 
 // Allows running tsh in insecure mode (development)
@@ -23,10 +25,11 @@ function getRuntimeSettings(): RuntimeSettings {
   const userDataDir = app.getPath('userData');
   const { tsh: tshAddress, shared: sharedAddress } =
     requestChildProcessesAddresses();
-  const binDir = getBinDir();
+  const { binDir, tshBinPath } = getBinaryPaths();
+
   const tshd = {
     insecure: isInsecure,
-    binaryPath: getTshBinaryPath(),
+    binaryPath: tshBinPath,
     homeDir: getTshHomeDir(),
     requestedNetworkAddress: tshAddress,
     flags: [
@@ -79,28 +82,25 @@ function getTshHomeDir() {
   return tshPath;
 }
 
-function getTshBinaryPath() {
+// binDir is used in the packaged version to add tsh to PATH.
+// tshBinPath is used by Connect to call tsh directly.
+function getBinaryPaths(): { binDir?: string; tshBinPath: string } {
   if (app.isPackaged) {
-    return path.join(
-      getBinDir(),
+    const binDir = path.join(RESOURCES_PATH, 'bin');
+    const tshBinPath = path.join(
+      binDir,
       process.platform === 'win32' ? 'tsh.exe' : 'tsh'
     );
+
+    return { binDir, tshBinPath };
   }
 
-  const tshPath = env.TELETERM_TSH_PATH;
-  if (!tshPath) {
-    throw Error('tsh path is not defined');
+  const tshBinPath = env[TSH_BIN_ENV_VAR];
+  if (!fs.existsSync(tshBinPath)) {
+    throw Error(`${TSH_BIN_ENV_VAR} must point at a tsh binary`);
   }
 
-  return tshPath;
-}
-
-function getBinDir() {
-  if (!app.isPackaged) {
-    return;
-  }
-
-  return path.join(RESOURCES_PATH, 'bin');
+  return { tshBinPath };
 }
 
 function getAssetPath(...paths: string[]): string {
