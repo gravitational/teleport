@@ -125,10 +125,10 @@ func (cfg *Config) CheckAndSetDefaults() error {
 type Backend struct {
 	*log.Entry
 	Config
-	svc              dynamodbiface.DynamoDBAPI
-	streams          dynamodbstreamsiface.DynamoDBStreamsAPI
-	clock            clockwork.Clock
-	buf              *backend.CircularBuffer
+	svc     dynamodbiface.DynamoDBAPI
+	streams dynamodbstreamsiface.DynamoDBStreamsAPI
+	clock   clockwork.Clock
+	buf     *backend.CircularBuffer
 	// closedFlag is set to indicate that the database is closed
 	closedFlag int32
 
@@ -214,10 +214,10 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		backend.BufferCapacity(cfg.BufferSize),
 	)
 	b := &Backend{
-		Entry:            l,
-		Config:           *cfg,
-		clock:            clockwork.NewRealClock(),
-		buf:              buf,
+		Entry:  l,
+		Config: *cfg,
+		clock:  clockwork.NewRealClock(),
+		buf:    buf,
 	}
 	// create an AWS session using default SDK behavior, i.e. it will interpret
 	// the environment and ~/.aws directory just like an AWS CLI tool would:
