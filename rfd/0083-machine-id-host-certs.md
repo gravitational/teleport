@@ -13,7 +13,7 @@ documented [manual instructions].
 This has two components:
 1. Allow bots to securely issue host certificates for particular hosts via RBAC
    rules
-2. Provide some bot UX for making use of issued host certificates 
+2. Provide some bot UX for issuing and making use of issued host certificates 
 
 [manual instructions]: https://goteleport.com/docs/server-access/guides/openssh/#step-24-configure-host-authentication
 
