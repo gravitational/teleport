@@ -99,7 +99,7 @@
         "nsis"
       ],
       "artifactName": "${productName} Setup-${version}.${ext}",
-      "icon": "assets/icon-win-linux",
+      "icon": "assets/icon-win.ico",
       "extraResources": [
         {
           "from": "../../../teleport/build/tsh.exe",
@@ -112,7 +112,7 @@
         "deb"
       ],
       "category": "Development",
-      "icon": "assets/icon-win-linux",
+      "icon": "assets/icon-linux",
       "extraResources": [
         {
           "from": "../../../teleport/build/tsh",
