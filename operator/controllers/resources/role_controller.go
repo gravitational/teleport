@@ -19,6 +19,9 @@ package resources
 import (
 	"context"
 	"fmt"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/gravitational/teleport/api/types"
 	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
@@ -29,6 +32,14 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+const TeleportRoleKind = "TeleportRole"
+
+var TeleportRoleGVK = schema.GroupVersionKind{
+	Group:   resourcesv5.GroupVersion.Group,
+	Version: resourcesv5.GroupVersion.Version,
+	Kind:    TeleportRoleKind,
+}
 
 // RoleReconciler reconciles a TeleportRole object
 type RoleReconciler struct {
@@ -51,17 +62,29 @@ type RoleReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.11.0/pkg/reconcile
 func (r *RoleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	// The TeleportRole OpenAPI spec does not validate typing of Label fields like `node_labels`.
+	// This means we can receive invalid data, by default it won't be unmarshalled properly and will crash the operator
+	// To handle this more gracefully we unmarshall first in an unstructured object.
+	// The unstructured object will be converted later to a typed one, in r.UpsertExternal.
+	// See `/operator/crdgen/schemagen.go` and https://github.com/gravitational/teleport/issues/15204 for context
+	obj := getUnstructuredObjectFromGVK(TeleportRoleGVK)
 	return ResourceBaseReconciler{
 		Client:         r.Client,
 		DeleteExternal: r.Delete,
 		UpsertExternal: r.Upsert,
-	}.Do(ctx, req, &resourcesv5.TeleportRole{})
+	}.Do(ctx, req, obj)
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *RoleReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	// The TeleportRole OpenAPI spec does not validate typing of Label fields like `node_labels`.
+	// This means we can receive invalid data, by default it won't be unmarshalled properly and will crash the operator
+	// To handle this more gracefully we unmarshall first in an unstructured object.
+	// The unstructured object will be converted later to a typed one, in r.UpsertExternal.
+	// See `/operator/crdgen/schemagen.go` and https://github.com/gravitational/teleport/issues/15204 for context
+	obj := getUnstructuredObjectFromGVK(TeleportRoleGVK)
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&resourcesv5.TeleportRole{}).
+		For(obj).
 		Complete(r)
 }
 
@@ -74,10 +97,33 @@ func (r *RoleReconciler) Delete(ctx context.Context, obj kclient.Object) error {
 }
 
 func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
-	k8sResource, ok := obj.(*resourcesv5.TeleportRole)
+	log := ctrllog.FromContext(ctx)
+
+	// We receive an unstructured object. We convert it to a typed TeleportRole object and gracefully handle errors
+	u, ok := obj.(*unstructured.Unstructured)
 	if !ok {
 		return fmt.Errorf("failed to convert Object into resource object: %T", obj)
 	}
+	k8sResource := &resourcesv5.TeleportRole{}
+	err := runtime.DefaultUnstructuredConverter.FromUnstructuredWithValidation(u.Object, k8sResource, true)
+
+	newStructureCondition := getValidStructureCondition(err)
+	meta.SetStatusCondition(&k8sResource.Status.Conditions, newStructureCondition)
+
+	// We want to update Status.Conditions at the end of the reconciliation, or if the reconciliation fails
+	defer func() {
+		err := r.Status().Update(ctx, k8sResource)
+		if err != nil {
+			log.Error(err, "failed to update resource status.conditions")
+		}
+
+	}()
+
+	if err != nil {
+		return fmt.Errorf("failed to convert unstructured Object into resource object: %T", k8sResource)
+	}
+
+	// Converting the Kubernetes resource into a Teleport one, checking potential ownership issues
 	teleportResource := k8sResource.ToTeleport()
 	teleportClient, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
@@ -89,12 +135,9 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 		return trace.Wrap(err)
 	}
 
-	newCondition, err := checkOwnership(existingResource)
+	newOwnershipCondition, err := checkOwnership(existingResource)
 	// Setting the condition before returning a potential ownership error
-	meta.SetStatusCondition(&k8sResource.Status.Conditions, newCondition)
-	if err := r.Status().Update(ctx, k8sResource); err != nil {
-		return trace.Wrap(err)
-	}
+	meta.SetStatusCondition(&k8sResource.Status.Conditions, newOwnershipCondition)
 
 	if err != nil {
 		return trace.Wrap(err)
@@ -104,11 +147,8 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 
 	err = teleportClient.UpsertRole(ctx, teleportResource)
 
-	newCondition = getReconciliationCondition(err)
-	meta.SetStatusCondition(&k8sResource.Status.Conditions, newCondition)
-	if err := r.Status().Update(ctx, k8sResource); err != nil {
-		return trace.Wrap(err)
-	}
+	newReconciliationCondition := getReconciliationCondition(err)
+	meta.SetStatusCondition(&k8sResource.Status.Conditions, newReconciliationCondition)
 	return err
 }
 
