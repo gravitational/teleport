@@ -125,10 +125,17 @@ func Test_expandAliasDefinition(t *testing.T) {
 			want:      []string{"$-100"},
 			wantErr:   false,
 		},
+		{
+			name:      "$TSH reference",
+			aliasDef:  "$TSH --foo=$TSH $TSH-$TSH $1$1",
+			argsGiven: []string{"foo", "da"},
+			want:      []string{"/usr/bin/tsh", "--foo=/usr/bin/tsh", "/usr/bin/tsh-/usr/bin/tsh", "dada", "foo"},
+			wantErr:   false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := expandAliasDefinition("foo", tt.aliasDef, tt.argsGiven)
+			got, err := expandAliasDefinition("/usr/bin/tsh", "foo", tt.aliasDef, tt.argsGiven)
 			if tt.wantErr {
 				require.Error(t, err)
 				require.Equal(t, tt.errMessage, err.Error())
