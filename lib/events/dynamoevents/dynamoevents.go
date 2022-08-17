@@ -314,7 +314,7 @@ func New(ctx context.Context, cfg Config, backend backend.Backend) (*Log, error)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = b.turnOnTimeToLive(ctx)
+	err = dynamo.TurnOnTimeToLive(ctx, b.svc, b.Tablename, keyExpires)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -857,27 +857,6 @@ func fromWhereExpr(cond *types.WhereExpr, params *condFilterParams) (string, err
 		}
 	}
 	return "", trace.BadParameter("failed to convert WhereExpr %q to DynamoDB filter expression", cond)
-}
-
-func (l *Log) turnOnTimeToLive(ctx context.Context) error {
-	status, err := l.svc.DescribeTimeToLiveWithContext(ctx, &dynamodb.DescribeTimeToLiveInput{
-		TableName: aws.String(l.Tablename),
-	})
-	if err != nil {
-		return trace.Wrap(convertError(err))
-	}
-	switch aws.StringValue(status.TimeToLiveDescription.TimeToLiveStatus) {
-	case dynamodb.TimeToLiveStatusEnabled, dynamodb.TimeToLiveStatusEnabling:
-		return nil
-	}
-	_, err = l.svc.UpdateTimeToLiveWithContext(ctx, &dynamodb.UpdateTimeToLiveInput{
-		TableName: aws.String(l.Tablename),
-		TimeToLiveSpecification: &dynamodb.TimeToLiveSpecification{
-			AttributeName: aws.String(keyExpires),
-			Enabled:       aws.Bool(true),
-		},
-	})
-	return convertError(err)
 }
 
 // getTableStatus checks if a given table exists
