@@ -96,11 +96,8 @@ func (r *UserReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 	newCondition, err := checkOwnership(existingResource)
 	// Setting the condition before returning a potential ownership error
 	meta.SetStatusCondition(&k8sResource.Status.Conditions, newCondition)
-	if err := r.Status().Update(ctx, k8sResource); err != nil {
-		return trace.Wrap(err)
-	}
-
 	if err != nil {
+		silentUpdateStatus(ctx, r.Client, k8sResource)
 		return trace.Wrap(err)
 	}
 
@@ -111,13 +108,16 @@ func (r *UserReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 	} else {
 		err = teleportClient.UpdateUser(ctx, teleportResource)
 	}
-
-	newCondition = getReconciliationConditionFromError(err)
-	meta.SetStatusCondition(&k8sResource.Status.Conditions, newCondition)
-	if err := r.Status().Update(ctx, k8sResource); err != nil {
+	// If an error happens we want to put it in status.conditions before returning.
+	newReconciliationCondition := getReconciliationConditionFromError(err)
+	meta.SetStatusCondition(&k8sResource.Status.Conditions, newReconciliationCondition)
+	if err != nil {
+		silentUpdateStatus(ctx, r.Client, k8sResource)
 		return trace.Wrap(err)
 	}
-	return err
+
+	// We update the status conditions on exit
+	return trace.Wrap(r.Status().Update(ctx, k8sResource))
 }
 
 func (r *UserReconciler) addTeleportResourceOrigin(resource types.User) {

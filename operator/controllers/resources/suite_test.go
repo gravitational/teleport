@@ -206,7 +206,7 @@ type testSetup struct {
 	namespace *core.Namespace
 }
 
-func setupKubernetesAndTeleport(ctx context.Context, t *testing.T) testSetup {
+func setupKubernetesAndTeleport(t *testing.T) testSetup {
 	teleportServer, operatorName := defaultTeleportServiceConfig(t)
 
 	require.NoError(t, teleportServer.Start())
@@ -215,6 +215,11 @@ func setupKubernetesAndTeleport(ctx context.Context, t *testing.T) testSetup {
 	k8sClient := startKubernetesOperator(t, tClient)
 
 	ns := createNamespaceForTest(t, k8sClient)
+
+	t.Cleanup(func() {
+		err := tClient.Close()
+		require.NoError(t, err)
+	})
 	return testSetup{tClient: tClient, k8sClient: k8sClient, namespace: ns}
 }
 

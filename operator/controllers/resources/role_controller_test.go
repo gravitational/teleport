@@ -41,7 +41,7 @@ import (
 // the corresponding TeleportRole must be created/deleted in Teleport.
 func TestRoleCreation(t *testing.T) {
 	ctx := context.Background()
-	setup := setupKubernetesAndTeleport(ctx, t)
+	setup := setupKubernetesAndTeleport(t)
 	roleName := validRandomResourceName("role-")
 
 	// End of setup, we create the role in Kubernetes
@@ -75,7 +75,7 @@ func TestRoleCreation(t *testing.T) {
 
 func TestRoleCreationFromYAML(t *testing.T) {
 	ctx := context.Background()
-	setup := setupKubernetesAndTeleport(ctx, t)
+	setup := setupKubernetesAndTeleport(t)
 	tests := []struct {
 		name         string
 		roleSpecYAML string
@@ -231,7 +231,7 @@ func compareRoleSpecs(t *testing.T, expectedRole, actualRole types.Role) {
 
 func TestRoleDeletionDrift(t *testing.T) {
 	ctx := context.Background()
-	setup := setupKubernetesAndTeleport(ctx, t)
+	setup := setupKubernetesAndTeleport(t)
 	roleName := validRandomResourceName("role-")
 
 	// The role is created in K8S
@@ -274,7 +274,7 @@ func TestRoleDeletionDrift(t *testing.T) {
 
 func TestRoleUpdate(t *testing.T) {
 	ctx := context.Background()
-	setup := setupKubernetesAndTeleport(ctx, t)
+	setup := setupKubernetesAndTeleport(t)
 	roleName := validRandomResourceName("role-")
 
 	// The role does not exist in K8S

@@ -18,13 +18,9 @@ package resources
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -116,11 +112,7 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 	newStructureCondition := getStructureConditionFromError(err)
 	meta.SetStatusCondition(&k8sResource.Status.Conditions, newStructureCondition)
 	if err != nil {
-		// We update the status conditions on exit
-		statusErr := r.Status().Update(ctx, k8sResource)
-		if statusErr != nil && !errors.Is(statusErr, &json.UnmarshalTypeError{}) {
-			log.Errorf("Failed to report error in status conditions: %s", statusErr)
-		}
+		silentUpdateStatus(ctx, r.Client, k8sResource)
 		return trace.Wrap(err)
 	}
 
@@ -128,21 +120,13 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 	teleportResource := k8sResource.ToTeleport()
 	teleportClient, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
-		// We update the status conditions on exit
-		statusErr := r.Status().Update(ctx, k8sResource)
-		if statusErr != nil {
-			log.Errorf("Failed to report error in status conditions: %s", statusErr)
-		}
+		silentUpdateStatus(ctx, r.Client, k8sResource)
 		return trace.Wrap(err)
 	}
 
 	existingResource, err := teleportClient.GetRole(ctx, teleportResource.GetName())
 	if err != nil && !trace.IsNotFound(err) {
-		// We update the status conditions on exit
-		statusErr := r.Status().Update(ctx, k8sResource)
-		if statusErr != nil {
-			log.Errorf("Failed to report error in status conditions: %s", statusErr)
-		}
+		silentUpdateStatus(ctx, r.Client, k8sResource)
 		return trace.Wrap(err)
 	}
 
@@ -150,11 +134,7 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 	newOwnershipCondition, err := checkOwnership(existingResource)
 	meta.SetStatusCondition(&k8sResource.Status.Conditions, newOwnershipCondition)
 	if err != nil {
-		// We update the status conditions on exit
-		statusErr := r.Status().Update(ctx, k8sResource)
-		if statusErr != nil {
-			log.Errorf("Failed to report error in status conditions: %s", statusErr)
-		}
+		silentUpdateStatus(ctx, r.Client, k8sResource)
 		return trace.Wrap(err)
 	}
 
@@ -165,17 +145,12 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 	newReconciliationCondition := getReconciliationConditionFromError(err)
 	meta.SetStatusCondition(&k8sResource.Status.Conditions, newReconciliationCondition)
 	if err != nil {
-		// We update the status conditions on exit
-		statusErr := r.Status().Update(ctx, k8sResource)
-		if statusErr != nil {
-			log.Errorf("Error while writing status conditions: %s", statusErr)
-		}
+		silentUpdateStatus(ctx, r.Client, k8sResource)
 		return trace.Wrap(err)
 	}
 
 	// We update the status conditions on exit
-	statusErr := r.Status().Update(ctx, k8sResource)
-	return trace.Wrap(statusErr)
+	return trace.Wrap(r.Status().Update(ctx, k8sResource))
 }
 
 func (r *RoleReconciler) addTeleportResourceOrigin(resource types.Role) {
