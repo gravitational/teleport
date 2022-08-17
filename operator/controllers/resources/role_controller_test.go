@@ -64,7 +64,7 @@ func TestRoleCreation(t *testing.T) {
 		return true
 	})
 
-	// Cleanup and test, we delete the role in Kubernetes```
+	// Cleanup and test, we delete the role in Kubernetes
 	k8sDeleteRole(ctx, t, k8sClient, roleName, ns.Name)
 
 	// We wait for the role to be deleted in Teleport
