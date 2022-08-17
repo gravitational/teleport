@@ -103,6 +103,9 @@ type Config struct {
 	// can be reached on, if running behind NAT
 	AdvertiseIP string
 
+	// CloudReports indicates whether cloud reports are enabled.
+	CloudReports bool
+
 	// CachePolicy sets caching policy for nodes and proxies
 	// in case if they lose connection to auth servers
 	CachePolicy CachePolicy
