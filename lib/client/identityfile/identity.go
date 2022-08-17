@@ -144,6 +144,8 @@ type WriteConfig struct {
 	// KubeProxyAddr is the public address of the proxy with its kubernetes
 	// port. KubeProxyAddr is only used when Format is FormatKubernetes.
 	KubeProxyAddr string
+	// KubeTLSServerName is the SNI host value passed to the server.
+	KubeTLSServerName string
 	// OverwriteDestination forces all existing destination files to be
 	// overwritten. When false, user will be prompted for confirmation of
 	// overwrite first.
@@ -331,6 +333,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			TeleportClusterName: cfg.Key.ClusterName,
 			ClusterAddr:         cfg.KubeProxyAddr,
 			Credentials:         cfg.Key,
+			TLSServerName:       cfg.KubeTLSServerName,
 		}); err != nil {
 			return nil, trace.Wrap(err)
 		}
