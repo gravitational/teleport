@@ -16,6 +16,7 @@ resource "aws_s3_bucket_object" "grafana_teleport_dashboard" {
   bucket = aws_s3_bucket.certs.bucket
   key    = "health-dashboard.json"
   source = "./assets/health-dashboard.json"
+  etag   = filemd5("./assets/health-dashboard.json")
 }
 
 // Grafana nginx config (letsencrypt)
@@ -24,6 +25,7 @@ resource "aws_s3_bucket_object" "grafana_teleport_nginx" {
   key    = "grafana-nginx.conf"
   source = "./assets/grafana-nginx.conf"
   count  = var.use_acm ? 0 : 1
+  etag   = filemd5("./assets/grafana-nginx.conf")
 }
 
 // Grafana nginx config (ACM)
@@ -32,5 +34,6 @@ resource "aws_s3_bucket_object" "grafana_teleport_nginx_acm" {
   key    = "grafana-nginx.conf"
   source = "./assets/grafana-nginx-acm.conf"
   count  = var.use_acm ? 1 : 0
+  etag   = filemd5("./assets/grafana-nginx-acm.conf")
 }
 
