@@ -9,10 +9,10 @@ jira:
   project: MYPROJ                 # Project where issues will be created
 
 http:
-  publicAddress: https://jira.access-dev.teleportinfra.dev/  # Publicly available
-  tlsFromSecret: teleport-plugin-jira-tls                    # Secret containing the TLS certificate
-  # tlsKeySecretPath:  tls.key                               # Name of the key inside the secret
-  # tlsCertSecretPath: tls.crt                               # Name of the certificate inside the secret
+  publicAddress: https://jira-teleport.example.com/  # Publicly available
+  tlsFromSecret: teleport-plugin-jira-tls            # Secret containing the TLS certificate
+  # tlsKeySecretPath:  tls.key                       # Name of the key inside the secret
+  # tlsCertSecretPath: tls.crt                       # Name of the certificate inside the secret
 
 log:
   output: stderr  # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/jira.log"

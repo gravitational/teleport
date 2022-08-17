@@ -109,16 +109,12 @@ Run `./install` from `teleport-jira` or place the executable in `/usr/bin` or `/
   $ docker pull public.ecr.aws/gravitational/teleport-plugin-jira:(=teleport.plugin.version=)
   ```
 </TabItem>
-</Tabs>
-
-<Details title="Installing via Helm?">
+<TabItem label="Helm Chart">
   ```code
   $ helm repo add teleport https://charts.releases.teleport.dev/
-  $ helm install teleport-plugin-jira teleport/teleport-plugin-jira --values teleport-jira-helm.yaml
   ```
-
-  See an example for `teleport-jira-helm.yaml` under [Running Teleport in Kubernetes?](#running-teleport-in-kubernetes)
-</Details>
+</TabItem>
+</Tabs>
 
 ### Configuration file
 
@@ -133,45 +129,23 @@ $ sudo mv teleport-jira.toml /etc
 By default, the Jira Teleport plugin will use a config in `/etc/teleport-jira.toml`, and you can override it with `-c config/file/path.toml` flag.
 
 <Tabs>
-<TabItem label="Self-Hosted" scopes={["oss", "enterprise"]}>
-```toml
-(!examples/resources/plugins/teleport-jira-self-hosted.toml!)
-```
-</TabItem>
-<TabItem label="Cloud" scopes={["cloud"]}>
+<TabItem label="Executable" scopes={["oss", "enterprise", "cloud"]}>
 ```toml
 (!examples/resources/plugins/teleport-jira-cloud.toml!)
 ```
 </TabItem>
-</Tabs>
-
-<Details title="Running Teleport in Kubernetes?">
-  <Tabs>
-    <TabItem label="Self-hosted" scope={["oss","enterprise","cloud"]}>
-
+<TabItem label="Helm Chart" scope={["oss","enterprise","cloud"]}>
 ```yaml
 (!examples/resources/plugins/teleport-jira-helm-self.yaml!)
 ```
 
-  </TabItem>
-  <TabItem label="Cloud" scope={["cloud"]}>
-
-```yaml
-(!examples/resources/plugins/teleport-jira-helm-cloud.yaml!)
-```
-
-    </TabItem>
-  </Tabs>
-
-Use the following command to create a Kubernetes secret from the identity file
-generated in the [export identity](#export-the-access-plugin-certificate) section:
+Use the following command to create the Kubernetes secret referenced above from the identity file you generated earlier:
 
 ```console
 kubectl create secret generic teleport-plugin-jira-identity --from-file=auth_id=auth.pem
 ```
-
-For installation instructions, see [Installing via Helm?](#installing-via-helm)
-</Details>
+</TabItem>
+</Tabs>
 
 The `[teleport]` section describes where the teleport service running, and what keys should the plugin use to authenticate itself. Use the keys that you've generated.
 
@@ -191,9 +165,19 @@ run the Jira plugin on the same server as the Teleport Proxy, so you can use the
 
 You should be able to run the Teleport plugin now!
 
+
+<Tabs>
+<TabItem label="Cloud" scopes={["oss", "enterprise", "cloud"]}>
 ```code
 $ teleport-jira start
 ```
+</TabItem>
+<TabItem label="Helm Chart" scopes={["oss", "enterprise", "cloud"]}>
+```code
+$ helm install teleport-plugin-jira teleport/teleport-plugin-jira --values teleport-jira-helm.yaml
+```
+</TabItem>
+</Tabs>
 
 The log output should look familiar to what Teleport service logs. You should see that it connected to Teleport, and is listening for new Teleport requests and Jira webhooks.
 

@@ -119,7 +119,8 @@ Base URL of the Jira instance
 | - | - | - |
 | `string` | `""` | No |
 
-Jira token of the bot user to impersonate when sending the messages. Ignored when `jira.apiTokenFromSecret` is set.
+Jira token of the bot user to impersonate when sending the messages. It's only recommended for testing purposes.
+Please use [`jira.apiTokenFromSecret`](#jiraapitokenfromsecret) instead.
 
 <Tabs>
   <TabItem label="values.yaml">
