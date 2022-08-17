@@ -28,7 +28,6 @@ describe('restoring workspace', () => {
           connected: true,
           leaf: false,
           proxyHost: 'test:3030',
-          actualName: 'Test cluster',
           loggedInUser: {
             name: 'Alice',
             rolesList: [],

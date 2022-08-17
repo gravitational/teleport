@@ -36,7 +36,7 @@ export async function buildPtyOptions(
         ...process.env,
         ...shellEnv,
         TELEPORT_HOME: settings.tshd.homeDir,
-        TELEPORT_CLUSTER: cmd.actualClusterName,
+        TELEPORT_CLUSTER: cmd.clusterName,
         TELEPORT_PROXY: cmd.proxyHost,
       };
 

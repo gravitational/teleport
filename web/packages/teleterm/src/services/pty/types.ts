@@ -45,7 +45,7 @@ export type TshKubeLoginCommand = PtyCommandBase & {
 
 type PtyCommandBase = {
   proxyHost: string;
-  actualClusterName: string;
+  clusterName: string;
 };
 
 export type PtyCommand = ShellCommand | TshLoginCommand | TshKubeLoginCommand;

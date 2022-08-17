@@ -6,7 +6,6 @@ import { Label } from 'teleport/types';
 
 import { routing } from 'teleterm/ui/uri';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
-import { getClusterName } from 'teleterm/ui/utils/getClusterName';
 import { Cluster } from 'teleterm/services/tshd/types';
 
 import { ImmutableStore } from '../immutableStore';
@@ -130,7 +129,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     } catch (e) {
       const cluster = this.findCluster(clusterUri);
       const clusterName =
-        getClusterName(cluster) ||
+        cluster?.name ||
         routing.parseClusterUri(clusterUri).params.rootClusterId;
       this.notificationsService.notifyError({
         title: `Could not synchronize cluster ${clusterName}`,

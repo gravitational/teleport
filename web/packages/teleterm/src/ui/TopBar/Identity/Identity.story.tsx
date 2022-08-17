@@ -75,7 +75,6 @@ export function OneClusterWithActiveCluster() {
   const cluster: tshd.Cluster = {
     uri: '/clusters/localhost',
     name: 'teleport-localhost',
-    actualName: 'teleport-localhost',
     proxyHost: 'localhost:3080',
     connected: true,
     leaf: false,
@@ -170,7 +169,6 @@ export function ManyClustersWithActiveCluster() {
   const activeCluster: tshd.Cluster = {
     uri: activeIdentityRootCluster.uri,
     name: activeIdentityRootCluster.clusterName,
-    actualName: activeIdentityRootCluster.clusterName,
     proxyHost: 'localhost:3080',
     connected: true,
     leaf: false,
@@ -227,7 +225,6 @@ export function LongNamesWithManyRoles() {
   const activeCluster: tshd.Cluster = {
     uri: activeIdentityRootCluster.uri,
     name: activeIdentityRootCluster.clusterName,
-    actualName: activeIdentityRootCluster.clusterName,
     proxyHost: 'localhost:3080',
     connected: true,
     leaf: false,

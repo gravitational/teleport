@@ -14,8 +14,6 @@ import {
   useKeyboardShortcutFormatters,
 } from 'teleterm/ui/services/keyboardShortcuts';
 
-import { getClusterName } from 'teleterm/ui/utils';
-
 import * as tshd from 'teleterm/services/tshd/types';
 
 import { IdentityRootCluster, useIdentity } from './useIdentity';
@@ -119,7 +117,7 @@ export const Identity = React.forwardRef<IdentityHandler, IdentityProps>(
           onClick={togglePopover}
           isOpened={isPopoverOpened}
           userName={loggedInUser?.name}
-          clusterName={getClusterName(activeRootCluster)}
+          clusterName={activeRootCluster?.name}
           makeTitle={makeTitle}
         />
         <Popover

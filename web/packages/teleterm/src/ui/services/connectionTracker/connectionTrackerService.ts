@@ -23,8 +23,6 @@ import {
 } from 'teleterm/ui/services/workspacesService';
 import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
 
-import { getClusterName } from 'teleterm/ui/utils';
-
 import { routing } from 'teleterm/ui/uri';
 
 import { ImmutableStore } from '../immutableStore';
@@ -75,7 +73,7 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
         this._trackedConnectionOperationsFactory.create(connection);
       const clusterUri = leafClusterUri || rootClusterUri;
       const clusterName =
-        getClusterName(this._clusterService.findCluster(clusterUri)) ||
+        this._clusterService.findCluster(clusterUri)?.name ||
         routing.parseClusterName(clusterUri);
       return { ...connection, clusterName };
     });

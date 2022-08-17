@@ -31,6 +31,6 @@ export function useActiveDocumentClusterBreadcrumbs(): string {
 
   return [rootCluster, leafCluster]
     .filter(Boolean)
-    .map(c => c.actualName)
+    .map(c => c.name)
     .join(' > ');
 }

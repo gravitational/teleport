@@ -12,7 +12,6 @@ const clusterMock: tsh.Cluster = {
   connected: true,
   leaf: false,
   proxyHost: 'localhost:3080',
-  actualName: 'Test',
   loggedInUser: {
     name: 'admin',
     acl: {},

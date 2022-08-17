@@ -37,7 +37,6 @@ export const Online = () => {
     leaf: false,
     name: 'localhost',
     connected: true,
-    actualName: 'localhost',
     proxyHost: 'localhost:3080',
   });
 
@@ -51,7 +50,6 @@ export const Offline = () => {
     leaf: false,
     name: 'localhost',
     connected: false,
-    actualName: 'localhost',
     proxyHost: 'localhost:3080',
   });
 
