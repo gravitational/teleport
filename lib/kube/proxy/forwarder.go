@@ -21,9 +21,11 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	mathrand "math/rand"
 	"net"
 	"net/http"
@@ -850,26 +852,35 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	stream, err := streamproto.NewSessionStream(ws, streamproto.ServerHandshake{MFARequired: session.PresenceEnabled})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if err := func() error {
+		stream, err := streamproto.NewSessionStream(ws, streamproto.ServerHandshake{MFARequired: session.PresenceEnabled})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		client := &websocketClientStreams{stream}
+		party := newParty(*ctx, stream.Mode, client)
+		go func() {
+			<-stream.Done()
+			session.mu.Lock()
+			defer session.mu.Unlock()
+			session.leave(party.ID)
+		}()
+
+		err = session.join(party)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		<-party.closeC
+		return nil
+	}(); err != nil {
+		writeErr := ws.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseInternalServerErr, err.Error()), time.Now().Add(time.Second*10))
+		if writeErr != nil {
+			f.log.WithError(writeErr).Warn("Failed to send early-exit websocket close message.")
+		}
 	}
 
-	client := &websocketClientStreams{stream}
-	party := newParty(*ctx, stream.Mode, client)
-	go func() {
-		<-stream.Done()
-		session.mu.Lock()
-		defer session.mu.Unlock()
-		session.leave(party.ID)
-	}()
-
-	err = session.join(party)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	<-party.closeC
 	return nil, nil
 }
 
@@ -888,7 +899,17 @@ func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *htt
 
 	wsTarget, respTarget, err := dialer.Dial(url, nil)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		msg, err := io.ReadAll(respTarget.Body)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		var obj map[string]interface{}
+		if err := json.Unmarshal(msg, &obj); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return obj, trace.Wrap(err)
 	}
 	defer wsTarget.Close()
 	defer respTarget.Body.Close()
@@ -1693,7 +1714,7 @@ func (f *Forwarder) newClusterSessionRemoteCluster(ctx authContext) (*clusterSes
 		// encoded in the TLS certificate. We're setting the dial endpoint to a hardcoded
 		// `kube.teleport.cluster.local` value to indicate this is a Kubernetes proxy request
 		kubeClusterEndpoints: []kubeClusterEndpoint{{addr: reversetunnel.LocalKubernetes}},
-		tlsConfig:            tlsConfig,
+		tlsConfig:            tlsConfig.Clone(),
 	}, nil
 }
 
@@ -1752,7 +1773,7 @@ func (f *Forwarder) newClusterSessionLocal(ctx authContext) (*clusterSession, er
 		authContext:          ctx,
 		creds:                creds,
 		kubeClusterEndpoints: []kubeClusterEndpoint{{addr: creds.targetAddr}},
-		tlsConfig:            creds.tlsConfig,
+		tlsConfig:            creds.tlsConfig.Clone(),
 	}, nil
 }
 
@@ -1772,7 +1793,7 @@ func (f *Forwarder) newClusterSessionDirect(ctx authContext, endpoints []kubeClu
 		parent:               f,
 		authContext:          ctx,
 		kubeClusterEndpoints: endpoints,
-		tlsConfig:            tlsConfig,
+		tlsConfig:            tlsConfig.Clone(),
 		// This session talks to a kubernetes_service, which should handle
 		// audit logging. Avoid duplicate logging.
 		noAuditEvents: true,
@@ -1795,10 +1816,6 @@ func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*forward.Forward
 		if err := http2.ConfigureTransport(transport); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	} else if sess.tlsConfig != nil {
-		// when certificate-authority-data is not provided in kubeconfig the tlsConfig can be nil,
-		// meaning that we will use the system default CA store.
-		sess.tlsConfig.NextProtos = nil
 	}
 
 	rt := http.RoundTripper(transport)
