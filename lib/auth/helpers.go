@@ -48,7 +48,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -182,8 +181,6 @@ type TestAuthServer struct {
 	AuthServer *Server
 	// AuditLog is an event audit log
 	AuditLog events.IAuditLog
-	// SessionServer is a session service
-	SessionServer session.Service
 	// Backend is a backend for auth server
 	Backend backend.Backend
 	// Authorizer is an authorizer used in tests
@@ -227,11 +224,6 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 			return nil, trace.Wrap(err)
 		}
 		srv.AuditLog = localLog
-	}
-
-	srv.SessionServer, err = session.New(srv.Backend)
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	access := local.NewAccessService(srv.Backend)
@@ -541,11 +533,10 @@ func (a *TestAuthServer) Trust(ctx context.Context, remote *TestAuthServer, role
 // NewTestTLSServer returns new test TLS server
 func (a *TestAuthServer) NewTestTLSServer() (*TestTLSServer, error) {
 	apiConfig := &APIConfig{
-		AuthServer:     a.AuthServer,
-		Authorizer:     a.Authorizer,
-		SessionService: a.SessionServer,
-		AuditLog:       a.AuditLog,
-		Emitter:        a.AuthServer.emitter,
+		AuthServer: a.AuthServer,
+		Authorizer: a.Authorizer,
+		AuditLog:   a.AuditLog,
+		Emitter:    a.AuthServer.emitter,
 	}
 	srv, err := NewTestTLSServer(TestTLSServerConfig{
 		APIConfig:     apiConfig,
@@ -658,7 +649,7 @@ func NewTestTLSServer(cfg TestTLSServerConfig) (*TestTLSServer, error) {
 	}
 	tlsConfig.Time = cfg.AuthServer.Clock().Now
 
-	accessPoint, err := NewAdminAuthServer(srv.AuthServer.AuthServer, srv.AuthServer.SessionServer, srv.AuthServer.AuditLog)
+	accessPoint, err := NewAdminAuthServer(srv.AuthServer.AuthServer, srv.AuthServer.AuditLog)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

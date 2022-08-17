@@ -17,6 +17,7 @@ limitations under the License.
 package common
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -138,6 +139,11 @@ func ConvertConnectError(err error, sessionCtx *Session) error {
 // createRDSAccessDeniedError creates an error with help message to setup IAM
 // auth for RDS.
 func createRDSAccessDeniedError(err error, sessionCtx *Session) error {
+	policy, getPolicyErr := sessionCtx.Database.GetIAMPolicy()
+	if getPolicyErr != nil {
+		policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
+	}
+
 	switch sessionCtx.Database.GetProtocol() {
 	case defaults.ProtocolMySQL:
 		return trace.AccessDenied(`Could not connect to database:
@@ -149,7 +155,7 @@ agent's IAM policy has "rds-connect" permissions (note that IAM changes may
 take a few minutes to propagate):
 
 %v
-`, err, sessionCtx.DatabaseUser, sessionCtx.Database.GetIAMPolicy())
+`, err, sessionCtx.DatabaseUser, policy)
 
 	case defaults.ProtocolPostgres:
 		return trace.AccessDenied(`Could not connect to database:
@@ -161,7 +167,7 @@ agent's IAM policy has "rds-connect" permissions (note that IAM changes may
 take a few minutes to propagate):
 
 %v
-`, err, sessionCtx.DatabaseUser, sessionCtx.Database.GetIAMPolicy())
+`, err, sessionCtx.DatabaseUser, policy)
 
 	default:
 		return trace.Wrap(err)

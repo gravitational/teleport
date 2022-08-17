@@ -754,15 +754,15 @@ func TestAzureTagsToLabels(t *testing.T) {
 
 func TestRDSTagsToLabels(t *testing.T) {
 	rdsTags := []*rds.Tag{
-		&rds.Tag{
+		{
 			Key:   aws.String("Env"),
 			Value: aws.String("dev"),
 		},
-		&rds.Tag{
+		{
 			Key:   aws.String("aws:cloudformation:stack-id"),
 			Value: aws.String("some-id"),
 		},
-		&rds.Tag{
+		{
 			Key:   aws.String("Name"),
 			Value: aws.String("test"),
 		},

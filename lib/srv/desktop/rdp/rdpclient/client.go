@@ -142,7 +142,7 @@ type Client struct {
 }
 
 // New creates and connects a new Client based on cfg.
-func New(ctx context.Context, cfg Config) (*Client, error) {
+func New(cfg Config) (*Client, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, err
 	}
@@ -509,6 +509,16 @@ func (c *Client) start() {
 						return
 					}
 				}
+			case tdp.SharedDirectoryMoveResponse:
+				if c.cfg.AllowDirectorySharing {
+					if errCode := C.handle_tdp_sd_move_response(c.rustClient, C.CGOSharedDirectoryMoveResponse{
+						completion_id: C.uint32_t(m.CompletionID),
+						err_code:      m.ErrCode,
+					}); errCode != C.ErrCodeSuccess {
+						c.cfg.Log.Errorf("SharedDirectoryMoveResponse failed: %v", errCode)
+						return
+					}
+				}
 			default:
 				c.cfg.Log.Warningf("Skipping unimplemented TDP message type %T", msg)
 			}
@@ -585,15 +595,15 @@ func tdp_sd_acknowledge(handle C.uintptr_t, ack *C.CGOSharedDirectoryAcknowledge
 // sharedDirectoryAcknowledge is sent by the TDP server to the client
 // to acknowledge that a SharedDirectoryAnnounce was received.
 func (c *Client) sharedDirectoryAcknowledge(ack tdp.SharedDirectoryAcknowledge) C.CGOErrCode {
-	if c.cfg.AllowDirectorySharing {
-		if err := c.cfg.Conn.OutputMessage(ack); err != nil {
-			c.cfg.Log.Errorf("failed to send SharedDirectoryAcknowledge: %v", err)
-			return C.ErrCodeFailure
-		}
-		return C.ErrCodeSuccess
+	if !c.cfg.AllowDirectorySharing {
+		return C.ErrCodeFailure
 	}
 
-	return C.ErrCodeFailure
+	if err := c.cfg.Conn.OutputMessage(ack); err != nil {
+		c.cfg.Log.Errorf("failed to send SharedDirectoryAcknowledge: %v", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
 }
 
 //export tdp_sd_info_request
@@ -608,15 +618,15 @@ func tdp_sd_info_request(handle C.uintptr_t, req *C.CGOSharedDirectoryInfoReques
 // sharedDirectoryInfoRequest is sent from the TDP server to the client
 // to request information about a file or directory at a given path.
 func (c *Client) sharedDirectoryInfoRequest(req tdp.SharedDirectoryInfoRequest) C.CGOErrCode {
-	if c.cfg.AllowDirectorySharing {
-		if err := c.cfg.Conn.OutputMessage(req); err != nil {
-			c.cfg.Log.Errorf("failed to send SharedDirectoryAcknowledge: %v", err)
-			return C.ErrCodeFailure
-		}
-		return C.ErrCodeSuccess
+	if !c.cfg.AllowDirectorySharing {
+		return C.ErrCodeFailure
 	}
 
-	return C.ErrCodeFailure
+	if err := c.cfg.Conn.OutputMessage(req); err != nil {
+		c.cfg.Log.Errorf("failed to send SharedDirectoryAcknowledge: %v", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
 }
 
 //export tdp_sd_create_request
@@ -632,15 +642,15 @@ func tdp_sd_create_request(handle C.uintptr_t, req *C.CGOSharedDirectoryCreateRe
 // sharedDirectoryCreateRequest is sent by the TDP server to
 // the client to request the creation of a new file or directory.
 func (c *Client) sharedDirectoryCreateRequest(req tdp.SharedDirectoryCreateRequest) C.CGOErrCode {
-	if c.cfg.AllowDirectorySharing {
-		if err := c.cfg.Conn.OutputMessage(req); err != nil {
-			c.cfg.Log.Errorf("failed to send SharedDirectoryCreateRequest: %v", err)
-			return C.ErrCodeFailure
-		}
-		return C.ErrCodeSuccess
+	if !c.cfg.AllowDirectorySharing {
+		return C.ErrCodeFailure
 	}
 
-	return C.ErrCodeFailure
+	if err := c.cfg.Conn.OutputMessage(req); err != nil {
+		c.cfg.Log.Errorf("failed to send SharedDirectoryCreateRequest: %v", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
 }
 
 //export tdp_sd_delete_request
@@ -655,15 +665,15 @@ func tdp_sd_delete_request(handle C.uintptr_t, req *C.CGOSharedDirectoryDeleteRe
 // sharedDirectoryDeleteRequest is sent by the TDP server to the client
 // to request the deletion of a file or directory at path.
 func (c *Client) sharedDirectoryDeleteRequest(req tdp.SharedDirectoryDeleteRequest) C.CGOErrCode {
-	if c.cfg.AllowDirectorySharing {
-		if err := c.cfg.Conn.OutputMessage(req); err != nil {
-			c.cfg.Log.Errorf("failed to send SharedDirectoryDeleteRequest: %v", err)
-			return C.ErrCodeFailure
-		}
-		return C.ErrCodeSuccess
+	if !c.cfg.AllowDirectorySharing {
+		return C.ErrCodeFailure
 	}
 
-	return C.ErrCodeFailure
+	if err := c.cfg.Conn.OutputMessage(req); err != nil {
+		c.cfg.Log.Errorf("failed to send SharedDirectoryDeleteRequest: %v", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
 }
 
 //export tdp_sd_list_request
@@ -678,15 +688,15 @@ func tdp_sd_list_request(handle C.uintptr_t, req *C.CGOSharedDirectoryListReques
 // sharedDirectoryListRequest is sent by the TDP server to the client
 // to request the contents of a directory.
 func (c *Client) sharedDirectoryListRequest(req tdp.SharedDirectoryListRequest) C.CGOErrCode {
-	if c.cfg.AllowDirectorySharing {
-		if err := c.cfg.Conn.OutputMessage(req); err != nil {
-			c.cfg.Log.Errorf("failed to send SharedDirectoryListRequest: %v", err)
-			return C.ErrCodeFailure
-		}
-		return C.ErrCodeSuccess
+	if !c.cfg.AllowDirectorySharing {
+		return C.ErrCodeFailure
 	}
 
-	return C.ErrCodeFailure
+	if err := c.cfg.Conn.OutputMessage(req); err != nil {
+		c.cfg.Log.Errorf("failed to send SharedDirectoryListRequest: %v", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
 }
 
 //export tdp_sd_read_request
@@ -695,7 +705,6 @@ func tdp_sd_read_request(handle C.uintptr_t, req *C.CGOSharedDirectoryReadReques
 		CompletionID: uint32(req.completion_id),
 		DirectoryID:  uint32(req.directory_id),
 		Path:         C.GoString(req.path),
-		PathLength:   uint32(req.path_length),
 		Offset:       uint64(req.offset),
 		Length:       uint32(req.length),
 	})
@@ -704,14 +713,15 @@ func tdp_sd_read_request(handle C.uintptr_t, req *C.CGOSharedDirectoryReadReques
 // SharedDirectoryReadRequest is sent by the TDP server to the client
 // to request the contents of a file.
 func (c *Client) sharedDirectoryReadRequest(req tdp.SharedDirectoryReadRequest) C.CGOErrCode {
-	if c.cfg.AllowDirectorySharing {
-		if err := c.cfg.Conn.OutputMessage(req); err != nil {
-			c.cfg.Log.Errorf("failed to send SharedDirectoryReadRequest: %v", err)
-			return C.ErrCodeFailure
-		}
-		return C.ErrCodeSuccess
+	if !c.cfg.AllowDirectorySharing {
+		return C.ErrCodeFailure
 	}
-	return C.ErrCodeFailure
+
+	if err := c.cfg.Conn.OutputMessage(req); err != nil {
+		c.cfg.Log.Errorf("failed to send SharedDirectoryReadRequest: %v", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
 }
 
 //export tdp_sd_write_request
@@ -720,7 +730,6 @@ func tdp_sd_write_request(handle C.uintptr_t, req *C.CGOSharedDirectoryWriteRequ
 		CompletionID:    uint32(req.completion_id),
 		DirectoryID:     uint32(req.directory_id),
 		Offset:          uint64(req.offset),
-		PathLength:      uint32(req.path_length),
 		Path:            C.GoString(req.path),
 		WriteDataLength: uint32(req.write_data_length),
 		WriteData:       C.GoBytes(unsafe.Pointer(req.write_data), C.int(req.write_data_length)),
@@ -730,14 +739,38 @@ func tdp_sd_write_request(handle C.uintptr_t, req *C.CGOSharedDirectoryWriteRequ
 // SharedDirectoryWriteRequest is sent by the TDP server to the client
 // to write to a file.
 func (c *Client) sharedDirectoryWriteRequest(req tdp.SharedDirectoryWriteRequest) C.CGOErrCode {
-	if c.cfg.AllowDirectorySharing {
-		if err := c.cfg.Conn.OutputMessage(req); err != nil {
-			c.cfg.Log.Errorf("failed to send SharedDirectoryWriteRequest: %v", err)
-			return C.ErrCodeFailure
-		}
-		return C.ErrCodeSuccess
+	if !c.cfg.AllowDirectorySharing {
+		return C.ErrCodeFailure
 	}
-	return C.ErrCodeFailure
+
+	if err := c.cfg.Conn.OutputMessage(req); err != nil {
+		c.cfg.Log.Errorf("failed to send SharedDirectoryWriteRequest: %v", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+}
+
+//export tdp_sd_move_request
+func tdp_sd_move_request(handle C.uintptr_t, req *C.CGOSharedDirectoryMoveRequest) C.CGOErrCode {
+	return cgo.Handle(handle).Value().(*Client).sharedDirectoryMoveRequest(tdp.SharedDirectoryMoveRequest{
+		CompletionID: uint32(req.completion_id),
+		DirectoryID:  uint32(req.directory_id),
+		OriginalPath: C.GoString(req.original_path),
+		NewPath:      C.GoString(req.new_path),
+	})
+}
+
+func (c *Client) sharedDirectoryMoveRequest(req tdp.SharedDirectoryMoveRequest) C.CGOErrCode {
+	if !c.cfg.AllowDirectorySharing {
+		return C.ErrCodeFailure
+	}
+
+	if err := c.cfg.Conn.OutputMessage(req); err != nil {
+		c.cfg.Log.Errorf("failed to send SharedDirectoryMoveRequest: %v", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+
 }
 
 // close closes the RDP client connection and

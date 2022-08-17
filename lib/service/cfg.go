@@ -87,9 +87,6 @@ type Config struct {
 	// Hostname is a node host name
 	Hostname string
 
-	// Token is used to register this Teleport instance with the auth server
-	Token string
-
 	// JoinMethod is the method the instance will use to join the auth server
 	JoinMethod types.JoinMethod
 
@@ -262,25 +259,41 @@ type Config struct {
 
 	// CircuitBreakerConfig configures the auth client circuit breaker.
 	CircuitBreakerConfig breaker.Config
+
+	// token is either the token needed to join the auth server, or a path pointing to a file
+	// that contains the token
+	//
+	// This is private to avoid external packages reading the value - the value should be obtained
+	// using Token()
+	token string
 }
 
-// ApplyToken assigns a given token to all internal services but only if token
-// is not an empty string.
+// Token returns token needed to join the auth server
 //
-// returns:
-// true, nil if the token has been modified
-// false, nil if the token has not been modified
-// false, err if there was an error
-func (cfg *Config) ApplyToken(token string) (bool, error) {
-	if token != "" {
-		var err error
-		cfg.Token, err = utils.TryReadValueAsFile(token)
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-		return true, nil
+// If the value stored points to a file, it will attempt to read the token value from the file
+// and return an error if it wasn't successful
+// If the value stored doesn't point to a file, it'll return the value stored
+// If the token hasn't been set, an empty string will be returned
+func (cfg *Config) Token() (string, error) {
+	token, err := utils.TryReadValueAsFile(cfg.token)
+	if err != nil {
+		return "", trace.Wrap(err)
 	}
-	return false, nil
+
+	return token, nil
+}
+
+// SetToken stores the value for --token or auth_token in the config
+//
+// This can be either the token or an absolute path to a file containing the token.
+func (cfg *Config) SetToken(token string) {
+	cfg.token = token
+}
+
+// HasToken gives the ability to check if there has been a token value stored
+// in the config
+func (cfg *Config) HasToken() bool {
+	return cfg.token != ""
 }
 
 // ApplyCAPins assigns the given CA pin(s), filtering out empty pins.
@@ -396,6 +409,10 @@ type ProxyConfig struct {
 	// PeerAddr is the proxy peering address.
 	PeerAddr utils.NetAddr
 
+	// PeerPublicAddr is the public address the proxy advertises for proxy
+	// peering clients.
+	PeerPublicAddr utils.NetAddr
+
 	Limiter limiter.Config
 
 	// PublicAddrs is a list of the public addresses the proxy advertises
@@ -475,6 +492,40 @@ func (c ProxyConfig) KubeAddr() (string, error) {
 		Host:   net.JoinHostPort(host, strconv.Itoa(c.Kube.ListenAddr.Port(defaults.KubeListenPort))),
 	}
 	return u.String(), nil
+}
+
+// publicPeerAddr attempts to returns the public address the proxy advertises
+// for proxy peering clients if available. It falls back to PeerAddr othewise.
+func (c ProxyConfig) publicPeerAddr() (*utils.NetAddr, error) {
+	addr := &c.PeerPublicAddr
+	if addr.IsEmpty() || addr.IsHostUnspecified() {
+		return c.peerAddr()
+	}
+	return addr, nil
+}
+
+// peerAddr returns the address the proxy advertises for proxy peering clients.
+func (c ProxyConfig) peerAddr() (*utils.NetAddr, error) {
+	addr := &c.PeerAddr
+	if addr.IsEmpty() {
+		addr = defaults.ProxyPeeringListenAddr()
+	}
+	if !addr.IsHostUnspecified() {
+		return addr, nil
+	}
+
+	ip, err := utils.GuessHostIP()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	port := addr.Port(defaults.ProxyPeeringListenPort)
+	addr, err = utils.ParseAddr(fmt.Sprintf("%s:%d", ip.String(), port))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return addr, nil
 }
 
 // KubeProxyConfig specifies configuration for proxy service
