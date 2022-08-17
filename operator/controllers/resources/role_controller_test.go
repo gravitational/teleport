@@ -96,7 +96,7 @@ metadata:
 spec:
   allow:
     node_labels:
-      'foo': ['bar']
+      '*': ['*']
 `)), 1024)
 
 	var roleX resourcesv5.TeleportRole
