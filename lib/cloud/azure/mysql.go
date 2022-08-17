@@ -106,6 +106,7 @@ func isMySQLVersionSupported(s *DBServer) bool {
 		return true
 	case armmysql.ServerVersionFive6:
 		return false
+	default:
+		return true
 	}
-	return false
 }

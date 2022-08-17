@@ -101,11 +101,5 @@ func (c *postgresClient) listByGroup(ctx context.Context, group string, maxPages
 // IsVersionSupported returns true if database supports AAD authentication.
 // All Azure managed PostgreSQL single-server instances support AAD auth.
 func isPostgresVersionSupported(s *DBServer) bool {
-	switch armpostgresql.ServerVersion(s.Properties.Version) {
-	case armpostgresql.ServerVersionNine5, armpostgresql.ServerVersionNine6,
-		armpostgresql.ServerVersionTen, armpostgresql.ServerVersionTen0,
-		armpostgresql.ServerVersionTen2, armpostgresql.ServerVersionEleven:
-		return true
-	}
-	return false
+	return true
 }
