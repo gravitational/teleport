@@ -67,6 +67,20 @@ type DialerConfig struct {
 	InsecureSkipTLSVerify bool
 }
 
+// NewDialerConfig is a helper function to create a new DialerConfig from
+// client Config and TLS config.
+func NewDialerConfig(clientConfig *Config, tlsConfig *tls.Config) DialerConfig {
+	dialerConfig := DialerConfig{
+		KeepAlivePeriod: clientConfig.KeepAlivePeriod,
+		DialTimeout:     clientConfig.DialTimeout,
+	}
+	if tlsConfig != nil && clientConfig.ALPNSNIAuthDialClusterName != "" {
+		dialerConfig.ALPNConnUpgradeRequired = clientConfig.ALPNConnUpgradeRequired
+		dialerConfig.InsecureSkipTLSVerify = tlsConfig.InsecureSkipVerify
+	}
+	return dialerConfig
+}
+
 // NewDialer makes a new dialer that connects to an Auth server either directly
 // or via an ALPN connection upgrade tunnel, and on top of that the dialer may
 // also connect through an HTTP proxy depending on the environment.

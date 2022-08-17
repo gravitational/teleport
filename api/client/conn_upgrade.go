@@ -110,6 +110,8 @@ func newALPNConnUpgradeDialer(keepAlivePeriod, dialTimeout time.Duration, insecu
 
 // DialContext implements ContextDialer
 func (d alpnConnUpgradeDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	logrus.Debugf("ALPN connection upgrade started for %v.", addr)
+
 	// Make a TLS connection for the https call.
 	tlsConn, err := tls.DialWithDialer(d.netDialer, network, addr, &tls.Config{
 		InsecureSkipVerify: d.insecure,
@@ -158,6 +160,6 @@ func (d alpnConnUpgradeDialer) DialContext(ctx context.Context, network, addr st
 		return nil, trace.BadParameter("failed to switch Protocols %v", resp.StatusCode)
 	}
 
-	// TODO add ping conn
+	logrus.Debugf("ALPN connection upgrade completed for %v.", addr)
 	return tlsConn, nil
 }

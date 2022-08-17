@@ -305,16 +305,7 @@ type (
 
 // authConnect connects to the Teleport Auth Server directly.
 func authConnect(ctx context.Context, params connectParams) (*Client, error) {
-	dialerConfig := DialerConfig{
-		KeepAlivePeriod: params.cfg.KeepAlivePeriod,
-		DialTimeout:     params.cfg.DialTimeout,
-	}
-	if params.tlsConfig != nil && params.cfg.ALPNSNIAuthDialClusterName != "" {
-		dialerConfig.ALPNConnUpgradeRequired = params.cfg.ALPNConnUpgradeRequired
-		dialerConfig.InsecureSkipTLSVerify = params.tlsConfig.InsecureSkipVerify
-	}
-
-	dialer := NewDialer(dialerConfig)
+	dialer := NewDialer(NewDialerConfig(&params.cfg, params.tlsConfig))
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as an auth server", params.addr)
