@@ -34,7 +34,8 @@ func (process *TeleportProcess) shouldInitDatabases() bool {
 	databasesCfg := len(process.Config.Databases.Databases) > 0
 	resourceMatchersCfg := len(process.Config.Databases.ResourceMatchers) > 0
 	awsMatchersCfg := len(process.Config.Databases.AWSMatchers) > 0
-	anyCfg := databasesCfg || resourceMatchersCfg || awsMatchersCfg
+	azureMatchersCfg := len(process.Config.Databases.AzureMatchers) > 0
+	anyCfg := databasesCfg || resourceMatchersCfg || awsMatchersCfg || azureMatchersCfg
 
 	return process.Config.Databases.Enabled && anyCfg
 }
