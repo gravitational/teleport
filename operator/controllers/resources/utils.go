@@ -22,8 +22,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 const (
@@ -78,7 +76,10 @@ func checkOwnership(existingResource types.Resource) (metav1.Condition, error) {
 	return condition, nil
 }
 
-func getReconciliationCondition(err error) metav1.Condition {
+// getReconciliationConditionFromError takes an error returned by a call to Teleport and returns a
+// metav1.Condition describing how the Teleport resource reconciliation went. This is used to provide feedback to
+// the user about the controller's ability to reconcile the resource.
+func getReconciliationConditionFromError(err error) metav1.Condition {
 	var condition metav1.Condition
 	if err == nil {
 		condition = metav1.Condition{
@@ -99,7 +100,10 @@ func getReconciliationCondition(err error) metav1.Condition {
 	return condition
 }
 
-func getValidStructureCondition(err error) metav1.Condition {
+// getStructureConditionFromError takes a conversion error from k8s apimachinery's runtime.UnstructuredConverter
+// and returns a metav1.Condition describing how the status conversion went. This is used to provide feedback to
+// the user about the controller's ability to reconcile the resource.
+func getStructureConditionFromError(err error) metav1.Condition {
 	if err != nil {
 		return metav1.Condition{
 			Type:    ConditionTypeValidStructure,
@@ -109,16 +113,9 @@ func getValidStructureCondition(err error) metav1.Condition {
 		}
 	}
 	return metav1.Condition{
-			Type:    ConditionTypeValidStructure,
-			Status:  metav1.ConditionTrue,
-			Reason:  ConditionReasonNoError,
-			Message: "Kubernetes CR was successfully decoded.",
-		}
+		Type:    ConditionTypeValidStructure,
+		Status:  metav1.ConditionTrue,
+		Reason:  ConditionReasonNoError,
+		Message: "Kubernetes CR was successfully decoded.",
 	}
-}
-
-func getUnstructuredObjectFromGVK(gvk schema.GroupVersionKind) *unstructured.Unstructured {
-	obj := unstructured.Unstructured{}
-	obj.SetGroupVersionKind(gvk)
-	return &obj
 }

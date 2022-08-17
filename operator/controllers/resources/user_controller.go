@@ -111,7 +111,7 @@ func (r *UserReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 		err = teleportClient.UpdateUser(ctx, teleportResource)
 	}
 
-	newCondition = getReconciliationCondition(err)
+	newCondition = getReconciliationConditionFromError(err)
 	meta.SetStatusCondition(&k8sResource.Status.Conditions, newCondition)
 	if err := r.Status().Update(ctx, k8sResource); err != nil {
 		return trace.Wrap(err)
