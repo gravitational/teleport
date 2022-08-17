@@ -463,9 +463,6 @@ var tshStatusEnvVars = [...]string{proxyEnvVar, clusterEnvVar, siteEnvVar, kubeC
 // cliOption is used in tests to inject/override configuration within Run
 type cliOption func(*CLIConf) error
 
-// defaultFormats is the default set of formats to use for commands that have the --format flag.
-var defaultFormats = []string{teleport.Text, teleport.JSON, teleport.YAML}
-
 // initLogger initializes the logger taking into account --debug and TELEPORT_DEBUG. If TELEPORT_DEBUG is set, it will also enable CLIConf.Debug.
 func initLogger(cf *CLIConf) {
 	isDebug, _ := strconv.ParseBool(os.Getenv(debugEnvVar))
