@@ -85,7 +85,7 @@ func TestLabel(t *testing.T) {
 						Organization: "foo",
 						Repository:   "bar",
 						Number:       0,
-						UnsafeHead:   test.branch,
+						UnsafeBase:   test.branch,
 					},
 				},
 			}
