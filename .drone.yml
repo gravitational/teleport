@@ -492,11 +492,6 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
   - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - git clone https://github.com/gravitational/webapps.git .
-  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
     && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
   - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
@@ -576,7 +571,12 @@ steps:
   - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
   - security find-identity -v
   - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
+  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout $(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/${DRONE_REPO_NAME}/build.assets
+    print-webapps-version)
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$VERSION
   environment:
     ARCH: amd64
@@ -1714,7 +1714,6 @@ steps:
 - name: Check out code
   image: docker:git
   commands:
-  - mkdir -p /go/src/github.com/gravitational/webapps
   - mkdir -p /go/src/github.com/gravitational/teleport
   - cd /go/src/github.com/gravitational/teleport
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
@@ -1724,12 +1723,6 @@ steps:
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
   - git submodule update --init --recursive webassets || true
-  - cd /go/src/github.com/gravitational/webapps
-  - git init && git remote add origin git@github.com:gravitational/webapps
-  - git fetch origin
-  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
-  - git submodule update --init packages/webapps.e
-  - cd -
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
   - |-
@@ -1750,16 +1743,26 @@ steps:
   - name: dockersock
     path: /var/run
 - name: Build artifacts
-  image: docker
+  image: docker:git
   commands:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
   - make -C build.assets release-amd64-centos7
+  - mkdir -p /go/src/github.com/gravitational/webapps
+  - cd /go/src/github.com/gravitational/webapps
+  - git init && git remote add origin git@github.com:gravitational/webapps
+  - git fetch origin
+  - git checkout $(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/${DRONE_REPO_NAME}/build.assets
+    print-webapps-version)
+  - git submodule update --init packages/webapps.e
+  - cd -
   - make -C build.assets teleterm
   environment:
     ARCH: amd64
     GID: "1000"
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
     GOCACHE: /go/cache
     GOPATH: /go
     OS: linux
@@ -2402,7 +2405,6 @@ steps:
 - name: Check out code
   image: docker:git
   commands:
-  - mkdir -p /go/src/github.com/gravitational/webapps
   - mkdir -p /go/src/github.com/gravitational/teleport
   - cd /go/src/github.com/gravitational/teleport
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
@@ -2412,12 +2414,6 @@ steps:
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
   - git submodule update --init --recursive webassets || true
-  - cd /go/src/github.com/gravitational/webapps
-  - git init && git remote add origin git@github.com:gravitational/webapps
-  - git fetch origin
-  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
-  - git submodule update --init packages/webapps.e
-  - cd -
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
   - |-
@@ -3272,11 +3268,6 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
   - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - git clone https://github.com/gravitational/webapps.git .
-  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
     && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
   - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
@@ -3359,7 +3350,12 @@ steps:
   - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
   - security find-identity -v
   - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
+  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout $(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/${DRONE_REPO_NAME}/build.assets
+    print-webapps-version)
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$VERSION
   environment:
     APPLE_PASSWORD:
@@ -3522,11 +3518,6 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
   - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - git clone https://github.com/gravitational/webapps.git .
-  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
     && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
   - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
@@ -3711,11 +3702,6 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
   - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - git clone https://github.com/gravitational/webapps.git .
-  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
     && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
   - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
@@ -6490,6 +6476,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: dd5ac7e488082a4cd5e3b0d03b39c370477de7afe1dec964ef5bcda2973fbf7a
+hmac: fc229895ef389c2e5a55245a20ad95d146175e0333c69572f68402d4c1b30fc9
 
 ...
