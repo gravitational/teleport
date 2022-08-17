@@ -927,7 +927,7 @@ func (s SharedDirectoryCreateResponse) Encode() ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	binary.Write(buf, binary.BigEndian, fsoEnc)
+	buf.Write(fsoEnc)
 	return buf.Bytes(), nil
 }
 
@@ -1098,7 +1098,7 @@ func (s SharedDirectoryListResponse) Encode() ([]byte, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		binary.Write(buf, binary.BigEndian, fsoEnc)
+		buf.Write(fsoEnc)
 	}
 
 	return buf.Bytes(), nil
