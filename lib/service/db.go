@@ -216,6 +216,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		CloudLabels:          process.cloudLabels,
 		ResourceMatchers:     process.Config.Databases.ResourceMatchers,
 		AWSMatchers:          process.Config.Databases.AWSMatchers,
+		AzureMatchers:        process.Config.Databases.AzureMatchers,
 		OnHeartbeat:          process.onHeartbeat(teleport.ComponentDatabase),
 		LockWatcher:          lockWatcher,
 		ConnectedProxyGetter: proxyGetter,
