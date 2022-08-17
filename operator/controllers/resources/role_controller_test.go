@@ -19,13 +19,12 @@ package resources
 import (
 	"context"
 	"encoding/json"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/mitchellh/mapstructure"
+	"k8s.io/apimachinery/pkg/util/yaml"
 	"reflect"
 	"sort"
 	"testing"
-	"time"
-
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -41,7 +40,7 @@ import (
 // the corresponding TeleportRole must be created/deleted in Teleport.
 func TestRoleCreation(t *testing.T) {
 	ctx := context.Background()
-	setup := setupKubernetesAndTeleport(t, ctx)
+	setup := setupKubernetesAndTeleport(ctx, t)
 	roleName := validRandomResourceName("role-")
 
 	// End of setup, we create the role in Kubernetes
@@ -75,7 +74,7 @@ func TestRoleCreation(t *testing.T) {
 
 func TestRoleCreationFromYAML(t *testing.T) {
 	ctx := context.Background()
-	setup := setupKubernetesAndTeleport(t, ctx)
+	setup := setupKubernetesAndTeleport(ctx, t)
 	tests := []struct {
 		name         string
 		roleSpecYAML string
@@ -164,7 +163,7 @@ allow:
 
 			roleName := validRandomResourceName("role-")
 
-			obj := getUnstructuredObjectFromGVK(TeleportRoleGVK)
+			obj := getUnstructuredObjectFromGVK(teleportRoleGVK)
 			obj.Object["spec"] = roleManifest
 			obj.SetName(roleName)
 			obj.SetNamespace(setup.namespace.Name)
@@ -173,10 +172,18 @@ allow:
 
 			// If failure is expected we should not see the resource in Teleport
 			if tc.shouldFail {
-				// We wait 1 second to ensure reconciliation happened
-				time.Sleep(time.Second)
-				_, err := setup.tClient.GetRole(ctx, roleName)
-				require.True(t, trace.IsNotFound(err), "The role should not be created in Teleport")
+				fastEventually(t, func() bool {
+					// We check status.Conditions was updated, this means the reconciliation happened
+					_ = setup.k8sClient.Get(ctx, kclient.ObjectKey{
+						Namespace: setup.namespace.Name,
+						Name:      roleName,
+					}, obj)
+					errorConditions := getRoleStatusConditionError(obj.Object)
+					require.NotEmpty(t, errorConditions)
+					_, err := setup.tClient.GetRole(ctx, roleName)
+					require.True(t, trace.IsNotFound(err), "The role should not be created in Teleport")
+					return true
+				})
 			} else {
 				// We wait for Teleport resource creation
 				fastEventually(t, func() bool {
@@ -223,7 +230,7 @@ func compareRoleSpecs(t *testing.T, expectedRole, actualRole types.Role) {
 
 func TestRoleDeletionDrift(t *testing.T) {
 	ctx := context.Background()
-	setup := setupKubernetesAndTeleport(t, ctx)
+	setup := setupKubernetesAndTeleport(ctx, t)
 	roleName := validRandomResourceName("role-")
 
 	// The role is created in K8S
@@ -266,7 +273,7 @@ func TestRoleDeletionDrift(t *testing.T) {
 
 func TestRoleUpdate(t *testing.T) {
 	ctx := context.Background()
-	setup := setupKubernetesAndTeleport(t, ctx)
+	setup := setupKubernetesAndTeleport(ctx, t)
 	roleName := validRandomResourceName("role-")
 
 	// The role does not exist in K8S
@@ -277,8 +284,7 @@ func TestRoleUpdate(t *testing.T) {
 	}, &r)
 	require.True(t, kerrors.IsNotFound(err))
 
-	err = teleportCreateDummyRole(ctx, t, roleName, setup.tClient)
-	require.NoError(t, err)
+	teleportCreateDummyRole(ctx, t, roleName, setup.tClient)
 
 	// The role is created in K8S
 	k8sRole := resourcesv5.TeleportRole{
@@ -410,4 +416,17 @@ func TestAddTeleportResourceOriginRole(t *testing.T) {
 			require.Equal(t, metadata.Labels[types.OriginLabel], types.OriginKubernetes)
 		})
 	}
+}
+
+func getRoleStatusConditionError(object map[string]interface{}) []metav1.Condition {
+	var conditionsWithError []metav1.Condition
+	var status resourcesv5.TeleportRoleStatus
+	_ = mapstructure.Decode(object["status"], &status)
+
+	for _, condition := range status.Conditions {
+		if condition.Status == metav1.ConditionFalse {
+			conditionsWithError = append(conditionsWithError, condition)
+		}
+	}
+	return conditionsWithError
 }

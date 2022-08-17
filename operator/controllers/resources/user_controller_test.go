@@ -19,37 +19,37 @@ package resources
 import (
 	"context"
 	"encoding/json"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/yaml"
-	"testing"
-	"time"
-
+	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
+	"github.com/mitchellh/mapstructure"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/yaml"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"testing"
 
 	"github.com/gravitational/teleport/api/types"
 	resourcesv2 "github.com/gravitational/teleport/operator/apis/resources/v2"
 	"github.com/gravitational/trace"
 )
 
-const TeleportUserKind = "TeleportUser"
+const teleportUserKind = "TeleportUser"
 
-var TeleportUserGVK = schema.GroupVersionKind{
+var teleportUserGVK = schema.GroupVersionKind{
 	Group:   resourcesv2.GroupVersion.Group,
 	Version: resourcesv2.GroupVersion.Version,
-	Kind:    TeleportUserKind,
+	Kind:    teleportUserKind,
 }
 
 func TestUserCreation(t *testing.T) {
 	ctx := context.Background()
-	setup := setupKubernetesAndTeleport(t, ctx)
+	setup := setupKubernetesAndTeleport(ctx, t)
 	userName := validRandomResourceName("user-")
 
-	_ = teleportCreateDummyRole(ctx, t, "a", setup.tClient)
-	_ = teleportCreateDummyRole(ctx, t, "b", setup.tClient)
+	teleportCreateDummyRole(ctx, t, "a", setup.tClient)
+	teleportCreateDummyRole(ctx, t, "b", setup.tClient)
 	// The user is created in K8S
 	k8sCreateDummyUser(ctx, t, setup.k8sClient, setup.namespace.Name, userName)
 
@@ -78,8 +78,8 @@ func TestUserCreation(t *testing.T) {
 }
 func TestUserCreationFromYAML(t *testing.T) {
 	ctx := context.Background()
-	setup := setupKubernetesAndTeleport(t, ctx)
-	_ = teleportCreateDummyRole(ctx, t, "a", setup.tClient)
+	setup := setupKubernetesAndTeleport(ctx, t)
+	teleportCreateDummyRole(ctx, t, "a", setup.tClient)
 	tests := []struct {
 		name         string
 		userSpecYAML string
@@ -109,7 +109,7 @@ traits:
 			expectedSpec: &types.UserSpecV2{
 				Roles: []string{"a"},
 				Traits: map[string][]string{
-					"foo": []string{"bar"},
+					"foo": {"bar"},
 				},
 			},
 		},
@@ -125,7 +125,7 @@ traits:
 			expectedSpec: &types.UserSpecV2{
 				Roles: []string{"a"},
 				Traits: map[string][]string{
-					"foo": []string{"bar", "baz"},
+					"foo": {"bar", "baz"},
 				},
 			},
 		},
@@ -152,7 +152,7 @@ traits:
 
 			userName := validRandomResourceName("user-")
 
-			obj := getUnstructuredObjectFromGVK(TeleportUserGVK)
+			obj := getUnstructuredObjectFromGVK(teleportUserGVK)
 			obj.Object["spec"] = userManifest
 			obj.SetName(userName)
 			obj.SetNamespace(setup.namespace.Name)
@@ -161,10 +161,19 @@ traits:
 
 			// If failure is expected we should not see the resource in Teleport
 			if tc.shouldFail {
-				// We wait 1 second to ensure reconciliation happened
-				time.Sleep(time.Second)
-				_, err := setup.tClient.GetUser(userName, false /* withSecrets */)
-				require.True(t, trace.IsNotFound(err), "The user should not be created in Teleport")
+				fastEventually(t, func() bool {
+					// We check status.Conditions was updated, this means the reconciliation happened
+					_ = setup.k8sClient.Get(ctx, kclient.ObjectKey{
+						Namespace: setup.namespace.Name,
+						Name:      userName,
+					}, obj)
+					errorConditions := getUserStatusConditionError(obj.Object)
+					require.NotEmpty(t, errorConditions)
+
+					_, err := setup.tClient.GetUser(userName, false /* withSecrets */)
+					require.True(t, trace.IsNotFound(err), "The user should not be created in Teleport")
+					return true
+				})
 			} else {
 				// We wait for Teleport resource creation
 				fastEventually(t, func() bool {
@@ -182,7 +191,7 @@ traits:
 						Metadata: types.Metadata{},
 						Spec:     *tc.expectedSpec,
 					}
-					expectedUser.CheckAndSetDefaults()
+					_ = expectedUser.CheckAndSetDefaults()
 					compareUserSpecs(t, expectedUser, tUser)
 
 					return true
@@ -215,11 +224,11 @@ func compareUserSpecs(t *testing.T, expectedUser, actualUser types.User) {
 
 func TestUserDeletionDrift(t *testing.T) {
 	ctx := context.Background()
-	setup := setupKubernetesAndTeleport(t, ctx)
+	setup := setupKubernetesAndTeleport(ctx, t)
 	userName := validRandomResourceName("user-")
 
-	_ = teleportCreateDummyRole(ctx, t, "a", setup.tClient)
-	_ = teleportCreateDummyRole(ctx, t, "b", setup.tClient)
+	teleportCreateDummyRole(ctx, t, "a", setup.tClient)
+	teleportCreateDummyRole(ctx, t, "b", setup.tClient)
 
 	// The user is created in K8S
 	k8sCreateDummyUser(ctx, t, setup.k8sClient, setup.namespace.Name, userName)
@@ -261,12 +270,12 @@ func TestUserDeletionDrift(t *testing.T) {
 
 func TestUserUpdate(t *testing.T) {
 	ctx := context.Background()
-	setup := setupKubernetesAndTeleport(t, ctx)
-	_ = teleportCreateDummyRole(ctx, t, "a", setup.tClient)
-	_ = teleportCreateDummyRole(ctx, t, "b", setup.tClient)
-	_ = teleportCreateDummyRole(ctx, t, "x", setup.tClient)
-	_ = teleportCreateDummyRole(ctx, t, "y", setup.tClient)
-	_ = teleportCreateDummyRole(ctx, t, "z", setup.tClient)
+	setup := setupKubernetesAndTeleport(ctx, t)
+	teleportCreateDummyRole(ctx, t, "a", setup.tClient)
+	teleportCreateDummyRole(ctx, t, "b", setup.tClient)
+	teleportCreateDummyRole(ctx, t, "x", setup.tClient)
+	teleportCreateDummyRole(ctx, t, "y", setup.tClient)
+	teleportCreateDummyRole(ctx, t, "z", setup.tClient)
 
 	userName := validRandomResourceName("user-")
 
@@ -411,4 +420,17 @@ func TestAddTeleportResourceOriginUser(t *testing.T) {
 			require.Equal(t, metadata.Labels[types.OriginLabel], types.OriginKubernetes)
 		})
 	}
+}
+
+func getUserStatusConditionError(object map[string]interface{}) []metav1.Condition {
+	var conditionsWithError []metav1.Condition
+	var status resourcesv5.TeleportRoleStatus
+	_ = mapstructure.Decode(object["status"], &status)
+
+	for _, condition := range status.Conditions {
+		if condition.Status == metav1.ConditionFalse {
+			conditionsWithError = append(conditionsWithError, condition)
+		}
+	}
+	return conditionsWithError
 }
