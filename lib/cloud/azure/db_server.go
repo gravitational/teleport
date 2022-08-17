@@ -66,7 +66,7 @@ func (s *DBServer) IsAvailable() bool {
 	case "Inaccessible", "Dropping", "Disabled":
 		return false
 	default:
-		return false
+		return true
 	}
 }
 

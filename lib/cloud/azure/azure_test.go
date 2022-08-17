@@ -47,7 +47,7 @@ func TestServerConversion(t *testing.T) {
 			name:          "mysql unavailable and unsupported",
 			provider:      MySQLNamespace,
 			version:       "5.6",
-			state:         "",
+			state:         "Disabled",
 			wantAvailable: false,
 			wantSupported: false,
 		},
@@ -60,12 +60,12 @@ func TestServerConversion(t *testing.T) {
 			wantSupported: true,
 		},
 		{
-			name:          "postgres unavailable and unsupported",
+			name:          "postgres unavailable",
 			provider:      PostgreSQLNamespace,
-			version:       "unknown",
+			version:       "11",
 			state:         "Disabled",
 			wantAvailable: false,
-			wantSupported: false,
+			wantSupported: true,
 		},
 	}
 
