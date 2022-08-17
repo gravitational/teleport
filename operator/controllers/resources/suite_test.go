@@ -80,6 +80,7 @@ func defaultTeleportServiceConfig(t *testing.T) (*integration.TeleInstance, stri
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    integration.Loopback,
+		Log:         logrus.StandardLogger(),
 	})
 
 	rcConf := service.MakeDefaultConfig()
