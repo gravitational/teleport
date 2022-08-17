@@ -17,7 +17,7 @@
 import { useState, useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { DiscoverContext } from '../discoverContext';
+import TeleportContext from 'teleport/teleportContext';
 
 import type { User } from 'teleport/services/user';
 import type { AgentStepProps } from '../types';
@@ -31,7 +31,7 @@ export function useLoginTrait({ ctx, props }: Props) {
 
   useEffect(() => {
     run(() =>
-      ctx.userService.fetchUser(ctx.username).then(user => {
+      ctx.userService.fetchUser(ctx.storeUser.getUsername()).then(user => {
         setUser(user);
 
         // Filter out dynamic logins from the node's 'sshLogins'
@@ -90,7 +90,7 @@ export function useLoginTrait({ ctx, props }: Props) {
 }
 
 type Props = {
-  ctx: DiscoverContext;
+  ctx: TeleportContext;
   props: AgentStepProps;
 };
 

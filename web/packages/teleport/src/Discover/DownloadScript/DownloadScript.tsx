@@ -22,8 +22,8 @@ import { Danger } from 'design/Alert';
 
 import cfg from 'teleport/config';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
+import useTeleport from 'teleport/useTeleport';
 
-import { useDiscoverContext } from '../discoverContextProvider';
 import { AgentStepProps } from '../types';
 
 import { Header, ActionButtons, TextIcon } from '../Shared';
@@ -33,7 +33,7 @@ import { useDownloadScript } from './useDownloadScript';
 import type { State, CountdownTime } from './useDownloadScript';
 
 export default function Container(props: AgentStepProps) {
-  const ctx = useDiscoverContext();
+  const ctx = useTeleport();
   const state = useDownloadScript({ ctx, props });
 
   return <DownloadScript {...state} />;

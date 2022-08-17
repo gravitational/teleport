@@ -28,15 +28,16 @@ import {
 import { Danger } from 'design/Alert';
 import * as Icons from 'design/Icon';
 
+import useTeleport from 'teleport/useTeleport';
+
 import { Header, ActionButtons } from '../Shared';
-import { useDiscoverContext } from '../discoverContextProvider';
 
 import { useLoginTrait, State } from './useLoginTrait';
 
 import type { AgentStepProps } from '../types';
 
 export default function Container(props: AgentStepProps) {
-  const ctx = useDiscoverContext();
+  const ctx = useTeleport();
   const state = useLoginTrait({ ctx, props });
 
   return <LoginTrait {...state} />;

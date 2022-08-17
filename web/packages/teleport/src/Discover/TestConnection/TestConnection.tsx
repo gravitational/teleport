@@ -20,8 +20,9 @@ import { ButtonOutlined, Text, Box, LabelInput, Flex } from 'design';
 import * as Icons from 'design/Icon';
 import Select from 'shared/components/Select';
 
+import useTeleport from 'teleport/useTeleport';
+
 import { Header, ActionButtons, TextIcon } from '../Shared';
-import { useDiscoverContext } from '../discoverContextProvider';
 
 import { useTestConnection, State } from './useTestConnection';
 
@@ -29,7 +30,7 @@ import type { Option } from 'shared/components/Select';
 import type { AgentStepProps } from '../types';
 
 export default function Container(props: AgentStepProps) {
-  const ctx = useDiscoverContext();
+  const ctx = useTeleport();
   const state = useTestConnection({ ctx, props });
 
   return <TestConnection {...state} />;

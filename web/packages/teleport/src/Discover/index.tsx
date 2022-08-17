@@ -14,22 +14,6 @@
  * limitations under the License.
  */
 
-import React from 'react';
-
 import Discover from './Discover';
-import { DiscoverContext } from './discoverContext';
-import DiscoverContextProvider from './discoverContextProvider';
 
-// Main entry point to Discover where it initializes ContextProvider with the
-// instance of DiscoverContext.
-export default function Index() {
-  const [ctx] = React.useState(() => {
-    return new DiscoverContext();
-  });
-
-  return (
-    <DiscoverContextProvider value={ctx}>
-      <Discover />
-    </DiscoverContextProvider>
-  );
-}
+export { Discover };

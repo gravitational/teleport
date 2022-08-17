@@ -23,7 +23,11 @@ export default class StoreUserContext extends Store<UserContext> {
   }
 
   getUsername() {
-    return this.state.username;
+    return this.state?.username;
+  }
+
+  getClusterId() {
+    return this.state.cluster.clusterId;
   }
 
   getEventAccess() {

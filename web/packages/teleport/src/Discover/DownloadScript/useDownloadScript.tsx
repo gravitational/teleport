@@ -23,8 +23,8 @@ import {
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { INTERNAL_RESOURCE_ID_LABEL_KEY } from 'teleport/services/joinToken';
+import TeleportContext from 'teleport/teleportContext';
 
-import { DiscoverContext } from '../discoverContext';
 import { AgentStepProps } from '../types';
 
 import type { JoinToken } from 'teleport/services/joinToken';
@@ -84,9 +84,9 @@ export function useDownloadScript({ ctx, props }: Props) {
     function fetchNodeMatchingRefResourceId() {
       if (inFlightReq) return;
 
-      inFlightReq = ctx.nodesService
+      inFlightReq = ctx.nodeService
         .fetchNodes(
-          ctx.clusterId,
+          ctx.storeUser.getClusterId(),
           {
             search: `${INTERNAL_RESOURCE_ID_LABEL_KEY} ${joinToken.internalResourceId}`,
             limit: 1,
@@ -182,7 +182,7 @@ export function useDownloadScript({ ctx, props }: Props) {
 }
 
 type Props = {
-  ctx: DiscoverContext;
+  ctx: TeleportContext;
   props: AgentStepProps;
 };
 

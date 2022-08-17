@@ -22,8 +22,8 @@ import { Image, Text, Box, ButtonPrimary, ButtonSecondary, Flex } from 'design';
 
 import Empty from 'teleport/components/Empty';
 import cfg from 'teleport/config';
+import useTeleport from 'teleport/useTeleport';
 
-import { useDiscoverContext } from '../discoverContextProvider';
 import { resourceTypes } from '../resource-lists';
 
 import applicationIcon from './assets/application.png';
@@ -37,7 +37,7 @@ import type { AgentStepProps } from '../types';
 import type { State } from '../useDiscover';
 
 export default function Container(props: AgentStepProps) {
-  const ctx = useDiscoverContext();
+  const ctx = useTeleport();
   return <SelectResource nextStep={props.nextStep} />;
 }
 

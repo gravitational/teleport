@@ -30,7 +30,7 @@ type FeatureFlags = {
 };
 
 export interface Context {
-  init(): Promise<void>;
+  init(features: Feature[]): Promise<void>;
   getFeatureFlags(): FeatureFlags;
 }
 

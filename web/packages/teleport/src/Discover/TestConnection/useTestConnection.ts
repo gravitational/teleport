@@ -19,10 +19,9 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 
 import cfg from 'teleport/config';
 import { openNewTab } from 'teleport/lib/util';
+import TeleportContext from 'teleport/teleportContext';
 
 import { NodeMeta } from '../useDiscover';
-
-import { DiscoverContext } from '../discoverContext';
 
 import type { ConnectionDiagnostic } from 'teleport/services/agents';
 import type { AgentStepProps } from '../types';
@@ -34,7 +33,7 @@ export function useTestConnection({ ctx, props }: Props) {
   function startSshSession(login: string) {
     const meta = props.agentMeta as NodeMeta;
     const url = cfg.getSshConnectRoute({
-      clusterId: ctx.clusterId,
+      clusterId: ctx.storeUser.getClusterId(),
       serverId: meta.node.id,
       login,
     });
@@ -75,7 +74,7 @@ const sortLogins = (logins: string[]) => {
 };
 
 type Props = {
-  ctx: DiscoverContext;
+  ctx: TeleportContext;
   props: AgentStepProps;
 };
 

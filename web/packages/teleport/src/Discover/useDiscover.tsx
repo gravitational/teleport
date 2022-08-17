@@ -14,10 +14,12 @@
  * limitations under the License.
  */
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { DiscoverContext } from './discoverContext';
+import TeleportContext from 'teleport/teleportContext';
+import session from 'teleport/services/websession';
+import useMain from 'teleport/Main/useMain';
 
 import type { Node } from 'teleport/services/nodes';
 
@@ -27,19 +29,16 @@ import type {
   JoinToken,
   JoinRule,
 } from 'teleport/services/joinToken';
+import type { Feature } from 'teleport/types';
 
-export function useDiscover(ctx: DiscoverContext) {
+export function useDiscover(ctx: TeleportContext, features: Feature[]) {
+  const initState = useMain(features);
   const { attempt, run } = useAttempt('');
-  const { attempt: initAttempt, run: initRun } = useAttempt('processing');
 
   const [joinToken, setJoinToken] = useState<JoinToken>();
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedAgentKind, setSelectedAgentKind] = useState<AgentKind>();
   const [agentMeta, setAgentMeta] = useState<AgentMeta>();
-
-  useEffect(() => {
-    initRun(() => ctx.init());
-  }, []);
 
   function onSelectResource(kind: AgentKind) {
     // TODO: hard coded for now for sake of testing the flow.
@@ -60,7 +59,7 @@ export function useDiscover(ctx: DiscoverContext) {
   }
 
   function logout() {
-    ctx.logout();
+    session.logout();
   }
 
   function createJoinToken(method: JoinMethod = 'token', rules?: JoinRule[]) {
@@ -93,8 +92,9 @@ export function useDiscover(ctx: DiscoverContext) {
   }
 
   return {
-    initAttempt,
-    username: ctx.username,
+    initAttempt: { status: initState.status, statusText: initState.statusText },
+    userMenuItems: ctx.storeNav.getTopMenuItems(),
+    username: ctx.storeUser.getUsername(),
     currentStep,
     selectedAgentKind,
     logout,

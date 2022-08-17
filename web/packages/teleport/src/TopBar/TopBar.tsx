@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { useTheme } from 'styled-components';
+import styled from 'styled-components';
 import { Text, Flex, TopNav } from 'design';
 
 import useTeleport from 'teleport/useTeleport';
@@ -42,8 +42,6 @@ export function TopBar(props: ReturnType<typeof useTopBar>) {
     hasClusterUrl,
   } = props;
 
-  const theme = useTheme();
-
   // instead of re-creating an expensive react-select component,
   // hide/show it instead
   const styles = {
@@ -51,16 +49,7 @@ export function TopBar(props: ReturnType<typeof useTopBar>) {
   };
 
   return (
-    <TopNav
-      height="56px"
-      bg="inherit"
-      pl="6"
-      style={{
-        overflowY: 'initial',
-        flexShrink: '0',
-        borderBottom: `1px solid ${theme.colors.primary.main}`,
-      }}
-    >
+    <TopBarContainer>
       {!hasClusterUrl && <Text typography="h2">{props.title}</Text>}
       <ClusterSelector
         value={clusterId}
@@ -78,6 +67,15 @@ export function TopBar(props: ReturnType<typeof useTopBar>) {
           logout={props.logout}
         />
       </Flex>
-    </TopNav>
+    </TopBarContainer>
   );
 }
+
+export const TopBarContainer = styled(TopNav)`
+  height: 56px;
+  background-color: inherit;
+  padding-left: ${({ theme }) => `${theme.space[6]}px`};
+  overflow-y: initial;
+  flex-shrink: 0;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.primary.main};
+`;
