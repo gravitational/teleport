@@ -21,7 +21,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 
@@ -107,39 +106,25 @@ func (m *Metadata) updateAzure(ctx context.Context, database types.Database, fet
 // fetchAzureMetadata fetches metadata for the provided Azure or Aurora database.
 func (m *Metadata) fetchAzureMetadata(ctx context.Context, database types.Database) (*types.Azure, error) {
 	id := database.GetAzure().ResourceID
-	var server *azure.DBServer
+	var client azure.DBServersClient
 	var err error
-	switch database.GetProtocol() {
-	case defaults.ProtocolMySQL:
-		server, err = m.fetchAzureMySQLServer(ctx, &id)
-	case defaults.ProtocolPostgres:
-		server, err = m.fetchAzurePostgresServer(ctx, &id)
+	switch id.ProviderNamespace {
+	case azure.MySQLNamespace:
+		client, err = m.cfg.Clients.GetAzureMySQLClient(id.SubscriptionID)
+	case azure.PostgreSQLNamespace:
+		client, err = m.cfg.Clients.GetAzurePostgresClient(id.SubscriptionID)
+	default:
+		return nil, trace.BadParameter("unknown Azure provider namespace: %v", id.ProviderNamespace)
 	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	server, err := client.Get(ctx, id.ResourceGroup, id.ResourceName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	metadata, err := services.MetadataFromAzureServer(server)
 	return metadata, trace.Wrap(err)
-}
-
-// fetchAzureMySQLServer returns Azure server for the specified ID.
-func (m *Metadata) fetchAzureMySQLServer(ctx context.Context, id *types.AzureResourceID) (*azure.DBServer, error) {
-	client, err := m.cfg.Clients.GetAzureMySQLClient(id.SubscriptionID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	server, err := client.Get(ctx, id.ResourceGroup, id.ResourceName)
-	return server, trace.Wrap(err)
-}
-
-// fetchAzurePostgresServer returns Azure server for the specified ID.
-func (m *Metadata) fetchAzurePostgresServer(ctx context.Context, id *types.AzureResourceID) (*azure.DBServer, error) {
-	client, err := m.cfg.Clients.GetAzurePostgresClient(id.SubscriptionID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	server, err := client.Get(ctx, id.ResourceGroup, id.ResourceName)
-	return server, trace.Wrap(err)
 }
 
 // updateAWS updates cloud metadata of the provided AWS database.

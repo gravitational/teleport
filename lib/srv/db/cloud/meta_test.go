@@ -21,8 +21,13 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
@@ -308,6 +313,155 @@ func TestAWSMetadataNoPermissions(t *testing.T) {
 			err = metadata.Update(ctx, database)
 			require.NoError(t, err)
 			require.Equal(t, test.meta, database.GetAWS())
+		})
+	}
+}
+
+// TestAzureMetadata tests fetching Azure metadata for MySQL and PostgreSQL databases.
+func TestAzureMetadata(t *testing.T) {
+	const (
+		group1  = "group1"
+		region1 = "eastus"
+	)
+	// Configure Azure API mocks
+	mysql := &AzureMySQLMock{
+		DBServers: []*armmysql.Server{
+			{
+				Name:     to.Ptr("mysql1"),
+				Location: to.Ptr(region1),
+				ID:       to.Ptr("/subscriptions/sub1/resourceGroups/group1/providers/Microsoft.DBforMySQL/servers/mysql1"),
+			},
+		},
+	}
+	// TODO(gavin): test postgres
+	postgres := &AzurePostgresMock{
+		DBServers: []*armpostgresql.Server{},
+	}
+
+	// Create metadata fetcher.
+	metadata, err := NewMetadata(MetadataConfig{
+		Clients: &common.TestCloudClients{
+			AzureMySQL:    azure.NewMySQLClient(mysql),
+			AzurePostgres: azure.NewPostgresClient(postgres),
+		},
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name     string
+		inAzure  types.Azure
+		outAzure types.Azure
+	}{
+		{
+			name: "Azure MySQL instance",
+			inAzure: types.Azure{
+				Name: "mysql1",
+				ResourceID: types.AzureResourceID{
+					ResourceGroup:     group1,
+					ResourceName:      "mysql1",
+					ProviderNamespace: azure.MySQLNamespace,
+				},
+			},
+			outAzure: types.Azure{
+				Name:   "mysql1",
+				Region: region1,
+				ResourceID: types.AzureResourceID{
+					ResourceGroup:     group1,
+					ResourceName:      "mysql1",
+					ProviderNamespace: azure.MySQLNamespace,
+					ResourceType:      "servers",
+					SubscriptionID:    "sub1",
+				},
+			},
+		},
+	}
+
+	ctx := context.Background()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			database, err := types.NewDatabaseV3(types.Metadata{
+				Name: "test",
+			}, types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolMySQL,
+				URI:      "localhost",
+				Azure:    test.inAzure,
+			})
+			require.NoError(t, err)
+
+			err = metadata.Update(ctx, database)
+			require.NoError(t, err)
+			require.Equal(t, test.outAzure, database.GetAzure())
+		})
+	}
+}
+
+// TestAzureMetadataNoPermissions verifies that lack of Azure permissions does not
+// cause an error.
+func TestAzureMetadataNoPermissions(t *testing.T) {
+	// Create unauthorized mocks.
+	const (
+		group1  = "group1"
+		region1 = "eastus"
+	)
+	// Configure Azure API mocks
+	mysql := &AzureMySQLMock{
+		NoAuth: true,
+		DBServers: []*armmysql.Server{
+			{
+				Name:     to.Ptr("mysql1"),
+				Location: to.Ptr(region1),
+				ID:       to.Ptr("/subscriptions/sub1/resourceGroups/group1/providers/Microsoft.DBforMySQL/servers/mysql1"),
+			},
+		},
+	}
+	// TODO(gavin): test postgres
+	postgres := &AzurePostgresMock{
+		NoAuth:    true,
+		DBServers: []*armpostgresql.Server{},
+	}
+
+	// Create metadata fetcher.
+	metadata, err := NewMetadata(MetadataConfig{
+		Clients: &common.TestCloudClients{
+			AzureMySQL:    azure.NewMySQLClient(mysql),
+			AzurePostgres: azure.NewPostgresClient(postgres),
+		},
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name string
+		meta types.Azure
+	}{
+		{
+			name: "Azure MySQL instance",
+			meta: types.Azure{
+				Name: "mysql1",
+				ResourceID: types.AzureResourceID{
+					ResourceGroup:     group1,
+					ResourceName:      "mysql1",
+					ProviderNamespace: azure.MySQLNamespace,
+				},
+			},
+		},
+	}
+
+	ctx := context.Background()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			database, err := types.NewDatabaseV3(types.Metadata{
+				Name: "test",
+			}, types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolMySQL,
+				URI:      "localhost",
+				Azure:    test.meta,
+			})
+			require.NoError(t, err)
+
+			// Verify there's no error and metadata stayed the same.
+			err = metadata.Update(ctx, database)
+			require.NoError(t, err)
+			require.Equal(t, test.meta, database.GetAzure())
 		})
 	}
 }
