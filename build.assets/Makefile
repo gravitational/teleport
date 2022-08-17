@@ -126,7 +126,7 @@ build-binaries-fips: buildbox-fips
 #
 .PHONY:buildbox
 buildbox:
-	if [[ "$(BUILDBOX_NAME)" == "$(BUILDBOX)" ]]; then \
+	@if [[ "$(BUILDBOX_NAME)" == "$(BUILDBOX)" ]]; then \
 		if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX) 2>&1 >/dev/null; then docker pull $(BUILDBOX) || true; fi; \
 		DOCKER_BUILDKIT=1 docker build --platform=linux/$(RUNTIME_ARCH) \
 			--build-arg UID=$(UID) \
@@ -145,7 +145,7 @@ buildbox:
 #
 .PHONY:buildbox-fips
 buildbox-fips:
-	if [[ "$(BUILDBOX_FIPS_NAME)" == "$(BUILDBOX_FIPS)" ]]; then \
+	@if [[ "$(BUILDBOX_FIPS_NAME)" == "$(BUILDBOX_FIPS)" ]]; then \
 		if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_FIPS) 2>&1 >/dev/null; then docker pull $(BUILDBOX_FIPS) || true; fi; \
 		docker build \
 			--build-arg UID=$(UID) \
@@ -454,7 +454,7 @@ release-windows: buildbox
 # Create an unsigned Windows Teleport package using the build container.
 #
 .PHONY:release-windows-unsigned
-release-windows-unsigned: buildbox
+release-windows-unsigned: buildboxge
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX) \
 		/usr/bin/make release-windows-unsigned -e ADDFLAGS="$(ADDFLAGS)" OS=windows RUNTIME=$(GOLANG_VERSION) REPRODUCIBLE=yes
 
@@ -497,6 +497,15 @@ print-node-version:
 .PHONY:print-buildbox-version
 print-buildbox-version:
 	@echo $(BUILDBOX_VERSION)
+
+#
+# Print the version of webapps
+# TODO(zmb3): remove after webapps migration to teleport
+#
+.PHONY:print-webapps-version
+print-webapps-version: buildbox
+	@docker run $(DOCKERFLAGS) --env DRONE_TAG --env DRONE_TARGET_BRANCH -i $(NOROOT) $(BUILDBOX) \
+		/usr/bin/make print-webapps-version
 
 #
 # Build CentOS 7 assets such as clang.

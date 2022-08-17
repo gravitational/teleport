@@ -1056,6 +1056,14 @@ publish-operator-ci: image-operator-ci
 print-version:
 	@echo $(VERSION)
 
+#
+# Print the version of webapps
+# TODO(zmb3): remove after webapps migration to teleport
+#
+.PHONY:print-webapps-version
+print-webapps-version:
+	@go run ./build.assets/tooling/cmd/get-webapps-version/main.go
+
 .PHONY: chart-ent
 chart-ent:
 	$(MAKE) -C e chart

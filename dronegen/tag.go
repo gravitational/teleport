@@ -32,11 +32,6 @@ const releasesHost = "https://releases-staging.platform.teleport.sh"
 func tagCheckoutCommands(b buildType) []string {
 	var commands []string
 
-	if b.hasTeleportConnect() {
-		// TODO(zmb3): remove /go/src/github.com/gravitational/webapps after webapps->teleport migration
-		commands = append(commands, `mkdir -p /go/src/github.com/gravitational/webapps`)
-	}
-
 	commands = append(commands,
 		`mkdir -p /go/src/github.com/gravitational/teleport`,
 		`cd /go/src/github.com/gravitational/teleport`,
@@ -49,19 +44,6 @@ func tagCheckoutCommands(b buildType) []string {
 		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
 		`git submodule update --init --recursive webassets || true`,
 	)
-
-	if b.hasTeleportConnect() {
-		// TODO(zmb3): this can be removed after webapps migration
-		// clone webapps for the Teleport Connect Source code
-		commands = append(commands,
-			`cd /go/src/github.com/gravitational/webapps`,
-			`git init && git remote add origin git@github.com:gravitational/webapps`,
-			`git fetch origin`,
-			`git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)`,
-			`git submodule update --init packages/webapps.e`,
-			`cd -`,
-		)
-	}
 
 	commands = append(commands,
 		`rm -f /root/.ssh/id_rsa`,
@@ -107,6 +89,18 @@ func tagBuildCommands(b buildType) []string {
 
 	// Build Teleport Connect on suported OS/arch
 	if b.hasTeleportConnect() {
+		commands = append(commands,
+			// clone webapps for the Teleport Connect Source code
+			// TODO(zmb3): this can be removed after webapps migration
+			`mkdir -p /go/src/github.com/gravitational/webapps`,
+			`cd /go/src/github.com/gravitational/webapps`,
+			`git init && git remote add origin git@github.com:gravitational/webapps`,
+			`git fetch origin`,
+			`git checkout $(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/${DRONE_REPO_NAME}/build.assets print-webapps-version)`,
+			`git submodule update --init packages/webapps.e`,
+			`cd -`,
+		)
+
 		switch b.os {
 		case "linux":
 			commands = append(commands, `make -C build.assets teleterm`)
