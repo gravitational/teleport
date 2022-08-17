@@ -272,7 +272,10 @@ func (r *Assignments) checkCodeReviews(author string, reviews []github.Review) e
 	// return an error.
 	v, ok := r.c.CodeReviewers[author]
 	if !ok {
-		return trace.BadParameter("rejecting checking external review")
+		v, ok = r.c.DocsReviewers[author]
+		if !ok {
+			return trace.BadParameter("rejecting checking external review")
+		}
 	}
 
 	// Cloud and Internal get reviews from the Core team. Other teams do own

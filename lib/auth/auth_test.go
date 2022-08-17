@@ -291,14 +291,17 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	createKubeCluster := func(t *testing.T, a *Server) {
 		// Register a kubernetes cluster to verify the defaulting logic in TLS cert
 		// generation.
-		_, err := a.UpsertKubeServiceV2(ctx, &types.ServerV2{
-			Metadata: types.Metadata{Name: "kube-service"},
-			Kind:     types.KindKubeService,
-			Version:  types.V2,
-			Spec: types.ServerSpecV2{
-				KubernetesClusters: []*types.KubernetesCluster{{Name: "root-kube-cluster"}},
+		kubeCluster, err := types.NewKubernetesClusterV3(
+			types.Metadata{
+				Name: "root-kube-cluster",
 			},
-		})
+			types.KubernetesClusterSpecV3{},
+		)
+		require.NoError(t, err)
+
+		kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, "host", "uuid")
+		require.NoError(t, err)
+		_, err = a.UpsertKubernetesServer(ctx, kubeServer)
 		require.NoError(t, err)
 	}
 
@@ -2090,4 +2093,30 @@ func TestEnforcerGetLicenseCheckResult(t *testing.T) {
 	heartbeat, err := s.a.GetLicenseCheckResult(ctx)
 	require.NoError(t, err)
 	require.Equal(t, expected, heartbeat.Spec.Notifications)
+}
+
+func TestInstallerCRUD(t *testing.T) {
+	t.Parallel()
+	s := newAuthSuite(t)
+	ctx := context.Background()
+
+	var inst types.Installer
+	var err error
+	contents := "#! just some script contents"
+	inst, err = types.NewInstallerV1(contents)
+	require.NoError(t, err)
+
+	require.NoError(t, s.a.SetInstaller(ctx, inst))
+
+	inst, err = s.a.GetInstaller(ctx)
+	require.NoError(t, err)
+	require.Equal(t, contents, inst.GetScript())
+
+	// resets to the default installer
+	err = s.a.DeleteInstaller(ctx)
+	require.NoError(t, err)
+
+	_, err = s.a.GetInstaller(ctx)
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err))
 }

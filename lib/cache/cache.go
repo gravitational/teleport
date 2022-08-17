@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -102,6 +103,8 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindLock},
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
+		{Kind: types.KindKubeServer},
+		{Kind: types.KindInstaller},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -138,6 +141,8 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindDatabase},
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
+		{Kind: types.KindKubeServer},
+		{Kind: types.KindInstaller},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -168,6 +173,8 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindDatabase},
+		{Kind: types.KindKubeServer},
+		{Kind: types.KindInstaller},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -195,6 +202,7 @@ func ForOldRemoteProxy(cfg Config) Config {
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindKubeServer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -245,6 +253,7 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: types.KindRole},
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindKubeService},
+		{Kind: types.KindKubeServer},
 	}
 	cfg.QueueSize = defaults.KubernetesQueueSize
 	return cfg
@@ -440,7 +449,7 @@ func (c *Cache) read() (readGuard, error) {
 			apps:             c.appsCache,
 			databases:        c.databasesCache,
 			appSession:       c.appSessionCache,
-			snowflakeSession: c.SnowflakeSession,
+			snowflakeSession: c.snowflakeSessionCache,
 			webSession:       c.webSessionCache,
 			webToken:         c.webTokenCache,
 			release:          c.rw.RUnlock,
@@ -460,7 +469,7 @@ func (c *Cache) read() (readGuard, error) {
 		apps:             c.Config.Apps,
 		databases:        c.Config.Databases,
 		appSession:       c.Config.AppSession,
-		snowflakeSession: c.SnowflakeSession,
+		snowflakeSession: c.Config.SnowflakeSession,
 		webSession:       c.Config.WebSession,
 		webToken:         c.Config.WebToken,
 		windowsDesktops:  c.Config.WindowsDesktops,
@@ -653,7 +662,7 @@ const (
 
 // New creates a new instance of Cache
 func New(config Config) (*Cache, error) {
-	if err := utils.RegisterPrometheusCollectors(cacheCollectors...); err != nil {
+	if err := metrics.RegisterPrometheusCollectors(cacheCollectors...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := config.CheckAndSetDefaults(); err != nil {
@@ -1491,6 +1500,21 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 	return rg.clusterConfig.GetClusterName(opts...)
 }
 
+// GetInstaller gets the installer script resource for the cluster
+func (c *Cache) GetInstaller(ctx context.Context) (types.Installer, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetInstaller")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	inst, err := rg.clusterConfig.GetInstaller(ctx)
+	return inst, trace.Wrap(err)
+}
+
 // GetRoles is a part of auth.Cache implementation
 func (c *Cache) GetRoles(ctx context.Context) ([]types.Role, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetRoles")
@@ -1801,6 +1825,8 @@ func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns [
 }
 
 // GetKubeServices is a part of auth.Cache implementation
+//
+// DELETE IN 12.0.0 Deprecated, use GetKubernetesServers.
 func (c *Cache) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetKubeServices")
 	defer span.End()
@@ -1811,6 +1837,19 @@ func (c *Cache) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 	}
 	defer rg.Release()
 	return rg.presence.GetKubeServices(ctx)
+}
+
+// GetKubernetesServers is a part of auth.Cache implementation
+func (c *Cache) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesServers")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.presence.GetKubernetesServers(ctx)
 }
 
 // GetApplicationServers returns all registered application servers.

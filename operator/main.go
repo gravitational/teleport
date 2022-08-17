@@ -137,6 +137,7 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "TeleportRole")
 		os.Exit(1)
 	}
+
 	if err = (&resourcescontrollers.UserReconciler{
 		Client:                 mgr.GetClient(),
 		Scheme:                 mgr.GetScheme(),

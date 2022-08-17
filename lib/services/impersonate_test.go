@@ -194,7 +194,7 @@ func TestCheckImpersonate(t *testing.T) {
 		},
 		{
 			name: "Alice can impersonate any user and role from dev team",
-			user: newUser("alice", props{traits: map[string][]string{"team": []string{"dev"}}}),
+			user: newUser("alice", props{traits: map[string][]string{"team": {"dev"}}}),
 			roles: []types.Role{
 				&types.RoleV5{
 					Metadata: types.Metadata{
@@ -216,7 +216,7 @@ func TestCheckImpersonate(t *testing.T) {
 				{
 					allowed: true,
 					user: newUser("bob", props{
-						traits: map[string][]string{"team": []string{"dev"}},
+						traits: map[string][]string{"team": {"dev"}},
 					}),
 					roles: []types.Role{
 						&types.RoleV5{
@@ -235,7 +235,7 @@ func TestCheckImpersonate(t *testing.T) {
 					name:    "all roles in the set have to match where condition",
 					allowed: false,
 					user: newUser("bob", props{
-						traits: map[string][]string{"team": []string{"dev"}},
+						traits: map[string][]string{"team": {"dev"}},
 					}),
 					roles: []types.Role{
 						wildcardRole,
