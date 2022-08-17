@@ -12,6 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! This crate contains an RDP Client with the minimum functionality required
+//! for Teleport's Desktop Access feature.
+//!
+//! Along with core RDP functionality, it contains code for:
+//! - Calling functions defined in Go (these are declared in an `extern "C"` block)
+//! - Functions to be called from Go (any function prefixed with the `#[no_mangle]`
+//!   macro and a `pub unsafe extern "C"`).
+//! - Structs for passing between the two (those prefixed with the `#[repr(C)]` macro
+//!   and whose name begins with `CGO`)
+//!
+//! Memory management at this interface can be tricky, given the long list of rules
+//! required by CGO (https://pkg.go.dev/cmd/cgo). We can simplify our job in this
+//! regard by sticking to the following design principles:
+//!
+//! 1) Whichever side of the Rust-Go interface allocates some memory on the heap is
+//!    responsible for freeing it.
+//! 2) And therefore whenever one side of the Rust-Go interface is passed some memory
+//!    it didn't allocate but needs to hold on to, is responsible for copying it to its
+//!    own respective heap.
+//!
+//! In practice, this means that all the functions called from Go (those prefixed with
+//! `pub unsafe extern "C"`) MUST NOT hang on to any of the pointers passed in to them after
+//! they return. All pointer data that needs to persist MUST be copied into Rust-owned memory.
+
 mod cliprdr;
 mod errors;
 mod piv;
@@ -842,12 +866,6 @@ pub unsafe extern "C" fn handle_tdp_sd_announce(
     client_ptr: *mut Client,
     sd_announce: CGOSharedDirectoryAnnounce,
 ) -> CGOErrCode {
-    // # Safety
-    //
-    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-    // In other words, all pointer data that needs to persist after this function returns MUST
-    // be copied into Rust-owned memory.
-
     let sd_announce = SharedDirectoryAnnounce::from(sd_announce);
 
     let client = match Client::from_ptr(client_ptr) {
@@ -884,12 +902,6 @@ pub unsafe extern "C" fn handle_tdp_sd_info_response(
     client_ptr: *mut Client,
     res: CGOSharedDirectoryInfoResponse,
 ) -> CGOErrCode {
-    // # Safety
-    //
-    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-    // In other words, all pointer data that needs to persist after this function returns MUST
-    // be copied into Rust-owned memory.
-
     let res = SharedDirectoryInfoResponse::from(res);
 
     let client = match Client::from_ptr(client_ptr) {
@@ -921,12 +933,6 @@ pub unsafe extern "C" fn handle_tdp_sd_create_response(
     client_ptr: *mut Client,
     res: CGOSharedDirectoryCreateResponse,
 ) -> CGOErrCode {
-    // # Safety
-    //
-    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-    // In other words, all pointer data that needs to persist after this function returns MUST
-    // be copied into Rust-owned memory.
-
     let res = SharedDirectoryCreateResponse::from(res);
 
     let client = match Client::from_ptr(client_ptr) {
@@ -958,12 +964,6 @@ pub unsafe extern "C" fn handle_tdp_sd_delete_response(
     client_ptr: *mut Client,
     res: CGOSharedDirectoryDeleteResponse,
 ) -> CGOErrCode {
-    // # Safety
-    //
-    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-    // In other words, all pointer data that needs to persist after this function returns MUST
-    // be copied into Rust-owned memory.
-
     let res: SharedDirectoryDeleteResponse = res;
 
     let client = match Client::from_ptr(client_ptr) {
@@ -999,12 +999,6 @@ pub unsafe extern "C" fn handle_tdp_sd_list_response(
     client_ptr: *mut Client,
     res: CGOSharedDirectoryListResponse,
 ) -> CGOErrCode {
-    // # Safety
-    //
-    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-    // In other words, all pointer data that needs to persist after this function returns MUST
-    // be copied into Rust-owned memory.
-
     let res = SharedDirectoryListResponse::from(res);
 
     let client = match Client::from_ptr(client_ptr) {
@@ -1035,12 +1029,6 @@ pub unsafe extern "C" fn handle_tdp_sd_read_response(
     client_ptr: *mut Client,
     res: CGOSharedDirectoryReadResponse,
 ) -> CGOErrCode {
-    // # Safety
-    //
-    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-    // In other words, all pointer data that needs to persist after this function returns MUST
-    // be copied into Rust-owned memory.
-
     let res = SharedDirectoryReadResponse::from(res);
 
     let client = match Client::from_ptr(client_ptr) {
@@ -1071,12 +1059,6 @@ pub unsafe extern "C" fn handle_tdp_sd_write_response(
     client_ptr: *mut Client,
     res: CGOSharedDirectoryWriteResponse,
 ) -> CGOErrCode {
-    // # Safety
-    //
-    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-    // In other words, all pointer data that needs to persist after this function returns MUST
-    // be copied into Rust-owned memory.
-
     let res: SharedDirectoryWriteResponse = res;
 
     let client = match Client::from_ptr(client_ptr) {
@@ -1109,12 +1091,6 @@ pub unsafe extern "C" fn handle_tdp_sd_move_response(
     client_ptr: *mut Client,
     res: CGOSharedDirectoryMoveResponse,
 ) -> CGOErrCode {
-    // # Safety
-    //
-    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-    // In other words, all pointer data that needs to persist after this function returns MUST
-    // be copied into Rust-owned memory.
-
     let res: SharedDirectoryMoveResponse = res;
 
     let client = match Client::from_ptr(client_ptr) {
