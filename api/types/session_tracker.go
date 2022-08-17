@@ -109,6 +109,9 @@ type SessionTracker interface {
 
 	// GetLastActive returns the time at which the session was last active (i.e used by any participant).
 	GetLastActive() time.Time
+
+	// GetDesktopName returns the name of the Windows desktop the session is for.
+	GetDesktopName() string
 }
 
 func NewSessionTracker(spec SessionTrackerSpecV1) (SessionTracker, error) {
@@ -348,4 +351,9 @@ func (s *SessionTrackerV1) GetLastActive() time.Time {
 	}
 
 	return last
+}
+
+// GetDesktopName returns the name of the Windows desktop the session is for.
+func (s *SessionTrackerV1) GetDesktopName() string {
+	return s.Spec.DesktopName
 }

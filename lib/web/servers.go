@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 
 	"github.com/gravitational/trace"
@@ -126,4 +127,50 @@ func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p htt
 	// if multiple Windows Desktop Services are in use. We only need
 	// to see the desktop once in the UI, so just take the first one.
 	return ui.MakeDesktop(windowsDesktops[0]), nil
+}
+
+// desktopIsActive checks if a desktop has an active session and if so, returns a one time token that is needed
+// to start a session to said desktop.
+//
+// GET /v1/webapi/sites/:site/desktop_is_active/:desktop
+//
+// Response body:
+//
+// {"active": bool}
+func (h *Handler) desktopIsActive(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	desktopName := p.ByName("desktop")
+	trackers, err := h.auth.proxyClient.GetActiveSessionTrackers(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	checker, err := ctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, tracker := range trackers {
+		if tracker.GetSessionKind() == types.WindowsDesktopSessionKind && tracker.GetState() == types.SessionState_SessionStateRunning && tracker.GetDesktopName() == desktopName {
+			desktops, err := h.auth.accessPoint.GetWindowsDesktops(r.Context(), types.WindowsDesktopFilter{Name: tracker.GetDesktopName()})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			if len(desktops) == 0 {
+				return nil, trace.NotFound("desktop not found")
+			}
+
+			if err := checker.CheckAccess(desktops[0], services.AccessMFAParams{}); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return desktopIsActive{true}, nil
+		}
+	}
+
+	return desktopIsActive{false}, nil
+}
+
+type desktopIsActive struct {
+	Active bool `json:"active"`
 }
