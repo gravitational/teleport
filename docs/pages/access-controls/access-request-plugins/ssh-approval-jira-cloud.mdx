@@ -139,7 +139,12 @@ By default, the Jira Teleport plugin will use a config in `/etc/teleport-jira.to
 (!examples/resources/plugins/teleport-jira-helm-self.yaml!)
 ```
 
-Use the following command to create the Kubernetes secret referenced above from the identity file you generated earlier:
+The YAML file above contains the settings for the Helm Chart, the `teleport`, `jira`, and `log` sections
+follow the corresponding sections of the plugin's TOML config structure. See the
+[teleport-plugin-jira Helm Chart Reference](../../setup/helm-reference/teleport-plugin-jira.mdx) for more
+detailed reference.
+
+Use the following command to create the Kubernetes secret referenced in the values file from the identity file you generated earlier:
 
 ```console
 kubectl create secret generic teleport-plugin-jira-identity --from-file=auth_id=auth.pem
