@@ -42,6 +42,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -72,6 +73,7 @@ import (
 	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/mod/semver"
 )
 
 const (
@@ -190,6 +192,14 @@ type Config struct {
 
 	// ProxySettings allows fetching the current proxy settings.
 	ProxySettings proxySettingsGetter
+
+	// MinimalReverseTunnelRoutesOnly mode handles only the endpoints required for
+	// a reverse tunnel agent to establish a connection.
+	MinimalReverseTunnelRoutesOnly bool
+
+	// PublicProxyAddr is used to template the public proxy address
+	// into the installer script responses
+	PublicProxyAddr string
 }
 
 type APIHandler struct {
@@ -206,7 +216,7 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// request is already authenticated (has a session cookie), forward to
 	// application handlers. If the request is unauthenticated and requesting a
 	// FQDN that is not of the proxy, redirect to application launcher.
-	if app.HasFragment(r) || app.HasSession(r) || app.HasClientCert(r) {
+	if h.appHandler != nil && (app.HasFragment(r) || app.HasSession(r) || app.HasClientCert(r)) {
 		h.appHandler.ServeHTTP(w, r)
 		return
 	}
@@ -289,22 +299,167 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if cfg.MinimalReverseTunnelRoutesOnly {
+		h.bindMinimalEndpoints()
+	} else {
+		h.bindDefaultEndpoints(challengeLimiter)
+	}
+
+	// if Web UI is enabled, check the assets dir:
+	var indexPage *template.Template
+	if cfg.StaticFS != nil {
+		index, err := cfg.StaticFS.Open("/index.html")
+		if err != nil {
+			h.log.WithError(err).Error("Failed to open index file.")
+			return nil, trace.Wrap(err)
+		}
+		defer index.Close()
+		indexContent, err := io.ReadAll(index)
+		if err != nil {
+			return nil, trace.ConvertSystemError(err)
+		}
+		indexPage, err = template.New("index").Parse(string(indexContent))
+		if err != nil {
+			return nil, trace.BadParameter("failed parsing index.html template: %v", err)
+		}
+
+		h.Handle("GET", "/web/config.js", httplib.MakeHandler(h.getWebConfig))
+	}
+
+	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// request is going to the API?
+		if strings.HasPrefix(r.URL.Path, apiPrefix) {
+			http.StripPrefix(apiPrefix, h).ServeHTTP(w, r)
+			return
+		}
+
+		// request is going to the web UI
+		if cfg.StaticFS == nil {
+			w.WriteHeader(http.StatusNotImplemented)
+			return
+		}
+
+		// redirect to "/web" when someone hits "/"
+		if r.URL.Path == "/" {
+			http.Redirect(w, r, "/web", http.StatusFound)
+			return
+		}
+
+		// serve Web UI:
+		if strings.HasPrefix(r.URL.Path, "/web/app") {
+			httplib.SetStaticFileHeaders(w.Header())
+			http.StripPrefix("/web", makeGzipHandler(http.FileServer(cfg.StaticFS))).ServeHTTP(w, r)
+		} else if strings.HasPrefix(r.URL.Path, "/web/") || r.URL.Path == "/web" {
+			csrfToken, err := csrf.AddCSRFProtection(w, r)
+			if err != nil {
+				h.log.WithError(err).Warn("Failed to generate CSRF token.")
+			}
+
+			session, err := h.authenticateWebSession(w, r)
+			if err != nil {
+				h.log.WithError(err).Debug("Could not authenticate.")
+			}
+			session.XCSRF = csrfToken
+
+			httplib.SetIndexHTMLHeaders(w.Header())
+			if err := indexPage.Execute(w, session); err != nil {
+				h.log.WithError(err).Error("Failed to execute index page template.")
+			}
+		} else {
+			http.NotFound(w, r)
+		}
+	})
+
+	h.NotFound = routingHandler
+
+	if cfg.PluginRegistry != nil {
+		if err := cfg.PluginRegistry.RegisterProxyWebHandlers(h); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	resp, err := h.cfg.ProxySettings.GetProxySettings(cfg.Context)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Create application specific handler. This handler handles sessions and
+	// forwarding for application access.
+	var appHandler *app.Handler
+	if !cfg.MinimalReverseTunnelRoutesOnly {
+		appHandler, err = app.NewHandler(cfg.Context, &app.HandlerConfig{
+			Clock:         h.clock,
+			AuthClient:    cfg.ProxyClient,
+			AccessPoint:   cfg.AccessPoint,
+			ProxyClient:   cfg.Proxy,
+			CipherSuites:  cfg.CipherSuites,
+			WebPublicAddr: resp.SSH.PublicAddr,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return &APIHandler{
+		handler:    h,
+		appHandler: appHandler,
+	}, nil
+}
+
+type webSession struct {
+	Session string
+	XCSRF   string
+}
+
+func (h *Handler) authenticateWebSession(w http.ResponseWriter, r *http.Request) (webSession, error) {
+	ctx, err := h.AuthenticateRequest(w, r, false)
+	if err != nil {
+		return webSession{}, trace.Wrap(err)
+	}
+	resp, err := newSessionResponse(ctx)
+	if err != nil {
+		return webSession{}, trace.Wrap(err)
+	}
+	out, err := json.Marshal(resp)
+	if err != nil {
+		return webSession{}, trace.Wrap(err)
+	}
+	return webSession{
+		Session: base64.StdEncoding.EncodeToString(out),
+	}, nil
+}
+
+// bindMinimalEndpoints binds only the endpoints required for a reverse tunnel
+// agent to establish a connection.
+func (h *Handler) bindMinimalEndpoints() {
+	// find is like ping, but is faster because it is optimized for servers
+	// and does not fetch the data that servers don't need, e.g.
+	// OIDC connectors and auth preferences
+	h.GET("/webapi/find", httplib.MakeHandler(h.find))
+	// Issue host credentials.
+	h.POST("/webapi/host/credentials", httplib.MakeHandler(h.hostCredentials))
+}
+
+// bindDefaultEndpoints binds the default endpoints for the web API.
+func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
+	h.bindMinimalEndpoints()
+
 	// ping endpoint is used to check if the server is up. the /webapi/ping
 	// endpoint returns the default authentication method and configuration that
 	// the server supports. the /webapi/ping/:connector endpoint can be used to
 	// query the authentication configuration for a specific connector.
 	h.GET("/webapi/ping", httplib.MakeHandler(h.ping))
 	h.GET("/webapi/ping/:connector", httplib.MakeHandler(h.pingWithConnector))
-	// find is like ping, but is faster because it is optimized for servers
-	// and does not fetch the data that servers don't need, e.g.
-	// OIDC connectors and auth preferences
-	h.GET("/webapi/find", httplib.MakeHandler(h.find))
 
 	// Unauthenticated access to JWT public keys.
 	h.GET("/.well-known/jwks.json", httplib.MakeHandler(h.jwks))
 
 	// Unauthenticated access to the message of the day
 	h.GET("/webapi/motd", httplib.MakeHandler(h.motd))
+
+	// Unauthenticated access to retrieving the script used to install
+	// Teleport
+	h.GET("/webapi/scripts/installer", httplib.MakeHandler(h.installer))
 
 	// DELETE IN: 5.1.0
 	//
@@ -365,6 +520,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	h.GET("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 	h.POST("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 
+	// Sign required files to set up mTLS using the db format.
+	h.POST("/webapi/sites/:site/sign/db", h.WithProvisionTokenAuth(h.signDatabaseCertificate))
+
 	// token generation
 	h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))
 
@@ -419,9 +577,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	// User Status (used by client to check if user session is valid)
 	h.GET("/webapi/user/status", h.WithAuth(h.getUserStatus))
 
-	// Issue host credentials.
-	h.POST("/webapi/host/credentials", httplib.MakeHandler(h.hostCredentials))
-
 	h.GET("/webapi/roles", h.WithAuth(h.getRolesHandle))
 	h.PUT("/webapi/roles", h.WithAuth(h.upsertRoleHandle))
 	h.POST("/webapi/roles", h.WithAuth(h.upsertRoleHandle))
@@ -448,115 +603,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	// GET /webapi/sites/:site/desktopplayback/:sid?access_token=<bearer_token>
 	h.GET("/webapi/sites/:site/desktopplayback/:sid", h.WithAuth(h.desktopPlaybackHandle))
 
-	// if Web UI is enabled, check the assets dir:
-	var indexPage *template.Template
-	if cfg.StaticFS != nil {
-		index, err := cfg.StaticFS.Open("/index.html")
-		if err != nil {
-			h.log.WithError(err).Error("Failed to open index file.")
-			return nil, trace.Wrap(err)
-		}
-		defer index.Close()
-		indexContent, err := io.ReadAll(index)
-		if err != nil {
-			return nil, trace.ConvertSystemError(err)
-		}
-		indexPage, err = template.New("index").Parse(string(indexContent))
-		if err != nil {
-			return nil, trace.BadParameter("failed parsing index.html template: %v", err)
-		}
-
-		h.Handle("GET", "/web/config.js", httplib.MakeHandler(h.getWebConfig))
-	}
-
-	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// request is going to the API?
-		if strings.HasPrefix(r.URL.Path, apiPrefix) {
-			http.StripPrefix(apiPrefix, h).ServeHTTP(w, r)
-			return
-		}
-
-		// request is going to the web UI
-		if cfg.StaticFS == nil {
-			w.WriteHeader(http.StatusNotImplemented)
-			return
-		}
-
-		// redirect to "/web" when someone hits "/"
-		if r.URL.Path == "/" {
-			http.Redirect(w, r, "/web", http.StatusFound)
-			return
-		}
-
-		// serve Web UI:
-		if strings.HasPrefix(r.URL.Path, "/web/app") {
-			httplib.SetStaticFileHeaders(w.Header())
-			http.StripPrefix("/web", makeGzipHandler(http.FileServer(cfg.StaticFS))).ServeHTTP(w, r)
-		} else if strings.HasPrefix(r.URL.Path, "/web/") || r.URL.Path == "/web" {
-			csrfToken, err := csrf.AddCSRFProtection(w, r)
-			if err != nil {
-				h.log.WithError(err).Warn("Failed to generate CSRF token.")
-			}
-
-			session := struct {
-				Session string
-				XCSRF   string
-			}{
-				XCSRF: csrfToken,
-			}
-
-			ctx, err := h.AuthenticateRequest(w, r, false)
-			if err == nil {
-				resp, err := newSessionResponse(ctx)
-				if err == nil {
-					out, err := json.Marshal(resp)
-					if err == nil {
-						session.Session = base64.StdEncoding.EncodeToString(out)
-					}
-				} else {
-					h.log.WithError(err).Debug("Could not authenticate.")
-				}
-			}
-			httplib.SetIndexHTMLHeaders(w.Header())
-			if err := indexPage.Execute(w, session); err != nil {
-				h.log.WithError(err).Error("Failed to execute index page template.")
-			}
-		} else {
-			http.NotFound(w, r)
-		}
-	})
-
-	h.NotFound = routingHandler
-
-	if cfg.PluginRegistry != nil {
-		if err := cfg.PluginRegistry.RegisterProxyWebHandlers(h); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	resp, err := h.cfg.ProxySettings.GetProxySettings(cfg.Context)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Create application specific handler. This handler handles sessions and
-	// forwarding for application access.
-	appHandler, err := app.NewHandler(cfg.Context, &app.HandlerConfig{
-		Clock:         h.clock,
-		AuthClient:    cfg.ProxyClient,
-		AccessPoint:   cfg.AccessPoint,
-		ProxyClient:   cfg.Proxy,
-		CipherSuites:  cfg.CipherSuites,
-		WebPublicAddr: resp.SSH.PublicAddr,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &APIHandler{
-		handler:    h,
-		appHandler: appHandler,
-	}, nil
+	// GET a Connection Diagnostics by its name
+	h.GET("/webapi/sites/:site/diagnostics/connections/:connectionid", h.WithClusterAuth(h.getConnectionDiagnostic))
+	// Diagnose a Connection
+	h.POST("/webapi/sites/:site/diagnostics/connections", h.WithClusterAuth(h.diagnoseConnection))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -1042,7 +1092,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	if err != nil {
 		h.log.WithError(err).Error("Cannot retrieve SessionRecordingConfig.")
 	} else {
-		canJoinSessions = services.IsRecordAtProxy(recCfg.GetMode()) == false
+		canJoinSessions = !services.IsRecordAtProxy(recCfg.GetMode())
 	}
 
 	webCfg := webclient.WebConfig{
@@ -1371,6 +1421,30 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	return redirectURL.String()
+}
+
+func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	httplib.SetScriptHeaders(w.Header())
+	installer, err := h.auth.proxyClient.GetInstaller(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ping, err := h.auth.Ping(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// semver parsing requires a 'v' at the beginning of the version string.
+	version := semver.Major("v" + ping.ServerVersion)
+	instTmpl, err := template.New("").Parse(installer.GetScript())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tmpl := installers.Template{
+		PublicProxyAddr: h.cfg.PublicProxyAddr,
+		MajorVersion:    version,
+	}
+	err = instTmpl.Execute(w, tmpl)
+	return nil, trace.Wrap(err)
 }
 
 // AuthParams are used to construct redirect URL containing auth
@@ -2691,6 +2765,59 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 
 		return fn(w, r, p, ctx, site)
 	})
+}
+
+// ProvisionTokenHandler is a authenticated handler that is called for some existing Token
+type ProvisionTokenHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, site reversetunnel.RemoteSite, token types.ProvisionToken) (interface{}, error)
+
+// WithProvisionTokenAuth ensures that request is authenticated with a provision token.
+// Provision tokens, when used like this are invalidated as soon as used.
+// Doesn't matter if the underlying response was a success or an error.
+func (h *Handler) WithProvisionTokenAuth(fn ProvisionTokenHandler) httprouter.Handle {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+		ctx := r.Context()
+		logger := h.log.WithField("request", fmt.Sprintf("%v %v", r.Method, r.URL.Path))
+
+		creds, err := roundtrip.ParseAuthHeaders(r)
+		if err != nil {
+			logger.WithError(err).Warn("No auth headers.")
+			return nil, trace.AccessDenied("need auth")
+		}
+
+		token, err := h.consumeTokenForAPICall(ctx, creds.Password)
+		if err != nil {
+			h.log.WithError(err).Warn("Failed to authenticate.")
+			return nil, trace.AccessDenied("need auth")
+		}
+
+		site, err := h.cfg.Proxy.GetSite(h.auth.clusterName)
+		if err != nil {
+			h.log.WithError(err).WithField("cluster-name", h.auth.clusterName).Warn("Failed to query cluster.")
+			return nil, trace.Wrap(err)
+		}
+
+		return fn(w, r, p, site, token)
+	})
+}
+
+// consumeTokenForAPICall will fetch a token, check if the requireRole is present and then delete the token
+// If any of those calls returns an error, this method also returns an error
+//
+// If multiple clients reach here at the same time, only one of them will be able to actually make the request.
+// This is possible because the latest call - DeleteToken - returns an error if the resource doesn't exist
+// This is currently true for all the backends as explained here
+// https://github.com/gravitational/teleport/commit/24fcadc375d8359e80790b3ebeaa36bd8dd2822f
+func (h *Handler) consumeTokenForAPICall(ctx context.Context, tokenName string) (types.ProvisionToken, error) {
+	token, err := h.GetProxyClient().GetToken(ctx, tokenName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := h.GetProxyClient().DeleteToken(ctx, token.GetName()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return token, nil
 }
 
 type redirectHandlerFunc func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (redirectURL string)

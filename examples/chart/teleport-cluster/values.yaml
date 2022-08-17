@@ -18,12 +18,52 @@ kubeClusterName: ""
 # Version of teleport image, if different from chart version in Chart.yaml.
 teleportVersionOverride: ""
 
-# Default authentication type. Possible values are 'local' and 'github' for OSS, plus 'oidc' and 'saml' for Enterprise.
-# 'false' is required for FedRAMP / FIPS; see https://gravitational.com/teleport/docs/enterprise/ssh-kubernetes-fedramp/
-authenticationType: local
+authentication:
+  # Default authentication type. Possible values are 'local' and 'github' for OSS, plus 'oidc' and 'saml' for Enterprise.
+  type: local
 
-authenticationSecondFactor:
+  # Sets the authenticator connector for SSO or the default connector for "local" authentication.
+  # See SSO for Enterprise (https://goteleport.com/docs/enterprise/sso/).
+  # See Passwordless for local
+  # (http://goteleport.com/docs/access-controls/guides/passwordless/#optional-enable-passwordless-by-default).
+  # Defaults to "local".
+  connectorName: ""
+
+  # Enable/disable local authentication by setting `authentication.local_auth` in `teleport.yaml`.
+  # Disabling local auth is required for FedRAMP / FIPS; see https://gravitational.com/teleport/docs/enterprise/ssh-kubernetes-fedramp/
+  localAuth: true
+
+  # Controls the locking mode: in case of network split should Teleport guarantee availability or integrity ?
+  # Possible values are "best_effort" and "strict". When not defined, Teleport defaults to "best_effort".
+  # See https://goteleport.com/docs/access-controls/guides/locking/#next-steps-locking-modes.
+  lockingMode: ""
+
+  # Second factor requirements for users of the Teleport cluster.
+  # Controls the `auth_config.authentication.second_factor` field in `teleport.yaml`.
+  # Possible values are 'off', 'on', 'otp', 'optional' and 'webauthn'.
   secondFactor: "otp"
+
+  # (Optional) When using webauthn this allows to restrict which vendor and key models can be used.
+  # webauthn:
+  #   attestationAllowedCas:
+  #     - /path/to/allowed_ca.pem
+  #     - |
+  #       -----BEGIN CERTIFICATE-----
+  #       ...
+  #       -----END CERTIFICATE-----
+  #   attestationDeniedCas:
+  #     - /path/to/denied_ca.pem
+  #     - |
+  #       -----BEGIN CERTIFICATE-----
+  #       ...
+  #       -----END CERTIFICATE-----
+
+# Deprecated way to set the authentication type, `authentication.type` should be preferred.
+# authenticationType: local
+
+# Deprecated way to set the authentication second factor, `authentication.secondFactor` should be preferred.
+# authenticationSecondFactor:
+#   secondFactor: "otp"
 
 # Teleport supports TLS routing. In this mode, all client connections are wrapped in TLS and multiplexed on one Teleport proxy port.
 # Default mode will not utilize TLS routing and operate in backwards-compatibility mode.
@@ -153,6 +193,20 @@ aws:
   sessionRecordingBucket: ""
   # Whether or not to turn on DynamoDB backups
   backups: false
+
+  # Whether Teleport should configure DynamoDB's autoscaling.
+  # Requires additional statements in the IAM Teleport Policy to be allowed to configure the autoscaling.
+  # See https://goteleport.com/docs/setup/reference/backends/#dynamodb-autoscaling
+  dynamoAutoScaling: false
+
+  # DynamoDB autoscaling settings. Required if `dynamoAutoScaling` is `true`.
+  # See https://goteleport.com/docs/setup/reference/backends/#dynamodb-autoscaling
+  readMinCapacity: null      # Integer
+  readMaxCapacity: null      # Integer
+  readTargetValue: null      # Float
+  writeMinCapacity: null     # Integer
+  writeMaxCapacity: null     # Integer
+  writeTargetValue: null     # Float
 
 ##################################################
 # GCP-specific settings (only used in "gcp" mode)

@@ -18,6 +18,7 @@ package aws
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net/http"
 
@@ -34,9 +35,10 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/app/common"
-	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
@@ -57,7 +59,7 @@ func NewSigningService(config SigningServiceConfig) (*SigningService, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	svc.fwd = fwd
+	svc.Forwarder = fwd
 	return svc, nil
 }
 
@@ -67,8 +69,8 @@ type SigningService struct {
 	// SigningServiceConfig is the SigningService configuration.
 	SigningServiceConfig
 
-	// fwd signs and forwards the request to AWS API.
-	fwd *forward.Forwarder
+	// Forwarder signs and forwards the request to AWS API.
+	*forward.Forwarder
 }
 
 // SigningServiceConfig is the SigningService configuration.
@@ -119,11 +121,6 @@ func (s *SigningServiceConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Handle handles the AWS CLI request.
-func (s *SigningService) Handle(rw http.ResponseWriter, r *http.Request) {
-	s.fwd.ServeHTTP(rw, r)
-}
-
 // RoundTrip handles incoming requests and forwards them to the proper AWS API.
 // Handling steps:
 // 1) Decoded Authorization Header. Authorization Header example:
@@ -157,7 +154,36 @@ func (s *SigningService) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := s.emitAuditEvent(req.Context(), signedReq, resp, sessionCtx, resolvedEndpoint); err != nil {
+		s.Log.WithError(err).Warn("Failed to emit audit event.")
+	}
 	return resp, nil
+}
+
+// emitAuditEvent writes details of the AWS request to audit stream.
+func (s *SigningService) emitAuditEvent(ctx context.Context, req *http.Request, resp *http.Response, sessionCtx *common.SessionContext, endpoint *endpoints.ResolvedEndpoint) error {
+	event := &apievents.AppSessionRequest{
+		Metadata: apievents.Metadata{
+			Type: events.AppSessionRequestEvent,
+			Code: events.AppSessionRequestCode,
+		},
+		Method:     req.Method,
+		Path:       req.URL.Path,
+		RawQuery:   req.URL.RawQuery,
+		StatusCode: uint32(resp.StatusCode),
+		AppMetadata: apievents.AppMetadata{
+			AppURI:        sessionCtx.App.GetURI(),
+			AppPublicAddr: sessionCtx.App.GetPublicAddr(),
+			AppName:       sessionCtx.App.GetName(),
+		},
+		AWSRequestMetadata: apievents.AWSRequestMetadata{
+			AWSRegion:  endpoint.SigningRegion,
+			AWSService: endpoint.SigningName,
+			AWSHost:    req.Host,
+		},
+	}
+	return trace.Wrap(sessionCtx.Emitter.EmitAuditEvent(ctx, event))
 }
 
 func (s *SigningService) formatForwardResponseError(rw http.ResponseWriter, r *http.Request, err error) {
@@ -199,7 +225,7 @@ func (s *SigningService) prepareSignedRequest(r *http.Request, re *endpoints.Res
 func rewriteHeaders(r *http.Request, reqCopy *http.Request) {
 	for key, values := range r.Header {
 		// Remove Teleport app headers.
-		if appcommon.IsReservedHeader(key) {
+		if common.IsReservedHeader(key) {
 			continue
 		}
 		for _, v := range values {

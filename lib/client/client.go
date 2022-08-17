@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -117,7 +118,7 @@ func (proxy *ProxyClient) GetSites(ctx context.Context) ([]types.Site, error) {
 	// the session request, and then RequestSubsystem call could hang
 	// forever
 	go func() {
-		if err := proxySession.RequestSubsystem("proxysites"); err != nil {
+		if err := proxySession.RequestSubsystem(ctx, "proxysites"); err != nil {
 			log.Warningf("Failed to request subsystem: %v", err)
 		}
 	}()
@@ -1425,7 +1426,7 @@ func (proxy *ProxyClient) dialAuthServer(ctx context.Context, clusterName string
 		return nil, trace.Wrap(err)
 	}
 
-	err = proxySession.RequestSubsystem("proxy:" + address)
+	err = proxySession.RequestSubsystem(ctx, "proxy:"+address)
 	if err != nil {
 		// read the stderr output from the failed SSH session and append
 		// it to the end of our own message:
@@ -1476,11 +1477,11 @@ func (n *NodeAddr) ProxyFormat() string {
 
 // requestSubsystem sends a subsystem request on the session. If the passed
 // in context is canceled first, unblocks.
-func requestSubsystem(ctx context.Context, session *ssh.Session, name string) error {
+func requestSubsystem(ctx context.Context, session *tracessh.Session, name string) error {
 	errCh := make(chan error)
 
 	go func() {
-		er := session.RequestSubsystem(name)
+		er := session.RequestSubsystem(ctx, name)
 		errCh <- er
 	}()
 
@@ -1558,7 +1559,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 	// pass the true client IP (if specified) to the proxy so it could pass it into the
 	// SSH session for proper audit
 	if len(proxy.clientAddr) > 0 {
-		if err = proxySession.Setenv(sshutils.TrueClientAddrVar, proxy.clientAddr); err != nil {
+		if err = proxySession.Setenv(ctx, sshutils.TrueClientAddrVar, proxy.clientAddr); err != nil {
 			log.Error(err)
 		}
 	}
@@ -1576,7 +1577,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 			return nil, trace.Wrap(err)
 		}
 
-		err = agent.RequestAgentForwarding(proxySession)
+		err = agent.RequestAgentForwarding(proxySession.Session)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1868,7 +1869,7 @@ func (c *NodeClient) ExecuteSCP(ctx context.Context, cmd scp.Command) error {
 
 	runC := make(chan error, 1)
 	go func() {
-		err := s.Run(shellCmd)
+		err := s.Run(ctx, shellCmd)
 		if err != nil && errors.Is(err, &ssh.ExitMissingError{}) {
 			// TODO(dmitri): currently, if the session is aborted with (*session).Close,
 			// the remote side cannot send exit-status and this error results.
@@ -2159,4 +2160,29 @@ func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr No
 // localAgent returns for the Teleport client's local agent.
 func (proxy *ProxyClient) localAgent() *LocalKeyAgent {
 	return proxy.teleportClient.LocalAgent()
+}
+
+// GetPaginatedSessions grabs up to 'max' sessions.
+func GetPaginatedSessions(ctx context.Context, fromUTC, toUTC time.Time, pageSize int, order types.EventOrder, max int, authClient auth.ClientI) ([]apievents.AuditEvent, error) {
+	prevEventKey := ""
+	var sessions []apievents.AuditEvent
+	for {
+		if remaining := max - len(sessions); remaining < pageSize {
+			pageSize = remaining
+		}
+		nextEvents, eventKey, err := authClient.SearchSessionEvents(fromUTC, toUTC,
+			pageSize, order, prevEventKey, nil /* where condition */, "" /* session ID */)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sessions = append(sessions, nextEvents...)
+		if eventKey == "" || len(sessions) >= max {
+			break
+		}
+		prevEventKey = eventKey
+	}
+	if max < len(sessions) {
+		return sessions[:max], nil
+	}
+	return sessions, nil
 }

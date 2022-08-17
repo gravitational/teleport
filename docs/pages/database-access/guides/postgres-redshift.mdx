@@ -23,6 +23,7 @@ This guide will help you to:
 
 - AWS account with a Redshift cluster and permissions to create and attach IAM
   policies.
+- Command-line client `psql` installed and added to your system's `PATH` environment variable.
 - A host, e.g., an EC2 instance, where you will run the Teleport Database
   Service.
 
@@ -163,15 +164,22 @@ $ tsh db login --db-user=awsuser --db-name=dev my-redshift
   tokens for Redshift databases. Users must exist in the database.
 </Admonition>
 
-Now connect to the database:
+To retrieve credentials for a database and connect to it:
 
 ```code
 $ tsh db connect my-redshift
 ```
 
-<Admonition type="note" title="Note">
-  The `psql` command-line client should be available in `PATH` in order to be
-  able to connect.
+You can optionally specify the database name and the user to use by default
+when connecting to the database instance:
+
+```code
+$ tsh db connect --db-user=awsuser --db-name=dev my-redshift
+```
+
+<Admonition type="note" title="Database users must exist">
+  Teleport does not currently use the auto-create option when generating
+  tokens for Redshift databases. Users must exist in the database.
 </Admonition>
 
 To log out of the database and remove credentials:
@@ -179,6 +187,10 @@ To log out of the database and remove credentials:
 ```code
 $ tsh db logout my-redshift
 ```
+
+## Troubleshooting
+
+(!docs/pages/includes/database-access/aws-troubleshooting.mdx!)
 
 ## Next steps
 
