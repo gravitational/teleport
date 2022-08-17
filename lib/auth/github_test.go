@@ -40,6 +40,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
+	cache "github.com/patrickmn/go-cache"
 )
 
 type githubContext struct {
@@ -89,7 +90,11 @@ func (tt *githubContext) Close() error {
 }
 
 func TestPopulateClaims(t *testing.T) {
-	claims, err := populateGithubClaims(&testGithubAPIClient{})
+	client := &testGithubAPIClient{}
+	teams, err := client.getTeams()
+	require.NoError(t, err)
+
+	claims, err := populateGithubClaims(client, teams)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(claims, &types.GithubClaims{
 		Username: "octocat",
@@ -308,11 +313,21 @@ func (m mockHTTPRequester) Do(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-func TestCheckGithubFeatureSupport(t *testing.T) {
-	connector, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
+func TestCheckGithubOrgSSOSupport(t *testing.T) {
+	noSSOOrg, err := types.NewGithubConnector("github-no-sso", types.GithubConnectorSpecV3{
 		TeamsToRoles: []types.TeamRolesMapping{
 			{
-				Organization: "org",
+				Organization: "no-sso-org",
+				Team:         "team",
+				Roles:        []string{"role"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	ssoOrg, err := types.NewGithubConnector("github-sso", types.GithubConnectorSpecV3{
+		TeamsToRoles: []types.TeamRolesMapping{
+			{
+				Organization: "sso-org",
 				Team:         "team",
 				Roles:        []string{"role"},
 			},
@@ -322,13 +337,29 @@ func TestCheckGithubFeatureSupport(t *testing.T) {
 
 	tests := []struct {
 		testName             string
+		connector            types.GithubConnector
 		isEnterprise         bool
 		requestShouldSucceed bool
 		httpStatusCode       int
 		errFunc              func(error) bool
 	}{
 		{
+			testName:             "OSS HTTP connection failure",
+			connector:            ssoOrg,
+			isEnterprise:         false,
+			requestShouldSucceed: false,
+			errFunc:              trace.IsConnectionProblem,
+		},
+		{
+			testName:             "Enterprise skips HTTP check",
+			connector:            ssoOrg,
+			isEnterprise:         true,
+			requestShouldSucceed: false,
+			errFunc:              nil,
+		},
+		{
 			testName:             "OSS has SSO",
+			connector:            ssoOrg,
 			isEnterprise:         false,
 			requestShouldSucceed: true,
 			httpStatusCode:       200,
@@ -336,25 +367,30 @@ func TestCheckGithubFeatureSupport(t *testing.T) {
 		},
 		{
 			testName:             "OSS doesn't have SSO",
+			connector:            noSSOOrg,
 			isEnterprise:         false,
 			requestShouldSucceed: true,
 			httpStatusCode:       404,
 			errFunc:              nil,
 		},
 		{
-			testName:             "OSS HTTP connection failure",
+			testName:             "OSS has SSO with cache",
+			connector:            ssoOrg,
 			isEnterprise:         false,
 			requestShouldSucceed: false,
-			errFunc:              trace.IsConnectionProblem,
+			errFunc:              trace.IsAccessDenied,
 		},
 		{
-			testName:             "Enterprise skips HTTP check",
-			isEnterprise:         true,
+			testName:             "OSS doesn't have SSO with cache",
+			connector:            noSSOOrg,
+			isEnterprise:         false,
 			requestShouldSucceed: false,
 			errFunc:              nil,
 		},
 	}
 
+	ctx := context.Background()
+	orgCache := cache.New(0, 0)
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
 			client := mockHTTPRequester{
@@ -368,7 +404,7 @@ func TestCheckGithubFeatureSupport(t *testing.T) {
 				})
 			}
 
-			err := checkGithubFeatureSupport(connector, client)
+			err := checkGithubOrgSSOSupport(ctx, tt.connector, nil, orgCache, client)
 			if tt.errFunc == nil {
 				require.NoError(t, err)
 			} else {

@@ -27,6 +27,7 @@ import (
 
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/gravitational/trace"
+	cache "github.com/patrickmn/go-cache"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
@@ -69,7 +70,7 @@ func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAu
 
 // upsertGithubConnector creates or updates a Github connector.
 func (a *Server) upsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
-	if err := checkGithubFeatureSupport(connector, nil); err != nil {
+	if err := checkGithubOrgSSOSupport(ctx, connector, nil, a.githubOrgSSOCache, nil); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.UpsertGithubConnector(ctx, connector); err != nil {
@@ -96,11 +97,13 @@ type HTTPRequester interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
-// checkGithubFeatureSupport returns an error if any of the Github
+// checkGithubOrgSSOSupport returns an error if any of the Github
 // organizations specified in this connector use external SSO. SSO
 // is a Teleport Enterprise feature that should not be allowed for OSS.
-// If client is nil a net/http.Client will be used.
-func checkGithubFeatureSupport(conn types.GithubConnector, client HTTPRequester) error {
+// If userTeams is not nil, only organizations that are both specified
+// in conn and in userTeams will be checked. If client is nil a
+// net/http.Client will be used.
+func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, userTeams []teamResponse, orgCache *cache.Cache, client HTTPRequester) error {
 	version := modules.GetModules().BuildType()
 	if version == modules.BuildEnterprise {
 		return nil
@@ -117,6 +120,23 @@ func checkGithubFeatureSupport(conn types.GithubConnector, client HTTPRequester)
 	}
 
 	checkOrg := func(org string) error {
+		errUsesSSO := func() error {
+			return trace.AccessDenied(
+				"GitHub organization %s uses external SSO, please purchase a Teleport Enterprise license if you want to authenticate with this organization",
+				org,
+			)
+		}
+
+		// See if the result is already cached
+		orgResult, ok := orgCache.Get(org)
+		if ok {
+			usesSSO := orgResult.(bool)
+			if usesSSO {
+				return errUsesSSO()
+			}
+			return nil
+		}
+
 		// A Github organization will have a "sso" page reachable if it
 		// supports external SSO. There doesn't seem to be any way to get this
 		// information from the Github REST API without being an owner of the
@@ -126,7 +146,7 @@ func checkGithubFeatureSupport(conn types.GithubConnector, client HTTPRequester)
 		const retries int = 3
 		var resp *http.Response
 		for i := 0; i < retries; i++ {
-			ctx, cancel := context.WithTimeout(context.Background(), defaults.HTTPRequestTimeout)
+			ctx, cancel := context.WithTimeout(ctx, defaults.HTTPRequestTimeout)
 			defer cancel()
 
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, ssoURL, nil)
@@ -153,22 +173,36 @@ func checkGithubFeatureSupport(conn types.GithubConnector, client HTTPRequester)
 		resp.Body.Close()
 
 		if resp.StatusCode == 200 {
-			return trace.AccessDenied(
-				"GitHub organization %s uses external SSO, please purchase a Teleport Enterprise license if you want to authenticate with this organization",
-				org,
-			)
+			orgCache.Add(org, true, cache.DefaultExpiration)
+			return errUsesSSO()
 		}
+
+		orgCache.Add(org, false, cache.DefaultExpiration)
 
 		return nil
 	}
 
-	// Check each organization only once
 	orgs := make(map[string]struct{})
+	addOrg := func(org string) {
+		if len(userTeams) != 0 {
+			// Only check organizations that the user is a member of and
+			// that are specified in this auth connector
+			for _, team := range userTeams {
+				if org == team.Org.Login {
+					orgs[org] = struct{}{}
+				}
+			}
+		} else {
+			orgs[org] = struct{}{}
+		}
+	}
+
+	// Check each organization only once
 	for _, mapping := range conn.GetTeamsToLogins() {
-		orgs[mapping.Organization] = struct{}{}
+		addOrg(mapping.Organization)
 	}
 	for _, mapping := range conn.GetTeamsToRoles() {
-		orgs[mapping.Organization] = struct{}{}
+		addOrg(mapping.Organization)
 	}
 
 	for org := range orgs {
@@ -408,16 +442,6 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 	diagCtx.info.GithubTeamsToRoles = connector.GetTeamsToRoles()
 	logger.Debugf("Connector %q teams to logins: %v, roles: %v", connector.GetName(), connector.GetTeamsToLogins(), connector.GetTeamsToRoles())
 
-	// If we are running Teleport OSS, ensure that the Github organization
-	// the user is trying to authenticate with is not using external SSO.
-	// SSO is a Teleport Enterprise feature and shouldn't be allowed in OSS.
-	// This is checked when Github auth connectors get created or updated, but
-	// check again here in case the organization enabled external SSO after
-	// the auth connector was created.
-	if err := checkGithubFeatureSupport(connector, nil); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// exchange the authorization code received by the callback for an access token
 	token, err := client.RequestToken(oauth2.GrantTypeAuthCode, code)
 	if err != nil {
@@ -433,12 +457,30 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 	logger.Debugf("Obtained OAuth2 token: Type=%v Expires=%v Scope=%v.",
 		token.TokenType, token.Expires, token.Scope)
 
-	// Github does not support OIDC so user claims have to be populated
-	// by making requests to Github API using the access token
-	claims, err := populateGithubClaims(&githubAPIClient{
+	// Get the Github organizations the user is a member of so we don't
+	// make unnecessary API requests
+	ghClient := &githubAPIClient{
 		token:      token.AccessToken,
 		authServer: a,
-	})
+	}
+	teams, err := ghClient.getTeams()
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to query Github user teams")
+	}
+
+	// If we are running Teleport OSS, ensure that the Github organization
+	// the user is trying to authenticate with is not using external SSO.
+	// SSO is a Teleport Enterprise feature and shouldn't be allowed in OSS.
+	// This is checked when Github auth connectors get created or updated, but
+	// check again here in case the organization enabled external SSO after
+	// the auth connector was created.
+	if err := checkGithubOrgSSOSupport(ctx, connector, teams, a.githubOrgSSOCache, nil); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Github does not support OIDC so user claims have to be populated
+	// by making requests to Github API using the access token
+	claims, err := populateGithubClaims(ghClient, teams)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to query Github API for user claims.")
 	}
@@ -645,16 +687,11 @@ func (a *Server) createGithubUser(ctx context.Context, p *createUserParams, dryR
 
 // populateGithubClaims retrieves information about user and its team
 // memberships by calling Github API using the access token
-func populateGithubClaims(client githubAPIClientI) (*types.GithubClaims, error) {
+func populateGithubClaims(client githubAPIClientI, teams []teamResponse) (*types.GithubClaims, error) {
 	// find out the username
 	user, err := client.getUser()
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to query Github user info")
-	}
-	// build team memberships
-	teams, err := client.getTeams()
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to query Github user teams")
 	}
 	log.Debugf("Retrieved %v teams for GitHub user %v.", len(teams), user.Login)
 
