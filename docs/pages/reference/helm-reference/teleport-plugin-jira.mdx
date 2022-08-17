@@ -3,9 +3,11 @@ title: teleport-plugin-jira Chart Reference
 description: Values that can be set using the teleport-plugin-jira Helm chart
 ---
 
-The `teleport-plugin-jira` Helm chart is used to configure the Jira Teleport plugin which allows users to receive and manage Access Requests as tasks in a Jira project.
+The `teleport-plugin-jira` Helm chart runs the Jira Teleport plugin, which
+allows users to receive and manage Access Requests as tasks in a Jira project.
 
-You can [browse the source on GitHub](https://github.com/gravitational/teleport-plugins/tree/master/charts/access/jira).
+You can [browse the source on
+GitHub](https://github.com/gravitational/teleport-plugins/tree/master/charts/access/jira).
 
 This reference details available values for the `teleport-plugin-jira` chart.
 
@@ -17,7 +19,8 @@ This reference details available values for the `teleport-plugin-jira` chart.
 | - | - | - |
 | `string` | `""` | Yes |
 
-This parameter contains the host/port combination of the teleport auth server.
+This parameter contains the host/port combination of the Teleport Auth Service
+or Proxy Service.
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -39,7 +42,8 @@ This parameter contains the host/port combination of the teleport auth server.
 | - | - | - |
 | `string` | `""` | Yes |
 
-Name of the Kubernetes secret that contains the credentials for the connection to the Auth Service.
+Name of the Kubernetes secret that contains the credentials for the connection
+to the Auth Service or Proxy Service.
 
 The secret should be in the following format:
 
@@ -53,7 +57,9 @@ data:
   auth_id: ...
 ```
 
-Check out the [Jira Helm Chart documentation](https://github.com/gravitational/teleport-plugins/tree/master/charts/access/jira#prerequisites) for more information about how to acquire these credentials!
+Check out the [Jira Helm Chart
+documentation](../../access-controls/access-request-plugins/ssh-approval-jira-cloud.mdx#configuration-file)
+for more information about how to acquire these credentials.
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -75,7 +81,9 @@ Check out the [Jira Helm Chart documentation](https://github.com/gravitational/t
 | - | - | - |
 | `string` | `"auth_id"` | No |
 
-Name of the key in the Kubernetes secret that holds the credentials for the connection to the Auth Service. If the secret follows the format above, it can be omitted.
+Name of the key in the Kubernetes secret that holds the credentials for the
+connection to the Auth Service. If the secret follows the format above, it can
+be omitted.
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -209,8 +217,9 @@ List of recipients who will receive notifications about Access Requests.
 | - | - | - |
 | `string` | `""` | No |
 
-Jira token of the bot user to impersonate when sending the Access Request messages. It's only recommended for testing purposes.
-Please use [`jira.apiTokenFromSecret`](#jiraapitokenfromsecret) instead.
+Jira token of the bot user to impersonate when sending Access Request
+messages. It's only recommended for testing purposes. Please use
+[`jira.apiTokenFromSecret`](#jiraapitokenfromsecret) instead.
 
 <Tabs>
   <TabItem label="values.yaml">
