@@ -70,7 +70,6 @@ type ResourceURI struct {
 	path string
 }
 
-// GetProfileName returns root cluster name
 func (r ResourceURI) GetProfileName() string {
 	result, ok := pathClusters.Match(r.path + "/")
 	if !ok {

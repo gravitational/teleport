@@ -57,7 +57,7 @@ func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (string, e
 	}
 
 	cmd, err := dbcmd.NewCmdBuilder(cluster.clusterClient, &cluster.status, &routeToDb,
-		// TODO(ravicious): Pass the root cluster name here. GetActualName returns leaf name for leaf
+		// TODO(ravicious): Pass the root cluster name here. cluster.Name returns leaf name for leaf
 		// clusters.
 		//
 		// At this point it doesn't matter though because this argument is used only for

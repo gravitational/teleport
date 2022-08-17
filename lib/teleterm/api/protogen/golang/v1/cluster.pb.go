@@ -48,13 +48,6 @@ type Cluster struct {
 	// uri is the cluster resource URI
 	Uri string `protobuf:"bytes,1,opt,name=uri,proto3" json:"uri,omitempty"`
 	// name is used throughout the Teleport Connect codebase as the cluster name.
-	// Unfortunately, we made a mistake where instead of taking the name of the cluster from the
-	// key, we take it from the hostname part of the proxy service. These two are not always equal.
-	// And actually there are places in tsh code where it needs the name of the cluster from the
-	// key, not the hostname of the proxy service (like in the `TELEPORT_CLUSTER` env var). Since
-	// this identifier is so widely used, we didn't have time to change it before the preview
-	// release. In the future we plan to fix the value sent under name to the name from the key and
-	// get rid of the `actual_name` field.
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	// proxy address (only for root clusters)
 	ProxyHost string `protobuf:"bytes,3,opt,name=proxy_host,json=proxyHost,proto3" json:"proxy_host,omitempty"`
