@@ -1166,6 +1166,8 @@ type Databases struct {
 	ResourceMatchers []ResourceMatcher `yaml:"resources,omitempty"`
 	// AWSMatchers match AWS hosted databases.
 	AWSMatchers []AWSMatcher `yaml:"aws,omitempty"`
+	// AzureMatchers match Azure hosted databases.
+	AzureMatchers []AzureMatcher `yaml:"azure,omitempty"`
 }
 
 // ResourceMatcher matches cluster resources.
@@ -1186,6 +1188,20 @@ type AWSMatcher struct {
 	// SSMDocument is the ssm command document to execute for EC2
 	// installation
 	SSMDocument string `yaml:"ssm_command_document"`
+}
+
+// AzureMatcher matches Azure databases.
+type AzureMatcher struct {
+	// Subscriptions are Azure subscriptions to query for resources
+	Subscriptions []string `yaml:"subscriptions,omitempty"`
+	// ResourceGroups are Azure resource groups to query for resources.
+	ResourceGroups []string `yaml:"resource_groups,omitempty"`
+	// Types are azure database types to match: "mysql", "postgres"
+	Types []string `yaml:"types,omitempty"`
+	// Regions are Azure locations to match for databases.
+	Regions []string `yaml:"regions,omitempty"`
+	// Tags are Azure tags to match.
+	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
 }
 
 // Database represents a single database proxied by the service.
