@@ -178,7 +178,7 @@ func tagCopyArtifactCommands(b buildType) []string {
 
 	if b.hasTeleportConnect() {
 		commands = append(commands,
-			`cp /go/src/github.com/gravitational/webapps/packages/teleterm/build/release/teleconnect*.{tar.gz,deb,rpm} /go/artifacts/`,
+			`cp /go/src/github.com/gravitational/webapps/packages/teleterm/build/release/teleport-connect*.{tar.gz,deb,rpm} /go/artifacts/`,
 		)
 	}
 
