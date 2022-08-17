@@ -77,7 +77,7 @@ The first option is a bit simpler as it rides off the coattails of our existing 
 
 In this RFD we'll explore both options together, since they are not mutually exclusive, and the underlying implementation will be the same regardless. 
 
-Note: If either of these options are combined with MFA/PIV PIN enforcement, or biometric key usage (like the [Yubikey Bio Series](https://www.yubico.com/products/yubikey-bio-series/)), then even if a user's computre and hardware key are stolen, the user's login session would not provide access to an attacker. To avoid overcomplicating this RFD, we will omit this consideration and leave it as a possible future improvement.
+Note: If either of these options are combined with MFA/PIV PIN enforcement, or biometric key usage (like the [Yubikey Bio Series](https://www.yubico.com/products/yubikey-bio-series/)), then even if a user's computer and hardware key are stolen, the user's login session would not provide access to an attacker. To avoid overcomplicating this RFD, we will omit this consideration and leave it as a possible future improvement.
 
 ### Server changes
 
@@ -92,7 +92,7 @@ auth_service:
   ...
   authentication:
     ...
-    user_private_keys: disk | hardware_key | hardware_key_touch
+    private_key_mode: disk | hardware_key | hardware_key_touch
 ```
 
 ```yaml
@@ -101,7 +101,7 @@ version: v2
 metadata:
   name: cluster-auth-preference
 spec:
-  user_private_keys: disk | hardware_key | hardware_key_touch
+  private_key_mode: disk | hardware_key | hardware_key_touch
 ```
 
 This can also be configured for individual roles:
@@ -113,14 +113,16 @@ metadata:
   name: role-name
 spec:
   role_options:
-    user_private_keys: disk | hardware_key | hardware_key_touch
+    private_key_mode: disk | hardware_key | hardware_key_touch
 ```
 
 - `disk` (default): A user's private keys can be generated in memory and stored on disk. No enforcement necessary.
 - `hardware_key`: A user's private keys must be generated on a hardware key. As a result, the user cannot use their signed certificates unless they have their hardware key connected.
 - `hardware_key_touch`: A user's private keys must be generated on a hardware key, and must require touch to be accessed. As a result, the user must touch their hardware key on login, and on every subsequent request.
 
-Alternatively, Teleport admins can "upgrade" their existing [require-session-mfa configuration](https://goteleport.com/docs/access-controls/guides/per-session-mfa/#configure-per-session-mfa) from `true` to `hardware_key`. This will essentially act as an alias for `user_private_keys: hardware_key && require_session_mfa: true`.
+Alternatively, Teleport admins can "upgrade" their existing [require-session-mfa configuration](https://goteleport.com/docs/access-controls/guides/per-session-mfa/#configure-per-session-mfa) from `true` to `hardware_key`. This will essentially act as an alias for `private_key_mode: hardware_key && require_session_mfa: true`.
+
+On the other hand, `private_key_mode: hardware_key_touch` and `require_session_mfa: true` should not be used together, since this configuration would require one touch for every request, and an additional redundant touch for session requests. Instead, `private_key_mode: hardware_key_touch` should be used with `require_session_mfa: off`, since this private key mode provides better security than Per-session MFA anyways.
 
 #### Enforcement - Attestation
 
@@ -134,12 +136,12 @@ service AuthService {
 }
 
 message AttestHardwarePrivateKeyRequest {
-  YubikeyPIVAttestationData yubikey_attestation = 1;
+  YubikeyPIVAttestationRequest yubikey_attestation_request = 1;
   // We may add non-yubikey and non-piv options in the future
 }
 
 // Data used to attest a slot - https://pkg.go.dev/github.com/go-piv/piv-go@v1.10.0/piv#Verify
-message YubikeyPIVAttestationData {
+message YubikeyPIVAttestationRequest {
   bytes slot_cert = 1;
   bytes attestation_cert = 2;
 }
@@ -169,17 +171,17 @@ Teleport clients will need the ability to connect to a user's hardware key, gene
 
 #### `user_private_key` configuration discovery
 
-Teleport clients should be able to automatically determine if a user requires a hardware private key for login to avoid additional UX concerns. For this, we will introduce the `GetPrivateKeyRequirement` rpc.
+Teleport clients should be able to automatically determine if a user requires a hardware private key for login to avoid additional UX concerns. For this, we will introduce the `GetPrivateKeyMode` rpc.
 
 ```proto
 service AuthService {
-  rpc GetPrivateKeyRequirement(GetPrivateKeyRequirementRequest) returns (GetPrivateKeyRequirementResponse);
+  rpc GetPrivateKeyMode(GetPrivateKeyModeRequest) returns (GetPrivateKeyModeResponse);
 }
 
 // The user will be pulled from the request certificate, so request message can be empty for now.
-message GetPrivateKeyRequirementRequest {}
+message GetPrivateKeyModeRequest {}
 
-message GetPrivateKeyRequirementResponse {
+message GetPrivateKeyModeResponse {
     PrivateKeyMode mode = 1;
 }
 
@@ -192,11 +194,11 @@ enum PrivateKeyMode {
 
 Unfortunately, In order to discover a user's private key requirements, we need to first provide the user with a set of valid certificates. Unless we want to force the user to login twice, we will need to find a compromise.
 
-First, we can have Teleport Clients follow the current login flow with a random RSA private key to get valid certificates. If hardware private key usage is enforced, then the server will only sign the certificates with a TTL of 1 minute. These certificates will only be usable by the endpoints `GetPrivateKeyRequirement` and `GenerateUserCerts` to reissue certificates. `GenerateUserCerts` will then enforce that the re-issue certificates request is using a hardware private key.
+First, we can have Teleport Clients follow the current login flow with a random RSA private key to get valid certificates. If hardware private key usage is enforced, then the server will only sign the certificates with a TTL of 1 minute. These certificates will only be usable by the endpoints `GetPrivateKeyMode` and `GenerateUserCerts` to reissue certificates. `GenerateUserCerts` will then enforce that the re-issue certificates request is using a hardware private key.
 
 #### Hardware private key login
 
-As mentioned above, hardware key login will start with the normal login flow, followed by a call to `GetPrivateKeyRequirement`. If the result is `PRIVATE_KEY_MODE_HARDWARE_KEY` or `PRIVATE_KEY_MODE_HARDWARE_KEY_TOUCH`, then the Teleport client will:
+As mentioned above, hardware key login will start with the normal login flow, followed by a call to `GetPrivateKeyMode`. If the result is `PRIVATE_KEY_MODE_HARDWARE_KEY` or `PRIVATE_KEY_MODE_HARDWARE_KEY_TOUCH`, then the Teleport client will:
  1. Find a hardware key on the user's device
  2. Generate a new private key on the hardware key (with Touch policy "cached" if required)
  3. Use the hardware private key to get a new set of signed certificates from the Teleport Auth Server
@@ -235,7 +237,7 @@ Supporting hardware private key login through the WebUI needs to be investigated
 
 The most notable UX change is that a user's login session will not be usable unless their hardware key is connected.
 
-If `user_private_keys: hardware_key_touch` is used, then every Teleport Client request will require touch (cached for 15 seconds). This will be handled by a touch prompt similar to the one used for MFA.
+If `private_key_mode: hardware_key_touch` is used, then every Teleport Client request will require touch (cached for 15 seconds). This will be handled by a touch prompt similar to the one used for MFA.
 
 ### Additional considerations
 
@@ -263,4 +265,4 @@ Some PIV operations require [adminstrative access](https://developers.yubico.com
 | PIN            | 8 chars  | `123456`                                           | sign and decrypt data, reset pin          |
 | PUK            | 8 chars  | `12345678`                                         | reset PIN when blocked by failed attempts |
 
-To simplify our implementation and limit UX impact, we will expect the user's PIV device to use the default Management Key. In the future, we may want to add support for using non-default management key to better protect the generation and retrieval of private keys on the user's PIV key, as well as PIN management if we decide to add an options like `user_private_keys: hardware_key_touch_pin`.
+To simplify our implementation and limit UX impact, we will expect the user's PIV device to use the default Management Key. In the future, we may want to add support for using non-default management key to better protect the generation and retrieval of private keys on the user's PIV key, as well as PIN management if we decide to add an options like `private_key_mode: hardware_key_touch_pin`.
