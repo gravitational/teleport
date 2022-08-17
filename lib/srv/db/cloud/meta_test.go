@@ -333,9 +333,14 @@ func TestAzureMetadata(t *testing.T) {
 			},
 		},
 	}
-	// TODO(gavin): test postgres
 	postgres := &AzurePostgresMock{
-		DBServers: []*armpostgresql.Server{},
+		DBServers: []*armpostgresql.Server{
+			{
+				Name:     to.Ptr("pgres1"),
+				Location: to.Ptr(region1),
+				ID:       to.Ptr("/subscriptions/sub1/resourceGroups/group1/providers/Microsoft.DBforPostgreSQL/servers/pgres1"),
+			},
+		},
 	}
 
 	// Create metadata fetcher.
@@ -369,6 +374,28 @@ func TestAzureMetadata(t *testing.T) {
 					ResourceGroup:     group1,
 					ResourceName:      "mysql1",
 					ProviderNamespace: azure.MySQLNamespace,
+					ResourceType:      "servers",
+					SubscriptionID:    "sub1",
+				},
+			},
+		},
+		{
+			name: "Azure PostgreSQL instance",
+			inAzure: types.Azure{
+				Name: "pgres1",
+				ResourceID: types.AzureResourceID{
+					ResourceGroup:     group1,
+					ResourceName:      "pgres1",
+					ProviderNamespace: azure.PostgreSQLNamespace,
+				},
+			},
+			outAzure: types.Azure{
+				Name:   "pgres1",
+				Region: region1,
+				ResourceID: types.AzureResourceID{
+					ResourceGroup:     group1,
+					ResourceName:      "pgres1",
+					ProviderNamespace: azure.PostgreSQLNamespace,
 					ResourceType:      "servers",
 					SubscriptionID:    "sub1",
 				},
@@ -414,10 +441,15 @@ func TestAzureMetadataNoPermissions(t *testing.T) {
 			},
 		},
 	}
-	// TODO(gavin): test postgres
 	postgres := &AzurePostgresMock{
-		NoAuth:    true,
-		DBServers: []*armpostgresql.Server{},
+		NoAuth: true,
+		DBServers: []*armpostgresql.Server{
+			{
+				Name:     to.Ptr("pgres1"),
+				Location: to.Ptr(region1),
+				ID:       to.Ptr("/subscriptions/sub1/resourceGroups/group1/providers/Microsoft.DBforPostgreSQL/servers/pgres1"),
+			},
+		},
 	}
 
 	// Create metadata fetcher.
@@ -441,6 +473,17 @@ func TestAzureMetadataNoPermissions(t *testing.T) {
 					ResourceGroup:     group1,
 					ResourceName:      "mysql1",
 					ProviderNamespace: azure.MySQLNamespace,
+				},
+			},
+		},
+		{
+			name: "Azure PostgreSQL instance",
+			meta: types.Azure{
+				Name: "pgres1",
+				ResourceID: types.AzureResourceID{
+					ResourceGroup:     group1,
+					ResourceName:      "pgres1",
+					ProviderNamespace: azure.PostgreSQLNamespace,
 				},
 			},
 		},
