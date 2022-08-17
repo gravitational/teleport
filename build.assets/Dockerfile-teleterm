@@ -1,7 +1,7 @@
 ARG BUILDBOX_VERSION
 # GRPC_NODE_PLUGIN_BINARY_TYPE can be "prebuilt" or "compiled"
 ARG GRPC_NODE_PLUGIN_BINARY_TYPE
-FROM quay.io/gravitational/teleport-buildbox:$BUILDBOX_VERSION as base
+FROM public.ecr.aws/gravitational/teleport-buildbox:$BUILDBOX_VERSION as base
 
 ARG BUILDARCH
 
