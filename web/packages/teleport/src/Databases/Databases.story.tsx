@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 
 import { Databases } from './Databases';
 import { State } from './useDatabases';
@@ -25,30 +26,42 @@ export default {
   excludeStories: ['props'],
 };
 
-export const Loaded = () => <Databases {...props} />;
+export const Loaded = () => (
+  <MemoryRouter>
+    <Databases {...props} />
+  </MemoryRouter>
+);
 
 export const Empty = () => (
-  <Databases {...props} results={{ databases: [] }} isSearchEmpty={true} />
+  <MemoryRouter>
+    <Databases {...props} results={{ databases: [] }} isSearchEmpty={true} />
+  </MemoryRouter>
 );
 
 export const EmptyReadOnly = () => (
-  <Databases
-    {...props}
-    results={{ databases: [] }}
-    canCreate={false}
-    isSearchEmpty={true}
-  />
+  <MemoryRouter>
+    <Databases
+      {...props}
+      results={{ databases: [] }}
+      canCreate={false}
+      isSearchEmpty={true}
+    />
+  </MemoryRouter>
 );
 
 export const Loading = () => (
-  <Databases {...props} attempt={{ status: 'processing' }} />
+  <MemoryRouter>
+    <Databases {...props} attempt={{ status: 'processing' }} />
+  </MemoryRouter>
 );
 
 export const Failed = () => (
-  <Databases
-    {...props}
-    attempt={{ status: 'failed', statusText: 'Server Error' }}
-  />
+  <MemoryRouter>
+    <Databases
+      {...props}
+      attempt={{ status: 'failed', statusText: 'Server Error' }}
+    />
+  </MemoryRouter>
 );
 
 export const props: State = {

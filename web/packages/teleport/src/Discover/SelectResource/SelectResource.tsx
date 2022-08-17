@@ -17,14 +17,16 @@ import React, { useEffect, useState } from 'react';
 import { Cloud } from 'design/Icon';
 import SlideTabs from 'design/SlideTabs';
 import styled from 'styled-components';
+import { useLocation } from 'react-router';
 
-import { Image, Text, Box, ButtonPrimary, ButtonSecondary, Flex } from 'design';
+import { Image, Text, Box, Flex } from 'design';
 
-import Empty from 'teleport/components/Empty';
-import cfg from 'teleport/config';
+import AddApp from 'teleport/Apps/AddApp';
+import AddDatabase from 'teleport/Databases/AddDatabase';
+import AddKube from 'teleport/Kubes/AddKube';
 import useTeleport from 'teleport/useTeleport';
 
-import { resourceTypes } from '../resource-lists';
+import { ActionButtons } from '../Shared';
 
 import applicationIcon from './assets/application.png';
 import databaseIcon from './assets/database.png';
@@ -35,22 +37,61 @@ import type { TabComponent } from 'design/SlideTabs/SlideTabs';
 import type { ResourceType, ResourceLocation } from '../resource-lists';
 import type { AgentStepProps } from '../types';
 import type { State } from '../useDiscover';
+import type { AuthType } from 'teleport/services/user';
 
 export default function Container(props: AgentStepProps) {
   const ctx = useTeleport();
-  return <SelectResource nextStep={props.nextStep} />;
+  const ctxState = ctx.storeUser.state;
+  return (
+    <SelectResource
+      authType={ctxState.authType}
+      isEnterprise={ctx.isEnterprise}
+      nextStep={props.nextStep}
+      username={ctxState.username}
+      version={ctxState.cluster.authVersion}
+    />
+  );
 }
 
-type Props = {
-  // ctx: DiscoverContext;
-  // props: AgentStepProps;
-  nextStep: State['nextStep'];
+type ValidResourceTypes =
+  | 'application'
+  | 'database'
+  | 'desktop'
+  | 'kubernetes'
+  | 'server';
+
+type Loc = {
+  state: {
+    entity: ValidResourceTypes;
+  };
 };
 
-export function SelectResource({ nextStep }: Props) {
-  const [selectedResource, setSelectedResource] = useState<string>('server');
+type Props = {
+  authType: AuthType;
+  isEnterprise: boolean;
+  nextStep: State['nextStep'];
+  username: string;
+  version: string;
+};
+
+export function SelectResource({
+  authType,
+  isEnterprise,
+  nextStep,
+  username,
+  version,
+}: Props) {
+  const location: Loc = useLocation();
+
+  const [selectedResource, setSelectedResource] = useState<ValidResourceTypes>(
+    location?.state?.entity
+  );
   const [selectedType, setSelectedType] = useState('');
   const [disableProceed, setDisableProceed] = useState<boolean>(true);
+  const [showAddApp, setShowAddApp] = useState(false);
+  const [showAddKube, setShowAddKube] = useState(false);
+  const [showAddDB, setShowAddDB] = useState(false);
+
   const tabs: TabComponent[] = [
     {
       name: 'server',
@@ -112,61 +153,82 @@ export function SelectResource({ nextStep }: Props) {
     setDisableProceed(true);
   }, [selectedResource, selectedType]);
 
+  const initialSelected = tabs.findIndex(
+    component => component.name === location?.state?.entity
+  );
+
   return (
     <Box width="1020px">
-      <Text mb={4} typography="h4">
-        Resource Selection
+      <Text typography="h4">Resource Selection</Text>
+      <Text mb={4}>
+        Users are able to add and access many different types of resources
+        through Teleport. Start by selecting the type of resource you want to
+        add.
       </Text>
       <Text mb={2}>Select Resource Type</Text>
       <SlideTabs
+        initialSelected={initialSelected > 0 ? initialSelected : 0}
         tabs={tabs}
-        onChange={index => setSelectedResource(tabs[index].name)}
+        onChange={index =>
+          setSelectedResource(tabs[index].name as ValidResourceTypes)
+        }
       />
       {selectedResource === 'database' && (
-        <SelectDBDeploymentType
-          selectedType={selectedType}
-          setSelectedType={setSelectedType}
-          resourceTypes={resourceTypes}
+        // As we're focusing on the server flow uncomment this when we start
+        // implementing the database support.
+        // <SelectDBDeploymentType
+        //   selectedType={selectedType}
+        //   setSelectedType={setSelectedType}
+        //   resourceTypes={resourceTypes}
+        // />
+        <ActionButtons
+          onProceed={() => {
+            setShowAddDB(true);
+          }}
+          disableProceed={false}
         />
       )}
       {selectedResource === 'application' && (
-        <Empty
-          clusterId="abc123"
-          canCreate={true}
-          onClick={() => {}}
-          emptyStateInfo={{
-            title: 'Add your first application to Teleport',
-            byline:
-              'Teleport Application Access provides secure access to internal applications.',
-            docsURL:
-              'https://goteleport.com/docs/application-access/getting-started/',
-            resourceType: 'application',
-            readOnly: {
-              title: 'No Applications Found',
-              resource: 'applications',
-            },
+        <ActionButtons
+          onProceed={() => {
+            setShowAddApp(true);
           }}
+          disableProceed={false}
         />
       )}
-      <Box mt={4}>
-        <ButtonPrimary
-          size="medium"
-          disabled={disableProceed}
-          mr={3}
-          onClick={() => {
-            nextStep();
-            // nextStep({
-            //   resource: selectedResource,
-            //   type: selectedType,
-            // });
+      {selectedResource === 'desktop' && (
+        <ActionButtons
+          proceedHref="https://goteleport.com/docs/desktop-access/getting-started/"
+          disableProceed={false}
+        />
+      )}
+      {selectedResource === 'kubernetes' && (
+        <ActionButtons
+          onProceed={() => {
+            setShowAddKube(true);
           }}
-        >
-          Proceed
-        </ButtonPrimary>
-        <ButtonSecondary as="a" href={cfg.routes.root} size="medium">
-          Go to dashboard
-        </ButtonSecondary>
-      </Box>
+          disableProceed={false}
+        />
+      )}
+      {selectedResource === 'server' && (
+        <ActionButtons
+          onProceed={() => {
+            nextStep();
+          }}
+          disableProceed={disableProceed}
+        />
+      )}
+      {showAddApp && <AddApp onClose={() => setShowAddApp(false)} />}
+      {showAddKube && <AddKube onClose={() => setShowAddKube(false)} />}
+      {showAddDB && (
+        <AddDatabase
+          isEnterprise={isEnterprise}
+          username={username}
+          version={version}
+          authType={authType}
+          onClose={() => setShowAddDB(false)}
+        />
+      )}
     </Box>
   );
 }

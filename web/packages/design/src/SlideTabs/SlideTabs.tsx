@@ -17,13 +17,14 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 function SlideTabs({
-  tabs,
+  appearance = 'square',
+  initialSelected = 0,
   name = 'slide-tab',
   onChange,
   size = 'xlarge',
-  appearance = 'square',
+  tabs,
 }: props) {
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(initialSelected);
 
   useEffect(() => {
     onChange(activeIndex);
@@ -60,17 +61,19 @@ function SlideTabs({
 }
 
 type props = {
-  // A list of tab names that you'd like displayed in the list of tabs.
-  tabs: string[] | TabComponent[];
-  // To be notified when the selected tab changes supply it with this fn.
-  onChange: (selectedTab: number) => void;
+  // The style to render the selector in.
+  appearance?: 'square' | 'round';
+  // The index that you'd like to select on the initial render.
+  initialSelected?: number;
   // The name you'd like to use for the form if using multiple tabs on the page.
   // Default: "slide-tab"
   name?: string;
-  // The style to render the selector in.
-  appearance?: 'square' | 'round';
+  // To be notified when the selected tab changes supply it with this fn.
+  onChange: (selectedTab: number) => void;
   // The size to render the selector in.
   size?: 'xlarge' | 'medium';
+  // A list of tab names that you'd like displayed in the list of tabs.
+  tabs: string[] | TabComponent[];
 };
 
 export type TabComponent = {

@@ -15,6 +15,7 @@
  */
 
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 
 import { Apps } from './Apps';
 import { State } from './useApps';
@@ -25,30 +26,42 @@ export default {
   excludeStories: ['props'],
 };
 
-export const Loaded = () => <Apps {...props} />;
+export const Loaded = () => (
+  <MemoryRouter>
+    <Apps {...props} />
+  </MemoryRouter>
+);
 
 export const Empty = () => (
-  <Apps {...props} results={{ apps: [] }} isSearchEmpty={true} />
+  <MemoryRouter>
+    <Apps {...props} results={{ apps: [] }} isSearchEmpty={true} />
+  </MemoryRouter>
 );
 
 export const EmptyReadOnly = () => (
-  <Apps
-    {...props}
-    results={{ apps: [] }}
-    canCreate={false}
-    isSearchEmpty={true}
-  />
+  <MemoryRouter>
+    <Apps
+      {...props}
+      results={{ apps: [] }}
+      canCreate={false}
+      isSearchEmpty={true}
+    />
+  </MemoryRouter>
 );
 
 export const Loading = () => (
-  <Apps {...props} attempt={{ status: 'processing' }} />
+  <MemoryRouter>
+    <Apps {...props} attempt={{ status: 'processing' }} />
+  </MemoryRouter>
 );
 
 export const Failed = () => (
-  <Apps
-    {...props}
-    attempt={{ status: 'failed', statusText: 'some error message' }}
-  />
+  <MemoryRouter>
+    <Apps
+      {...props}
+      attempt={{ status: 'failed', statusText: 'some error message' }}
+    />
+  </MemoryRouter>
 );
 
 export const props: State = {

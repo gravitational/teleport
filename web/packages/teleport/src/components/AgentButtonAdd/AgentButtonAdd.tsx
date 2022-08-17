@@ -15,7 +15,11 @@ limitations under the License.
 */
 
 import React from 'react';
+import { Link } from 'react-router-dom';
+
 import { ButtonPrimary } from 'design';
+
+import cfg from 'teleport/config';
 
 export default function AgentButtonAdd(props: Props) {
   const { canCreate, isLeafCluster, onClick, agent, beginsWithVowel } = props;
@@ -35,14 +39,22 @@ export default function AgentButtonAdd(props: Props) {
   }
 
   return (
-    <ButtonPrimary
-      title={title}
-      disabled={disabled}
-      width="240px"
-      onClick={onClick}
+    <Link
+      to={{
+        pathname: `${cfg.routes.root}/discover`,
+        state: { entity: agent },
+      }}
+      style={{ textDecoration: 'none' }}
     >
-      Add {agent}
-    </ButtonPrimary>
+      <ButtonPrimary
+        title={title}
+        disabled={disabled}
+        width="240px"
+        onClick={onClick}
+      >
+        Add {agent}
+      </ButtonPrimary>
+    </Link>
   );
 }
 

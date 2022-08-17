@@ -246,13 +246,14 @@ exports[`empty state 1`] = `
   <div
     class="c10"
   >
+    
     <button
       class="c11"
       disabled=""
       kind="primary"
       width="165px"
     >
-      Proceed
+      Next
     </button>
     <button
       class="c12"
@@ -542,12 +543,13 @@ exports[`empty state with static logins 1`] = `
   <div
     class="c11"
   >
+    
     <button
       class="c12"
       kind="primary"
       width="165px"
     >
-      Proceed
+      Next
     </button>
     <button
       class="c13"
@@ -938,12 +940,13 @@ exports[`loaded with static state 1`] = `
   <div
     class="c11"
   >
+    
     <button
       class="c12"
       kind="primary"
       width="165px"
     >
-      Proceed
+      Next
     </button>
     <button
       class="c13"

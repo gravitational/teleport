@@ -76,7 +76,6 @@ export function Apps(props: State) {
             beginsWithVowel={true}
             isLeafCluster={isLeafCluster}
             canCreate={canCreate}
-            onClick={showAddApp}
           />
         )}
       </FeatureHeader>
@@ -111,7 +110,6 @@ export function Apps(props: State) {
         <Empty
           clusterId={clusterId}
           canCreate={canCreate && !isLeafCluster}
-          onClick={showAddApp}
           emptyStateInfo={emptyStateInfo}
         />
       )}

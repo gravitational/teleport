@@ -386,13 +386,14 @@ exports[`polling error state 1`] = `
   <div
     class="c13"
   >
+    
     <button
       class="c14"
       disabled=""
       kind="primary"
       width="165px"
     >
-      Proceed
+      Next
     </button>
     <button
       class="c15"
@@ -682,13 +683,14 @@ exports[`polling state 1`] = `
   <div
     class="c11"
   >
+    
     <button
       class="c12"
       disabled=""
       kind="primary"
       width="165px"
     >
-      Proceed
+      Next
     </button>
     <button
       class="c13"
@@ -976,12 +978,13 @@ exports[`polling success state 1`] = `
   <div
     class="c11"
   >
+    
     <button
       class="c12"
       kind="primary"
       width="165px"
     >
-      Proceed
+      Next
     </button>
     <button
       class="c13"

@@ -16,6 +16,7 @@
 
 import React from 'react';
 import styled from 'styled-components';
+import { NavLink } from 'react-router-dom';
 
 import { Text, ButtonPrimary, ButtonSecondary, Box } from 'design';
 import Dialog, {
@@ -26,7 +27,6 @@ import Dialog, {
 } from 'design/Dialog';
 
 import cfg from 'teleport/config';
-import history from 'teleport/services/history';
 
 export const Header: React.FC = ({ children }) => (
   <Text mb={4} typography="h4" bold>
@@ -35,17 +35,32 @@ export const Header: React.FC = ({ children }) => (
 );
 
 export const ActionButtons = ({
-  onProceed,
-  disableProceed,
-  lastStep,
+  onProceed = null,
+  proceedHref = '',
+  disableProceed = false,
+  lastStep = false,
 }: {
   onProceed?(): void;
+  proceedHref?: string;
   disableProceed?: boolean;
   lastStep?: boolean;
 }) => {
   const [confirmExit, setConfirmExit] = React.useState(false);
   return (
     <Box mt={4}>
+      {proceedHref && (
+        <ButtonPrimary
+          size="medium"
+          as="a"
+          href={proceedHref}
+          target="_blank"
+          width="224px"
+          mr={3}
+          rel="noreferrer"
+        >
+          View Documentation
+        </ButtonPrimary>
+      )}
       {onProceed && (
         <ButtonPrimary
           width="165px"
@@ -53,7 +68,7 @@ export const ActionButtons = ({
           mr={3}
           disabled={disableProceed}
         >
-          {lastStep ? 'Finish' : 'Proceed'}
+          {lastStep ? 'Finish' : 'Next'}
         </ButtonPrimary>
       )}
       <ButtonSecondary
@@ -83,17 +98,15 @@ function ConfirmExitDialog({ onClose }: { onClose(): void }) {
       </DialogHeader>
       <DialogContent minWidth="500px" flex="0 0 auto">
         <Text mb={2}>
-          Are you sure you want to cancel the Resource connection process?
+          Are you sure you want to exit the “Add New Resource” workflow? You’ll
+          have to start from the beginning next time.
         </Text>
       </DialogContent>
       <DialogFooter>
-        <ButtonPrimary
-          mr="3"
-          onClick={() => history.push(cfg.routes.root, true)}
-        >
-          Yes
+        <ButtonPrimary mr="3" as={NavLink} to={cfg.routes.root} size="medium">
+          Exit
         </ButtonPrimary>
-        <ButtonSecondary onClick={onClose}>Cancel</ButtonSecondary>
+        <ButtonSecondary onClick={onClose}>Stay</ButtonSecondary>
       </DialogFooter>
     </Dialog>
   );

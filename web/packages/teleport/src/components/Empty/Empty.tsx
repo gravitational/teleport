@@ -15,10 +15,12 @@ limitations under the License.
 */
 
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 import { Text, Box, Flex, ButtonPrimary, ButtonOutlined } from 'design';
-import Card from 'design/Card';
 import Image from 'design/Image';
+
+import cfg from 'teleport/config';
 
 import application from './assets/appplication.png';
 import database from './assets/database.png';
@@ -44,7 +46,7 @@ function getAccentImage(resourceType: ResourceType): string {
 }
 
 export default function Empty(props: Props) {
-  const { canCreate, onClick, clusterId, emptyStateInfo } = props;
+  const { canCreate, clusterId, emptyStateInfo } = props;
 
   const { byline, docsURL, resourceType, readOnly, title } = emptyStateInfo;
 
@@ -57,7 +59,6 @@ export default function Empty(props: Props) {
         maxWidth="664px"
         textAlign="center"
         color="text.primary"
-        bg="primary.light"
         borderRadius="12px"
       >
         <Text typography="h2" mb="3">
@@ -75,13 +76,12 @@ export default function Empty(props: Props) {
   }
 
   return (
-    <Card
+    <Box
       p={8}
       pt={5}
       as={Flex}
       width="100%"
       mx="auto"
-      bg="primary.light"
       alignItems="center"
       justifyContent="center"
     >
@@ -102,11 +102,15 @@ export default function Empty(props: Props) {
           </Text>
         </Box>
         <Box textAlign="center">
-          {onClick && (
-            <ButtonPrimary onClick={onClick} width="224px">
-              Add {resourceType}
-            </ButtonPrimary>
-          )}
+          <Link
+            to={{
+              pathname: `${cfg.routes.root}/discover`,
+              state: { entity: resourceType },
+            }}
+            style={{ textDecoration: 'none' }}
+          >
+            <ButtonPrimary width="224px">Add {resourceType}</ButtonPrimary>
+          </Link>
           <ButtonOutlined
             size="medium"
             as="a"
@@ -120,7 +124,7 @@ export default function Empty(props: Props) {
           </ButtonOutlined>
         </Box>
       </Box>
-    </Card>
+    </Box>
   );
 }
 
@@ -137,7 +141,6 @@ export type EmptyStateInfo = {
 
 export type Props = {
   canCreate: boolean;
-  onClick?: () => void;
   clusterId: string;
   emptyStateInfo: EmptyStateInfo;
 };

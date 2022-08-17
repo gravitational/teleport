@@ -108,4 +108,15 @@ describe('design/SlideTabs', () => {
     );
     expect(container.firstChild).toMatchSnapshot();
   });
+
+  it('supports passing in a selected index', () => {
+    const { container } = render(
+      <SlideTabs
+        initialSelected={1}
+        tabs={['aws', 'automatically', 'manually']}
+        onChange={() => {}}
+      />
+    );
+    expect(container.firstChild).toMatchSnapshot();
+  });
 });

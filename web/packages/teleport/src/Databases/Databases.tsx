@@ -26,9 +26,10 @@ import {
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
 
+import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
+
 import DatabaseList from './DatabaseList';
 import useDatabases, { State } from './useDatabases';
-import ButtonAdd from './ButtonAdd';
 import AddDatabase from './AddDatabase';
 
 export default function Container() {
@@ -74,10 +75,11 @@ export function Databases(props: State) {
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Databases</FeatureHeaderTitle>
         {attempt.status === 'success' && !hasNoDatabases && (
-          <ButtonAdd
+          <AgentButtonAdd
+            agent="database"
+            beginsWithVowel={false}
             isLeafCluster={isLeafCluster}
             canCreate={canCreate}
-            onClick={showAddDialog}
           />
         )}
       </FeatureHeader>
@@ -117,7 +119,6 @@ export function Databases(props: State) {
         <Empty
           clusterId={clusterId}
           canCreate={canCreate && !isLeafCluster}
-          onClick={showAddDialog}
           emptyStateInfo={emptyStateInfo}
         />
       )}
