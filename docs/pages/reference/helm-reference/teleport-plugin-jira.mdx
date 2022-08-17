@@ -91,51 +91,6 @@ Name of the key in the Kubernetes secret that holds the credentials for the conn
   </TabItem>
 </Tabs>
 
-## `jira.url`
-
-| Type | Default value | Required? |
-| - | - | - |
-| `string` | `""` | Yes |
-
-Base URL of the Jira instance.
-
-<Tabs>
-  <TabItem label="values.yaml">
-  ```yaml
-  jira:
-    url: "https://jira.example.com/"
-  ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set jira.url="https://jira.example.com/"
-  ```
-  </TabItem>
-</Tabs>
-
-## `jira.token`
-
-| Type | Default value | Required? |
-| - | - | - |
-| `string` | `""` | No |
-
-Jira token of the bot user to impersonate when sending the Access Request messages. It's only recommended for testing purposes.
-Please use [`jira.apiTokenFromSecret`](#jiraapitokenfromsecret) instead.
-
-<Tabs>
-  <TabItem label="values.yaml">
-  ```yaml
-  jira:
-    token: "jiraapitoken"
-  ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set jira.token="jiraapitoken"
-  ```
-  </TabItem>
-</Tabs>
-
 ## `jira.apiTokenFromSecret`
 
 | Type | Default value | Required? |
@@ -180,24 +135,46 @@ Key where the token is located inside the secret specified by `jira.apiTokenFrom
   </TabItem>
 </Tabs>
 
-## `jira.username`
+## `jira.issueType`
 
 | Type | Default value | Required? |
 | - | - | - |
-| `string` | `""` | Yes |
+| `string` | `"Task"` | Yes |
 
-Jira username or email address associated with the token.
+Issue type to be created when a new Access Request is made.
 
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
   jira:
-    username: "user@example.com"
+    issueType: Task
   ```
   </TabItem>
   <TabItem label="--set">
   ```code
-  $ --set jira.username="user@example.com"
+  $ --set jira.issueType=Task
+  ```
+  </TabItem>
+</Tabs>
+
+## `jira.project`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `""` | Yes |
+
+List of project who will receive notifications about Access Requests.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  jira:
+    project: MYPROJ
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set jira.project=MYPROJ
   ```
   </TabItem>
 </Tabs>
@@ -226,46 +203,69 @@ List of recipients who will receive notifications about Access Requests.
   </TabItem>
 </Tabs>
 
-## `jira.project`
+## `jira.token`
+
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `""` | No |
+
+Jira token of the bot user to impersonate when sending the Access Request messages. It's only recommended for testing purposes.
+Please use [`jira.apiTokenFromSecret`](#jiraapitokenfromsecret) instead.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  jira:
+    token: "jiraapitoken"
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set jira.token="jiraapitoken"
+  ```
+  </TabItem>
+</Tabs>
+
+## `jira.url`
 
 | Type | Default value | Required? |
 | - | - | - |
 | `string` | `""` | Yes |
 
-List of project who will receive notifications about Access Requests.
+Base URL of the Jira instance.
 
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
   jira:
-    project: MYPROJ
+    url: "https://jira.example.com/"
   ```
   </TabItem>
   <TabItem label="--set">
   ```code
-  $ --set jira.project=MYPROJ
+  $ --set jira.url="https://jira.example.com/"
   ```
   </TabItem>
 </Tabs>
 
-## `jira.issueType`
+## `jira.username`
 
 | Type | Default value | Required? |
 | - | - | - |
-| `string` | `"Task"` | Yes |
+| `string` | `""` | Yes |
 
-Issue type to be created when a new Access Request is made.
+Jira username or email address associated with the token.
 
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
   jira:
-    issueType: Task
+    username: "user@example.com"
   ```
   </TabItem>
   <TabItem label="--set">
   ```code
-  $ --set jira.issueType=Task
+  $ --set jira.username="user@example.com"
   ```
   </TabItem>
 </Tabs>
