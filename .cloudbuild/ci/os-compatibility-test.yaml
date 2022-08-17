@@ -4,16 +4,19 @@ options:
    machineType: E2_HIGHCPU_32
 
 steps:
-  - name: quay.io/gravitational/teleport-buildbox:teleport11
+  - name: public.ecr.aws/gravitational/teleport-buildbox-centos7:teleport11
     id: build-teleport
     dir: /workspace
     entrypoint: "/bin/bash"
     args: 
       - '-c'
-      - 'make -j$$(nproc) build/tctl build/tsh build/tbot build/teleport'
+      - 'make -j$$(nproc) build/tctl build/tsh build/tbot build/teleport'  
     timeout: 10m
+    env:
+      - GOCACHE=/tmp/gocache
+
   - name: gcr.io/cloud-builders/docker
-    id: run-tests
+    id: compatibility-test
     entrypoint: "/bin/bash"
     args: 
       - './build.assets/build-test-compat.sh'
