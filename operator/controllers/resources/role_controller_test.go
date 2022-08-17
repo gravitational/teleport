@@ -174,6 +174,7 @@ allow:
 			if tc.shouldFail {
 				// We wait 1 second to ensure reconciliation happened
 				time.Sleep(time.Second)
+				_, err := tClient.GetRole(ctx, roleName)
 				require.True(t, trace.IsNotFound(err), "The role should not be created in Teleport")
 			} else {
 				// We wait for Teleport resource creation
