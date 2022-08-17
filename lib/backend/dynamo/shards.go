@@ -215,7 +215,6 @@ func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard *dynam
 	defer ticker.Stop()
 	iterator := shardIterator.ShardIterator
 	shardID := aws.StringValue(shard.ShardId)
-	b.signalWatchStart()
 	for {
 		select {
 		case <-ctx.Done():
