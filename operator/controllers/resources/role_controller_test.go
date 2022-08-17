@@ -19,13 +19,14 @@ package resources
 import (
 	"context"
 	"encoding/json"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/yaml"
 	"reflect"
 	"sort"
 	"testing"
 	"time"
+
+	apiutils "github.com/gravitational/teleport/api/utils"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"

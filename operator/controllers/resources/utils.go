@@ -18,6 +18,7 @@ package resources
 
 import (
 	"fmt"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -105,7 +106,7 @@ func getValidStructureCondition(err error) metav1.Condition {
 			Type:    ConditionTypeValidStructure,
 			Status:  metav1.ConditionTrue,
 			Reason:  ConditionReasonNoError,
-			Message: "Kubernetes CR was sucessfully decoded.",
+			Message: "Kubernetes CR was successfully decoded.",
 		}
 	} else {
 		condition = metav1.Condition{
