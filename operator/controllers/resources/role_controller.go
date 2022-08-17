@@ -21,18 +21,20 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
+	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport/api/types"
-	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
-	"github.com/gravitational/teleport/operator/sidecar"
-	"github.com/gravitational/trace"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/gravitational/teleport/api/types"
+	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
+	"github.com/gravitational/teleport/operator/sidecar"
 )
 
 const teleportRoleKind = "TeleportRole"
