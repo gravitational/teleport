@@ -29,6 +29,9 @@ type ConnectionsDiagnostic interface {
 	// CreateConnectionDiagnostic creates a new Connection Diagnostic
 	CreateConnectionDiagnostic(context.Context, types.ConnectionDiagnostic) error
 
+	// UpdateConnectionDiagnostic updates a Connection Diagnostic
+	UpdateConnectionDiagnostic(context.Context, types.ConnectionDiagnostic) error
+
 	// GetConnectionDiagnostic receives a name and returns the Connection Diagnostic matching that name
 	//
 	// If not found, a `trace.NotFound` error is returned

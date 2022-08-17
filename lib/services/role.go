@@ -713,7 +713,7 @@ func ExtractFromIdentity(access UserGetter, identity tlsca.Identity) ([]string, 
 			return nil, nil, trace.Wrap(err)
 		}
 
-		log.Warnf("Failed to find roles or traits in x509 identity for %v. Fetching	"+
+		log.Warnf("Failed to find roles in x509 identity for %v. Fetching "+
 			"from backend. If the identity provider allows username changes, this can "+
 			"potentially allow an attacker to change the role of the existing user.",
 			identity.Username)
@@ -1373,7 +1373,7 @@ func (set RoleSet) CheckAccessToRemoteCluster(rc types.RemoteCluster) error {
 		}
 	}
 
-	if usesLabels == false && len(rcLabels) == 0 {
+	if !usesLabels && len(rcLabels) == 0 {
 		debugf("Grant access to cluster %v - no role in %v uses cluster labels and the cluster is not labeled.",
 			rc.GetName(), set.RoleNames())
 		return nil

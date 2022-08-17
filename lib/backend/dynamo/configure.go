@@ -150,3 +150,44 @@ func getWriteScalingPolicyName(resourceID string) string {
 func getReadScalingPolicyName(resourceID string) string {
 	return fmt.Sprintf("%s-read-target-tracking-scaling-policy", strings.TrimPrefix(resourceID, "table/"))
 }
+
+func TurnOnTimeToLive(ctx context.Context, svc dynamodbiface.DynamoDBAPI, tableName string, ttlKey string) error {
+	status, err := svc.DescribeTimeToLiveWithContext(ctx, &dynamodb.DescribeTimeToLiveInput{
+		TableName: aws.String(tableName),
+	})
+	if err != nil {
+		return convertError(err)
+	}
+	switch aws.StringValue(status.TimeToLiveDescription.TimeToLiveStatus) {
+	case dynamodb.TimeToLiveStatusEnabled, dynamodb.TimeToLiveStatusEnabling:
+		return nil
+	}
+	_, err = svc.UpdateTimeToLiveWithContext(ctx, &dynamodb.UpdateTimeToLiveInput{
+		TableName: aws.String(tableName),
+		TimeToLiveSpecification: &dynamodb.TimeToLiveSpecification{
+			AttributeName: aws.String(ttlKey),
+			Enabled:       aws.Bool(true),
+		},
+	})
+	return convertError(err)
+}
+
+func TurnOnStreams(ctx context.Context, svc dynamodbiface.DynamoDBAPI, tableName string) error {
+	status, err := svc.DescribeTableWithContext(ctx, &dynamodb.DescribeTableInput{
+		TableName: aws.String(tableName),
+	})
+	if err != nil {
+		return convertError(err)
+	}
+	if status.Table.StreamSpecification != nil && aws.BoolValue(status.Table.StreamSpecification.StreamEnabled) {
+		return nil
+	}
+	_, err = svc.UpdateTableWithContext(ctx, &dynamodb.UpdateTableInput{
+		TableName: aws.String(tableName),
+		StreamSpecification: &dynamodb.StreamSpecification{
+			StreamEnabled:  aws.Bool(true),
+			StreamViewType: aws.String(dynamodb.StreamViewTypeNewImage),
+		},
+	})
+	return convertError(err)
+}

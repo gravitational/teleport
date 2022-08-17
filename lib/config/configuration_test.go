@@ -609,6 +609,14 @@ teleport:
 `,
 			outError: true,
 		},
+		{
+			desc: "proxy-peering, valid",
+			inConfig: `
+proxy_service:
+  peer_listen_addr: peerhost:1234
+  peer_public_addr: peer.example:1234
+`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -656,7 +664,10 @@ func TestApplyConfig(t *testing.T) {
 	err = ApplyFileConfig(conf, cfg)
 	require.NoError(t, err)
 
-	require.Equal(t, "join-token", cfg.Token)
+	token, err := cfg.Token()
+	require.NoError(t, err)
+
+	require.Equal(t, "join-token", token)
 	require.Equal(t, types.ProvisionTokensFromV1([]types.ProvisionTokenV1{
 		{
 			Token:   "xxx",
@@ -699,6 +710,7 @@ func TestApplyConfig(t *testing.T) {
 	require.Len(t, cfg.Proxy.MongoPublicAddrs, 1)
 	require.Equal(t, "tcp://mongo.example:27017", cfg.Proxy.MongoPublicAddrs[0].FullAddress())
 	require.Equal(t, "tcp://peerhost:1234", cfg.Proxy.PeerAddr.FullAddress())
+	require.Equal(t, "tcp://peer.example:1234", cfg.Proxy.PeerPublicAddr.FullAddress())
 
 	require.Equal(t, "tcp://127.0.0.1:3000", cfg.DiagnosticAddr.FullAddress())
 
@@ -857,6 +869,56 @@ func TestPostgresPublicAddr(t *testing.T) {
 			err := applyProxyConfig(test.fc, cfg)
 			require.NoError(t, err)
 			require.EqualValues(t, test.out, utils.NetAddrsToStrings(cfg.Proxy.PostgresPublicAddrs))
+		})
+	}
+}
+
+// TestProxyPeeringPublicAddr makes sure the public address can only be
+// set if the listen addr is set.
+func TestProxyPeeringPublicAddr(t *testing.T) {
+	tests := []struct {
+		desc    string
+		fc      *FileConfig
+		wantErr bool
+	}{
+		{
+			desc: "full proxy peering config",
+			fc: &FileConfig{
+				Proxy: Proxy{
+					PeerAddr:       "peerhost:1234",
+					PeerPublicAddr: "peer.example:5432",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			desc: "no public proxy peering addr in config",
+			fc: &FileConfig{
+				Proxy: Proxy{
+					PeerAddr: "peerhost:1234",
+				},
+			},
+			wantErr: false,
+		},
+		{
+			desc: "no private proxy peering addr in config",
+			fc: &FileConfig{
+				Proxy: Proxy{
+					PeerPublicAddr: "peer.example:1234",
+				},
+			},
+			wantErr: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			cfg := service.MakeDefaultConfig()
+			err := applyProxyConfig(test.fc, cfg)
+			if test.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }
@@ -2539,6 +2601,103 @@ func TestApplyConfigSessionRecording(t *testing.T) {
 			require.Equal(t, tt.outOrigin, cfg.Auth.SessionRecordingConfig.Origin())
 			require.Equal(t, tt.outSessionRecording, cfg.Auth.SessionRecordingConfig.GetMode())
 			require.Equal(t, tt.outProxyChecksHostKeys, cfg.Auth.SessionRecordingConfig.GetProxyChecksHostKeys())
+		})
+	}
+}
+
+func TestJoinParams(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		desc             string
+		input            string
+		expectToken      string
+		expectJoinMethod types.JoinMethod
+		expectError      bool
+	}{
+		{
+			desc: "empty",
+		},
+		{
+			desc: "auth_token",
+			input: `
+teleport:
+  auth_token: xxxyyy
+`,
+			expectToken:      "xxxyyy",
+			expectJoinMethod: types.JoinMethodToken,
+		},
+		{
+			desc: "join_params token",
+			input: `
+teleport:
+  join_params:
+    token_name: xxxyyy
+    method: token
+`,
+			expectToken:      "xxxyyy",
+			expectJoinMethod: types.JoinMethodToken,
+		},
+		{
+			desc: "join_params ec2",
+			input: `
+teleport:
+  join_params:
+    token_name: xxxyyy
+    method: ec2
+`,
+			expectToken:      "xxxyyy",
+			expectJoinMethod: types.JoinMethodEC2,
+		},
+		{
+			desc: "join_params iam",
+			input: `
+teleport:
+  join_params:
+    token_name: xxxyyy
+    method: iam
+`,
+			expectToken:      "xxxyyy",
+			expectJoinMethod: types.JoinMethodIAM,
+		},
+		{
+			desc: "join_params invalid",
+			input: `
+teleport:
+  join_params:
+    token_name: xxxyyy
+    method: invalid
+`,
+			expectError: true,
+		},
+		{
+			desc: "both set",
+			input: `
+teleport:
+  auth_token: xxxyyy
+  join_params:
+    token_name: xxxyyy
+    method: iam
+`,
+			expectError: true,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			conf, err := ReadConfig(strings.NewReader(tc.input))
+			require.NoError(t, err)
+
+			cfg := service.MakeDefaultConfig()
+			err = ApplyFileConfig(conf, cfg)
+
+			if tc.expectError {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			token, err := cfg.Token()
+			require.NoError(t, err)
+			require.Equal(t, tc.expectToken, token)
+			require.Equal(t, tc.expectJoinMethod, cfg.JoinMethod)
 		})
 	}
 }
