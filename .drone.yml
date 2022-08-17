@@ -1775,7 +1775,7 @@ steps:
     \;
   - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts
     \;
-  - cp /go/src/github.com/gravitational/webapps/packages/teleterm/build/release/teleconnect*.{tar.gz,deb,rpm}
+  - cp /go/src/github.com/gravitational/webapps/packages/teleterm/build/release/teleport-connect*.{tar.gz,deb,rpm}
     /go/artifacts/
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
@@ -6490,6 +6490,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 1d64dc325fa199e283ce9c4d3d440da0ee00f0f7b4fbab012fc5cd7e94e053f6
+hmac: dd5ac7e488082a4cd5e3b0d03b39c370477de7afe1dec964ef5bcda2973fbf7a
 
 ...
