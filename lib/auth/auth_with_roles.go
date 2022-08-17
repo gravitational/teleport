@@ -30,6 +30,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -2209,7 +2210,7 @@ func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.User
 			log.WithError(err).Warn()
 			return nil, err
 		}
-		return a.desiredAccessInfoForRoleRequest(req)
+		return a.desiredAccessInfoForRoleRequest(req, user.GetTraits())
 	}
 	return a.desiredAccessInfoForUser(ctx, req, user)
 }
@@ -2224,7 +2225,7 @@ func (a *ServerWithRoles) desiredAccessInfoForImpersonation(req *proto.UserCerts
 }
 
 // desiredAccessInfoForRoleRequest returns the desired roles for a role request.
-func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRequest) (*services.AccessInfo, error) {
+func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRequest, traits wrappers.Traits) (*services.AccessInfo, error) {
 	// If UseRoleRequests is set, make sure we don't return unusable certs: an
 	// identity without roles can't be parsed.
 	// DEPRECATED: consider making role requests without UseRoleRequests set an
@@ -2238,9 +2239,12 @@ func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRe
 	// are intended to reduce allowed permissions so we'll accept them
 	// as-is for now (and ensure the user is allowed to assume them
 	// later).
-	// Note: traits are not currently set for role impersonation.
+	//
+	// Traits are copied across from the impersonating user so that role
+	// variables within the impersonated role behave as expected.
 	return &services.AccessInfo{
-		Roles: req.RoleRequests,
+		Roles:  req.RoleRequests,
+		Traits: traits,
 	}, nil
 }
 
