@@ -284,6 +284,9 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 	if c.AllowedResourceIDs != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionAllowedResources] = c.AllowedResourceIDs
 	}
+	if c.PrivateKeyPolicy != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionPrivateKeyPolicy] = string(c.PrivateKeyPolicy)
+	}
 
 	if c.SourceIP != "" {
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {

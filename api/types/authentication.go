@@ -90,6 +90,9 @@ type AuthPreference interface {
 	// require an MFA check.
 	GetRequireSessionMFA() bool
 
+	// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
+	GetPrivateKeyPolicy() constants.PrivateKeyPolicy
+
 	// GetDisconnectExpiredCert returns disconnect expired certificate setting
 	GetDisconnectExpiredCert() bool
 	// SetDisconnectExpiredCert sets disconnect client with expired certificate setting
@@ -341,6 +344,11 @@ func (c *AuthPreferenceV2) SetAllowPasswordless(b bool) {
 // an MFA check.
 func (c *AuthPreferenceV2) GetRequireSessionMFA() bool {
 	return c.Spec.RequireSessionMFA
+}
+
+// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
+func (c *AuthPreferenceV2) GetPrivateKeyPolicy() constants.PrivateKeyPolicy {
+	return c.Spec.PrivateKeyPolicy
 }
 
 // GetDisconnectExpiredCert returns disconnect expired certificate setting

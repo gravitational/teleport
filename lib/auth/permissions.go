@@ -189,6 +189,14 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 		authContext.LockTargets()...); lockErr != nil {
 		return nil, trace.Wrap(lockErr)
 	}
+
+	// Enforce private key policy.
+	identityPolicy := authContext.Identity.GetIdentity().PrivateKeyPolicy
+	requiredPolicy := services.GetPrivateKeyPolicy(authPref, authContext.Checker)
+	if !services.VerifyPrivateKeyPolicy(identityPolicy, requiredPolicy) {
+		return nil, trace.AccessDenied("required private key policy %q not met", requiredPolicy)
+	}
+
 	return authContext, nil
 }
 

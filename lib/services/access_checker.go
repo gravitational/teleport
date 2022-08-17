@@ -177,6 +177,9 @@ type AccessChecker interface {
 
 	// PinSourceIP forces the same client IP for certificate generation and SSH usage
 	PinSourceIP() bool
+
+	// PrivateKeyPolicy returns the enforced private key policy for this role set.
+	PrivateKeyPolicy() constants.PrivateKeyPolicy
 }
 
 // AccessInfo hold information about an identity necessary to check whether that

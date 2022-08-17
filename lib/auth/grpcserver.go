@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -4295,6 +4296,46 @@ func (g *GRPCServer) UpdateConnectionDiagnostic(ctx context.Context, connectionD
 	}
 
 	return &empty.Empty{}, nil
+}
+
+// AttestHardwarePrivateKey attests a hardware private key so that it
+// will be trusted by the Auth server in subsequent requests.
+func (g *GRPCServer) AttestHardwarePrivateKey(ctx context.Context, req *proto.AttestHardwarePrivateKeyRequest) (*proto.AttestHardwarePrivateKeyResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.ServerWithRoles.AttestHardwarePrivateKey(ctx, req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &proto.AttestHardwarePrivateKeyResponse{}, nil
+}
+
+// GetPrivateKeyPolicy gets the private key requirement enforced for the current user.
+func (g *GRPCServer) GetPrivateKeyPolicy(ctx context.Context, req *proto.GetPrivateKeyPolicyRequest) (*proto.GetPrivateKeyPolicyResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	policy, err := auth.ServerWithRoles.getPrivateKeyPolicy(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	var protoPolicy proto.PrivateKeyPolicy
+	switch policy {
+	case constants.PrivateKeyPolicyNone:
+		protoPolicy = proto.PrivateKeyPolicy_PRIVATE_KEY_POLICY_NONE
+	case constants.PrivateKeyPolicyHardwareKey:
+		protoPolicy = proto.PrivateKeyPolicy_PRIVATE_KEY_POLICY_HARDWARE_KEY
+	case constants.PrivateKeyPolicyHardwareKeyTouch:
+		protoPolicy = proto.PrivateKeyPolicy_PRIVATE_KEY_POLICY_HARDWARE_KEY_TOUCH
+	}
+
+	return &proto.GetPrivateKeyPolicyResponse{Policy: protoPolicy}, nil
 }
 
 // GRPCServerConfig specifies GRPC server configuration

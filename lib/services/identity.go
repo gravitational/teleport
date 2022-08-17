@@ -22,6 +22,7 @@ package services
 
 import (
 	"context"
+	"crypto"
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -257,6 +258,12 @@ type Identity interface {
 
 	// DeleteUserRecoveryAttempts removes all recovery attempts of a user.
 	DeleteUserRecoveryAttempts(ctx context.Context, user string) error
+
+	// UpsertHardwareKeyAttestation upserts a hardware key attestation.
+	UpsertHardwareKeyAttestation(ctx context.Context, attestation *HardwareKeyAttestation) error
+
+	// GetHardwareKeyAttestation gets a hardware key attestation.
+	GetHardwareKeyAttestation(ctx context.Context, publicKey crypto.PublicKey) (*HardwareKeyAttestation, error)
 
 	types.WebSessionsGetter
 	types.WebTokensGetter

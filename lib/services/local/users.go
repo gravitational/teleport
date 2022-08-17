@@ -19,6 +19,8 @@ package local
 import (
 	"bytes"
 	"context"
+	"crypto"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"sort"
@@ -1483,6 +1485,49 @@ func (s recoveryAttemptsChronologically) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
+// UpsertHardwareKeyAttestation upserts a hardware key attestation.
+func (s *IdentityService) UpsertHardwareKeyAttestation(ctx context.Context, attestation *services.HardwareKeyAttestation) error {
+	value, err := json.Marshal(attestation)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:   backend.Key(webPrefix, attestationsPrefix, string(attestation.PublicKeyDER)),
+		Value: value,
+		// TODO (Joerger): set expiry?
+	}
+	_, err = s.Put(ctx, item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetHardwareKeyAttestation gets a hardware key attestation for the given public key.
+func (s *IdentityService) GetHardwareKeyAttestation(ctx context.Context, publicKey crypto.PublicKey) (*services.HardwareKeyAttestation, error) {
+	if publicKey == nil {
+		return nil, trace.BadParameter("missing parameter publicKey")
+	}
+
+	publicKeyDER, err := x509.MarshalPKIXPublicKey(publicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item, err := s.Get(ctx, backend.Key(webPrefix, attestationsPrefix, string(publicKeyDER)))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("hardware key attestation not found")
+		}
+		return nil, trace.Wrap(err)
+	}
+	var hka services.HardwareKeyAttestation
+	if err := json.Unmarshal(item.Value, &hka); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &hka, nil
+}
+
 const (
 	webPrefix                 = "web"
 	usersPrefix               = "users"
@@ -1505,4 +1550,5 @@ const (
 	webauthnSessionData       = "webauthnsessiondata"
 	recoveryCodesPrefix       = "recoverycodes"
 	recoveryAttemptsPrefix    = "recoveryattempts"
+	attestationsPrefix        = "attestations"
 )

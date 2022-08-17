@@ -458,6 +458,9 @@ const (
 	// CertExtensionAllowedResources lists the resources which this certificate
 	// should be allowed to access
 	CertExtensionAllowedResources = "teleport-allowed-resources"
+	// CertExtensionPrivateKeyPolicy is used to mark certificates with their supported
+	// private key policy.
+	CertExtensionPrivateKeyPolicy = "private-key-policy"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag

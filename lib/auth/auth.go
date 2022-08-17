@@ -1094,6 +1094,14 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	privateKeyPolicy := constants.PrivateKeyPolicyNone
+	attestation, err := a.GetHardwareKeyAttestation(ctx, cryptoPubKey)
+	if err == nil {
+		privateKeyPolicy = attestation.PrivateKeyPolicy
+	} else if !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
 	params := services.UserCertParams{
 		CASigner:              caSigner,
 		PublicUserKey:         req.publicKey,
@@ -1117,6 +1125,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		CertificateExtensions: req.checker.CertificateExtensions(),
 		AllowedResourceIDs:    requestedResourcesStr,
 		SourceIP:              req.sourceIP,
+		PrivateKeyPolicy:      privateKeyPolicy,
 	}
 	sshCert, err := a.Authority.GenerateUserCert(params)
 	if err != nil {
@@ -1198,6 +1207,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		Renewable:          req.renewable,
 		Generation:         req.generation,
 		AllowedResourceIDs: req.checker.GetAllowedResourceIDs(),
+		PrivateKeyPolicy:   privateKeyPolicy,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -3301,6 +3311,14 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, passwordless
 	}
 
 	return challenge, nil
+}
+
+// UpsertHardwareKeyAttestation upserts a hardware key attestation.
+func (a *Server) UpsertHardwareKeyAttestation(ctx context.Context, hka *services.HardwareKeyAttestation) error {
+	if err := a.Services.UpsertHardwareKeyAttestation(ctx, hka); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 type devicesByType struct {

@@ -4959,6 +4959,54 @@ func (a *ServerWithRoles) UpdateConnectionDiagnostic(ctx context.Context, connec
 	return nil
 }
 
+// attestYubikey attests a yubikey private key slot to verify that it meets server requirements
+// for user private key storage. The resulting attestation is stored for future Auth checks.
+func (a *ServerWithRoles) AttestHardwarePrivateKey(ctx context.Context, req *proto.AttestHardwarePrivateKeyRequest) error {
+	if !hasLocalUserRole(a.context) && !hasRemoteUserRole(a.context) {
+		return trace.AccessDenied("only a user role can call AttestHardwarePrivateKey, got %T", a.context.Checker)
+	}
+
+	var hka *services.HardwareKeyAttestation
+	var err error
+	switch req := req.GetAttestationRequest().(type) {
+	case *proto.AttestHardwarePrivateKeyRequest_YubikeyAttestationRequest:
+		if hka, err = services.AttestYubikey(req.YubikeyAttestationRequest.SlotCert, req.YubikeyAttestationRequest.AttestationCert); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		return trace.BadParameter("unknown attestation request type %T", req)
+	}
+
+	requiredPolicy, err := a.getPrivateKeyPolicy(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !services.VerifyPrivateKeyPolicy(hka.PrivateKeyPolicy, requiredPolicy) {
+		return trace.AccessDenied("required private key policy %q not met", requiredPolicy)
+	}
+
+	if err := a.authServer.UpsertHardwareKeyAttestation(ctx, hka); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// getPrivateKeyPolicy gets the private key policy enforced for the current user.
+func (a *ServerWithRoles) getPrivateKeyPolicy(ctx context.Context) (constants.PrivateKeyPolicy, error) {
+	if !hasLocalUserRole(a.context) && !hasRemoteUserRole(a.context) {
+		return "", trace.AccessDenied("only a user role can call GetPrivateKeyPolicy, got %T", a.context.Checker)
+	}
+
+	authPref, err := a.authServer.GetAuthPreference(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return services.GetPrivateKeyPolicy(authPref, a.context.Checker), nil
+}
+
 // StartAccountRecovery is implemented by AuthService.StartAccountRecovery.
 func (a *ServerWithRoles) StartAccountRecovery(ctx context.Context, req *proto.StartAccountRecoveryRequest) (types.UserToken, error) {
 	return a.authServer.StartAccountRecovery(ctx, req)

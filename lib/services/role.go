@@ -1094,6 +1094,21 @@ func (set RoleSet) PinSourceIP() bool {
 	return false
 }
 
+// PrivateKeyPolicy returns the enforced private key policy for this role set.
+func (set RoleSet) PrivateKeyPolicy() constants.PrivateKeyPolicy {
+	policy := constants.PrivateKeyPolicyNone
+	for _, role := range set {
+		switch rolePolicy := role.GetPrivateKeyPolicy(); rolePolicy {
+		case constants.PrivateKeyPolicyHardwareKey:
+			policy = rolePolicy
+		case constants.PrivateKeyPolicyHardwareKeyTouch:
+			// This is the strictest option so we can return now
+			return rolePolicy
+		}
+	}
+	return policy
+}
+
 // AdjustSessionTTL will reduce the requested ttl to the lowest max allowed TTL
 // for this role set, otherwise it returns ttl unchanged
 func (set RoleSet) AdjustSessionTTL(ttl time.Duration) time.Duration {

@@ -1159,6 +1159,13 @@ message AuthPreferenceSpecV2 {
         (gogoproto.jsontag) = "allow_passwordless,omitempty",
         (gogoproto.customtype) = "BoolOption"
     ];
+
+    // private_key_policy determines how Teleport Clients are required to generate and
+    // store a user's private keys.
+    string private_key_policy = 12 [
+        (gogoproto.jsontag) = "private_key_policy,omitempty",
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.PrivateKeyPolicy"
+    ];
 }
 
 // U2F defines settings for U2F device.
