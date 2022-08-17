@@ -205,9 +205,6 @@ type Log struct {
 	// Backend holds the data backend used.
 	// This is used for locking.
 	backend backend.Backend
-
-	// isBillingModeProvisioned tracks if the table has provisioned capacity or not.
-	isBillingModeProvisioned bool
 }
 
 type event struct {
@@ -318,11 +315,6 @@ func New(ctx context.Context, cfg Config, backend backend.Backend) (*Log, error)
 		return nil, trace.Wrap(err)
 	}
 	err = b.turnOnTimeToLive(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	b.isBillingModeProvisioned, err = b.getBillingModeIsProvisioned(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -901,24 +893,6 @@ func (l *Log) getTableStatus(ctx context.Context, tableName string) (tableStatus
 		return tableStatusError, trace.Wrap(err)
 	}
 	return tableStatusOK, nil
-}
-
-func (l *Log) getBillingModeIsProvisioned(ctx context.Context) (bool, error) {
-	res, err := l.svc.DescribeTableWithContext(ctx, &dynamodb.DescribeTableInput{
-		TableName: aws.String(l.Tablename),
-	})
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	// Guaranteed to be set.
-	table := res.Table
-
-	// Perform pessimistic nil-checks, assume the table is provisioned if they are true.
-	// Otherwise, actually check the billing mode.
-	return table.BillingModeSummary == nil ||
-		table.BillingModeSummary.BillingMode == nil ||
-		*table.BillingModeSummary.BillingMode == dynamodb.BillingModeProvisioned, nil
 }
 
 // indexExists checks if a given index exists on a given table and that it is active or updating.
