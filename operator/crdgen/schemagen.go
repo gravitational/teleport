@@ -172,10 +172,10 @@ func (generator *SchemaGenerator) traverseInner(message *Message) (*Schema, erro
 		// and ask Kubernetes to preserve unknown fields.
 		if field.CustomType() == "Labels" {
 			prop.Type = "object"
-			truthy := true
+			preserveUnknownFields := true
 			prop.AdditionalProperties = &apiextv1.JSONSchemaPropsOrBool{
 				Schema: &apiextv1.JSONSchemaProps{
-					XPreserveUnknownFields: &truthy,
+					XPreserveUnknownFields: &preserveUnknownFields,
 				},
 			}
 		}
