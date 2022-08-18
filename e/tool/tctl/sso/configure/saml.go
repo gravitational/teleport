@@ -87,6 +87,7 @@ func addSAMLCommand(cmd *configure.SSOConfigureCommand) *configure.AuthKindComma
 	sub.Flag("entity-descriptor", "Set the Entity Descriptor. Valid values: file, URL, XML content. Supplies configuration parameters as single XML instead of individual elements.").Short('e').StringVar(&saml.entityDescriptorFlag)
 	sub.Flag("attributes-to-roles", "Sets attribute-to-role mapping using format 'attr_name,attr_value,role1,role2,...'. Repeatable.").Short('r').Required().SetValue(flags.NewAttributesToRolesParser(&spec.AttributesToRoles))
 	sub.Flag("display", "Sets the connector display name.").StringVar(&spec.Display)
+	sub.Flag("allow-idp-initiated", "Allow the IdP to initiate the SSO flow.").BoolVar(&spec.AllowIDPInitiated)
 
 	// alternatives to --entity-descriptor:
 	sub.Flag("issuer", "Issuer is the identity provider issuer.").StringVar(&spec.Issuer)
@@ -224,7 +225,7 @@ func samlRunFunc(
 	}
 
 	if spec.AssertionConsumerService == "" {
-		spec.AssertionConsumerService = configure.ResolveCallbackURL(cmd.Logger, clt, "ACS", "https://%v/v1/webapi/saml/acs")
+		spec.AssertionConsumerService = configure.ResolveCallbackURL(cmd.Logger, clt, "ACS", "https://%v/v1/webapi/saml/acs/"+flags.connectorName)
 	}
 
 	// figure out the actual meaning of entityDescriptorFlag. Can be: URL, file, plain XML.
