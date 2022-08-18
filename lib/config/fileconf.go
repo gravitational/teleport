@@ -1192,7 +1192,7 @@ type AWSMatcher struct {
 
 // AzureMatcher matches Azure databases.
 type AzureMatcher struct {
-	// Subscriptions are Azure subscriptions to query for resources
+	// Subscriptions are Azure subscriptions to query for resources.
 	Subscriptions []string `yaml:"subscriptions,omitempty"`
 	// ResourceGroups are Azure resource groups to query for resources.
 	ResourceGroups []string `yaml:"resource_groups,omitempty"`
