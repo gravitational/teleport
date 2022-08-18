@@ -9,7 +9,10 @@ import { DataContainer, DataItem } from 'teleport/Support/Support';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 
-import { makeLabel, ScheduleUpgrades } from './ScheduleUpgrades/ScheduleUpgrades';
+import {
+  makeLabel,
+  ScheduleUpgrades,
+} from './ScheduleUpgrades/ScheduleUpgrades';
 import { useUpgradeWindowStart } from './useUpgradeWindowStart';
 
 export default function Container() {

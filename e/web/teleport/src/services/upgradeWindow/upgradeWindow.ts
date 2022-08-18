@@ -14,7 +14,7 @@ export const service = {
   },
 
   updateUpgradeWindowStart(
-    upgradeWindowStart: UpgradeWindowStartHour,
+    upgradeWindowStart: UpgradeWindowStartHour
   ): Promise<UpgradeWindowStartHour> {
     return api
       .post(cfg.api.upgradeWindowStartPath, {
