@@ -21,9 +21,11 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	mathrand "math/rand"
 	"net"
 	"net/http"
@@ -794,26 +796,35 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	stream, err := streamproto.NewSessionStream(ws, streamproto.ServerHandshake{MFARequired: session.PresenceEnabled})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if err := func() error {
+		stream, err := streamproto.NewSessionStream(ws, streamproto.ServerHandshake{MFARequired: session.PresenceEnabled})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		client := &websocketClientStreams{stream}
+		party := newParty(*ctx, stream.Mode, client)
+		go func() {
+			<-stream.Done()
+			session.mu.Lock()
+			defer session.mu.Unlock()
+			session.leave(party.ID)
+		}()
+
+		err = session.join(party)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		<-party.closeC
+		return nil
+	}(); err != nil {
+		writeErr := ws.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseInternalServerErr, err.Error()), time.Now().Add(time.Second*10))
+		if writeErr != nil {
+			f.log.WithError(writeErr).Warn("Failed to send early-exit websocket close message.")
+		}
 	}
 
-	client := &websocketClientStreams{stream}
-	party := newParty(*ctx, stream.Mode, client)
-	go func() {
-		<-stream.Done()
-		session.mu.Lock()
-		defer session.mu.Unlock()
-		session.leave(party.ID)
-	}()
-
-	err = session.join(party)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	<-party.closeC
 	return nil, nil
 }
 
@@ -832,7 +843,17 @@ func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *htt
 
 	wsTarget, respTarget, err := dialer.Dial(url, nil)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		msg, err := io.ReadAll(respTarget.Body)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		var obj map[string]interface{}
+		if err := json.Unmarshal(msg, &obj); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return obj, trace.Wrap(err)
 	}
 	defer wsTarget.Close()
 	defer respTarget.Body.Close()
