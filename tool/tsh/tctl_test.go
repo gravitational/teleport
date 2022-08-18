@@ -41,15 +41,12 @@ func TestLoadConfigFromProfile(t *testing.T) {
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
 
-	proxyAddr, err := proxyProcess.ProxyWebAddr()
-	require.NoError(t, err)
-
 	err = Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		"--debug",
 		"--auth", connector.GetName(),
-		"--proxy", proxyAddr.String(),
+		"--proxy", proxyProcess.Config.Proxy.CLIProxyFlag(),
 	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		return nil

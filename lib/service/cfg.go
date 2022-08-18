@@ -473,6 +473,12 @@ type KeyPairPath struct {
 	Certificate string
 }
 
+// CLIProxyFlag returns the proxy address in a format suitable for use
+// with the --proxy flag for tsh and tctl.
+func (c ProxyConfig) CLIProxyFlag() string {
+	return fmt.Sprintf("%v,%d", c.WebAddr.Addr, c.SSHAddr.Port(defaults.SSHProxyListenPort))
+}
+
 // KubeAddr returns the address for the Kubernetes endpoint on this proxy that
 // can be reached by clients.
 func (c ProxyConfig) KubeAddr() (string, error) {

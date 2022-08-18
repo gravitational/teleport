@@ -91,7 +91,7 @@ func testRootClusterSSHAccess(t *testing.T, s *suite) {
 
 	identityFile := mustLoginIdentity(t, s)
 	err = Run(context.Background(), []string{
-		"--proxy", s.root.Config.Proxy.WebAddr.String(),
+		"--proxy", s.root.Config.Proxy.CLIProxyFlag(),
 		"--insecure",
 		"-i", identityFile,
 		"ssh",
@@ -114,7 +114,7 @@ func testLeafClusterSSHAccess(t *testing.T, s *suite) {
 
 	identityFile := mustLoginIdentity(t, s)
 	err := Run(context.Background(), []string{
-		"--proxy", s.root.Config.Proxy.WebAddr.String(),
+		"--proxy", s.root.Config.Proxy.CLIProxyFlag(),
 		"--insecure",
 		"-i", identityFile,
 		"ssh",
@@ -214,7 +214,7 @@ func TestProxySSH(t *testing.T) {
 			runProxySSH := func(proxyRequest string, opts ...cliOption) error {
 				return Run(context.Background(), []string{
 					"--insecure",
-					"--proxy", s.root.Config.Proxy.WebAddr.Addr,
+					"--proxy", s.root.Config.Proxy.CLIProxyFlag(),
 					"proxy", "ssh", proxyRequest,
 				}, opts...)
 			}
@@ -474,7 +474,7 @@ func mustLogin(t *testing.T, s *suite, args ...string) string {
 		"login",
 		"--insecure",
 		"--debug",
-		"--proxy", s.root.Config.Proxy.WebAddr.String(),
+		"--proxy", s.root.Config.Proxy.CLIProxyFlag(),
 	}, args...)
 	err := Run(context.Background(), args, setMockSSOLogin(t, s), setHomePath(tshHome))
 	require.NoError(t, err)
@@ -491,7 +491,7 @@ func mustLoginSetEnv(t *testing.T, s *suite, args ...string) string {
 		"login",
 		"--insecure",
 		"--debug",
-		"--proxy", s.root.Config.Proxy.WebAddr.String(),
+		"--proxy", s.root.Config.Proxy.CLIProxyFlag(),
 	}, args...)
 	err := Run(context.Background(), args, setMockSSOLogin(t, s), setHomePath(tshHome))
 	require.NoError(t, err)

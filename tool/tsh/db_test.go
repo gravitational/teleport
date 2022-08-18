@@ -73,7 +73,7 @@ func TestDatabaseLogin(t *testing.T) {
 
 	// Log into Teleport cluster.
 	err = Run(context.Background(), []string{
-		"login", "--insecure", "--debug", "--auth", connector.GetName(), "--proxy", proxyAddr.String(),
+		"login", "--insecure", "--debug", "--auth", connector.GetName(), "--proxy", proxyProcess.Config.Proxy.CLIProxyFlag(),
 	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
 		return nil

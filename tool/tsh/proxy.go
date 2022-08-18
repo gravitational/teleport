@@ -60,7 +60,7 @@ func onProxyCommandSSH(cf *CLIConf) error {
 	}
 
 	err = libclient.RetryWithRelogin(cf.Context, tc, func() error {
-		proxyParams, err := getSSHProxyParams(cf, tc)
+		proxyParams, err := getSSHProxyParams(cf.Context, tc)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -94,7 +94,7 @@ type sshProxyParams struct {
 }
 
 // getSSHProxyParams prepares parameters for establishing an SSH proxy connection.
-func getSSHProxyParams(cf *CLIConf, tc *libclient.TeleportClient) (*sshProxyParams, error) {
+func getSSHProxyParams(ctx context.Context, tc *libclient.TeleportClient) (*sshProxyParams, error) {
 	targetHost, targetPort, err := net.SplitHostPort(tc.Host)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -121,7 +121,7 @@ func getSSHProxyParams(cf *CLIConf, tc *libclient.TeleportClient) (*sshProxyPara
 	// proxy directly. Call its ping endpoint to figure out the cluster details
 	// such as cluster name, SSH proxy address, etc.
 	ping, err := webclient.Find(&webclient.Config{
-		Context:   cf.Context,
+		Context:   ctx,
 		ProxyAddr: tc.JumpHosts[0].Addr.Addr,
 		Insecure:  tc.InsecureSkipVerify,
 	})
