@@ -50,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -92,13 +91,12 @@ type Server struct {
 	addr      utils.NetAddr
 	hostname  string
 
-	srv           *sshutils.Server
-	shell         string
-	getRotation   services.RotationGetter
-	authService   srv.AccessPoint
-	reg           *srv.SessionRegistry
-	sessionServer rsession.Service
-	limiter       *limiter.Limiter
+	srv         *sshutils.Server
+	shell       string
+	getRotation services.RotationGetter
+	authService srv.AccessPoint
+	reg         *srv.SessionRegistry
+	limiter     *limiter.Limiter
 
 	inventoryHandle inventory.DownstreamHandle
 
@@ -253,13 +251,6 @@ func (s *Server) GetAccessPoint() srv.AccessPoint {
 	return s.authService
 }
 
-func (s *Server) GetSessionServer() rsession.Service {
-	if s.isAuditedAtProxy() {
-		return rsession.NewDiscardSessionServer()
-	}
-	return s.sessionServer
-}
-
 // GetUtmpPath returns the optional override of the utmp and wtmp path.
 func (s *Server) GetUtmpPath() (string, string) {
 	return s.utmpPath, s.wtmpPath
@@ -301,24 +292,6 @@ func (s *Server) GetCreateHostUser() bool {
 // host user provisioning
 func (s *Server) GetHostUsers() srv.HostUsers {
 	return s.users
-}
-
-// isAuditedAtProxy returns true if sessions are being recorded at the proxy
-// and this is a Teleport node.
-func (s *Server) isAuditedAtProxy() bool {
-	// always be safe, better to double record than not record at all
-	recConfig, err := s.GetAccessPoint().GetSessionRecordingConfig(s.ctx)
-	if err != nil {
-		return false
-	}
-
-	isRecordAtProxy := services.IsRecordAtProxy(recConfig.GetMode())
-	isTeleportNode := s.Component() == teleport.ComponentNode
-
-	if isRecordAtProxy && isTeleportNode {
-		return true
-	}
-	return false
 }
 
 // ServerOption is a functional option passed to the server
@@ -440,14 +413,6 @@ func SetRotationGetter(getter services.RotationGetter) ServerOption {
 func SetShell(shell string) ServerOption {
 	return func(s *Server) error {
 		s.shell = shell
-		return nil
-	}
-}
-
-// SetSessionServer represents realtime session registry server
-func SetSessionServer(sessionServer rsession.Service) ServerOption {
-	return func(s *Server) error {
-		s.sessionServer = sessionServer
 		return nil
 	}
 }

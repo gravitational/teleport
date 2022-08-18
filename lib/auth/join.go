@@ -45,14 +45,14 @@ func (a *Server) checkTokenJoinRequestCommon(ctx context.Context, req *types.Reg
 	// make sure the token is valid
 	provisionToken, err := a.ValidateToken(ctx, req.Token)
 	if err != nil {
-		log.Warningf("%q [%v] can not join the cluster with role %s, token error: %v", req.NodeName, req.HostID, req.Role, err)
+		log.Warningf("%q can not join the cluster with role %s, token error: %v", req.NodeName, req.Role, err)
 		msg := "the token is not valid" // default to most generic message
 		if strings.Contains(err.Error(), TokenExpiredOrNotFound) {
 			// propagate ExpiredOrNotFound message so that clients can attempt
 			// assertion-based fallback if appropriate.
 			msg = TokenExpiredOrNotFound
 		}
-		return nil, trace.AccessDenied("%q [%v] can not join the cluster with role %q, %s", req.NodeName, req.HostID, req.Role, msg)
+		return nil, trace.AccessDenied("%q can not join the cluster with role %q, %s", req.NodeName, req.Role, msg)
 	}
 
 	// instance certs can be requested by any agent that has at least one local service role (e.g. proxy, node, etc).

@@ -2324,6 +2324,31 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditC
 	return resp, nil
 }
 
+// GetInstaller gets the cluster installer resource
+func (c *Client) GetInstaller(ctx context.Context) (types.Installer, error) {
+	resp, err := c.grpc.GetInstaller(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// GetInstaller sets the cluster installer resource
+func (c *Client) SetInstaller(ctx context.Context, inst types.Installer) error {
+	instV1, ok := inst.(*types.InstallerV1)
+	if !ok {
+		return trace.BadParameter("invalid type %T", inst)
+	}
+	_, err := c.grpc.SetInstaller(ctx, instV1, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// GetInstaller deletes the cluster installer resource
+func (c *Client) DeleteInstaller(ctx context.Context) error {
+	_, err := c.grpc.DeleteInstaller(ctx, &empty.Empty{}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // GetLock gets a lock by name.
 func (c *Client) GetLock(ctx context.Context, name string) (types.Lock, error) {
 	if name == "" {
@@ -2963,5 +2988,15 @@ func (c *Client) CreateConnectionDiagnostic(ctx context.Context, connectionDiagn
 		return trace.BadParameter("invalid type %T", connectionDiagnostic)
 	}
 	_, err := c.grpc.CreateConnectionDiagnostic(ctx, connectionDiagnosticV1, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// UpdateConnectionDiagnostic updates a connection diagnostic.
+func (c *Client) UpdateConnectionDiagnostic(ctx context.Context, connectionDiagnostic types.ConnectionDiagnostic) error {
+	connectionDiagnosticV1, ok := connectionDiagnostic.(*types.ConnectionDiagnosticV1)
+	if !ok {
+		return trace.BadParameter("invalid type %T", connectionDiagnostic)
+	}
+	_, err := c.grpc.UpdateConnectionDiagnostic(ctx, connectionDiagnosticV1, c.callOpts...)
 	return trail.FromGRPC(err)
 }

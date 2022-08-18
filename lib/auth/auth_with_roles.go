@@ -30,6 +30,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -51,7 +52,6 @@ import (
 // methods that focuses on authorizing every request
 type ServerWithRoles struct {
 	authServer *Server
-	sessions   session.Service
 	alog       events.IAuditLog
 	// context holds authorization context
 	context Context
@@ -183,18 +183,6 @@ func (a *ServerWithRoles) actionForKindSession(namespace, verb string, sid sessi
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSession, verb, extendContext))
-}
-
-// actionForKindSSHSession is a special checker that grants access to active SSH
-// sessions.  It can allow access to a specific session based on the `where`
-// section of the user's access rule for kind `ssh_session`.
-func (a *ServerWithRoles) actionForKindSSHSession(ctx context.Context, namespace, verb string, sid session.ID) error {
-	extendContext := func(serviceContext *services.Context) error {
-		session, err := a.sessions.GetSession(ctx, namespace, sid)
-		serviceContext.SSHSession = session
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSSHSession, verb, extendContext))
 }
 
 // serverAction returns an access denied error if the role is not one of the builtin server roles.
@@ -502,62 +490,6 @@ func (a *ServerWithRoles) AuthenticateSSHUser(ctx context.Context, req Authentic
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
 	return a.authServer.AuthenticateSSHUser(ctx, req)
-}
-
-func (a *ServerWithRoles) GetSessions(ctx context.Context, namespace string) ([]session.Session, error) {
-	cond, err := a.actionForListWithCondition(namespace, types.KindSSHSession, services.SSHSessionIdentifier)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sessions, err := a.sessions.GetSessions(ctx, namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if cond == nil {
-		return sessions, nil
-	}
-
-	// Filter sessions according to cond.
-	filteredSessions := make([]session.Session, 0, len(sessions))
-	ruleCtx := &services.Context{User: a.context.User}
-	for _, s := range sessions {
-		ruleCtx.SSHSession = &s
-		if err := a.context.Checker.CheckAccessToRule(ruleCtx, namespace, types.KindSSHSession, types.VerbList, true /* silent */); err != nil {
-			continue
-		}
-		filteredSessions = append(filteredSessions, s)
-	}
-	return filteredSessions, nil
-}
-
-func (a *ServerWithRoles) GetSession(ctx context.Context, namespace string, id session.ID) (*session.Session, error) {
-	if err := a.actionForKindSSHSession(ctx, namespace, types.VerbRead, id); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.sessions.GetSession(ctx, namespace, id)
-}
-
-func (a *ServerWithRoles) CreateSession(ctx context.Context, s session.Session) error {
-	if err := a.action(s.Namespace, types.KindSSHSession, types.VerbCreate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.sessions.CreateSession(ctx, s)
-}
-
-func (a *ServerWithRoles) UpdateSession(ctx context.Context, req session.UpdateRequest) error {
-	if err := a.actionForKindSSHSession(ctx, req.Namespace, types.VerbUpdate, req.ID); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.sessions.UpdateSession(ctx, req)
-}
-
-// DeleteSession removes an active session from the backend.
-func (a *ServerWithRoles) DeleteSession(ctx context.Context, namespace string, id session.ID) error {
-	if err := a.actionForKindSSHSession(ctx, namespace, types.VerbDelete, id); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.sessions.DeleteSession(ctx, namespace, id)
 }
 
 // CreateCertAuthority not implemented: can only be called locally.
@@ -1385,7 +1317,6 @@ func (k *kubeChecker) CanAccess(resource types.Resource) error {
 	default:
 		return trace.BadParameter("unexpected resource type %T", resource)
 	}
-
 }
 
 // canAccessKubernetesLegacy checks if the user has access to Kubernetes Cluster when represented by `types.ServerV2`.
@@ -2245,7 +2176,7 @@ func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.User
 			log.WithError(err).Warn()
 			return nil, err
 		}
-		return a.desiredAccessInfoForRoleRequest(req)
+		return a.desiredAccessInfoForRoleRequest(req, user.GetTraits())
 	}
 	return a.desiredAccessInfoForUser(ctx, req, user)
 }
@@ -2260,7 +2191,7 @@ func (a *ServerWithRoles) desiredAccessInfoForImpersonation(req *proto.UserCerts
 }
 
 // desiredAccessInfoForRoleRequest returns the desired roles for a role request.
-func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRequest) (*services.AccessInfo, error) {
+func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRequest, traits wrappers.Traits) (*services.AccessInfo, error) {
 	// If UseRoleRequests is set, make sure we don't return unusable certs: an
 	// identity without roles can't be parsed.
 	// DEPRECATED: consider making role requests without UseRoleRequests set an
@@ -2274,9 +2205,12 @@ func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRe
 	// are intended to reduce allowed permissions so we'll accept them
 	// as-is for now (and ensure the user is allowed to assume them
 	// later).
-	// Note: traits are not currently set for role impersonation.
+	//
+	// Traits are copied across from the impersonating user so that role
+	// variables within the impersonated role behave as expected.
 	return &services.AccessInfo{
-		Roles: req.RoleRequests,
+		Roles:  req.RoleRequests,
+		Traits: traits,
 	}, nil
 }
 
@@ -3355,6 +3289,30 @@ func (a *ServerWithRoles) GetAuthPreference(ctx context.Context) (types.AuthPref
 	}
 
 	return a.authServer.GetAuthPreference(ctx)
+}
+
+// GetInstaller retrieves an installer script resource
+func (a *ServerWithRoles) GetInstaller(ctx context.Context) (types.Installer, error) {
+	if err := a.action(apidefaults.Namespace, types.KindInstaller, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetInstaller(ctx)
+}
+
+// SetInstaller sets an Installer script resource
+func (a *ServerWithRoles) SetInstaller(ctx context.Context, inst types.Installer) error {
+	if err := a.action(apidefaults.Namespace, types.KindInstaller, types.VerbUpdate, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.authServer.SetInstaller(ctx, inst))
+}
+
+// DeleteInstaller removes an installer script resource
+func (a *ServerWithRoles) DeleteInstaller(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindInstaller, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.authServer.DeleteInstaller(ctx))
 }
 
 // SetAuthPreference sets cluster auth preference.
@@ -4964,6 +4922,19 @@ func (a *ServerWithRoles) CreateConnectionDiagnostic(ctx context.Context, connec
 	return nil
 }
 
+// UpdateConnectionDiagnostic updates a connection diagnostic.
+func (a *ServerWithRoles) UpdateConnectionDiagnostic(ctx context.Context, connectionDiagnostic types.ConnectionDiagnostic) error {
+	if err := a.action(apidefaults.Namespace, types.KindConnectionDiagnostic, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.authServer.UpdateConnectionDiagnostic(ctx, connectionDiagnostic); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // StartAccountRecovery is implemented by AuthService.StartAccountRecovery.
 func (a *ServerWithRoles) StartAccountRecovery(ctx context.Context, req *proto.StartAccountRecoveryRequest) (types.UserToken, error) {
 	return a.authServer.StartAccountRecovery(ctx, req)
@@ -5044,7 +5015,7 @@ func (a *ServerWithRoles) MaintainSessionPresence(ctx context.Context) (proto.Au
 
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
-func NewAdminAuthServer(authServer *Server, sessions session.Service, alog events.IAuditLog) (ClientI, error) {
+func NewAdminAuthServer(authServer *Server, alog events.IAuditLog) (ClientI, error) {
 	ctx, err := NewAdminContext()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5053,7 +5024,6 @@ func NewAdminAuthServer(authServer *Server, sessions session.Service, alog event
 		authServer: authServer,
 		context:    *ctx,
 		alog:       alog,
-		sessions:   sessions,
 	}, nil
 }
 

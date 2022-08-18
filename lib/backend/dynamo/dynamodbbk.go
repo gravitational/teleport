@@ -23,6 +23,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/teleport/api/utils"
@@ -39,6 +40,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	"github.com/aws/aws-sdk-go/service/dynamodbstreams"
+	"github.com/aws/aws-sdk-go/service/dynamodbstreams/dynamodbstreamsiface"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
@@ -123,9 +125,13 @@ func (cfg *Config) CheckAndSetDefaults() error {
 type Backend struct {
 	*log.Entry
 	Config
-	svc   dynamodbiface.DynamoDBAPI
-	clock clockwork.Clock
-	buf   *backend.CircularBuffer
+	svc     dynamodbiface.DynamoDBAPI
+	streams dynamodbstreamsiface.DynamoDBStreamsAPI
+	clock   clockwork.Clock
+	buf     *backend.CircularBuffer
+	// closedFlag is set to indicate that the database is closed
+	closedFlag int32
+
 	// session holds the AWS client.
 	session *session.Session
 }
@@ -595,9 +601,18 @@ func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 	return err
 }
 
+func (b *Backend) isClosed() bool {
+	return atomic.LoadInt32(&b.closedFlag) == 1
+}
+
+func (b *Backend) setClosed() {
+	atomic.StoreInt32(&b.closedFlag, 1)
+}
+
 // Close closes the DynamoDB driver
 // and releases associated resources
 func (b *Backend) Close() error {
+	b.setClosed()
 	return b.buf.Close()
 }
 

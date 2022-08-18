@@ -19,8 +19,10 @@ package events
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/jonboulle/clockwork"
@@ -94,6 +97,53 @@ func TestLogRotation(t *testing.T) {
 		found, _, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), apidefaults.Namespace, nil, 0, types.EventOrderAscending, "")
 		require.NoError(t, err)
 		require.Len(t, found, 1)
+	}
+}
+
+func TestConcurrentStreaming(t *testing.T) {
+	uploader := NewMemoryUploader()
+	alog, err := NewAuditLog(AuditLogConfig{
+		DataDir:       t.TempDir(),
+		Clock:         clockwork.NewFakeClock(),
+		ServerID:      "remote",
+		UploadHandler: uploader,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { alog.Close() })
+
+	ctx := context.Background()
+	sid := session.ID("abc123")
+
+	// upload a bogus session so that we can try to stream its events
+	// (this is not valid protobuf, so the stream is not expected to succeed)
+	_, err = uploader.Upload(ctx, sid, io.NopCloser(strings.NewReader(`asdfasdfasdfasdfasdef`)))
+	require.NoError(t, err)
+
+	// run multiple concurrent streams, which forces the second one to wait
+	// on the download that the first one started
+	streams := 2
+	errors := make(chan error, streams)
+	for i := 0; i < streams; i++ {
+		go func() {
+			eventsC, errC := alog.StreamSessionEvents(ctx, sid, 0)
+			for {
+				select {
+				case err := <-errC:
+					errors <- err
+				case _, ok := <-eventsC:
+					if !ok {
+						errors <- nil
+						return
+					}
+				}
+			}
+		}()
+	}
+
+	// This test just verifies that the streamer does not panic when multiple
+	// concurrent streams are waiting on the same download to complete.
+	for i := 0; i < streams; i++ {
+		<-errors
 	}
 }
 

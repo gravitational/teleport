@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -49,6 +50,8 @@ type BotsCommand struct {
 	tokenID  string
 	tokenTTL time.Duration
 
+	allowedLogins []string
+
 	botsList   *kingpin.CmdClause
 	botsAdd    *kingpin.CmdClause
 	botsRemove *kingpin.CmdClause
@@ -68,7 +71,7 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, config *service.Confi
 	c.botsAdd.Flag("ttl", "TTL for the bot join token.").DurationVar(&c.tokenTTL)
 	c.botsAdd.Flag("token", "Name of an existing token to use.").StringVar(&c.tokenID)
 	c.botsAdd.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
-	// TODO: --ttl for setting a ttl on the join token
+	c.botsAdd.Flag("logins", "List of allowed SSH logins for the bot user").StringsVar(&c.allowedLogins)
 
 	c.botsRemove = bots.Command("rm", "Permanently remove a certificate renewal bot from the cluster.")
 	c.botsRemove.Arg("name", "Name of an existing bot to remove.").Required().StringVar(&c.botName)
@@ -184,11 +187,16 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 		return trace.BadParameter("at least one role must be specified with --roles")
 	}
 
+	traits := map[string][]string{
+		constants.TraitLogins: flattenSlice(c.allowedLogins),
+	}
+
 	response, err := client.CreateBot(ctx, &proto.CreateBotRequest{
 		Name:    c.botName,
 		TTL:     proto.Duration(c.tokenTTL),
 		Roles:   roles,
 		TokenID: c.tokenID,
+		Traits:  traits,
 	})
 	if err != nil {
 		return trace.WrapWithMessage(err, "error while creating bot")
