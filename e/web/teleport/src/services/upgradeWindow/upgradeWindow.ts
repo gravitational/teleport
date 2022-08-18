@@ -2,23 +2,20 @@ import api from 'teleport/services/api';
 
 import cfg from 'e-teleport/config';
 
-export const availableUpgradeWindowStarts = [
-  '08:00:00',
-  '16:00:00',
-  '23:00:00',
-] as const;
-export type UpgradeWindowStart = typeof availableUpgradeWindowStarts[number];
+export const availableUpgradeWindowStartHours = [8, 16, 23] as const;
+export type UpgradeWindowStartHour =
+  typeof availableUpgradeWindowStartHours[number];
 
 export const service = {
-  getUpgradeWindowStart(): Promise<UpgradeWindowStart> {
+  getUpgradeWindowStartHour(): Promise<UpgradeWindowStartHour> {
     return api
       .get(cfg.api.upgradeWindowStartPath)
       .then(res => res.upgradeWindowStart);
   },
 
   updateUpgradeWindowStart(
-    upgradeWindowStart: UpgradeWindowStart
-  ): Promise<UpgradeWindowStart> {
+    upgradeWindowStart: UpgradeWindowStartHour,
+  ): Promise<UpgradeWindowStartHour> {
     return api
       .post(cfg.api.upgradeWindowStartPath, {
         upgradeWindowStart,

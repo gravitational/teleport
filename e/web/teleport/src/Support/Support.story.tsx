@@ -21,7 +21,7 @@ const props: Props = {
   isCloud: false,
   onUpdate: () => null,
   scheduleUpgradesVisible: false,
-  selectedUpgradeWindowStart: '08:00:00',
+  selectedUpgradeWindowStart: 8,
   setSelectedUpgradeWindowStart: () => null,
   showScheduleUpgrade: () => null,
 };

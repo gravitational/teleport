@@ -9,7 +9,7 @@ import { DataContainer, DataItem } from 'teleport/Support/Support';
 
 import useTeleportE from 'e-teleport/useTeleportE';
 
-import { ScheduleUpgrades } from './ScheduleUpgrades/ScheduleUpgrades';
+import { makeLabel, ScheduleUpgrades } from './ScheduleUpgrades/ScheduleUpgrades';
 import { useUpgradeWindowStart } from './useUpgradeWindowStart';
 
 export default function Container() {
@@ -41,7 +41,7 @@ export const SupportE = ({
             title="Window Start Time"
             data={
               <span>
-                {selectedUpgradeWindowStart}
+                {makeLabel(selectedUpgradeWindowStart)}
                 <EditLink onClick={showScheduleUpgrade} ml="2" />
               </span>
             }

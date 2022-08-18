@@ -5,14 +5,14 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import TeleportContextE from 'e-teleport/teleportContextE';
 import cfg from 'e-teleport/config';
 
-import type { UpgradeWindowStart } from 'e-teleport/services/upgradeWindow';
+import type { UpgradeWindowStartHour } from 'e-teleport/services/upgradeWindow';
 
 export function useUpgradeWindowStart(ctx: TeleportContextE) {
   const { attempt, run } = useAttempt();
 
   const [scheduleUpgradesVisible, setScheduleUpgradesVisible] = useState(false);
   const [selectedUpgradeWindowStart, setSelectedUpgradeWindowStart] =
-    useState<UpgradeWindowStart>('08:00:00');
+    useState<UpgradeWindowStartHour>(8);
 
   useEffect(() => {
     if (!cfg.oss.isCloud) {
@@ -21,7 +21,7 @@ export function useUpgradeWindowStart(ctx: TeleportContextE) {
 
     run(() =>
       ctx.upgradeWindowService
-        .getUpgradeWindowStart()
+        .getUpgradeWindowStartHour()
         .then(setSelectedUpgradeWindowStart)
     );
   }, []);

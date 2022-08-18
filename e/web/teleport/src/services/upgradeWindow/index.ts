@@ -1,9 +1,9 @@
-import { service, availableUpgradeWindowStarts } from './upgradeWindow';
+import { service, availableUpgradeWindowStartHours } from './upgradeWindow';
 
-import type { UpgradeWindowStart } from './upgradeWindow';
+import type { UpgradeWindowStartHour } from './upgradeWindow';
 
 export {
   service as upgradeWindowService,
-  availableUpgradeWindowStarts,
-  UpgradeWindowStart,
+  availableUpgradeWindowStartHours,
+  UpgradeWindowStartHour,
 };

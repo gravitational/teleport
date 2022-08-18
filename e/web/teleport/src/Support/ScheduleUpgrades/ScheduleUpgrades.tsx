@@ -11,16 +11,16 @@ import Alert from 'design/Alert';
 import Select, { Option } from 'shared/components/Select';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
-import { availableUpgradeWindowStarts } from 'e-teleport/services/upgradeWindow';
+import { availableUpgradeWindowStartHours } from 'e-teleport/services/upgradeWindow';
 
-import type { UpgradeWindowStart } from 'e-teleport/services/upgradeWindow';
+import type { UpgradeWindowStartHour } from 'e-teleport/services/upgradeWindow';
 
-export const makeLabel = (window: UpgradeWindowStart): string => {
-  return `${window} (UTC)`;
+export const makeLabel = (startHour: UpgradeWindowStartHour): string => {
+  return `${String(startHour).padStart(2, '0')}:00 (UTC)`;
 };
 
-const upgradeWindowOptions: Option<UpgradeWindowStart>[] =
-  availableUpgradeWindowStarts.map((window: UpgradeWindowStart) => ({
+const upgradeWindowOptions: Option<UpgradeWindowStartHour>[] =
+  availableUpgradeWindowStartHours.map((window: UpgradeWindowStartHour) => ({
     label: makeLabel(window),
     value: window,
   }));
@@ -32,7 +32,7 @@ export function ScheduleUpgrades({
   onSelectedWindowChange,
   attempt,
 }: Props) {
-  const handleChange = (selected: Option<UpgradeWindowStart>) =>
+  const handleChange = (selected: Option<UpgradeWindowStartHour>) =>
     onSelectedWindowChange(selected.value);
 
   return (
@@ -81,8 +81,8 @@ export function ScheduleUpgrades({
 
 export type Props = {
   onCancel(): void;
-  onSave: (window: UpgradeWindowStart) => void;
-  selectedWindow: UpgradeWindowStart;
+  onSave: (window: UpgradeWindowStartHour) => void;
+  selectedWindow: UpgradeWindowStartHour;
   onSelectedWindowChange: (string) => void;
   attempt: Attempt;
 };

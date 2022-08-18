@@ -42,5 +42,5 @@ const props: Props = {
     statusText: '',
   },
   onSelectedWindowChange: () => null,
-  selectedWindow: '08:00:00',
+  selectedWindow: 8,
 };

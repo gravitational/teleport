@@ -320,7 +320,7 @@ exports[`render failed 1`] = `
                 <div
                   class="react-select__single-value css-1uccc91-singleValue"
                 >
-                  08:00:00 (UTC)
+                  08:00 (UTC)
                 </div>
                 <div
                   class="css-b8ldur-Input"
@@ -689,7 +689,7 @@ exports[`render loaded 1`] = `
                 <div
                   class="react-select__single-value css-1uccc91-singleValue"
                 >
-                  08:00:00 (UTC)
+                  08:00 (UTC)
                 </div>
                 <div
                   class="css-b8ldur-Input"
@@ -1058,7 +1058,7 @@ exports[`render processing 1`] = `
                 <div
                   class="react-select__single-value react-select__single-value--is-disabled css-107lb6w-singleValue"
                 >
-                  08:00:00 (UTC)
+                  08:00 (UTC)
                 </div>
                 <div
                   class="css-b8ldur-Input"
