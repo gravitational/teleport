@@ -36,9 +36,9 @@ On a configured regular period `tbot` then:
 
 - Renews these bot user credentials
 - For each configured destination:
-    - Obtains role impersonated credentials from the auth service using its
+  - Obtains role impersonated credentials from the auth service using its
     bot user credentials.
-    - Outputs these role impersonated credentials in the configured formats.
+  - Outputs these role impersonated credentials in the configured formats.
 
 Concurrently to this, `tbot` monitors the Teleport certificate authorities to
 detect certificate rotations. When this occurs, it triggers additional renewals
