@@ -17,7 +17,9 @@ package handler
 import (
 	"context"
 	"sort"
+	"strings"
 
+	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 
@@ -26,10 +28,22 @@ import (
 
 // ListServers lists servers
 func (s *Handler) ListServers(ctx context.Context, req *api.ListServersRequest) (*api.ListServersResponse, error) {
+	var sortBy types.SortBy
+	sortParam := req.SortBy
+	if sortParam != "" {
+		vals := strings.Split(sortParam, ":")
+		if vals[0] != "" {
+			sortBy.Field = vals[0]
+			if len(vals) > 1 && vals[1] == "desc" {
+				sortBy.IsDesc = true
+			}
+		}
+	}
 	params := clusters.ListServersParams{
 		ClusterUri: req.ClusterUri,
 		Query:      req.Query,
 		Search:     req.Search,
+		SortBy:     sortBy,
 	}
 	servers, err := s.DaemonService.ListServers(ctx, params)
 	if err != nil {

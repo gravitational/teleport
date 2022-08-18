@@ -738,6 +738,9 @@ export class ListServersRequest extends jspb.Message {
     getSearch(): string;
     setSearch(value: string): ListServersRequest;
 
+    getSortBy(): string;
+    setSortBy(value: string): ListServersRequest;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ListServersRequest.AsObject;
@@ -754,6 +757,7 @@ export namespace ListServersRequest {
         clusterUri: string,
         query: string,
         search: string,
+        sortBy: string,
     }
 }
 

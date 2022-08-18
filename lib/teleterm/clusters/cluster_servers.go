@@ -40,6 +40,7 @@ type ListServersParams struct {
 	ClusterUri string
 	Query      string
 	Search     string
+	SortBy     types.SortBy
 }
 
 // GetServers returns cluster servers
@@ -56,6 +57,7 @@ func (c *Cluster) GetServers(ctx context.Context, params ListServersParams) ([]S
 			Namespace:           defaults.Namespace,
 			PredicateExpression: params.Query,
 			SearchKeywords:      client.ParseSearchKeywords(params.Search, ' '),
+			SortBy:              params.SortBy,
 		})
 		if err != nil {
 			return trace.Wrap(err)

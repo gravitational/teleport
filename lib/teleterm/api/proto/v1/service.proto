@@ -239,6 +239,7 @@ message ListServersRequest {
     string cluster_uri = 1;
     string query = 2;
     string search = 3;
+    string sort_by = 4;
 }
 
 message ListServersResponse { repeated Server servers = 1; }
