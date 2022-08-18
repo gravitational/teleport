@@ -30,7 +30,7 @@ PKCS#11 provides the ability to:
  - perform cryptographic operations with a hardware key's stored private keys
  - store and retrieve certificates directly on a hardware key
 
-However, the PKCS#11 interface is complex, hard, to use, and does not provide a standard for slot management or attestation. Since we currently only plan to support yubikeys, which are PIV-compatible, we will use PIV for its ease of use and additional capabilities.
+However, the PKCS#11 interface is complex, hard to use, and does not provide a standard for slot management or attestation. Since we currently only plan to support yubikeys, which are PIV-compatible, we will use PIV for its ease of use and additional capabilities.
 
 #### PIV
 
@@ -81,7 +81,7 @@ Note: If either of these options are combined with MFA/PIV PIN enforcement, or b
 
 ### Server changes
 
-Hardware private key enformcement will be configured and controlled by the Teleport Auth Server, so let's start with the server changes.
+Hardware private key enforcement will be configured and controlled by the Teleport Auth Server, so let's start with the server changes.
 
 #### Configuration
 
@@ -148,14 +148,14 @@ spec:
 ```
 
 - `on`: Current per-session MFA functionality - user's are required to pass an MFA challenge with a registered MFA device in order to start new SSH|Kubernetes|DB|Desktop sessions. Non-session requests, and app-session requests are not impacted.
-- `hardware_key`: Essentially combines `require_session_mfa: on` with `private_key_policy: true`. MFA tap is only required for session requests, but all Teleport API requests require certificates backed by a hardware private key.
+- `hardware_key`: Essentially combines `require_session_mfa: on` with `private_key_policy: hardware_key`. MFA tap is only required for session requests, but all Teleport API requests require certificates backed by a hardware private key.
 - `hardware_key_touch`: This is the same as `private_key_policy: hardware_key_touch`. Per-session MFA is disabled in favor of touch checks directly on the hardware key the user used to login.
 
 Note: From a product perspective, we have decided to add the new `require_session_mfa` options and omit the new `private_key_policy` option to reduce configuration knobs. Since the underlying implementation will be completely separate from per-session MFA, this RFD will continue to refer to `private_key_policy` to make reasoning about the proposed changes easier to understand.
 
 #### Enforcement - Attestation
 
-In order to enforce the user private key usage, we need to take a certificate's public key and tie it back to a trusted hardware device, which can be done with attesatation, as explained [above](#attestation).
+In order to enforce the user private key usage, we need to take a certificate's public key and tie it back to a trusted hardware device, which can be done with attestation, as explained [above](#attestation).
 
 First, we need to get attestation data from the user's hardware key during login, which we will do with the new rpc `AttestHardwarePrivateKey`.
 
@@ -291,7 +291,7 @@ If `private_key_policy: hardware_key_touch` is used, then every Teleport Client 
 
 #### Database support
 
-`tsh db connect` uses raw RSA private key data to form connections. Since this cannot be supported with hardware private keys, users will instead need to use `tsh proxy db` to connect using a local proxy. Teleport Connect already uses `tsh proxy db` and will not be affected, but the WebUI may have an additional challeng to support datbase connections.
+`tsh db connect` uses raw RSA private key data to form connections. Since this cannot be supported with hardware private keys, users will instead need to use `tsh proxy db` to connect using a local proxy. Teleport Connect already uses `tsh proxy db` and will not be affected, but the WebUI may have an additional challenge to support database connections.
 
 #### Kubernetes support
 
