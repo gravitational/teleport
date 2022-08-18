@@ -215,12 +215,11 @@ func (s *SessionStream) Write(data []byte) (int, error) {
 	defer s.writeSync.Unlock()
 
 	err := s.conn.WriteMessage(websocket.BinaryMessage, data)
-
 	if err != nil {
-		return len(data), s.conn.WriteMessage(websocket.BinaryMessage, data)
+		return 0, trace.Wrap(err)
 	}
 
-	return 0, trace.Wrap(err)
+	return len(data), nil
 }
 
 // Resize sends a resize request to the other party.
