@@ -433,10 +433,11 @@ func (process *TeleportProcess) addConnector(connector *Connector) {
 // the resulting payload as a *Connector. Returns (nil, nil) when the
 // ExitContext is done, so error checking should happen on the connector rather
 // than the error:
-//  conn, err := process.waitForConnector("FooIdentity", log)
-//  if conn == nil {
-//  	return trace.Wrap(err)
-//  }
+//
+//	conn, err := process.waitForConnector("FooIdentity", log)
+//	if conn == nil {
+//		return trace.Wrap(err)
+//	}
 func (process *TeleportProcess) waitForConnector(identityEvent string, log logrus.FieldLogger) (*Connector, error) {
 	event, err := process.WaitForEvent(process.ExitContext(), identityEvent)
 	if err != nil {
@@ -1334,6 +1335,22 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
+	traceClt := tracing.NewNoopClient()
+	if cfg.Tracing.Enabled {
+		traceConf, err := process.Config.Tracing.Config()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		traceConf.Logger = process.log.WithField(trace.Component, teleport.ComponentTracing)
+
+		clt, err := tracing.NewStartedClient(process.ExitContext(), *traceConf)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		traceClt = clt
+	}
+
 	// first, create the AuthServer
 	authServer, err := auth.Init(auth.InitConfig{
 		Backend:                 b,
@@ -1366,6 +1383,7 @@ func (process *TeleportProcess) initAuthService() error {
 		KeyStoreConfig:          cfg.Auth.KeyStore,
 		Emitter:                 checkingEmitter,
 		Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
+		TraceClient:             traceClt,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1484,22 +1502,6 @@ func (process *TeleportProcess) initAuthService() error {
 	go mux.Serve()
 	authMetrics := &auth.Metrics{GRPCServerLatency: cfg.Metrics.GRPCServerLatency}
 
-	traceClt := tracing.NewNoopClient()
-	if cfg.Tracing.Enabled {
-		traceConf, err := process.Config.Tracing.Config()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		traceConf.Logger = process.log.WithField(trace.Component, teleport.ComponentTracing)
-
-		clt, err := tracing.NewStartedClient(process.ExitContext(), *traceConf)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		traceClt = clt
-	}
-
 	tlsServer, err := auth.NewTLSServer(auth.TLSServerConfig{
 		TLS:           tlsConfig,
 		APIConfig:     *apiConf,
@@ -1509,7 +1511,6 @@ func (process *TeleportProcess) initAuthService() error {
 		ID:            process.id,
 		Listener:      mux.TLS(),
 		Metrics:       authMetrics,
-		TraceClient:   traceClt,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1707,6 +1708,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 	reporter, err := backend.NewReporter(backend.ReporterConfig{
 		Component: teleport.ComponentCache,
 		Backend:   mem,
+		Tracer:    process.TracingProvider.Tracer(teleport.ComponentCache),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1908,19 +1910,13 @@ func (process *TeleportProcess) initSSH() error {
 		trace.Component: teleport.Component(teleport.ComponentNode, process.id),
 	})
 
-	var agentPool *reversetunnel.AgentPool
-	var conn *Connector
-	var ebpf bpf.BPF
-	var rm restricted.Manager
-	var s *regular.Server
-	var asyncEmitter *events.AsyncEmitter
-
 	process.RegisterCriticalFunc("ssh.node", func() error {
-		var err error
-		conn, err = process.waitForConnector(SSHIdentityEvent, log)
+		conn, err := process.waitForConnector(SSHIdentityEvent, log)
 		if conn == nil {
 			return trace.Wrap(err)
 		}
+
+		defer func() { warnOnErr(conn.Close(), log) }()
 
 		cfg := process.Config
 
@@ -1963,18 +1959,20 @@ func (process *TeleportProcess) initSSH() error {
 		// Start BPF programs. This is blocking and if the BPF programs fail to
 		// load, the node will not start. If BPF is not enabled, this will simply
 		// return a NOP struct that can be used to discard BPF data.
-		ebpf, err = bpf.New(cfg.SSH.BPF)
+		ebpf, err := bpf.New(cfg.SSH.BPF)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer func() { warnOnErr(ebpf.Close(), log) }()
 
 		// Start access control programs. This is blocking and if the BPF programs fail to
 		// load, the node will not start. If access control is not enabled, this will simply
 		// return a NOP struct.
-		rm, err = restricted.New(cfg.SSH.RestrictedSession, conn.Client)
+		rm, err := restricted.New(cfg.SSH.RestrictedSession, conn.Client)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		// TODO: are we missing rm.Close()
 
 		// make sure the namespace exists
 		namespace := types.ProcessNamespace(cfg.SSH.Namespace)
@@ -2007,10 +2005,11 @@ func (process *TeleportProcess) initSSH() error {
 
 		// asyncEmitter makes sure that sessions do not block
 		// in case if connections are slow
-		asyncEmitter, err = process.newAsyncEmitter(conn.Client)
+		asyncEmitter, err := process.newAsyncEmitter(conn.Client)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer func() { warnOnErr(asyncEmitter.Close(), log) }()
 
 		clusterName, err := authClient.GetClusterName()
 		if err != nil {
@@ -2037,7 +2036,7 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
-		s, err = regular.New(cfg.SSH.Addr,
+		s, err := regular.New(cfg.SSH.Addr,
 			cfg.Hostname,
 			[]ssh.Signer{conn.ServerIdentity.KeySigner},
 			authClient,
@@ -2069,6 +2068,7 @@ func (process *TeleportProcess) initSSH() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer func() { warnOnErr(s.Close(), log) }()
 
 		// init uploader service for recording SSH node, if proxy is not
 		// enabled on this node, because proxy stars uploader service as well
@@ -2087,6 +2087,7 @@ func (process *TeleportProcess) initSSH() error {
 			}
 		}
 
+		var agentPool *reversetunnel.AgentPool
 		if !conn.UseTunnel() {
 			listener, err := process.importOrCreateListener(listenerNodeSSH, cfg.SSH.Addr.Addr)
 			if err != nil {
@@ -2102,9 +2103,6 @@ func (process *TeleportProcess) initSSH() error {
 			// Start the SSH server. This kicks off updating labels, starting the
 			// heartbeat, and accepting connections.
 			go s.Serve(listener)
-
-			// Broadcast that the node has started.
-			process.BroadcastEvent(Event{Name: NodeSSHReady, Payload: nil})
 		} else {
 			// Start the SSH server. This kicks off updating labels and starting the
 			// heartbeat.
@@ -2135,52 +2133,31 @@ func (process *TeleportProcess) initSSH() error {
 				return trace.Wrap(err)
 			}
 			log.Infof("Service is starting in tunnel mode.")
-
-			// Broadcast that the node has started.
-			process.BroadcastEvent(Event{Name: NodeSSHReady, Payload: nil})
 		}
+
+		// Broadcast that the node has started.
+		process.BroadcastEvent(Event{Name: NodeSSHReady, Payload: nil})
 
 		// Block and wait while the node is running.
-		s.Wait()
-		if conn.UseTunnel() {
-			agentPool.Wait()
+		event, err := process.WaitForEvent(process.ExitContext(), TeleportExitEvent)
+		if err != nil {
+			return trace.Wrap(err)
 		}
+
+		if event.Payload == nil {
+			log.Infof("Shutting down immediately.")
+			warnOnErr(s.Close(), log)
+		} else {
+			log.Infof("Shutting down gracefully.")
+			warnOnErr(s.Shutdown(payloadContext(event.Payload, log)), log)
+		}
+
+		s.Wait()
+		agentPool.Stop()
+		agentPool.Wait()
 
 		log.Infof("Exited.")
 		return nil
-	})
-
-	// Execute this when process is asked to exit.
-	process.OnExit("ssh.shutdown", func(payload interface{}) {
-		if payload == nil {
-			log.Infof("Shutting down immediately.")
-			if s != nil {
-				warnOnErr(s.Close(), log)
-			}
-		} else {
-			log.Infof("Shutting down gracefully.")
-			if s != nil {
-				warnOnErr(s.Shutdown(payloadContext(payload, log)), log)
-			}
-		}
-		if conn != nil && conn.UseTunnel() {
-			agentPool.Stop()
-		}
-
-		if ebpf != nil {
-			// Close BPF service.
-			warnOnErr(ebpf.Close(), log)
-		}
-
-		if asyncEmitter != nil {
-			warnOnErr(asyncEmitter.Close(), log)
-		}
-
-		if conn != nil {
-			warnOnErr(conn.Close(), log)
-		}
-
-		log.Infof("Exited.")
 	})
 
 	return nil
@@ -2635,10 +2612,10 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) (
 
 // initProxy gets called if teleport runs with 'proxy' role enabled.
 // this means it will do four things:
-//    1. serve a web UI
-//    2. proxy SSH connections to nodes running with 'node' role
-//    3. take care of reverse tunnels
-//    4. optionally proxy kubernetes connections
+//  1. serve a web UI
+//  2. proxy SSH connections to nodes running with 'node' role
+//  3. take care of reverse tunnels
+//  4. optionally proxy kubernetes connections
 func (process *TeleportProcess) initProxy() error {
 	// If no TLS key was provided for the web listener, generate a self-signed cert
 	if len(process.Config.Proxy.KeyPairs) == 0 &&
@@ -3694,15 +3671,18 @@ func (process *TeleportProcess) initApps() {
 	component := teleport.Component(teleport.ComponentApp, process.id)
 	log := process.log.WithField(trace.Component, component)
 
-	var appServer *app.Server
-	var agentPool *reversetunnel.AgentPool
-	var conn *Connector
-
 	process.RegisterCriticalFunc("apps.start", func() error {
 		conn, err := process.waitForConnector(AppsIdentityEvent, log)
 		if conn == nil {
 			return trace.Wrap(err)
 		}
+
+		ok := false
+		defer func() {
+			if !ok {
+				warnOnErr(conn.Close(), log)
+			}
+		}()
 
 		// Create a caching client to the Auth Server. It is to reduce load on
 		// the Auth Server.
@@ -3726,7 +3706,7 @@ func (process *TeleportProcess) initApps() {
 			tunnelAddrResolver = process.singleProcessModeResolver(resp.GetProxyListenerMode())
 
 			// run the resolver. this will check configuration for errors.
-			_, err := tunnelAddrResolver()
+			_, err := tunnelAddrResolver(process.ExitContext())
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -3840,7 +3820,7 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
-		appServer, err = app.New(process.ExitContext(), &app.Config{
+		appServer, err := app.New(process.ExitContext(), &app.Config{
 			DataDir:          process.Config.DataDir,
 			AuthClient:       conn.Client,
 			AccessPoint:      accessPoint,
@@ -3859,6 +3839,12 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
+		defer func() {
+			if !ok {
+				warnOnErr(appServer.Close(), log)
+			}
+		}()
+
 		// Start the apps server. This starts the server, heartbeat (services.App),
 		// and (dynamic) label update.
 		if err := appServer.Start(process.ExitContext()); err != nil {
@@ -3866,7 +3852,7 @@ func (process *TeleportProcess) initApps() {
 		}
 
 		// Create and start an agent pool.
-		agentPool, err = reversetunnel.NewAgentPool(
+		agentPool, err := reversetunnel.NewAgentPool(
 			process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
 				Component:   teleport.ComponentApp,
@@ -3890,30 +3876,25 @@ func (process *TeleportProcess) initApps() {
 		process.BroadcastEvent(Event{Name: AppsReady, Payload: nil})
 		log.Infof("All applications successfully started.")
 
+		// Cancel deferred cleanup actions, because we're going
+		// to regsiter an OnExit handler to take care of it
+		ok = true
+
+		// Execute this when process is asked to exit.
+		process.OnExit("apps.stop", func(payload interface{}) {
+			log.Infof("Shutting down.")
+			warnOnErr(appServer.Close(), log)
+			agentPool.Stop()
+			warnOnErr(conn.Close(), log)
+			log.Infof("Exited.")
+		})
+
 		// Block and wait while the server and agent pool are running.
 		if err := appServer.Wait(); err != nil {
 			return trace.Wrap(err)
 		}
 		agentPool.Wait()
-
 		return nil
-	})
-
-	// Execute this when process is asked to exit.
-	process.OnExit("apps.stop", func(payload interface{}) {
-		log.Infof("Shutting down.")
-		if appServer != nil {
-			warnOnErr(appServer.Close(), log)
-		}
-		if agentPool != nil {
-			agentPool.Stop()
-		}
-
-		if conn != nil {
-			warnOnErr(conn.Close(), log)
-		}
-
-		log.Infof("Exited.")
 	})
 }
 
@@ -3958,6 +3939,7 @@ func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error
 	reporter, err := backend.NewReporter(backend.ReporterConfig{
 		Component: teleport.ComponentBackend,
 		Backend:   backend.NewSanitizer(bk),
+		Tracer:    process.TracingProvider.Tracer(teleport.ComponentBackend),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4124,25 +4106,22 @@ func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 
 // initDebugApp starts a debug server that dumpers request headers.
 func (process *TeleportProcess) initDebugApp() {
-	var server *httptest.Server
-
 	process.RegisterFunc("debug.app.service", func() error {
-		server = httptest.NewServer(http.HandlerFunc(dumperHandler))
+		server := httptest.NewServer(http.HandlerFunc(dumperHandler))
 		process.BroadcastEvent(Event{Name: DebugAppReady, Payload: server})
-		return nil
-	})
-	process.OnExit("debug.app.shutdown", func(payload interface{}) {
-		if server != nil {
+
+		process.OnExit("debug.app.shutdown", func(payload interface{}) {
 			server.Close()
-		}
-		process.log.Infof("Exited.")
+			process.log.Infof("Exited.")
+		})
+		return nil
 	})
 }
 
 // singleProcessModeResolver returns the reversetunnel.Resolver that should be used when running all components needed
 // within the same process. It's used for development and demo purposes.
 func (process *TeleportProcess) singleProcessModeResolver(mode types.ProxyListenerMode) reversetunnel.Resolver {
-	return func() (*utils.NetAddr, error) {
+	return func(context.Context) (*utils.NetAddr, error) {
 		addr, ok := process.singleProcessMode(mode)
 		if !ok {
 			return nil, trace.BadParameter(`failed to find reverse tunnel address, if running in single process mode, make sure "auth_service", "proxy_service", and "app_service" are all enabled`)

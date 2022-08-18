@@ -22,13 +22,15 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gravitational/teleport/api/client/webclient"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+
+	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
@@ -192,6 +194,7 @@ func (s *APITestSuite) TestNew(c *check.C) {
 		KeysDir:   "/tmp",
 		Username:  "localuser",
 		SiteName:  "site",
+		Tracer:    tracing.NoopProvider().Tracer("test"),
 	}
 	err := conf.ParseProxyHost("proxy")
 	c.Assert(err, check.IsNil)
@@ -425,6 +428,42 @@ func TestWebProxyHostPort(t *testing.T) {
 	}
 }
 
+func TestGetKubeTLSServerName(t *testing.T) {
+	tests := []struct {
+		name          string
+		kubeProxyAddr string
+		want          string
+	}{
+		{
+			name:          "ipv4 format, API domain should be used",
+			kubeProxyAddr: "127.0.0.1",
+			want:          "kube.teleport.cluster.local",
+		},
+		{
+			name:          "empty host, API domain should be used",
+			kubeProxyAddr: "",
+			want:          "kube.teleport.cluster.local",
+		},
+		{
+			name:          "ipv4 unspecified, API domain should be used ",
+			kubeProxyAddr: "0.0.0.0",
+			want:          "kube.teleport.cluster.local",
+		},
+		{
+			name:          "valid hostname",
+			kubeProxyAddr: "example.com",
+			want:          "kube.example.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := GetKubeTLSServerName(tt.kubeProxyAddr)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
 // TestApplyProxySettings validates that settings received from the proxy's
 // ping endpoint are correctly applied to Teleport client.
 func TestApplyProxySettings(t *testing.T) {
@@ -540,6 +579,7 @@ func TestNewClient_UseKeyPrincipals(t *testing.T) {
 		UseKeyPrincipals: true, // causes VALID to be returned, as key was used
 		Agent:            &mockAgent{ValidPrincipals: []string{"VALID"}},
 		AuthMethods:      []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
+		Tracer:           tracing.NoopProvider().Tracer("test"),
 	}
 	client, err := NewClient(cfg)
 	require.NoError(t, err)

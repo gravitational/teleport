@@ -41,7 +41,7 @@ func (c *Cluster) GetKubes(ctx context.Context) ([]Kube, error) {
 	}
 	defer proxyClient.Close()
 
-	authClient, err := proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName, true)
+	authClient, err := proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
