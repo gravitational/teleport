@@ -45,7 +45,6 @@ export const ActionButtons = ({
   disableProceed?: boolean;
   lastStep?: boolean;
 }) => {
-  const [confirmExit, setConfirmExit] = React.useState(false);
   return (
     <Box mt={4}>
       {proceedHref && (
@@ -71,46 +70,12 @@ export const ActionButtons = ({
           {lastStep ? 'Finish' : 'Next'}
         </ButtonPrimary>
       )}
-      <ButtonSecondary
-        mt={3}
-        width="165px"
-        onClick={() => setConfirmExit(true)}
-      >
+      <ButtonPrimary as={NavLink} to={cfg.routes.root} mt={3} width="165px">
         Exit
-      </ButtonSecondary>
-      {confirmExit && (
-        <ConfirmExitDialog onClose={() => setConfirmExit(false)} />
-      )}
+      </ButtonPrimary>
     </Box>
   );
 };
-
-function ConfirmExitDialog({ onClose }: { onClose(): void }) {
-  return (
-    <Dialog
-      dialogCss={() => ({ maxWidth: '600px' })}
-      disableEscapeKeyDown={false}
-      onClose={onClose}
-      open={true}
-    >
-      <DialogHeader>
-        <DialogTitle>Exit Resource Connection</DialogTitle>
-      </DialogHeader>
-      <DialogContent minWidth="500px" flex="0 0 auto">
-        <Text mb={2}>
-          Are you sure you want to exit the “Add New Resource” workflow? You’ll
-          have to start from the beginning next time.
-        </Text>
-      </DialogContent>
-      <DialogFooter>
-        <ButtonPrimary mr="3" as={NavLink} to={cfg.routes.root} size="medium">
-          Exit
-        </ButtonPrimary>
-        <ButtonSecondary onClick={onClose}>Stay</ButtonSecondary>
-      </DialogFooter>
-    </Dialog>
-  );
-}
 
 export const TextIcon = styled(Text)`
   display: flex;

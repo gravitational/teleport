@@ -123,7 +123,7 @@ exports[`empty state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #222C59;
+  background: #512FC9;
   color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
@@ -138,7 +138,11 @@ exports[`empty state 1`] = `
 
 .c12:hover,
 .c12:focus {
-  background: #2C3A73;
+  background: #651FFF;
+}
+
+.c12:active {
+  background: #354AA4;
 }
 
 .c12:disabled {
@@ -255,13 +259,16 @@ exports[`empty state 1`] = `
     >
       Next
     </button>
-    <button
+    <a
       class="c12"
-      kind="secondary"
+      href="/web"
+      kind="primary"
+      mt="3"
+      theme="[object Object]"
       width="165px"
     >
       Exit
-    </button>
+    </a>
   </div>
 </div>
 `;
@@ -389,7 +396,7 @@ exports[`empty state with static logins 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #222C59;
+  background: #512FC9;
   color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
@@ -404,7 +411,11 @@ exports[`empty state with static logins 1`] = `
 
 .c13:hover,
 .c13:focus {
-  background: #2C3A73;
+  background: #651FFF;
+}
+
+.c13:active {
+  background: #354AA4;
 }
 
 .c13:disabled {
@@ -551,13 +562,16 @@ exports[`empty state with static logins 1`] = `
     >
       Next
     </button>
-    <button
+    <a
       class="c13"
-      kind="secondary"
+      href="/web"
+      kind="primary"
+      mt="3"
+      theme="[object Object]"
       width="165px"
     >
       Exit
-    </button>
+    </a>
   </div>
 </div>
 `;
@@ -738,7 +752,7 @@ exports[`loaded with static state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #222C59;
+  background: #512FC9;
   color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
@@ -753,7 +767,11 @@ exports[`loaded with static state 1`] = `
 
 .c13:hover,
 .c13:focus {
-  background: #2C3A73;
+  background: #651FFF;
+}
+
+.c13:active {
+  background: #354AA4;
 }
 
 .c13:disabled {
@@ -948,13 +966,16 @@ exports[`loaded with static state 1`] = `
     >
       Next
     </button>
-    <button
+    <a
       class="c13"
-      kind="secondary"
+      href="/web"
+      kind="primary"
+      mt="3"
+      theme="[object Object]"
       width="165px"
     >
       Exit
-    </button>
+    </a>
   </div>
 </div>
 `;

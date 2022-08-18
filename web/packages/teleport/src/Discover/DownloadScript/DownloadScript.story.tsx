@@ -16,6 +16,8 @@
 
 import React from 'react';
 
+import { MemoryRouter } from 'react-router';
+
 import { DownloadScript } from './DownloadScript';
 import { State } from './useDownloadScript';
 
@@ -23,25 +25,37 @@ export default {
   title: 'Teleport/Discover/DownloadScript',
 };
 
-export const Polling = () => <DownloadScript {...props} />;
+export const Polling = () => (
+  <MemoryRouter>
+    <DownloadScript {...props} />
+  </MemoryRouter>
+);
 
 export const PollingSuccess = () => (
-  <DownloadScript {...props} pollState="success" />
+  <MemoryRouter>
+    <DownloadScript {...props} pollState="success" />
+  </MemoryRouter>
 );
 
 export const PollingError = () => (
-  <DownloadScript {...props} pollState="error" />
+  <MemoryRouter>
+    <DownloadScript {...props} pollState="error" />
+  </MemoryRouter>
 );
 
 export const Processing = () => (
-  <DownloadScript {...props} attempt={{ status: 'processing' }} />
+  <MemoryRouter>
+    <DownloadScript {...props} attempt={{ status: 'processing' }} />
+  </MemoryRouter>
 );
 
 export const Failed = () => (
-  <DownloadScript
-    {...props}
-    attempt={{ status: 'failed', statusText: 'some error message' }}
-  />
+  <MemoryRouter>
+    <DownloadScript
+      {...props}
+      attempt={{ status: 'failed', statusText: 'some error message' }}
+    />
+  </MemoryRouter>
 );
 
 const props: State = {

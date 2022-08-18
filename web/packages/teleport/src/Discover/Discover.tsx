@@ -20,6 +20,8 @@ import { Flex, Text, Box, Indicator } from 'design';
 import { Danger } from 'design/Alert';
 import * as Icons from 'design/Icon';
 
+import { Prompt } from 'react-router-dom';
+
 import useTeleport from 'teleport/useTeleport';
 import getFeatures from 'teleport/features';
 import { UserMenuNav } from 'teleport/components/UserMenuNav';
@@ -72,6 +74,10 @@ export function Discover({
 
   return (
     <MainContainer>
+      <Prompt
+        message="Are you sure you want to exit the “Add New Resource” workflow? You’ll have to start from the beginning next time."
+        when={currentStep > 0}
+      />
       {initAttempt.status === 'processing' && (
         <main.StyledIndicator>
           <Indicator />

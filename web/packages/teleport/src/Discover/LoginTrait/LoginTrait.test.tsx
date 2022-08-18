@@ -18,6 +18,8 @@ import React from 'react';
 
 import { render, screen, act, fireEvent } from 'design/utils/testing';
 
+import { MemoryRouter } from 'react-router';
+
 import TeleportContext from 'teleport/teleportContext';
 import ContextProvider from 'teleport/TeleportContextProvider';
 
@@ -35,18 +37,20 @@ describe('login trait comp behavior', () => {
 
   beforeEach(() => {
     Component = (
-      <ContextProvider ctx={ctx}>
-        <LoginTrait
-          // TODO we don't need all of this
-          attempt={null}
-          joinToken={null}
-          createJoinToken={null}
-          agentMeta={mockedNodeMeta}
-          updateAgentMeta={null}
-          nextStep={null}
-          prevStep={null}
-        />
-      </ContextProvider>
+      <MemoryRouter>
+        <ContextProvider ctx={ctx}>
+          <LoginTrait
+            // TODO we don't need all of this
+            attempt={null}
+            joinToken={null}
+            createJoinToken={null}
+            agentMeta={mockedNodeMeta}
+            updateAgentMeta={null}
+            nextStep={null}
+            prevStep={null}
+          />
+        </ContextProvider>
+      </MemoryRouter>
     );
   });
 
