@@ -1136,6 +1136,8 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 			})
 	}
 	for _, matcher := range fc.Databases.AzureMatchers {
+		matcher.Subscriptions = apiutils.Deduplicate(matcher.Subscriptions)
+		matcher.ResourceGroups = apiutils.Deduplicate(matcher.ResourceGroups)
 		if len(matcher.Subscriptions) == 0 || apiutils.SliceContainsStr(matcher.Subscriptions, types.Wildcard) {
 			matcher.Subscriptions = []string{types.Wildcard}
 		}

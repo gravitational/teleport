@@ -171,8 +171,8 @@ db_service:
     - labels:
         "*": "*"
   azure:
-    - subscriptions: ["sub1", "sub2"]
-      resource_groups: ["group1", "group2"]
+    - subscriptions: ["sub1", "sub2", "sub1", "sub2"]
+      resource_groups: ["group1", "group2", "group2", "group1"]
       types: ["postgres", "mysql"]
       regions: ["eastus", "centralus"]
       tags:
@@ -181,6 +181,12 @@ db_service:
       regions: ["westus"]
       tags:
         "c": "d"
+    - subscriptions: ["sub1", "*", "sub1", "sub2"]
+      resource_groups: ["group1", "*", "group2", "group1"]
+      types: ["postgres", "mysql"]
+      regions: ["westus"]
+      tags:
+        "e": "f"
 `
 
 // NoServicesConfigString is a configuration file with no services enabled
