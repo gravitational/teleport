@@ -401,6 +401,11 @@ func (r *AccessRequestV3) SetLoginHint(login string) {
 	r.Spec.LoginHint = login
 }
 
+// SetAssumedRoleRequestID sets the request ID of the access request from which the assumed role was obtained
+func (m *Metadata) SetAssumedRoleRequestID(requestId string) {
+	m.AssumedRoleRequestID = requestId
+}
+
 // GetDryRun returns true if this request should not be created and is only
 // a dry run to validate request capabilities.
 func (r *AccessRequestV3) GetDryRun() bool {

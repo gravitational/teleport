@@ -71,6 +71,9 @@ message Metadata {
     ];
     // ID is a record ID
     int64 ID = 7 [ (gogoproto.jsontag) = "id,omitempty" ];
+    // AssumedRoleRequestID is the request ID of the access request from which the assumed role was
+    // obtained
+    string AssumedRoleRequestID = 8 [ (gogoproto.jsontag) = "assumed_role_request_id,omitempty" ];
 };
 
 // Rotation is a status of the rotation of the certificate authority
