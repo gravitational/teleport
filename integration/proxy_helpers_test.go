@@ -19,7 +19,10 @@ package integration
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -33,11 +36,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
@@ -471,19 +476,29 @@ func mustCreateKubeConfigFile(t *testing.T, config clientcmdapi.Config) string {
 }
 
 func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpncommon.Protocol) *alpnproxy.LocalProxy {
-	listener, err := net.Listen("tcp", ":0")
-	require.NoError(t, err)
-
-	address, err := utils.ParseAddr(addr)
-	require.NoError(t, err)
-	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
+	return mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:    addr,
 		Protocols:          []alpncommon.Protocol{protocol},
 		InsecureSkipVerify: true,
-		Listener:           listener,
-		ParentContext:      context.Background(),
-		SNI:                address.Host(),
 	})
+}
+
+func mustStartALPNLocalProxyWithConfig(t *testing.T, config alpnproxy.LocalProxyConfig) *alpnproxy.LocalProxy {
+	if config.Listener == nil {
+		listener, err := net.Listen("tcp", ":0")
+		require.NoError(t, err)
+		config.Listener = listener
+	}
+	if config.SNI == "" {
+		address, err := utils.ParseAddr(config.RemoteProxyAddr)
+		require.NoError(t, err)
+		config.SNI = address.Host()
+	}
+	if config.ParentContext == nil {
+		config.ParentContext = context.TODO()
+	}
+
+	lp, err := alpnproxy.NewLocalProxy(config)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		lp.Close()
@@ -511,4 +526,89 @@ func makeNodeConfig(nodeName, authAddr string) *service.Config {
 	nodeConfig.SSH.Enabled = true
 	nodeConfig.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	return nodeConfig
+}
+
+// mockAWSALBProxy is a mock proxy server that simulates an AWS application
+// load balancer where ALPN is not supported and SNI gets lost during TLS
+// handshake. Note that this mock does not actually balance traffic.
+type mockAWSALBProxy struct {
+	net.Listener
+	proxyAddr    string
+	ca           tls.Certificate
+	connDeadline time.Duration
+}
+
+func (m *mockAWSALBProxy) Serve(t *testing.T) {
+	for {
+		conn, err := m.Accept()
+		if err != nil {
+			if utils.IsUseOfClosedNetworkError(err) {
+				return
+			}
+
+			require.NoError(t, err)
+			return
+		}
+
+		go func() {
+			// Handshake with incoming client and drops ALPN.
+			downstreamConn := tls.Server(conn, &tls.Config{
+				InsecureSkipVerify: true,
+				Certificates:       []tls.Certificate{m.ca},
+			})
+			require.NoError(t, downstreamConn.Handshake())
+			require.Empty(t, downstreamConn.ConnectionState().NegotiatedProtocol)
+
+			// Make a connection to the proxy server.
+			address, err := utils.ParseAddr(m.proxyAddr)
+			require.NoError(t, err)
+
+			upstreamConn, err := tls.Dial("tcp", m.proxyAddr, &tls.Config{
+				InsecureSkipVerify: true,
+				ServerName:         address.Host(),
+			})
+			require.NoError(t, err)
+			require.Empty(t, upstreamConn.ConnectionState().NegotiatedProtocol)
+
+			downstreamConn.SetDeadline(time.Now().Add(m.connDeadline))
+			upstreamConn.SetDeadline(time.Now().Add(m.connDeadline))
+
+			go func() {
+				defer downstreamConn.Close()
+				defer upstreamConn.Close()
+				io.Copy(downstreamConn, upstreamConn)
+			}()
+			go func() {
+				defer downstreamConn.Close()
+				defer upstreamConn.Close()
+				io.Copy(upstreamConn, downstreamConn)
+			}()
+		}()
+	}
+}
+
+func mustStartMockALBProxy(t *testing.T, proxyAddr string, connDeadline time.Duration) *mockAWSALBProxy {
+	listener, err := net.Listen("tcp", ":0")
+	require.NoError(t, err)
+
+	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
+		CommonName: "localhost",
+	}, []string{"localhost"}, defaults.CATTL)
+	require.NoError(t, err)
+
+	ca, err := tls.X509KeyPair(caCert, caKey)
+	require.NoError(t, err)
+
+	m := &mockAWSALBProxy{
+		Listener:     listener,
+		proxyAddr:    proxyAddr,
+		ca:           ca,
+		connDeadline: connDeadline,
+	}
+	go m.Serve(t)
+
+	t.Cleanup(func() {
+		m.Close()
+	})
+	return m
 }

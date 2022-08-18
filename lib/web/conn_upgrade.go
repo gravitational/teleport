@@ -21,7 +21,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"time"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/utils"
@@ -80,8 +79,6 @@ func (h *Handler) upgradeToALPN(ctx context.Context, conn net.Conn) error {
 	if h.cfg.ALPNHandler == nil {
 		return trace.BadParameter("missing ALPNHandler")
 	}
-
-	conn.SetDeadline(time.Time{})
 
 	err := h.cfg.ALPNHandler.HandleConnection(ctx, conn)
 	if err != nil && !utils.IsOKNetworkError(err) {
