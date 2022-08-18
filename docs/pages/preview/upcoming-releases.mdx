@@ -18,11 +18,10 @@ In Teleport 10.2, Desktop Access will receive:
 
 Server Access will add:
 - support for Linux Audit (auditd)
-- support for non-disk based certificates
 - automatic discovery of servers on AWS
 
-For Teleport Connect, we will add Touch ID support in macOS builds, and introduce
-support for Windows and Linux.
+For Teleport Connect, we will add Touch ID support in macOS builds, and
+introduce support for Windows and Linux.
 
 Lastly, Teleport 10.2 will include support for a notification-only automatic
 upgrade system.
@@ -33,12 +32,34 @@ upgrade system.
 
 ### Teleport 10.3
 
-Teleport 10 will bring Cassandra and Elasticsearch support to Database Access.
-Host certificate support will be added to Machine ID. 
+Teleport 10.3 will bring Cassandra and Elasticsearch support to Database
+Access. Host certificate support will be added to Machine ID.
+
+In addition, Teleport will support trait transformation for SSO claims and TLS
+Routing with the Teleport Proxy Service deployed behind an ALB. `tsh` will
+support non-disk based certificates.
 
 | Version     | Date              | Description                |
 |-------------|-------------------|----------------------------|
 | Release     | September 2022    | Good to go for production. |
+
+### Teleport 11
+
+Teleport 11 will bring support for script-based automatic upgrades and richer
+Azure integration.
+
+- Server Access will replace scp with sftp under the hood.
+- Kubernetes Access will add support for automatic discovery and enrollment of
+  Kubernetes clusters and IP-based restrictions.
+- Desktop Access will add support for FIPS.
+- Machine ID will add support for popular CI/CD platforms like GitHub, GitLab,
+  and CircleCI.
+- Teleport Connect will add support for Kubernetes Access and Access Requests.
+
+| Version          | Date               | Description                                                 |
+|------------------|--------------------|-------------------------------------------------------------|
+| `11.0.0-alpha.1` | October 3rd, 2022  | Some features planned for the release may still be missing. |
+| Release          | October 24th, 2022 | Good to go for production.                                  |
 
 ## Teleport Cloud
 
