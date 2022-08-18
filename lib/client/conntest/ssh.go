@@ -143,20 +143,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		return nil, trace.Wrap(err)
 	}
 
-	var certPublicKeys []ssh.PublicKey
-	for _, ca := range certAuths {
-		caCheckers, err := libsshutils.GetCheckers(ca)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		certPublicKeys = append(certPublicKeys, caCheckers...)
-	}
-
-	hostKeyCallback, err := sshutils.NewHostKeyCallback(sshutils.HostKeyCallbackConfig{
-		GetHostCheckers: func() ([]ssh.PublicKey, error) {
-			return certPublicKeys, nil
-		},
-	})
+	hostkeyCallback, err := hostkeyCallbackFromCAs(certAuths)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -166,7 +153,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		return nil, trace.Wrap(err)
 	}
 
-	sshClientConfig.HostKeyCallback = hostKeyCallback
+	sshClientConfig.HostKeyCallback = hostkeyCallback
 	sshClientConfig.User = req.SSHPrincipal
 
 	dialCtx, cancelFunc := context.WithTimeout(ctx, req.DialTimeout)
@@ -274,4 +261,26 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	}
 
 	return connDiag, nil
+}
+
+func hostkeyCallbackFromCAs(certAuths []types.CertAuthority) (ssh.HostKeyCallback, error) {
+	var certPublicKeys []ssh.PublicKey
+	for _, ca := range certAuths {
+		caCheckers, err := libsshutils.GetCheckers(ca)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		certPublicKeys = append(certPublicKeys, caCheckers...)
+	}
+
+	hostKeyCallback, err := sshutils.NewHostKeyCallback(sshutils.HostKeyCallbackConfig{
+		GetHostCheckers: func() ([]ssh.PublicKey, error) {
+			return certPublicKeys, nil
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return hostKeyCallback, nil
 }
