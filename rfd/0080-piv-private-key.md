@@ -73,7 +73,7 @@ However, an attacker could still potentially gain access if they hack into the u
  1. Enable [per-session MFA](https://goteleport.com/docs/access-controls/guides/per-session-mfa/) alongside hardware private key enforcement, which requires you to pass an MFA check (touch) to start a new Teleport Service session (SSH/Kube/etc.). 
  2. Enforce Touch to access hardware private keys, which can be done with PIV-compatible hardware keys. In this case, Touch is required for every Teleport request, not just new Teleport Service sessions.
 
-The first option is a bit simpler as it rides off the coattails of our existing Per-session MFA system. On the other hand, the second option provides better security principles, since touch is enforced for every Teleport request rather than just Session requests, and it requires fewer roundtrips to the Auth server.
+The first option is a bit simpler as it rides off the coattails of our existing per-session MFA system. On the other hand, the second option provides better security principles, since touch is enforced for every Teleport request rather than just Session requests, and it requires fewer roundtrips to the Auth server.
 
 In this RFD we'll explore both options together, since they are not mutually exclusive, and the underlying implementation will be the same regardless. 
 
@@ -92,7 +92,7 @@ auth_service:
   ...
   authentication:
     ...
-    private_key_mode: disk | hardware_key | hardware_key_touch
+    private_key_policy: none | hardware_key | hardware_key_touch
 ```
 
 ```yaml
@@ -101,7 +101,7 @@ version: v2
 metadata:
   name: cluster-auth-preference
 spec:
-  private_key_mode: disk | hardware_key | hardware_key_touch
+  private_key_policy: none | hardware_key | hardware_key_touch
 ```
 
 This can also be configured for individual roles:
@@ -113,16 +113,45 @@ metadata:
   name: role-name
 spec:
   role_options:
-    private_key_mode: disk | hardware_key | hardware_key_touch
+    private_key_policy: none | hardware_key | hardware_key_touch
 ```
 
-- `disk` (default): A user's private keys can be generated in memory and stored on disk. No enforcement necessary.
+- `none` (default): No enforcement on private key usage.
 - `hardware_key`: A user's private keys must be generated on a hardware key. As a result, the user cannot use their signed certificates unless they have their hardware key connected.
 - `hardware_key_touch`: A user's private keys must be generated on a hardware key, and must require touch to be accessed. As a result, the user must touch their hardware key on login, and on every subsequent request.
 
-Alternatively, Teleport admins can "upgrade" their existing [require-session-mfa configuration](https://goteleport.com/docs/access-controls/guides/per-session-mfa/#configure-per-session-mfa) from `true` to `hardware_key`. This will essentially act as an alias for `private_key_mode: hardware_key && require_session_mfa: true`.
+#### Per-session MFA configuration
 
-On the other hand, `private_key_mode: hardware_key_touch` and `require_session_mfa: true` should not be used together, since this configuration would require one touch for every request, and an additional redundant touch for session requests. Instead, `private_key_mode: hardware_key_touch` should be used with `require_session_mfa: off`, since this private key mode provides better security than Per-session MFA anyways.
+```yaml
+auth_service:
+  ...
+  authentication:
+    ...
+    require_session_mfa: on | hardware_key | hardware_key_touch
+```
+```yaml
+kind: cluster_auth_preference
+version: v2
+metadata:
+  name: cluster-auth-preference
+spec:
+  require_session_mfa: on | hardware_key | hardware_key_touch
+```
+```yaml
+kind: role
+version: v5
+metadata:
+  name: role-name
+spec:
+  role_options:
+    require_session_mfa: on | hardware_key | hardware_key_touch
+```
+
+- `on`: Current per-session MFA functionality - user's are required to pass an MFA challenge with a registered MFA device in order to start new SSH|Kubernetes|DB|Desktop sessions. Non-session requests, and app-session requests are not impacted.
+- `hardware_key`: Essentially combines `require_session_mfa: on` with `private_key_policy: true`. MFA tap is only required for session requests, but all Teleport API requests require certificates backed by a hardware private key.
+- `hardware_key_touch`: This is the same as `private_key_policy: hardware_key_touch`. Per-session MFA is disabled in favor of touch checks directly on the hardware key the user used to login.
+
+Note: From a product perspective, we have decided to add the new `require_session_mfa` options and omit the new `private_key_policy` option to reduce configuration knobs. Since the underlying implementation will be completely separate from per-session MFA, this RFD will continue to refer to `private_key_policy` to make reasoning about the proposed changes easier to understand.
 
 #### Enforcement - Attestation
 
@@ -153,52 +182,71 @@ In addition to verifying the certificate chain for a user's hardware private key
  - Device information, including serial number, model, version 
  - Configured Touch (And PIN) Policies if any
 
-This attestation data will be check against server settings. If the attestation is valid, it will be stored in the backend in `/web/users/<user>/hardware_keys/<public_key>`.
+This attestation data will be check against server settings. If the attestation is valid, it will be stored in the backend in `/hardware_key_attestations/<public_key_der>`.
 
 ```go
 type AttestationData struct {
-  // json blob containing the resulting attestation object.
+  // PublicKeyDER is the public key of the hardware private key attested in PKIX, ASN.1 DER form.
+	PublicKeyDER []byte `json:"public_key"`
+  // Type is the type of hardware key this attestation is for.
+	Type HardwareKeyType `json:"type"`
+	// TouchRequired specifies whether touch is required to access the hardware private key.
+	TouchRequired bool `json:"touch_required"`
+  // json blob containing the resulting attestation object. 
+  //
   // For yubikey, this will look like https://pkg.go.dev/github.com/go-piv/piv-go@v1.9.0/piv#Attestation
+  // In the future, we can check the attesation object for additional information, like PIN policy,
+  // model type, serial number, etc.
   AttestationObject []byte `json:"attestation"`
 }
 ```
 
-The Auth Server will check for a valid attestation for a user's certificate before authorizing any requests, in a similar way to [Certificate Locking](https://github.com/gravitational/teleport/blob/master/rfd/0009-locking.md).
+### Certificate private key policy extension
+
+When the Auth Server receives a new certificate request, it will check the cluster auth preference and the user's role options to get their required private key policy. If their policy is `hardware_key`, then the Auth Server will look for a valid attestation in the backend associated with the given public key. If their policy is `hardware_key_touch`, then the Auth Server will also check that the attestation has `TouchRequired: true`.
+
+If the attestation checks are successful, then the Auth Server will sign the TLS and SSH certificates with the new `private_key_policy` TLS extra subject name and Extension respectively. The Auth Server's Authorizer, which is used for all API requests, will check certificates for this extension before authorizing requests.
 
 ### Client changes
 
 Teleport clients will need the ability to connect to a user's hardware key, generate/retrieve private keys, and use those keys for cryptographical operations. 
 
-#### `user_private_key` configuration discovery
+#### Private key policy discovery
 
-Teleport clients should be able to automatically determine if a user requires a hardware private key for login to avoid additional UX concerns. For this, we will introduce the `GetPrivateKeyMode` rpc.
+Teleport clients should be able to automatically determine if a user requires a hardware private key for login to avoid additional UX concerns. For this, we will introduce the `GetPrivateKeyPolicy` rpc.
 
 ```proto
 service AuthService {
-  rpc GetPrivateKeyMode(GetPrivateKeyModeRequest) returns (GetPrivateKeyModeResponse);
+  rpc GetPrivateKeyPolicy(GetPrivateKeyPolicyRequest) returns (GetPrivateKeyPolicyResponse);
 }
 
 // The user will be pulled from the request certificate, so request message can be empty for now.
-message GetPrivateKeyModeRequest {}
+message GetPrivateKeyPolicyRequest {}
 
-message GetPrivateKeyModeResponse {
-    PrivateKeyMode mode = 1;
+message GetPrivateKeyPolicyResponse {
+    PrivateKeyPolicy policy = 1;
 }
 
-enum PrivateKeyMode {
-    PRIVATE_KEY_MODE_DISK = 0;
-    PRIVATE_KEY_MODE_HARDWARE_KEY = 1;
-    PRIVATE_KEY_MODE_HARDWARE_KEY_TOUCH = 2;
+enum PrivateKeyPolicy {
+    PRIVATE_KEY_POLICY_NONE = 0;
+    PRIVATE_KEY_POLICY_HARDWARE_KEY = 1;
+    PRIVATE_KEY_POLICY_HARDWARE_KEY_TOUCH = 2;
 }
 ```
 
-Unfortunately, In order to discover a user's private key requirements, we need to first provide the user with a set of valid certificates. Unless we want to force the user to login twice, we will need to find a compromise.
+In order for a Teleport Client to call `GetPrivateKeyPolicy`, it first needs a set of valid certificates. Unlike `IsMFARequired`, which issues an MFA certificate Reissue request after logging in with non-MFA certificates, we need to call `GetPrivateKeyPolicy` on the initial login.
 
-First, we can have Teleport Clients follow the current login flow with a random RSA private key to get valid certificates. If hardware private key usage is enforced, then the server will only sign the certificates with a TTL of 1 minute. These certificates will only be usable by the endpoints `GetPrivateKeyMode` and `GenerateUserCerts` to reissue certificates. `GenerateUserCerts` will then enforce that the re-issue certificates request is using a hardware private key.
+One option is to make add an endpoint in the Proxy Web API which can be called before login. In order to authenticate the user, we would need them to login with their login credentials. For MFA and Password login, we can potentially reuse these password credentials to intiate the actual login directly after retrieving the user's private key policy requirement. However, for sso login and some edge cases is MFA login (OTP token timing, between requests, etc.), the user would be required to perform the login twice.
+
+Alternatively, we could provide a user with set of certificates using a plain RSA private key in memory first. The resulting certificates will fail the hardware key attestation check in the Auth server, so they will be invalid for all API requests, except for `GetPrivateKeyPolicy` and `GenerateUserCerts`. This way, after the initial login, `GenerateUserCerts` can be used to issue new certificates with a hardware private key.
+
+While this strategy does prevent the user from needing to login twice, it presents a possible workaround. If a Teleport Client stores the initial RSA private key and certificates, then they can be used by anyone to reissue hardware key certifificates. To mitigate this risk, the initial certificates will have a TTL of 1 minute and will only be authorized for a single reissue request. This flow is similar to per-session MFA, which also issues one-time-use certificates with a 1 minute TTL.
+
+To avoid situtations where the user has to login twice, we will go with the second option.
 
 #### Hardware private key login
 
-As mentioned above, hardware key login will start with the normal login flow, followed by a call to `GetPrivateKeyMode`. If the result is `PRIVATE_KEY_MODE_HARDWARE_KEY` or `PRIVATE_KEY_MODE_HARDWARE_KEY_TOUCH`, then the Teleport client will:
+As mentioned above, hardware key login will start with the normal login flow, followed by a call to `GetPrivateKeyPolicy`. If the result is `PRIVATE_KEY_POLICY_HARDWARE_KEY` or `PRIVATE_KEY_POLICY_HARDWARE_KEY_TOUCH`, then the Teleport client will:
  1. Find a hardware key on the user's device
  2. Generate a new private key on the hardware key (with Touch policy "cached" if required)
  3. Use the hardware private key to get a new set of signed certificates from the Teleport Auth Server
@@ -237,7 +285,7 @@ Supporting hardware private key login through the WebUI needs to be investigated
 
 The most notable UX change is that a user's login session will not be usable unless their hardware key is connected.
 
-If `private_key_mode: hardware_key_touch` is used, then every Teleport Client request will require touch (cached for 15 seconds). This will be handled by a touch prompt similar to the one used for MFA.
+If `private_key_policy: hardware_key_touch` is used, then every Teleport Client request will require touch (cached for 15 seconds). This will be handled by a touch prompt similar to the one used for MFA.
 
 ### Additional considerations
 
@@ -265,4 +313,4 @@ Some PIV operations require [adminstrative access](https://developers.yubico.com
 | PIN            | 8 chars  | `123456`                                           | sign and decrypt data, reset pin          |
 | PUK            | 8 chars  | `12345678`                                         | reset PIN when blocked by failed attempts |
 
-To simplify our implementation and limit UX impact, we will expect the user's PIV device to use the default Management Key. In the future, we may want to add support for using non-default management key to better protect the generation and retrieval of private keys on the user's PIV key, as well as PIN management if we decide to add an options like `private_key_mode: hardware_key_touch_pin`.
+To simplify our implementation and limit UX impact, we will expect the user's PIV device to use the default Management Key. In the future, we may want to add support for using non-default management key to better protect the generation and retrieval of private keys on the user's PIV key, as well as PIN management if we decide to add an options like `private_key_policy: hardware_key_touch_pin`.
