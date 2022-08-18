@@ -901,9 +901,9 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 }
 
 func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAddr, tlsConfig *tls.Config, sshConfig *ssh.ClientConfig) (*auth.Client, error) {
-	resolver := reversetunnel.WebClientResolver(process.ExitContext(), authServers, lib.IsInsecureDevMode())
+	resolver := reversetunnel.WebClientResolver(authServers, lib.IsInsecureDevMode())
 
-	resolver, err := reversetunnel.CachingResolver(resolver, process.Clock)
+	resolver, err := reversetunnel.CachingResolver(process.ExitContext(), resolver, process.Clock)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -918,7 +918,8 @@ func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAd
 		return nil, trace.Wrap(err)
 	}
 	clt, err := auth.NewClient(apiclient.Config{
-		Dialer: dialer,
+		Context: process.ExitContext(),
+		Dialer:  dialer,
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},
@@ -959,7 +960,8 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 	}
 
 	clt, err := auth.NewClient(apiclient.Config{
-		Addrs: utils.NetAddrsToStrings(authServers),
+		Context: process.ExitContext(),
+		Addrs:   utils.NetAddrsToStrings(authServers),
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},

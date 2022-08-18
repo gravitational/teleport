@@ -320,7 +320,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	rootCluster, err := client.RootClusterName()
+	rootCluster, err := client.RootClusterName(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
