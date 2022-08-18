@@ -1,11 +1,12 @@
 import React from 'react';
 import { Flex, Label, Text } from 'design';
 import { CircleCheck } from 'design/Icon';
+
+import styled from 'styled-components';
+
 import { ListItem } from 'teleterm/ui/components/ListItem';
 import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
 import { Cluster } from 'teleterm/services/tshd/types';
-import styled from 'styled-components';
-import { getClusterName } from 'teleterm/ui/utils';
 
 interface ClusterItemProps {
   index: number;
@@ -22,7 +23,7 @@ export function ClusterItem(props: ClusterItemProps) {
   });
 
   const LabelVersion = props.isSelected ? InvertedLabel : Label;
-  const clusterName = getClusterName(props.item);
+  const clusterName = props.item.name;
 
   return (
     <StyledListItem

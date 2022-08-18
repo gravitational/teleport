@@ -8,16 +8,18 @@ import React, {
 import styled from 'styled-components';
 import { Box } from 'design';
 import Popover from 'design/Popover';
-import { IdentityRootCluster, useIdentity } from './useIdentity';
-import { IdentityList } from './IdentityList/IdentityList';
-import { IdentitySelector } from './IdentitySelector/IdentitySelector';
+
 import {
   useKeyboardShortcuts,
   useKeyboardShortcutFormatters,
 } from 'teleterm/ui/services/keyboardShortcuts';
-import { EmptyIdentityList } from './EmptyIdentityList/EmptyIdentityList';
-import { getClusterName } from 'teleterm/ui/utils';
+
 import * as tshd from 'teleterm/services/tshd/types';
+
+import { IdentityRootCluster, useIdentity } from './useIdentity';
+import { IdentityList } from './IdentityList/IdentityList';
+import { IdentitySelector } from './IdentitySelector/IdentitySelector';
+import { EmptyIdentityList } from './EmptyIdentityList/EmptyIdentityList';
 
 export function IdentityContainer() {
   const {
@@ -115,7 +117,7 @@ export const Identity = React.forwardRef<IdentityHandler, IdentityProps>(
           onClick={togglePopover}
           isOpened={isPopoverOpened}
           userName={loggedInUser?.name}
-          clusterName={getClusterName(activeRootCluster)}
+          clusterName={activeRootCluster?.name}
           makeTitle={makeTitle}
         />
         <Popover

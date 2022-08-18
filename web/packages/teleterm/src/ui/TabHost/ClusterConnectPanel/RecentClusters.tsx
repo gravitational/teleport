@@ -1,7 +1,9 @@
 import React from 'react';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { getClusterName, getUserWithClusterName } from 'teleterm/ui/utils';
+
 import { Box, ButtonBorder, Card, Text } from 'design';
+
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { getUserWithClusterName } from 'teleterm/ui/utils';
 
 export function RecentClusters() {
   const ctx = useAppContext();
@@ -14,7 +16,7 @@ export function RecentClusters() {
     .map(cluster => ({
       userWithClusterName: getUserWithClusterName({
         userName: cluster.loggedInUser?.name,
-        clusterName: getClusterName(cluster),
+        clusterName: cluster.name,
       }),
       uri: cluster.uri,
     }));

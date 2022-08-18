@@ -12,7 +12,10 @@ export function getResourceUri(document: Document): string {
     case 'doc.terminal_tsh_kube':
       return document.kubeUri;
     case 'doc.terminal_shell':
-      return routing.getClusterUri(document);
+      return routing.getClusterUri({
+        rootClusterId: document.rootClusterId,
+        leafClusterId: document.leafClusterId,
+      });
     case 'doc.blank':
       return undefined;
     default:
