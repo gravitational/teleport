@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"net/url"
 	"os"
 	"sort"
@@ -30,7 +29,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -970,30 +968,11 @@ func fetchKubeStatus(ctx context.Context, tc *client.TeleportClient) (*kubernete
 	}
 
 	if tc.TLSRoutingEnabled {
-		kubeStatus.tlsServerName = getKubeTLSServerName(tc)
+		k8host, _ := tc.KubeProxyHostPort()
+		kubeStatus.tlsServerName = client.GetKubeTLSServerName(k8host)
 	}
 
 	return kubeStatus, nil
-}
-
-// getKubeTLSServerName returns k8s server name used in KUBECONFIG to leverage TLS Routing.
-func getKubeTLSServerName(tc *client.TeleportClient) string {
-	k8host, _ := tc.KubeProxyHostPort()
-
-	isIPFormat := net.ParseIP(k8host) != nil
-	if k8host == "" || isIPFormat {
-		// If proxy is configured without public_addr set the ServerName to the 'kube.teleport.cluster.local' value.
-		// The k8s server name needs to be a valid hostname but when public_addr is missing from proxy settings
-		// the web_listen_addr is used thus webHost will contain local proxy IP address like: 0.0.0.0 or 127.0.0.1
-		// TODO(smallinsky) UPGRADE IN 10.0. Switch to KubeTeleportProxyALPNPrefix instead.
-		return addSubdomainPrefix(constants.APIDomain, constants.KubeSNIPrefix)
-	}
-	// TODO(smallinsky) UPGRADE IN 10.0. Switch to KubeTeleportProxyALPNPrefix instead.
-	return addSubdomainPrefix(k8host, constants.KubeSNIPrefix)
-}
-
-func addSubdomainPrefix(domain, prefix string) string {
-	return fmt.Sprintf("%s%s", prefix, domain)
 }
 
 // buildKubeConfigUpdate returns a kubeconfig.Values suitable for updating the user's kubeconfig
