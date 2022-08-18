@@ -23,11 +23,13 @@ import (
 	"crypto/rsa"
 	"encoding/pem"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -39,9 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 // TestDatabaseLogin verifies "tsh db login" command.
@@ -72,7 +71,7 @@ func TestDatabaseLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	// Log into Teleport cluster.
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login", "--insecure", "--debug", "--auth", connector.GetName(), "--proxy", proxyAddr.String(),
 	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
@@ -85,7 +84,7 @@ func TestDatabaseLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	// Log into test Postgres database.
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"db", "login", "--debug", "postgres",
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
@@ -97,7 +96,7 @@ func TestDatabaseLogin(t *testing.T) {
 	require.Len(t, keys, 0)
 
 	// Log into test Mongo database.
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"db", "login", "--debug", "--db-user", "admin", "mongo",
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
@@ -112,6 +111,7 @@ func TestDatabaseLogin(t *testing.T) {
 func TestListDatabase(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
+	ctx := context.Background()
 
 	tshHome := t.TempDir()
 	t.Setenv(types.HomeEnvVar, tshHome)
@@ -140,7 +140,7 @@ func TestListDatabase(t *testing.T) {
 	mustLogin(t, s)
 
 	captureStdout := new(bytes.Buffer)
-	err := Run([]string{
+	err := Run(ctx, []string{
 		"db",
 		"ls",
 		"--insecure",
@@ -153,7 +153,7 @@ func TestListDatabase(t *testing.T) {
 	require.Contains(t, captureStdout.String(), "root-postgres")
 
 	captureStdout.Reset()
-	err = Run([]string{
+	err = Run(ctx, []string{
 		"db",
 		"ls",
 		"--cluster",
@@ -292,7 +292,7 @@ func TestDBInfoHasChanged(t *testing.T) {
 			require.NoError(t, err)
 
 			certPath := filepath.Join(t.TempDir(), "mongo_db_cert.pem")
-			require.NoError(t, ioutil.WriteFile(certPath, certBytes, 0600))
+			require.NoError(t, os.WriteFile(certPath, certBytes, 0o600))
 
 			cliConf := &CLIConf{DatabaseUser: tc.databaseUserName, DatabaseName: tc.databaseName}
 			got, err := dbInfoHasChanged(cliConf, certPath)
@@ -334,13 +334,8 @@ func makeTestDatabaseServer(t *testing.T, auth *service.TeleportProcess, proxy *
 	})
 
 	// Wait for database agent to start.
-	eventCh := make(chan service.Event, 1)
-	db.WaitForEvent(db.ExitContext(), service.DatabasesReady, eventCh)
-	select {
-	case <-eventCh:
-	case <-time.After(10 * time.Second):
-		t.Fatal("database server didn't start after 10s")
-	}
+	_, err = db.WaitForEventTimeout(10*time.Second, service.DatabasesReady)
+	require.NoError(t, err, "database server didn't start after 10s")
 
 	// Wait for all databases to register to avoid races.
 	for _, database := range dbs {

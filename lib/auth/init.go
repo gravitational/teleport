@@ -24,6 +24,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -40,10 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -174,6 +175,9 @@ type InitConfig struct {
 	WindowsDesktops services.WindowsDesktops
 
 	SessionTrackerService services.SessionTrackerService
+
+	// TraceClient is used to forward spans to the upstream telemetry collector
+	TraceClient otlptrace.Client
 }
 
 // Init instantiates and configures an instance of AuthServer

@@ -25,7 +25,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -35,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/trace"
 	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
 	"github.com/prometheus/client_golang/prometheus"

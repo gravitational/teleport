@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"net/url"
 	"os"
 	"sort"
@@ -28,13 +27,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ghodss/yaml"
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -45,6 +39,9 @@ import (
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
 	dockerterm "github.com/moby/term"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -111,7 +108,7 @@ func (c *kubeJoinCommand) getSessionMeta(ctx context.Context, tc *client.Telepor
 		return nil, trace.Wrap(err)
 	}
 
-	site, err := proxy.ConnectToCurrentCluster(ctx, false)
+	site, err := proxy.ConnectToCurrentCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -499,7 +496,7 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	site, err := proxy.ConnectToCurrentCluster(cf.Context, true)
+	site, err := proxy.ConnectToCurrentCluster(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -905,7 +902,7 @@ func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleport
 			return trace.Wrap(err)
 		}
 		defer pc.Close()
-		ac, err := pc.ConnectToCurrentCluster(ctx, true)
+		ac, err := pc.ConnectToCurrentCluster(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -971,30 +968,11 @@ func fetchKubeStatus(ctx context.Context, tc *client.TeleportClient) (*kubernete
 	}
 
 	if tc.TLSRoutingEnabled {
-		kubeStatus.tlsServerName = getKubeTLSServerName(tc)
+		k8host, _ := tc.KubeProxyHostPort()
+		kubeStatus.tlsServerName = client.GetKubeTLSServerName(k8host)
 	}
 
 	return kubeStatus, nil
-}
-
-// getKubeTLSServerName returns k8s server name used in KUBECONFIG to leverage TLS Routing.
-func getKubeTLSServerName(tc *client.TeleportClient) string {
-	k8host, _ := tc.KubeProxyHostPort()
-
-	isIPFormat := net.ParseIP(k8host) != nil
-	if k8host == "" || isIPFormat {
-		// If proxy is configured without public_addr set the ServerName to the 'kube.teleport.cluster.local' value.
-		// The k8s server name needs to be a valid hostname but when public_addr is missing from proxy settings
-		// the web_listen_addr is used thus webHost will contain local proxy IP address like: 0.0.0.0 or 127.0.0.1
-		// TODO(smallinsky) UPGRADE IN 10.0. Switch to KubeTeleportProxyALPNPrefix instead.
-		return addSubdomainPrefix(constants.APIDomain, constants.KubeSNIPrefix)
-	}
-	// TODO(smallinsky) UPGRADE IN 10.0. Switch to KubeTeleportProxyALPNPrefix instead.
-	return addSubdomainPrefix(k8host, constants.KubeSNIPrefix)
-}
-
-func addSubdomainPrefix(domain, prefix string) string {
-	return fmt.Sprintf("%s%s", prefix, domain)
 }
 
 // buildKubeConfigUpdate returns a kubeconfig.Values suitable for updating the user's kubeconfig

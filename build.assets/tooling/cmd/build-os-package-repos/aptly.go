@@ -22,9 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"log"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -65,7 +63,7 @@ func (*Aptly) ensureDefaultConfigExists() error {
 	// ran, which messes up the output.
 	// Note: it is important to not use any repo-related commands here as they have a side effect of
 	// also creating the Aptly rootDir structure which is usually undesirable here
-	_, err := buildAndRunCommand("aptly", "config", "show")
+	_, err := BuildAndRunCommand("aptly", "config", "show")
 	if err != nil {
 		return trace.Wrap(err, "failed to create default Aptly config")
 	}
@@ -85,7 +83,7 @@ func (a *Aptly) updateConfiguration() error {
 	logrus.Debugf("Built Aptly config: %v", aptlyConfigMap)
 	saveAptlyConfigMap(aptlyConfigMap)
 
-	configOutput, err := buildAndRunCommand("aptly", "config", "show")
+	configOutput, err := BuildAndRunCommand("aptly", "config", "show")
 	if err != nil {
 		return trace.Wrap(err, "failed to check Aptly config")
 	}
@@ -191,7 +189,7 @@ func (a *Aptly) CreateRepoIfNotExists(r *Repo) (bool, error) {
 
 	distributionArg := fmt.Sprintf("-distribution=%s", r.osVersion)
 	componentArg := fmt.Sprintf("-component=%s/%s", r.releaseChannel, r.majorVersion)
-	_, err = buildAndRunCommand("aptly", "repo", "create", distributionArg, componentArg, r.Name())
+	_, err = BuildAndRunCommand("aptly", "repo", "create", distributionArg, componentArg, r.Name())
 	if err != nil {
 		return false, trace.Wrap(err, "failed to create repo %q", r.Name())
 	}
@@ -221,7 +219,7 @@ func (a *Aptly) GetExistingRepoNames() ([]string, error) {
 	// ...
 	// <repo name N>
 	// ```
-	output, err := buildAndRunCommand("aptly", "repo", "list", "-raw")
+	output, err := BuildAndRunCommand("aptly", "repo", "list", "-raw")
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to get a list of existing repos")
 	}
@@ -247,7 +245,7 @@ func (a *Aptly) GetExistingRepoNames() ([]string, error) {
 func (a *Aptly) ImportDeb(repoName string, debPath string) error {
 	logrus.Infof("Importing deb(s) from %q into repo %q...", debPath, repoName)
 
-	_, err := buildAndRunCommand("aptly", "repo", "add", repoName, debPath)
+	_, err := BuildAndRunCommand("aptly", "repo", "add", repoName, debPath)
 	if err != nil {
 		return trace.Wrap(err, "failed to add %q to repo %q", debPath, repoName)
 	}
@@ -319,7 +317,7 @@ func parsePackagesFile(packagesPath string) ([]string, error) {
 	logrus.Debugf("Parsing packages file %q", packagesPath)
 	file, err := os.Open(packagesPath)
 	if err != nil {
-		log.Fatal(err)
+		logrus.Fatal(err)
 	}
 	defer file.Close()
 
@@ -393,7 +391,7 @@ func (a *Aptly) PublishRepos(repos []*Repo, repoOS string, repoOSVersion string)
 	// If all repos have been published
 	if areSomePublished && !areSomeUnpublished {
 		// Update rather than republish
-		_, err := buildAndRunCommand("aptly", "publish", "update", repoOSVersion, repoOS)
+		_, err := BuildAndRunCommand("aptly", "publish", "update", repoOSVersion, repoOS)
 		if err != nil {
 			return trace.Wrap(err, "failed to update publish repos with OS %q and OS version %q", repoOS, repoOSVersion)
 		}
@@ -405,7 +403,7 @@ func (a *Aptly) PublishRepos(repos []*Repo, repoOS string, repoOSVersion string)
 	// This will occur if there is a new major release, a OS version is supported, or a new release channel is added
 	if areSomePublished && areSomeUnpublished {
 		// Drop the currently published APT repo so that it can be rebuilt from scratch
-		_, err := buildAndRunCommand("aptly", "publish", "drop", repoOSVersion, repoOS)
+		_, err := BuildAndRunCommand("aptly", "publish", "drop", repoOSVersion, repoOS)
 		if err != nil {
 			return trace.Wrap(err, "failed to update publish repos with OS %q and OS version %q", repoOS, repoOSVersion)
 		}
@@ -422,7 +420,7 @@ func (a *Aptly) PublishRepos(repos []*Repo, repoOS string, repoOSVersion string)
 	args = append(args, repoOS)
 
 	// Full command is `aptly publish repo -component=<, repeating len(repos) - 1 times> <repo names> <repo OS>`
-	_, err = buildAndRunCommand("aptly", args...)
+	_, err = BuildAndRunCommand("aptly", args...)
 	if err != nil {
 		return trace.Wrap(err, "failed to publish repos")
 	}
@@ -500,7 +498,7 @@ func (a *Aptly) GetPublishedRepoNames() ([]string, error) {
 	// No snapshots/local repos have been published. Publish a snapshot by running `aptly publish snapshot ...`.
 	// ```
 	// Note that the `-raw` argument is not used here as it does not provide sufficient information
-	output, err := buildAndRunCommand("aptly", "publish", "list")
+	output, err := BuildAndRunCommand("aptly", "publish", "list")
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to get a list of published repos")
 	}
@@ -673,29 +671,6 @@ func getSubdirectories(basePath string) ([]string, error) {
 	}
 
 	return subdirectories, nil
-}
-
-func buildAndRunCommand(command string, args ...string) (string, error) {
-	cmd := exec.Command(command, args...)
-	logrus.Debugf("Running command \"%s '%s'\"", command, strings.Join(args, "' '"))
-	output, err := cmd.CombinedOutput()
-
-	if output != nil {
-		logrus.Debugf("Command output: %s", string(output))
-	}
-
-	if err != nil {
-		if exitError, ok := err.(*exec.ExitError); ok {
-			exitCode := exitError.ExitCode()
-			logrus.Debugf("Command exited with exit code %d", exitCode)
-		} else {
-			logrus.Debugln("Command failed without an exit code")
-		}
-		return "", trace.Wrap(err, "Command failed, see debug output for additional details")
-	}
-
-	logrus.Debugln("Command exited successfully")
-	return string(output), nil
 }
 
 // Change to make tool golang v1.17 compatible.

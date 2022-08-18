@@ -27,13 +27,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	"github.com/gravitational/teleport/lib/auth/u2f"
+	u2flib "github.com/gravitational/teleport/lib/auth/u2f"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -41,15 +44,12 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
-	"github.com/gravitational/trace"
+
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	u2flib "github.com/gravitational/teleport/lib/auth/u2f"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTeleportClient_Login_localMFALogin(t *testing.T) {
@@ -328,7 +328,8 @@ func TestTeleportClient_PromptMFAChallenge(t *testing.T) {
 			promptCalled := false
 			*client.PromptMFAStandalone = func(
 				gotCtx context.Context, gotChallenge *proto.MFAAuthenticateChallenge, gotProxy string,
-				gotOpts *client.PromptMFAChallengeOpts) (*proto.MFAAuthenticateResponse, error) {
+				gotOpts *client.PromptMFAChallengeOpts,
+			) (*proto.MFAAuthenticateResponse, error) {
 				promptCalled = true
 				assert.Equal(t, ctx, gotCtx, "ctx mismatch")
 				assert.Equal(t, challenge, gotChallenge, "challenge mismatch")
@@ -432,7 +433,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	require.NoError(t, err)
 	device, err := mocku2f.Create()
 	require.NoError(t, err)
-	registerResp, err := device.RegisterResponse(&u2f.RegisterChallenge{
+	registerResp, err := device.RegisterResponse(&u2flib.RegisterChallenge{
 		Version:   res.GetU2F().GetVersion(),
 		Challenge: res.GetU2F().GetChallenge(),
 		AppID:     res.GetU2F().GetAppID(),
@@ -496,13 +497,8 @@ func startAndWait(t *testing.T, cfg *service.Config, eventName string) *service.
 	require.NoError(t, err)
 	require.NoError(t, instance.Start())
 
-	eventC := make(chan service.Event, 1)
-	instance.WaitForEvent(instance.ExitContext(), eventName, eventC)
-	select {
-	case <-eventC:
-	case <-time.After(30 * time.Second):
-		t.Fatal("Timed out waiting for teleport")
-	}
+	_, err = instance.WaitForEventTimeout(30*time.Second, eventName)
+	require.NoError(t, err, "timed out waiting for teleport")
 
 	return instance
 }

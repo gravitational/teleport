@@ -23,6 +23,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -33,7 +35,6 @@ import (
 	botconfig "github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/require"
 )
 
 func DefaultConfig(t *testing.T) *config.FileConfig {
@@ -89,15 +90,11 @@ func MakeAndRunTestAuthServer(t *testing.T, fc *config.FileConfig) (auth *servic
 		auth.Close()
 	})
 
-	eventCh := make(chan service.Event, 1)
-	auth.WaitForEvent(auth.ExitContext(), service.AuthTLSReady, eventCh)
-	select {
-	case <-eventCh:
-	case <-time.After(30 * time.Second):
-		// in reality, the auth server should start *much* sooner than this.  we use a very large
-		// timeout here because this isn't the kind of problem that this test is meant to catch.
-		t.Fatal("auth server didn't start after 30s")
-	}
+	_, err = auth.WaitForEventTimeout(30*time.Second, service.AuthTLSReady)
+	// in reality, the auth server should start *much* sooner than this.  we use a very large
+	// timeout here because this isn't the kind of problem that this test is meant to catch.
+	require.NoError(t, err, "auth server didn't start after 30s")
+
 	return auth
 }
 

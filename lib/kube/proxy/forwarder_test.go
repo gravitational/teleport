@@ -693,7 +693,13 @@ func TestNewClusterSessionLocal(t *testing.T) {
 
 	// Make sure newClusterSession used provided creds
 	// instead of requesting a Teleport client cert.
+	// this validates the equality of the referenced values
 	require.Equal(t, f.creds["local"].tlsConfig, sess.tlsConfig)
+
+	// Make sure that sess.tlsConfig was cloned from the value we store in f.creds["local"].tlsConfig.
+	// This is important because each connection must refer to a different memory address so it can be manipulated to enable/disable http2
+	require.NotSame(t, f.creds["local"].tlsConfig, sess.tlsConfig)
+
 	require.Nil(t, f.cfg.AuthClient.(*mockCSRClient).lastCert)
 	require.Empty(t, 0, f.clientCredentials.Len())
 }
@@ -710,6 +716,12 @@ func TestNewClusterSessionRemote(t *testing.T) {
 
 	// Make sure newClusterSession obtained a new client cert instead of using f.creds.
 	require.Equal(t, f.cfg.AuthClient.(*mockCSRClient).lastCert.Raw, sess.tlsConfig.Certificates[0].Certificate[0])
+	// Make sure that sess.tlsConfig was cloned from the value we store in the cache.
+	// This is important because each connection must refer to a different memory address so it can be manipulated to enable/disable http2
+	// getClientCreds returns the cached version of the client tlsConfig.
+	require.NotNil(t, f.getClientCreds(authCtx))
+	require.NotSame(t, f.getClientCreds(authCtx), sess.tlsConfig)
+	//lint:ignore SA1019 there's no non-deprecated public API for testing the contents of the RootCAs pool
 	require.Equal(t, [][]byte{f.cfg.AuthClient.(*mockCSRClient).ca.Cert.RawSubject}, sess.tlsConfig.RootCAs.Subjects())
 	require.Equal(t, 1, f.clientCredentials.Len())
 }
@@ -758,6 +770,10 @@ func TestNewClusterSessionDirect(t *testing.T) {
 	// Make sure newClusterSession obtained a new client cert instead of using f.creds.
 	require.Equal(t, f.cfg.AuthClient.(*mockCSRClient).lastCert.Raw, sess.tlsConfig.Certificates[0].Certificate[0])
 	require.Equal(t, [][]byte{f.cfg.AuthClient.(*mockCSRClient).ca.Cert.RawSubject}, sess.tlsConfig.RootCAs.Subjects())
+	// Make sure that sess.tlsConfig was cloned from the value we store in the cache.
+	// This is important because each connection must refer to a different memory address so it can be manipulated to enable/disable http2
+	require.NotNil(t, f.getClientCreds(authCtx))
+	require.NotSame(t, f.getClientCreds(authCtx), sess.tlsConfig)
 	require.Equal(t, 1, f.clientCredentials.Len())
 }
 
