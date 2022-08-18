@@ -4557,8 +4557,8 @@ func (process *TeleportProcess) Close() error {
 
 func validateConfig(cfg *Config) error {
 	if !cfg.Auth.Enabled && !cfg.SSH.Enabled && !cfg.Proxy.Enabled && !cfg.Kube.Enabled && !cfg.Apps.Enabled && !cfg.Databases.Enabled && !cfg.WindowsDesktop.Enabled {
-		return trace.BadParameter(
-			"config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service or windows_desktop_service")
+		cfg.Log.Warn(
+			"config: all services (auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service or windows_desktop_service) are disabled")
 	}
 
 	if cfg.DataDir == "" {
