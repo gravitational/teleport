@@ -17,6 +17,7 @@ package proxy
 import (
 	"context"
 	"crypto/tls"
+	"math/rand"
 	"net"
 	"sync"
 	"time"
@@ -63,9 +64,29 @@ type ClientConfig struct {
 	// configurable for testing purposes.
 	getConfigForServer func() (*tls.Config, error)
 
+	// connShuffler determines the order client connections will be used.
+	connShuffler connShuffler
+
 	// sync runs proxy and connection syncing operations
 	// configurable for testing purposes
 	sync func()
+}
+
+// connShuffler shuffles the order of client connections.
+type connShuffler func([]*clientConn)
+
+// randomConnShuffler returns a conn shuffler that randomizes the order of connections.
+func randomConnShuffler() connShuffler {
+	return func(conns []*clientConn) {
+		rand.Shuffle(len(conns), func(i, j int) {
+			conns[i], conns[j] = conns[j], conns[i]
+		})
+	}
+}
+
+// noopConnShutffler returns a conn shuffler that keeps the original connection ordering.
+func noopConnShuffler() connShuffler {
+	return func([]*clientConn) {}
 }
 
 // checkAndSetDefaults checks and sets default values
@@ -109,6 +130,10 @@ func (c *ClientConfig) checkAndSetDefaults() error {
 
 	if len(c.TLSConfig.Certificates) == 0 {
 		return trace.BadParameter("missing tls certificate")
+	}
+
+	if c.connShuffler == nil {
+		c.connShuffler = randomConnShuffler()
 	}
 
 	if c.getConfigForServer == nil {
@@ -315,42 +340,20 @@ func (c *Client) DialNode(
 	dst net.Addr,
 	tunnelType types.TunnelType,
 ) (net.Conn, error) {
-	stream, _, err := c.dial(proxyIDs)
-	if err != nil {
-		return nil, trace.ConnectionProblem(err, "error dialing peer proxies %s", proxyIDs)
-	}
-
-	// send dial request as the first frame
-	if err = stream.Send(&clientapi.Frame{
-		Message: &clientapi.Frame_DialRequest{
-			DialRequest: &clientapi.DialRequest{
-				NodeID:     nodeID,
-				TunnelType: tunnelType,
-				Source: &clientapi.NetAddr{
-					Addr:    src.String(),
-					Network: src.Network(),
-				},
-				Destination: &clientapi.NetAddr{
-					Addr:    dst.String(),
-					Network: dst.Network(),
-				},
-			},
+	stream, _, err := c.dial(proxyIDs, &clientapi.DialRequest{
+		NodeID:     nodeID,
+		TunnelType: tunnelType,
+		Source: &clientapi.NetAddr{
+			Addr:    src.String(),
+			Network: src.Network(),
 		},
-	}); err != nil {
-		return nil, trace.ConnectionProblem(err, "error sending dial frame")
-	}
-
-	msg, err := stream.Recv()
+		Destination: &clientapi.NetAddr{
+			Addr:    dst.String(),
+			Network: dst.Network(),
+		},
+	})
 	if err != nil {
-		return nil, trace.ConnectionProblem(err, "error receiving dial response")
-	}
-
-	if msg.GetConnectionEstablished() == nil {
-		err := stream.CloseSend()
-		if err != nil {
-			c.config.Log.Debugf("error closing stream: %w", err)
-		}
-		return nil, trace.ConnectionProblem(nil, "received malformed connection established frame")
+		return nil, trace.ConnectionProblem(err, "error dialing peer proxies %s: %v", proxyIDs, err)
 	}
 
 	return newStreamConn(stream, src, dst), nil
@@ -429,7 +432,7 @@ func (c *Client) stopConn(conn *clientConn) error {
 // to one of the proxies otherwise.
 // The boolean returned in the second argument is intended for testing purposes,
 // to indicates whether the connection was cached or newly established.
-func (c *Client) dial(proxyIDs []string) (clientapi.ProxyService_DialNodeClient, bool, error) {
+func (c *Client) dial(proxyIDs []string, dialRequest *clientapi.DialRequest) (clientapi.ProxyService_DialNodeClient, bool, error) {
 	conns, existing, err := c.getConnections(proxyIDs)
 	if err != nil {
 		return nil, existing, trace.Wrap(err)
@@ -441,14 +444,36 @@ func (c *Client) dial(proxyIDs []string) (clientapi.ProxyService_DialNodeClient,
 		if err != nil {
 			c.metrics.reportTunnelError(errorProxyPeerTunnelRPC)
 			c.config.Log.Debugf("Error opening tunnel rpc to proxy %+v at %+v", conn.id, conn.addr)
-			errs = append(errs, err)
+			errs = append(errs, trace.ConnectionProblem(err, "error starting stream: %v", err))
+			continue
+		}
+		err = stream.Send(&clientapi.Frame{
+			Message: &clientapi.Frame_DialRequest{
+				DialRequest: dialRequest,
+			},
+		})
+		if err != nil {
+			errs = append(errs, trace.ConnectionProblem(err, "error sending dial frame: %v", err))
+			continue
+		}
+		msg, err := stream.Recv()
+		if err != nil {
+			errs = append(errs, trace.ConnectionProblem(err, "error receiving dial response: %v", err))
+			continue
+		}
+		if msg.GetConnectionEstablished() == nil {
+			err := stream.CloseSend()
+			if err != nil {
+				c.config.Log.Debugf("error closing stream: %w", err)
+			}
+			errs = append(errs, trace.ConnectionProblem(nil, "received malformed connection established frame"))
 			continue
 		}
 
 		return stream, existing, nil
 	}
 
-	return nil, existing, trace.ConnectionProblem(trace.NewAggregate(errs...), "Error opening tunnel rpcs to all proxies")
+	return nil, existing, trace.NewAggregate(errs...)
 }
 
 // getConnections returns connections to the supplied proxy ids.
@@ -479,6 +504,7 @@ func (c *Client) getConnections(proxyIDs []string) ([]*clientConn, bool, error) 
 	c.RUnlock()
 
 	if len(conns) != 0 {
+		c.config.connShuffler(conns)
 		return conns, true, nil
 	}
 
@@ -521,6 +547,7 @@ func (c *Client) getConnections(proxyIDs []string) ([]*clientConn, bool, error) 
 		c.conns[conn.id] = conn
 	}
 
+	c.config.connShuffler(conns)
 	return conns, false, nil
 }
 
