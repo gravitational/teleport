@@ -5,10 +5,16 @@ on:
     branches:
       - master
       - branch/*
+    paths-ignore:
+      - 'docs/**'
+      - 'rfd/**'
   pull_request:
     branches:
       - master
       - branch/*
+    paths-ignore:
+      - 'docs/**'
+      - 'rfd/**'
 
 jobs:
   analyze:

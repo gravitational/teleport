@@ -7,10 +7,14 @@ on:
     branches:
       - master
       - branch/*
+    paths:
+      - '**.go'
   pull_request:
     branches:
       - master
       - branch/*
+    paths:
+      - '**.go'
 
 jobs:
   fuzzing:
