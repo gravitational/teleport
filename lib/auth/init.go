@@ -736,35 +736,19 @@ func (i *Identity) TLSConfig(cipherSuites []uint16) (*tls.Config, error) {
 	if err != nil {
 		return nil, trace.BadParameter("failed to parse private key: %v", err)
 	}
-
-	certPool, err := i.TLSCACertPool()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tlsConfig.Certificates = []tls.Certificate{tlsCert}
-	tlsConfig.RootCAs = certPool
-	tlsConfig.ClientCAs = certPool
-	tlsConfig.ServerName = apiutils.EncodeClusterName(i.ClusterName)
-	return tlsConfig, nil
-}
-
-// TLSCACertPool parses TLS CAs and return them in a x509.CertPool.
-func (i *Identity) TLSCACertPool() (*x509.CertPool, error) {
-	if len(i.TLSCACertsBytes) == 0 {
-		return nil, trace.NotFound("no TLS CAs found for this identity")
-	}
-
-	pool := x509.NewCertPool()
+	certPool := x509.NewCertPool()
 	for j := range i.TLSCACertsBytes {
 		parsedCert, err := tlsca.ParseCertificatePEM(i.TLSCACertsBytes[j])
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to parse CA certificate")
 		}
-		pool.AddCert(parsedCert)
+		certPool.AddCert(parsedCert)
 	}
-
-	return pool, nil
+	tlsConfig.Certificates = []tls.Certificate{tlsCert}
+	tlsConfig.RootCAs = certPool
+	tlsConfig.ClientCAs = certPool
+	tlsConfig.ServerName = apiutils.EncodeClusterName(i.ClusterName)
+	return tlsConfig, nil
 }
 
 func (i *Identity) getSSHCheckers() ([]ssh.PublicKey, error) {

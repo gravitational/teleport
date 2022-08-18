@@ -3057,13 +3057,7 @@ func makeProxySSHClientWithTLSWrapper(ctx context.Context, tc *TeleportClient, s
 	}
 
 	tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
-	tlsRoutingDialerConfig := &client.TLSRoutingDialerConfig{
-		DialTimeout:             sshConfig.Timeout,
-		TLSConfig:               tlsConfig,
-		ALPNConnUpgradeRequired: tc.IsALPNConnUpgradeRequired(),
-	}
-
-	dialer := proxy.DialerFromEnvironment(tc.Config.WebProxyAddr, proxy.WithTLSRoutingDialer(tlsRoutingDialerConfig))
+	dialer := proxy.DialerFromEnvironment(tc.Config.WebProxyAddr, proxy.WithALPNDialer(tlsConfig))
 	return dialer.Dial(ctx, "tcp", proxyAddr, sshConfig)
 }
 

@@ -245,7 +245,6 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 			Cluster:              clusterName,
 			FIPS:                 process.Config.FIPS,
 			ConnectedProxyGetter: proxyGetter,
-			ServerTLSRootCAs:     tlsConfig.RootCAs,
 		})
 	if err != nil {
 		return trace.Wrap(err)

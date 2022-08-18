@@ -19,7 +19,6 @@ package reversetunnel
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -30,7 +29,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -66,8 +64,6 @@ type TunnelAuthDialerConfig struct {
 	Log logrus.FieldLogger
 	// InsecureSkipTLSVerify is whether to skip certificate validation.
 	InsecureSkipTLSVerify bool
-	// ServerTLSRootCAs is a cert pool of server identity's TLS CAs.
-	ServerTLSRootCAs *x509.CertPool
 }
 
 func (c *TunnelAuthDialerConfig) CheckAndSetDefaults() error {
@@ -110,9 +106,9 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 		// address thus the ping call will always fail.
 		t.Log.Debugf("Failed to ping web proxy %q addr: %v", addr.Addr, err)
 	} else if resp.Proxy.TLSRoutingEnabled {
-		protos := []string{string(alpncommon.ProtocolReverseTunnel)}
-		dialerConfig := tlsRoutingDialerConfig(addr, protos, t.InsecureSkipTLSVerify, t.ServerTLSRootCAs)
-		opts = append(opts, proxy.WithTLSRoutingDialer(dialerConfig))
+		opts = append(opts, proxy.WithALPNDialer(&tls.Config{
+			NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
+		}))
 	}
 
 	dialer := proxy.DialerFromEnvironment(addr.Addr, opts...)
@@ -466,20 +462,4 @@ func (p *transport) directDial(addr string) (net.Conn, error) {
 	}
 
 	return conn, nil
-}
-
-// tlsRoutingDialerConfig creates config for TLS routing dialer.
-func tlsRoutingDialerConfig(addr *utils.NetAddr, protos []string, insecure bool, tlsRootCAs *x509.CertPool) *client.TLSRoutingDialerConfig {
-	config := &client.TLSRoutingDialerConfig{
-		TLSConfig: &tls.Config{
-			NextProtos:         protos,
-			InsecureSkipVerify: insecure,
-		},
-	}
-
-	if client.IsALPNConnUpgradeRequired(addr.Addr, insecure) {
-		config.ALPNConnUpgradeRequired = true
-		config.TLSConfig.RootCAs = tlsRootCAs
-	}
-	return config
 }

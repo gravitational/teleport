@@ -1164,7 +1164,6 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 			client.LoadTLS(tlsConfig),
 		},
 		ALPNSNIAuthDialClusterName: clusterName,
-		ALPNConnUpgradeRequired:    proxy.teleportClient.IsALPNConnUpgradeRequired(),
 		CircuitBreakerConfig:       breaker.NoopBreakerConfig(),
 	})
 	if err != nil {

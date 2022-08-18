@@ -19,7 +19,6 @@ package reversetunnel
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"io"
 	"net"
@@ -133,8 +132,6 @@ type AgentPoolConfig struct {
 	// LocalAuthAddresses is a list of auth servers to use when dialing back to
 	// the local cluster.
 	LocalAuthAddresses []string
-	// ServerTLSRootCAs is a cert pool of server identity's TLS CAs.
-	ServerTLSRootCAs *x509.CertPool
 }
 
 // CheckAndSetDefaults checks and sets defaults.
@@ -474,17 +471,18 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 
 	options := []proxy.DialerOptionFunc{proxy.WithInsecureSkipTLSVerify(lib.IsInsecureDevMode())}
 	if p.runtimeConfig.useALPNRouting() {
-		protos := []string{string(alpncommon.ProtocolReverseTunnel)}
+		tlsConfig := &tls.Config{
+			NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
+		}
 
 		if p.runtimeConfig.useReverseTunnelV2() {
-			protos = []string{
+			tlsConfig.NextProtos = []string{
 				string(alpncommon.ProtocolReverseTunnelV2),
 				string(alpncommon.ProtocolReverseTunnel),
 			}
 		}
 
-		dialerConfig := tlsRoutingDialerConfig(addr, protos, lib.IsInsecureDevMode(), p.ServerTLSRootCAs)
-		options = append(options, proxy.WithTLSRoutingDialer(dialerConfig))
+		options = append(options, proxy.WithALPNDialer(tlsConfig))
 	}
 
 	dialer := &agentDialer{

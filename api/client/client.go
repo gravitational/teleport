@@ -305,7 +305,7 @@ type (
 
 // authConnect connects to the Teleport Auth Server directly.
 func authConnect(ctx context.Context, params connectParams) (*Client, error) {
-	dialer := NewDialer(NewDialerConfig(&params.cfg, params.tlsConfig))
+	dialer := NewDialer(params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as an auth server", params.addr)
@@ -344,10 +344,10 @@ func tlsRoutingConnect(ctx context.Context, params connectParams) (*Client, erro
 	if params.sshConfig == nil {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
-	dialer := newTLSRoutingTunnelDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery, params.cfg.ALPNConnUpgradeRequired)
+	dialer := newTLSRoutingTunnelDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery)
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
-		return nil, trace.Wrap(err, "failed to connect to addr %v with TLS Routing tunnel dialer", params.addr)
+		return nil, trace.Wrap(err, "failed to connect to addr %v with TLS Routing dialer", params.addr)
 	}
 	return clt, nil
 }
@@ -499,8 +499,6 @@ type Config struct {
 	// ALPNSNIAuthDialClusterName if present the client will include ALPN SNI routing information in TLS Hello message
 	// allowing to dial auth service through Teleport Proxy directly without using SSH Tunnels.
 	ALPNSNIAuthDialClusterName string
-	// ALPNConnUpgradeRequired specifies if ALPN connection upgrade is requierd.
-	ALPNConnUpgradeRequired bool
 	// CircuitBreakerConfig defines how the circuit breaker should behave.
 	CircuitBreakerConfig breaker.Config
 	// Context is the base context to use for dialing. If not provided context.Background is used

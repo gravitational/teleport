@@ -86,11 +86,6 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 
 	proxyGetter := reversetunnel.NewConnectedProxyGetter()
 
-	tlsConfig, err := conn.ServerIdentity.TLSConfig(cfg.CipherSuites)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// This service can run in 2 modes:
 	// 1. Reachable (by the proxy) - registers with auth server directly and
 	//    creates a local listener to accept proxy conns.
@@ -147,7 +142,6 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 				Server:               shtl,
 				FIPS:                 process.Config.FIPS,
 				ConnectedProxyGetter: proxyGetter,
-				ServerTLSRootCAs:     tlsConfig.RootCAs,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -196,6 +190,10 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 
 	// Create the kube server to service listener.
 	authorizer, err := auth.NewAuthorizer(teleportClusterName, accessPoint, lockWatcher)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tlsConfig, err := conn.ServerIdentity.TLSConfig(cfg.CipherSuites)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -54,43 +54,11 @@ func newDirectDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 	}
 }
 
-// DialerConfig is the config used for NewDialer.
-type DialerConfig struct {
-	// KeepAlivePeriod defines period between keep alives.
-	KeepAlivePeriod time.Duration
-	// DialTimeout defines how long to attempt dialing before timing out.
-	DialTimeout time.Duration
-	// ALPNConnUpgradeRequired specifies if ALPN connection upgrade is required.
-	ALPNConnUpgradeRequired bool
-	// InsecureSkipTLSVerify specifies whether to skip certificate validation
-	// for TLS connections.
-	InsecureSkipTLSVerify bool
-}
-
-// NewDialerConfig is a helper function to create a new DialerConfig from
-// client Config and TLS config.
-func NewDialerConfig(clientConfig *Config, tlsConfig *tls.Config) DialerConfig {
-	dialerConfig := DialerConfig{
-		KeepAlivePeriod: clientConfig.KeepAlivePeriod,
-		DialTimeout:     clientConfig.DialTimeout,
-	}
-	if tlsConfig != nil && clientConfig.ALPNSNIAuthDialClusterName != "" {
-		dialerConfig.ALPNConnUpgradeRequired = clientConfig.ALPNConnUpgradeRequired
-		dialerConfig.InsecureSkipTLSVerify = tlsConfig.InsecureSkipVerify
-	}
-	return dialerConfig
-}
-
-// NewDialer makes a new dialer that connects to an Auth server either directly
-// or via an ALPN connection upgrade tunnel, and on top of that the dialer may
-// also connect through an HTTP proxy depending on the environment.
-func NewDialer(config DialerConfig) ContextDialer {
+// NewDialer makes a new dialer that connects to an Auth server either directly or via an HTTP proxy, depending
+// on the environment.
+func NewDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
-		dialer := newDirectDialer(config.KeepAlivePeriod, config.DialTimeout)
-		if config.ALPNConnUpgradeRequired {
-			dialer = newALPNConnUpgradeDialer(config.KeepAlivePeriod, config.DialTimeout, config.InsecureSkipTLSVerify)
-		}
-
+		dialer := newDirectDialer(keepAlivePeriod, dialTimeout)
 		if proxyURL := proxy.GetProxyURL(addr); proxyURL != nil {
 			return DialProxyWithDialer(ctx, proxyURL, addr, dialer)
 		}
@@ -136,31 +104,33 @@ func newTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Dur
 
 // newTLSRoutingTunnelDialer makes a reverse tunnel TLS Routing dialer to connect to an Auth server
 // through the SSH reverse tunnel on the proxy.
-func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration, discoveryAddr string, insecure, alpnConnUpgradeRequired bool) ContextDialer {
-	return ContextDialerFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
+func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration, discoveryAddr string, insecure bool) ContextDialer {
+	return ContextDialerFunc(func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
 		tunnelAddr, err := webclient.GetTunnelAddr(
 			&webclient.Config{Context: ctx, ProxyAddr: discoveryAddr, Insecure: insecure})
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+		dialer := &net.Dialer{
+			Timeout:   dialTimeout,
+			KeepAlive: keepAlivePeriod,
+		}
+		conn, err = dialer.DialContext(ctx, network, tunnelAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+
 		}
 
 		host, _, err := webclient.ParseHostPort(tunnelAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		tlsDialer := NewTLSRoutingDialer(TLSRoutingDialerConfig{
-			KeepAlivePeriod:         keepAlivePeriod,
-			DialTimeout:             dialTimeout,
-			ALPNConnUpgradeRequired: alpnConnUpgradeRequired,
-			TLSConfig: &tls.Config{
-				NextProtos:         []string{constants.ALPNSNIProtocolReverseTunnel},
-				InsecureSkipVerify: insecure,
-				ServerName:         host,
-			},
+		tlsConn := tls.Client(conn, &tls.Config{
+			NextProtos:         []string{constants.ALPNSNIProtocolReverseTunnel},
+			InsecureSkipVerify: insecure,
+			ServerName:         host,
 		})
-		tlsConn, err := tlsDialer.DialContext(ctx, network, tunnelAddr)
-		if err != nil {
+		if err := tlsConn.Handshake(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
