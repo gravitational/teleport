@@ -198,24 +198,24 @@ func (ac *cloudWithRoles) SendAccountRecovered(ctx context.Context, req *v1.Send
 	return ac.plugin.cloudClient.SendAccountRecovered(ctx, req)
 }
 
-// UpdateAccountUpgradeWindowStart updates the start of the account upgrade window for cloud users.
-func (ac *cloudWithRoles) UpdateAccountUpgradeWindowStart(ctx context.Context, req *v1.UpdateAccountUpgradeWindowStartRequest) (*v1.EmptyResponse, error) {
+// UpdateAccountUpgradeWindowStartHour updates the start of the account upgrade window for cloud users.
+func (ac *cloudWithRoles) UpdateAccountUpgradeWindowStartHour(ctx context.Context, req *v1.UpdateAccountUpgradeWindowStartHourRequest) (*v1.EmptyResponse, error) {
 	_, err := ac.plugin.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.AccessDenied("access denied")
 	}
 
-	return ac.plugin.cloudClient.UpdateAccountUpgradeWindowStart(ctx, req)
+	return ac.plugin.cloudClient.UpdateAccountUpgradeWindowStartHour(ctx, req)
 }
 
-// GetAccountUpgradeWindowStart returns the start of the account upgrade window for cloud users.
-func (ac *cloudWithRoles) GetAccountUpgradeWindowStart(ctx context.Context, req *v1.EmptyRequest) (*v1.GetAccountUpgradeWindowStartResponse, error) {
+// GetAccountUpgradeWindowStartHour returns the start of the account upgrade window for cloud users.
+func (ac *cloudWithRoles) GetAccountUpgradeWindowStartHour(ctx context.Context, req *v1.EmptyRequest) (*v1.GetAccountUpgradeWindowStartHourResponse, error) {
 	_, err := ac.plugin.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.AccessDenied("access denied")
 	}
 
-	return ac.plugin.cloudClient.GetAccountUpgradeWindowStart(ctx, req)
+	return ac.plugin.cloudClient.GetAccountUpgradeWindowStartHour(ctx, req)
 }
 
 func (ac *cloudWithRoles) action(ctx context.Context, namespace, resource, action string) error {

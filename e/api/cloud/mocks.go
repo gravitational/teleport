@@ -34,10 +34,10 @@ type MockedClient struct {
 	MockSendAccountLocked func() (*v1.EmptyResponse, error)
 	// MockSendAccountRecovered sends an email notifying user their account was successfully recovered.
 	MockSendAccountRecovered func() (*v1.EmptyResponse, error)
-	// MockGetAccountUpgradeWindowStart returns tenant account upgrade window start
-	MockGetAccountUpgradeWindowStart func() (*v1.GetAccountUpgradeWindowStartResponse, error)
-	// MockUpdateAccountUpgradeWindowStart updates tenant account upgrade window start
-	MockUpdateAccountUpgradeWindowStart func() (*v1.EmptyResponse, error)
+	// MockGetAccountUpgradeWindowStartHour returns tenant account upgrade window start
+	MockGetAccountUpgradeWindowStartHour func() (*v1.GetAccountUpgradeWindowStartHourResponse, error)
+	// MockUpdateAccountUpgradeWindowStartHour updates tenant account upgrade window start
+	MockUpdateAccountUpgradeWindowStartHour func() (*v1.EmptyResponse, error)
 }
 
 func (m *MockedClient) SubmitUsageReports(ctx context.Context, in *v1.SubmitUsageReportsRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error) {
@@ -129,19 +129,19 @@ func (m *MockedClient) SendAccountRecovered(ctx context.Context, in *v1.SendAcco
 	return nil, trace.NotImplemented("SendAccountRecovered is not implemented")
 }
 
-func (m *MockedClient) GetAccountUpgradeWindowStart(ctx context.Context, in *v1.EmptyRequest, opts ...grpc.CallOption) (*v1.GetAccountUpgradeWindowStartResponse, error) {
-	if m.MockGetAccountUpgradeWindowStart != nil {
-		return m.MockGetAccountUpgradeWindowStart()
+func (m *MockedClient) GetAccountUpgradeWindowStartHour(ctx context.Context, in *v1.EmptyRequest, opts ...grpc.CallOption) (*v1.GetAccountUpgradeWindowStartHourResponse, error) {
+	if m.MockGetAccountUpgradeWindowStartHour != nil {
+		return m.MockGetAccountUpgradeWindowStartHour()
 	}
 
-	return nil, trace.NotImplemented("GetAccountUpgradeWindowStart is not implemented")
+	return nil, trace.NotImplemented("GetAccountUpgradeWindowStartHour is not implemented")
 }
 
-func (m *MockedClient) UpdateAccountUpgradeWindowStart(ctx context.Context, in *v1.UpdateAccountUpgradeWindowStartRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error) {
-	if m.MockUpdateAccountUpgradeWindowStart != nil {
-		return m.MockUpdateAccountUpgradeWindowStart()
+func (m *MockedClient) UpdateAccountUpgradeWindowStartHour(ctx context.Context, in *v1.UpdateAccountUpgradeWindowStartHourRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error) {
+	if m.MockUpdateAccountUpgradeWindowStartHour != nil {
+		return m.MockUpdateAccountUpgradeWindowStartHour()
 	}
 
-	return nil, trace.NotImplemented("MockUpdateAccountUpgradeWindowStart is not implemented")
+	return nil, trace.NotImplemented("MockUpdateAccountUpgradeWindowStartHour is not implemented")
 
 }

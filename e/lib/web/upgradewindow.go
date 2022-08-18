@@ -1,6 +1,7 @@
 package web
 
 import (
+	"fmt"
 	"net/http"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -14,33 +15,33 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type updateUpgradeWindowStartReq struct {
-	UpgradeWindowStart string `json:"upgradeWindowStart"`
+type updateUpgradeWindowStartHourReq struct {
+	UpgradeWindowStartHour int64 `json:"upgradeWindowStart"`
 }
 
-type getUpgradeWindowStartRes struct {
-	UpgradeWindowStart string `json:"upgradeWindowStart"`
+type getUpgradeWindowStartHourRes struct {
+	UpgradeWindowStartHour int64 `json:"upgradeWindowStart"`
 }
 
-func (p *Plugin) getUpgradeWindowStartHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error) {
-	res, err := client.GetAccountUpgradeWindowStart(r.Context(), &cloudapi.EmptyRequest{})
+func (p *Plugin) getUpgradeWindowStartHourHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error) {
+	res, err := client.GetAccountUpgradeWindowStartHour(r.Context(), &cloudapi.EmptyRequest{})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
 
-	return getUpgradeWindowStartRes{
-		UpgradeWindowStart: res.UpgradeWindowStart,
+	return getUpgradeWindowStartHourRes{
+		UpgradeWindowStartHour: res.UpgradeWindowStartHour,
 	}, nil
 }
 
-func (p *Plugin) updateUpgradeWindowStartHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error) {
-	var req updateUpgradeWindowStartReq
+func (p *Plugin) updateUpgradeWindowStartHourHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error) {
+	var req updateUpgradeWindowStartHourReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	_, err := client.UpdateAccountUpgradeWindowStart(r.Context(), &cloudapi.UpdateAccountUpgradeWindowStartRequest{
-		UpgradeWindowStart: req.UpgradeWindowStart,
+	_, err := client.UpdateAccountUpgradeWindowStartHour(r.Context(), &cloudapi.UpdateAccountUpgradeWindowStartHourRequest{
+		UpgradeWindowStartHour: req.UpgradeWindowStartHour,
 	})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -59,7 +60,7 @@ func (p *Plugin) updateUpgradeWindowStartHandle(w http.ResponseWriter, r *http.R
 			SessionID: ctx.GetSessionID(),
 		},
 		UpgradeWindowStartMetadata: apievents.UpgradeWindowStartMetadata{
-			UpgradeWindowStart: req.UpgradeWindowStart,
+			UpgradeWindowStart: fmt.Sprintf("%02d:00:00", req.UpgradeWindowStartHour),
 		},
 	}
 
