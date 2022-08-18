@@ -300,7 +300,7 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 		cert.Permissions.Extensions[teleport.CertExtensionAllowedResources] = c.AllowedResourceIDs
 	}
 	if c.ConnectionDiagnosticID != "" {
-		cert.Permissions.Extensions[teleport.CertExtensionTeleportConnectionDiagnosticID] = c.ConnectionDiagnosticID
+		cert.Permissions.Extensions[teleport.CertExtensionConnectionDiagnosticID] = c.ConnectionDiagnosticID
 	}
 
 	if c.SourceIP != "" {

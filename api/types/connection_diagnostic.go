@@ -147,50 +147,21 @@ func (c *ConnectionDiagnosticV1) SetStaticLabels(sl map[string]string) {
 	c.Metadata.Labels = sl
 }
 
-// Trace types
-const (
-	// Does the user have access to the node?
-	DiagnosticTraceTypeRBACNode = "rbac node"
-
-	// Is the service network acessible?
-	DiagnosticTraceTypeConnectivity = "network connectivity"
-
-	// Is the node running the SSH agent?
-	DiagnosticTraceTypeNodeSSHServer = "node ssh server"
-
-	// Does the user have access to the requested principal?
-	DiagnosticTraceTypeRBACPrincipal = "rbac principal"
-
-	// Is the certificate valid to create a new SSH Session?
-	DiagnosticTraceTypeNodeSSHSession = "node ssh session"
-
-	// Does the requested principal exists in the node?
-	DiagnosticTraceTypeNodePrincipal = "node principal"
-)
-
-// Status for a given trace
-const (
-	DiagnosticTraceStatusFailed  = "failed"
-	DiagnosticTraceStatusSuccess = "success"
-)
-
 // NewFailedTraceConnectionDiagnostic creates a new Connection Diagnostic Trace with an error and a failed status
-func NewFailedTraceConnectionDiagnostic(id string, traceType string, details string, err error) *ConnectionDiagnosticTrace {
+func NewFailedTraceConnectionDiagnostic(traceType ConnectionDiagnosticTrace_TraceType, details string, err error) *ConnectionDiagnosticTrace {
 	return &ConnectionDiagnosticTrace{
-		ID:        id,
-		Status:    DiagnosticTraceStatusFailed,
-		TraceType: traceType,
-		Details:   details,
-		Error:     err.Error(),
+		Status:  ConnectionDiagnosticTrace_FAILED,
+		Type:    traceType,
+		Details: details,
+		Error:   err.Error(),
 	}
 }
 
 // NewSuccessTraceConnectionDiagnostic creates a new Connection Diagnostic Trace with success status
-func NewSuccessTraceConnectionDiagnostic(id string, traceType string, details string) *ConnectionDiagnosticTrace {
+func NewSuccessTraceConnectionDiagnostic(traceType ConnectionDiagnosticTrace_TraceType, details string) *ConnectionDiagnosticTrace {
 	return &ConnectionDiagnosticTrace{
-		ID:        id,
-		Status:    DiagnosticTraceStatusSuccess,
-		TraceType: traceType,
-		Details:   details,
+		Status:  ConnectionDiagnosticTrace_SUCCESS,
+		Type:    traceType,
+		Details: details,
 	}
 }

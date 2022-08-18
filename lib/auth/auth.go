@@ -3175,23 +3175,6 @@ func (a *Server) ListResources(ctx context.Context, req proto.ListResourcesReque
 	return a.Cache.ListResources(ctx, req)
 }
 
-// AppendTraceConnectionDiagnostics adds a Trace into the ConnectionDiagnostics.
-// This is a convinience method that calls GetConnectionDiagnostic, appends the trace and updates the ConnectionDiagnostic.
-func (a *Server) AppendTraceConnectionDiagnostic(ctx context.Context, name string, t *types.ConnectionDiagnosticTrace) (types.ConnectionDiagnostic, error) {
-	connectionDiagnostic, err := a.GetConnectionDiagnostic(ctx, name)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	connectionDiagnostic.AppendTrace(t)
-
-	if err := a.UpdateConnectionDiagnostic(ctx, connectionDiagnostic); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return connectionDiagnostic, nil
-}
-
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
 	pref, err := a.GetAuthPreference(ctx)
 	if err != nil {

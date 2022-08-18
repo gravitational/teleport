@@ -460,7 +460,7 @@ const (
 	CertExtensionAllowedResources = "teleport-allowed-resources"
 	// CertExtensionConnectionDiagnosticID contains the ID of the ConnectionDiagnostic.
 	// The Node/Agent will append connection traces to this diagnostic instance.
-	CertExtensionTeleportConnectionDiagnosticID = "teleport-connection-diagnostic-id"
+	CertExtensionConnectionDiagnosticID = "teleport-connection-diagnostic-id"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag

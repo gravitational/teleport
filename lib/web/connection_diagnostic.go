@@ -44,7 +44,7 @@ func (h *Handler) getConnectionDiagnostic(w http.ResponseWriter, r *http.Request
 		ID:      connectionDiagnostic.GetName(),
 		Success: connectionDiagnostic.IsSuccess(),
 		Message: connectionDiagnostic.GetMessage(),
-		Traces:  connectionDiagnostic.GetTraces(),
+		Traces:  ui.ConnectionDiagnosticTraceUIFromTypes(connectionDiagnostic.GetTraces()),
 	}, nil
 }
 
@@ -78,6 +78,6 @@ func (h *Handler) diagnoseConnection(w http.ResponseWriter, r *http.Request, p h
 		ID:      connectionDiagnostic.GetName(),
 		Success: connectionDiagnostic.IsSuccess(),
 		Message: connectionDiagnostic.GetMessage(),
-		Traces:  connectionDiagnostic.GetTraces(),
+		Traces:  ui.ConnectionDiagnosticTraceUIFromTypes(connectionDiagnostic.GetTraces()),
 	}, nil
 }

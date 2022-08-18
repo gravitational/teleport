@@ -2038,6 +2038,14 @@ message GetConnectionDiagnosticRequest {
   string Name = 1 [(gogoproto.jsontag) = "name"];
 }
 
+// AppendDiagnosticTraceRequest is a request to append a trace into a DiagnosticConnection.
+message AppendDiagnosticTraceRequest {
+  // Name is the name of the connection diagnostic.
+  string Name = 1 [(gogoproto.jsontag) = "name"];
+  // Trace is the ConnectionDiagnosticTrace to append into the DiagnosticConnection.
+  types.ConnectionDiagnosticTrace Trace = 2 [(gogoproto.jsontag) = "trace"];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance

@@ -161,7 +161,37 @@ type ConnectionDiagnostic struct {
 	// Message is the diagnostic summary
 	Message string `json:"message"`
 	// Traces contains multiple checkpoints results
-	Traces []*types.ConnectionDiagnosticTrace `json:"traces"`
+	Traces []ConnectionDiagnosticTraceUI `json:"traces,omitempty"`
+}
+
+// ConnectionDiagnostic describes a connection diagnostic trace.
+// We require this
+type ConnectionDiagnosticTraceUI struct {
+	// TraceType as string
+	TraceType string `json:"trace_type,omitempty"`
+	// Status as string
+	Status string `json:"status,omitempty"`
+	// Details of the trace
+	Details string `json:"details,omitempty"`
+	// Error in case of failure
+	Error string `json:"error,omitempty"`
+}
+
+// ConnectionDiagnosticTraceUIFromTypes converts a list of ConnectionDiagnosticTrace into its format for HTTP API.
+// This is mostly copying things around and converting the enum into a string value.
+func ConnectionDiagnosticTraceUIFromTypes(traces []*types.ConnectionDiagnosticTrace) []ConnectionDiagnosticTraceUI {
+	ret := make([]ConnectionDiagnosticTraceUI, 0)
+
+	for _, t := range traces {
+		ret = append(ret, ConnectionDiagnosticTraceUI{
+			TraceType: t.Type.String(),
+			Status:    t.Status.String(),
+			Details:   t.Details,
+			Error:     t.Error,
+		})
+	}
+
+	return ret
 }
 
 // Database describes a database server.

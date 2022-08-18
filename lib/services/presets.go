@@ -108,7 +108,6 @@ func NewPresetAccessRole() types.Role {
 				DatabaseNames:        []string{teleport.TraitInternalDBNamesVariable},
 				DatabaseUsers:        []string{teleport.TraitInternalDBUsersVariable},
 				Rules: []types.Rule{
-					types.NewRule(types.KindConnectionDiagnostic, RW()),
 					types.NewRule(types.KindEvent, RO()),
 					{
 						Resources: []string{types.KindSession},

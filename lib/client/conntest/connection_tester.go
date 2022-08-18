@@ -20,13 +20,10 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/trace"
-)
-
-const (
-	DefaultDiagnosticDialTimeout = 5 * time.Second
 )
 
 // TestConnectionRequest contains
@@ -41,7 +38,7 @@ type TestConnectionRequest struct {
 	// Specific to SSHTester.
 	SSHPrincipal string `json:"ssh_principal,omitempty"`
 
-	// Timeout when trying to connect to the destination host
+	// DialTimeout when trying to connect to the destination host
 	DialTimeout time.Duration `json:"dial_timeout,omitempty"`
 }
 
@@ -56,7 +53,7 @@ func (r *TestConnectionRequest) CheckAndSetDefaults() error {
 	}
 
 	if r.DialTimeout <= 0 {
-		r.DialTimeout = DefaultDiagnosticDialTimeout
+		r.DialTimeout = defaults.DefaultDialTimeout
 	}
 
 	return nil

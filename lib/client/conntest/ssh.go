@@ -60,6 +60,10 @@ func NewSSHConnectionTester(clt auth.ClientI) *SSHConnectionTester {
 //   - the SSH Node will append a trace indicating if the has access (RBAC)
 //   - the SSH Node will append a trace indicating if the requested principal is valid for the target Node
 func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnectionRequest) (types.ConnectionDiagnostic, error) {
+	if req.ResourceKind != types.KindNode {
+		return nil, trace.BadParameter("invalid value for ResourceKind, expected %q got %q", types.KindNode, req.ResourceKind)
+	}
+
 	connectionDiagnosticID := uuid.NewString()
 	connectionDiagnostic, err := types.NewConnectionDiagnosticV1(connectionDiagnosticID, map[string]string{},
 		types.ConnectionDiagnosticSpecV1{
@@ -75,10 +79,22 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 
 	sshNode, err := s.clt.GetNode(ctx, defaults.Namespace, req.ResourceName)
 	if err != nil {
-		connDiag, err := s.clt.AppendTraceConnectionDiagnostic(ctx, connectionDiagnosticID, types.NewFailedTraceConnectionDiagnostic(
-			uuid.NewString(),
-			types.DiagnosticTraceTypeRBACNode,
-			"Node not found. Ensure the Node exists and your role allows you to access it.",
+		if trace.IsNotFound(err) {
+			connDiag, err := s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewFailedTraceConnectionDiagnostic(
+				types.ConnectionDiagnosticTrace_RBAC_NODE,
+				"Node not found. Ensure the Node exists and your role allows you to access it.",
+				err,
+			))
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return connDiag, nil
+		}
+
+		connDiag, err := s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewFailedTraceConnectionDiagnostic(
+			types.ConnectionDiagnosticTrace_UNKNOWN_ERROR,
+			"Failed to read the Node.",
 			err,
 		))
 		if err != nil {
@@ -88,10 +104,9 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		return connDiag, nil
 	}
 
-	_, err = s.clt.AppendTraceConnectionDiagnostic(ctx, connectionDiagnosticID, types.NewSuccessTraceConnectionDiagnostic(
-		uuid.NewString(),
-		types.DiagnosticTraceTypeRBACNode,
-		"Resource exists.",
+	_, err = s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewSuccessTraceConnectionDiagnostic(
+		types.ConnectionDiagnosticTrace_RBAC_NODE,
+		"Node found.",
 	))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -123,7 +138,6 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	}
 	key.Cert = certs.SSH
 
-	// get certificate authorities
 	certAuths, err := s.clt.GetCertAuthorities(ctx, types.HostCA, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -161,9 +175,8 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	var dialer net.Dialer
 	conn, err := dialer.DialContext(dialCtx, "tcp", sshNodeAddr)
 	if err != nil {
-		connDiag, err := s.clt.AppendTraceConnectionDiagnostic(ctx, connectionDiagnosticID, types.NewFailedTraceConnectionDiagnostic(
-			uuid.NewString(),
-			types.DiagnosticTraceTypeConnectivity,
+		connDiag, err := s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewFailedTraceConnectionDiagnostic(
+			types.ConnectionDiagnosticTrace_CONNECTIVITY,
 			"Failed to access the host. Please ensure it's network reachable.",
 			err,
 		))
@@ -175,9 +188,8 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	}
 	defer conn.Close()
 
-	_, err = s.clt.AppendTraceConnectionDiagnostic(ctx, connectionDiagnosticID, types.NewSuccessTraceConnectionDiagnostic(
-		uuid.NewString(),
-		types.DiagnosticTraceTypeConnectivity,
+	_, err = s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewSuccessTraceConnectionDiagnostic(
+		types.ConnectionDiagnosticTrace_CONNECTIVITY,
 		"Host is alive and reachable.",
 	))
 	if err != nil {
@@ -186,9 +198,8 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 
 	sshConn, sshNewChannel, sshReq, err := ssh.NewClientConn(conn, sshNodeAddr, sshClientConfig)
 	if err != nil {
-		connDiag, err := s.clt.AppendTraceConnectionDiagnostic(ctx, connectionDiagnosticID, types.NewFailedTraceConnectionDiagnostic(
-			uuid.NewString(),
-			types.DiagnosticTraceTypeNodeSSHServer,
+		connDiag, err := s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewFailedTraceConnectionDiagnostic(
+			types.ConnectionDiagnosticTrace_NODE_SSH_SERVER,
 			"Failed to open SSH connection. Please ensure Teleport is running.",
 			err,
 		))
@@ -199,9 +210,8 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		return connDiag, nil
 	}
 
-	_, err = s.clt.AppendTraceConnectionDiagnostic(ctx, connectionDiagnosticID, types.NewSuccessTraceConnectionDiagnostic(
-		uuid.NewString(),
-		types.DiagnosticTraceTypeNodeSSHServer,
+	_, err = s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewSuccessTraceConnectionDiagnostic(
+		types.ConnectionDiagnosticTrace_NODE_SSH_SERVER,
 		"Established an SSH connection.",
 	))
 	if err != nil {
@@ -212,9 +222,8 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 
 	sshSession, err := sshClient.NewSession()
 	if err != nil {
-		connDiag, err := s.clt.AppendTraceConnectionDiagnostic(ctx, connectionDiagnosticID, types.NewFailedTraceConnectionDiagnostic(
-			uuid.NewString(),
-			types.DiagnosticTraceTypeNodeSSHSession,
+		connDiag, err := s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewFailedTraceConnectionDiagnostic(
+			types.ConnectionDiagnosticTrace_NODE_SSH_SESSION,
 			"Failed to create a new SSH Session. Please ensure Teleport is running.",
 			err,
 		))
@@ -226,9 +235,8 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	}
 	defer sshSession.Close()
 
-	_, err = s.clt.AppendTraceConnectionDiagnostic(ctx, connectionDiagnosticID, types.NewSuccessTraceConnectionDiagnostic(
-		uuid.NewString(),
-		types.DiagnosticTraceTypeNodeSSHSession,
+	_, err = s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewSuccessTraceConnectionDiagnostic(
+		types.ConnectionDiagnosticTrace_NODE_SSH_SESSION,
 		"Created an SSH session.",
 	))
 	if err != nil {
@@ -237,9 +245,8 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 
 	output, err := sshSession.CombinedOutput("whoami")
 	if err != nil {
-		connDiag, err := s.clt.AppendTraceConnectionDiagnostic(ctx, connectionDiagnosticID, types.NewFailedTraceConnectionDiagnostic(
-			uuid.NewString(),
-			types.DiagnosticTraceTypeNodePrincipal,
+		connDiag, err := s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewFailedTraceConnectionDiagnostic(
+			types.ConnectionDiagnosticTrace_NODE_PRINCIPAL,
 			fmt.Sprintf("Failed to query the current user in the target node. Please ensure the principal %q is a valid Linux login in the target node. Output from Node: %s", sshClientConfig.User, strings.TrimSpace(string(output))),
 			err,
 		))
@@ -251,9 +258,8 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	}
 	whoamiOutput := strings.TrimSpace(string(output))
 
-	connDiag, err := s.clt.AppendTraceConnectionDiagnostic(ctx, connectionDiagnosticID, types.NewSuccessTraceConnectionDiagnostic(
-		uuid.NewString(),
-		types.DiagnosticTraceTypeNodePrincipal,
+	connDiag, err := s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewSuccessTraceConnectionDiagnostic(
+		types.ConnectionDiagnosticTrace_NODE_PRINCIPAL,
 		fmt.Sprintf("%q user exists in target node", whoamiOutput),
 	))
 	if err != nil {
