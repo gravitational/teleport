@@ -47,7 +47,7 @@ module.exports = {
     ],
   },
   linux: {
-    target: ['deb'],
+    target: ['tar.gz', 'rpm', 'deb'],
     category: 'Development',
     icon: 'assets/icon-linux',
     extraResources: [

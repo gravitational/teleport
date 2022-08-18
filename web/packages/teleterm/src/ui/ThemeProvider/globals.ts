@@ -44,7 +44,7 @@ const GlobalStyle = createGlobalStyle`
     }
   }
 
-  ${() => getPlatform().isWin && customScrollbar}
+  ${() => !getPlatform().isMac && customScrollbar}
 `;
 
 const customScrollbar = css`

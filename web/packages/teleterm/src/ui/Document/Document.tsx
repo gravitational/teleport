@@ -28,13 +28,25 @@ const Document: React.FC<{
     shouldFocus: visible && !autoFocusDisabled,
   });
 
+  function handleContextMenu(
+    e: React.MouseEvent<HTMLDivElement, MouseEvent>
+  ): void {
+    if (onContextMenu) {
+      // `preventDefault` prevents opening the universal context menu
+      // and thus only the document-specific menu gets displayed.
+      // Opening two menus at the same time on Linux causes flickering.
+      e.preventDefault();
+      onContextMenu();
+    }
+  }
+
   return (
     <Flex
       tabIndex={visible ? 0 : -1}
       flex="1"
       ref={ref}
       bg="primary.darker"
-      onContextMenu={onContextMenu}
+      onContextMenu={handleContextMenu}
       style={{
         overflow: 'auto',
         display: visible ? 'flex' : 'none',
