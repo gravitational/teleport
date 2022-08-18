@@ -87,11 +87,10 @@ func (s *Handler) GetCluster(ctx context.Context, req *api.GetClusterRequest) (*
 func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
 	loggedInUser := cluster.GetLoggedInUser()
 	return &api.Cluster{
-		Uri:        cluster.URI.String(),
-		Name:       cluster.Name,
-		ActualName: cluster.GetActualName(),
-		ProxyHost:  cluster.GetProxyHost(),
-		Connected:  cluster.Connected(),
+		Uri:       cluster.URI.String(),
+		Name:      cluster.Name,
+		ProxyHost: cluster.GetProxyHost(),
+		Connected: cluster.Connected(),
 		LoggedInUser: &api.LoggedInUser{
 			Name:      loggedInUser.Name,
 			SshLogins: loggedInUser.SSHLogins,
@@ -102,11 +101,10 @@ func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
 
 func newAPILeafCluster(leaf clusters.LeafCluster) *api.Cluster {
 	return &api.Cluster{
-		Name:       leaf.Name,
-		ActualName: leaf.Name,
-		Uri:        leaf.URI.String(),
-		Connected:  leaf.Connected,
-		Leaf:       true,
+		Name:      leaf.Name,
+		Uri:       leaf.URI.String(),
+		Connected: leaf.Connected,
+		Leaf:      true,
 		LoggedInUser: &api.LoggedInUser{
 			Name:      leaf.LoggedInUser.Name,
 			SshLogins: leaf.LoggedInUser.SSHLogins,
