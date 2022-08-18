@@ -229,8 +229,14 @@ type Server struct {
 	// awsMatchers are used to match EC2 instances
 	awsMatchers []services.AWSMatcher
 	// clients is used to retrieve clients used for AWS EC2 discovery
-	clients cloud.Clients
-	auth    auth.ClientI
+	clients      cloud.Clients
+	ec2Installer *server.SSMInstaller
+
+	auth auth.ClientI
+
+	// instanceFilterCache keeps a cache of all ec2 instances that are
+	// in the teleport cluster
+	instanceFilterCache *server.InstanceFilterCache
 
 	// tracerProvider is used to create tracers capable
 	// of starting spans.
@@ -829,6 +835,11 @@ func New(addr utils.NetAddr,
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		s.instanceFilterCache = server.NewInstanceFilterCache()
+		s.ec2Installer = server.NewSSMInstaller(server.SSMInstallerConfig{
+			Emitter:        s,
+			InstanceStates: s.instanceFilterCache,
+		})
 	}
 
 	server, err := sshutils.NewServer(
@@ -1051,21 +1062,15 @@ func (s *Server) getServerResource() (types.Resource, error) {
 
 func (s *Server) filterExistingNodes(instances *server.EC2Instances) (*server.EC2Instances, error) {
 	var filtered []*ec2.Instance
-	nodes, err := s.GetAccessPoint().GetNodes(s.ctx, s.getNamespace())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-outer:
 	for _, inst := range instances.Instances {
-		for _, node := range nodes {
-			if types.MatchLabels(node, map[string]string{
-				types.AWSAccountIDLabel:  instances.AccountID,
-				types.AWSInstanceIDLabel: aws.StringValue(inst.InstanceId),
-			}) {
-				continue outer
-			}
+		state, found := s.instanceFilterCache.GetInstance(server.InstanceFilterKey{
+			AccountID:  instances.AccountID,
+			InstanceID: aws.StringValue(inst.InstanceId),
+		})
+
+		if !found || state == server.InstanceStateError {
+			filtered = append(filtered, inst)
 		}
-		filtered = append(filtered, inst)
 	}
 	instances.Instances = filtered
 	return instances, nil
@@ -1081,10 +1086,10 @@ func (s *Server) handleInstances(instances *server.EC2Instances) error {
 		return trace.Wrap(err)
 	}
 	if len(filteredInstances.Instances) == 0 {
-		return trace.NotFound("all fetched nodes already registered")
+		log.Debugf("All fetched nodes already enrolled.")
+		return nil
 	}
 
-	installer := server.NewSSMInstaller(server.SSMInstallerConfig{Emitter: s})
 	req := server.SSMRunRequest{
 		DocumentName: instances.DocumentName,
 		SSM:          client,
@@ -1093,19 +1098,40 @@ func (s *Server) handleInstances(instances *server.EC2Instances) error {
 		Region:       filteredInstances.Region,
 		AccountID:    filteredInstances.AccountID,
 	}
-	return trace.Wrap(installer.Run(s.ctx, req))
+	return trace.Wrap(s.ec2Installer.Run(s.ctx, req))
 }
 
 func (s *Server) handleEC2Discovery() {
+	resources, err := s.authService.GetNodes(s.ctx, s.GetNamespace())
+	if err != nil {
+		log.WithError(err).Error("Error creating instances cache")
+	}
+
+	for _, res := range resources {
+		labels := res.GetAllLabels()
+		accountID, ok := labels[types.AWSAccountIDLabel]
+		if !ok {
+			continue
+		}
+		instanceID, ok := labels[types.AWSInstanceIDLabel]
+		if !ok {
+			continue
+		}
+		s.instanceFilterCache.SetInstance(server.InstanceFilterKey{
+			AccountID:  accountID,
+			InstanceID: instanceID,
+		}, server.InstanceStateCompleted)
+	}
+
 	go s.cloudWatcher.Run()
 	for {
 		select {
 		case instances := <-s.cloudWatcher.InstancesC:
 			if err := s.handleInstances(&instances); err != nil {
 				if trace.IsNotFound(err) {
-					log.Debug(err)
+					log.Debug("All discovered EC2 instances are already part of the cluster.")
 				} else {
-					log.Error("Error sending commands: ", err)
+					log.WithError(err).Error("Failed to enroll discovered EC2 instances.")
 				}
 			}
 		case <-s.ctx.Done():

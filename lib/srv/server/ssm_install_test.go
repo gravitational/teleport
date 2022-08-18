@@ -21,6 +21,8 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
@@ -43,6 +45,13 @@ func (sm *mockSSMClient) GetCommandInvocation(input *ssm.GetCommandInvocationInp
 	return sm.invokeOutput, nil
 }
 
+func (sm *mockSSMClient) WaitUntilCommandExecutedWithContext(aws.Context, *ssm.GetCommandInvocationInput, ...request.WaiterOption) error {
+	if aws.StringValue(sm.commandOutput.Command.Status) == ssm.CommandStatusFailed {
+		return awserr.New(request.WaiterResourceNotReadyErrorCode, "err", nil)
+	}
+	return nil
+}
+
 type mockEmitter struct {
 	events []events.AuditEvent
 }
@@ -59,8 +68,10 @@ func TestSSMInstaller(t *testing.T) {
 		conf           SSMInstallerConfig
 		req            SSMRunRequest
 		expectedEvents []events.AuditEvent
+		name           string
 	}{
 		{
+			name: "ssm run was successful",
 			req: SSMRunRequest{
 				Instances: []*ec2.Instance{
 					{InstanceId: aws.String("instance-id-1")},
@@ -82,7 +93,8 @@ func TestSSMInstaller(t *testing.T) {
 				AccountID: "account-id",
 			},
 			conf: SSMInstallerConfig{
-				Emitter: &mockEmitter{},
+				Emitter:        &mockEmitter{},
+				InstanceStates: &InstanceFilterCache{discoveredNodes: make(map[InstanceFilterKey]InstanceInstallationState)},
 			},
 			expectedEvents: []events.AuditEvent{
 				&events.SSMRun{
@@ -100,6 +112,7 @@ func TestSSMInstaller(t *testing.T) {
 			},
 		},
 		{
+			name: "ssm run failed",
 			req: SSMRunRequest{
 				DocumentName: document,
 				Instances: []*ec2.Instance{
@@ -121,7 +134,8 @@ func TestSSMInstaller(t *testing.T) {
 				AccountID: "account-id",
 			},
 			conf: SSMInstallerConfig{
-				Emitter: &mockEmitter{},
+				Emitter:        &mockEmitter{},
+				InstanceStates: &InstanceFilterCache{discoveredNodes: make(map[InstanceFilterKey]InstanceInstallationState)},
 			},
 			expectedEvents: []events.AuditEvent{
 				&events.SSMRun{
@@ -141,12 +155,13 @@ func TestSSMInstaller(t *testing.T) {
 		// todo(amk): test that incomplete commands eventually return
 		// an event once completed
 	} {
-		inst := NewSSMInstaller(tc.conf)
-		inst.recheckDuration = 1
-		err := inst.Run(context.Background(), tc.req)
-		require.NoError(t, err)
+		t.Run(tc.name, func(t *testing.T) {
+			inst := NewSSMInstaller(tc.conf)
+			err := inst.Run(context.Background(), tc.req)
+			require.NoError(t, err)
 
-		emitter := inst.Emitter.(*mockEmitter)
-		require.Equal(t, tc.expectedEvents, emitter.events)
+			emitter := inst.Emitter.(*mockEmitter)
+			require.Equal(t, tc.expectedEvents, emitter.events)
+		})
 	}
 }

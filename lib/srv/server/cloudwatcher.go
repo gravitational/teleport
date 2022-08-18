@@ -163,7 +163,8 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 		Region:   cfg.Region,
 		Document: cfg.Document,
 		Parameters: map[string]string{
-			"token": cfg.Matcher.Params.JoinToken,
+			"token":      cfg.Matcher.Params.JoinToken,
+			"scriptName": cfg.Matcher.Params.ScriptName,
 		},
 	}
 	return &fetcherConfig

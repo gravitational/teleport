@@ -18,6 +18,8 @@ package server
 
 import (
 	"context"
+	"errors"
+	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -37,6 +39,8 @@ import (
 type SSMInstallerConfig struct {
 	// Emitter is an events emitter.
 	Emitter apievents.Emitter
+	// InstanceStates is a cache of known ec2 instances and their state.
+	InstanceStates *InstanceFilterCache
 }
 
 // SSMInstaller handles running SSM commands that install Teleport on EC2 instances.
@@ -44,6 +48,7 @@ type SSMInstaller struct {
 	SSMInstallerConfig
 }
 
+// SSMRunRequest combines parameters for running SSM commands on a set of EC2 instances.
 type SSMRunRequest struct {
 	// DocumentName is the name of the SSM document to run.
 	DocumentName string
@@ -70,19 +75,20 @@ func NewSSMInstaller(cfg SSMInstallerConfig) *SSMInstaller {
 }
 
 // Run executes the SSM document and then blocks until the command has completed.
-func (i *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
-	ids := make([]*string, len(req.Instances))
-	for idx, inst := range req.Instances {
-		ids[idx] = inst.InstanceId
+func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
+	var ids []string
+	for _, inst := range req.Instances {
+		ids = append(ids, aws.StringValue(inst.InstanceId))
 	}
+	si.InstanceStates.SetInstances(req.AccountID, ids, InstanceStateNotStarted)
+
 	params := make(map[string][]*string)
 	for k, v := range req.Params {
 		params[k] = []*string{aws.String(v)}
 	}
-
 	output, err := req.SSM.SendCommand(&ssm.SendCommandInput{
 		DocumentName: aws.String(req.DocumentName),
-		InstanceIds:  ids,
+		InstanceIds:  aws.StringSlice(ids),
 		Parameters:   params,
 	})
 	if err != nil {
@@ -90,31 +96,36 @@ func (i *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 	}
 
 	var g errgroup.Group
+	g.SetLimit(10)
 	for _, inst := range ids {
+		inst := inst
 		g.Go(func() error {
-			return trace.Wrap(i.checkCommand(ctx, req, output.Command.CommandId, inst))
+			return trace.Wrap(si.checkCommand(ctx, req, output.Command.CommandId, &inst))
 		})
 	}
 	return trace.Wrap(g.Wait())
 }
 
-func checkAWSWaitErr(err error) error {
-	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok &&
-			aerr.Code() == request.WaiterResourceNotReadyErrorCode {
-			return nil
-		}
-		return trace.Wrap(err)
+// skipAWSWaitErr is used to ignore the error returned from
+// WaitUntilCommandExecutedWithContext if it is a resource not ready
+// code as this can represent one of several different errors which
+// are handled by checking the command invocation after calling this
+// to get more information about the error.
+func skipAWSWaitErr(err error) error {
+	var aErr awserr.Error
+	if errors.As(err, &aErr) && aErr.Code() == request.WaiterResourceNotReadyErrorCode {
+		return nil
 	}
-	return nil
+	return trace.Wrap(err)
 }
 
-func (i *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, commandID, instanceID *string) error {
+func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, commandID, instanceID *string) error {
 	err := req.SSM.WaitUntilCommandExecutedWithContext(ctx, &ssm.GetCommandInvocationInput{
 		CommandId:  commandID,
 		InstanceId: instanceID,
 	})
-	if err := checkAWSWaitErr(err); err != nil {
+
+	if err := skipAWSWaitErr(err); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -127,10 +138,13 @@ func (i *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, comm
 	}
 	status := aws.StringValue(cmdOut.Status)
 	var code string
-	if status == ssm.CommandStatusFailed {
-		code = libevents.SSMRunFailCode
-	} else {
+	var state InstanceInstallationState
+	if status == ssm.CommandStatusSuccess {
 		code = libevents.SSMRunSuccessCode
+		state = InstanceStateCompleted
+	} else {
+		code = libevents.SSMRunFailCode
+		state = InstanceStateError
 	}
 
 	event := events.SSMRun{
@@ -146,5 +160,75 @@ func (i *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, comm
 		Status:     aws.StringValue(cmdOut.Status),
 	}
 
-	return trace.Wrap(i.Emitter.EmitAuditEvent(ctx, &event))
+	si.InstanceStates.SetInstance(InstanceFilterKey{
+		AccountID:  req.AccountID,
+		InstanceID: aws.StringValue(instanceID),
+	}, state)
+
+	return trace.Wrap(si.Emitter.EmitAuditEvent(ctx, &event))
+}
+
+// InstanceFilterKey is used to key the instance filter cache
+type InstanceFilterKey struct {
+	AccountID, InstanceID string
+}
+
+// InstanceInstallationState represents the state that installing
+// teleport is at for an instance.
+type InstanceInstallationState int
+
+const (
+	InstanceStateUnknown InstanceInstallationState = iota
+	// IsntanceStateNotStarted represents an instance that is known
+	// but installation has not yet started.
+	InstanceStateNotStarted
+	// InstanceStateCompleted represents an instance that has had
+	// teleport successfully installed
+	InstanceStateCompleted
+	// InstanceStateInstalling represents an instance where teleport
+	// may still be being installed
+	InstanceStateInstalling
+	// IsntanceStateError represents an instance that failed to
+	// execute the installation script
+	InstanceStateError
+)
+
+// InstanceFilterCache keeps a cache of known EC2 nodes in the
+// teleport cluster
+type InstanceFilterCache struct {
+	sync.RWMutex
+	discoveredNodes map[InstanceFilterKey]InstanceInstallationState
+}
+
+// NewInstanceFilterCache initializes a new InstanceFilterCache with a set of existing servers.
+func NewInstanceFilterCache() *InstanceFilterCache {
+	cache := InstanceFilterCache{
+		discoveredNodes: make(map[InstanceFilterKey]InstanceInstallationState),
+		RWMutex:         sync.RWMutex{},
+	}
+	return &cache
+}
+
+// GetInstance retrieves an instance from the cache
+func (ifc *InstanceFilterCache) GetInstance(cacheKey InstanceFilterKey) (InstanceInstallationState, bool) {
+	ifc.RLock()
+	defer ifc.RUnlock()
+	state, ok := ifc.discoveredNodes[cacheKey]
+	return state, ok
+}
+
+// SetInstance sets an instance and its state in the cache
+func (ifc *InstanceFilterCache) SetInstance(cacheKey InstanceFilterKey, state InstanceInstallationState) {
+	ifc.Lock()
+	defer ifc.Unlock()
+	ifc.discoveredNodes[cacheKey] = state
+}
+
+// SetInstances sets all the specified instances to the provided state
+func (ifc *InstanceFilterCache) SetInstances(accountID string, instanceIDs []string, state InstanceInstallationState) {
+	ifc.Lock()
+	defer ifc.Unlock()
+	for _, inst := range instanceIDs {
+		ifc.discoveredNodes[InstanceFilterKey{AccountID: accountID, InstanceID: inst}] = state
+	}
 }
