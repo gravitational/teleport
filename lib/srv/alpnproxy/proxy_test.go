@@ -335,7 +335,7 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 
 	suite.router = NewRouter()
 	suite.router.Add(HandlerDesc{
-		MatchFunc: MatchByProtocol(common.ProtocolHTTP2, common.ProtocolHTTP),
+		MatchFunc: MatchByProtocol(common.ProtocolHTTP),
 		Handler:   lw.HandleConnection,
 		IsAsync:   true,
 	})
@@ -345,10 +345,11 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 	alpnConnHandler := svr.MakeConnectionHandler(
 		WithWaitForAsyncHandlers(),
 		WithDefaultTLSconfig(&tls.Config{
+			NextProtos: []string{string(common.ProtocolHTTP)},
 			Certificates: []tls.Certificate{
 				mustGenCertSignedWithCA(t, customCA),
 			},
-		}),
+		}, false),
 	)
 
 	// Prepare net.Conn to be used for the created alpnConnHandler.
@@ -366,12 +367,14 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 		pool.AddCert(customCA.Cert)
 
 		clientTLSConn := tls.Client(clientConn, &tls.Config{
+			NextProtos: []string{string(common.ProtocolHTTP)},
 			RootCAs:    pool,
 			ServerName: "localhost",
 		})
 		defer clientTLSConn.Close()
 
 		require.NoError(t, clientTLSConn.Handshake())
+		require.Equal(t, string(common.ProtocolHTTP), clientTLSConn.ConnectionState().NegotiatedProtocol)
 		require.NoError(t, req.Write(clientTLSConn))
 
 		response, err := http.ReadResponse(bufio.NewReader(clientTLSConn), req)

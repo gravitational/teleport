@@ -30,6 +30,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/constants"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -375,14 +376,31 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, opts *conne
 		return trace.Wrap(err)
 	}
 
-	if handlerDesc.IsAsync {
-		// Do not close clientConn for async handlers. Connections will be
-		// closed by the handlers themselves.
-		if opts.waitForAsyncHandlers {
-			waitConn := newWaitConn(ctx, conn)
-			defer waitConn.WaitForClose()
+	// Wrap incoming net.Conn with waitConn in case we have to wait for aysnc
+	// handlers.
+	waitConn := newWaitConn(ctx, conn)
+	conn = waitConn
 
-			conn = waitConn
+	// Upgrade conn to tls.Conn if not forwarding TLS.
+	if !handlerDesc.ForwardTLS {
+		tlsConn, err := p.terminateTLS(conn, handlerDesc.getTLSConfig(opts.defaultTLSConfig))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		handlerDesc, err = p.maybeUseDatabaseTLSHandler(handlerDesc, tlsConn)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		conn = tlsConn
+	}
+
+	// Do not close clientConn for async handlers. Connections will be closed
+	// by the handlers themselves.
+	if handlerDesc.IsAsync {
+		if opts.waitForAsyncHandlers {
+			defer waitConn.WaitForClose()
 		}
 	} else {
 		defer p.closeClientConnAndLogError(clientConn)
@@ -393,29 +411,46 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, opts *conne
 		ALPN: hello.SupportedProtos,
 	}
 
-	if handlerDesc.ForwardTLS {
-		return trace.Wrap(handlerDesc.handle(ctx, conn, connInfo))
-	}
+	return trace.Wrap(handlerDesc.handle(ctx, conn, connInfo))
+}
 
-	tlsConn := tls.Server(conn, handlerDesc.getTLSConfig(opts.defaultTLSConfig))
+func (p *Proxy) terminateTLS(conn net.Conn, tlsConfig *tls.Config) (*tls.Conn, error) {
+	tlsConn := tls.Server(conn, tlsConfig)
+
 	if err := tlsConn.SetReadDeadline(p.cfg.Clock.Now().Add(p.cfg.ReadDeadline)); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := tlsConn.Handshake(); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := tlsConn.SetReadDeadline(time.Time{}); err != nil {
-		return trace.Wrap(err)
+		if err := tlsConn.Close(); err != nil {
+			p.log.WithError(err).Error("Failed to close TLS connection.")
+		}
+		return nil, trace.Wrap(err)
 	}
 
+	if err := tlsConn.Handshake(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := tlsConn.SetReadDeadline(time.Time{}); err != nil {
+		if err := tlsConn.Close(); err != nil {
+			p.log.WithError(err).Error("Failed to close TLS connection.")
+		}
+		return nil, trace.Wrap(err)
+	}
+	return tlsConn, nil
+}
+
+func (p *Proxy) maybeUseDatabaseTLSHandler(curHandler *HandlerDesc, tlsConn *tls.Conn) (*HandlerDesc, error) {
 	isDatabaseConnection, err := dbutils.IsDatabaseConnection(tlsConn.ConnectionState())
 	if err != nil {
 		p.log.WithError(err).Debug("Failed to check if connection is database connection.")
 	}
+
 	if isDatabaseConnection {
-		return trace.Wrap(p.handleDatabaseConnection(ctx, tlsConn, connInfo))
+		if p.cfg.Router.databaseTLSHandler == nil {
+			return nil, trace.BadParameter("missing database TLS handler")
+		}
+		return p.cfg.Router.databaseTLSHandler, nil
 	}
-	return trace.Wrap(handlerDesc.handle(ctx, tlsConn, connInfo))
+
+	return curHandler, nil
 }
 
 // readHelloMessageWithoutTLSTermination allows reading a ClientHelloInfo message without termination of
@@ -447,13 +482,6 @@ func (p *Proxy) readHelloMessageWithoutTLSTermination(conn net.Conn) (*tls.Clien
 	return hello, newBufferedConn(conn, buff), nil
 }
 
-func (p *Proxy) handleDatabaseConnection(ctx context.Context, conn net.Conn, connInfo ConnectionInfo) error {
-	if p.cfg.Router.databaseTLSHandler == nil {
-		return trace.BadParameter("database handle not enabled")
-	}
-	return p.cfg.Router.databaseTLSHandler.handle(ctx, conn, connInfo)
-}
-
 func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.Conn, info ConnectionInfo) error {
 	// DB Protocols like Mongo have native support for TLS thus TLS connection needs to be terminated twice.
 	// First time for custom local proxy connection and the second time from Mongo protocol where TLS connection is used.
@@ -462,20 +490,8 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 	// Mongo client establishes a connection to SNI ALPN Local Proxy with server name 127.0.0.1 where LocalProxy wraps
 	// the connection in TLS and forward to Teleport SNI ALPN Proxy where first TLS layer is terminated
 	// by Proxy.handleConn using ProxyConfig.WebTLSConfig.
-	tlsConn := tls.Server(conn, p.cfg.IdentityTLSConfig)
-	if err := tlsConn.SetReadDeadline(p.cfg.Clock.Now().Add(p.cfg.ReadDeadline)); err != nil {
-		if err := tlsConn.Close(); err != nil {
-			p.log.WithError(err).Error("Failed to close TLS connection.")
-		}
-		return trace.Wrap(err)
-	}
-	if err := tlsConn.Handshake(); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := tlsConn.SetReadDeadline(time.Time{}); err != nil {
-		if err := tlsConn.Close(); err != nil {
-			p.log.WithError(err).Error("Failed to close TLS connection.")
-		}
+	tlsConn, err := p.terminateTLS(conn, p.cfg.IdentityTLSConfig)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -486,7 +502,10 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 	if !isDatabaseConnection {
 		return trace.BadParameter("not database connection")
 	}
-	return trace.Wrap(p.handleDatabaseConnection(ctx, tlsConn, info))
+	if p.cfg.Router.databaseTLSHandler == nil {
+		return trace.BadParameter("database handle not enabled")
+	}
+	return trace.Wrap(p.cfg.Router.databaseTLSHandler.handle(ctx, tlsConn, info))
 }
 
 func (p *Proxy) getHandlerDescBaseOnClientHelloMsg(clientHelloInfo *tls.ClientHelloInfo) (*HandlerDesc, error) {
@@ -556,7 +575,6 @@ func (p *Proxy) Close() error {
 }
 
 // closeClientConnAndLogError is a helper function that closes the provided
-// client connection and logs an error if close fails.
 func (p *Proxy) closeClientConnAndLogError(clientConn net.Conn) {
 	err := clientConn.Close()
 	if err != nil && !utils.IsOKNetworkError(err) {
@@ -570,12 +588,29 @@ func (p *Proxy) getHandleConnOptions(opts ...ConnectionHandlerOption) *connectio
 
 	// Setup defaults.
 	opts = append([]ConnectionHandlerOption{
-		WithDefaultTLSconfig(p.cfg.WebTLSConfig),
+		WithDefaultTLSconfig(p.cfg.WebTLSConfig, false),
 	}, opts...)
 
 	// Apply options.
 	for _, applyOpt := range opts {
-		applyOpt(options, common.ProtocolsToString(p.supportedProtocols))
+		applyOpt(options)
+	}
+
+	// Post-apply updates.
+	if options.setupDefaultTLSConfig {
+		p.setupDefaultTLSConfig(options.defaultTLSConfig)
 	}
 	return options
+}
+
+// setupDefaultTLSConfig applies neccessary upgrades to the default TLS config.
+func (p *Proxy) setupDefaultTLSConfig(config *tls.Config) {
+	// Add all supported protos.
+	config.NextProtos = apiutils.Deduplicate(append(config.NextProtos, common.ProtocolsToString(p.supportedProtocols)...))
+
+	// Do not ignore client certs if given. Some logic also requires information from the verified client cert.
+	config.ClientAuth = tls.VerifyClientCertIfGiven
+
+	// Set proper callback for fetching cluster CAs used for veriying clients.
+	config.GetConfigForClient = auth.WithClusterCAs(config, p.cfg.AccessPoint, p.cfg.ClusterName, p.cfg.Log)
 }

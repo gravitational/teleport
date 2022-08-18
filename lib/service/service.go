@@ -3726,7 +3726,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		alpnHandlerForWeb.Set(alpnServer.MakeConnectionHandler(
 			alpnproxy.WithWaitForAsyncHandlers(),
-			alpnproxy.WithDefaultTLSconfig(serverTLSConfig),
+			alpnproxy.WithDefaultTLSconfig(identityTLSConf, true),
 		))
 
 		process.RegisterCriticalFunc("proxy.tls.alpn.sni.proxy", func() error {

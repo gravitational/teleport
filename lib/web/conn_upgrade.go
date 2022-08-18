@@ -46,7 +46,7 @@ func (h *Handler) selectConnectionUpgradeType(r *http.Request) (string, upgradeH
 
 // connectionUpgrade handles connection upgrades.
 func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	upgradeType, handler, err := h.selectConnectionUpgradeType(r)
+	upgradeType, upgradeHandler, err := h.selectConnectionUpgradeType(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -62,12 +62,17 @@ func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p ht
 	}
 	defer conn.Close()
 
+	// Since w is hijacked, there is no point returning an error for response
+	// starting at this point.
 	if err := writeUpgradeResponse(conn, upgradeType); err != nil {
-		return nil, trace.Wrap(err)
+		h.log.WithError(err).Error("Failed to write upgrade response.")
+		return nil, nil
 	}
 
-	conn.SetDeadline(time.Time{})
-	return nil, trace.Wrap(handler(r.Context(), conn))
+	if err := upgradeHandler(r.Context(), conn); err != nil {
+		h.log.WithError(err).Errorf("Failed to handle %v upgrade request.", upgradeType)
+	}
+	return nil, nil
 }
 
 // upgradeToALPN handles upgraded ALPN connection.
@@ -76,7 +81,7 @@ func (h *Handler) upgradeToALPN(ctx context.Context, conn net.Conn) error {
 		return trace.BadParameter("missing ALPNHandler")
 	}
 
-	// TODO add ping conn
+	conn.SetDeadline(time.Time{})
 
 	err := h.cfg.ALPNHandler.HandleConnection(ctx, conn)
 	if err != nil && !utils.IsOKNetworkError(err) {
