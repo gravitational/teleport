@@ -92,7 +92,7 @@ func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    options.rootClusterNodeName,
-		log:         utils.NewLoggerForTests(),
+		Log:         utils.NewLoggerForTests(),
 		Ports:       options.rootClusterPorts,
 	})
 
@@ -103,7 +103,7 @@ func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 		NodeName:    options.leafClusterNodeName,
 		Priv:        rc.Secrets.PrivKey,
 		Pub:         rc.Secrets.PubKey,
-		log:         utils.NewLoggerForTests(),
+		Log:         utils.NewLoggerForTests(),
 		Ports:       options.leafClusterPorts,
 	})
 	suite := &ProxySuite{

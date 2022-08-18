@@ -174,7 +174,7 @@ func testKubeExec(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		log:         suite.log,
+		Log:         suite.log,
 	})
 
 	username := suite.me.Username
@@ -343,7 +343,7 @@ func testKubeDeny(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		log:         suite.log,
+		Log:         suite.log,
 	})
 
 	username := suite.me.Username
@@ -395,7 +395,7 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		log:         suite.log,
+		Log:         suite.log,
 	})
 
 	username := suite.me.Username
@@ -490,7 +490,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		log:         suite.log,
+		Log:         suite.log,
 	})
 
 	// main cluster has a role and user called main-kube
@@ -513,7 +513,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		log:         suite.log,
+		Log:         suite.log,
 	})
 
 	lib.SetInsecureDevMode(true)
@@ -741,7 +741,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		log:         suite.log,
+		Log:         suite.log,
 	})
 
 	// main cluster has a role and user called main-kube
@@ -764,7 +764,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		log:         suite.log,
+		Log:         suite.log,
 	})
 
 	lib.SetInsecureDevMode(true)
@@ -1016,7 +1016,7 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		log:         suite.log,
+		Log:         suite.log,
 	})
 
 	username := suite.me.Username
@@ -1102,7 +1102,7 @@ func testKubeTransportProtocol(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		log:         suite.log,
+		Log:         suite.log,
 	})
 
 	username := suite.me.Username
@@ -1511,7 +1511,7 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		log:         suite.log,
+		Log:         suite.log,
 	})
 
 	hostUsername := suite.me.Username
