@@ -166,8 +166,8 @@ On your Linux machine, run the necessary commands to start the `teleport` daemon
   </TabItem>
 
   <TabItem label="Source or custom install">
-  1. Create a systemd unit file using the `teleport install systemd` command and the [unit file path](https://www.freedesktop.org/software/systemd/man/systemd.unit.html) you'd
-  like to use for your configuration. The `/etc/systemd/system/teleport.service` path is recommended in most use case:
+  1. Create a systemd unit file using the `teleport install systemd` command and the unit file path you'd
+  like to use for your configuration. We recommend the path `/etc/systemd/system/teleport.service` for most use cases:
 
     ```code
     $ sudo teleport install systemd -o /etc/systemd/system/teleport.service
@@ -179,12 +179,6 @@ On your Linux machine, run the necessary commands to start the `teleport` daemon
     ```
   </TabItem>
 </Tabs>
-
-<Admonition title="The Teleport daemon" type="tip">
-Configuration for the teleport daemon relies on [systemd](https://www.freedesktop.org/wiki/Software/systemd/). For more information on how the
-teleport service daemon is configured, see our guide on how to [Run Teleport as a Daemon](https://goteleport.com/docs/setup/admin/daemon/).
-</Admonition>
-
 
 You can access Teleport's Web UI via HTTPS at the domain you created earlier
 (e.g., `https://teleport.example.com`). You should see a welcome screen similar
@@ -343,8 +337,8 @@ List all SSH servers connected to Teleport:
 
 ```code
 $ tsh ls
-Node Name        Address        Labels                                
----------------- -------------- ------------------------------------- 
+Node Name        Address        Labels
+---------------- -------------- -------------------------------------
 mynode 127.0.0.1:3022 env=example,hostname=mynode
 ```
 
@@ -381,4 +375,6 @@ Teleport tasks, such as:
 ## Further reading
 
 - How Let's Encrypt uses the [ACME protocol](https://letsencrypt.org/how-it-works/) to issue certificates
+- Configuration for the teleport daemon relies on [systemd](https://www.freedesktop.org/wiki/Software/systemd/). For more information on how the
+teleport service daemon is configured, see our guide on how to [Run Teleport as a Daemon](../setup/admin/daemon.mdx).
 
