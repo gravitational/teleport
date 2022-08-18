@@ -115,15 +115,11 @@ spec:
     "{kubernetes_service_dynamic_label_key_1}": "{kubernetes_service_dynamic_label_val_1}"
 ```
 
-Initially, the agent will check for available EKS clusters by calling the [`eks:ListClusters`][listclusters] API at regular intervals. This endpoint only returns the list of EKS cluster names the user has access to but not its details, so the agent accesses them by calling [`eks:DescribeCluster`][descclusters ] per cluster. These details include fields such as the API endpoint, the CA certificate, and tags.
+For security reasons, the agent does not create a new service account that provides a static token, such as the one used by the Kubeconfig method. Instead, the credentials used are valid for short periods and must be rotated when they are close to expiration. API access credentials are generated for a specific cluster and return the expiration time. This expiration time is defined in the IAM role definition, and when they expire, the agent cannot forward more requests to the Kubernetes clusters.
 
-Once it has access to the details, the agent checks if the tags satisfy the discovery matcher. If the result is positive, it evaluates whether the EKS cluster is a new addition or, if previously discovered, if it contains any updated fields. If under any of these cases, the watcher will register the cluster or update the existing resource. The register process consists in creating/revalidating the credentials to access the cluster API and the setup of the Teleport heartbeat mechanism.
+If the process fails because the discovery agent does not have the necessary permissions, Teleports logs the error and retries on the next discovery cycle.
 
-If a previously discovered resource no longer matches the discovery criteria or was deleted, the agent will unregister it. The unregister process consists in stopping the heartbeat, closing any active connection, and deleting it from the Teleport cluster.
-
-The EKS cluster is defined in Teleport by its name, static labels will incorporate the EKS tags, the service labels, and a forced label identifying that the cluster was auto-discovered. Service's dynamic labels are imported to the cluster. 
-
-The Teleport representation is the following:
+With this method, Teleport does not install any agents on the cluster but requires the Kubernetes API to be accessible to the Teleport discovery agent. This means clusters with private API endpoints must be accessible from the machine where the discovery agent is running.
 
 ## Authentication & Authorization
 
