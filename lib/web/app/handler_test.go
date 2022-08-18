@@ -127,7 +127,7 @@ func TestHasName(t *testing.T) {
 			hasName:     true,
 		},
 		{
-			desc:        "OK - adds path",
+			desc:        "OK - adds paths with ampersands",
 			addrs:       []string{"proxy.com"},
 			reqURL:      "https://app1.proxy.com/foo/this&/that",
 			expectedURL: "https://proxy.com/web/launch/app1.proxy.com?path=%2Ffoo%2Fthis%26%2Fthat",
