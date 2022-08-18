@@ -25,7 +25,7 @@ Here is an example of an MSP using Trusted Clusters to obtain access to client c
 A leaf cluster always creates an outbound reverse SSH tunnel to the root cluster and keeps the tunnel open.
 
 <Notice type="tip">
-Individual nodes and proxies can create reverse tunnels to proxy serivices without creating a new cluster.
+Individual nodes and proxies can create reverse tunnels to proxy services without creating a new cluster.
 You don't need to set up a trusted cluster just to connect a couple of servers, kubernetes clusters or
 databases behind a firewall. For more information, see [Adding Nodes to the Cluster](./adding-nodes.mdx).
 </Notice>
@@ -888,7 +888,7 @@ $ tctl create --force cluster.yaml
 ```
 
 This closes the reverse tunnel between your leaf cluster and your root cluster.
-It also deactivates and deactivates the root cluster's certificate authority on
+It also deactivates the root cluster's certificate authority on
 the leaf cluster.
 
 You can enable the trust relationship again by setting `enabled` to `true`.

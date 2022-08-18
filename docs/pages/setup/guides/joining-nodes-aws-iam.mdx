@@ -1,14 +1,14 @@
 ---
 title: Joining Nodes via AWS IAM Role
-description: Use the IAM join method to add nodes to your Teleport cluster on AWS
+description: Use the IAM join method to add Nodes to your Teleport cluster on AWS
 ---
 
 This guide will explain how to use the **IAM join method** to configure Teleport
-nodes and Proxies to join your Teleport cluster without sharing any secrets when
-they are running in AWS.
+Nodes and Proxy Service instances to join your Teleport cluster without sharing
+any secrets when they are running in AWS.
 
 The IAM join method is available in Teleport 8.3+. It is available to any
-Teleport node or Proxy running anywhere with access to IAM credentials, such as
+Teleport Node or Proxy running anywhere with access to IAM credentials, such as
 an EC2 instance with an attached IAM role. No specific permissions or IAM policy
 is required: an IAM role with no attached policies is sufficient. No IAM
 credentials are required on the Teleport Auth Service.
@@ -17,44 +17,45 @@ credentials are required on the Teleport Auth Service.
 scope={["oss", "enterprise"]} 
 scopeOnly
 opened
-title="Other AWS node joining methods"
+title="Other AWS Node joining methods"
 >
 
-There are two additional methods you can use to join your nodes to a Teleport
+There are two additional methods you can use to join your Nodes to a Teleport
 cluster.
 
-The **EC2 join method** is available in self-hosted verisons of Teleport 7.3+.
-It is available to any Teleport node or Proxy running on an EC2 instance. Only
-one Teleport node or Proxy per EC2 instance may use the EC2 join method.
+The **EC2 join method** is available in self-hosted versions of Teleport 7.3+.
+It is available to any Teleport Node or Proxy Service instance running on an EC2
+instance. Only one Teleport Node or Proxy Service instance per EC2 instance may
+use the EC2 join method.
 
 IAM credentials with `ec2:DescribeInstances` permissions are required on
-your Teleport Auth Service. No IAM credentials are required on the nodes or
+your Teleport Auth Service. No IAM credentials are required on the Nodes or
 Proxies.
 
-You can also configure nodes running in AWS to join a cluster via **secret tokens**,
+You can also configure Nodes running in AWS to join a cluster via **secret tokens**,
 which is useful when you don't want to rely on AWS-specific APIs.
 Read more in the following guide:
-[Adding nodes to the cluster](../admin/adding-nodes.mdx)
+[Adding Nodes to the cluster](../admin/adding-nodes.mdx)
 
 </Details>
 <Details 
 scope={["cloud"]} 
 scopeOnly
 opened
-title="Another AWS node joining method"
+title="Another AWS Node joining method"
 >
 
-You can also configure nodes running in AWS to join a cluster via **secret tokens**,
+You can also configure Nodes running in AWS to join a cluster via **secret tokens**,
 which is useful when you don't want to rely on AWS-specific APIs.
 Read more in the following guide:
-[Adding nodes to the cluster](../admin/adding-nodes.mdx)
+[Adding Nodes to the cluster](../admin/adding-nodes.mdx)
 
 </Details>
 
 <Notice type="warning" scope={["oss", "enterprise"]}>
 
 The IAM join method will not work if TLS is terminated at a load balancer in
-front of your Teleport Proxy Service unless the node using this method is
+front of your Teleport Proxy Service unless the Node using this method is
 connecting directly to the Auth Service.
 
 The IAM join method is currently not supported in the AWS China or GovCloud
@@ -78,11 +79,11 @@ partitions.
 (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/4. Set up AWS IAM credentials
-Every node or Proxy using the IAM method to join your Teleport cluster needs AWS
+Every Node or Proxy using the IAM method to join your Teleport cluster needs AWS
 IAM credentials in order to call the `sts:GetCallerIdentity` API. No specific
 IAM policy or permissions are needed. Any IAM user or role can call this API.
 
-If running your node on an EC2 instance, it is sufficient to attach any IAM
+If running your Node on an EC2 instance, it is sufficient to attach any IAM
 role to the instance. To attach an IAM role from the EC2 dashboard, select
 `Actions > Security > Modify IAM role`.
 
@@ -91,14 +92,14 @@ configuration file or environment variables. For details, see the following guid
 
 [Specifying Credentials](https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/#specifying-credentials)
 
-## Step 2/4. Create the AWS node joining token
-Under the hood, nodes will prove that they are running in your AWS account by
+## Step 2/4. Create the AWS Node joining token
+Under the hood, Nodes will prove that they are running in your AWS account by
 sending a pre-signed `sts:GetCallerIdentity` request to the Teleport Auth Server. The
-node's identity must match an allow rule configured in your AWS node joining
+Node's identity must match an allow rule configured in your AWS Node joining
 token.
 
 Create the following `token.yaml` with an `allow` rule specifying your AWS
-account and the ARN that your node's identity must match.
+account and the ARN that your Node's identity must match.
 
 ```
 # token.yaml
@@ -118,11 +119,11 @@ spec:
   join_method: iam
 
   allow:
-  # specify the AWS account which nodes may join from
+  # specify the AWS account which Nodes may join from
   - aws_account: "111111111111"
   # multiple allow rules are supported
   - aws_account: "222222222222"
-  # aws_arn is optional and allows you to restrict the IAM role of joining nodes
+  # aws_arn is optional and allows you to restrict the IAM role of joining Nodes
   - aws_account: "333333333333"
     aws_arn: "arn:aws:sts::333333333333:assumed-role/teleport-node-role/i-*"
 ```
@@ -141,11 +142,11 @@ You can check what your AWS identity looks like by running
 
 Run `tctl create token.yaml` to create the token.
 
-## Step 3/4. Configure your nodes
+## Step 3/4. Configure your Nodes
 The IAM join method can be used for Teleport services running the SSH, Proxy,
 Kubernetes, Application, or Database Service.
 
-Configure your Teleport node with a custom `teleport.yaml` file. Use the
+Configure your Teleport Node with a custom `teleport.yaml` file. Use the
 `join_params` section with `token_name` matching your token created in Step 2
 and `method: iam` as shown in the following example config:
 
@@ -165,7 +166,7 @@ proxy_service:
   enabled: no
 ```
 
-## Step 4/4. Launch your Teleport node
+## Step 4/4. Launch your Teleport Node
 
-Start Teleport on the node and confirm that it is able to connect to and join
+Start Teleport on the Node and confirm that it is able to connect to and join
 your cluster. You're all set!

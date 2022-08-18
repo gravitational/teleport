@@ -17,7 +17,6 @@ package helpers
 import (
 	"context"
 	"crypto/x509/pkix"
-	"net"
 	"path/filepath"
 	"testing"
 	"time"
@@ -41,10 +40,10 @@ import (
 
 func EnableKubernetesService(t *testing.T, config *service.Config) {
 	config.Kube.KubeconfigPath = filepath.Join(t.TempDir(), "kube_config")
-	require.NoError(t, EnableKube(config, "teleport-cluster"))
+	require.NoError(t, EnableKube(t, config, "teleport-cluster"))
 }
 
-func EnableKube(config *service.Config, clusterName string) error {
+func EnableKube(t *testing.T, config *service.Config, clusterName string) error {
 	kubeConfigPath := config.Kube.KubeconfigPath
 	if kubeConfigPath == "" {
 		return trace.BadParameter("missing kubeconfig path")
@@ -54,31 +53,34 @@ func EnableKube(config *service.Config, clusterName string) error {
 		return trace.Wrap(err)
 	}
 	err = kubeconfig.Update(kubeConfigPath, kubeconfig.Values{
+		// By default this needs to be an arbitrary address guaranteed not to
+		// be in use, so we're using port 0 for now.
+		ClusterAddr: "https://localhost:0",
+
 		TeleportClusterName: clusterName,
-		ClusterAddr:         "https://" + net.JoinHostPort(Host, ports.Pop()),
 		Credentials:         key,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	config.Kube.Enabled = true
-	config.Kube.ListenAddr = utils.MustParseAddr(net.JoinHostPort(Host, ports.Pop()))
+	config.Kube.ListenAddr = utils.MustParseAddr(NewListener(t, service.ListenerKube, &config.FileDescriptors))
 	return nil
 }
 
 // GetKubeClusters gets all kubernetes clusters accessible from a given auth server.
-func GetKubeClusters(t *testing.T, as *auth.Server) []*types.KubernetesCluster {
+func GetKubeClusters(t *testing.T, as *auth.Server) []types.KubeCluster {
 	ctx := context.Background()
 	resources, err := apiclient.GetResourcesWithFilters(ctx, as, proto.ListResourcesRequest{
-		ResourceType: types.KindKubeService,
+		ResourceType: types.KindKubeServer,
 	})
 	require.NoError(t, err)
-	kss, err := types.ResourcesWithLabels(resources).AsServers()
+	kss, err := types.ResourcesWithLabels(resources).AsKubeServers()
 	require.NoError(t, err)
 
-	clusters := make([]*types.KubernetesCluster, 0)
+	clusters := make([]types.KubeCluster, 0)
 	for _, ks := range kss {
-		clusters = append(clusters, ks.GetKubernetesClusters()...)
+		clusters = append(clusters, ks.GetCluster())
 	}
 	return clusters
 }

@@ -504,6 +504,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-proxy-ssh",
 				"teleport-reversetunnel",
 				"teleport-auth@",
+				"teleport-tcp",
 			},
 		},
 		{
@@ -522,6 +523,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-proxy-ssh",
 				"teleport-reversetunnel",
 				"teleport-auth@",
+				"teleport-tcp",
 			},
 		},
 	}
@@ -625,7 +627,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 	nodeCfg := MakeDefaultConfig()
 	nodeCfg.AuthServers = []utils.NetAddr{listenAddr}
 	nodeCfg.DataDir = t.TempDir()
-	nodeCfg.Token = token
+	nodeCfg.SetToken(token)
 	nodeCfg.Auth.Enabled = false
 	nodeCfg.Proxy.Enabled = false
 	nodeCfg.SSH.Enabled = true

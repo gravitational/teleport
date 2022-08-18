@@ -20,10 +20,18 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -37,15 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 )
 
 func newSilentLogger() utils.Logger {
@@ -57,10 +56,10 @@ func newSilentLogger() utils.Logger {
 
 func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinMethod types.JoinMethod) *service.Config {
 	config := service.MakeDefaultConfig()
-	config.Token = tokenName
+	config.SetToken(tokenName)
 	config.JoinMethod = joinMethod
 	config.SSH.Enabled = true
-	config.SSH.Addr.Addr = net.JoinHostPort(Host, helpers.NewPortStr())
+	config.SSH.Addr.Addr = helpers.NewListener(t, service.ListenerNodeSSH, &config.FileDescriptors)
 	config.Auth.Enabled = false
 	config.Proxy.Enabled = false
 	config.DataDir = t.TempDir()
@@ -73,12 +72,12 @@ func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinM
 func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinMethod types.JoinMethod) *service.Config {
 	config := service.MakeDefaultConfig()
 	config.Version = defaults.TeleportConfigVersionV2
-	config.Token = tokenName
+	config.SetToken(tokenName)
 	config.JoinMethod = joinMethod
 	config.SSH.Enabled = false
 	config.Auth.Enabled = false
 
-	proxyAddr := net.JoinHostPort(Host, helpers.NewPortStr())
+	proxyAddr := helpers.NewListener(t, service.ListenerProxyWeb, &config.FileDescriptors)
 	config.Proxy.Enabled = true
 	config.Proxy.DisableWebInterface = true
 	config.Proxy.WebAddr.Addr = proxyAddr
@@ -103,7 +102,7 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *service.Config {
 
 	config := service.MakeDefaultConfig()
 	config.DataDir = t.TempDir()
-	config.Auth.ListenAddr.Addr = net.JoinHostPort(Host, helpers.NewPortStr())
+	config.Auth.ListenAddr.Addr = helpers.NewListener(t, service.ListenerAuth, &config.FileDescriptors)
 	config.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "testcluster",
 	})
@@ -198,13 +197,8 @@ func TestEC2NodeJoin(t *testing.T) {
 	require.NoError(t, nodeSvc.Start())
 	t.Cleanup(func() { require.NoError(t, nodeSvc.Close()) })
 
-	eventCh := make(chan service.Event, 1)
-	nodeSvc.WaitForEvent(nodeSvc.ExitContext(), service.TeleportReadyEvent, eventCh)
-	select {
-	case <-eventCh:
-	case <-time.After(10 * time.Second):
-		t.Fatal("timeout waiting for node readiness")
-	}
+	_, err = nodeSvc.WaitForEventTimeout(10*time.Second, service.TeleportReadyEvent)
+	require.NoError(t, err, "timeout waiting for node readiness")
 
 	// the node should eventually join the cluster and heartbeat
 	require.Eventually(t, func() bool {
@@ -337,13 +331,16 @@ func TestEC2Labels(t *testing.T) {
 	tconf.DataDir = t.TempDir()
 	tconf.Auth.Enabled = true
 	tconf.Proxy.Enabled = true
+	tconf.Proxy.SSHAddr.Addr = helpers.NewListener(t, service.ListenerProxySSH, &tconf.FileDescriptors)
+	tconf.Proxy.WebAddr.Addr = helpers.NewListener(t, service.ListenerProxyWeb, &tconf.FileDescriptors)
+	tconf.Proxy.ReverseTunnelListenAddr.Addr = helpers.NewListener(t, service.ListenerProxyTunnel, &tconf.FileDescriptors)
 	tconf.Proxy.DisableWebInterface = true
 	tconf.Auth.StorageConfig = storageConfig
-	tconf.Auth.ListenAddr.Addr = net.JoinHostPort(Host, helpers.NewPortStr())
+	tconf.Auth.ListenAddr.Addr = helpers.NewListener(t, service.ListenerAuth, &tconf.FileDescriptors)
 	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.ListenAddr)
 
 	tconf.SSH.Enabled = true
-	tconf.SSH.Addr.Addr = net.JoinHostPort(Host, helpers.NewPortStr())
+	tconf.SSH.Addr.Addr = helpers.NewListener(t, service.ListenerNodeSSH, &tconf.FileDescriptors)
 
 	appConf := service.App{
 		Name: "test-app",
@@ -380,7 +377,7 @@ func TestEC2Labels(t *testing.T) {
 	var nodes []types.Server
 	var apps []types.AppServer
 	var databases []types.DatabaseServer
-	var kubes []types.Server
+	var kubes []types.KubeServer
 
 	// Wait for everything to come online.
 	require.Eventually(t, func() bool {
@@ -391,7 +388,7 @@ func TestEC2Labels(t *testing.T) {
 		require.NoError(t, err)
 		databases, err = authServer.GetDatabaseServers(ctx, tconf.SSH.Namespace)
 		require.NoError(t, err)
-		kubes, err = authServer.GetKubeServices(ctx)
+		kubes, err = authServer.GetKubernetesServers(ctx)
 		require.NoError(t, err)
 		return len(nodes) == 1 && len(apps) == 1 && len(databases) == 1 && len(kubes) == 1
 	}, 10*time.Second, time.Second)
@@ -418,7 +415,7 @@ func TestEC2Labels(t *testing.T) {
 		kubeClusters := helpers.GetKubeClusters(t, authServer)
 		require.Len(t, kubeClusters, 1)
 		kube := kubeClusters[0]
-		_, kubeHasLabel := kube.StaticLabels[tagName]
+		_, kubeHasLabel := kube.GetStaticLabels()[tagName]
 		return nodeHasLabel && appHasLabel && dbHasLabel && kubeHasLabel
 	}, 10*time.Second, time.Second)
 }
@@ -441,12 +438,14 @@ func TestEC2Hostname(t *testing.T) {
 	tconf.Auth.Enabled = true
 	tconf.Proxy.Enabled = true
 	tconf.Proxy.DisableWebInterface = true
+	tconf.Proxy.SSHAddr.Addr = helpers.NewListener(t, service.ListenerProxySSH, &tconf.FileDescriptors)
+	tconf.Proxy.WebAddr.Addr = helpers.NewListener(t, service.ListenerProxyWeb, &tconf.FileDescriptors)
 	tconf.Auth.StorageConfig = storageConfig
-	tconf.Auth.ListenAddr.Addr = net.JoinHostPort(Host, helpers.NewPortStr())
+	tconf.Auth.ListenAddr.Addr = helpers.NewListener(t, service.ListenerAuth, &tconf.FileDescriptors)
 	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.ListenAddr)
 
 	tconf.SSH.Enabled = true
-	tconf.SSH.Addr.Addr = net.JoinHostPort(Host, helpers.NewPortStr())
+	tconf.SSH.Addr.Addr = helpers.NewListener(t, service.ListenerNodeSSH, &tconf.FileDescriptors)
 
 	imClient := &mockIMDSClient{
 		tags: map[string]string{

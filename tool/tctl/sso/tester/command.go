@@ -69,7 +69,7 @@ Examples:
 
   > tctl sso configure github ... | tctl sso test
 
-  The pipeline may also utilise "tee" to capture the connector generated with "tctl sso configure".
+  The pipeline may also utilize "tee" to capture the connector generated with "tctl sso configure".
 
   > tctl sso configure github ... | tee connector.yaml | tctl sso test`)
 

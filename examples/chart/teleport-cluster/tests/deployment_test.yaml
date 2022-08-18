@@ -589,6 +589,16 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  - it: should add an operator side-car when operator is enabled
+    values:
+      - ../.lint/operator.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: operator
+      - matchSnapshot:
+          path: spec.template.spec.containers[1]
+
   - it: should add named PersistentVolumeClaim as volume when in standalone mode, persistence.existingClaimName is set and persistence.enabled is true
     values:
       - ../.lint/standalone-existingpvc.yaml

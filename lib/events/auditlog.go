@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -220,7 +221,7 @@ func (a *AuditLogConfig) CheckAndSetDefaults() error {
 // NewAuditLog creates and returns a new Audit Log object which will store its log files in
 // a given directory.
 func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
-	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -899,8 +900,10 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 			e <- trace.BadParameter("audit log is closing, aborting the download")
 			return c, e
 		}
+	} else {
+		defer cancel()
 	}
-	defer cancel()
+
 	rawSession, err := os.OpenFile(tarballPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0640)
 	if err != nil {
 		e <- trace.Wrap(err)

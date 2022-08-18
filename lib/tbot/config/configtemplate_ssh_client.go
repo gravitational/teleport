@@ -32,7 +32,7 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/tbot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -133,7 +133,7 @@ func (c *TemplateSSHClient) Name() string {
 	return TemplateSSHClientName
 }
 
-func (c *TemplateSSHClient) Describe(destination destination.Destination) []FileDescription {
+func (c *TemplateSSHClient) Describe(destination bot.Destination) []FileDescription {
 	ret := []FileDescription{
 		{
 			Name: "known_hosts",
@@ -155,18 +155,19 @@ func (c *TemplateSSHClient) Describe(destination destination.Destination) []File
 // using non-filesystem backends.
 var sshConfigUnsupportedWarning sync.Once
 
-func (c *TemplateSSHClient) Render(ctx context.Context, authClient auth.ClientI, currentIdentity *identity.Identity, destination *DestinationConfig) error {
+func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, currentIdentity *identity.Identity, destination *DestinationConfig) error {
 	dest, err := destination.GetDestination()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	authClient := bot.Client()
 	clusterName, err := authClient.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	ping, err := authClient.Ping(ctx)
+	ping, err := bot.AuthPing(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -312,7 +313,7 @@ func fetchKnownHosts(ctx context.Context, client auth.ClientI, clusterName, prox
 		for _, pubKey := range pubKeys {
 			bytes := ssh.MarshalAuthorizedKey(pubKey)
 			sb.WriteString(fmt.Sprintf(
-				"@cert-authority %s,%s,*.%s %s type=host",
+				"@cert-authority %s,%s,*.%s %s type=host\n",
 				proxyHosts, auth.ClusterName, auth.ClusterName, strings.TrimSpace(string(bytes)),
 			))
 		}

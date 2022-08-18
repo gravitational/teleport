@@ -94,7 +94,7 @@ Teleport is a bastion server for your OpenSSH hosts. SSH into OpenSSH server and
 $ ssh root@mars.openssh.teleport
 ```
 
-You can also run ansible on Teleport nodes and OpenSSH servers:
+You can also run Ansible on Teleport Nodes and OpenSSH servers:
 
 ```code
 # From term container
@@ -161,7 +161,7 @@ as a bastion server:
 Host *.openssh.teleport
     ProxyCommand ssh -o "ForwardAgent yes" -p 3023 proxy.luna.teleport -s proxy:%h:22
 
-# Hosts without openssh suffix are Teleport nodes listening on port 3022
+# Hosts without openssh suffix are Teleport Nodes listening on port 3022
 Host *.teleport !proxy.luna.teleport
     ProxyCommand ssh -o "ForwardAgent yes" -p 3023 proxy.luna.teleport -s proxy:%h:3022
 ```

@@ -24,7 +24,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -32,7 +31,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
-
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/gravitational/trace"
 )
 

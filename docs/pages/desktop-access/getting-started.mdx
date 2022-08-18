@@ -144,6 +144,11 @@ Computer Configuration > Policies > Windows Settings > Security Settings > Local
   ![Deny Interactive Login](../../img/desktop-access/deny-interactive-login.png)
 </Figure>
 
+<Admonition type="tip" title="Disabling Password Authentication">
+  For added security, consider disabling username/password authentication completely via the GPO,
+  requiring access via Teleport's virtual smart card.
+</Admonition>
+
 ## Step 3/7. Configure a GPO to allow Teleport connections
 
 Next, we need to configure a GPO to allow Teleport desktop sessions. This
@@ -277,7 +282,7 @@ Computer Configuration > Policies > Windows Settings > Security Settings > Syste
 
 <Admonition type="warning" title="Warning">
   During testing on a Windows Server 2012 R2 server, we found that the following
-  firewall rule would sometimes mysteriously dissapear. If connections through
+  firewall rule would sometimes mysteriously disappear. If connections through
   Teleport later appear to be hanging for a few seconds and then failing, double
   check that this rule is still in effect.
 </Admonition>

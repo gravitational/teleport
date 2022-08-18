@@ -17,7 +17,6 @@ package tracing
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"net"
 	"net/url"
 	"strings"
@@ -30,17 +29,11 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
-	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 const (
@@ -104,162 +97,44 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Logger = logrus.WithField(trace.Component, teleport.ComponentTracing)
 	}
 
-	if c.Client == nil {
-		// first check if a network address is specified, if it was, default
-		// to using grpc. If provided a URL, ensure that it is valid
-		_, _, err := net.SplitHostPort(c.ExporterURL)
-		if err == nil {
-			c.exporterURL = &url.URL{
-				Scheme: "grpc",
-				Host:   c.ExporterURL,
-			}
-		} else {
-			exporterURL, err := url.Parse(c.ExporterURL)
-			if err != nil {
-				return trace.BadParameter("failed to parse exporter URL: %v", err)
-			}
-			c.exporterURL = exporterURL
+	if c.Client != nil {
+		return nil
+	}
+
+	// first check if a network address is specified, if it was, default
+	// to using grpc. If provided a URL, ensure that it is valid
+	h, _, err := net.SplitHostPort(c.ExporterURL)
+	if err != nil || h == "file" {
+		exporterURL, err := url.Parse(c.ExporterURL)
+		if err != nil {
+			return trace.BadParameter("failed to parse exporter URL: %v", err)
 		}
+		c.exporterURL = exporterURL
+		return nil
 	}
 
+	c.exporterURL = &url.URL{
+		Scheme: "grpc",
+		Host:   c.ExporterURL,
+	}
 	return nil
 }
 
+// Endpoint provides the properly formatted endpoint that the otlp client libraries
+// are expecting.
 func (c *Config) Endpoint() string {
-	if !strings.HasPrefix(c.ExporterURL, c.exporterURL.Scheme) {
-		return c.ExporterURL
+	uri := *c.exporterURL
+
+	if uri.Scheme == "file" {
+		uri.RawQuery = ""
 	}
+	uri.Scheme = ""
 
-	return c.ExporterURL[len(c.exporterURL.Scheme)+3:]
-}
-
-var _ otlptrace.Client = (*noopClient)(nil)
-
-type noopClient struct{}
-
-func (n noopClient) Start(context.Context) error {
-	return nil
-}
-
-func (n noopClient) Stop(context.Context) error {
-	return nil
-}
-
-func (n noopClient) UploadTraces(context.Context, []*otlp.ResourceSpans) error {
-	return nil
-}
-
-// NewNoopClient returns an oltptrace.Client that does nothing
-func NewNoopClient() otlptrace.Client {
-	return &noopClient{}
-}
-
-// NewStartedClient either returns the provided Config.Client or constructs
-// a new client that is connected to the Config.ExporterURL with the
-// appropriate TLS credentials. The client is started prior to returning to
-// the caller.
-func NewStartedClient(ctx context.Context, cfg Config) (otlptrace.Client, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+	s := uri.String()
+	if strings.HasPrefix(s, "//") {
+		return s[2:]
 	}
-
-	clt, err := NewClient(cfg)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, cfg.DialTimeout)
-	defer cancel()
-	if err := clt.Start(ctx); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return clt, nil
-}
-
-// NewClient either returns the provided Config.Client or constructs
-// a new client that is connected to the Config.ExporterURL with the
-// appropriate TLS credentials. The returned client is not started,
-// it will be started by the provider if passed to one.
-func NewClient(cfg Config) (otlptrace.Client, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if cfg.Client != nil {
-		return cfg.Client, nil
-	}
-
-	var httpOptions []otlptracehttp.Option
-	grpcOptions := []otlptracegrpc.Option{otlptracegrpc.WithDialOption(grpc.WithBlock())}
-
-	if cfg.TLSConfig != nil {
-		httpOptions = append(httpOptions, otlptracehttp.WithTLSClientConfig(cfg.TLSConfig.Clone()))
-		grpcOptions = append(grpcOptions, otlptracegrpc.WithTLSCredentials(credentials.NewTLS(cfg.TLSConfig.Clone())))
-	} else {
-		httpOptions = append(httpOptions, otlptracehttp.WithInsecure())
-		grpcOptions = append(grpcOptions, otlptracegrpc.WithInsecure())
-	}
-
-	var traceClient otlptrace.Client
-	switch cfg.exporterURL.Scheme {
-	case "http", "https":
-		httpOptions = append(httpOptions, otlptracehttp.WithEndpoint(cfg.Endpoint()))
-		traceClient = otlptracehttp.NewClient(httpOptions...)
-	case "grpc":
-		grpcOptions = append(grpcOptions, otlptracegrpc.WithEndpoint(cfg.Endpoint()))
-		traceClient = otlptracegrpc.NewClient(grpcOptions...)
-	default:
-		return nil, trace.BadParameter("unsupported exporter scheme: %q", cfg.exporterURL.Scheme)
-	}
-
-	return traceClient, nil
-}
-
-// wrappedExporter is a sdktrace.SpanExporter wrapper that is used to ensure that any
-// tracing.Client that are provided to NewExporter are closed when the Exporter is
-// Shutdown. This is required because the tracing.Client ownership is transferred to
-// the Exporter, which means we need to ensure it is closed.
-type wrappedExporter struct {
-	client   *tracing.Client
-	exporter *otlptrace.Exporter
-}
-
-// ExportSpans forwards the spans to the wrapped exporter.
-func (w *wrappedExporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadOnlySpan) error {
-	return w.exporter.ExportSpans(ctx, spans)
-}
-
-// Shutdown shuts down the wrapped exporter and closes the client.
-func (w *wrappedExporter) Shutdown(ctx context.Context) error {
-	return trace.NewAggregate(w.exporter.Shutdown(ctx), w.client.Close())
-}
-
-// NewExporter returns a new exporter that is configured per the provided Config.
-func NewExporter(ctx context.Context, cfg Config) (sdktrace.SpanExporter, error) {
-	traceClient, err := NewClient(cfg)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, cfg.DialTimeout)
-	defer cancel()
-	exporter, err := otlptrace.New(ctx, traceClient)
-	switch {
-	case errors.Is(err, context.DeadlineExceeded):
-		return nil, trace.ConnectionProblem(err, "failed to connect to tracing exporter %s: %v", cfg.ExporterURL, err)
-	case err != nil:
-		return nil, trace.NewAggregate(err, traceClient.Stop(context.Background()))
-	}
-
-	if cfg.Client == nil {
-		return exporter, nil
-	}
-
-	return &wrappedExporter{
-		exporter: exporter,
-		client:   cfg.Client,
-	}, nil
+	return s
 }
 
 // Provider wraps the OpenTelemetry tracing provider to provide common tags for all tracers.
@@ -287,9 +162,11 @@ func (p *Provider) Shutdown(ctx context.Context) error {
 
 // NoopProvider creates a new Provider that never samples any spans.
 func NoopProvider() *Provider {
-	return &Provider{provider: sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(sdktrace.NeverSample()),
-	)}
+	return &Provider{
+		provider: sdktrace.NewTracerProvider(
+			sdktrace.WithSampler(sdktrace.NeverSample()),
+		),
+	}
 }
 
 // NoopTracer creates a new Tracer that never samples any spans.
@@ -341,11 +218,13 @@ func NewTraceProvider(ctx context.Context, cfg Config) (*Provider, error) {
 	}))
 
 	// set global provider to our provider wrapper to have all tracers use the common TracerOptions
-	provider := &Provider{provider: sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(cfg.SamplingRate))),
-		sdktrace.WithResource(res),
-		sdktrace.WithSpanProcessor(sdktrace.NewBatchSpanProcessor(exporter)),
-	)}
+	provider := &Provider{
+		provider: sdktrace.NewTracerProvider(
+			sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(cfg.SamplingRate))),
+			sdktrace.WithResource(res),
+			sdktrace.WithSpanProcessor(sdktrace.NewBatchSpanProcessor(exporter)),
+		),
+	}
 	otel.SetTracerProvider(provider)
 
 	return provider, nil

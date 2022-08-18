@@ -24,9 +24,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/breaker"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
@@ -238,7 +238,21 @@ func runTeleport(t *testing.T, cfg *service.Config) *service.TeleportProcess {
 		require.NoError(t, process.Close())
 		require.NoError(t, process.Wait())
 	})
-	waitForEvents(t, process, service.ProxyWebServerReady, service.NodeSSHReady)
+
+	serviceReadyEvents := []string{
+		service.ProxyWebServerReady,
+		service.NodeSSHReady,
+	}
+	if cfg.Databases.Enabled {
+		serviceReadyEvents = append(serviceReadyEvents, service.DatabasesReady)
+	}
+	waitForEvents(t, process, serviceReadyEvents...)
+
+	if cfg.Databases.Enabled {
+		for _, database := range cfg.Databases.Databases {
+			waitForDatabase(t, process, database)
+		}
+	}
 	return process
 }
 
@@ -248,15 +262,8 @@ func localListenerAddr() string {
 
 func waitForEvents(t *testing.T, svc service.Supervisor, events ...string) {
 	for _, event := range events {
-		eventCh := make(chan service.Event, 1)
-		svc.WaitForEvent(svc.ExitContext(), event, eventCh)
-		select {
-		case <-eventCh:
-		case <-time.After(30 * time.Second):
-			// in reality, the auth server should start *much* sooner than this.  we use a very large
-			// timeout here because this isn't the kind of problem that this test is meant to catch.
-			t.Fatalf("service server didn't receved %v event after 30s", event)
-		}
+		_, err := svc.WaitForEventTimeout(30*time.Second, event)
+		require.NoError(t, err, "service server didn't receved %v event after 30s", event)
 	}
 }
 

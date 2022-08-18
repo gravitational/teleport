@@ -178,6 +178,29 @@ should add PersistentVolumeClaim as volume when in standalone mode and persisten
     - name: data
       persistentVolumeClaim:
         claimName: RELEASE-NAME
+should add an operator side-car when operator is enabled:
+  1: |
+    image: quay.io/gravitational/teleport-operator:11.0.0-dev
+    imagePullPolicy: IfNotPresent
+    livenessProbe:
+      httpGet:
+        path: /healthz
+        port: 8081
+      initialDelaySeconds: 15
+      periodSeconds: 20
+    name: operator
+    readinessProbe:
+      httpGet:
+        path: /readyz
+        port: 8081
+      initialDelaySeconds: 5
+      periodSeconds: 10
+    volumeMounts:
+    - mountPath: /etc/teleport
+      name: config
+      readOnly: true
+    - mountPath: /var/lib/teleport
+      name: data
 should add emptyDir for data in AWS mode:
   1: |
     affinity:

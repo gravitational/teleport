@@ -45,7 +45,6 @@ import (
 type APIConfig struct {
 	PluginRegistry plugin.Registry
 	AuthServer     *Server
-	SessionService session.Service
 	AuditLog       events.IAuditLog
 	Authorizer     Authorizer
 	Emitter        apievents.Emitter
@@ -102,7 +101,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 
 	// Generating certificates for user and host authorities
 	srv.POST("/:version/ca/host/certs", srv.withAuth(srv.generateHostCert))
-	srv.POST("/:version/ca/user/certs", srv.withAuth(srv.generateUserCert)) // DELETE IN: 4.2.0
 
 	// Operations on users
 	srv.GET("/:version/users", srv.withAuth(srv.getUsers))
@@ -155,11 +153,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/tokens/register", srv.withAuth(srv.registerUsingToken))
 
 	// Active sessions
-	srv.POST("/:version/namespaces/:namespace/sessions", srv.withAuth(srv.createSession))
-	srv.PUT("/:version/namespaces/:namespace/sessions/:id", srv.withAuth(srv.updateSession))
-	srv.DELETE("/:version/namespaces/:namespace/sessions/:id", srv.withAuth(srv.deleteSession))
-	srv.GET("/:version/namespaces/:namespace/sessions", srv.withAuth(srv.getSessions))
-	srv.GET("/:version/namespaces/:namespace/sessions/:id", srv.withAuth(srv.getSession))
 	srv.GET("/:version/namespaces/:namespace/sessions/:id/stream", srv.withAuth(srv.getSessionChunk))
 	srv.GET("/:version/namespaces/:namespace/sessions/:id/events", srv.withAuth(srv.getSessionEvents))
 
@@ -230,8 +223,7 @@ func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 		auth := &ServerWithRoles{
 			authServer: s.AuthServer,
 			context:    *authContext,
-			sessions:   s.SessionService,
-			alog:       s.AuthServer.IAuditLog,
+			alog:       s.AuthServer,
 		}
 		version := p.ByName("version")
 		if version == "" {
@@ -499,36 +491,6 @@ func (s *APIServer) getWebSession(auth ClientI, w http.ResponseWriter, r *http.R
 	return rawMessage(services.MarshalWebSession(sess, services.WithVersion(version)))
 }
 
-// DELETE IN: 4.2.0
-type generateUserCertReq struct {
-	Key           []byte        `json:"key"`
-	User          string        `json:"user"`
-	TTL           time.Duration `json:"ttl"`
-	Compatibility string        `json:"compatibility,omitempty"`
-}
-
-// DELETE IN: 4.2.0
-func (s *APIServer) generateUserCert(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
-	var req *generateUserCertReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	certificateFormat, err := utils.CheckCertificateFormatFlag(req.Compatibility)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	certs, err := auth.GenerateUserCerts(r.Context(), proto.UserCertsRequest{
-		PublicKey: req.Key,
-		Username:  req.User,
-		Expires:   s.Now().UTC().Add(req.TTL),
-		Format:    certificateFormat,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return string(certs.SSH), nil
-}
-
 type WebSessionReq struct {
 	// User is the user name associated with the session id.
 	User string `json:"user"`
@@ -561,7 +523,7 @@ func (s *APIServer) createWebSession(auth ClientI, w http.ResponseWriter, r *htt
 		}
 		return sess, nil
 	}
-	sess, err := auth.CreateWebSession(req.User)
+	sess, err := auth.CreateWebSession(r.Context(), req.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -574,7 +536,7 @@ func (s *APIServer) authenticateWebUser(auth ClientI, w http.ResponseWriter, r *
 		return nil, trace.Wrap(err)
 	}
 	req.Username = p.ByName("user")
-	sess, err := auth.AuthenticateWebUser(req)
+	sess, err := auth.AuthenticateWebUser(r.Context(), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -587,7 +549,7 @@ func (s *APIServer) authenticateSSHUser(auth ClientI, w http.ResponseWriter, r *
 		return nil, trace.Wrap(err)
 	}
 	req.Username = p.ByName("user")
-	return auth.AuthenticateSSHUser(req)
+	return auth.AuthenticateSSHUser(r.Context(), req)
 }
 
 // changePassword updates users password based on the old password.
@@ -896,82 +858,6 @@ func (s *APIServer) deleteCertAuthority(auth ClientI, w http.ResponseWriter, r *
 		return nil, trace.Wrap(err)
 	}
 	return message(fmt.Sprintf("cert '%v' deleted", id)), nil
-}
-
-type createSessionReq struct {
-	Session session.Session `json:"session"`
-}
-
-func (s *APIServer) createSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *createSessionReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	namespace := p.ByName("namespace")
-	if !types.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-	req.Session.Namespace = namespace
-	if err := auth.CreateSession(req.Session); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-type updateSessionReq struct {
-	Update session.UpdateRequest `json:"update"`
-}
-
-func (s *APIServer) updateSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *updateSessionReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	namespace := p.ByName("namespace")
-	if !types.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-	req.Update.Namespace = namespace
-	if err := auth.UpdateSession(req.Update); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-func (s *APIServer) deleteSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	err := auth.DeleteSession(p.ByName("namespace"), session.ID(p.ByName("id")))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-func (s *APIServer) getSessions(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	namespace := p.ByName("namespace")
-	if !types.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-	sessions, err := auth.GetSessions(namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sessions, nil
-}
-
-func (s *APIServer) getSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	sid, err := session.ParseID(p.ByName("id"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	namespace := p.ByName("namespace")
-	if !types.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-	se, err := auth.GetSession(namespace, *sid)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return se, nil
 }
 
 type createOIDCAuthRequestReq struct {
@@ -1570,7 +1456,7 @@ func (s *APIServer) deleteAllTunnelConnections(auth ClientI, w http.ResponseWrit
 }
 
 type createRemoteClusterRawReq struct {
-	// RemoteCluster is marshalled remote cluster resource
+	// RemoteCluster is marshaled remote cluster resource
 	RemoteCluster json.RawMessage `json:"remote_cluster"`
 }
 

@@ -18,18 +18,17 @@ package utils
 
 import (
 	"strings"
+	"testing"
 
 	"github.com/coreos/go-semver/semver"
-	"gopkg.in/check.v1"
+	"github.com/stretchr/testify/require"
 )
-
-type KernelSuite struct{}
-
-var _ = check.Suite(&KernelSuite{})
 
 // TestKernelVersion checks that version strings for various distributions
 // can be parsed correctly.
-func (s *KernelSuite) TestKernelVersion(c *check.C) {
+func TestKernelVersion(t *testing.T) {
+	t.Parallel()
+
 	var tests = []struct {
 		inRelease  string
 		inMin      string
@@ -76,15 +75,15 @@ func (s *KernelSuite) TestKernelVersion(c *check.C) {
 	for _, tt := range tests {
 		// Check the version is parsed correctly.
 		version, err := kernelVersion(strings.NewReader(tt.inRelease))
-		c.Assert(err, check.IsNil)
-		c.Assert(version.String(), check.Equals, tt.outRelease)
+		require.NoError(t, err)
+		require.Equal(t, version.String(), tt.outRelease)
 
 		// Check that version comparisons work.
 		min, err := semver.NewVersion(tt.inMin)
-		c.Assert(err, check.IsNil)
+		require.NoError(t, err)
 		max, err := semver.NewVersion(tt.inMax)
-		c.Assert(err, check.IsNil)
-		c.Assert(version.LessThan(*max), check.Equals, true)
-		c.Assert(version.LessThan(*min), check.Equals, false)
+		require.NoError(t, err)
+		require.Equal(t, version.LessThan(*max), true)
+		require.Equal(t, version.LessThan(*min), false)
 	}
 }

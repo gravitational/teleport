@@ -20,9 +20,8 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client/identityfile"
-	"github.com/gravitational/teleport/lib/tbot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/trace"
 )
@@ -48,7 +47,7 @@ func (t *TemplateCockroach) Name() string {
 	return TemplateCockroachName
 }
 
-func (t *TemplateCockroach) Describe(destination destination.Destination) []FileDescription {
+func (t *TemplateCockroach) Describe(destination bot.Destination) []FileDescription {
 	return []FileDescription{
 		{
 			Name:  t.DirName,
@@ -57,13 +56,13 @@ func (t *TemplateCockroach) Describe(destination destination.Destination) []File
 	}
 }
 
-func (t *TemplateCockroach) Render(ctx context.Context, authClient auth.ClientI, currentIdentity *identity.Identity, destination *DestinationConfig) error {
+func (t *TemplateCockroach) Render(ctx context.Context, bot Bot, currentIdentity *identity.Identity, destination *DestinationConfig) error {
 	dest, err := destination.GetDestination()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	dbCAs, err := authClient.GetCertAuthorities(ctx, types.DatabaseCA, false)
+	dbCAs, err := bot.GetCertAuthorities(ctx, types.DatabaseCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}

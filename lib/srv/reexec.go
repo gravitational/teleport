@@ -317,25 +317,23 @@ func RunCommand() (errw io.Writer, code int, err error) {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
 
-		// Update localUser's xauth database for X11 forwarding.
+		// Update localUser's xauth database for X11 forwarding. We set
+		// cmd.SysProcAttr.Setsid, cmd.Env, and cmd.Dir so that the xauth command
+		// acts as if called within the following shell/exec, so that the
+		// xauthority files is put into the correct place ($HOME/.Xauthority)
+		// with the right permissions.
 		removeCmd := x11.NewXAuthCommand(context.Background(), "")
-		addCmd := x11.NewXAuthCommand(context.Background(), "")
-
-		// Copy the re-exec command's io and user environment fields.
-		cpyCmdFields := func(cmd *exec.Cmd, params *exec.Cmd) {
-			cmd.Stdout = params.Stdout
-			cmd.Stdin = params.Stdin
-			cmd.Stderr = params.Stderr
-			cmd.SysProcAttr = params.SysProcAttr
-			cmd.Env = params.Env
-			cmd.Dir = params.Dir
-		}
-		cpyCmdFields(removeCmd.Cmd, cmd)
-		cpyCmdFields(addCmd.Cmd, cmd)
-
+		removeCmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+		removeCmd.Env = cmd.Env
+		removeCmd.Dir = cmd.Dir
 		if err := removeCmd.RemoveEntries(c.X11Config.XAuthEntry.Display); err != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}
+
+		addCmd := x11.NewXAuthCommand(context.Background(), "")
+		addCmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+		addCmd.Env = cmd.Env
+		addCmd.Dir = cmd.Dir
 		if err := addCmd.AddEntry(c.X11Config.XAuthEntry); err != nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 		}

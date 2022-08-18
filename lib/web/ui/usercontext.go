@@ -37,7 +37,7 @@ type accessStrategy struct {
 	// Type determines how a user should access teleport resources.
 	// ie: does the user require a request to access resources?
 	Type types.RequestStrategy `json:"type"`
-	// Prompt is the optional dialogue shown to user,
+	// Prompt is the optional dialog shown to user,
 	// when the access strategy type requires a reason.
 	Prompt string `json:"prompt"`
 }
@@ -193,7 +193,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	nodeAccess := newAccess(userRoles, ctx, types.KindNode)
 	appServerAccess := newAccess(userRoles, ctx, types.KindAppServer)
 	dbServerAccess := newAccess(userRoles, ctx, types.KindDatabaseServer)
-	kubeServerAccess := newAccess(userRoles, ctx, types.KindKubeService)
+	kubeServerAccess := newAccess(userRoles, ctx, types.KindKubeServer)
 	requestAccess := newAccess(userRoles, ctx, types.KindAccessRequest)
 	desktopAccess := newAccess(userRoles, ctx, types.KindWindowsDesktop)
 

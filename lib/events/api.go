@@ -384,6 +384,8 @@ const (
 
 	// AppSessionStartEvent is emitted when a user is issued an application certificate.
 	AppSessionStartEvent = "app.session.start"
+	// AppSessionEndEvent is emitted when a user connects to a TCP application.
+	AppSessionEndEvent = "app.session.end"
 
 	// AppSessionChunkEvent is emitted at the start of a 5 minute chunk on each
 	// proxy. This chunk is used to buffer 5 minutes of audit events at a time
@@ -538,6 +540,10 @@ const (
 	// is sent to Teleport.
 	DesktopClipboardSendEvent = "desktop.clipboard.send"
 
+	// UpgradeWindowStartUpdateEvent is emitted when the upgrade window start time
+	// is updated. Used only for teleport cloud.
+	UpgradeWindowStartUpdateEvent = "upgradewindowstart.update"
+
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
 )
@@ -572,6 +578,9 @@ type ServerMetadataGetter interface {
 
 	// GetClusterName returns the originating teleport cluster name
 	GetClusterName() string
+
+	// GetForwardedBy returns the ID of the server that forwarded this event.
+	GetForwardedBy() string
 }
 
 // ServerMetadataSetter represents interface

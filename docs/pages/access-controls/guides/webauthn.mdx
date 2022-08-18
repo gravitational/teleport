@@ -68,7 +68,7 @@ Teleport configuration as below:
   spec:
     type: local
     # To enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
-    second_factor: on
+    second_factor: "on"
     webauthn:
       rp_id: example.com
       attestation_allowed_cas:
@@ -108,7 +108,7 @@ metadata:
 spec:
   type: local
   # To enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
-  second_factor: on
+  second_factor: "on"
   webauthn:
     rp_id: example.com
     attestation_allowed_cas:
@@ -280,7 +280,7 @@ The migrated WebAuthn configuration is:
       name: cluster-auth-preference
     spec:
       type: local
-      second_factor: on # changed from "u2f"
+      second_factor: "on" # changed from "u2f"
       u2f:
         # Keep the app_id to avoid re-registering U2F devices.
         app_id: https://example.com
@@ -303,7 +303,7 @@ metadata:
   name: cluster-auth-preference
 spec:
   type: local
-  second_factor: on # changed from "u2f"
+  second_factor: "on" # changed from "u2f"
   u2f:
     # Keep the app_id to avoid re-registering U2F devices.
     app_id: https://example.com

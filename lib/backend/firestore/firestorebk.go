@@ -488,19 +488,16 @@ func (b *Backend) Delete(ctx context.Context, key []byte) error {
 	if len(key) == 0 {
 		return trace.BadParameter("missing parameter key")
 	}
+
 	docRef := b.svc.Collection(b.CollectionName).Doc(b.keyToDocumentID(key))
-	doc, err := docRef.Get(ctx)
-	if err != nil {
+	if _, err := docRef.Delete(ctx, firestore.Exists); err != nil {
+		if status.Code(err) == codes.NotFound {
+			return trace.NotFound("key %s does not exist", string(key))
+		}
+
 		return ConvertGRPCError(err)
 	}
 
-	if !doc.Exists() {
-		return trace.NotFound("key %s does not exist", string(key))
-	}
-	_, err = docRef.Delete(ctx)
-	if err != nil {
-		return ConvertGRPCError(err)
-	}
 	return nil
 }
 

@@ -27,6 +27,8 @@ import (
 )
 
 func TestCTRLCPassthrough(t *testing.T) {
+	t.Parallel()
+
 	m := NewTermManager()
 	m.On()
 	r, w := io.Pipe()
@@ -39,6 +41,8 @@ func TestCTRLCPassthrough(t *testing.T) {
 }
 
 func TestCTRLCCapture(t *testing.T) {
+	t.Parallel()
+
 	m := NewTermManager()
 	r, w := io.Pipe()
 	m.AddReader("foo", r)
@@ -52,6 +56,8 @@ func TestCTRLCCapture(t *testing.T) {
 }
 
 func TestHistoryKept(t *testing.T) {
+	t.Parallel()
+
 	m := NewTermManager()
 	m.On()
 
@@ -73,6 +79,8 @@ func TestHistoryKept(t *testing.T) {
 }
 
 func TestBufferedKept(t *testing.T) {
+	t.Parallel()
+
 	m := NewTermManager()
 
 	data := make([]byte, 20000)
@@ -90,6 +98,7 @@ func TestBufferedKept(t *testing.T) {
 
 func TestNoReadWhenOff(t *testing.T) {
 	t.Parallel()
+
 	m := NewTermManager()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
 	defer cancel()

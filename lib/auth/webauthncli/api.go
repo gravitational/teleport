@@ -36,6 +36,37 @@ const (
 	AttachmentPlatform
 )
 
+// CredentialInfo holds information about a WebAuthn credential, typically a
+// resident public key credential.
+type CredentialInfo struct {
+	ID   []byte
+	User UserInfo
+}
+
+// UserInfo holds information about a credential owner.
+type UserInfo struct {
+	// UserHandle is the WebAuthn user handle (also referred as user ID).
+	UserHandle []byte
+	Name       string
+}
+
+// LoginPrompt is the user interface for FIDO2Login.
+//
+// Prompts can have remote implementations, thus all methods may error.
+type LoginPrompt interface {
+	// PromptPIN prompts the user for their PIN.
+	PromptPIN() (string, error)
+	// PromptTouch prompts the user for a security key touch.
+	// In certain situations multiple touches may be required (PIN-protected
+	// devices, passwordless flows, etc).
+	PromptTouch() error
+	// PromptCredential prompts the user to choose a credential, in case multiple
+	// credentials are available.
+	// Callers are free to modify the slice, such as by sorting the credentials,
+	// but must return one of the pointers contained within.
+	PromptCredential(creds []*CredentialInfo) (*CredentialInfo, error)
+}
+
 // LoginOpts groups non-mandatory options for Login.
 type LoginOpts struct {
 	// User is the desired credential username for login.
@@ -48,7 +79,7 @@ type LoginOpts struct {
 
 // Login performs client-side, U2F-compatible, Webauthn login.
 // This method blocks until either device authentication is successful or the
-// context is cancelled. Calling Login without a deadline or cancel condition
+// context is canceled. Calling Login without a deadline or cancel condition
 // may cause it to block forever.
 // The informed user is used to disambiguate credentials in case of passwordless
 // logins.
@@ -85,10 +116,10 @@ func Login(
 		return crossPlatformLogin(ctx, origin, assertion, prompt, opts)
 	case AttachmentPlatform:
 		log.Debug("Platform login")
-		return platformLogin(origin, user, assertion)
+		return platformLogin(origin, user, assertion, prompt)
 	default:
 		log.Debug("Attempting platform login")
-		resp, credentialUser, err := platformLogin(origin, user, assertion)
+		resp, credentialUser, err := platformLogin(origin, user, assertion, prompt)
 		if !errors.Is(err, &touchid.ErrAttemptFailed{}) {
 			return resp, credentialUser, trace.Wrap(err)
 		}
@@ -107,13 +138,15 @@ func crossPlatformLogin(
 		return FIDO2Login(ctx, origin, assertion, prompt, opts)
 	}
 
-	prompt.PromptTouch()
+	if err := prompt.PromptTouch(); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
 	resp, err := U2FLogin(ctx, origin, assertion)
 	return resp, "" /* credentialUser */, err
 }
 
-func platformLogin(origin, user string, assertion *wanlib.CredentialAssertion) (*proto.MFAAuthenticateResponse, string, error) {
-	resp, credentialUser, err := touchid.AttemptLogin(origin, user, assertion)
+func platformLogin(origin, user string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt) (*proto.MFAAuthenticateResponse, string, error) {
+	resp, credentialUser, err := touchid.AttemptLogin(origin, user, assertion, ToTouchIDCredentialPicker(prompt))
 	if err != nil {
 		return nil, "", err
 	}
@@ -124,9 +157,21 @@ func platformLogin(origin, user string, assertion *wanlib.CredentialAssertion) (
 	}, credentialUser, nil
 }
 
+// RegisterPrompt is the user interface for FIDO2Register.
+//
+// Prompts can have remote implementations, thus all methods may error.
+type RegisterPrompt interface {
+	// PromptPIN prompts the user for their PIN.
+	PromptPIN() (string, error)
+	// PromptTouch prompts the user for a security key touch.
+	// In certain situations multiple touches may be required (eg, PIN-protected
+	// devices)
+	PromptTouch() error
+}
+
 // Register performs client-side, U2F-compatible, Webauthn registration.
 // This method blocks until either device authentication is successful or the
-// context is cancelled. Calling Register without a deadline or cancel condition
+// context is canceled. Calling Register without a deadline or cancel condition
 // may cause it block forever.
 // The caller is expected to react to RegisterPrompt in order to prompt the user
 // at appropriate times. Register may choose different flows depending on the
@@ -139,6 +184,8 @@ func Register(
 		return FIDO2Register(ctx, origin, cc, prompt)
 	}
 
-	prompt.PromptTouch()
+	if err := prompt.PromptTouch(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return U2FRegister(ctx, origin, cc)
 }

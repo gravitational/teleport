@@ -216,12 +216,17 @@ func (s *Service) cleanupHierarchy() error {
 			return nil
 		}
 
-		// Extract the session ID. Skip over cgroup.procs files not for sessions.
-		parts := strings.Split(path, string(filepath.Separator))
-		if len(parts) != 5 {
+		// Trim the path at which the cgroup hierarchy is mounted. This will
+		// remove the UUID used in the mount path for this cgroup hierarchy.
+		cleanpath := strings.TrimPrefix(path, filepath.Clean(s.teleportRoot))
+
+		// Extract the session ID from the remaining parts of the path that
+		// should look like ["" UUID cgroup.procs].
+		parts := strings.Split(cleanpath, string(os.PathSeparator))
+		if len(parts) != 3 {
 			return nil
 		}
-		sessionID, err := uuid.Parse(parts[3])
+		sessionID, err := uuid.Parse(parts[1])
 		if err != nil {
 			return nil
 		}

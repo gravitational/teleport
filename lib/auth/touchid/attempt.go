@@ -54,8 +54,8 @@ func (e *ErrAttemptFailed) As(target interface{}) bool {
 // AttemptLogin attempts a touch ID login.
 // It returns ErrAttemptFailed if the attempt failed before user interaction.
 // See Login.
-func AttemptLogin(origin, user string, assertion *wanlib.CredentialAssertion) (*wanlib.CredentialAssertionResponse, string, error) {
-	resp, actualUser, err := Login(origin, user, assertion)
+func AttemptLogin(origin, user string, assertion *wanlib.CredentialAssertion, picker CredentialPicker) (*wanlib.CredentialAssertionResponse, string, error) {
+	resp, actualUser, err := Login(origin, user, assertion, picker)
 	switch {
 	case errors.Is(err, ErrNotAvailable), errors.Is(err, ErrCredentialNotFound):
 		return nil, "", &ErrAttemptFailed{Err: err}

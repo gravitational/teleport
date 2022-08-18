@@ -248,7 +248,7 @@ func ParsePublicKeyDER(der []byte) (crypto.PublicKey, error) {
 }
 
 // MarshalPublicKeyFromPrivateKeyPEM extracts public key from private key
-// and returns PEM marshalled key
+// and returns PEM marshaled key
 func MarshalPublicKeyFromPrivateKeyPEM(privateKey crypto.PrivateKey) ([]byte, error) {
 	rsaPrivateKey, ok := privateKey.(*rsa.PrivateKey)
 	if !ok {

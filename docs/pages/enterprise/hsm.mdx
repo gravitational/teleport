@@ -172,7 +172,7 @@ reading.
 If you are connecting an HSM to an existing Teleport cluster, restart the auth
 server for the configuration changes to take effect. New CA keys will
 automatically be generated in the HSM. For these keys to be trusted by the rest
-of the cluster you will need to permorm a CA rotation, see
+of the cluster you will need to perform a CA rotation, see
 [Step 4](#step-45-certificate-rotation-with-hsm). The auth server will not perform
 any signing operations until the rotation has started. In an HA cluster you
 should add the HSM to the auth configuration one server at a time, and do not

@@ -157,6 +157,7 @@ proxy_service:
   web_listen_addr: webhost
   tunnel_listen_addr: tunnelhost:1001
   peer_listen_addr: peerhost:1234
+  peer_public_addr: peer.example:1234
   public_addr: web3:443
   postgres_public_addr: postgres.example:5432
   mysql_listen_addr: webhost:3336
@@ -242,4 +243,25 @@ proxy_service:
   web_listen_addr: webhost
   tunnel_listen_addr: tunnelhost:1001
   public_addr: web3:443
+`
+
+const configSessionRecording = `
+teleport:
+  nodename: node.example.com
+
+auth_service:
+  enabled: yes
+  %v
+  %v
+
+ssh_service:
+  enabled: no
+  public_addr: "ssh.example.com"
+
+proxy_service:
+  enabled: no
+  public_addr: "proxy.example.com"
+
+app_service:
+  enabled: no
 `

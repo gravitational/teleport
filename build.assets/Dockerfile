@@ -69,11 +69,6 @@ RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/
     make && \
     make install
 
-## CBINDGEN ###################################################################
-
-FROM rust:${RUST_VERSION} AS cbindgen
-RUN cargo install cbindgen
-
 ## BUILDBOX ###################################################################
 
 FROM ubuntu:18.04 AS buildbox
@@ -238,8 +233,6 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --pr
 # Switch back to root for the remaining instructions and keep it as the default
 # user.
 USER root
-
-COPY --from=cbindgen /usr/local/cargo/bin/cbindgen /usr/local/cargo/bin/cbindgen 
 
 COPY --from=libbpf /usr/include/bpf /usr/include/bpf
 COPY --from=libbpf /usr/lib64/ /usr/lib64/

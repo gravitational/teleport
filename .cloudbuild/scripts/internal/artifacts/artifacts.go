@@ -141,7 +141,7 @@ func find(artifactPatterns []string) []string {
 	return artifacts
 }
 
-// upload uploads a set of files to the indicated artefact bucket with the
+// upload uploads a set of files to the indicated artifact bucket with the
 // supplied prefix.
 //
 // Note that artifacts from various paths will be aggregated into one place in

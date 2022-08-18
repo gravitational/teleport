@@ -25,7 +25,7 @@ domain name, e.g., `mytenant.teleport.sh`, rather than `teleport.example.com`.
 
 </Notice>
 
-<Figure align="left" bordered caption="Kubernetes agent dialing back to Teleport cluster">
+<Figure align="left" bordered caption="Kubernetes Service dialing back to the Teleport cluster">
   ![Kubernetes agent](../../img/k8s/agent.svg)
 </Figure>
 
@@ -44,8 +44,8 @@ $ echo $TOKEN
 
 <Notice type="tip" >
 
-The Teleport agent version should be the same as the Teleport Cluster version 
-or up to one major version back.  You can set the version override with the override variable, ex: `--set teleportVersionOverride=(=teleport.version=)`.
+The Teleport Kubernetes Service version should be the same as the Teleport Cluster version 
+or up to one major version back. You can set the version override with the override variable, ex: `--set teleportVersionOverride=(=teleport.version=)`.
 
 </Notice>
 

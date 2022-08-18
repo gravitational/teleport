@@ -21,12 +21,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/observability/tracing"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jonboulle/clockwork"
@@ -34,6 +28,12 @@ import (
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 )
 
 const reporterDefaultCacheSize = 1000
@@ -86,7 +86,7 @@ type Reporter struct {
 
 // NewReporter returns a new Reporter.
 func NewReporter(cfg ReporterConfig) (*Reporter, error) {
-	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

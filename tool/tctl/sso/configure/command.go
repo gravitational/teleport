@@ -58,8 +58,8 @@ func (cmd *SSOConfigureCommand) Initialize(app *kingpin.Application, cfg *servic
 func (cmd *SSOConfigureCommand) TryRun(ctx context.Context, selectedCommand string, clt auth.ClientI) (match bool, err error) {
 	for _, subCommand := range cmd.AuthCommands {
 		if subCommand.Parsed {
-			// the default tctl logging behaviour is to ignore all logs, unless --debug is present.
-			// we want different behaviour: log messages as normal, but with compact format (no time, no caller info).
+			// the default tctl logging behavior is to ignore all logs, unless --debug is present.
+			// we want different behavior: log messages as normal, but with compact format (no time, no caller info).
 			if !cmd.Config.Debug {
 				formatter := utils.NewDefaultTextFormatter(trace.IsTerminal(os.Stderr))
 				formatter.FormatCaller = func() (caller string) { return "" }

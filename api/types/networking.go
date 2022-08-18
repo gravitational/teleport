@@ -103,7 +103,7 @@ type ClusterNetworkingConfig interface {
 }
 
 // NewClusterNetworkingConfigFromConfigFile is a convenience method to create
-// ClusterNetworkingConfigV2 labelled as originating from config file.
+// ClusterNetworkingConfigV2 labeled as originating from config file.
 func NewClusterNetworkingConfigFromConfigFile(spec ClusterNetworkingConfigSpecV2) (ClusterNetworkingConfig, error) {
 	return newClusterNetworkingConfigWithLabels(spec, map[string]string{
 		OriginLabel: OriginConfigFile,
@@ -353,7 +353,7 @@ func (c *ClusterNetworkingConfigV2) CheckAndSetDefaults() error {
 	return nil
 }
 
-// MarshalYAML defines how a proxy listener mode should be marshalled to a string
+// MarshalYAML defines how a proxy listener mode should be marshaled to a string
 func (p ProxyListenerMode) MarshalYAML() (interface{}, error) {
 	return strings.ToLower(p.String()), nil
 }
@@ -379,7 +379,7 @@ func (p *ProxyListenerMode) UnmarshalYAML(unmarshal func(interface{}) error) err
 		"proxy listener mode must be one of %s; got %q", strings.Join(available, ","), stringVar)
 }
 
-// MarshalYAML defines how a routing strategy should be marshalled to a string
+// MarshalYAML defines how a routing strategy should be marshaled to a string
 func (s RoutingStrategy) MarshalYAML() (interface{}, error) {
 	return strings.ToLower(s.String()), nil
 }

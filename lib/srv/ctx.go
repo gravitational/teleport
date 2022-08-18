@@ -132,9 +132,6 @@ type Server interface {
 	// GetAccessPoint returns an AccessPoint for this cluster.
 	GetAccessPoint() AccessPoint
 
-	// GetSessionServer returns a session server.
-	GetSessionServer() rsession.Service
-
 	// GetDataDir returns data directory of the server
 	GetDataDir() string
 
@@ -173,6 +170,9 @@ type Server interface {
 	// GetHostUser returns the HostUsers instance being used to manage
 	// host user provisioning
 	GetHostUsers() HostUsers
+
+	// TargetMetadata returns metadata about the session target node.
+	TargetMetadata() apievents.ServerMetadata
 }
 
 // IdentityContext holds all identity information associated with the user
@@ -187,7 +187,7 @@ type IdentityContext struct {
 	// Login is the operating system user associated with the connection.
 	Login string
 
-	// Certificate is the SSH user certificate bytes marshalled in the OpenSSH
+	// Certificate is the SSH user certificate bytes marshaled in the OpenSSH
 	// authorized_keys format.
 	Certificate *ssh.Certificate
 
@@ -290,7 +290,7 @@ type ServerContext struct {
 
 	// RemoteSession holds a SSH session to a remote server. Only used by the
 	// recording proxy.
-	RemoteSession *ssh.Session
+	RemoteSession *tracessh.Session
 
 	// clientLastActive records the last time there was activity from the client
 	clientLastActive time.Time

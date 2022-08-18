@@ -29,7 +29,7 @@ import (
 )
 
 // OIDCConnector specifies configuration for Open ID Connect compatible external
-// identity provider, e.g. google in some organisation
+// identity provider, e.g. google in some organization
 type OIDCConnector interface {
 	// ResourceWithSecrets provides common methods for objects
 	ResourceWithSecrets

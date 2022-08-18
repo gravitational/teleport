@@ -1,6 +1,6 @@
 ---
 authors: Isaiah Becker-Mayer (isaiah@goteleport.com)
-state: draft
+state: implementation in progress
 ---
 
 ## Required Approvers
@@ -447,9 +447,14 @@ This message is sent by the client to the server in response to a `Shared Direct
 | last_modified uint64 | size uint64 | file_type uint32 | path_length uint32 | path byte[] |
 ```
 
-`last_modified` is the last modified time of the file, in milliseconds since the [UNIX epoch](https://en.wikipedia.org/wiki/Unix_time).
+For files, `last_modified` is the last modified time of the file as specified by the [`mtime`](https://www.makeuseof.com/linux-file-timestamps/), in milliseconds
+since the [UNIX epoch](https://en.wikipedia.org/wiki/Unix_time). For directories, `last_modified` should also be set to the
+[directory's `mtime`](https://stackoverflow.com/a/3620704/6277051) when suchinformation is available. If such information is unavailable for a directory, such as
+in a browser environment, this value should be assigned the UNIX epoch itself (0).
 
-`size` is the size of the file in bytes
+For files, `size` is the size of the file in bytes. For directories, `size` is not the total size of the contents of the
+directory, but rather the size the directory itself takes up on disk. If such information is unavailable for a directory, such as in a browser environment,
+this can be set to the contemporary de facto Unix default of 4096 bytes (see [`mke2fsc.onf`](https://linux.die.net/man/5/mke2fs.conf)).
 
 `file_type`s currently represents only the simple file/directory distinction. Later it may be modified to support more types such as those corresponding to the
 types available in RDP's [File Attributes](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/ca28ec38-f155-4768-81d6-4bfeb8586fc9) fields:

@@ -30,6 +30,8 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/propagation"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
@@ -39,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -117,7 +120,7 @@ func (proxy *ProxyClient) GetSites(ctx context.Context) ([]types.Site, error) {
 	// the session request, and then RequestSubsystem call could hang
 	// forever
 	go func() {
-		if err := proxySession.RequestSubsystem("proxysites"); err != nil {
+		if err := proxySession.RequestSubsystem(ctx, "proxysites"); err != nil {
 			log.Warningf("Failed to request subsystem: %v", err)
 		}
 	}()
@@ -166,6 +169,7 @@ type ReissueParams struct {
 	NodeName              string
 	KubernetesCluster     string
 	AccessRequests        []string
+	DropAccessRequests    []string
 	RouteToDatabase       proto.RouteToDatabase
 	RouteToApp            proto.RouteToApp
 	RouteToWindowsDesktop proto.RouteToWindowsDesktop
@@ -544,6 +548,7 @@ func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key
 		RouteToCluster:        params.RouteToCluster,
 		KubernetesCluster:     params.KubernetesCluster,
 		AccessRequests:        params.AccessRequests,
+		DropAccessRequests:    params.DropAccessRequests,
 		RouteToDatabase:       params.RouteToDatabase,
 		RouteToWindowsDesktop: params.RouteToWindowsDesktop,
 		RouteToApp:            params.RouteToApp,
@@ -675,6 +680,13 @@ func (proxy *ProxyClient) NewWatcher(ctx context.Context, watch types.Watch) (ty
 
 // isAuthBoring checks whether or not the auth server for the current cluster was compiled with BoringCrypto.
 func (proxy *ProxyClient) isAuthBoring(ctx context.Context) (bool, error) {
+	ctx, span := proxy.Tracer.Start(
+		ctx,
+		"proxyClient/isAuthBoring",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	site, err := proxy.ConnectToCurrentCluster(ctx)
 	if err != nil {
 		return false, trace.Wrap(err)
@@ -1339,7 +1351,7 @@ type proxyResponse struct {
 // isRecordingProxy returns true if the proxy is in recording mode. Note, this
 // function can only be called after authentication has occurred and should be
 // called before the first session is created.
-func (proxy *ProxyClient) isRecordingProxy() (bool, error) {
+func (proxy *ProxyClient) isRecordingProxy(ctx context.Context) (bool, error) {
 	responseCh := make(chan proxyResponse)
 
 	// we have to run this in a goroutine because older version of Teleport handled
@@ -1348,7 +1360,7 @@ func (proxy *ProxyClient) isRecordingProxy() (bool, error) {
 	// don't hear anything back, most likley we are trying to connect to an older
 	// version of Teleport and we should not try and forward our agent.
 	go func() {
-		ok, responseBytes, err := proxy.Client.SendRequest(teleport.RecordingProxyReqType, true, nil)
+		ok, responseBytes, err := proxy.Client.SendRequest(ctx, teleport.RecordingProxyReqType, true, nil)
 		if err != nil {
 			responseCh <- proxyResponse{isRecord: false, err: trace.Wrap(err)}
 			return
@@ -1423,7 +1435,7 @@ func (proxy *ProxyClient) dialAuthServer(ctx context.Context, clusterName string
 		return nil, trace.Wrap(err)
 	}
 
-	err = proxySession.RequestSubsystem("proxy:" + address)
+	err = proxySession.RequestSubsystem(ctx, "proxy:"+address)
 	if err != nil {
 		// read the stderr output from the failed SSH session and append
 		// it to the end of our own message:
@@ -1474,11 +1486,11 @@ func (n *NodeAddr) ProxyFormat() string {
 
 // requestSubsystem sends a subsystem request on the session. If the passed
 // in context is canceled first, unblocks.
-func requestSubsystem(ctx context.Context, session *ssh.Session, name string) error {
+func requestSubsystem(ctx context.Context, session *tracessh.Session, name string) error {
 	errCh := make(chan error)
 
 	go func() {
-		er := session.RequestSubsystem(name)
+		er := session.RequestSubsystem(ctx, name)
 		errCh <- er
 	}()
 
@@ -1531,7 +1543,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 
 	// after auth but before we create the first session, find out if the proxy
 	// is in recording mode or not
-	recordingProxy, err := proxy.isRecordingProxy()
+	recordingProxy, err := proxy.isRecordingProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1556,7 +1568,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 	// pass the true client IP (if specified) to the proxy so it could pass it into the
 	// SSH session for proper audit
 	if len(proxy.clientAddr) > 0 {
-		if err = proxySession.Setenv(sshutils.TrueClientAddrVar, proxy.clientAddr); err != nil {
+		if err = proxySession.Setenv(ctx, sshutils.TrueClientAddrVar, proxy.clientAddr); err != nil {
 			log.Error(err)
 		}
 	}
@@ -1574,7 +1586,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 			return nil, trace.Wrap(err)
 		}
 
-		err = agent.RequestAgentForwarding(proxySession)
+		err = agent.RequestAgentForwarding(proxySession.Session)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1661,7 +1673,7 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 
 	// after auth but before we create the first session, find out if the proxy
 	// is in recording mode or not
-	recordingProxy, err := proxy.isRecordingProxy()
+	recordingProxy, err := proxy.isRecordingProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1680,7 +1692,7 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 		}
 	}
 
-	proxyConn, err := proxy.Client.Dial("tcp", nodeAddress.Addr)
+	proxyConn, err := proxy.Client.DialContext(ctx, "tcp", nodeAddress.Addr)
 	if err != nil {
 		return nil, trace.ConnectionProblem(err, "failed connecting to node %v. %s", nodeAddress, err)
 	}
@@ -1754,7 +1766,7 @@ func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan 
 					continue
 				}
 			default:
-				// This handles keep-alive messages and matches the behaviour of OpenSSH.
+				// This handles keep-alive messages and matches the behavior of OpenSSH.
 				err := r.Reply(false, nil)
 				if err != nil {
 					log.Warnf("Unable to reply to %v request.", r.Type)
@@ -1768,7 +1780,8 @@ func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan 
 }
 
 // newClientConn is a wrapper around ssh.NewClientConn
-func newClientConn(ctx context.Context,
+func newClientConn(
+	ctx context.Context,
 	conn net.Conn,
 	nodeAddress string,
 	config *ssh.ClientConfig,
@@ -1782,7 +1795,10 @@ func newClientConn(ctx context.Context,
 
 	respCh := make(chan response, 1)
 	go func() {
-		conn, chans, reqs, err := ssh.NewClientConn(conn, nodeAddress, config)
+		// Use a noop text map propagator so that the tracing context isn't included in
+		// the connection handshake. Since the provided conn will already include the tracing
+		// context we don't want to send it again.
+		conn, chans, reqs, err := tracessh.NewClientConn(ctx, conn, nodeAddress, config, tracing.WithTextMapPropagator(propagation.NewCompositeTextMapPropagator()))
 		respCh <- response{conn, chans, reqs, err}
 	}()
 
@@ -1866,7 +1882,7 @@ func (c *NodeClient) ExecuteSCP(ctx context.Context, cmd scp.Command) error {
 
 	runC := make(chan error, 1)
 	go func() {
-		err := s.Run(shellCmd)
+		err := s.Run(ctx, shellCmd)
 		if err != nil && errors.Is(err, &ssh.ExitMissingError{}) {
 			// TODO(dmitri): currently, if the session is aborted with (*session).Close,
 			// the remote side cannot send exit-status and this error results.
@@ -1997,65 +2013,85 @@ func acceptWithContext(ctx context.Context, l net.Listener) (net.Conn, error) {
 
 // listenAndForward listens on a given socket and forwards all incoming
 // commands to the remote address through the SSH tunnel.
-func (c *NodeClient) listenAndForward(ctx context.Context, ln net.Listener, remoteAddr string) {
+func (c *NodeClient) listenAndForward(ctx context.Context, ln net.Listener, localAddr string, remoteAddr string) {
 	defer ln.Close()
-	defer c.Close()
 
-	for {
+	log := log.WithField("localAddr", localAddr).WithField("remoteAddr", remoteAddr)
+
+	log.Infof("Starting port forwarding")
+
+	for ctx.Err() == nil {
 		// Accept connections from the client.
 		conn, err := acceptWithContext(ctx, ln)
 		if err != nil {
-			log.Errorf("Port forwarding failed: %v.", err)
-			break
+			if ctx.Err() == nil {
+				log.WithError(err).Errorf("Port forwarding failed.")
+			}
+			continue
 		}
 
 		// Proxy the connection to the remote address.
 		go func() {
-			err := proxyConnection(ctx, conn, remoteAddr, c.Client)
-			if err != nil {
-				log.Warnf("Failed to proxy connection: %v.", err)
+			// `err` must be a fresh variable, hence `:=` instead of `=`.
+			if err := proxyConnection(ctx, conn, remoteAddr, c.Client); err != nil {
+				log.WithError(err).Warnf("Failed to proxy connection.")
 			}
 		}()
 	}
+
+	log.WithError(ctx.Err()).Infof("Shutting down port forwarding.")
 }
 
 // dynamicListenAndForward listens for connections, performs a SOCKS5
 // handshake, and then proxies the connection to the requested address.
-func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listener) {
+func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listener, localAddr string) {
 	defer ln.Close()
-	defer c.Close()
 
-	for {
+	log := log.WithField("localAddr", localAddr)
+
+	log.Infof("Starting dynamic port forwarding.")
+
+	for ctx.Err() == nil {
 		// Accept connection from the client. Here the client is typically
 		// something like a web browser or other SOCKS5 aware application.
-		conn, err := ln.Accept()
+		conn, err := acceptWithContext(ctx, ln)
 		if err != nil {
-			log.Errorf("Dynamic port forwarding (SOCKS5) failed: %v.", err)
-			break
+			if ctx.Err() == nil {
+				log.WithError(err).Errorf("Dynamic port forwarding (SOCKS5) failed.")
+			}
+			continue
 		}
 
 		// Perform the SOCKS5 handshake with the client to find out the remote
 		// address to proxy.
 		remoteAddr, err := socks.Handshake(conn)
 		if err != nil {
-			log.Errorf("SOCKS5 handshake failed: %v.", err)
-			break
+			log.WithError(err).Errorf("SOCKS5 handshake failed.")
+			if err = conn.Close(); err != nil {
+				log.WithError(err).Errorf("Error closing failed proxy connection.")
+			}
+			continue
 		}
 		log.Debugf("SOCKS5 proxy forwarding requests to %v.", remoteAddr)
 
 		// Proxy the connection to the remote address.
 		go func() {
-			err := proxyConnection(ctx, conn, remoteAddr, c.Client)
-			if err != nil {
-				log.Warnf("Failed to proxy connection: %v.", err)
+			// `err` must be a fresh variable, hence `:=` instead of `=`.
+			if err := proxyConnection(ctx, conn, remoteAddr, c.Client); err != nil {
+				log.WithError(err).Warnf("Failed to proxy connection.")
+				if err = conn.Close(); err != nil {
+					log.WithError(err).Errorf("Error closing failed proxy connection.")
+				}
 			}
 		}()
 	}
+
+	log.WithError(ctx.Err()).Infof("Shutting down dynamic port forwarding.")
 }
 
 // GetRemoteTerminalSize fetches the terminal size of a given SSH session.
 func (c *NodeClient) GetRemoteTerminalSize(ctx context.Context, sessionID string) (*term.Winsize, error) {
-	_, span := c.Tracer.Start(
+	ctx, span := c.Tracer.Start(
 		ctx,
 		"nodeClient/GetRemoteTerminalSize",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
@@ -2063,7 +2099,7 @@ func (c *NodeClient) GetRemoteTerminalSize(ctx context.Context, sessionID string
 	)
 	defer span.End()
 
-	ok, payload, err := c.Client.SendRequest(teleport.TerminalSizeRequest, true, []byte(sessionID))
+	ok, payload, err := c.Client.SendRequest(ctx, teleport.TerminalSizeRequest, true, []byte(sessionID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	} else if !ok {
@@ -2086,6 +2122,13 @@ func (c *NodeClient) Close() error {
 
 // currentCluster returns the connection to the API of the current cluster
 func (proxy *ProxyClient) currentCluster(ctx context.Context) (*types.Site, error) {
+	ctx, span := proxy.Tracer.Start(
+		ctx,
+		"proxyClient/currentCluster",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	sites, err := proxy.GetSites(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2137,4 +2180,29 @@ func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr No
 // localAgent returns for the Teleport client's local agent.
 func (proxy *ProxyClient) localAgent() *LocalKeyAgent {
 	return proxy.teleportClient.LocalAgent()
+}
+
+// GetPaginatedSessions grabs up to 'max' sessions.
+func GetPaginatedSessions(ctx context.Context, fromUTC, toUTC time.Time, pageSize int, order types.EventOrder, max int, authClient auth.ClientI) ([]apievents.AuditEvent, error) {
+	prevEventKey := ""
+	var sessions []apievents.AuditEvent
+	for {
+		if remaining := max - len(sessions); remaining < pageSize {
+			pageSize = remaining
+		}
+		nextEvents, eventKey, err := authClient.SearchSessionEvents(fromUTC, toUTC,
+			pageSize, order, prevEventKey, nil /* where condition */, "" /* session ID */)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sessions = append(sessions, nextEvents...)
+		if eventKey == "" || len(sessions) >= max {
+			break
+		}
+		prevEventKey = eventKey
+	}
+	if max < len(sessions) {
+		return sessions[:max], nil
+	}
+	return sessions, nil
 }
