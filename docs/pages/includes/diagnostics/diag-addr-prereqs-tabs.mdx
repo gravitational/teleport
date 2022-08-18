@@ -1,0 +1,28 @@
+Teleports diagnostic HTTP endpoints are disabled by default. You can enable them via:
+
+<Tabs>
+    <TabItem label="Command line">
+        ```code
+        $ sudo teleport start --diag-addr=127.0.0.1:3000
+        ```
+    </TabItem>
+    <TabItem label="Config file">
+        ```yaml
+        teleport:
+            diag_addr: 127.0.0.1:3000
+        ```
+    </TabItem>
+</Tabs>
+
+
+<Details
+    title="Ensure you can connect to the diagnostic endpoint"
+    opened={false}
+>
+
+    Verify that Teleport is now serving the diagnostics endpoint:
+
+    ```code
+    $ curl http://127.0.0.1:3000
+    ```
+</Details>

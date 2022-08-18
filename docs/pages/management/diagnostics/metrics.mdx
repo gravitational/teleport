@@ -1,0 +1,21 @@
+---
+title: Metrics
+description: How to enable and consume metrics
+---
+
+## Prerequisites
+
+(!docs/pages/includes/diagnostics/diag-addr-prereqs-tabs.mdx!)
+
+This will enable the `http://127.0.0.1:3000/metrics` endpoint, which serves the
+metrics that Teleport tracks. It is compatible with [Prometheus](https://prometheus.io/) collectors.
+
+The following metrics are available:
+
+<Notice scope={["cloud"]} type="tip">
+
+    Teleport Cloud does not expose monitoring endpoints for the Auth Service and Proxy Service.
+
+</Notice>
+
+(!docs/pages/includes/metrics.mdx!)

@@ -480,6 +480,32 @@
               "slug": "/management/guides/ssh-key-extensions/"
             }
           ]
+        },
+        {
+          "title": "Diagnostics",
+          "slug": "/management/diagnostics/",
+          "entries": [
+            {
+              "title": "Health Monitoring",
+              "slug": "/management/diagnostics/monitoring/",
+              "forScopes": ["oss", "enterprise", "cloud"]
+            },
+            {
+              "title": "Metrics",
+              "slug": "/management/diagnostics/metrics/",
+              "forScopes": ["oss", "enterprise", "cloud"]
+            },
+            {
+              "title": "Collecting Profiles",
+              "slug": "/management/diagnostics/profiles/",
+              "forScopes": ["oss", "enterprise", "cloud"]
+            },
+            {
+              "title": "Distributed Tracing",
+              "slug": "/management/diagnostics/tracing/",
+              "forScopes": ["oss", "enterprise", "cloud"]
+            }
+          ]
         }
       ]
     },
@@ -1184,7 +1210,7 @@
     },
     {
       "source": "/metrics-logs-reference/",
-      "destination": "/reference/metrics/",
+      "destination": "/management/diagnostics/metrics/",
       "permanent": true
     },
     {
