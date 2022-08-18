@@ -34,13 +34,12 @@ import (
 	"syscall"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 	"golang.org/x/term"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -53,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -61,12 +61,14 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	gops "github.com/google/gops/agent"
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
-
-	gops "github.com/google/gops/agent"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -279,6 +281,12 @@ type CLIConf struct {
 
 	// ExtraProxyHeaders is configuration read from the .tsh/config/config.yaml file.
 	ExtraProxyHeaders []ExtraProxyHeaders
+
+	// SampleTraces indicates whether traces should be sampled.
+	SampleTraces bool
+
+	// TracingProvider is the provider to use to create tracers, from which spans can be created.
+	TracingProvider oteltrace.TracerProvider
 }
 
 // Stdout returns the stdout writer.
@@ -309,6 +317,9 @@ func main() {
 	cmdLineOrig := os.Args[1:]
 	var cmdLine []string
 
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer cancel()
+
 	// lets see: if the executable name is 'ssh' or 'scp' we convert
 	// that to "tsh ssh" or "tsh scp"
 	switch path.Base(os.Args[0]) {
@@ -319,7 +330,7 @@ func main() {
 	default:
 		cmdLine = cmdLineOrig
 	}
-	if err := Run(cmdLine); err != nil {
+	if err := Run(ctx, cmdLine); err != nil {
 		var exitError *exitCodeError
 		if errors.As(err, &exitError) {
 			os.Exit(exitError.code)
@@ -362,8 +373,11 @@ const (
 type cliOption func(*CLIConf) error
 
 // Run executes TSH client. same as main() but easier to test
-func Run(args []string, opts ...cliOption) error {
-	var cf CLIConf
+func Run(ctx context.Context, args []string, opts ...cliOption) error {
+	cf := CLIConf{
+		Context:         ctx,
+		TracingProvider: tracing.NoopProvider(),
+	}
 	utils.InitLogger(utils.LoggingForCLI, logrus.WarnLevel)
 
 	moduleCfg := modules.GetModules()
@@ -383,6 +397,7 @@ func Run(args []string, opts ...cliOption) error {
 	app.Flag("identity", "Identity file").Short('i').StringVar(&cf.IdentityFileIn)
 	app.Flag("compat", "OpenSSH compatibility flag").Hidden().StringVar(&cf.Compatibility)
 	app.Flag("cert-format", "SSH certificate format").StringVar(&cf.CertificateFormat)
+	app.Flag("trace", "Capture and export distributed traces").Hidden().BoolVar(&cf.SampleTraces)
 
 	if !moduleCfg.IsBoringBinary() {
 		// The user is *never* allowed to do this in FIPS mode.
@@ -626,16 +641,34 @@ func Run(args []string, opts ...cliOption) error {
 		utils.InitLogger(utils.LoggingForCLI, logrus.DebugLevel)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		exitSignals := make(chan os.Signal, 1)
-		signal.Notify(exitSignals, syscall.SIGTERM, syscall.SIGINT)
+	// Connect to the span exporter and initialize the trace provider only if
+	// the --trace flag was set.
+	if cf.SampleTraces {
+		provider, err := newTraceProvider(&cf, command, []string{login.FullCommand()})
+		if err != nil {
+			log.WithError(err).Debug("failed to set up span forwarding.")
+		} else {
+			// only update the provider if we successfully set it up
+			cf.TracingProvider = provider
 
-		sig := <-exitSignals
-		log.Debugf("signal: %v", sig)
-		cancel()
-	}()
+			// ensure that the provider is shutdown on exit to flush any spans
+			// that haven't been forwarded yet.
+			defer func() {
+				shutdownCtx, cancel := context.WithTimeout(cf.Context, 1*time.Second)
+				defer cancel()
+				err := provider.Shutdown(shutdownCtx)
+				if err != nil && !strings.Contains(err.Error(), context.DeadlineExceeded.Error()) {
+					log.WithError(err).Debugf("failed to shutdown trace provider")
+				}
+			}()
+		}
+	}
+
+	// start the span for the command and update the config context so that all spans created
+	// in the future will be rooted at this span.
+	ctx, span := cf.TracingProvider.Tracer(teleport.ComponentTSH).Start(cf.Context, command)
 	cf.Context = ctx
+	defer span.End()
 
 	if cf.Gops {
 		log.Debugf("Starting gops agent.")
@@ -755,6 +788,50 @@ func Run(args []string, opts ...cliOption) error {
 	}
 
 	return trace.Wrap(err)
+}
+
+// newTraceProvider initializes the tracing provider and exports all recorded spans
+// to the auth server to be forwarded to the telemetry backend. The whitelist allows
+// certain commands to have exporting spans be a no-op. Since the provider requires
+// connecting to the auth server, this means a user may have to log in first before
+// the provider can be created. By whitelisting the login command we can avoid having
+// users logging in twice at the expense of not exporting spans for the login command.
+func newTraceProvider(cf *CLIConf, command string, whitelist []string) (*tracing.Provider, error) {
+	// don't record any spans for commands that have been whitelisted
+	for _, c := range whitelist {
+		if strings.EqualFold(command, c) {
+			return tracing.NoopProvider(), nil
+		}
+	}
+
+	tc, err := makeClient(cf, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var traceclt *apitracing.Client
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		traceclt, err = tc.NewTracingClient(cf.Context)
+		return err
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	provider, err := tracing.NewTraceProvider(cf.Context,
+		tracing.Config{
+			Service: teleport.ComponentTSH,
+			Client:  traceclt,
+			// We are using 1 here to record all spans as a result of this tsh command. Teleport
+			// will respect the recording flag of remote spans even if the spans it generates
+			// wouldn't otherwise be recorded due to its configured sampling rate.
+			SamplingRate: 1.0,
+		})
+	if err != nil {
+		return nil, trace.NewAggregate(err, traceclt.Close())
+	}
+
+	return provider, nil
 }
 
 // onPlay replays a session with a given ID
@@ -1687,7 +1764,7 @@ func onListClusters(cf *CLIConf) error {
 		defer proxyClient.Close()
 
 		var rootErr, leafErr error
-		rootClusterName, rootErr = proxyClient.RootClusterName()
+		rootClusterName, rootErr = proxyClient.RootClusterName(cf.Context)
 		leafClusters, leafErr = proxyClient.GetLeafClusters(cf.Context)
 		return trace.NewAggregate(rootErr, leafErr)
 	})
@@ -1911,6 +1988,10 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 
 	// 1: start with the defaults
 	c := client.MakeDefaultConfig()
+	if cf.TracingProvider == nil {
+		cf.TracingProvider = tracing.NoopProvider()
+	}
+	c.Tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
 
 	// ProxyJump is an alias of Proxy flag
 	if cf.ProxyJump != "" {

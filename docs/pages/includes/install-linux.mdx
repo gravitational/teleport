@@ -3,7 +3,7 @@
     <TabItem label="Debian/Ubuntu (DEB)">
         ```code
         # Download Teleport's PGP public key
-        $ sudo curl https://deb.releases.teleport.dev/teleport-pubkey.asc \
+        $ sudo curl https://apt.releases.teleport.dev/gpg \
           -o /usr/share/keyrings/teleport-archive-keyring.asc
         # Source variables about OS version
         $ source /etc/os-release
@@ -11,7 +11,7 @@
         # file for each major (breaking) release of Teleport.
         # Note: if using a fork of Debian or Ubuntu you may need to use '$ID_LIKE'
         # and the codename your distro was forked from instead of '$ID' and '$VERSION_CODENAME'.
-        # Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-apt-repos/main.go#L26
+        # Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-os-package-repos/runners.go#L42-L67
         $ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
           https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/v(=teleport.major_version=)" \
         | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
@@ -22,12 +22,15 @@
     </TabItem>
     <TabItem label="Amazon Linux 2/RHEL (RPM)">
         ```code
-        $ sudo yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+        # Source variables about OS version
+        $ source /etc/os-release
+        # Add the Teleport YUM repository for v(=teleport.major_version=). You'll need to update this
+        # file for each major release of Teleport.
+        # Note: if using a fork of RHEL/CentOS or Amazon Linux you may need to use '$ID_LIKE'
+        # and the codename your distro was forked from instead of '$ID'
+        # Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-os-package-repos/runners.go#L133-L153
+        $ sudo yum-config-manager --add-repo $(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/v(=teleport.major_version=)/teleport.repo")
         $ sudo yum install teleport
-
-        # Optional:  Using DNF on newer distributions
-        # $ sudo dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
-        # $ sudo dnf install teleport
         ```
     </TabItem>
 
@@ -84,6 +87,17 @@
 
         $ sudo apt-get update
         $ sudo apt-get install teleport
+        ```
+  </TabItem>
+
+  <TabItem label="Amazon Linux 2/RHEL Legacy (RPM)">
+        ```code
+        $ sudo yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+        $ sudo yum install teleport
+
+        # Optional:  Using DNF on newer distributions
+        # $ sudo dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+        # $ sudo dnf install teleport
         ```
   </TabItem>
 

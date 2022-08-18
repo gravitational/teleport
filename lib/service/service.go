@@ -1260,6 +1260,22 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
+	traceClt := tracing.NewNoopClient()
+	if cfg.Tracing.Enabled {
+		traceConf, err := process.Config.Tracing.Config()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		traceConf.Logger = process.log.WithField(trace.Component, teleport.ComponentTracing)
+
+		clt, err := tracing.NewStartedClient(process.ExitContext(), *traceConf)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		traceClt = clt
+	}
+
 	// first, create the AuthServer
 	authServer, err := auth.Init(auth.InitConfig{
 		Backend:                 b,
@@ -1292,6 +1308,7 @@ func (process *TeleportProcess) initAuthService() error {
 		KeyStoreConfig:          cfg.Auth.KeyStore,
 		Emitter:                 checkingEmitter,
 		Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
+		TraceClient:             traceClt,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1390,6 +1407,7 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	go mux.Serve()
 	authMetrics := &auth.Metrics{GRPCServerLatency: cfg.Metrics.GRPCServerLatency}
+
 	tlsServer, err := auth.NewTLSServer(auth.TLSServerConfig{
 		TLS:           tlsConfig,
 		APIConfig:     *apiConf,
@@ -1602,6 +1620,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 	reporter, err := backend.NewReporter(backend.ReporterConfig{
 		Component: teleport.ComponentCache,
 		Backend:   mem,
+		Tracer:    process.TracingProvider.Tracer(teleport.ComponentCache),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2375,48 +2394,13 @@ func (process *TeleportProcess) initTracingService() error {
 		attribute.String(tracing.HostIDKey, process.Config.HostUUID),
 	}
 
-	traceConf := tracing.Config{
-		Service:      teleport.ComponentTeleport,
-		Attributes:   attrs,
-		ExporterURL:  process.Config.Tracing.ExporterURL,
-		SamplingRate: process.Config.Tracing.SamplingRate,
-		Logger:       log,
+	traceConf, err := process.Config.Tracing.Config(attrs...)
+	if err != nil {
+		return trace.Wrap(err)
 	}
+	traceConf.Logger = log
 
-	tlsConfig := &tls.Config{}
-	// if a custom CA is specified, use a custom cert pool
-	if len(process.Config.Tracing.CACerts) > 0 {
-		pool := x509.NewCertPool()
-		for _, caCertPath := range process.Config.Tracing.CACerts {
-			caCert, err := os.ReadFile(caCertPath)
-			if err != nil {
-				return trace.Wrap(err, "failed to read tracing CA certificate %+v", caCertPath)
-			}
-
-			if !pool.AppendCertsFromPEM(caCert) {
-				return trace.BadParameter("failed to parse tracing CA certificate: %+v", caCertPath)
-			}
-		}
-		tlsConfig.ClientCAs = pool
-		tlsConfig.RootCAs = pool
-	}
-
-	// add any custom certificates for mTLS
-	if len(process.Config.Tracing.KeyPairs) > 0 {
-		for _, pair := range process.Config.Tracing.KeyPairs {
-			certificate, err := tls.LoadX509KeyPair(pair.Certificate, pair.PrivateKey)
-			if err != nil {
-				return trace.Wrap(err, "failed to read keypair: %+v", err)
-			}
-			tlsConfig.Certificates = append(tlsConfig.Certificates, certificate)
-		}
-	}
-
-	if len(process.Config.Tracing.CACerts) > 0 || len(process.Config.Tracing.KeyPairs) > 0 {
-		traceConf.TLSConfig = tlsConfig
-	}
-
-	provider, err := tracing.NewTraceProvider(process.ExitContext(), traceConf)
+	provider, err := tracing.NewTraceProvider(process.ExitContext(), *traceConf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3865,6 +3849,7 @@ func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error
 	reporter, err := backend.NewReporter(backend.ReporterConfig{
 		Component: teleport.ComponentBackend,
 		Backend:   backend.NewSanitizer(bk),
+		Tracer:    process.TracingProvider.Tracer(teleport.ComponentBackend),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4049,7 +4034,7 @@ func (process *TeleportProcess) initDebugApp() {
 // singleProcessModeResolver returns the reversetunnel.Resolver that should be used when running all components needed
 // within the same process. It's used for development and demo purposes.
 func (process *TeleportProcess) singleProcessModeResolver(mode types.ProxyListenerMode) reversetunnel.Resolver {
-	return func() (*utils.NetAddr, error) {
+	return func(context.Context) (*utils.NetAddr, error) {
 		addr, ok := process.singleProcessMode(mode)
 		if !ok {
 			return nil, trace.BadParameter(`failed to find reverse tunnel address, if running in single process mode, make sure "auth_service", "proxy_service", and "app_service" are all enabled`)
