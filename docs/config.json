@@ -974,6 +974,10 @@
 	    {
 	    	"title": "teleport-plugin-jira",
 	    	"slug": "/reference/helm-reference/teleport-plugin-jira/"
+            }, 
+            {
+              "title": "teleport-plugin-event-handler",
+              "slug": "/reference/helm-reference/teleport-plugin-event-handler/"
 	    }
           ]
         }
