@@ -48,7 +48,7 @@ type AzureMatcher struct {
 	Subscriptions []string
 	// ResourceGroups are Azure resource groups to query for resources.
 	ResourceGroups []string
-	// Types are Azure database types to match, "rds" or "redshift".
+	// Types are Azure resource types to match, for example "mysql" or "postgres".
 	Types []string
 	// Regions are Azure regions to query for databases.
 	Regions []string
