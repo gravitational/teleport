@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"net/url"
 	"os"
 	"sort"
@@ -30,13 +29,13 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -130,7 +129,9 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 	}
 
 	meta, err := c.getSessionMeta(cf.Context, tc)
-	if err != nil {
+	if trace.IsNotFound(err) {
+		return trace.NotFound("Failed to find session %q. The ID may be incorrect.", c.session)
+	} else if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -197,6 +198,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	tlsConfig.InsecureSkipVerify = cf.InsecureSkipVerify
 	session, err := client.NewKubeSession(cf.Context, tc, meta, tc.KubeProxyAddr, kubeStatus.tlsServerName, types.SessionParticipantMode(c.mode), tlsConfig)
 	if err != nil {
 		return trace.Wrap(err)
@@ -482,7 +484,7 @@ func newKubeSessionsCommand(parent *kingpin.CmdClause) *kubeSessionsCommand {
 	c := &kubeSessionsCommand{
 		CmdClause: parent.Command("sessions", "Get a list of active kubernetes sessions."),
 	}
-	c.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaultFormats...)
+	c.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaults.DefaultFormats...)
 
 	return c
 }
@@ -663,7 +665,7 @@ func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
 	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
 	c.Flag("search", searchHelp).StringVar(&c.searchKeywords)
 	c.Flag("query", queryHelp).StringVar(&c.predicateExpr)
-	c.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaultFormats...)
+	c.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaults.DefaultFormats...)
 	c.Flag("all", "List kubernetes clusters from all clusters and proxies.").Short('R').BoolVar(&c.listAll)
 	c.Arg("labels", labelHelp).StringVar(&c.labels)
 	return c
@@ -1008,30 +1010,11 @@ func fetchKubeStatus(ctx context.Context, tc *client.TeleportClient) (*kubernete
 	}
 
 	if tc.TLSRoutingEnabled {
-		kubeStatus.tlsServerName = getKubeTLSServerName(tc)
+		k8host, _ := tc.KubeProxyHostPort()
+		kubeStatus.tlsServerName = client.GetKubeTLSServerName(k8host)
 	}
 
 	return kubeStatus, nil
-}
-
-// getKubeTLSServerName returns k8s server name used in KUBECONFIG to leverage TLS Routing.
-func getKubeTLSServerName(tc *client.TeleportClient) string {
-	k8host, _ := tc.KubeProxyHostPort()
-
-	isIPFormat := net.ParseIP(k8host) != nil
-	if k8host == "" || isIPFormat {
-		// If proxy is configured without public_addr set the ServerName to the 'kube.teleport.cluster.local' value.
-		// The k8s server name needs to be a valid hostname but when public_addr is missing from proxy settings
-		// the web_listen_addr is used thus webHost will contain local proxy IP address like: 0.0.0.0 or 127.0.0.1
-		// TODO(smallinsky) UPGRADE IN 10.0. Switch to KubeTeleportProxyALPNPrefix instead.
-		return addSubdomainPrefix(constants.APIDomain, constants.KubeSNIPrefix)
-	}
-	// TODO(smallinsky) UPGRADE IN 10.0. Switch to KubeTeleportProxyALPNPrefix instead.
-	return addSubdomainPrefix(k8host, constants.KubeSNIPrefix)
-}
-
-func addSubdomainPrefix(domain, prefix string) string {
-	return fmt.Sprintf("%s%s", prefix, domain)
 }
 
 // buildKubeConfigUpdate returns a kubeconfig.Values suitable for updating the user's kubeconfig
