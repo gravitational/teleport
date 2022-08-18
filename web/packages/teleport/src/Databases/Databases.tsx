@@ -30,7 +30,6 @@ import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 
 import DatabaseList from './DatabaseList';
 import useDatabases, { State } from './useDatabases';
-import AddDatabase from './AddDatabase';
 
 export default function Container() {
   const ctx = useTeleport();
@@ -43,12 +42,7 @@ export function Databases(props: State) {
     attempt,
     isLeafCluster,
     canCreate,
-    showAddDialog,
-    hideAddDialog,
-    isAddDialogVisible,
-    isEnterprise,
     username,
-    version,
     clusterId,
     authType,
     results,
@@ -120,15 +114,6 @@ export function Databases(props: State) {
           clusterId={clusterId}
           canCreate={canCreate && !isLeafCluster}
           emptyStateInfo={emptyStateInfo}
-        />
-      )}
-      {isAddDialogVisible && (
-        <AddDatabase
-          isEnterprise={isEnterprise}
-          username={username}
-          version={version}
-          authType={authType}
-          onClose={hideAddDialog}
         />
       )}
     </FeatureBox>

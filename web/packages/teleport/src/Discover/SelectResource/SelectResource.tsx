@@ -13,12 +13,9 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-import React, { useEffect, useState } from 'react';
-import { Cloud } from 'design/Icon';
+import React, { useState } from 'react';
 import SlideTabs from 'design/SlideTabs';
-import styled from 'styled-components';
 import { useLocation } from 'react-router';
-
 import { Image, Text, Box, Flex } from 'design';
 
 import AddApp from 'teleport/Apps/AddApp';
@@ -34,7 +31,6 @@ import serverIcon from './assets/server.png';
 import k8sIcon from './assets/kubernetes.png';
 
 import type { TabComponent } from 'design/SlideTabs/SlideTabs';
-import type { ResourceType, ResourceLocation } from '../resource-lists';
 import type { AgentStepProps } from '../types';
 import type { State } from '../useDiscover';
 import type { AuthType } from 'teleport/services/user';
@@ -86,8 +82,7 @@ export function SelectResource({
   const [selectedResource, setSelectedResource] = useState<ValidResourceTypes>(
     location?.state?.entity
   );
-  const [selectedType, setSelectedType] = useState('');
-  const [disableProceed, setDisableProceed] = useState<boolean>(true);
+  // const [selectedType, setSelectedType] = useState('');
   const [showAddApp, setShowAddApp] = useState(false);
   const [showAddKube, setShowAddKube] = useState(false);
   const [showAddDB, setShowAddDB] = useState(false);
@@ -139,19 +134,6 @@ export function SelectResource({
       ),
     },
   ];
-
-  useEffect(() => {
-    if (selectedResource === 'server') {
-      // server doesn't have any additional deployment options
-      setDisableProceed(false);
-      return;
-    }
-    if (selectedResource && selectedType) {
-      setDisableProceed(false);
-      return;
-    }
-    setDisableProceed(true);
-  }, [selectedResource, selectedType]);
 
   const initialSelected = tabs.findIndex(
     component => component.name === location?.state?.entity
@@ -215,7 +197,7 @@ export function SelectResource({
           onProceed={() => {
             nextStep();
           }}
-          disableProceed={disableProceed}
+          disableProceed={false}
         />
       )}
       {showAddApp && <AddApp onClose={() => setShowAddApp(false)} />}
@@ -232,91 +214,3 @@ export function SelectResource({
     </Box>
   );
 }
-
-type SelectResourceProps = {
-  onSelect: (string) => void;
-};
-
-function SelectDBDeploymentType({
-  selectedType,
-  setSelectedType,
-  resourceTypes,
-}: SelectDBDeploymentTypeProps) {
-  type FilterType = 'All' | ResourceLocation;
-  const filterTabs: FilterType[] = ['All', 'AWS', 'Self-Hosted'];
-  const [filter, setFilter] = useState<FilterType>('All');
-  return (
-    <Box mt={6}>
-      <Flex alignItems="center" justifyContent="space-between">
-        <Text mb={2}>Select Deployment Type</Text>
-        <Box width="379px">
-          <SlideTabs
-            appearance="round"
-            size="medium"
-            tabs={filterTabs}
-            onChange={index => setFilter(filterTabs[index])}
-          />
-        </Box>
-      </Flex>
-      <Flex
-        flexWrap="wrap"
-        mt={4}
-        justifyContent="space-between"
-        gap="12px 12px"
-        rowGap="15px"
-      >
-        {resourceTypes
-          .filter(resource => filter === 'All' || resource.type === filter)
-          .map(resource => (
-            <ResourceTypeOption
-              onClick={() => setSelectedType(resource.key)}
-              key={resource.key}
-              selected={selectedType === resource.key}
-            >
-              <Flex justifyContent="space-between" mb={2}>
-                <Cloud />
-                <Tag>popular</Tag>
-              </Flex>
-              {resource.name}
-            </ResourceTypeOption>
-          ))}
-      </Flex>
-    </Box>
-  );
-}
-
-type SelectDBDeploymentTypeProps = {
-  selectedType: string;
-  setSelectedType: (string) => void;
-  resourceTypes: ResourceType[];
-};
-
-const ResourceTypeOption = styled.div`
-  background: rgba(255, 255, 255, 0.05);
-  border: ${props =>
-    !props.selected
-      ? '2px solid rgba(255, 255, 255, 0)'
-      : '2px solid rgba(255, 255, 255, 0.1);'};
-  border-radius: 8px;
-  box-sizing: border-box;
-  cursor: pointer;
-  height: 72px;
-  padding: 12px;
-  width: 242px;
-
-  &:hover {
-    border: 2px solid rgba(255, 255, 255, 0.1);
-  }
-`;
-
-const Tag = styled.div`
-  align-items: center;
-  background-color: #512fc9;
-  border-radius: 33px;
-  box-sizing: border-box;
-  font-size: 10px;
-  height: 15px;
-  line-height: 11px;
-  padding: 2px 10px;
-  max-width: 57px;
-`;

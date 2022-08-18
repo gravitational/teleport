@@ -33,7 +33,6 @@ export default function useApps(ctx: Ctx) {
   const canCreate = ctx.storeUser.getTokenAccess().create;
   const { search, pathname } = useLocation();
   const [startKeys, setStartKeys] = useState<string[]>([]);
-  const [isAddAppVisible, setAppAddVisible] = useState(false);
   const { clusterId, isLeafCluster } = useStickyClusterId();
   const { attempt, setAttempt } = useAttempt('processing');
   const isEnterprise = ctx.isEnterprise;
@@ -64,15 +63,6 @@ export default function useApps(ctx: Ctx) {
   function replaceHistory(path: string) {
     history.replace(path);
   }
-
-  const hideAddApp = () => {
-    setAppAddVisible(false);
-    fetch();
-  };
-
-  const showAddApp = () => {
-    setAppAddVisible(true);
-  };
 
   function setSort(sort: SortType) {
     setParams({ ...params, sort });
@@ -152,9 +142,6 @@ export default function useApps(ctx: Ctx) {
     clusterId,
     isLeafCluster,
     isEnterprise,
-    isAddAppVisible,
-    hideAddApp,
-    showAddApp,
     canCreate,
     attempt,
     results,

@@ -18,13 +18,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { NavLink } from 'react-router-dom';
 
-import { Text, ButtonPrimary, ButtonSecondary, Box } from 'design';
-import Dialog, {
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from 'design/Dialog';
+import { Text, ButtonPrimary, Box } from 'design';
 
 import cfg from 'teleport/config';
 

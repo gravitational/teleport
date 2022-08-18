@@ -36,10 +36,7 @@ export default function useDatabases(ctx: Ctx) {
   const { clusterId, isLeafCluster } = useStickyClusterId();
   const username = ctx.storeUser.state.username;
   const canCreate = ctx.storeUser.getTokenAccess().create;
-  const isEnterprise = ctx.isEnterprise;
-  const version = ctx.storeUser.state.cluster.authVersion;
   const authType = ctx.storeUser.state.authType;
-  const [isAddDialogVisible, setIsAddDialogVisible] = useState(false);
   const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
   const [params, setParams] = useState<ResourceUrlQueryParams>({
     sort: { fieldName: 'name', dir: 'ASC' },
@@ -139,15 +136,6 @@ export default function useDatabases(ctx: Ctx) {
       });
   };
 
-  const hideAddDialog = () => {
-    setIsAddDialogVisible(false);
-    fetchDatabases();
-  };
-
-  const showAddDialog = () => {
-    setIsAddDialogVisible(true);
-  };
-
   const onLabelClick = (label: AgentLabel) =>
     labelClick(label, params, setParams, pathname, replaceHistory);
 
@@ -155,12 +143,7 @@ export default function useDatabases(ctx: Ctx) {
     attempt,
     canCreate,
     isLeafCluster,
-    isEnterprise,
-    hideAddDialog,
-    showAddDialog,
-    isAddDialogVisible,
     username,
-    version,
     clusterId,
     authType,
     results,

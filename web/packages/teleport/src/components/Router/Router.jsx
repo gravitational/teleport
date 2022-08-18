@@ -25,7 +25,7 @@ import {
 import * as RouterDOM from 'react-router-dom';
 import { NotFound } from 'design/CardError';
 
-const NoMatch = ({ location }) => (
+const NoMatch = () => (
   <NotFound
     alignSelf="baseline"
     message="The requested path could not be found."

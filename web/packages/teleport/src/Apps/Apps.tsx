@@ -29,7 +29,6 @@ import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 
 import AppList from './AppList';
-import AddApp from './AddApp';
 import useApps, { State } from './useApps';
 
 export default function Container() {
@@ -42,9 +41,6 @@ export function Apps(props: State) {
   const {
     clusterId,
     isLeafCluster,
-    isAddAppVisible,
-    showAddApp,
-    hideAddApp,
     canCreate,
     attempt,
     results,
@@ -113,7 +109,6 @@ export function Apps(props: State) {
           emptyStateInfo={emptyStateInfo}
         />
       )}
-      {isAddAppVisible && <AddApp onClose={hideAddApp} />}
     </FeatureBox>
   );
 }

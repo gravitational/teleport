@@ -4,11 +4,7 @@ import { throttle } from 'lodash';
 import { dateToUtc } from 'shared/services/loc';
 import { format } from 'date-fns';
 
-import {
-  PlayerClient,
-  PlayerClientEvent,
-  TdpClientEvent,
-} from 'teleport/lib/tdp';
+import { PlayerClient, PlayerClientEvent } from 'teleport/lib/tdp';
 
 import ProgressBar from './ProgressBar';
 

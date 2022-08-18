@@ -64,7 +64,7 @@ export function Discover({
   currentStep,
   selectedAgentKind = 'node',
   logout,
-  onSelectResource,
+  // onSelectResource,
   ...agentProps
 }: State) {
   let AgentComponent;

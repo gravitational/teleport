@@ -40,9 +40,9 @@ export function useDiscover(ctx: TeleportContext, features: Feature[]) {
   const [selectedAgentKind, setSelectedAgentKind] = useState<AgentKind>();
   const [agentMeta, setAgentMeta] = useState<AgentMeta>();
 
-  function onSelectResource(kind: AgentKind) {
+  function onSelectResource(kind: AgentKind = 'node') {
     // TODO: hard coded for now for sake of testing the flow.
-    setSelectedAgentKind('node');
+    setSelectedAgentKind(kind);
     nextStep();
   }
 
