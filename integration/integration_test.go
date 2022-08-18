@@ -2382,7 +2382,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		log:         suite.log,
+		Log:         suite.log,
 		Ports:       standardPortsOrMuxSetup(test.multiplex),
 	})
 	aux := suite.newNamedTeleportInstance(t, clusterAux)
@@ -5835,7 +5835,7 @@ func (s *integrationTestSuite) defaultInstanceConfig() InstanceConfig {
 		NodeName:    Host,
 		Priv:        s.priv,
 		Pub:         s.pub,
-		log:         s.log,
+		Log:         s.log,
 		Ports:       standardPortSetup(),
 	}
 }
@@ -5849,7 +5849,7 @@ func (s *integrationTestSuite) newNamedTeleportInstance(t *testing.T, clusterNam
 		NodeName:    Host,
 		Priv:        s.priv,
 		Pub:         s.pub,
-		log:         utils.WrapLogger(s.log.WithField("cluster", clusterName)),
+		Log:         utils.WrapLogger(s.log.WithField("cluster", clusterName)),
 		Ports:       standardPortSetup(),
 	}
 	for _, opt := range opts {
@@ -5949,7 +5949,7 @@ func TestWebProxyInsecure(t *testing.T) {
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		log:         utils.NewLoggerForTests(),
+		Log:         utils.NewLoggerForTests(),
 	})
 
 	rcConf := service.MakeDefaultConfig()
@@ -5994,7 +5994,7 @@ func TestTraitsPropagation(t *testing.T) {
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		log:         log,
+		Log:         log,
 	})
 
 	// Create leaf cluster.
@@ -6004,7 +6004,7 @@ func TestTraitsPropagation(t *testing.T) {
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		log:         log,
+		Log:         log,
 	})
 
 	// Make root cluster config.
@@ -6285,7 +6285,7 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		log:         suite.log,
+		Log:         suite.log,
 		Ports:       standardPortsOrMuxSetup(false),
 	})
 	leaf := NewInstance(InstanceConfig{
@@ -6294,7 +6294,7 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		log:         suite.log,
+		Log:         suite.log,
 		Ports:       standardPortsOrMuxSetup(false),
 	})
 

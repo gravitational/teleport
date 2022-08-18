@@ -167,8 +167,8 @@ type InstanceConfig struct {
 	Priv []byte
 	// Pub is SSH public key of the instance
 	Pub []byte
-	// log specifies the logger
-	log utils.Logger
+	// Log specifies the logger
+	Log utils.Logger
 	// Ports is a collection of instance ports.
 	Ports *InstancePorts
 }
@@ -240,7 +240,7 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 	i := &TeleInstance{
 		Hostname:      cfg.NodeName,
 		UploadEventsC: make(chan events.UploadEvent, 100),
-		log:           cfg.log,
+		log:           cfg.Log,
 		InstancePorts: *cfg.Ports,
 	}
 

@@ -37,86 +37,10 @@ Here is an example of sending an Access Request via Teleport's Slack plugin:
 
 ## Step 1/8. Define RBAC resources
 
-Before you set up the Slack plugin, you will need to enable Access Requests in
-your Teleport cluster. For the purpose of this guide, we will define an
-`editor-requester` role, which can request the built-in `editor` role, and
-an `editor-reviewer` role that can review requests for the `editor` role. 
+Before you set up the Slack plugin, you will need to enable Role Access Requests
+in your Teleport cluster. 
 
-Create a file called `editor-request-rbac.yaml` with the following content:
-
-```yaml
-kind: role
-version: v5
-metadata:
-  name: editor-reviewer
-spec:
-  allow:
-    review_requests:
-      roles: ['editor']
----
-kind: role
-version: v5
-metadata:
-  name: editor-requester
-spec:
-  allow:
-    request:
-      roles: ['editor']
-      thresholds:
-        - approve: 1
-          deny: 1
-```
-
-Create the roles you defined:
-
-```code
-$ tctl create -f editor-request-rbac.yaml
-role 'editor-reviewer' has been created
-role 'editor-requester' has been created
-```
-
-Allow yourself to review requests by users with the `editor-requester` role by
-assigning yourself the `editor-reviewer` role. First, retrieve your user
-definition:
-
-```code
-$ TELEPORT_USER=$(tsh status --format=json | jq -r .active.username)
-$ tctl get user/${TELEPORT_USER?} > user.yaml
-```
-
-Edit `user.yaml` to add the `editor-reviewer` role:
-
-```diff
- spec:
-   roles:
-   - access
-   - editor
-+  - editor-reviewer
-```
-
-Update your user definition:
-
-```code
-$ tctl create -f user.yaml
-```
-
-Log out of Teleport and log in again. You will now have the ability to review
-requests for the `editor` role.
-
-Create a user called `myuser` who has the `editor-requester` role as well as the
-built-in `access` role and the `ubuntu` login. This user cannot edit your
-cluster configuration unless they request the `editor` role:
-
-```code
-$ tctl users add myuser --roles=editor-requester 
-```
-
-`tctl` will print an invitation URL to your terminal. Visit the URL and log in
-as `myuser` for the first time, registering credentials as configured for your
-Teleport cluster.
-
-Later in this guide, you will have `myuser` request the `editor` role so you can
-review the request using the Teleport plugin.
+(!/docs/pages/includes/plugins/editor-request-rbac.mdx!)
 
 ## Step 2/8. Install the Teleport Slack plugin
 
@@ -428,29 +352,7 @@ following steps.
 
 ### Create an Access Request
 
-<Tabs>
-<TabItem label="As admin">
-  A Teleport admin can create an Access Request for another user with `tctl`.
-  ```code
-  $ tctl request create myuser --roles=editor
-  ```
-</TabItem>
-<TabItem label="As user">
-  Users can use `tsh` to create an Access Request and log in with approved roles.
-  ```code
-  $ tsh request new --roles=editor
-  Seeking request approval... (id: 8f77d2d1-2bbf-4031-a300-58926237a807)
-  ```
-</TabItem>
-<TabItem label="From the Web UI">
-
-  Users can request access using the Web UI by visiting the "Access Requests"
-  tab and clicking "New Request":
-
-  ![Creating an Access Request using the Web UI](../../../img/request-access.png)
-
-</TabItem>
-</Tabs>
+(!docs/pages/includes/plugins/create-request.mdx!)
 
 The user you configured earlier to review the request should receive a direct
 message from "Teleport" in Slack allowing them to visit a link in the Teleport
@@ -458,33 +360,7 @@ Web UI and either approve or deny the request.
 
 ### Resolve the request
 
-Once you receive the review request in Slack, click the link to visit the Web UI
-and approve or deny the request:
-
-![Reviewing a request](../../../img/review-request.png)
-
-<Details title="Reviewing from the command line">
-
-You can also review an Access Request from the command line:
-
-<Tabs>
-<TabItem label="As an Admin">
-  ```code
-  # Replace REQUEST_ID with the id of the request
-  $ tctl request approve REQUEST_ID
-  $ tctl request deny REQUEST_ID
-  ```
-</TabItem>
-<TabItem label="As a User">
-  ```code
-  # Replace REQUEST_ID with the id of the request
-  $ tsh request review --approve REQUEST_ID
-  $ tsh request review --deny REQUEST_ID
-  ```
-</TabItem>
-</Tabs>
-
-</Details>
+(!docs/pages/includes/plugins/resolve-request.mdx!)
 
 Once the request is resolved, the Slack bot will add an emoji reaction of ✅ or
 ❌ to the Slack message for the Access Request, depending on whether the request
