@@ -211,8 +211,7 @@ new /etc/teleport.yaml file:
 teleport node configure
     --auth-server=auth-server.example.com [auth server that is being connected to]
     --token="$1" # passed via parameter from SSM document
-    --labels=teleport.dev/origin=cloud
-	--node-name=$accountID-$instanceID
+    --labels="teleport.dev/instance-id=${INSTANCE_ID},teleport.dev/account-id=${ACCOUNT_ID}"
 ```
 This will create generate a file with the following contents:
 
@@ -244,10 +243,15 @@ auth_service:
 ssh_service:
   enabled: "yes"
   aws:
-  - types: ["ec2"]
-    regions: ["us-west-1"]
-    tags:
-      "teleport": "yes" # aws tags to match
+   - types: ["ec2"]
+     regions: ["eu-central-1"]
+     tags:
+       "teleport": "yes"
+     install:
+       join_params:
+         token_name:  aws-discovery-iam-token # default value
+     ssm:
+       document: "TeleportDiscoveryInstaller" # default value
 ```
 
 #### AWS configuration and IAM permissions
