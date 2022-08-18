@@ -1,4 +1,4 @@
-.version: &version "11.0.0-dev.vitor.2"
+.version: &version "11.0.0-dev.vitor.3"
 
 name: teleport-cluster
 apiVersion: v2
