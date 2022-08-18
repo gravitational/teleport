@@ -425,7 +425,7 @@ func TestConfigReading(t *testing.T) {
 					ResourceGroups: []string{"rg1", "rg2"},
 					Types:          []string{"mysql"},
 					Regions:        []string{"eastus", "westus"},
-					Tags: map[string]apiutils.Strings{
+					ResourceTags: map[string]apiutils.Strings{
 						"a": {"b"},
 					},
 				},
@@ -434,7 +434,7 @@ func TestConfigReading(t *testing.T) {
 					ResourceGroups: []string{"rg3", "rg4"},
 					Types:          []string{"postgres"},
 					Regions:        []string{"centralus"},
-					Tags: map[string]apiutils.Strings{
+					ResourceTags: map[string]apiutils.Strings{
 						"c": {"d"},
 					},
 				},
@@ -443,7 +443,7 @@ func TestConfigReading(t *testing.T) {
 					ResourceGroups: nil,
 					Types:          []string{"mysql", "postgres"},
 					Regions:        []string{"centralus"},
-					Tags: map[string]apiutils.Strings{
+					ResourceTags: map[string]apiutils.Strings{
 						"e": {"f"},
 					},
 				},
@@ -803,7 +803,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 				ResourceGroups: []string{"group1", "group2"},
 				Types:          []string{"postgres", "mysql"},
 				Regions:        []string{"eastus", "centralus"},
-				Tags: map[string]apiutils.Strings{
+				ResourceTags: map[string]apiutils.Strings{
 					"a": {"b"},
 				},
 			},
@@ -812,7 +812,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 				ResourceGroups: []string{"*"},
 				Types:          []string{"postgres", "mysql"},
 				Regions:        []string{"westus"},
-				Tags: map[string]apiutils.Strings{
+				ResourceTags: map[string]apiutils.Strings{
 					"c": {"d"},
 				},
 			},
@@ -1393,7 +1393,7 @@ func makeConfigFixture() string {
 			ResourceGroups: []string{"rg1", "rg2"},
 			Types:          []string{"mysql"},
 			Regions:        []string{"eastus", "westus"},
-			Tags: map[string]apiutils.Strings{
+			ResourceTags: map[string]apiutils.Strings{
 				"a": {"b"},
 			},
 		},
@@ -1402,14 +1402,14 @@ func makeConfigFixture() string {
 			ResourceGroups: []string{"rg3", "rg4"},
 			Types:          []string{"postgres"},
 			Regions:        []string{"centralus"},
-			Tags: map[string]apiutils.Strings{
+			ResourceTags: map[string]apiutils.Strings{
 				"c": {"d"},
 			},
 		},
 		{
 			Types:   []string{"mysql", "postgres"},
 			Regions: []string{"centralus"},
-			Tags: map[string]apiutils.Strings{
+			ResourceTags: map[string]apiutils.Strings{
 				"e": {"f"},
 			},
 		},

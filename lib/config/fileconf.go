@@ -1200,8 +1200,8 @@ type AzureMatcher struct {
 	Types []string `yaml:"types,omitempty"`
 	// Regions are Azure locations to match for databases.
 	Regions []string `yaml:"regions,omitempty"`
-	// Tags are Azure tags to match.
-	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
+	// ResourceTags are Azure tags on resources to match.
+	ResourceTags map[string]apiutils.Strings `yaml:"tags,omitempty"`
 }
 
 // Database represents a single database proxied by the service.

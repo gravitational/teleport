@@ -52,8 +52,8 @@ type AzureMatcher struct {
 	Types []string
 	// Regions are Azure regions to query for databases.
 	Regions []string
-	// Tags are Azure tags to match.
-	Tags types.Labels
+	// ResourceTags are Azure tags to match.
+	ResourceTags types.Labels
 }
 
 // MatchResourceLabels returns true if any of the provided selectors matches the provided database.

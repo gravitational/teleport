@@ -1148,7 +1148,7 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				ResourceGroups: matcher.ResourceGroups,
 				Types:          matcher.Types,
 				Regions:        matcher.Regions,
-				Tags:           matcher.Tags,
+				ResourceTags:   matcher.ResourceTags,
 			})
 	}
 	for _, database := range fc.Databases.Databases {
