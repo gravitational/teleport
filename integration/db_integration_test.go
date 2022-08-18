@@ -988,7 +988,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 		NodeName:    opts.nodeName,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		log:         log,
+		Log:         log,
 		Ports:       opts.instancePortsFunc(),
 	})
 
@@ -1000,7 +1000,7 @@ func setupDatabaseTest(t *testing.T, options ...testOptionFunc) *databasePack {
 		Ports:       opts.instancePortsFunc(),
 		Priv:        privateKey,
 		Pub:         publicKey,
-		log:         log,
+		Log:         log,
 	})
 
 	// Make root cluster config.

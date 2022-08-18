@@ -630,7 +630,7 @@ func TestALPNProxyAuthClientConnectWithUserIdentity(t *testing.T) {
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Loopback,
-		log:         utils.NewLoggerForTests(),
+		Log:         utils.NewLoggerForTests(),
 		Ports:       singleProxyPortSetup(),
 	})
 
@@ -686,7 +686,7 @@ func TestALPNProxyDialProxySSHWithoutInsecureMode(t *testing.T) {
 		NodeName:    Loopback,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		log:         utils.NewLoggerForTests(),
+		Log:         utils.NewLoggerForTests(),
 		Ports:       standardPortSetup(),
 	})
 	username := mustGetCurrentUser(t).Username
@@ -752,7 +752,7 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    addr,
-		log:         utils.NewLoggerForTests(),
+		Log:         utils.NewLoggerForTests(),
 		Ports:       singleProxyPortSetup(),
 	})
 	username := mustGetCurrentUser(t).Username
@@ -825,7 +825,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    rcAddr,
-		log:         utils.NewLoggerForTests(),
+		Log:         utils.NewLoggerForTests(),
 		Ports:       singleProxyPortSetup(),
 	})
 	username := mustGetCurrentUser(t).Username
