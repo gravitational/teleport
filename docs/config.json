@@ -294,6 +294,10 @@
             {
               "title": "teleport-kube-agent",
               "slug": "/setup/helm-reference/teleport-kube-agent/"
+            },
+            {
+              "title": "teleport-plugin-event-handler",
+              "slug": "/setup/helm-reference/teleport-plugin-event-handler/"
             }
           ]
         }
@@ -681,16 +685,24 @@
           "slug": "/machine-id/guides/",
           "entries": [
             {
-              "title": "Machine ID with Ansible",
+              "title": "Ansible",
               "slug": "/machine-id/guides/ansible/"
             },
             {
-              "title": "Machine ID with Jenkins",
+              "title": "Jenkins",
               "slug": "/machine-id/guides/jenkins/"
             },
             {
-              "title": "Machine ID with Databases",
+              "title": "Databases",
               "slug": "/machine-id/guides/databases/"
+            },
+            {
+              "title": "Kubernetes",
+              "slug": "/machine-id/guides/kubernetes/"
+            },
+            {
+              "title": "Applications",
+              "slug": "/machine-id/guides/applications/"
             }
           ]
         }
@@ -1030,6 +1042,7 @@
     },
     "cloud": {
       "version": "10.1.2",
+      "major_version": "10",
       "sla": {
         "monthly_percentage": "99.5%",
         "monthly_downtime": "3 hours 40 minutes"
@@ -1433,6 +1446,11 @@
     {
     	"source": "/enterprise/workflow/role-requests/",
     	"destination": "/access-controls/access-requests/role-requests/",
+    	"permanent": true
+    },
+    {
+    	"source": "/user-manual/",
+    	"destination": "/",
     	"permanent": true
     }
   ]

@@ -26,7 +26,13 @@ use std::ffi::{CString, NulError};
 /// r"2018\January.xlsx": A relative path to a file in a subdirectory of the current directory.
 #[derive(Debug, Clone)]
 pub struct WindowsPath {
-    path: String,
+    pub path: String,
+}
+
+impl WindowsPath {
+    pub fn len(&self) -> u32 {
+        self.path.len() as u32
+    }
 }
 
 impl From<String> for WindowsPath {

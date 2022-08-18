@@ -3587,6 +3587,27 @@ message Participant {
     ];
 }
 
+// InstallerV1 represents an installer script resource. Used to
+// provide a script to install teleport on discovered nodes.
+message InstallerV1 {
+    // Kind is the resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource subkind. Currently unused for this resource.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is the resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is the resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is the resource spec.
+    InstallerSpecV1 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// InstallerSpecV1 is the specification for an Installer
+message InstallerSpecV1 {
+    // Script represents the contents of a installer shell script
+    string Script = 1 [ (gogoproto.jsontag) = "script" ];
+}
+
 // SessionState represents the state of a session.
 enum SessionState {
     // Pending variant represents a session that is waiting on participants to fulfill the criteria
@@ -3612,7 +3633,6 @@ message SortBy {
 // ConnectionDiagnosticV1 is the result of testing a connection.
 // When setting up a new resource in Teleport, it's useful to know if we can connect to it.
 // This can be done using the test connection feature.
-// Running `tsh` with `--test-id` creates a new Connection diagnostic
 // The user can then receive the result as feedback using the UI
 message ConnectionDiagnosticV1 {
     ResourceHeader Header = 1
@@ -3622,7 +3642,30 @@ message ConnectionDiagnosticV1 {
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
+// ConnectionDiagnosticSpecV1 is the ConnectionDiagnostic Spec.
+// It contains the result of testing a connection.
+// It has the overall result of the connection and then a list of traces.
+// Each trace contains checkpoints of the connection attempt and its result.
 message ConnectionDiagnosticSpecV1 {
+    // Success describes whether the connection was a success or a failure.
     bool Success = 1 [ (gogoproto.jsontag) = "success" ];
+    // Message may contain some user friendly message to let the user know whether it was
+    // successfull or a failure.
     string Message = 2 [ (gogoproto.jsontag) = "message" ];
+    // Traces contain a list of checkpoints defined by
+    repeated ConnectionDiagnosticTrace Traces = 3 [ (gogoproto.jsontag) = "traces" ];
+}
+
+// ConnectionDiagnosticTrace describes a trace of a connection diagnostic
+message ConnectionDiagnosticTrace {
+    // ID contains a unique identifier for this trace.
+    string ID = 1 [ (gogoproto.jsontag) = "id" ];
+    // TraceType is an identification of the checkpoint.
+    string TraceType = 2 [ (gogoproto.jsontag) = "trace_type" ];
+    // Status describes whether this was a success or a failure.
+    string Status = 3 [ (gogoproto.jsontag) = "status" ];
+    // Details contains a User friendly message of the check's result.
+    string Details = 4 [ (gogoproto.jsontag) = "details" ];
+    // Error contains the low level error message in case of a failure.
+    string Error = 5 [ (gogoproto.jsontag) = "error" ];
 }
