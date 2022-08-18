@@ -2793,6 +2793,9 @@ message WebSessionSpecV2 {
     (gogoproto.jsontag) = "idle_timeout",
     (gogoproto.casttype) = "Duration"
   ];
+  // ConsumedAccessRequestID is the ID of the access request from which additional roles to assume
+  // were obtained.
+  string ConsumedAccessRequestID = 10 [(gogoproto.jsontag) = "consumed_access_request_id,omitempty"];
 }
 
 // WebSessionFilter encodes cache watch parameters for filtering web sessions.
