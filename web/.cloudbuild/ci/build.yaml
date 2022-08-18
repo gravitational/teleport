@@ -45,7 +45,7 @@ steps:
     args:
       - build
       - '--build-arg'
-      - NPM_SCRIPT=build-and-package-term
+      - NPM_SCRIPT=build-and-package-term-ci
       - '--build-arg'
       - YARN_FROZEN_LOCKFILE=true
       - .

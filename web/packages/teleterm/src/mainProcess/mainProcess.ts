@@ -13,6 +13,7 @@ import { FileStorage, Logger, RuntimeSettings } from 'teleterm/types';
 import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
 import createLoggerService from 'teleterm/services/logger';
 import { ChildProcessAddresses } from 'teleterm/mainProcess/types';
+import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
 
 import {
   ConfigService,
@@ -58,6 +59,7 @@ export default class MainProcess {
   }
 
   private _init() {
+    this.updateAboutPanelIfNeeded();
     this._setAppMenu();
     try {
       this._initTshd();
@@ -174,13 +176,32 @@ export default class MainProcess {
         role: 'help',
         submenu: [
           { label: 'Learn More', click: openDocsUrl },
-          { label: 'About Teleport Connect', role: 'about' },
+          {
+            label: 'About Teleport Connect',
+            click: app.showAboutPanel,
+          },
         ],
       },
     ];
 
     const menu = Menu.buildFromTemplate(isMac ? macTemplate : otherTemplate);
     Menu.setApplicationMenu(menu);
+  }
+
+  private updateAboutPanelIfNeeded(): void {
+    // There is no about menu for Linux. See https://github.com/electron/electron/issues/18918
+    // On Windows default menu does not show copyrights.
+    if (
+      this.settings.platform === 'linux' ||
+      this.settings.platform === 'win32'
+    ) {
+      app.setAboutPanelOptions({
+        applicationName: app.getName(),
+        applicationVersion: app.getVersion(),
+        iconPath: getAssetPath('icon-linux/512x512.png'), //.ico is not supported
+        copyright: `Copyright © ${new Date().getFullYear()} Gravitational, Inc.`,
+      });
+    }
   }
 }
 
