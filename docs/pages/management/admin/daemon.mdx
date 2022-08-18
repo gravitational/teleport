@@ -53,14 +53,14 @@ Wrote config to file "/etc/teleport.yaml". Now you can start the server. Happy T
 
 ## Step 2/3. Creating and Configuring the systemd Daemon
 
-Once you've initiially installed the `teleport` binary and created a Teleport configuration file, let's create and configure the teleport daemon.
+Once you've initially installed the `teleport` binary and created a Teleport configuration file, let's create and configure the teleport daemon.
 
 Systemd is designed to use **unit files**, which are the primary file used to define and set the conditions for
 any needed service daemon on systemd, in this case the `teleport` service. The rest of this guide will focus on creating and configuring the teleport service daemon depending on your preferred installation method, either a package manager, or from source.
 
 ### Creating the systemd Daemon following Package Manager Installation
 
-We have included a default `teleport` daeomon configuration in packages installed with DEM or RPM package managers. To check that this daemon was installed correctly,
+We have included a default `teleport` daemon configuration for packages installed with DEM or RPM package managers. To check that this daemon was installed correctly,
 enter the following command:
 
 ```code
@@ -108,7 +108,7 @@ $ teleport install systemd
 
 If the output describes a good configuration for your environment, enter the command once again using the `-o` flag to
 write the output to the directory path of the unit file itself.
-The file path `/etc/systemd/system/teleport.service` is recommended in most cases as the optimal **unit file load path**,
+The file path `/etc/systemd/system/teleport.service` is recommended in most use cases as the optimal **unit file load path**,
 or the path systemd will use to apply the desired configuration. If you are using a different unit file load path,
 it _must_ be a file path that systemd is able to support for unit file configurations.
 
