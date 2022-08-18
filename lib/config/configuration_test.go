@@ -816,8 +816,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 					"c": {"d"},
 				},
 			},
-		},
-		cmp.AllowUnexported(Service{})))
+		}))
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
