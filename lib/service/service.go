@@ -3293,8 +3293,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
 			Log:       process.log.WithField(trace.Component, teleport.ComponentProxy),
-			Client:    conn.Client,
+			Client:    accessPoint,
 		},
+		NodesGetter: conn.Client,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -3304,7 +3305,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
 			Log:       process.log.WithField(trace.Component, teleport.ComponentProxy),
-			Client:    conn.Client,
+			Client:    accessPoint,
 		},
 		AuthorityGetter: accessPoint,
 		Types:           []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
