@@ -324,7 +324,7 @@ func (tt *bpfContext) expectedAuditEvent(ver int, ip string, op apievents.Sessio
 	}
 }
 
-func TestNetwork(t *testing.T) {
+func TestRootNetwork(t *testing.T) {
 	if !bpfTestEnabled() {
 		t.Skip("BPF testing is disabled")
 	}

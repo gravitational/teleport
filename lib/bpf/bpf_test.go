@@ -45,7 +45,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestWatch(t *testing.T) {
+func TestRootWatch(t *testing.T) {
 	// TODO(jakule): Find a way to run this test in CI. Disable for now to not block all BPF tests.
 	t.Skip("this test always fails when running inside a CGroup/Docker")
 
@@ -128,8 +128,8 @@ func TestWatch(t *testing.T) {
 	}
 }
 
-// TestObfuscate checks if execsnoop can capture Obfuscated commands.
-func TestObfuscate(t *testing.T) {
+// TestRootObfuscate checks if execsnoop can capture Obfuscated commands.
+func TestRootObfuscate(t *testing.T) {
 	// This test must be run as root and the host has to be capable of running
 	// BPF programs.
 	if !bpfTestEnabled() {
@@ -202,17 +202,15 @@ func TestObfuscate(t *testing.T) {
 
 }
 
-// TestScript checks if execsnoop can capture what a script executes.
-func TestScript(t *testing.T) {
+// TestRootScript checks if execsnoop can capture what a script executes.
+func TestRootScript(t *testing.T) {
 	// This test must be run as root and the host has to be capable of running
 	// BPF programs.
 	if !bpfTestEnabled() {
 		t.Skip("BPF testing is disabled")
-		return
 	}
 	if !isRoot() {
 		t.Skip("Tests for package bpf can only be run as root.")
-		return
 	}
 
 	// Start execsnoop.
@@ -267,17 +265,15 @@ func TestScript(t *testing.T) {
 	}
 }
 
-// TestPrograms tests execsnoop, opensnoop, and tcpconnect to make sure they
+// TestRootPrograms tests execsnoop, opensnoop, and tcpconnect to make sure they
 // run and receive events.
-func TestPrograms(t *testing.T) {
+func TestRootPrograms(t *testing.T) {
 	// This test must be run as root. Only root can create cgroups.
 	if !bpfTestEnabled() {
 		t.Skip("BPF testing is disabled")
-		return
 	}
 	if !isRoot() {
 		t.Skip("Tests for package bpf can only be run as root.")
-		return
 	}
 
 	// Start a debug server that tcpconnect will connect to.
@@ -359,16 +355,14 @@ func TestPrograms(t *testing.T) {
 	}
 }
 
-// TestBPFCounter tests that BPF-to-Prometheus counter works ok
-func TestBPFCounter(t *testing.T) {
+// TestRootBPFCounter tests that BPF-to-Prometheus counter works ok
+func TestRootBPFCounter(t *testing.T) {
 	// This test must be run as root. Only root can create cgroups.
 	if !bpfTestEnabled() {
 		t.Skip("BPF testing is disabled")
-		return
 	}
 	if !isRoot() {
 		t.Skip("Tests for package bpf can only be run as root.")
-		return
 	}
 
 	counterTestBPF, err := embedFS.ReadFile("bytecode/counter_test.bpf.o")
