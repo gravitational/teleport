@@ -862,8 +862,10 @@ func TestClusterNodesGet(t *testing.T) {
 
 	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "nodes")
 
+	query := url.Values{"sort": []string{"name"}}
+
 	// Get nodes.
-	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
+	re, err := pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
 
 	nodes := clusterNodesGetResponse{}
@@ -872,7 +874,7 @@ func TestClusterNodesGet(t *testing.T) {
 	require.Equal(t, 1, nodes.TotalCount)
 
 	// Get nodes using shortcut.
-	re, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", currentSiteShortcut, "nodes"), url.Values{})
+	re, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", currentSiteShortcut, "nodes"), query)
 	require.NoError(t, err)
 
 	nodes2 := clusterNodesGetResponse{}
@@ -2354,14 +2356,208 @@ func TestSignMTLS_failsAccessDenied(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, resp.StatusCode)
 }
 
+// TestCheckAccessToRegisteredResource_AccessDenied tests that access denied error
+// is ignored.
+func TestCheckAccessToRegisteredResource_AccessDenied(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "foo", nil /* roles */)
+
+	// newWebPack already registers 1 node.
+	n, err := env.server.Auth().GetNodes(ctx, env.node.GetNamespace())
+	require.NoError(t, err)
+	require.Len(t, n, 1)
+
+	// Checking for access returns true.
+	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "resources", "check")
+	re, err := pack.clt.Get(ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+	resp := checkAccessToRegisteredResourceResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.True(t, resp.HasResource)
+
+	// Deny this resource.
+	fooRole, err := env.server.Auth().GetRole(ctx, "user:foo")
+	require.NoError(t, err)
+	fooRole.SetRules(types.Deny, []types.Rule{types.NewRule(types.KindNode, services.RW())})
+	require.NoError(t, env.server.Auth().UpsertRole(ctx, fooRole))
+
+	// Direct querying should return a access denied error.
+	endpoint = pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "nodes")
+	_, err = pack.clt.Get(ctx, endpoint, url.Values{})
+	require.True(t, trace.IsAccessDenied(err))
+
+	// Checking for access returns false, not an error.
+	endpoint = pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "resources", "check")
+	re, err = pack.clt.Get(ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+	resp = checkAccessToRegisteredResourceResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.False(t, resp.HasResource)
+}
+
+func TestCheckAccessToRegisteredResource(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "foo", nil /* roles */)
+
+	// Delete the node that was created by the `newWebPack` to start afresh.
+	require.NoError(t, env.server.Auth().DeleteNode(ctx, env.node.GetNamespace(), env.node.ID()))
+	n, err := env.server.Auth().GetNodes(ctx, env.node.GetNamespace())
+	require.NoError(t, err)
+	require.Len(t, n, 0)
+
+	// Double check we start of with no resources.
+	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "resources", "check")
+	re, err := pack.clt.Get(ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+	resp := checkAccessToRegisteredResourceResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.False(t, resp.HasResource)
+
+	// Test all cases return true.
+	tests := []struct {
+		name           string
+		resourceKind   string
+		insertResource func()
+		deleteResource func()
+	}{
+		{
+			name: "has registered windows desktop",
+			insertResource: func() {
+				wd, err := types.NewWindowsDesktopV3("test-desktop", nil, types.WindowsDesktopSpecV3{
+					Addr:   "addr",
+					HostID: "hostid",
+				})
+				require.NoError(t, err)
+				require.NoError(t, env.server.Auth().UpsertWindowsDesktop(ctx, wd))
+			},
+			deleteResource: func() {
+				require.NoError(t, env.server.Auth().DeleteWindowsDesktop(ctx, "hostid", "test-desktop"))
+				wds, err := env.server.Auth().GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+				require.NoError(t, err)
+				require.Len(t, wds, 0)
+			},
+		},
+		{
+			name: "has registered node",
+			insertResource: func() {
+				resource, err := types.NewServer("test-node", types.KindNode, types.ServerSpecV2{})
+				require.NoError(t, err)
+				_, err = env.server.Auth().UpsertNode(ctx, resource)
+				require.NoError(t, err)
+			},
+			deleteResource: func() {
+				require.NoError(t, env.server.Auth().DeleteNode(ctx, apidefaults.Namespace, "test-node"))
+				nodes, err := env.server.Auth().GetNodes(ctx, apidefaults.Namespace)
+				require.NoError(t, err)
+				require.Len(t, nodes, 0)
+			},
+		},
+		{
+			name: "has registered app server",
+			insertResource: func() {
+				resource := &types.AppServerV3{
+					Metadata: types.Metadata{Name: "test-app"},
+					Kind:     types.KindAppServer,
+					Version:  types.V2,
+					Spec: types.AppServerSpecV3{
+						HostID: "hostid",
+						App: &types.AppV3{
+							Metadata: types.Metadata{
+								Name: "app-name",
+							},
+							Spec: types.AppSpecV3{
+								URI: "https://console.aws.amazon.com",
+							},
+						},
+					},
+				}
+				_, err := env.server.Auth().UpsertApplicationServer(ctx, resource)
+				require.NoError(t, err)
+			},
+			deleteResource: func() {
+				require.NoError(t, env.server.Auth().DeleteApplicationServer(ctx, apidefaults.Namespace, "hostid", "test-app"))
+				apps, err := env.server.Auth().GetApplicationServers(ctx, apidefaults.Namespace)
+				require.NoError(t, err)
+				require.Len(t, apps, 0)
+			},
+		},
+		{
+			name: "has registered db server",
+			insertResource: func() {
+				db, err := types.NewDatabaseServerV3(types.Metadata{
+					Name: "test-db",
+				}, types.DatabaseServerSpecV3{
+					Protocol: "test-protocol",
+					URI:      "test-uri",
+					Hostname: "test-hostname",
+					HostID:   "test-hostID",
+				})
+				require.NoError(t, err)
+				_, err = env.server.Auth().UpsertDatabaseServer(ctx, db)
+				require.NoError(t, err)
+			},
+			deleteResource: func() {
+				require.NoError(t, env.server.Auth().DeleteDatabaseServer(ctx, apidefaults.Namespace, "test-hostID", "test-db"))
+				dbs, err := env.server.Auth().GetDatabaseServers(ctx, apidefaults.Namespace)
+				require.NoError(t, err)
+				require.Len(t, dbs, 0)
+			},
+		},
+		{
+			name: "has registered kube service",
+			insertResource: func() {
+				_, err := env.server.Auth().UpsertKubeServiceV2(ctx, &types.ServerV2{
+					Metadata: types.Metadata{Name: "test-kube"},
+					Kind:     types.KindKubeService,
+					Version:  types.V2,
+					Spec: types.ServerSpecV2{
+						Addr:               "test",
+						KubernetesClusters: []*types.KubernetesCluster{{Name: "test-kube-name"}},
+					},
+				})
+				require.NoError(t, err)
+			},
+			deleteResource: func() {
+				require.NoError(t, env.server.Auth().DeleteKubeService(ctx, "test-kube"))
+				kubes, err := env.server.Auth().GetKubeServices(ctx)
+				require.NoError(t, err)
+				require.Len(t, kubes, 0)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.insertResource()
+
+			re, err := pack.clt.Get(ctx, endpoint, url.Values{})
+			require.NoError(t, err)
+			resp := checkAccessToRegisteredResourceResponse{}
+			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+			require.True(t, resp.HasResource)
+
+			tc.deleteResource()
+		})
+	}
+}
+
 func TestClusterDatabasesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "test-user@example.com", nil /* roles */)
 
+	query := url.Values{"sort": []string{"name"}}
 	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases")
-	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
+	re, err := pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
 
 	type testResponse struct {
@@ -2390,7 +2586,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 	_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), db)
 	require.NoError(t, err)
 
-	re, err = pack.clt.Get(context.Background(), endpoint, url.Values{})
+	re, err = pack.clt.Get(context.Background(), endpoint, query)
 	require.NoError(t, err)
 
 	resp = testResponse{}
@@ -2498,7 +2694,7 @@ func TestClusterAppsGet(t *testing.T) {
 
 	// Make the call.
 	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "apps")
-	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
+	re, err := pack.clt.Get(context.Background(), endpoint, url.Values{"sort": []string{"name"}})
 	require.NoError(t, err)
 
 	// Test correct response.
@@ -4346,6 +4542,7 @@ func (r *proxy) authPackFromResponse(t *testing.T, httpResp *roundtrip.Response)
 func defaultRoleForNewUser(teleUser types.User, login string) types.Role {
 	role := services.RoleForUser(teleUser)
 	role.SetLogins(types.Allow, []string{login})
+	role.SetWindowsDesktopLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 	options := role.GetOptions()
 	options.ForwardAgent = types.NewBool(true)
 	role.SetOptions(options)
