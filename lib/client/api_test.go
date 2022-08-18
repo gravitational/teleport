@@ -425,6 +425,42 @@ func TestWebProxyHostPort(t *testing.T) {
 	}
 }
 
+func TestGetKubeTLSServerName(t *testing.T) {
+	tests := []struct {
+		name          string
+		kubeProxyAddr string
+		want          string
+	}{
+		{
+			name:          "ipv4 format, API domain should be used",
+			kubeProxyAddr: "127.0.0.1",
+			want:          "kube.teleport.cluster.local",
+		},
+		{
+			name:          "empty host, API domain should be used",
+			kubeProxyAddr: "",
+			want:          "kube.teleport.cluster.local",
+		},
+		{
+			name:          "ipv4 unspecified, API domain should be used ",
+			kubeProxyAddr: "0.0.0.0",
+			want:          "kube.teleport.cluster.local",
+		},
+		{
+			name:          "valid hostname",
+			kubeProxyAddr: "example.com",
+			want:          "kube.example.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := GetKubeTLSServerName(tt.kubeProxyAddr)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
 // TestApplyProxySettings validates that settings received from the proxy's
 // ping endpoint are correctly applied to Teleport client.
 func TestApplyProxySettings(t *testing.T) {

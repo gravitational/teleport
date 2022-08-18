@@ -440,7 +440,7 @@ EOF
 # installs the provided teleport config (for node service)
 install_teleport_node_config() {
     log "Writing Teleport node service config to ${TELEPORT_CONFIG_PATH}"
-    teleport node configure \
+    ${TELEPORT_BINARY_DIR}/teleport node configure \
       --token ${JOIN_TOKEN} \
       ${JOIN_METHOD_FLAG} \
       --ca-pin ${CA_PINS} \
