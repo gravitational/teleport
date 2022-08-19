@@ -495,7 +495,7 @@ steps:
   - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - git clone https://github.com/gravitational/webapps.git .
-  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
+  - git checkout $($WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
     && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
@@ -1725,9 +1725,8 @@ steps:
   - git submodule update --init e
   - git submodule update --init --recursive webassets || true
   - cd /go/src/github.com/gravitational/webapps
-  - git init && git remote add origin git@github.com:gravitational/webapps
-  - git fetch origin
-  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout "$(/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)"
   - git submodule update --init packages/webapps.e
   - cd -
   - rm -f /root/.ssh/id_rsa
@@ -2413,9 +2412,8 @@ steps:
   - git submodule update --init e
   - git submodule update --init --recursive webassets || true
   - cd /go/src/github.com/gravitational/webapps
-  - git init && git remote add origin git@github.com:gravitational/webapps
-  - git fetch origin
-  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout "$(/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)"
   - git submodule update --init packages/webapps.e
   - cd -
   - rm -f /root/.ssh/id_rsa
@@ -3275,7 +3273,7 @@ steps:
   - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - git clone https://github.com/gravitational/webapps.git .
-  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
+  - git checkout $($WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
     && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
@@ -3525,7 +3523,7 @@ steps:
   - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - git clone https://github.com/gravitational/webapps.git .
-  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
+  - git checkout $($WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
     && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
@@ -3714,7 +3712,7 @@ steps:
   - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - git clone https://github.com/gravitational/webapps.git .
-  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
+  - git checkout $($WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
     && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
@@ -6490,6 +6488,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: dd5ac7e488082a4cd5e3b0d03b39c370477de7afe1dec964ef5bcda2973fbf7a
+hmac: 8d24d0c35dfe16df503fe14f13cad929fae4aab143149ef8bcc1775d7c0c4e43
 
 ...
