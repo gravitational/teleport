@@ -21,8 +21,8 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
@@ -102,7 +102,7 @@ func TestAWSMetadata(t *testing.T) {
 
 	// Create metadata fetcher.
 	metadata, err := NewMetadata(MetadataConfig{
-		Clients: &common.TestCloudClients{
+		Clients: &cloud.TestCloudClients{
 			RDS:         rds,
 			Redshift:    redshift,
 			ElastiCache: elasticache,
@@ -263,7 +263,7 @@ func TestAWSMetadataNoPermissions(t *testing.T) {
 
 	// Create metadata fetcher.
 	metadata, err := NewMetadata(MetadataConfig{
-		Clients: &common.TestCloudClients{
+		Clients: &cloud.TestCloudClients{
 			RDS:      rds,
 			Redshift: redshift,
 		},
