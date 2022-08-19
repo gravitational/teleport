@@ -400,7 +400,7 @@ func onDatabaseEnv(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	if tc.TLSRoutingEnabled {
-		return trace.BadParameter(errDBCmdUnsupportedTLSRouting, cf.CommandWithBinary())
+		return trace.BadParameter(dbCmdUnsupportedTLSRouting, cf.CommandWithBinary())
 	}
 
 	database, err := pickActiveDatabase(cf)
@@ -409,7 +409,7 @@ func onDatabaseEnv(cf *CLIConf) error {
 	}
 
 	if !dbprofile.IsSupported(*database) {
-		return trace.BadParameter(errDBCmdUnsupportedDBProtocol,
+		return trace.BadParameter(dbCmdUnsupportedDBProtocol,
 			cf.CommandWithBinary(),
 			defaults.ReadableDatabaseProtocol(database.Protocol),
 		)
@@ -457,7 +457,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	if tc.TLSRoutingEnabled {
-		return trace.BadParameter(errDBCmdUnsupportedTLSRouting, cf.CommandWithBinary())
+		return trace.BadParameter(dbCmdUnsupportedTLSRouting, cf.CommandWithBinary())
 	}
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
@@ -483,7 +483,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 	case defaults.ProtocolMongoDB, defaults.ProtocolRedis, defaults.ProtocolSnowflake:
 		host, port = tc.WebProxyHostPort()
 	default:
-		return trace.BadParameter(errDBCmdUnsupportedDBProtocol,
+		return trace.BadParameter(dbCmdUnsupportedDBProtocol,
 			cf.CommandWithBinary(),
 			defaults.ReadableDatabaseProtocol(database.Protocol),
 		)
@@ -1017,15 +1017,15 @@ const (
 )
 
 const (
-	// errDBCmdUnsupportedTLSRouting is the error message printed when some
+	// dbCmdUnsupportedTLSRouting is the error message printed when some
 	// database subcommands are not supported because TLS routing is enabled.
-	errDBCmdUnsupportedTLSRouting = `"%v" is not supported when TLS routing is enabled on the Teleport Proxy Service.
+	dbCmdUnsupportedTLSRouting = `"%v" is not supported when TLS routing is enabled on the Teleport Proxy Service.
 
 Please use "tsh db connect" or "tsh proxy db" to connect to the database.`
 
-	// errDBCmdUnsupportedDBProtocol is the error message printed when some
+	// dbCmdUnsupportedDBProtocol is the error message printed when some
 	// database subcommands are run against unsupported database protocols.
-	errDBCmdUnsupportedDBProtocol = `"%v" is not supported for %v databases.
+	dbCmdUnsupportedDBProtocol = `"%v" is not supported for %v databases.
 
 Please use "tsh db connect" or "tsh proxy db" to connect to the database.`
 )
