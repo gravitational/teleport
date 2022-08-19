@@ -90,7 +90,7 @@ const (
 
 // SupportedProtocols is the list of supported ALPN protocols.
 var SupportedProtocols = append(
-	ProtocolsWithPing(DatabaseProtocols...),
+	ProtocolsWithPing(ProtocolsWithPingSupport...),
 	append([]Protocol{
 		ProtocolHTTP2,
 		ProtocolHTTP,
@@ -189,4 +189,3 @@ func IsPingProtocol(protocol Protocol) bool {
 func HasPingSupport(protocol Protocol) bool {
 	return slices.Contains(ProtocolsWithPingSupport, protocol)
 }
-

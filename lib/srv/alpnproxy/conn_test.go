@@ -317,7 +317,7 @@ func makePingConn(t *testing.T) (*PingConn, *PingConn) {
 	t.Helper()
 
 	writer, reader := net.Pipe()
-	tlsWriter, tlsReader := makeTlsConn(t, writer, reader)
+	tlsWriter, tlsReader := makeTLSConn(t, writer, reader)
 
 	return NewPingConn(tlsWriter), NewPingConn(tlsReader)
 }
@@ -332,18 +332,27 @@ func makeBufferedPingConn(t *testing.T) (*PingConn, *PingConn) {
 	l, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 
-	connChan := make(chan struct{net.Conn; error}, 2)
+	connChan := make(chan struct {
+		net.Conn
+		error
+	}, 2)
 
 	// Accept
 	go func() {
 		conn, err := l.Accept()
-		connChan <- struct{net.Conn; error}{conn, err}
+		connChan <- struct {
+			net.Conn
+			error
+		}{conn, err}
 	}()
 
 	// Dial
 	go func() {
 		conn, err := net.Dial("tcp", l.Addr().String())
-		connChan <- struct{net.Conn; error}{conn, err}
+		connChan <- struct {
+			net.Conn
+			error
+		}{conn, err}
 	}()
 
 	connSlice := make([]net.Conn, 2)
@@ -357,14 +366,17 @@ func makeBufferedPingConn(t *testing.T) (*PingConn, *PingConn) {
 		}
 	}
 
-	tlsConnA, tlsConnB := makeTlsConn(t, connSlice[0], connSlice[1])
+	tlsConnA, tlsConnB := makeTLSConn(t, connSlice[0], connSlice[1])
 	return NewPingConn(tlsConnA), NewPingConn(tlsConnB)
 }
 
-// makeTlsConn take two connections (client and server) and wrap them into TLS
+// makeTLSConn take two connections (client and server) and wrap them into TLS
 // connections.
-func makeTlsConn(t *testing.T, server, client net.Conn) (*tls.Conn, *tls.Conn) {
-	tlsConnChan := make(chan struct{*tls.Conn; error}, 2)
+func makeTLSConn(t *testing.T, server, client net.Conn) (*tls.Conn, *tls.Conn) {
+	tlsConnChan := make(chan struct {
+		*tls.Conn
+		error
+	}, 2)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -373,13 +385,19 @@ func makeTlsConn(t *testing.T, server, client net.Conn) (*tls.Conn, *tls.Conn) {
 		tlsConn := tls.Server(server, &tls.Config{
 			Certificates: []tls.Certificate{mustGenCertSignedWithCA(t, mustGenSelfSignedCert(t))},
 		})
-		tlsConnChan <- struct{*tls.Conn; error}{tlsConn, tlsConn.Handshake()}
+		tlsConnChan <- struct {
+			*tls.Conn
+			error
+		}{tlsConn, tlsConn.Handshake()}
 	}()
 
 	// Client
 	go func() {
 		tlsConn := tls.Client(client, &tls.Config{InsecureSkipVerify: true})
-		tlsConnChan <- struct{*tls.Conn; error}{tlsConn, tlsConn.Handshake()}
+		tlsConnChan <- struct {
+			*tls.Conn
+			error
+		}{tlsConn, tlsConn.Handshake()}
 	}()
 
 	tlsConnSlice := make([]*tls.Conn, 2)
