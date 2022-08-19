@@ -77,6 +77,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/lib/web"
+	"github.com/gravitational/teleport/tool/common"
 )
 
 var log = logrus.WithFields(logrus.Fields{

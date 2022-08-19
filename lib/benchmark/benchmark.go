@@ -249,7 +249,7 @@ func (c *Config) Sessions(ctx context.Context, tc *client.TeleportClient, pc *we
 
 	cmd := strings.Join(c.Command, " ")
 
-	spawnDuration := 450 * time.Millisecond
+	spawnDuration := 333 * time.Millisecond
 	var sess types.WebSession
 	if c.Web {
 		spawnDuration = 120 * time.Millisecond
@@ -339,28 +339,21 @@ func (c *Config) Sessions(ctx context.Context, tc *client.TeleportClient, pc *we
 							case <-gctx.Done():
 							}
 
+							log.Debug("------ exiting")
 							// send the exit command to kill the ssh session
 							_, err := terminal.Write([]byte("\r\nexit\r\n"))
-							if errors.Is(err, io.EOF) {
-								return nil
-							}
-
 							return trace.Wrap(err)
 						})
 
 						select {
 						case <-ctx.Done():
-							return false, nil
+							return true, nil
 						case <-gctx.Done():
-							return false, nil
+							return true, nil
 						default:
 						}
 
 						if _, err := terminal.Write([]byte(cmd + "\r\n")); err != nil {
-							if ctx.Err() != nil {
-								return false, nil
-							}
-
 							return true, trace.Wrap(err)
 						}
 
@@ -385,7 +378,7 @@ func (c *Config) Sessions(ctx context.Context, tc *client.TeleportClient, pc *we
 					return
 				default:
 					f()
-					if ctx.Err() != nil {
+					if ctx.Err() == nil {
 						logger.Warn("---- Session closed, opening a new one")
 					}
 				}
@@ -417,7 +410,7 @@ func (c *Config) Sessions(ctx context.Context, tc *client.TeleportClient, pc *we
 	for {
 		select {
 		case <-ctx.Done():
-			logrus.Infof("--------------------- waiting for %d sessions to be closed", sessionCounter.Load())
+			fmt.Printf("waiting for sessions to be terminated...")
 			g.Wait()
 			return nil
 		case <-statusTicker.C:
