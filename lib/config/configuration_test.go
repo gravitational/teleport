@@ -799,8 +799,8 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.Empty(t, cmp.Diff(cfg.Databases.AzureMatchers,
 		[]services.AzureMatcher{
 			{
-				Subscriptions:  []string{"sub1", "sub2"},     // deduplicated subscriptions
-				ResourceGroups: []string{"group1", "group2"}, // deduplicated resource groups
+				Subscriptions:  []string{"sub1", "sub2"},
+				ResourceGroups: []string{"group1", "group2"},
 				Types:          []string{"postgres", "mysql"},
 				Regions:        []string{"eastus", "centralus"},
 				ResourceTags: map[string]apiutils.Strings{
@@ -808,21 +808,12 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 				},
 			},
 			{
-				Subscriptions:  []string{"*"},
-				ResourceGroups: []string{"*"},
+				Subscriptions:  nil,
+				ResourceGroups: nil,
 				Types:          []string{"postgres", "mysql"},
 				Regions:        []string{"westus"},
 				ResourceTags: map[string]apiutils.Strings{
 					"c": {"d"},
-				},
-			},
-			{
-				Subscriptions:  []string{"*"}, // wildcard equivalence
-				ResourceGroups: []string{"*"}, // wildcard equivalence
-				Types:          []string{"postgres", "mysql"},
-				Regions:        []string{"westus"},
-				ResourceTags: map[string]apiutils.Strings{
-					"e": {"f"},
 				},
 			},
 		}))
