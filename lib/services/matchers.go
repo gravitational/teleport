@@ -73,20 +73,6 @@ type AzureMatcher struct {
 	ResourceTags types.Labels
 }
 
-// AzureMatcher matches Azure databases.
-type AzureMatcher struct {
-	// Subscriptions are Azure subscriptions to query for resources
-	Subscriptions []string
-	// ResourceGroups are Azure resource groups to query for resources.
-	ResourceGroups []string
-	// Types are Azure database types to match, "rds" or "redshift".
-	Types []string
-	// Regions are Azure regions to query for databases.
-	Regions []string
-	// Tags are Azure tags to match.
-	Tags types.Labels
-}
-
 // MatchResourceLabels returns true if any of the provided selectors matches the provided database.
 func MatchResourceLabels(matchers []ResourceMatcher, resource types.ResourceWithLabels) bool {
 	for _, matcher := range matchers {
