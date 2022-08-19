@@ -34,8 +34,6 @@ func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	assumedRoleRequestID := ctx.session.GetAssumedRoleRequestID()
-
 	resp, err := listResources(clt, r, types.KindKubernetesCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -50,7 +48,7 @@ func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p http
 		Items:                ui.MakeKubeClusters(clusters),
 		StartKey:             resp.NextKey,
 		TotalCount:           resp.TotalCount,
-		AssumedRoleRequestID: assumedRoleRequestID,
+		AssumedRoleRequestID: ctx.session.GetAssumedRoleRequestID(),
 	}, nil
 }
 
@@ -60,8 +58,6 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	assumedRoleRequestID := ctx.session.GetAssumedRoleRequestID()
 
 	resp, err := listResources(clt, r, types.KindDatabaseServer)
 	if err != nil {
@@ -83,7 +79,7 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 		Items:                ui.MakeDatabases(h.auth.clusterName, databases),
 		StartKey:             resp.NextKey,
 		TotalCount:           resp.TotalCount,
-		AssumedRoleRequestID: assumedRoleRequestID,
+		AssumedRoleRequestID: ctx.session.GetAssumedRoleRequestID(),
 	}, nil
 }
 
