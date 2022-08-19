@@ -70,6 +70,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindToken, RW()),
 					types.NewRule(types.KindConnectionDiagnostic, RW()),
 					types.NewRule(types.KindDatabaseCertificate, RW()),
+					types.NewRule(types.KindInstaller, RW()),
 				},
 			},
 		},

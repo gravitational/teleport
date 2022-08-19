@@ -570,6 +570,7 @@ steps:
   - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
   - rustup override set $RUST_VERSION
   - export BUILD_NUMBER=$DRONE_BUILD_NUMBER
+  - export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83
   - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
   - security find-identity -v
   - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
@@ -649,7 +650,6 @@ trigger:
     include:
     - master
     - branch/*
-    - tcsc/build-windows*
 workspace:
   path: C:/Drone/Workspace/push-build-native-windows-amd64
 platform:
@@ -734,9 +734,9 @@ steps:
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Enable-Node -NodeVersion $NodeVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
   - cd $WebappsSrc
-  - yarn install
+  - yarn install --frozen-lockfile
   - yarn build-term
-  - yarn package-term
+  - yarn package-term -c.extraMetadata.version=$VERSION
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
 - name: Clean up workspace (post)
@@ -763,17 +763,13 @@ name: build-native-windows-amd64
 trigger:
   event:
     include:
-    - push
-    exclude:
-    - pull_request
+    - tag
+  ref:
+    include:
+    - refs/tags/v*
   repo:
     include:
     - gravitational/*
-  branch:
-    include:
-    - master
-    - branch/*
-    - tcsc/build-windows*
 workspace:
   path: C:/Drone/Workspace/build-native-windows-amd64
 platform:
@@ -781,6 +777,8 @@ platform:
   arch: amd64
 clone:
   disable: true
+depends_on:
+- build-windows-amd64
 concurrency:
   limit: 1
 steps:
@@ -858,9 +856,9 @@ steps:
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Enable-Node -NodeVersion $NodeVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
   - cd $WebappsSrc
-  - yarn install
+  - yarn install --frozen-lockfile
   - yarn build-term
-  - yarn package-term
+  - yarn package-term -c.extraMetadata.version=$VERSION
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Upload Artifacts
@@ -868,7 +866,6 @@ steps:
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
   - $WebappsSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/webapps"
-  - $Env:DRONE_TAG="v10.1.2"
   - $TeleportVersion=$Env:DRONE_TAG.TrimStart('v')
   - $OutputsDir="$Workspace/outputs"
   - New-Item -Path "$OutputsDir" -ItemType 'Directory' | Out-Null
@@ -880,11 +877,12 @@ steps:
   - Copy-Artifacts -Path $OutputsDir -Bucket $Env:AWS_S3_BUCKET -DstRoot "/teleport/tag/$TeleportVersion"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: MOCK_AWS_ACCESS_KEY_ID
-    AWS_REGION: ap-southeast-2
-    AWS_S3_BUCKET: trents-mock-dronestorage
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
-      from_secret: MOCK_AWS_SECRET_ACCESS_KEY
+      from_secret: AWS_SECRET_ACCESS_KEY
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Clean up workspace (post)
   commands:
@@ -1490,6 +1488,50 @@ steps:
       - docker push $ENT_IMAGE_NAME_PROD
       - docker push $OSS_IMAGE_NAME_PROD
       - docker push $ENT_FIPS_IMAGE_NAME_PROD
+
+  - name: Build/push Teleport Lab Docker image
+    image: docker:git
+    environment:
+      OS: linux
+      ARCH: amd64
+      STAGING_AWS_ACCESS_KEY_ID:
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      STAGING_AWS_SECRET_ACCESS_KEY:
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      PROD_AWS_ACCESS_KEY_ID:
+        from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      PROD_AWS_SECRET_ACCESS_KEY:
+        from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache aws-cli
+      - export CURRENT_DATE=$(date '+%Y%m%d%H%M')
+      - export TELEPORT_TAG=$(cat /go/build/CURRENT_VERSION_TAG.txt | tr -d '^v')
+      - export TELEPORT_LAB_IMAGE_NAME_STAGING="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)-$CURRENT_DATE"
+      - export TELEPORT_LAB_IMAGE_NAME_PROD="public.ecr.aws/gravitational/teleport-lab:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
+       # Check out code
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git init && git remote add origin ${DRONE_REMOTE_URL}
+      - git fetch origin
+      - git checkout -qf ${DRONE_COMMIT_SHA}
+      # Authenticate to staging registry
+      - export AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID"
+      - export AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY"
+      - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
+      # Build and push image
+      - docker build --build-arg TELEPORT_TAG=$TELEPORT_TAG -t $TELEPORT_LAB_IMAGE_NAME_STAGING /go/src/github.com/gravitational/teleport/docker/sshd
+      - docker push $TELEPORT_LAB_IMAGE_NAME_STAGING
+      # Authenticate to production registry
+      - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
+      - export AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID"
+      - export AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY"
+      - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin public.ecr.aws
+      # Push to production registry
+      - docker tag $TELEPORT_LAB_IMAGE_NAME_STAGING $TELEPORT_LAB_IMAGE_NAME_PROD
+      - docker push $TELEPORT_LAB_IMAGE_NAME_PROD
 
 services:
   - name: Start Docker
@@ -3562,6 +3604,7 @@ steps:
   - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
   - rustup override set $RUST_VERSION
   - export BUILD_NUMBER=$DRONE_BUILD_NUMBER
+  - export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83
   - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
   - security find-identity -v
   - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
@@ -5299,10 +5342,6 @@ steps:
       GOPATH: /go
       OS: linux
       ARCH: amd64
-      QUAY_USERNAME:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      QUAY_PASSWORD:
-        from_secret: QUAYIO_DOCKER_PASSWORD
       AWS_ACCESS_KEY_ID:
         from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
       AWS_SECRET_ACCESS_KEY:
@@ -5313,7 +5352,6 @@ steps:
     commands:
       - apk add --no-cache make bash aws-cli
       - chown -R $UID:$GID /go
-      - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" quay.io
       - aws ecr get-login-password --region us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
       - cd /go/src/github.com/gravitational/teleport
       - make image-ci publish-ci
@@ -5567,7 +5605,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/buildbox.go:67
+# Generated at dronegen/buildbox.go:83
 ################################################
 
 kind: pipeline
@@ -5609,48 +5647,154 @@ steps:
 - name: buildbox
   image: docker
   commands:
-  - apk add --no-cache make
+  - apk add --no-cache make aws-cli
   - chown -R $UID:$GID /go
-  - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
+  - export AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID"
+  - export AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY"
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
   - make -C build.assets buildbox
-  - docker push quay.io/gravitational/teleport-buildbox:$BUILDBOX_VERSION
+  - docker tag public.ecr.aws/gravitational/teleport-buildbox:$BUILDBOX_VERSION 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
+  - docker push 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
+  - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - export AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID"
+  - export AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY"
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker push public.ecr.aws/gravitational/teleport-buildbox:$BUILDBOX_VERSION
   environment:
-    QUAYIO_DOCKER_PASSWORD:
-      from_secret: QUAYIO_DOCKER_PASSWORD
-    QUAYIO_DOCKER_USERNAME:
-      from_secret: QUAYIO_DOCKER_USERNAME
+    PROD_AWS_ACCESS_KEY_ID:
+      from_secret: PRODUCTION_BUILDBOX_DRONE_USER_ECR_KEY
+    PROD_AWS_SECRET_ACCESS_KEY:
+      from_secret: PRODUCTION_BUILDBOX_DRONE_USER_ECR_SECRET
+    STAGING_AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_BUILDBOX_DRONE_USER_ECR_KEY
+    STAGING_AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_BUILDBOX_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
 - name: buildbox-fips
   image: docker
   commands:
-  - apk add --no-cache make
+  - apk add --no-cache make aws-cli
   - chown -R $UID:$GID /go
-  - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
+  - export AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID"
+  - export AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY"
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
   - make -C build.assets buildbox-fips
-  - docker push quay.io/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION
+  - docker tag public.ecr.aws/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION
+    146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
+  - docker push 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
+  - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - export AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID"
+  - export AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY"
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker push public.ecr.aws/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION
   environment:
-    QUAYIO_DOCKER_PASSWORD:
-      from_secret: QUAYIO_DOCKER_PASSWORD
-    QUAYIO_DOCKER_USERNAME:
-      from_secret: QUAYIO_DOCKER_USERNAME
+    PROD_AWS_ACCESS_KEY_ID:
+      from_secret: PRODUCTION_BUILDBOX_DRONE_USER_ECR_KEY
+    PROD_AWS_SECRET_ACCESS_KEY:
+      from_secret: PRODUCTION_BUILDBOX_DRONE_USER_ECR_SECRET
+    STAGING_AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_BUILDBOX_DRONE_USER_ECR_KEY
+    STAGING_AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_BUILDBOX_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
 - name: buildbox-arm
   image: docker
   commands:
-  - apk add --no-cache make
+  - apk add --no-cache make aws-cli
   - chown -R $UID:$GID /go
-  - docker login -u="$$QUAYIO_DOCKER_USERNAME" -p="$$QUAYIO_DOCKER_PASSWORD" quay.io
+  - export AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID"
+  - export AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY"
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
   - make -C build.assets buildbox-arm
-  - docker push quay.io/gravitational/teleport-buildbox-arm:$BUILDBOX_VERSION
+  - docker tag public.ecr.aws/gravitational/teleport-buildbox-arm:$BUILDBOX_VERSION
+    146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-arm:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
+  - docker push 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-arm:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
+  - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - export AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID"
+  - export AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY"
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker push public.ecr.aws/gravitational/teleport-buildbox-arm:$BUILDBOX_VERSION
   environment:
-    QUAYIO_DOCKER_PASSWORD:
-      from_secret: QUAYIO_DOCKER_PASSWORD
-    QUAYIO_DOCKER_USERNAME:
-      from_secret: QUAYIO_DOCKER_USERNAME
+    PROD_AWS_ACCESS_KEY_ID:
+      from_secret: PRODUCTION_BUILDBOX_DRONE_USER_ECR_KEY
+    PROD_AWS_SECRET_ACCESS_KEY:
+      from_secret: PRODUCTION_BUILDBOX_DRONE_USER_ECR_SECRET
+    STAGING_AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_BUILDBOX_DRONE_USER_ECR_KEY
+    STAGING_AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_BUILDBOX_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+- name: buildbox-centos7
+  image: docker
+  commands:
+  - apk add --no-cache make aws-cli
+  - chown -R $UID:$GID /go
+  - export AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID"
+  - export AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY"
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - make -C build.assets buildbox-centos7
+  - docker tag public.ecr.aws/gravitational/teleport-buildbox-centos7:$BUILDBOX_VERSION
+    146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-centos7:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
+  - docker push 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-centos7:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
+  - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - export AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID"
+  - export AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY"
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker push public.ecr.aws/gravitational/teleport-buildbox-centos7:$BUILDBOX_VERSION
+  environment:
+    PROD_AWS_ACCESS_KEY_ID:
+      from_secret: PRODUCTION_BUILDBOX_DRONE_USER_ECR_KEY
+    PROD_AWS_SECRET_ACCESS_KEY:
+      from_secret: PRODUCTION_BUILDBOX_DRONE_USER_ECR_SECRET
+    STAGING_AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_BUILDBOX_DRONE_USER_ECR_KEY
+    STAGING_AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_BUILDBOX_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+- name: buildbox-centos7-fips
+  image: docker
+  commands:
+  - apk add --no-cache make aws-cli
+  - chown -R $UID:$GID /go
+  - export AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID"
+  - export AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY"
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - make -C build.assets buildbox-centos7-fips
+  - docker tag public.ecr.aws/gravitational/teleport-buildbox-centos7-fips:$BUILDBOX_VERSION
+    146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-centos7-fips:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
+  - docker push 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-centos7-fips:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
+  - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - export AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID"
+  - export AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY"
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - docker push public.ecr.aws/gravitational/teleport-buildbox-centos7-fips:$BUILDBOX_VERSION
+  environment:
+    PROD_AWS_ACCESS_KEY_ID:
+      from_secret: PRODUCTION_BUILDBOX_DRONE_USER_ECR_KEY
+    PROD_AWS_SECRET_ACCESS_KEY:
+      from_secret: PRODUCTION_BUILDBOX_DRONE_USER_ECR_SECRET
+    STAGING_AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_BUILDBOX_DRONE_USER_ECR_KEY
+    STAGING_AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_BUILDBOX_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -5990,6 +6134,7 @@ steps:
   - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
   - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}
   - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
+  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$${VERSION}
   - echo "---> Tagging images for $${VERSION}"
   - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
     public.ecr.aws/gravitational/teleport:$${VERSION}
@@ -5997,6 +6142,8 @@ steps:
     public.ecr.aws/gravitational/teleport-ent:$${VERSION}
   - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
     public.ecr.aws/gravitational/teleport-ent:$${VERSION}-fips
+  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$${VERSION}
+    public.ecr.aws/gravitational/teleport-operator:$${VERSION}
   - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -6004,6 +6151,7 @@ steps:
   - docker push public.ecr.aws/gravitational/teleport:$${VERSION}
   - docker push public.ecr.aws/gravitational/teleport-ent:$${VERSION}
   - docker push public.ecr.aws/gravitational/teleport-ent:$${VERSION}-fips
+  - docker push public.ecr.aws/gravitational/teleport-operator:$${VERSION}
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
@@ -6027,7 +6175,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/promote.go:82
+# Generated at dronegen/promote.go:85
 ################################################
 
 kind: pipeline
@@ -6067,14 +6215,13 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - export VERSION=${DRONE_TAG##v}
-  - docker login -u="$STAGING_QUAY_USERNAME" -p="$STAGING_QUAY_PASSWORD" quay.io
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
   - echo "---> Pulling images for $${VERSION}"
   - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
   - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}
   - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
-  - docker pull quay.io/gravitational/teleport-operator-ci:$${VERSION}
+  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$${VERSION}
   - echo "---> Tagging images for $${VERSION}"
   - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
     quay.io/gravitational/teleport:$${VERSION}
@@ -6082,8 +6229,8 @@ steps:
     quay.io/gravitational/teleport-ent:$${VERSION}
   - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
     quay.io/gravitational/teleport-ent:$${VERSION}-fips
-  - docker tag quay.io/gravitational/teleport-operator-ci:$${VERSION} quay.io/gravitational/teleport-operator:$${VERSION}
-  - docker logout quay.io
+  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$${VERSION}
+    quay.io/gravitational/teleport-operator:$${VERSION}
   - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" quay.io
   - echo "---> Pushing images for $${VERSION}"
@@ -6100,10 +6247,6 @@ steps:
       from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
       from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
-    STAGING_QUAY_PASSWORD:
-      from_secret: QUAYIO_DOCKER_PASSWORD
-    STAGING_QUAY_USERNAME:
-      from_secret: QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -6596,6 +6739,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: b03afbc48b21be58bfa2806a62e2fc080d21675a34387eafaa63825aad6233d1
+hmac: e651c8951b67208b9fb13cb185ba8349dd11d7be1b2ec0e55c850a500e83690a
 
 ...

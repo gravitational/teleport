@@ -1,5 +1,5 @@
 clusterName: helm-lint
-authenticationSecondFactor:
+authentication:
   secondFactor: "on"
   webauthn:
     attestationAllowedCas:
