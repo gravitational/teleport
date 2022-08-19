@@ -5675,8 +5675,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/promote.go:82
-# Generated at dronegen/promote.go:84
+# Generated at dronegen/promote.go:85
 ################################################
 
 kind: pipeline
@@ -5766,7 +5765,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/promote.go:27
+# Generated at dronegen/promote.go:28
 ################################################
 
 kind: pipeline
@@ -6285,6 +6284,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 87c7ed9a0134b3f76229b5c745757a78c484029d2c22e80ba1f3b5a44750d34b
+hmac: eb099bfe92d2af6409a022255404282ba93f0c4d071f152d48ea0745457cb895
 
 ...
