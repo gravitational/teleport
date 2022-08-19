@@ -419,8 +419,6 @@ const (
 )
 
 const (
-	// CertExtensionPermitFileCopying allows the use of SCP/SFTP for certificate
-	CertExtensionPermitFileCopying = "permit-file-copying"
 	// CertExtensionPermitX11Forwarding allows X11 forwarding for certificate
 	CertExtensionPermitX11Forwarding = "permit-X11-forwarding"
 	// CertExtensionPermitAgentForwarding allows agent forwarding for certificate
