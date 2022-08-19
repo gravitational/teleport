@@ -59,7 +59,7 @@ func artifactMigrationPipeline() []pipeline {
 		// "v8.3.14",
 		// "v8.3.15",
 		// "v8.3.16",
-		"v8.3.17",
+		// "v8.3.17",
 		// "v9.0.0",
 		// "v9.0.1",
 		// "v9.0.2",
@@ -93,7 +93,7 @@ func artifactMigrationPipeline() []pipeline {
 	}
 	// Pushing to this branch will trigger the listed versions to be migrated. Typically this should be
 	// the branch that these changes are being committed to.
-	migrationBranch := "fred/os-package-fix-1-backport-branch/v9" // "rfd/0058-package-distribution"
+	migrationBranch := "" // "rfd/0058-package-distribution"
 
 	aptPipeline := migrateAptPipeline(migrationBranch, migrationVersions)
 	yumPipeline := migrateYumPipeline(migrationBranch, migrationVersions)
