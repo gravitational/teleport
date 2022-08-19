@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"encoding/base32"
+	"errors"
 	"fmt"
 	"image/png"
 	"os"
@@ -606,6 +607,11 @@ func (c *mfaRemoveCommand) run(cf *CLIConf) error {
 		if ack == nil {
 			return trace.BadParameter("server bug: server sent %T when client expected DeleteMFADeviceResponse_Ack", resp.Response)
 		}
+		// If deleted device was webauthn device, try to delete touch-id credentials.
+		if wanDevice := ack.GetDevice().GetWebauthn(); wanDevice != nil {
+			deleteTouchIDCredentialIfApplicable(string(wanDevice.CredentialId))
+		}
+
 		return nil
 	}); err != nil {
 		return trace.Wrap(err)
@@ -662,4 +668,13 @@ func showOTPQRCode(k *otp.Key) (cleanup func(), retErr error) {
 			log.WithError(err).Debug("Failed to stop the QR code image viewer")
 		}
 	}, nil
+}
+
+func deleteTouchIDCredentialIfApplicable(credentialID string) {
+	switch err := touchid.AttemptDeleteNonInteractive(credentialID); {
+	case errors.Is(err, &touchid.ErrAttemptFailed{}):
+		// Nothing to do here, just proceed.
+	case err != nil:
+		log.WithError(err).Errorf("Failed to delete credential: %s\n", credentialID)
+	}
 }
