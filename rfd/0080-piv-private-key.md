@@ -160,7 +160,7 @@ In order to enforce the user private key usage, we need to take a certificate's 
 First, we need to get attestation data from the user's hardware key during login, which we will do with the new rpc `AttestHardwarePrivateKey`.
 
 ```proto
-service AuthService {
+service HardwareKeyService {
   rpc AttestHardwarePrivateKey(AttestHardwarePrivateKeyRequest) returns (AttestHardwarePrivateKeyResponse);
 }
 
@@ -182,7 +182,7 @@ In addition to verifying the certificate chain for a user's hardware private key
  - Device information, including serial number, model, version 
  - Configured Touch (And PIN) Policies if any
 
-This attestation data will be check against server settings. If the attestation is valid, it will be stored in the backend in `/hardware_key_attestations/<public_key_der>`.
+This attestation data will be check against server settings. If the attestation is valid, it will be stored in the backend in `/hardware_key_attestations/SHA256(public_key_der)`.
 
 ```go
 type AttestationData struct {
@@ -216,7 +216,7 @@ Teleport clients will need the ability to connect to a user's hardware key, gene
 Teleport clients should be able to automatically determine if a user requires a hardware private key for login to avoid additional UX concerns. For this, we will introduce the `GetPrivateKeyPolicy` rpc.
 
 ```proto
-service AuthService {
+service HardwareKeyService {
   rpc GetPrivateKeyPolicy(GetPrivateKeyPolicyRequest) returns (GetPrivateKeyPolicyResponse);
 }
 
@@ -236,9 +236,7 @@ enum PrivateKeyPolicy {
 
 In order for a Teleport Client to call `GetPrivateKeyPolicy`, it first needs a set of valid certificates. Unlike `IsMFARequired`, which issues an MFA certificate Reissue request after logging in with non-MFA certificates, we need to call `GetPrivateKeyPolicy` on the initial login.
 
-One option is to make add an endpoint in the Proxy Web API which can be called before login. In order to authenticate the user, we would need them to login with their login credentials. For MFA and Password login, we can potentially reuse these password credentials to intiate the actual login directly after retrieving the user's private key policy requirement. However, for sso login and some edge cases is MFA login (OTP token timing, between requests, etc.), the user would be required to perform the login twice.
-
-Alternatively, we could provide a user with set of certificates using a plain RSA private key in memory first. The resulting certificates will fail the hardware key attestation check in the Auth server, so they will be invalid for all API requests, except for `GetPrivateKeyPolicy` and `GenerateUserCerts`. This way, after the initial login, `GenerateUserCerts` can be used to issue new certificates with a hardware private key.
+We can provide a user with set of certificates using a plain RSA private key in memory first. The resulting certificates will fail the hardware key attestation check in the Auth server, so they will be invalid for all API requests, except for `GetPrivateKeyPolicy` and `GenerateUserCerts`. This way, after the initial login, `GenerateUserCerts` can be used to issue new certificates with a hardware private key.
 
 While this strategy does prevent the user from needing to login twice, it presents a possible workaround. If a Teleport Client stores the initial RSA private key and certificates, then they can be used by anyone to reissue hardware key certifificates. To mitigate this risk, the initial certificates will have a TTL of 1 minute and will only be authorized for a single reissue request. This flow is similar to per-session MFA, which also issues one-time-use certificates with a 1 minute TTL.
 
@@ -257,9 +255,27 @@ The resulting certificates from will only be operable if:
  - The hardware private key can still be found
  - The hardware private keys' Touch challenges are passed (if applicable)
 
-#### PIV slot overwrite/reuse logic
+#### PIV slot logic
 
-For PIV hardware keys, we will use slot `9a`, which is reserved for authentication. Before generating a new private key, Teleport clients will check if PIV slot `9a` is already in use by a Teleport client. If it is, then the client will reuse the existing private key instead of generating a new one. Otherwise, it will generate a new private key.
+PIV provides us with up to 24 different slots. Each slot has a different intended purpose, but functionally they are the same. We will use the first two slots (`9a` and `9c`) to store up to two keys at a time (the first with `TouchPolicy=never` and the second with `TouchPolicy=cached`).
+
+Each of these keys will be generated for the first time when a Teleport client is required to meet its respective private key policy. Once a key is generated, it will be reused by any other Teleport client required to meet the same private key policy. Reusable keys will be detectable by checking the slot's stored certificate, which will be given a self-signed metadata-containing certificate created by Teleport clients.
+
+If a Teleport Client notices that a slot is in use, but not by a Teleport client, then it should prompt the user before overwriting the slot. This will also be done by checking the certificate stored in the slot. We will share the certificate in the prompt, since it may contain identifying information. e.g:
+
+```
+> tsh login
+Hardware key slot 9a appears to be in use by another program.
+Slot 9a:
+	Algorithm:	ECCP256
+	Subject DN:	CN=SSH key
+	Issuer DN:	OU=(devel),O=yubikey-agent
+	Serial:		20876611871300106558747702921785395021
+	Fingerprint:	1ce4faf8bdbfc9668a9f532c20b03ccf1dbadcd06b51f235aeb3fe388bb1703b
+	Not before:	2022-08-19 01:10:14
+	Not after:	2064-08-19 01:10:14
+Would you like to overwrite this slot? (y/N):
+```
 
 #### Private key interface
 
@@ -270,22 +286,44 @@ With a hardware private key, we only have access to a raw `crypto.PrivateKey`, a
 We also need a way for future Teleport Client requests to retrieve the correct `crypto.PrivateKey`. For RSA keys, we can continue to store them as PEM encoded keys in (`~/.tsh/keys/proxy/user`). For hardware private keys, we will instead store a fake PEM encoded private key which we can use to identity what device and slot to load the private key from.
 
 ```
------BEGIN YUBIKEY PRIVATE KEY-----
-# PEM encoded `yubikey_serial_number+slot`
------END YUBIKEY PRIVATE KEY-----
+-----BEGIN YUBIKEY PIV PRIVATE KEY-----
+# PEM encoded
+serial_number=<serial_number>
+slot=<slot>
+-----END YUBIKEY PIV PRIVATE KEY-----
 ```
 
 #### Supported clients
 
 `tsh` and Teleport Connect will both support hardware private key login, and `tctl` will be able to use resulting login sessions. 
 
-Supporting hardware private key login through the WebUI needs to be investigated more thoroughly, but it poses a challenge since it is browser-based and does not have direct access to the user's local hardware keys.
+#### Unsupported clients
+
+The WebUI will not be able to support PIV login, since it is brower-based and cannot connect directly to the user's PIV device. If a user with `require_session_mfa: hardware_key` attempts to login on the WebUI, or use an existing login session, it will fail.
+
+It may be possible to work around this limitation by introducing a local proxy to connect to the hardware key, or by supporting a hardware key solution which doesn't need a direct connection, but this is out of scope and will not be explored in this PR. 
+
+In cases where WebUI access is needed or desired, cluster admins should only apply `require_session_mfa: hardware_key | hardware_key_touch` selectively to roles which warrant more protection. Teleport Connect will also serve as a great UI alternative.
 
 ### UX
 
-The most notable UX change is that a user's login session will not be usable unless their hardware key is connected.
+#### Hardware key connected
 
-If `private_key_policy: hardware_key_touch` is used, then every Teleport Client request will require touch (cached for 15 seconds). This will be handled by a touch prompt similar to the one used for MFA.
+Unlike normal Teleport login sessions, hardware key login sessions will only be functional so long as the hardware key is connected. If a user attempts to use the Teleport client with the key unplugged, they will get an error:
+
+```
+> tsh ls
+ERROR: Please reconnect the hardware key you used to login (yubikey <serial_number>), or re-login.
+```
+
+#### Touch requirement
+
+If `private_key_policy: hardware_key_touch` is required for a user, then Teleport client requests will require touch (cached for 15 seconds). This will be handled by a touch prompt similar to the one used for MFA.
+
+```
+> tsh ls
+Tap your security key
+```
 
 ### Additional considerations
 
