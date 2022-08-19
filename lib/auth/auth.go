@@ -1566,20 +1566,21 @@ func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADe
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(a.deleteMFADeviceSafely(ctx, token.GetUser(), req.GetDeviceName()))
+	_, err = a.deleteMFADeviceSafely(ctx, token.GetUser(), req.GetDeviceName())
+	return trace.Wrap(err)
 }
 
 // deleteMFADeviceSafely deletes the user's mfa device while preventing users from deleting their last device
 // for clusters that require second factors, which prevents users from being locked out of their account.
-func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName string) error {
+func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName string) (*types.MFADevice, error) {
 	devs, err := a.Services.GetMFADevices(ctx, user, true)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	kindToSF := map[string]constants.SecondFactorType{
@@ -1601,7 +1602,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		sf, ok := kindToSF[fmt.Sprintf("%T", d.Device)]
 		switch {
 		case !ok && d == deviceToDelete:
-			return trace.NotImplemented("cannot delete device of type %T", d.Device)
+			return nil, trace.NotImplemented("cannot delete device of type %T", d.Device)
 		case !ok:
 			log.Warnf("Ignoring unknown device with type %T in deletion.", d.Device)
 			continue
@@ -1611,7 +1612,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		knownDevices++
 	}
 	if deviceToDelete == nil {
-		return trace.NotFound("MFA device %q does not exist", deviceName)
+		return nil, trace.NotFound("MFA device %q does not exist", deviceName)
 	}
 
 	// Prevent users from deleting their last device for clusters that require second factors.
@@ -1620,26 +1621,26 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 	case constants.SecondFactorOff, constants.SecondFactorOptional: // MFA is not required, allow deletion
 	case constants.SecondFactorOn:
 		if knownDevices < minDevices {
-			return trace.BadParameter(
+			return nil, trace.BadParameter(
 				"cannot delete the last MFA device for this user; add a replacement device first to avoid getting locked out")
 		}
 	case constants.SecondFactorOTP, constants.SecondFactorWebauthn:
 		if sfToCount[sf] < minDevices {
-			return trace.BadParameter(
+			return nil, trace.BadParameter(
 				"cannot delete the last %s device for this user; add a replacement device first to avoid getting locked out", sf)
 		}
 	default:
-		return trace.BadParameter("unexpected second factor type: %s", sf)
+		return nil, trace.BadParameter("unexpected second factor type: %s", sf)
 	}
 
 	if err := a.DeleteMFADevice(ctx, user, deviceToDelete.Id); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Emit deleted event.
 	clusterName, err := a.GetClusterName()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.MFADeviceDelete{
 		Metadata: apievents.Metadata{
@@ -1652,10 +1653,9 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		},
 		MFADeviceMetadata: mfaDeviceEventMetadata(deviceToDelete),
 	}); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
-	return nil
+	return deviceToDelete, nil
 }
 
 // AddMFADeviceSync implements AuthService.AddMFADeviceSync.

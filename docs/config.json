@@ -294,6 +294,10 @@
             {
               "title": "teleport-kube-agent",
               "slug": "/setup/helm-reference/teleport-kube-agent/"
+            },
+            {
+              "title": "teleport-plugin-event-handler",
+              "slug": "/setup/helm-reference/teleport-plugin-event-handler/"
             }
           ]
         }

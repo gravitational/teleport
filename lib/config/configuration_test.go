@@ -336,6 +336,24 @@ func TestConfigReading(t *testing.T) {
 			},
 			Labels:   Labels,
 			Commands: CommandLabels,
+			AWSMatchers: []AWSEC2Matcher{
+				{
+					Matcher: AWSMatcher{
+						Types:   []string{"ec2"},
+						Regions: []string{"us-west-1", "us-east-1"},
+						Tags: map[string]apiutils.Strings{
+							"a": {"b"},
+						},
+					},
+					InstallParams: &InstallParams{
+						JoinParams: JoinParams{
+							TokenName: "aws-discovery-iam-token",
+							Method:    "iam",
+						},
+					},
+					SSM: AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
+				},
+			},
 		},
 		Proxy: Proxy{
 			Service: Service{
@@ -1161,7 +1179,8 @@ func checkStaticConfig(t *testing.T, conf *FileConfig) {
 			{Name: "hostname", Command: []string{"/bin/hostname"}, Period: 10 * time.Millisecond},
 			{Name: "date", Command: []string{"/bin/date"}, Period: 20 * time.Millisecond},
 		},
-		PublicAddr: apiutils.Strings{"luna3:22"},
+		PublicAddr:  apiutils.Strings{"luna3:22"},
+		AWSMatchers: []AWSEC2Matcher{},
 	}, cmp.AllowUnexported(Service{})))
 
 	require.True(t, conf.Auth.Configured())
@@ -1264,6 +1283,14 @@ func makeConfigFixture() string {
 	conf.SSH.ListenAddress = "tcp://ssh"
 	conf.SSH.Labels = Labels
 	conf.SSH.Commands = CommandLabels
+	conf.SSH.AWSMatchers = []AWSEC2Matcher{
+		{
+			Matcher: AWSMatcher{Types: []string{"ec2"},
+				Regions: []string{"us-west-1", "us-east-1"},
+				Tags:    map[string]apiutils.Strings{"a": {"b"}},
+			},
+		},
+	}
 
 	// proxy-service:
 	conf.Proxy.EnabledFlag = "yes"
