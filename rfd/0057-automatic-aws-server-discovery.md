@@ -75,12 +75,14 @@ Example:
 ## Agent installation
 
 In order to install the Teleport agent on EC2 instances, Teleport will serve an
-install script at `/webapi/scripts/installer`. This will be editable as a resource.
+install script at `/webapi/scripts/{installer-resource-name}`. Installer scripts will
+be editable as a resource.
 
 Example resource script:
 ```yaml
 kind: installer
 metadata:
+  name: "installer" # default value
 spec:
   # shell script that will be downloaded an run by the EC2 node
   script: |
