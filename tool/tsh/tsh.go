@@ -213,7 +213,7 @@ type CLIConf struct {
 	BenchTicks int32
 	// BenchValueScale value at which to scale the values recorded
 	BenchValueScale float64
-	// BenchSessions number of active sessions to maintain
+	// BenchSessions maximum number of open sessions to establish
 	BenchSessions int
 	// Context is a context to control execution
 	Context context.Context
@@ -708,20 +708,28 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	logout := app.Command("logout", "Delete a cluster certificate")
 
 	// bench
-	bench := app.Command("bench", "Run shell or execute a command on a remote SSH node").Hidden()
-	bench.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
-	bench.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
-	bench.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
-	bench.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
-	bench.Flag("duration", "Test duration").Default("1s").DurationVar(&cf.BenchDuration)
-	bench.Flag("rate", "Requests per second rate").Default("10").IntVar(&cf.BenchRate)
-	bench.Flag("interactive", "Create interactive SSH session").BoolVar(&cf.BenchInteractive)
-	bench.Flag("web", "Create interactive web session").BoolVar(&cf.BenchWebSession)
-	bench.Flag("export", "Export the latency profile").BoolVar(&cf.BenchExport)
-	bench.Flag("path", "Directory to save the latency profile to, default path is the current directory").Default(".").StringVar(&cf.BenchExportPath)
-	bench.Flag("ticks", "Ticks per half distance").Default("100").Int32Var(&cf.BenchTicks)
-	bench.Flag("scale", "Value scale in which to scale the recorded values").Default("1.0").Float64Var(&cf.BenchValueScale)
-	bench.Flag("sessions", "Number of active interactive sessions to maintain").Default("-1").IntVar(&cf.BenchSessions)
+	bench := app.Command("bench", "Benchmark various aspects of a cluster").Hidden()
+	benchNode := bench.Command("node", "Run shell or execute a command on a remote SSH node")
+	benchNode.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	benchNode.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
+	benchNode.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
+	benchNode.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
+	benchNode.Flag("duration", "Test duration").Default("1s").DurationVar(&cf.BenchDuration)
+	benchNode.Flag("rate", "Requests per second rate").Default("10").IntVar(&cf.BenchRate)
+	benchNode.Flag("interactive", "Create interactive SSH session").BoolVar(&cf.BenchInteractive)
+	benchNode.Flag("web", "Create interactive web session").BoolVar(&cf.BenchWebSession)
+	benchNode.Flag("export", "Export the latency profile").BoolVar(&cf.BenchExport)
+	benchNode.Flag("path", "Directory to save the latency profile to, default path is the current directory").Default(".").StringVar(&cf.BenchExportPath)
+	benchNode.Flag("ticks", "Ticks per half distance").Default("100").Int32Var(&cf.BenchTicks)
+	benchNode.Flag("scale", "Value scale in which to scale the recorded values").Default("1.0").Float64Var(&cf.BenchValueScale)
+
+	benchSessions := bench.Command("sessions", "Establish and maintain an interactive session across a number of nodes").Hidden()
+	benchSessions.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	benchSessions.Arg("user", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
+	benchSessions.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
+	benchSessions.Flag("max", "The maximum number of sessions to establish").Default("-1").IntVar(&cf.BenchSessions)
+	benchSessions.Flag("web", "Create interactive web session").BoolVar(&cf.BenchWebSession)
+	benchSessions.Flag("duration", "Test duration").Default("1s").DurationVar(&cf.BenchDuration)
 
 	// show key
 	show := app.Command("show", "Read an identity from file and print to stdout").Hidden()
@@ -898,8 +906,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onVersion(&cf)
 	case ssh.FullCommand():
 		err = onSSH(&cf)
-	case bench.FullCommand():
+	case benchNode.FullCommand():
 		err = onBenchmark(&cf)
+	case benchSessions.FullCommand():
+		err = onBenchmarkSessions(&cf)
 	case join.FullCommand():
 		err = onJoin(&cf)
 	case scp.FullCommand():
@@ -2623,13 +2633,6 @@ func onBenchmark(cf *CLIConf) error {
 		Web:           cf.BenchWebSession,
 	}
 
-	if cf.BenchSessions > 0 {
-		if err := cnf.Stress(cf.Context, cf.BenchSessions, tc, pc); err != nil {
-			return trace.Wrap(err)
-		}
-		return nil
-	}
-
 	result, err := cnf.Benchmark(cf.Context, tc, pc)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
@@ -2662,6 +2665,36 @@ func onBenchmark(cf *CLIConf) error {
 		}
 	}
 	return nil
+}
+
+func onBenchmarkSessions(cf *CLIConf) error {
+	tc, err := makeClient(cf, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var pc *web.ProxyClient
+	if cf.BenchWebSession {
+		clt, err := makeProxyWebClient(cf.Context, tc)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		pc = clt
+	}
+
+	cnf := benchmark.Config{
+		Command:       cf.RemoteCommand,
+		MinimumWindow: cf.BenchDuration,
+		Interactive:   cf.BenchInteractive,
+		Web:           cf.BenchWebSession,
+		MaxSessions:   cf.BenchSessions,
+	}
+
+	if err := cnf.Sessions(cf.Context, tc, pc); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+
 }
 
 // onJoin executes 'ssh join' command
@@ -3075,10 +3108,11 @@ func makeProxyWebClient(ctx context.Context, tc *client.TeleportClient) (*web.Pr
 		return nil, trace.Wrap(err)
 	}
 
-	webclt, err := web.NewProxyClient(url.URL{
-		Scheme: "https",
-		Host:   tc.WebProxyAddr,
-	},
+	webclt, err := web.NewProxyClient(
+		url.URL{
+			Scheme: "https",
+			Host:   tc.WebProxyAddr,
+		},
 		webSess,
 		cookies,
 	)

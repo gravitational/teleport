@@ -1520,6 +1520,36 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	return tc, nil
 }
 
+func (tc *TeleportClient) Clone() (*TeleportClient, error) {
+	keystore, err := NewMemLocalKeyStore(tc.KeysDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	webProxyHost, _ := tc.WebProxyHostPort()
+
+	localAgent, err := NewLocalAgent(LocalAgentConfig{
+		Keystore:   keystore,
+		ProxyHost:  webProxyHost,
+		Username:   tc.Username,
+		KeysOption: tc.AddKeysToAgent,
+		Insecure:   tc.InsecureSkipVerify,
+		SiteName:   tc.SiteName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	localAgent.Agent = tc.localAgent.Agent
+
+	return &TeleportClient{
+		Config:         tc.Config,
+		localAgent:     tc.localAgent,
+		eventsCh:       make(chan events.EventFields, 1024),
+		OnShellCreated: tc.OnShellCreated,
+		lastPing:       tc.lastPing,
+	}, nil
+}
+
 // LoadKeyForCluster fetches a cluster-specific SSH key and loads it into the
 // SSH agent.
 func (tc *TeleportClient) LoadKeyForCluster(clusterName string) error {
@@ -3320,22 +3350,22 @@ func (tc *TeleportClient) LoginWeb(ctx context.Context) (types.WebSession, []*ht
 			return nil, nil, trace.Wrap(err)
 		}
 	case authType == constants.Local:
-		response, cookies, err = tc.directLoginWeb(ctx, pr.Auth.SecondFactor, key.Pub)
+		response, cookies, err = tc.localLoginWeb(ctx, pr.Auth.SecondFactor, key.Pub)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 	case authType == constants.OIDC:
-		response, err = tc.mfaLocalLoginWeb(ctx, key.Pub)
+		response, cookies, err = tc.mfaLocalLoginWeb(ctx, key.Pub)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 	case authType == constants.SAML:
-		response, err = tc.mfaLocalLoginWeb(ctx, key.Pub)
+		response, cookies, err = tc.mfaLocalLoginWeb(ctx, key.Pub)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 	case authType == constants.Github:
-		response, err = tc.mfaLocalLoginWeb(ctx, key.Pub)
+		response, cookies, err = tc.mfaLocalLoginWeb(ctx, key.Pub)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -3469,34 +3499,6 @@ func (tc *TeleportClient) localLogin(ctx context.Context, secondFactor constants
 	return response, nil
 }
 
-func (tc *TeleportClient) localLoginWeb(ctx context.Context, secondFactor constants.SecondFactorType, pub []byte) (types.WebSession, []*http.Cookie, error) {
-	var (
-		err      error
-		cookies  []*http.Cookie
-		response types.WebSession
-	)
-
-	// TODO(awly): mfa: ideally, clients should always go through mfaLocalLogin
-	// (with a nop MFA challenge if no 2nd factor is required). That way we can
-	// deprecate the direct login endpoint.
-	switch secondFactor {
-	case constants.SecondFactorOff, constants.SecondFactorOTP:
-		response, cookies, err = tc.directLoginWeb(ctx, secondFactor, pub)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-	case constants.SecondFactorU2F, constants.SecondFactorWebauthn, constants.SecondFactorOn, constants.SecondFactorOptional:
-		response, err = tc.mfaLocalLoginWeb(ctx, pub)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-	default:
-		return nil, nil, trace.BadParameter("unsupported second factor type: %q", secondFactor)
-	}
-
-	return response, cookies, nil
-}
-
 // directLogin asks for a password + HOTP token, makes a request to CA via proxy
 func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType constants.SecondFactorType, pub []byte) (*auth.SSHLoginResponse, error) {
 	password, err := tc.AskPassword(ctx)
@@ -3531,6 +3533,22 @@ func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType cons
 	})
 
 	return response, trace.Wrap(err)
+}
+
+func (tc *TeleportClient) localLoginWeb(ctx context.Context, secondFactor constants.SecondFactorType, pub []byte) (types.WebSession, []*http.Cookie, error) {
+	// TODO(awly): mfa: ideally, clients should always go through mfaLocalLogin
+	// (with a nop MFA challenge if no 2nd factor is required). That way we can
+	// deprecate the direct login endpoint.
+	switch secondFactor {
+	case constants.SecondFactorOff, constants.SecondFactorOTP:
+		sess, cookies, err := tc.directLoginWeb(ctx, secondFactor, pub)
+		return sess, cookies, trace.Wrap(err)
+	case constants.SecondFactorU2F, constants.SecondFactorWebauthn, constants.SecondFactorOn, constants.SecondFactorOptional:
+		sess, cookies, err := tc.mfaLocalLoginWeb(ctx, pub)
+		return sess, cookies, trace.Wrap(err)
+	default:
+		return nil, nil, trace.BadParameter("unsupported second factor type: %q", secondFactor)
+	}
 }
 
 // directLogin asks for a password + HOTP token, makes a request to CA via proxy
@@ -3597,13 +3615,13 @@ func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, pub []byte) (*auth.
 	return response, trace.Wrap(err)
 }
 
-func (tc *TeleportClient) mfaLocalLoginWeb(ctx context.Context, pub []byte) (types.WebSession, error) {
+func (tc *TeleportClient) mfaLocalLoginWeb(ctx context.Context, pub []byte) (types.WebSession, []*http.Cookie, error) {
 	password, err := tc.AskPassword(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	response, err := SSHAgentMFAWebSessionLogin(ctx, SSHLoginMFA{
+	response, cookies, err := SSHAgentMFAWebSessionLogin(ctx, SSHLoginMFA{
 		SSHLogin: SSHLogin{
 			ProxyAddr:         tc.WebProxyAddr,
 			PubKey:            pub,
@@ -3621,7 +3639,7 @@ func (tc *TeleportClient) mfaLocalLoginWeb(ctx context.Context, pub []byte) (typ
 		AllowStdinHijack:        tc.AllowStdinHijack,
 	})
 
-	return response, trace.Wrap(err)
+	return response, cookies, trace.Wrap(err)
 }
 
 // SSOLoginFunc is a function used in tests to mock SSO logins.

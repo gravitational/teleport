@@ -16,6 +16,7 @@ package web
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,25 +25,33 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
-	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/session"
 )
 
+type ShellCreatedCallback func(terminal io.ReadWriteCloser) error
+
 type ProxyClient struct {
-	clt     *client.WebClient
-	jar     http.CookieJar
-	url     url.URL
+	clt *client.WebClient
+	jar http.CookieJar
+	url url.URL
+
+	lock    sync.Mutex
 	session types.WebSession
+	expiry  time.Time
 }
 
 func NewProxyClient(u url.URL, session types.WebSession, cookies []*http.Cookie) (*ProxyClient, error) {
@@ -57,15 +66,96 @@ func NewProxyClient(u url.URL, session types.WebSession, cookies []*http.Cookie)
 		return nil, trace.Wrap(err)
 	}
 
-	return &ProxyClient{
+	pc := &ProxyClient{
 		clt:     clt,
 		jar:     jar,
 		session: session,
 		url:     u,
-	}, nil
+		expiry:  session.GetBearerTokenExpiryTime().Add(-1 * time.Minute),
+	}
+
+	//go pc.renewSession(context.Background())
+
+	return pc, nil
+}
+
+func (p *ProxyClient) renewSession(ctx context.Context) {
+	for {
+		if p.expiry.Before(time.Now()) {
+			<-time.After(p.expiry.Sub(time.Now()))
+		}
+
+		logrus.Info("---------- attempting to renew session")
+
+		resp, err := p.clt.PostJSON(ctx, p.clt.Endpoint("webapi", "sessions", "renew"), struct{}{})
+		if err != nil {
+			logrus.WithError(err).Warn("failed to renew web session")
+			continue
+		}
+
+		var sess CreateSessionResponse
+		err = json.Unmarshal(resp.Bytes(), &sess)
+		if err != nil {
+			logrus.WithError(err).Warn("failed to renew web session")
+			continue
+		}
+
+		// SessionCookie stores information about active user and session
+		type SessionCookie struct {
+			User string `json:"user"`
+			SID  string `json:"sid"`
+		}
+
+		cookies := resp.Cookies()
+		if len(cookies) != 1 {
+			logrus.WithError(err).Warn("cookie is missing")
+			continue
+		}
+
+		var cookie SessionCookie
+		if err := json.NewDecoder(hex.NewDecoder(strings.NewReader(cookies[0].Value))).Decode(&cookie); err != nil {
+			logrus.WithError(err).Warn("failed to decode cookie")
+			continue
+		}
+
+		expiry := time.Now().Add(time.Duration(sess.TokenExpiresIn) * time.Second)
+		websess, err := types.NewWebSession(cookie.SID, types.KindWebSession, types.WebSessionSpecV2{
+			User:               cookie.User,
+			Pub:                p.session.GetPub(),
+			BearerToken:        sess.Token,
+			BearerTokenExpires: expiry,
+			Expires:            expiry,
+			LoginTime:          time.Now(),
+			IdleTimeout:        types.Duration(time.Duration(sess.SessionInactiveTimeoutMS) * time.Millisecond),
+		})
+
+		jar, err := cookiejar.New(nil)
+		if err != nil {
+			logrus.WithError(err).Warn("failed to create cookie jar")
+			continue
+		}
+
+		jar.SetCookies(&p.url, cookies)
+
+		clt, err := client.NewWebClient(p.url.String(), roundtrip.BearerAuth(websess.GetBearerToken()), roundtrip.CookieJar(jar))
+		if err != nil {
+			logrus.WithError(err).Warn("failed to create web client")
+			continue
+		}
+
+		p.lock.Lock()
+		p.clt = clt
+		p.jar = jar
+		p.session = websess
+		p.expiry = websess.GetBearerTokenExpiryTime().Add(-5 * time.Minute)
+		p.lock.Unlock()
+	}
 }
 
 func (p *ProxyClient) connectToHost(ctx context.Context, sess session.Session, tc *client.TeleportClient) (*websocket.Conn, error) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
 	type siteSession struct {
 		Session session.Session `json:"session"`
 	}
@@ -108,56 +198,34 @@ func (p *ProxyClient) connectToHost(ctx context.Context, sess session.Session, t
 		Jar: p.jar,
 	}
 
-	dialCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	dialCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	ws, wsresp, err := dialer.DialContext(dialCtx, wsu.String(), http.Header{"Origin": []string{"http://localhost"}})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "dialing websocket %s timed out", wsu.String())
 	}
 	defer wsresp.Body.Close()
 
 	return ws, nil
 }
 
-func (p *ProxyClient) SSH(ctx context.Context, tc *client.TeleportClient, command []string, interactive bool) error {
-	// detect the common error when users use host:port address format
-	_, port, err := net.SplitHostPort(tc.Host)
-	// client has used host:port notation
-	if err == nil {
-		return trace.BadParameter(
-			"please use ssh subcommand with '--port=%v' flag instead of semicolon",
-			port)
-	}
+func (p *ProxyClient) CurrentWebSession(ctx context.Context, clt auth.ClientI) (types.WebSession, error) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
 
-	sess := session.Session{
-		Login:          tc.HostLogin,
-		ServerID:       net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort)),
-		TerminalParams: session.TerminalParams{W: 100, H: 100},
-	}
-
-	conn, err := p.connectToHost(ctx, sess, tc)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	proxyClient, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer proxyClient.Close()
-
-	authClt, err := proxyClient.ConnectToRootCluster(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	wsess, err := authClt.GetWebSession(ctx, types.GetWebSessionRequest{
+	wsess, err := clt.GetWebSession(ctx, types.GetWebSessionRequest{
 		User:      p.session.GetUser(),
 		SessionID: p.session.GetName(),
 	})
-	if err != nil {
-		return trace.Wrap(err)
+	return wsess, trace.Wrap(err)
+}
+
+func (p *ProxyClient) SSH(ctx context.Context, tc *client.TeleportClient, node string, command string, authClt auth.ClientI, wsess types.WebSession, keepAliveInterval time.Duration, cb ShellCreatedCallback) error {
+	sess := session.Session{
+		Login:          tc.Host,
+		ServerID:       node,
+		TerminalParams: session.TerminalParams{W: 100, H: 100},
 	}
 
 	sessCtx, err := NewSessionContext(wsess, authClt)
@@ -165,20 +233,23 @@ func (p *ProxyClient) SSH(ctx context.Context, tc *client.TeleportClient, comman
 		return trace.Wrap(err)
 	}
 
+	cmd := command + "\r\n"
+	id := session.NewID()
 	th, err := NewTerminal(
 		ctx,
 		TerminalRequest{
-			Server: tc.HostLogin,
+			Server: node,
 			Login:  tc.Username,
 			Term: session.TerminalParams{
 				W: 100,
 				H: 100,
 			},
-			SessionID:          session.NewID(),
+			SessionID:          id,
 			Namespace:          apidefaults.Namespace,
 			ProxyHostPort:      tc.WebProxyAddr,
 			Cluster:            tc.SiteName,
-			InteractiveCommand: make([]string, 1),
+			InteractiveCommand: []string{cmd},
+			KeepAliveInterval:  keepAliveInterval,
 		},
 		authClt,
 		sessCtx,
@@ -188,22 +259,40 @@ func (p *ProxyClient) SSH(ctx context.Context, tc *client.TeleportClient, comman
 	}
 	defer th.Close()
 
+	th.terminalContext, th.terminalCancel = context.WithCancel(ctx)
+	defer th.terminalCancel()
+
+	conn, err := p.connectToHost(ctx, sess, tc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer conn.Close()
+
 	stream := th.asTerminalStream(conn)
-	defer stream.Close()
+	g, ctx := errgroup.WithContext(ctx)
 
-	cmd := strings.Join(command, " ") + "\r\n"
-	if !interactive {
-		cmd += "exit\r\n"
+	g.Go(func() error {
+		th.startPingLoop(conn)
+		return stream.Close()
+	})
+
+	if cb != nil {
+		if err := cb(stream); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
-	if _, err := stream.Write([]byte(cmd)); err != nil {
-		log.WithError(err).Warn("--------------- failed to execute command")
-	}
+	g.Go(func() error {
+		if _, err := stream.Write([]byte(cmd)); err != nil {
+			logrus.WithError(err).Warn("--------------- failed to execute command")
+		}
 
-	if _, err := io.Copy(io.Discard, stream); err != nil && !errors.Is(err, net.ErrClosed) {
-		log.WithError(err).Warn("--------- failed to copy output to stream")
-	}
+		if _, err := io.Copy(io.Discard, stream); err != nil && !errors.Is(err, net.ErrClosed) {
+			logrus.WithError(err).Warn("--------- failed to copy output to stream")
+		}
 
-	return nil
+		return nil
+	})
 
+	return g.Wait()
 }

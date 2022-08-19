@@ -472,8 +472,7 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 
 	if err != nil {
 		t.log.Warnf("Unable to stream terminal: %v.", err)
-		er := t.writeError(err, ws)
-		if er != nil {
+		if er := t.writeError(err, ws); er != nil {
 			t.log.Warnf("Unable to send error to terminal: %v: %v.", err, er)
 		}
 		return

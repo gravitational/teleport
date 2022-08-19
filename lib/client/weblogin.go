@@ -549,14 +549,15 @@ func SSHAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (types.WebSessi
 		return nil, nil, trace.Wrap(err)
 	}
 
+	expiry := time.Now().Add(time.Duration(sess.TokenExpiresIn) * time.Second)
 	session, err := types.NewWebSession(cookie.SID, types.KindWebSession, types.WebSessionSpecV2{
 		User:               cookie.User,
 		Pub:                login.PubKey,
 		BearerToken:        sess.Token,
-		BearerTokenExpires: time.Now().Add(time.Duration(sess.TokenExpiresIn)),
-		Expires:            sess.SessionExpires,
+		BearerTokenExpires: expiry,
+		Expires:            expiry,
 		LoginTime:          time.Now(),
-		IdleTimeout:        types.Duration(sess.SessionInactiveTimeoutMS),
+		IdleTimeout:        types.Duration(time.Duration(sess.SessionInactiveTimeoutMS) * time.Millisecond),
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -635,10 +636,10 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 	return loginResp, trace.Wrap(json.Unmarshal(loginRespJSON.Bytes(), loginResp))
 }
 
-func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (types.WebSession, error) {
+func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (types.WebSession, []*http.Cookie, error) {
 	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	beginReq := MFAChallengeRequest{
@@ -647,12 +648,12 @@ func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (types.W
 	}
 	challengeJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "begin"), beginReq)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	challenge := &MFAAuthenticateChallenge{}
 	if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	// Convert to auth gRPC proto challenge.
@@ -670,35 +671,62 @@ func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (types.W
 		PreferOTP:               login.PreferOTP,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	challengeResp := AuthenticateSSHUserRequest{
-		User:              login.User,
-		Password:          login.Password,
-		PubKey:            login.PubKey,
-		TTL:               login.TTL,
-		Compatibility:     login.Compatibility,
-		RouteToCluster:    login.RouteToCluster,
-		KubernetesCluster: login.KubernetesCluster,
+	challengeResp := AuthenticateWebUserRequest{
+		User: login.User,
 	}
 	// Convert back from auth gRPC proto response.
 	switch r := respPB.Response.(type) {
-	case *proto.MFAAuthenticateResponse_TOTP:
-		challengeResp.TOTPCode = r.TOTP.Code
 	case *proto.MFAAuthenticateResponse_Webauthn:
-		challengeResp.WebauthnChallengeResponse = wanlib.CredentialAssertionResponseFromProto(r.Webauthn)
+		challengeResp.WebauthnAssertionResponse = wanlib.CredentialAssertionResponseFromProto(r.Webauthn)
 	default:
 		// No challenge was sent, so we send back just username/password.
 	}
 
-	loginRespJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "finishsession"), challengeResp)
+	loginResp, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "finishsession"), challengeResp)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	var loginResp types.WebSession
-	return loginResp, trace.Wrap(json.Unmarshal(loginRespJSON.Bytes(), &loginResp))
+	var sess CreateSessionResponse
+	err = json.Unmarshal(loginResp.Bytes(), &sess)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// SessionCookie stores information about active user and session
+	type SessionCookie struct {
+		User string `json:"user"`
+		SID  string `json:"sid"`
+	}
+
+	cookies := loginResp.Cookies()
+	if len(cookies) != 1 {
+		return nil, nil, trace.BadParameter("received unexpected cookie")
+	}
+
+	var cookie SessionCookie
+	if err := json.NewDecoder(hex.NewDecoder(strings.NewReader(cookies[0].Value))).Decode(&cookie); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	expiry := time.Now().Add(time.Duration(sess.TokenExpiresIn) * time.Second)
+	session, err := types.NewWebSession(cookie.SID, types.KindWebSession, types.WebSessionSpecV2{
+		User:               cookie.User,
+		Pub:                login.PubKey,
+		BearerToken:        sess.Token,
+		BearerTokenExpires: expiry,
+		Expires:            expiry,
+		LoginTime:          time.Now(),
+		IdleTimeout:        types.Duration(time.Duration(sess.SessionInactiveTimeoutMS) * time.Millisecond),
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return session, cookies, nil
 }
 
 // HostCredentials is used to fetch host credentials for a node.
