@@ -18,8 +18,12 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"testing"
+	"time"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace"
+	"google.golang.org/grpc/connectivity"
 
 	"github.com/stretchr/testify/require"
 )
@@ -38,22 +42,21 @@ func TestClientConn(t *testing.T) {
 	require.Len(t, client.conns, 2)
 
 	// dial first server and send a test data frame
-	stream, cached, err := client.dial([]string{"s1"})
+	stream, cached, err := client.dial([]string{"s1"}, &proto.DialRequest{})
 	require.NoError(t, err)
 	require.True(t, cached)
 	require.NotNil(t, stream)
-	sendDialRequest(t, stream)
 	stream.CloseSend()
 
 	// dial second server
-	stream, cached, err = client.dial([]string{"s2"})
+	stream, cached, err = client.dial([]string{"s2"}, &proto.DialRequest{})
 	require.NoError(t, err)
 	require.True(t, cached)
 	require.NotNil(t, stream)
 	stream.CloseSend()
 
 	// redial second server
-	stream, cached, err = client.dial([]string{"s2"})
+	stream, cached, err = client.dial([]string{"s2"}, &proto.DialRequest{})
 	require.NoError(t, err)
 	require.True(t, cached)
 	require.NotNil(t, stream)
@@ -62,7 +65,7 @@ func TestClientConn(t *testing.T) {
 	// close second server
 	// and attempt to redial it
 	server2.Shutdown()
-	stream, cached, err = client.dial([]string{"s2"})
+	stream, cached, err = client.dial([]string{"s2"}, &proto.DialRequest{})
 	require.Error(t, err)
 	require.True(t, cached)
 	require.Nil(t, stream)
@@ -83,14 +86,12 @@ func TestClientUpdate(t *testing.T) {
 	require.Contains(t, client.conns, "s1")
 	require.Contains(t, client.conns, "s2")
 
-	s1, _, err := client.dial([]string{"s1"})
+	s1, _, err := client.dial([]string{"s1"}, &proto.DialRequest{})
 	require.NoError(t, err)
 	require.NotNil(t, s1)
-	sendDialRequest(t, s1)
-	s2, _, err := client.dial([]string{"s2"})
+	s2, _, err := client.dial([]string{"s2"}, &proto.DialRequest{})
 	require.NoError(t, err)
 	require.NotNil(t, s2)
-	sendDialRequest(t, s2)
 
 	// watcher finds one of the two servers
 	err = client.updateConnections([]types.Server{def1})
@@ -109,7 +110,7 @@ func TestClientUpdate(t *testing.T) {
 	require.Len(t, client.conns, 2)
 	require.Contains(t, client.conns, "s1")
 	sendMsg(t, s1) // stream is still going strong
-	_, _, err = client.dial([]string{"s2"})
+	_, _, err = client.dial([]string{"s2"}, &proto.DialRequest{})
 	require.Error(t, err) // can't dial server2, obviously
 
 	// peer address change
@@ -119,10 +120,9 @@ func TestClientUpdate(t *testing.T) {
 	require.Len(t, client.conns, 1)
 	require.Contains(t, client.conns, "s1")
 	sendMsg(t, s1) // stream is not forcefully closed. ClientConn waits for a graceful shutdown before it closes.
-	s3, _, err := client.dial([]string{"s1"})
+	s3, _, err := client.dial([]string{"s1"}, &proto.DialRequest{})
 	require.NoError(t, err)
 	require.NotNil(t, s3)
-	sendDialRequest(t, s3) // new stream is working
 
 	s1.CloseSend()
 	s3.CloseSend()
@@ -142,7 +142,6 @@ func TestCAChange(t *testing.T) {
 	stream, err := client.startStream(conn)
 	require.NoError(t, err)
 	require.NotNil(t, stream)
-	sendDialRequest(t, stream)
 	stream.CloseSend()
 
 	// rotate server ca
@@ -175,6 +174,41 @@ func TestCAChange(t *testing.T) {
 	stream, err = client.startStream(conn)
 	require.NoError(t, err)
 	require.NotNil(t, stream)
-	sendDialRequest(t, stream)
 	stream.CloseSend()
+}
+
+func TestBackupClient(t *testing.T) {
+	ca := newSelfSignedCA(t)
+	client := setupClient(t, ca, ca, types.RoleProxy)
+	dialCalled := false
+
+	// Force the first client connection to fail.
+	_, def1 := setupServer(t, "s1", ca, ca, types.RoleProxy, func(c *ServerConfig) {
+		c.service = &mockProxyService{
+			mockDialNode: func(stream proto.ProxyService_DialNodeServer) error {
+				dialCalled = true
+				return trace.NotFound("tunnel not found")
+			},
+		}
+	})
+	_, def2 := setupServer(t, "s2", ca, ca, types.RoleProxy)
+
+	err := client.updateConnections([]types.Server{def1, def2})
+	require.NoError(t, err)
+	waitForConns(t, client.conns, time.Second*2)
+
+	_, _, err = client.dial([]string{def1.GetName(), def2.GetName()}, &proto.DialRequest{})
+	require.NoError(t, err)
+	require.True(t, dialCalled)
+}
+
+func waitForConns(t *testing.T, conns map[string]*clientConn, d time.Duration) {
+	require.Eventually(t, func() bool {
+		for _, conn := range conns {
+			if conn.GetState() != connectivity.Ready {
+				return false
+			}
+		}
+		return true
+	}, d, time.Millisecond*5)
 }

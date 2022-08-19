@@ -212,6 +212,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("ListResourcesAcrossClusters", suite.bind(testListResourcesAcrossClusters))
 	t.Run("SessionRecordingModes", suite.bind(testSessionRecordingModes))
 	t.Run("DifferentPinnedIP", suite.bind(testDifferentPinnedIP))
+	t.Run("JoinOverReverseTunnelOnly", suite.bind(testJoinOverReverseTunnelOnly))
 	t.Run("SFTP", suite.bind(testSFTP))
 	t.Run("EscapeSequenceTriggers", suite.bind(testEscapeSequenceTriggers))
 }
@@ -2381,7 +2382,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		log:         suite.log,
+		Log:         suite.log,
 		Ports:       standardPortsOrMuxSetup(test.multiplex),
 	})
 	aux := suite.newNamedTeleportInstance(t, clusterAux)
@@ -5834,7 +5835,7 @@ func (s *integrationTestSuite) defaultInstanceConfig() InstanceConfig {
 		NodeName:    Host,
 		Priv:        s.priv,
 		Pub:         s.pub,
-		log:         s.log,
+		Log:         s.log,
 		Ports:       standardPortSetup(),
 	}
 }
@@ -5848,7 +5849,7 @@ func (s *integrationTestSuite) newNamedTeleportInstance(t *testing.T, clusterNam
 		NodeName:    Host,
 		Priv:        s.priv,
 		Pub:         s.pub,
-		log:         utils.WrapLogger(s.log.WithField("cluster", clusterName)),
+		Log:         utils.WrapLogger(s.log.WithField("cluster", clusterName)),
 		Ports:       standardPortSetup(),
 	}
 	for _, opt := range opts {
@@ -5948,7 +5949,7 @@ func TestWebProxyInsecure(t *testing.T) {
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		log:         utils.NewLoggerForTests(),
+		Log:         utils.NewLoggerForTests(),
 	})
 
 	rcConf := service.MakeDefaultConfig()
@@ -5993,7 +5994,7 @@ func TestTraitsPropagation(t *testing.T) {
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		log:         log,
+		Log:         log,
 	})
 
 	// Create leaf cluster.
@@ -6003,7 +6004,7 @@ func TestTraitsPropagation(t *testing.T) {
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		log:         log,
+		Log:         log,
 	})
 
 	// Make root cluster config.
@@ -6284,7 +6285,7 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		log:         suite.log,
+		Log:         suite.log,
 		Ports:       standardPortsOrMuxSetup(false),
 	})
 	leaf := NewInstance(InstanceConfig{
@@ -6293,7 +6294,7 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		log:         suite.log,
+		Log:         suite.log,
 		Ports:       standardPortsOrMuxSetup(false),
 	})
 
@@ -6576,6 +6577,36 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 			require.ElementsMatch(t, test.expected, clusters)
 		})
 	}
+}
+
+func testJoinOverReverseTunnelOnly(t *testing.T, suite *integrationTestSuite) {
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	// Create a Teleport instance with Auth/Proxy.
+	mainConfig := suite.defaultServiceConfig()
+	mainConfig.Auth.Enabled = true
+
+	mainConfig.Proxy.Enabled = true
+	mainConfig.Proxy.DisableWebService = false
+	mainConfig.Proxy.DisableWebInterface = true
+
+	mainConfig.SSH.Enabled = false
+
+	main := suite.newTeleportWithConfig(t, nil, nil, mainConfig)
+	t.Cleanup(func() { require.NoError(t, main.StopAll()) })
+
+	// Create a Teleport instance with a Node.
+	nodeConfig := suite.defaultServiceConfig()
+	nodeConfig.Hostname = Host
+	nodeConfig.SetToken("token")
+
+	nodeConfig.Auth.Enabled = false
+	nodeConfig.Proxy.Enabled = false
+	nodeConfig.SSH.Enabled = true
+
+	_, err := main.startNode(nodeConfig, main.GetPortReverseTunnel())
+	require.NoError(t, err, "Node failed to join over reverse tunnel")
 }
 
 func testSFTP(t *testing.T, suite *integrationTestSuite) {

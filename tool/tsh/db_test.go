@@ -113,9 +113,6 @@ func TestListDatabase(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
-	tshHome := t.TempDir()
-	t.Setenv(types.HomeEnvVar, tshHome)
-
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *service.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
@@ -137,7 +134,7 @@ func TestListDatabase(t *testing.T) {
 		}),
 	)
 
-	mustLogin(t, s)
+	mustLoginSetEnv(t, s)
 
 	captureStdout := new(bytes.Buffer)
 	err := Run(context.Background(), []string{

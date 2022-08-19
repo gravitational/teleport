@@ -298,6 +298,9 @@ func Consolef(w io.Writer, log log.FieldLogger, component, msg string, params ..
 func InitCLIParser(appName, appHelp string) (app *kingpin.Application) {
 	app = kingpin.New(appName, appHelp)
 
+	// make all flags repeatable, this makes the CLI easier to use.
+	app.AllRepeatable(true)
+
 	// hide "--help" flag
 	app.HelpFlag.Hidden()
 	app.HelpFlag.NoEnvar()
