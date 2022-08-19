@@ -17,6 +17,7 @@ limitations under the License.
 package alpnproxy
 
 import (
+	"crypto/tls"
 	"encoding/binary"
 	"io"
 	"math"
@@ -92,12 +93,12 @@ func (conn readOnlyConn) SetDeadline(t time.Time) error      { return nil }
 func (conn readOnlyConn) SetReadDeadline(t time.Time) error  { return nil }
 func (conn readOnlyConn) SetWriteDeadline(t time.Time) error { return nil }
 
-// newPingConn returns a ping connection wrapping the provided net.Conn.
-func newPingConn(conn net.Conn) *pingConn {
-	return &pingConn{Conn: conn}
+// NewPingConn returns a ping connection wrapping the provided net.Conn.
+func NewPingConn(conn *tls.Conn) *PingConn {
+	return &PingConn{Conn: conn}
 }
 
-// pingConn wraps a net.Conn and add ping capabilities to it, including the
+// PingConn wraps a *tls.Conn and add ping capabilities to it, including the
 // `WritePing` function and `Read` (which excludes ping packets).
 //
 // When using this connection, the packets written will contain an initial data:
@@ -106,8 +107,9 @@ func newPingConn(conn net.Conn) *pingConn {
 //
 // Ping messages have a packet size of zero and are produced only when
 // `WritePing` is called. On `Read`, any Ping packet is discarded.
-type pingConn struct {
-	net.Conn
+type PingConn struct {
+	//net.Conn
+	*tls.Conn
 
 	muRead  sync.Mutex
 	muWrite sync.Mutex
@@ -118,7 +120,7 @@ type pingConn struct {
 
 // Read reads content from the underlaying connection, discarding any ping
 // messages it finds.
-func (c *pingConn) Read(p []byte) (int, error) {
+func (c *PingConn) Read(p []byte) (int, error) {
 	c.muRead.Lock()
 	defer c.muRead.Unlock()
 
@@ -140,7 +142,7 @@ func (c *pingConn) Read(p []byte) (int, error) {
 }
 
 // WritePing writes the ping packet to the connection.
-func (c *pingConn) WritePing() error {
+func (c *PingConn) WritePing() error {
 	c.muWrite.Lock()
 	defer c.muWrite.Unlock()
 
@@ -149,7 +151,7 @@ func (c *pingConn) WritePing() error {
 
 // discardPingReads reads from the wrapped net.Conn until it encounters a
 // non-ping packet.
-func (c *pingConn) discardPingReads() error {
+func (c *PingConn) discardPingReads() error {
 	for c.currentSize == 0 {
 		err := binary.Read(c.Conn, binary.BigEndian, &c.currentSize)
 		if err != nil {
@@ -162,7 +164,7 @@ func (c *pingConn) discardPingReads() error {
 
 // Write writes provided content to the underlaying connection with proper
 // protocol fields.
-func (c *pingConn) Write(p []byte) (int, error) {
+func (c *PingConn) Write(p []byte) (int, error) {
 	c.muWrite.Lock()
 	defer c.muWrite.Unlock()
 

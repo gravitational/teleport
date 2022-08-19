@@ -163,7 +163,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 	var upstreamConn net.Conn = tlsConn
 	if common.IsPingProtocol(common.Protocol(tlsConn.ConnectionState().NegotiatedProtocol)) {
 		log.Debug("Using ping connection")
-		upstreamConn = newPingConn(tlsConn)
+		upstreamConn = NewPingConn(tlsConn)
 	}
 
 	errC := make(chan error, 2)

@@ -18,15 +18,14 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/tls"
 	"fmt"
-	"io"
 	"math"
 	"net"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
@@ -165,7 +164,7 @@ func TestPingConnection(t *testing.T) {
 			for {
 				select {
 				case <-ctx.Done():
-					require.Fail(t, "failed to read message, expected '%s' but received '%s'", dataWritten, aggregator)
+					require.Fail(t, "failed to read message, expected '%v' but received '%v'", dataWritten, aggregator)
 				case data := <-readChan:
 					aggregator = append(aggregator, data...)
 					if bytes.Equal(dataWritten, aggregator) {
@@ -314,23 +313,88 @@ func TestPingConnection(t *testing.T) {
 }
 
 // makePingConn creates a piped ping connection.
-func makePingConn(t *testing.T) (*pingConn, *pingConn) {
+func makePingConn(t *testing.T) (*PingConn, *PingConn) {
 	t.Helper()
 
 	writer, reader := net.Pipe()
-	return &pingConn{Conn: writer}, &pingConn{Conn: reader}
+	tlsWriter, tlsReader := makeTlsConn(t, writer, reader)
+
+	return NewPingConn(tlsWriter), NewPingConn(tlsReader)
 }
 
 // makeBufferedPingConn creates connections to have asynchronous writes.
-func makeBufferedPingConn(t *testing.T) (*pingConn, *pingConn) {
+func makeBufferedPingConn(t *testing.T) (*PingConn, *PingConn) {
 	t.Helper()
 
-	fakeAddr := &net.TCPAddr{}
-	bufA := new(bytes.Buffer)
-	bufB := new(bytes.Buffer)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-	connA := utils.NewPipeNetConn(bufA, bufB, io.NopCloser(bufA), fakeAddr, fakeAddr)
-	connB := utils.NewPipeNetConn(bufB, bufA, io.NopCloser(bufB), fakeAddr, fakeAddr)
+	l, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
 
-	return newPingConn(connA), newPingConn(connB)
+	connChan := make(chan struct{net.Conn; error}, 2)
+
+	// Accept
+	go func() {
+		conn, err := l.Accept()
+		connChan <- struct{net.Conn; error}{conn, err}
+	}()
+
+	// Dial
+	go func() {
+		conn, err := net.Dial("tcp", l.Addr().String())
+		connChan <- struct{net.Conn; error}{conn, err}
+	}()
+
+	connSlice := make([]net.Conn, 2)
+	for i := 0; i < 2; i++ {
+		select {
+		case <-ctx.Done():
+			require.Fail(t, "failed waiting for connections")
+		case res := <-connChan:
+			require.NoError(t, res.error)
+			connSlice[i] = res.Conn
+		}
+	}
+
+	tlsConnA, tlsConnB := makeTlsConn(t, connSlice[0], connSlice[1])
+	return NewPingConn(tlsConnA), NewPingConn(tlsConnB)
+}
+
+// makeTlsConn take two connections (client and server) and wrap them into TLS
+// connections.
+func makeTlsConn(t *testing.T, server, client net.Conn) (*tls.Conn, *tls.Conn) {
+	tlsConnChan := make(chan struct{*tls.Conn; error}, 2)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Server
+	go func() {
+		tlsConn := tls.Server(server, &tls.Config{
+			Certificates: []tls.Certificate{mustGenCertSignedWithCA(t, mustGenSelfSignedCert(t))},
+		})
+		tlsConnChan <- struct{*tls.Conn; error}{tlsConn, tlsConn.Handshake()}
+	}()
+
+	// Client
+	go func() {
+		tlsConn := tls.Client(client, &tls.Config{InsecureSkipVerify: true})
+		tlsConnChan <- struct{*tls.Conn; error}{tlsConn, tlsConn.Handshake()}
+	}()
+
+	tlsConnSlice := make([]*tls.Conn, 2)
+	for i := 0; i < 2; i++ {
+		select {
+		case <-ctx.Done():
+			server.Close()
+			client.Close()
+
+			require.Fail(t, "failed waiting for TLS connections", "%d connections remaining", 2-i)
+		case res := <-tlsConnChan:
+			require.NoError(t, res.error)
+			tlsConnSlice[i] = res.Conn
+		}
+	}
+
+	return tlsConnSlice[0], tlsConnSlice[1]
 }
