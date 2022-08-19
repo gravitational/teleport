@@ -57,7 +57,7 @@ func tagCheckoutCommands(b buildType) []string {
 			`cd /go/src/github.com/gravitational/webapps`,
 			`git init && git remote add origin git@github.com:gravitational/webapps`,
 			`git fetch origin`,
-			`git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)`,
+			`git checkout $($WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)`,
 			`git submodule update --init packages/webapps.e`,
 			`cd -`,
 		)
