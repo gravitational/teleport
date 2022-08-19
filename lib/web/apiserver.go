@@ -203,10 +203,8 @@ type APIHandler struct {
 	appHandler *app.Handler
 }
 
-// ConnectionHandler is an interface for serving incoming connections.
-type ConnectionHandler interface {
-	HandleConnection(ctx context.Context, conn net.Conn) error
-}
+// ConnectionHandler defines a function for serving incoming connections.
+type ConnectionHandler func(ctx context.Context, conn net.Conn) error
 
 // Check if this request should be forwarded to an application handler to
 // be handled by the UI and handle the request appropriately.

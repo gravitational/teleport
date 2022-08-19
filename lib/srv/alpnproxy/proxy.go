@@ -338,9 +338,9 @@ func (p *Proxy) Serve(ctx context.Context) error {
 // to handle incoming connections by this ALPN proxy server.
 func (p *Proxy) MakeConnectionHandler(opts ...ConnectionHandlerOption) ConnectionHandler {
 	options := p.getHandleConnOptions(opts...)
-	return ConnectionHandlerFunc(func(ctx context.Context, conn net.Conn) error {
+	return func(ctx context.Context, conn net.Conn) error {
 		return p.handleConn(ctx, conn, options)
-	})
+	}
 }
 
 // ConnectionInfo contains details about TLS connection.

@@ -38,10 +38,10 @@ func TestWriteUpgradeResponse(t *testing.T) {
 }
 
 func TestHandlerConnectionUpgrade(t *testing.T) {
+	t.Parallel()
+
 	cfg := Config{
-		ALPNHandler: &mockConnHandler{
-			WriteData: []byte("hello@"),
-		},
+		ALPNHandler: mockConnHandler([]byte("hello@")),
 	}
 	h := &Handler{
 		cfg:   cfg,
@@ -87,13 +87,11 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 	})
 }
 
-type mockConnHandler struct {
-	WriteData []byte
-}
-
-func (h mockConnHandler) HandleConnection(ctx context.Context, conn net.Conn) error {
-	_, err := conn.Write(h.WriteData)
-	return trace.Wrap(err)
+func mockConnHandler(write []byte) ConnectionHandler {
+	return func(_ context.Context, conn net.Conn) error {
+		_, err := conn.Write(write)
+		return trace.Wrap(err)
+	}
 }
 
 // responseWriterHijacker is a mock http.ResponseWriter that also serves a

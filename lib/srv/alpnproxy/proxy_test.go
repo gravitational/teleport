@@ -385,7 +385,7 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	t.Cleanup(cancel)
 
-	alpnConnHandler.HandleConnection(timeoutCtx, serverConn)
+	alpnConnHandler(timeoutCtx, serverConn)
 	require.NoError(t, timeoutCtx.Err())
 
 	// Since HandleConnection is created with WithWaitForAsyncHandlers, we

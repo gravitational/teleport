@@ -17,9 +17,7 @@ limitations under the License.
 package web
 
 import (
-	"context"
 	"io"
-	"net"
 	"net/http"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -28,15 +26,16 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-type upgradeHandler func(ctx context.Context, conn net.Conn) error
-
 // selectConnectionUpgradeType selects the requested upgrade type.
-func (h *Handler) selectConnectionUpgradeType(r *http.Request) (string, upgradeHandler, error) {
+func (h *Handler) selectConnectionUpgradeType(r *http.Request) (string, ConnectionHandler, error) {
 	upgrades := r.Header.Values(constants.ConnectionUpgradeHeader)
 	for _, upgradeType := range upgrades {
 		switch upgradeType {
 		case constants.ConnectionUpgradeTypeALPN:
-			return upgradeType, h.upgradeToALPN, nil
+			if h.cfg.ALPNHandler == nil {
+				return "", nil, trace.BadParameter("missing ALPNHandler")
+			}
+			return upgradeType, h.cfg.ALPNHandler, nil
 		}
 	}
 
@@ -68,23 +67,10 @@ func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p ht
 		return nil, nil
 	}
 
-	if err := upgradeHandler(r.Context(), conn); err != nil {
+	if err := upgradeHandler(r.Context(), conn); err != nil && !utils.IsOKNetworkError(err) {
 		h.log.WithError(err).Errorf("Failed to handle %v upgrade request.", upgradeType)
 	}
 	return nil, nil
-}
-
-// upgradeToALPN handles upgraded ALPN connection.
-func (h *Handler) upgradeToALPN(ctx context.Context, conn net.Conn) error {
-	if h.cfg.ALPNHandler == nil {
-		return trace.BadParameter("missing ALPNHandler")
-	}
-
-	err := h.cfg.ALPNHandler.HandleConnection(ctx, conn)
-	if err != nil && !utils.IsOKNetworkError(err) {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 func writeUpgradeResponse(w io.Writer, upgradeType string) error {

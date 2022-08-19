@@ -3362,7 +3362,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				StaticFS:         fs,
 				ClusterFeatures:  process.getClusterFeatures(),
 				ProxySettings:    proxySettings,
-				ALPNHandler:      alpnHandlerForWeb,
+				ALPNHandler:      alpnHandlerForWeb.HandleConnection,
 			})
 		if err != nil {
 			return trace.Wrap(err)

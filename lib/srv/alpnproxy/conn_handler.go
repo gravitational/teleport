@@ -34,7 +34,8 @@ type connectionHandlerOptions struct {
 	// connection during TLS handshake, if HandlerDesc does not provide a
 	// tls.Config.
 	defaultTLSConfig *tls.Config
-	// setupDefaultTLSConfig applies setup for defaultTLSConfig.
+	// setupDefaultTLSConfig applies setup for defaultTLSConfig (e.g. setting
+	// callbacks to fetch client CAs).
 	setupDefaultTLSConfig bool
 }
 
@@ -59,34 +60,26 @@ func WithDefaultTLSconfig(tlsConfig *tls.Config, setup bool) ConnectionHandlerOp
 	}
 }
 
-// ConnectionHandler is an interface for serving incoming connections.
-type ConnectionHandler interface {
-	HandleConnection(ctx context.Context, conn net.Conn) error
-}
+// ConnectionHandler defines a function for serving incoming connections.
+type ConnectionHandler func(ctx context.Context, conn net.Conn) error
 
-// ConnectionHandlerFunc defines a function to serve incoming connections.
-type ConnectionHandlerFunc func(ctx context.Context, conn net.Conn) error
-
-// HandleConnection implements ConnectionHandler interface
-func (f ConnectionHandlerFunc) HandleConnection(ctx context.Context, conn net.Conn) error {
-	return f(ctx, conn)
-}
-
-// ConnectionHandlerWrapper is a wrapper of ConnectionHandler. Mainly used as a
-// placeholder to resolve circular dependencies.
+// ConnectionHandlerWrapper is a wrapper of ConnectionHandler. This wrapper is
+// mainly used as a placeholder to resolve circular dependencies. Therefore, it
+// is important to use pointer receivers when defining its functions to make
+// sure the updated ConnectionHandler reference is used.
 type ConnectionHandlerWrapper struct {
-	ConnectionHandler
+	h ConnectionHandler
 }
 
 // Set updates inner ConnectionHandler to use.
 func (w *ConnectionHandlerWrapper) Set(h ConnectionHandler) {
-	w.ConnectionHandler = h
+	w.h = h
 }
 
 // HandleConnection implements ConnectionHandler.
-func (w ConnectionHandlerWrapper) HandleConnection(ctx context.Context, conn net.Conn) error {
-	if w.ConnectionHandler == nil {
+func (w *ConnectionHandlerWrapper) HandleConnection(ctx context.Context, conn net.Conn) error {
+	if w.h == nil {
 		return trace.NotFound("missing ConnectionHandler")
 	}
-	return w.ConnectionHandler.HandleConnection(ctx, conn)
+	return w.h(ctx, conn)
 }
