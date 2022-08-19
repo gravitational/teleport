@@ -55,9 +55,8 @@ func tagCheckoutCommands(b buildType) []string {
 		// clone webapps for the Teleport Connect Source code
 		commands = append(commands,
 			`cd /go/src/github.com/gravitational/webapps`,
-			`git init && git remote add origin git@github.com:gravitational/webapps`,
-			`git fetch origin`,
-			`git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)`,
+			`git clone https://github.com/gravitational/webapps.git .`,
+			`git checkout "$(/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)"`,
 			`git submodule update --init packages/webapps.e`,
 			`cd -`,
 		)
