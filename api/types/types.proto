@@ -279,6 +279,8 @@ message DatabaseStatusV3 {
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "mysql,omitempty" ];
     // ManagedUsers is a list of database users that are managed by Teleport.
     repeated string ManagedUsers = 4 [ (gogoproto.jsontag) = "managed_users,omitempty" ];
+    // Azure is the auto-discovered Azure cloud database metadata.
+    Azure Azure = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "azure" ];
 }
 
 // AWS contains AWS metadata about the database.
@@ -366,6 +368,27 @@ message GCPCloudSQL {
 message Azure {
     // Name is the Azure database server name.
     string Name = 1 [ (gogoproto.jsontag) = "name,omitempty" ];
+    // Region is an Azure cloud region.
+    string Region = 2 [ (gogoproto.jsontag) = "region,omitempty" ];
+    // ResourceID is the Azure fully qualified ID for the resource.
+    AzureResourceID ResourceID = 3
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "resource_id,omitempty" ];
+}
+
+// AzureResourceID contains the parsed fully qualified ID for an Azure resource.
+// e.g.
+// /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/{resourceProviderNamespace}/{resourceType}/{resourceName}
+message AzureResourceID {
+    // SubscriptionID is the ID of the Azure subcription.
+    string SubscriptionID = 1 [ (gogoproto.jsontag) = "subscription_id,omitempty" ];
+    // ResourceGroup is the name of the Azure resource group.
+    string ResourceGroup = 2 [ (gogoproto.jsontag) = "resource_group,omitempty" ];
+    // ProviderNamespace is the Azure namespace, e.g. "Microsoft.DBforMySQL"
+    string ProviderNamespace = 3 [ (gogoproto.jsontag) = "provider_namespace,omitempty" ];
+    // ResourceType is the type of the resource, e.g. "servers"
+    string ResourceType = 4 [ (gogoproto.jsontag) = "resource_type,omitempty" ];
+    // ResourceName is the name of the resource
+    string ResourceName = 5 [ (gogoproto.jsontag) = "resource_name,omitempty" ];
 }
 
 // AD contains Active Directory specific database configuration.
