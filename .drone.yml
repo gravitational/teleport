@@ -1727,6 +1727,7 @@ steps:
   - cd /go/src/github.com/gravitational/webapps
   - git init && git remote add origin git@github.com:gravitational/webapps
   - git fetch origin
+  - echo "Getting webapps at $($WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)"
   - git checkout $($WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)
   - git submodule update --init packages/webapps.e
   - cd -
@@ -2415,6 +2416,7 @@ steps:
   - cd /go/src/github.com/gravitational/webapps
   - git init && git remote add origin git@github.com:gravitational/webapps
   - git fetch origin
+  - echo "Getting webapps at $($WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)"
   - git checkout $($WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)
   - git submodule update --init packages/webapps.e
   - cd -
@@ -6490,6 +6492,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 5cb026c868c0c170a21860e031b3b41cd59ef0b01177bdbfaef022395c5a0648
+hmac: d7fc6285d2d914031ab151c2cbb7d05e515140f0442d5c5f4da10d50060de163
 
 ...
