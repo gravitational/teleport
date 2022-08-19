@@ -242,9 +242,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	applyString(fc.NodeName, &cfg.Hostname)
 
-	// apply "cloud_reports" setting
-	cfg.CloudReports = *fc.CloudReports
-
 	// apply "advertise_ip" setting:
 	advertiseIP := fc.AdvertiseIP
 	if advertiseIP != "" {
