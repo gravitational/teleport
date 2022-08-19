@@ -436,6 +436,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			err = client.Close()
 			require.NoError(t, err)
 		})
+
 		t.Run("connect to leaf cluster via proxy", func(t *testing.T) {
 			client, err := mysql.MakeTestClient(common.TestClientConfig{
 				AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
@@ -553,9 +554,10 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 	})
 
 	// Simulate situations where an AWS ALB is between client and the Teleport
-	// Proxy service. ALPN and SNI are "dropped" by the ALB. The ALPN local
-	// proxy will make a connection upgrade first through a web API provided by
-	// the Proxy and then tunnel the original ALPN/TLS routing traffic within.
+	// Proxy service, which drops ALPN along the way. The ALPN local proxy will
+	// need to make a connection upgrade first through a web API provided by
+	// the Proxy server and then tunnel the original ALPN/TLS routing traffic
+	// inside this tunnel.
 	t.Run("ALPN connection upgrade", func(t *testing.T) {
 		// Make a mock ALB which points to the Teleport Proxy Service. Then
 		// ALPN local proxies will point to this ALB instead.
@@ -636,8 +638,8 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			require.NoError(t, client.Close())
 		})
 
-		// Test the case where the client cert is terminated by Teleport cert
-		// and the database client sends data in plain TCP.
+		// Test the case where the client cert is terminated by Teleport and
+		// the database client sends data in plain database protocol.
 		//
 		// Packet layers:
 		// - HTTPS served by Teleport web server for connection upgrade

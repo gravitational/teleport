@@ -167,7 +167,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 	}
 	defer upstreamConn.Close()
 
-	return utils.ProxyConn(ctx, downstreamConn, upstreamConn)
+	return trace.Wrap(utils.ProxyConn(ctx, downstreamConn, upstreamConn))
 }
 
 func (l *LocalProxy) Close() error {

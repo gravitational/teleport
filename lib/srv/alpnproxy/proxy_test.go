@@ -342,6 +342,8 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 
 	svr := suite.CreateProxyServer(t)
 	customCA := mustGenSelfSignedCert(t)
+
+	// Create a ConnectionHandler from the proxy server with some options.
 	alpnConnHandler := svr.MakeConnectionHandler(
 		WithWaitForAsyncHandlers(),
 		WithDefaultTLSconfig(&tls.Config{

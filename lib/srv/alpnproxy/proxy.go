@@ -222,7 +222,6 @@ func (h *HandlerDesc) getTLSConfig(defaultTLSConfig *tls.Config) *tls.Config {
 	if h.TLSConfig != nil {
 		return h.TLSConfig
 	}
-
 	return defaultTLSConfig
 }
 
@@ -322,7 +321,9 @@ func (p *Proxy) Serve(ctx context.Context) error {
 			if err := p.handleConn(ctx, clientConn, options); err != nil {
 				// Try to close clientConn in case err happens before
 				// clientConn is closed.
-				p.closeClientConnAndLogError(clientConn)
+				if cerr := clientConn.Close(); cerr != nil && !utils.IsOKNetworkError(cerr) {
+					p.log.WithError(cerr).Warnf("Failed to close client connection.")
+				}
 
 				if trace.IsBadParameter(err) {
 					p.log.Warnf("Failed to handle client connection: %v", err)
@@ -332,31 +333,6 @@ func (p *Proxy) Serve(ctx context.Context) error {
 			}
 		}()
 	}
-}
-
-// MakeConnectionHandler creates a ConnectionHandler which provides a callback
-// to handle incoming connections by this ALPN proxy server.
-func (p *Proxy) MakeConnectionHandler(opts ...ConnectionHandlerOption) ConnectionHandler {
-	options := p.getHandleConnOptions(opts...)
-	return func(ctx context.Context, conn net.Conn) error {
-		return p.handleConn(ctx, conn, options)
-	}
-}
-
-// MakeDefaultTLSConfig clones provided TLS config and applies necessary
-// upgrades.
-func (p *Proxy) MakeDefaultTLSConfig(config *tls.Config) *tls.Config {
-	configClone := config.Clone()
-
-	// Add all supported protos.
-	configClone.NextProtos = apiutils.Deduplicate(append(configClone.NextProtos, common.ProtocolsToString(p.supportedProtocols)...))
-
-	// Do not ignore client certs if given. Some logic also requires information from the verified client cert.
-	configClone.ClientAuth = tls.VerifyClientCertIfGiven
-
-	// Set proper callback for fetching cluster CAs used for veriying clients.
-	configClone.GetConfigForClient = auth.WithClusterCAs(configClone, p.cfg.AccessPoint, p.cfg.ClusterName, p.cfg.Log)
-	return configClone
 }
 
 // ConnectionInfo contains details about TLS connection.
@@ -398,32 +374,37 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, opts *conne
 	conn = waitConn
 
 	// Upgrade conn to tls.Conn if not forwarding TLS.
-	if !handlerDesc.ForwardTLS {
-		conn, handlerDesc, err = p.setupTLSConnForHandler(conn, handlerDesc, opts)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	conn, handlerDesc, err = p.setupTLSConnForHandler(conn, handlerDesc, opts)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	// Do not close clientConn for async handlers. Connections will be closed
-	// by the handlers themselves.
-	if handlerDesc.IsAsync {
-		if opts.waitForAsyncHandlers {
-			defer waitConn.WaitForClose()
-		}
-	} else {
-		defer p.closeClientConnAndLogError(clientConn)
+	// Close clientConn for "sync" handlers. "Async" handlers will close the
+	// connections by themselves.
+	if !handlerDesc.IsAsync {
+		defer func() {
+			if err := clientConn.Close(); err != nil && !utils.IsOKNetworkError(err) {
+				p.log.WithError(err).Warnf("Failed to close client connection.")
+			}
+		}()
+	}
+	// Wait for async handlers if options says so.
+	if handlerDesc.IsAsync && opts.waitForAsyncHandlers {
+		defer waitConn.WaitForClose()
 	}
 
 	connInfo := ConnectionInfo{
 		SNI:  hello.ServerName,
 		ALPN: hello.SupportedProtos,
 	}
-
 	return trace.Wrap(handlerDesc.handle(ctx, conn, connInfo))
 }
 
 func (p *Proxy) setupTLSConnForHandler(conn net.Conn, handlerDesc *HandlerDesc, opts *connectionHandlerOptions) (net.Conn, *HandlerDesc, error) {
+	if handlerDesc.ForwardTLS {
+		return conn, handlerDesc, nil
+	}
+
 	tlsConn := tls.Server(conn, handlerDesc.getTLSConfig(opts.defaultTLSConfig))
 	if err := tlsConn.SetReadDeadline(p.cfg.Clock.Now().Add(p.cfg.ReadDeadline)); err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -439,7 +420,6 @@ func (p *Proxy) setupTLSConnForHandler(conn net.Conn, handlerDesc *HandlerDesc, 
 	if err != nil {
 		p.log.WithError(err).Debug("Failed to check if connection is database connection.")
 	}
-
 	if isDatabaseConnection {
 		if p.cfg.Router.databaseTLSHandler == nil {
 			return nil, nil, trace.BadParameter("missing database TLS handler")
@@ -583,12 +563,30 @@ func (p *Proxy) Close() error {
 	return nil
 }
 
-// closeClientConnAndLogError is a helper function that closes the provided
-func (p *Proxy) closeClientConnAndLogError(clientConn net.Conn) {
-	err := clientConn.Close()
-	if err != nil && !utils.IsOKNetworkError(err) {
-		p.log.WithError(err).Warnf("Failed to close client connection.")
+// MakeConnectionHandler creates a ConnectionHandler which provides a callback
+// to handle incoming connections by this ALPN proxy server.
+func (p *Proxy) MakeConnectionHandler(opts ...ConnectionHandlerOption) ConnectionHandler {
+	options := p.getHandleConnOptions(opts...)
+	return func(ctx context.Context, conn net.Conn) error {
+		return p.handleConn(ctx, conn, options)
 	}
+}
+
+// MakeDefaultTLSConfig clones provided TLS config and applies necessary
+// upgrades.
+func (p *Proxy) MakeDefaultTLSConfig(config *tls.Config) *tls.Config {
+	configClone := config.Clone()
+
+	// Add all supported protos.
+	configClone.NextProtos = apiutils.Deduplicate(append(configClone.NextProtos, common.ProtocolsToString(p.supportedProtocols)...))
+
+	// Do not ignore client certs if given. Some logic also requires
+	// information from the verified client cert.
+	configClone.ClientAuth = tls.VerifyClientCertIfGiven
+
+	// Set proper callback for fetching cluster CAs used for veriying clients.
+	configClone.GetConfigForClient = auth.WithClusterCAs(configClone, p.cfg.AccessPoint, p.cfg.ClusterName, p.cfg.Log)
+	return configClone
 }
 
 // getHandleConnOptions creates the connection handler options.

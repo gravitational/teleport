@@ -543,13 +543,12 @@ func mustCreateSelfSignedCert(t *testing.T) tls.Certificate {
 
 	cert, err := tls.X509KeyPair(caCert, caKey)
 	require.NoError(t, err)
-
 	return cert
 }
 
 // mockAWSALBProxy is a mock proxy server that simulates an AWS application
-// load balancer where ALPN is not supported and SNI gets lost during TLS
-// handshake. Note that this mock does not actually balance traffic.
+// load balancer where ALPN is not supported. Note that this mock does not
+// actually balance traffic.
 type mockAWSALBProxy struct {
 	net.Listener
 	proxyAddr    string
@@ -570,7 +569,6 @@ func (m *mockAWSALBProxy) serve(ctx context.Context, t *testing.T) {
 			if utils.IsOKNetworkError(err) {
 				return
 			}
-
 			require.NoError(t, err)
 		}
 
@@ -580,7 +578,7 @@ func (m *mockAWSALBProxy) serve(ctx context.Context, t *testing.T) {
 				Certificates: []tls.Certificate{m.cert},
 			})
 
-			// Make a connection to the proxy server.
+			// Make a connection to the proxy server with ALPN protos.
 			upstreamConn, err := tls.Dial("tcp", m.proxyAddr, &tls.Config{
 				InsecureSkipVerify: true,
 			})
