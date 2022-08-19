@@ -79,6 +79,8 @@ type Client struct {
 	// JoinServiceClient is a client for the JoinService, which runs on both the
 	// auth and proxy.
 	*JoinServiceClient
+	// HardwareKeyServiceClient is a client for the HardwareKeyService.
+	*HardwareKeyServiceClient
 	// closedFlag is set to indicate that the connection is closed.
 	// It's a pointer to allow the Client struct to be copied.
 	closedFlag *int32
@@ -411,6 +413,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	c.conn = conn
 	c.grpc = proto.NewAuthServiceClient(c.conn)
 	c.JoinServiceClient = NewJoinServiceClient(proto.NewJoinServiceClient(c.conn))
+	c.HardwareKeyServiceClient = NewHardwareKeyServiceClient(proto.NewHardwareKeyServiceClient(c.conn))
 
 	return nil
 }
@@ -2950,7 +2953,6 @@ func (c *Client) UpdateConnectionDiagnostic(ctx context.Context, connectionDiagn
 	return trail.FromGRPC(err)
 }
 
-<<<<<<< HEAD
 // GetClusterAlerts loads matching cluster alerts.
 func (c *Client) GetClusterAlerts(ctx context.Context, query types.GetClusterAlertsRequest) ([]types.ClusterAlert, error) {
 	rsp, err := c.grpc.GetClusterAlerts(ctx, &query, c.callOpts...)
@@ -2966,23 +2968,4 @@ func (c *Client) UpsertClusterAlert(ctx context.Context, alert types.ClusterAler
 		Alert: alert,
 	}, c.callOpts...)
 	return trail.FromGRPC(err)
-=======
-// AttestHardwarePrivateKey attests a hardware private key so that it
-// will be trusted by the Auth server in subsequent calls.
-func (c *Client) AttestHardwarePrivateKey(ctx context.Context, req *proto.AttestHardwarePrivateKeyRequest) (*proto.AttestHardwarePrivateKeyResponse, error) {
-	resp, err := c.grpc.AttestHardwarePrivateKey(ctx, req, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	return resp, nil
-}
-
-// GetPrivateKeyPolicy gets the private key policy enforced for the current user.
-func (c *Client) GetPrivateKeyPolicy(ctx context.Context, req *proto.GetPrivateKeyPolicyRequest) (*proto.GetPrivateKeyPolicyResponse, error) {
-	resp, err := c.grpc.GetPrivateKeyPolicy(ctx, req, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	return resp, nil
->>>>>>> 771e622121... Add Private key policy logic and configuration options.
 }

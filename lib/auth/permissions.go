@@ -66,6 +66,11 @@ func NewAuthorizer(clusterName string, accessPoint AuthorizerAccessPoint, lockWa
 type Authorizer interface {
 	// Authorize authorizes user based on identity supplied via context
 	Authorize(ctx context.Context) (*Context, error)
+
+	// AuthorizeWithoutPrivateKeyPolicy authorizes user based on identity supplied
+	// via context, but skips the check on private key policy. This is used exclusively
+	// by AttestHardwarePrivateKey rpc to enable PIV re-login flow.
+	AuthorizeWithoutPrivateKeyPolicy(ctx context.Context) (*Context, error)
 }
 
 // AuthorizerAccessPoint is the access point contract required by an Authorizer
@@ -171,6 +176,27 @@ func (c *Context) UseSearchAsRoles(access services.RoleGetter, clusterName strin
 
 // Authorize authorizes user based on identity supplied via context
 func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
+	authContext, err := a.AuthorizeWithoutPrivateKeyPolicy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Enforce private key policy.
+	authPref, err := a.accessPoint.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.enforcePrivateKeyPolicy(ctx, authContext, authPref); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return authContext, nil
+}
+
+// AuthorizeWithoutPrivateKeyPolicy authorizes user based on identity supplied
+// via context, but skips the check on private key policy. This is necessarys
+// for requests where we expect the identity to fail the private key policy check.
+func (a *authorizer) AuthorizeWithoutPrivateKeyPolicy(ctx context.Context) (*Context, error) {
 	if ctx == nil {
 		return nil, trace.AccessDenied("missing authentication context")
 	}
@@ -179,6 +205,7 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	// Enforce applicable locks.
 	authPref, err := a.accessPoint.GetAuthPreference(ctx)
 	if err != nil {
@@ -188,13 +215,6 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 		authContext.Checker.LockingMode(authPref.GetLockingMode()),
 		authContext.LockTargets()...); lockErr != nil {
 		return nil, trace.Wrap(lockErr)
-	}
-
-	// Enforce private key policy.
-	identityPolicy := authContext.Identity.GetIdentity().PrivateKeyPolicy
-	requiredPolicy := services.GetPrivateKeyPolicy(authPref, authContext.Checker)
-	if !services.VerifyPrivateKeyPolicy(identityPolicy, requiredPolicy) {
-		return nil, trace.AccessDenied("required private key policy %q not met", requiredPolicy)
 	}
 
 	return authContext, nil
@@ -213,6 +233,22 @@ func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context,
 	default:
 		return nil, trace.AccessDenied("unsupported context type %T", userI)
 	}
+}
+
+func (a *authorizer) enforcePrivateKeyPolicy(ctx context.Context, authContext *Context, authPref types.AuthPreference) error {
+	switch authContext.Identity.(type) {
+	case BuiltinRole, RemoteBuiltinRole:
+		// built in roles do not need to pass private key policies
+		return nil
+	}
+
+	identityPolicy := authContext.Identity.GetIdentity().PrivateKeyPolicy
+	requiredPolicy := authContext.Checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	if !services.VerifyPrivateKeyPolicy(identityPolicy, requiredPolicy) {
+		return trace.AccessDenied("required private key policy %q not met by %q", requiredPolicy, identityPolicy)
+	}
+
+	return nil
 }
 
 // authorizeLocalUser returns authz context based on the username

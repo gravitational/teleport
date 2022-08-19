@@ -1981,52 +1981,6 @@ message GetConnectionDiagnosticRequest {
     string Name = 1 [ (gogoproto.jsontag) = "name" ];
 }
 
-// AttestHardwarePrivateKeyRequest is a request to AttestHardwarePrivateKey.
-message AttestHardwarePrivateKeyRequest {
-    // attestation_request is an attestation request for a hardware private key. The data
-    // necessary for the request is dependent on the hardware key in question.
-    oneof attestation_request {
-        // yubikey_attestation_request is a request to attest a specific Yubikey PIV slot.
-        YubikeyAttestationRequest yubikey_attestation_request = 1;
-    }
-}
-
-// YubikeyAttestationRequest is data used to attest a specific Yubikey PIV slot.
-message YubikeyAttestationRequest {
-    // slot_cert is a certificate signed by the yubikey's attestation certificate using the slot's
-    // public key.
-    bytes slot_cert = 1;
-    // attestation_cert is the attestation certificate signed by a Yubikey CA for the yubikey in
-    // question.
-    bytes attestation_cert = 2;
-}
-
-// AttestHardwarePrivateKeyResponse is a response to AttestHardwarePrivateKey.
-message AttestHardwarePrivateKeyResponse {}
-
-// GetPrivateKeyPolicyRequest is a request to GetPrivateKeyPolicy.
-message GetPrivateKeyPolicyRequest {}
-
-// GetPrivateKeyPolicyResponse is a response to GetPrivateKeyPolicy.
-message GetPrivateKeyPolicyResponse {
-    // policy is the private key policy enforced for the current user.
-    PrivateKeyPolicy policy = 1;
-}
-
-// PrivateKeyPolicy is a private key mode required for a client.
-enum PrivateKeyPolicy {
-    // PRIVATE_KEY_POLICY_NONE means that the client can store their private keys
-    // anywhere (usually on disk).
-    PRIVATE_KEY_POLICY_NONE = 0;
-    // PRIVATE_KEY_POLICY_HARDWARE_KEY means that the client must use a valid
-    // hardware key to generate and store their private keys securely.
-    PRIVATE_KEY_POLICY_HARDWARE_KEY = 1;
-    // PRIVATE_KEY_POLICY_HARDWARE_KEY means that the client must use a valid
-    // hardware key to generate and store their private keys securely, and
-    // this key must require touch to be accessed and used.
-    PRIVATE_KEY_POLICY_HARDWARE_KEY_TOUCH = 2;
-}
-
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -2626,12 +2580,4 @@ service AuthService {
     // instances to prove that they hold a given system role.
     // DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
     rpc UnstableAssertSystemRole(UnstableSystemRoleAssertion) returns (google.protobuf.Empty);
-
-    // AttestHardwarePrivateKey is used to perform a server-side attestation check for a
-    // hardware-backed private key.
-    rpc AttestHardwarePrivateKey(AttestHardwarePrivateKeyRequest)
-        returns (AttestHardwarePrivateKeyResponse);
-
-    // GetPrivateKeyPolicy is used to find a user's private key storage requirements.
-    rpc GetPrivateKeyPolicy(GetPrivateKeyPolicyRequest) returns (GetPrivateKeyPolicyResponse);
 }

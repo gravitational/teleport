@@ -24,6 +24,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -39,6 +40,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/crypto/ssh"
 
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 )
@@ -1491,8 +1493,25 @@ func (s *IdentityService) UpsertHardwareKeyAttestation(ctx context.Context, atte
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	pub, err := x509.ParsePKIXPublicKey(attestation.PublicKeyDER)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sshPub, err := ssh.NewPublicKey(pub)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	key := string(ssh.MarshalAuthorizedKey(sshPub))
+	key = strings.ReplaceAll(key, "/", "")
+	key = strings.ReplaceAll(key, "\n", "")
+	key = strings.ReplaceAll(key, " ", "")
+	key = strings.ReplaceAll(key, "=", "")
+
 	item := backend.Item{
-		Key:   backend.Key(webPrefix, attestationsPrefix, string(attestation.PublicKeyDER)),
+		Key:   backend.Key(attestationsPrefix, key),
 		Value: value,
 		// TODO (Joerger): set expiry?
 	}
@@ -1509,12 +1528,18 @@ func (s *IdentityService) GetHardwareKeyAttestation(ctx context.Context, publicK
 		return nil, trace.BadParameter("missing parameter publicKey")
 	}
 
-	publicKeyDER, err := x509.MarshalPKIXPublicKey(publicKey)
+	sshPub, err := ssh.NewPublicKey(publicKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	item, err := s.Get(ctx, backend.Key(webPrefix, attestationsPrefix, string(publicKeyDER)))
+	key := string(ssh.MarshalAuthorizedKey(sshPub))
+	key = strings.ReplaceAll(key, "/", "")
+	key = strings.ReplaceAll(key, "\n", "")
+	key = strings.ReplaceAll(key, " ", "")
+	key = strings.ReplaceAll(key, "=", "")
+
+	item, err := s.Get(ctx, backend.Key(attestationsPrefix, key))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("hardware key attestation not found")
@@ -1550,5 +1575,5 @@ const (
 	webauthnSessionData       = "webauthnsessiondata"
 	recoveryCodesPrefix       = "recoverycodes"
 	recoveryAttemptsPrefix    = "recoveryattempts"
-	attestationsPrefix        = "attestations"
+	attestationsPrefix        = "hardware_key_attestations"
 )

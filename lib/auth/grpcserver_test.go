@@ -2238,6 +2238,10 @@ func (a mockAuthorizer) Authorize(context.Context) (*Context, error) {
 	return a.ctx, a.err
 }
 
+func (a mockAuthorizer) AuthorizeWithoutPrivateKeyPolicy(context.Context) (*Context, error) {
+	return a.ctx, a.err
+}
+
 type mockTraceClient struct {
 	err   error
 	spans []*otlptracev1.ResourceSpans

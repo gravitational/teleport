@@ -22,7 +22,6 @@ import (
 
 	"github.com/go-piv/piv-go/piv"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 )
 
@@ -81,19 +80,6 @@ func AttestYubikey(slotCertDER, attestationCertDER []byte) (*HardwareKeyAttestat
 		PrivateKeyPolicy:  policy,
 		AttestationObject: attestationObject,
 	}, nil
-}
-
-// GetPrivateKeyPolicy gets a user's private key policy by checking the auth preference and role option policy.
-func GetPrivateKeyPolicy(authPref types.AuthPreference, accessChecker AccessChecker) constants.PrivateKeyPolicy {
-	// Default to the auth preference's private key policy
-	authPolicy := authPref.GetPrivateKeyPolicy()
-	rolePolicy := accessChecker.PrivateKeyPolicy()
-	if authPolicy == constants.PrivateKeyPolicyHardwareKeyTouch || rolePolicy == constants.PrivateKeyPolicyHardwareKeyTouch {
-		return constants.PrivateKeyPolicyHardwareKeyTouch
-	} else if authPolicy == constants.PrivateKeyPolicyHardwareKey || rolePolicy == constants.PrivateKeyPolicyHardwareKey {
-		return constants.PrivateKeyPolicyHardwareKey
-	}
-	return constants.PrivateKeyPolicyNone
 }
 
 // VerifyPrivateKeyPolicy verfies that the provided private key policy passes

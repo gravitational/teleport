@@ -348,6 +348,9 @@ func (c *AuthPreferenceV2) GetRequireSessionMFA() bool {
 
 // GetPrivateKeyPolicy returns the configured private key policy for the cluster.
 func (c *AuthPreferenceV2) GetPrivateKeyPolicy() constants.PrivateKeyPolicy {
+	if c.Spec.PrivateKeyPolicy == "" {
+		return constants.PrivateKeyPolicyNone
+	}
 	return c.Spec.PrivateKeyPolicy
 }
 

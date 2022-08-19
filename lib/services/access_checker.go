@@ -179,7 +179,7 @@ type AccessChecker interface {
 	PinSourceIP() bool
 
 	// PrivateKeyPolicy returns the enforced private key policy for this role set.
-	PrivateKeyPolicy() constants.PrivateKeyPolicy
+	PrivateKeyPolicy(defaultPolicy constants.PrivateKeyPolicy) constants.PrivateKeyPolicy
 }
 
 // AccessInfo hold information about an identity necessary to check whether that

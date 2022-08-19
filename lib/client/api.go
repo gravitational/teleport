@@ -735,7 +735,13 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 	}
 	log.Debugf("Activating relogin on %v.", err)
 
-	key, err := tc.Login(ctx)
+	// generate a new private key. the public key will be signed via proxy if client's password+OTP are valid
+	key, err := GenerateRSAKey()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	key, err = tc.Login(ctx, key)
 	if err != nil {
 		if trace.IsTrustError(err) {
 			return trace.Wrap(err, "refusing to connect to untrusted proxy %v without --insecure flag\n", tc.SSHProxyAddr)
@@ -3239,39 +3245,13 @@ func (tc *TeleportClient) GetWebConfig(ctx context.Context) (*webclient.WebConfi
 //
 // The returned Key should typically be passed to ActivateKey in order to
 // update local agent state.
-func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
+func (tc *TeleportClient) Login(ctx context.Context, key *Key) (*Key, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/Login",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 	)
 	defer span.End()
-
-	// Get a new (or old) key to be signed via proxy on valid login.
-	var key *Key
-	var err error
-
-	// TODO (Joerger): Remove this env var check once we can pull server settings to decide whether
-	// or not to initiate PIV login - https://github.com/gravitational/teleport/pull/15336
-	if os.Getenv("PIV_LOGIN") != "" {
-		priv, err := keys.GetOrGenerateYubiKeyPrivateKey(false)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		key = NewKey(priv)
-	} else {
-		// If we find a valid key in the localAgent, reuse it instead of generating a new key.
-		// This is especially useful if the key is a hardware key, since they need to be reused
-		// between multiple login sessions and shouldn't be regenerated.
-		if key, err = tc.localAgent.GetCoreKey(); trace.IsNotFound(err) {
-			// No core key found, this is the first login for the proxy. Generate a new RSA key.
-			if key, err = GenerateRSAKey(); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		} else if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
 
 	// Ping the endpoint to see if it's up and find the type of authentication
 	// supported, also show the message of the day if available.
@@ -3327,6 +3307,11 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		}
 	}
 
+	if response.PublicKeyPolicyNotMet != "" {
+		// TODO: make sure this can't inifintely loop
+		return tc.loginWithNewPIVKey(ctx, key, response.PublicKeyPolicyNotMet)
+	}
+
 	// Check that a host certificate for at least one cluster was returned.
 	if len(response.HostSigners) == 0 {
 		return nil, trace.BadParameter("bad response from the server: expected at least one certificate, got 0")
@@ -3352,6 +3337,52 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	}
 
 	return key, nil
+}
+
+func (tc *TeleportClient) loginWithNewPIVKey(ctx context.Context, tempKey *Key, privateKeyPolicy constants.PrivateKeyPolicy) (*Key, error) {
+	// TODO: use temp key
+	// if err := setupNoninteractiveClient(tc, tempKey); err != nil {
+	// 	return nil, trace.Wrap(err)
+	// }
+	proxy, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	site, err := proxy.ConnectToRootCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	fmt.Fprint(os.Stderr, "\nHardware key login is required, please re-enter your login credentials\n")
+	yubiPriv, err := keys.GetOrGenerateYubiKeyPrivateKey(privateKeyPolicy == constants.PrivateKeyPolicyHardwareKeyTouch)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	slotCert, attestationCert, err := yubiPriv.GetAttestationCerts()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	attestationReq := &proto.AttestHardwarePrivateKeyRequest{
+		AttestationRequest: &proto.AttestHardwarePrivateKeyRequest_YubikeyAttestationRequest{
+			YubikeyAttestationRequest: &proto.YubikeyAttestationRequest{
+				SlotCert:        slotCert.Raw,
+				AttestationCert: attestationCert.Raw,
+			},
+		},
+	}
+	if err = site.AttestHardwarePrivateKey(ctx, attestationReq); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	priv, err := keys.NewPrivateKey(yubiPriv)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	newKey := NewKey(priv)
+	return tc.Login(ctx, newKey)
 }
 
 func (tc *TeleportClient) pwdlessLogin(ctx context.Context, pubKey []byte) (*auth.SSHLoginResponse, error) {

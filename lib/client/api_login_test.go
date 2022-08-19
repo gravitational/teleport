@@ -223,7 +223,9 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			tc.PreferOTP = test.preferOTP
 
 			clock.Advance(30 * time.Second)
-			_, err = tc.Login(ctx)
+			key, err := client.GenerateRSAKey()
+			require.NoError(t, err)
+			_, err = tc.Login(ctx, key)
 			require.NoError(t, err)
 		})
 	}

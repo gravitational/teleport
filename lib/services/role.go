@@ -1095,17 +1095,23 @@ func (set RoleSet) PinSourceIP() bool {
 }
 
 // PrivateKeyPolicy returns the enforced private key policy for this role set.
-func (set RoleSet) PrivateKeyPolicy() constants.PrivateKeyPolicy {
-	policy := constants.PrivateKeyPolicyNone
+func (set RoleSet) PrivateKeyPolicy(defaultPolicy constants.PrivateKeyPolicy) constants.PrivateKeyPolicy {
+	if defaultPolicy == constants.PrivateKeyPolicyHardwareKeyTouch {
+		// This is the strictest option so we can return now
+		return defaultPolicy
+	}
+
+	policy := defaultPolicy
 	for _, role := range set {
 		switch rolePolicy := role.GetPrivateKeyPolicy(); rolePolicy {
 		case constants.PrivateKeyPolicyHardwareKey:
 			policy = rolePolicy
 		case constants.PrivateKeyPolicyHardwareKeyTouch:
 			// This is the strictest option so we can return now
-			return rolePolicy
+			return constants.PrivateKeyPolicyHardwareKeyTouch
 		}
 	}
+
 	return policy
 }
 

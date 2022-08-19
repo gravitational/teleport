@@ -1093,6 +1093,10 @@ func (a mockAuthorizer) Authorize(context.Context) (*auth.Context, error) {
 	return a.ctx, a.err
 }
 
+func (a mockAuthorizer) AuthorizeWithoutPrivateKeyPolicy(context.Context) (*auth.Context, error) {
+	return a.ctx, a.err
+}
+
 type mockEventClient struct {
 	services.Presence
 	types.Events

@@ -1428,7 +1428,21 @@ func onLogin(cf *CLIConf) error {
 	// Only allow the option during the login ceremony.
 	tc.AllowStdinHijack = true
 
-	key, err := tc.Login(cf.Context)
+	// If we find a valid key in the localAgent, reuse it instead of generating a new key.
+	// This is especially useful if the key is a hardware key, since they need to be reused
+	// between multiple login sessions and shouldn't be regenerated.
+	key, err := tc.LocalAgent().GetCoreKey()
+	if trace.IsNotFound(err) {
+		// No core key found, this is the first login for the proxy. Generate a new RSA key.
+		key, err = client.GenerateRSAKey()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	} else if err != nil {
+		return trace.Wrap(err)
+	}
+
+	key, err = tc.Login(cf.Context, key)
 	if err != nil {
 		if !cf.ExplicitUsername && auth.IsInvalidLocalCredentialError(err) {
 			fmt.Fprintf(os.Stderr, "\nhint: set the --user flag to log in as a specific user, or leave it empty to use the system user (%v)\n\n", tc.Username)

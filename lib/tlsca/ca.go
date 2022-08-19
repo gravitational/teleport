@@ -799,9 +799,9 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 				id.AllowedResourceIDs = allowedResourceIDs
 			}
 		case attr.Type.Equal(PrivateKeyPolicyASN1ExtensionOID):
-			val, ok := attr.Value.(constants.PrivateKeyPolicy)
+			val, ok := attr.Value.(string)
 			if ok {
-				id.PrivateKeyPolicy = val
+				id.PrivateKeyPolicy = constants.PrivateKeyPolicy(val)
 			}
 		}
 	}

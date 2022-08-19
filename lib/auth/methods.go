@@ -385,6 +385,13 @@ type SSHLoginResponse struct {
 	TLSCert []byte `json:"tls_cert"`
 	// HostSigners is a list of signing host public keys trusted by proxy
 	HostSigners []TrustedCerts `json:"host_signers"`
+	// PublicKeyPolicyNotMet is a public key policy expected by the Auth server which
+	// the SSH login failed to meet. The returned certs will not have the correct public
+	// key policy extension and will fail for requests other than AttestHardwarePrivateKey.
+	//
+	// The receiver is expected to bootstrap a hardware private key which meets this returned policy,
+	// attest it with the auth server, and re-login to generate certificates with full permissions.
+	PublicKeyPolicyNotMet constants.PrivateKeyPolicy `json:"public_key_policy_not_met"`
 }
 
 // TrustedCerts contains host certificates, it preserves backwards compatibility

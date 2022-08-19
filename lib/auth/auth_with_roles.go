@@ -5004,7 +5004,7 @@ func (a *ServerWithRoles) getPrivateKeyPolicy(ctx context.Context) (constants.Pr
 		return "", trace.Wrap(err)
 	}
 
-	return services.GetPrivateKeyPolicy(authPref, a.context.Checker), nil
+	return a.context.Checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy()), nil
 }
 
 // StartAccountRecovery is implemented by AuthService.StartAccountRecovery.

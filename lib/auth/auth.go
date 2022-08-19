@@ -1007,9 +1007,18 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// reuse the same RSA keys for SSH and TLS keys
+	// reuse the same public key for SSH and TLS keys
 	cryptoPubKey, err := sshutils.CryptoPublicKey(req.publicKey)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Get the provided key policy.
+	privateKeyPolicy := constants.PrivateKeyPolicyNone
+	attestation, err := a.GetHardwareKeyAttestation(ctx, cryptoPubKey)
+	if err == nil {
+		privateKeyPolicy = attestation.PrivateKeyPolicy
+	} else if !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1091,14 +1100,6 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 
 	requestedResourcesStr, err := types.ResourceIDsToString(req.checker.GetAllowedResourceIDs())
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	privateKeyPolicy := constants.PrivateKeyPolicyNone
-	attestation, err := a.GetHardwareKeyAttestation(ctx, cryptoPubKey)
-	if err == nil {
-		privateKeyPolicy = attestation.PrivateKeyPolicy
-	} else if !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
 
