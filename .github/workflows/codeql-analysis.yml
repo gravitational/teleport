@@ -44,3 +44,5 @@ jobs:
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
+      env:
+        CODEQL_EXTRACTOR_GO_MAX_GOROUTINES: 16
