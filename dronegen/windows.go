@@ -211,7 +211,7 @@ func buildWindowsTeleportConnectStep(workspace string) step {
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 			`Enable-Node -NodeVersion $NodeVersion -ToolchainDir "` + windowsToolchainDir + `"`,
 			`cd $WebappsSrc`,
-			`yarn install`,
+			`yarn install --frozen-lockfile`,
 			`yarn build-term`,
 			`yarn package-term`,
 		},
