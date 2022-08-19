@@ -446,17 +446,20 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 					TokenName: defaults.IAMInviteTokenName,
 					Method:    types.JoinMethodIAM,
 				},
+				ScriptName: types.MetaNameClusterInstallerScript,
 			}
 		} else {
-			method := matcher.InstallParams.JoinParams.Method
-			if method == "" {
+			if method := matcher.InstallParams.JoinParams.Method; method == "" {
 				matcher.InstallParams.JoinParams.Method = types.JoinMethodIAM
 			} else if method != types.JoinMethodIAM {
 				return trace.BadParameter("only IAM joining is supported for EC2 auto-discovery")
 			}
-			token := matcher.InstallParams.JoinParams.TokenName
-			if token == "" {
+			if token := matcher.InstallParams.JoinParams.TokenName; token == "" {
 				matcher.InstallParams.JoinParams.TokenName = defaults.IAMInviteTokenName
+			}
+
+			if installer := matcher.InstallParams.ScriptName; installer == "" {
+				matcher.InstallParams.ScriptName = types.MetaNameClusterInstallerScript
 			}
 		}
 
@@ -1255,7 +1258,12 @@ type AWSEC2Matcher struct {
 
 // InstallParams sets join method to use on discovered nodes
 type InstallParams struct {
+	// JoinParams sets the token and method to use when generating
+	// config on EC2 instances
 	JoinParams JoinParams `yaml:"join_params,omitempty"`
+	// ScriptName is the name of the teleport script for the EC2
+	// instance to execute
+	ScriptName string `yaml:"script_name,omitempty"`
 }
 
 // AWSSSM provides options to use when executing SSM documents

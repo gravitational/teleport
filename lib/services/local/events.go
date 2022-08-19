@@ -1282,7 +1282,6 @@ func (p *installerParser) parse(event backend.Event) (types.Resource, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		h.SetName(types.MetaNameClusterInstallerScript)
 		return h, nil
 	case types.OpPut:
 		inst, err := services.UnmarshalInstaller(event.Item.Value,

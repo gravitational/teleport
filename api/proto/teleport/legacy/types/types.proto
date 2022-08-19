@@ -4088,6 +4088,12 @@ message InstallerSpecV1 {
   string Script = 1 [(gogoproto.jsontag) = "script"];
 }
 
+// InstallerV1List represents a list of installer resources.
+message InstallerV1List {
+    // Installers is a list of installer resources.
+    repeated InstallerV1 installers = 1;
+}
+
 // SessionState represents the state of a session.
 enum SessionState {
   // Pending variant represents a session that is waiting on participants to fulfill the criteria

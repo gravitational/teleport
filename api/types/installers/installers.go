@@ -27,7 +27,7 @@ var defaultInstallScript string
 
 // DefaultInstaller represents a the default installer script provided
 // by teleport
-var DefaultInstaller = types.MustNewInstallerV1(defaultInstallScript)
+var DefaultInstaller = types.MustNewInstallerV1(types.MetaNameClusterInstallerScript, defaultInstallScript)
 
 // Template is used to fill proxy address and version information into
 // the installer script

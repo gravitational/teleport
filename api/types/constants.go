@@ -187,7 +187,7 @@ const (
 
 	// MetaNameClusterInstallerScript is the exact name of the
 	// singleton resource holding an installer script
-	MetaNameClusterInstallerScript = "cluster-install-script"
+	MetaNameClusterInstallerScript = "installer"
 
 	// KindSemaphore is the resource that provides distributed semaphore functionality
 	KindSemaphore = "semaphore"

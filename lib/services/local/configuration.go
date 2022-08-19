@@ -361,9 +361,28 @@ func (s *ClusterConfigurationService) DeleteSessionRecordingConfig(ctx context.C
 	return nil
 }
 
+// GetInstallers retrieves all the install scripts.
+func (s *ClusterConfigurationService) GetInstallers(ctx context.Context) ([]types.Installer, error) {
+	startKey := backend.Key(clusterConfigPrefix, installerScriptPrefix, "")
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var installers []types.Installer
+	for _, item := range result.Items {
+		installer, err := services.UnmarshalInstaller(item.Value)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		installers = append(installers, installer)
+	}
+	return installers, nil
+}
+
 // GetInstaller gets the script of the cluster from the backend.
-func (s *ClusterConfigurationService) GetInstaller(ctx context.Context) (types.Installer, error) {
-	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, installerScriptPrefix))
+func (s *ClusterConfigurationService) GetInstaller(ctx context.Context, name string) (types.Installer, error) {
+	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, installerScriptPrefix, name))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -378,7 +397,7 @@ func (s *ClusterConfigurationService) SetInstaller(ctx context.Context, ins type
 	}
 
 	_, err = s.Put(ctx, backend.Item{
-		Key:     backend.Key(clusterConfigPrefix, installerScriptPrefix),
+		Key:     backend.Key(clusterConfigPrefix, installerScriptPrefix, ins.GetName()),
 		Value:   value,
 		Expires: ins.Expiry(),
 	})
@@ -386,9 +405,19 @@ func (s *ClusterConfigurationService) SetInstaller(ctx context.Context, ins type
 }
 
 // DeleteInstaller sets the installer script to default script in the backend.
-func (s *ClusterConfigurationService) DeleteInstaller(ctx context.Context) error {
+func (s *ClusterConfigurationService) DeleteInstaller(ctx context.Context, name string) error {
 	return trace.Wrap(
-		s.Delete(ctx, backend.Key(clusterConfigPrefix, installerScriptPrefix)))
+		s.Delete(ctx, backend.Key(clusterConfigPrefix, installerScriptPrefix, name)))
+}
+
+// DeleteAllInstallers removes all installer resources.
+func (s *ClusterConfigurationService) DeleteAllInstallers(ctx context.Context) error {
+	startKey := backend.Key(clusterConfigPrefix, installerScriptPrefix, "")
+	err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 const (
@@ -401,5 +430,5 @@ const (
 	auditPrefix            = "audit"
 	networkingPrefix       = "networking"
 	sessionRecordingPrefix = "session_recording"
-	installerScriptPrefix  = "installer_script"
+	installerScriptPrefix  = "installer_scripts"
 )
