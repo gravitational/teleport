@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -27,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
@@ -618,19 +620,25 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
 		insecure:                arg.cliConf.InsecureSkipVerify,
 		certFile:                certFile,
 		keyFile:                 keyFile,
-		alpnConnUpgradeRequired: arg.teleportClient.IsALPNConnUpgradeRequired(),
+		alpnConnUpgradeRequired: apiclient.IsALPNConnUpgradeRequired(arg.teleportClient.WebProxyAddr, arg.cliConf.InsecureSkipVerify),
 	}
 
 	// If ALPN connection upgrade is required, explicitly use the profile CAs
-	// since the tunnelled TLS routing connection serves the Host cert instead
-	// of the Web cert.
-	if arg.teleportClient.IsALPNConnUpgradeRequired() {
-		rootCAs, err := arg.profile.CACertPoolForCluster(arg.teleportClient.SiteName)
+	// since the tunneled TLS routing connection serves the Host cert.
+	if opts.alpnConnUpgradeRequired {
+		bytes, err := os.ReadFile(arg.profile.CACertPathForCluster(arg.teleportClient.SiteName))
+		if err != nil {
+			return localProxyOpts{}, trace.Wrap(err)
+		}
+		cas, err := utils.ReadCertificateChain(bytes)
 		if err != nil {
 			return localProxyOpts{}, trace.Wrap(err)
 		}
 
-		opts.rootCAs = rootCAs
+		opts.rootCAs = x509.NewCertPool()
+		for _, ca := range cas {
+			opts.rootCAs.AddCert(ca)
+		}
 	}
 
 	// For SQL Server connections, local proxy must be configured with the

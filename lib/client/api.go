@@ -40,7 +40,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -610,26 +609,6 @@ func (p *ProfileStatus) CACertPathForCluster(cluster string) string {
 	}
 
 	return filepath.Join(keypaths.ProxyKeyDir(p.Dir, p.Name), "cas", cluster+".pem")
-}
-
-// CACertPoolForCluster reads CA certificates for this profile and returns them
-// in a x509.CertPool.
-func (p *ProfileStatus) CACertPoolForCluster(cluster string) (*x509.CertPool, error) {
-	bytes, err := os.ReadFile(p.CACertPathForCluster(cluster))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cas, err := utils.ReadCertificateChain(bytes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	pool := x509.NewCertPool()
-	for _, ca := range cas {
-		pool.AddCert(ca)
-	}
-	return pool, nil
 }
 
 // KeyPath returns path to the private key for this profile.
@@ -1406,13 +1385,6 @@ type TeleportClient struct {
 	// Note: there's no mutex guarding this or localAgent, making
 	// TeleportClient NOT safe for concurrent use.
 	lastPing *webclient.PingResponse
-
-	// alpnConnUpgradeRequired specifies whether ALPN connection upgrade is
-	// required.
-	alpnConnUpgradeRequired bool
-	// alpnConnUpgradeRequiredOnce is a sync.Once that makes sure the ALPN
-	// connection upgrade test is only performed once.
-	alpnConnUpgradeRequiredOnce sync.Once
 }
 
 // ShellCreatedCallback can be supplied for every teleport client. It will
@@ -2867,15 +2839,6 @@ func formatConnectToProxyErr(err error) error {
 	}
 
 	return err
-}
-
-// IsALPNConnUpgradeRequired returns true if ALPN connection upgrade is
-// required.
-func (tc *TeleportClient) IsALPNConnUpgradeRequired() bool {
-	tc.alpnConnUpgradeRequiredOnce.Do(func() {
-		tc.alpnConnUpgradeRequired = client.IsALPNConnUpgradeRequired(tc.WebProxyAddr, tc.InsecureSkipVerify)
-	})
-	return tc.alpnConnUpgradeRequired
 }
 
 // ConnectToProxy will dial to the proxy server and return a ProxyClient when

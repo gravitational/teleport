@@ -34,9 +34,6 @@ type connectionHandlerOptions struct {
 	// connection during TLS handshake, if HandlerDesc does not provide a
 	// tls.Config.
 	defaultTLSConfig *tls.Config
-	// setupDefaultTLSConfig applies setup for defaultTLSConfig (e.g. setting
-	// callbacks to fetch client CAs).
-	setupDefaultTLSConfig bool
 }
 
 // ConnectionHandlerOption defines an option function for specifying connection
@@ -53,10 +50,9 @@ func WithWaitForAsyncHandlers() ConnectionHandlerOption {
 
 // WithDefaultTLSconfig is an option function that provides a default TLS
 // config.
-func WithDefaultTLSconfig(tlsConfig *tls.Config, setup bool) ConnectionHandlerOption {
+func WithDefaultTLSconfig(tlsConfig *tls.Config) ConnectionHandlerOption {
 	return func(opt *connectionHandlerOptions) {
-		opt.defaultTLSConfig = tlsConfig.Clone()
-		opt.setupDefaultTLSConfig = setup
+		opt.defaultTLSConfig = tlsConfig
 	}
 }
 

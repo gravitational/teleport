@@ -90,8 +90,8 @@ func (conn readOnlyConn) SetDeadline(t time.Time) error      { return nil }
 func (conn readOnlyConn) SetReadDeadline(t time.Time) error  { return nil }
 func (conn readOnlyConn) SetWriteDeadline(t time.Time) error { return nil }
 
-// waitConn is a net.Conn that provides a "WaitForClose" to wait until someone
-// closes the connection.
+// waitConn is a net.Conn that provides a "WaitForClose" function to wait until
+// the connection is closed.
 type waitConn struct {
 	net.Conn
 	ctx    context.Context

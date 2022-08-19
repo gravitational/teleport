@@ -26,8 +26,9 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-// selectConnectionUpgradeType selects the requested upgrade type.
-func (h *Handler) selectConnectionUpgradeType(r *http.Request) (string, ConnectionHandler, error) {
+// selectConnectionUpgrade selects the requested upgrade type and returns the
+// corresponding handler.
+func (h *Handler) selectConnectionUpgrade(r *http.Request) (string, ConnectionHandler, error) {
 	upgrades := r.Header.Values(constants.ConnectionUpgradeHeader)
 	for _, upgradeType := range upgrades {
 		switch upgradeType {
@@ -44,7 +45,7 @@ func (h *Handler) selectConnectionUpgradeType(r *http.Request) (string, Connecti
 
 // connectionUpgrade handles connection upgrades.
 func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	upgradeType, upgradeHandler, err := h.selectConnectionUpgradeType(r)
+	upgradeType, upgradeHandler, err := h.selectConnectionUpgrade(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

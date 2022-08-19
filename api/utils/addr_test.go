@@ -124,6 +124,10 @@ func TestIsUnspecified(t *testing.T) {
 			expectIsUnspecified: true,
 		},
 		{
+			host:                "9.10.11.12",
+			expectIsUnspecified: false,
+		},
+		{
 			host:                "a.com",
 			expectIsUnspecified: false,
 		},

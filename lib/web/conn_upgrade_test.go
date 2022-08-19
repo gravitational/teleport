@@ -41,7 +41,10 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 	t.Parallel()
 
 	cfg := Config{
-		ALPNHandler: mockConnHandler([]byte("hello@")),
+		ALPNHandler: func(_ context.Context, conn net.Conn) error {
+			conn.Write([]byte("hello@"))
+			return nil
+		},
 	}
 	h := &Handler{
 		cfg:   cfg,
@@ -58,7 +61,7 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 		require.True(t, trace.IsBadParameter(err))
 	})
 
-	t.Run("upgraded", func(t *testing.T) {
+	t.Run("upgraded to ALPN", func(t *testing.T) {
 		serverConn, clientConn := net.Pipe()
 		defer serverConn.Close()
 		defer clientConn.Close()
@@ -67,31 +70,24 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 		require.NoError(t, err)
 		r.Header.Add(constants.ConnectionUpgradeHeader, constants.ConnectionUpgradeTypeALPN)
 
-		// Run connectionUpgrade handler by passing serverConn as it will be hijacked.
 		go func() {
-			_, err = h.connectionUpgrade(newResponseWriterHijacker(nil, serverConn), r, nil)
+			// serverConn will be hijacked.
+			w := newResponseWriterHijacker(nil, serverConn)
+			_, err = h.connectionUpgrade(w, r, nil)
 			require.NoError(t, err)
 		}()
 
-		// Verify clientConn receives http.StatusSwitchingProtocols and the
-		// data sent by Config.ALPNHandler.
+		// Verify clientConn receives http.StatusSwitchingProtocols.
 		clientConnReader := bufio.NewReader(clientConn)
 		response, err := http.ReadResponse(clientConnReader, r)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusSwitchingProtocols, response.StatusCode)
-		require.Equal(t, constants.ConnectionUpgradeTypeALPN, response.Header.Get(constants.ConnectionUpgradeHeader))
 
+		// Verify clientConn receives data sent by Config.ALPNHandler.
 		receive, err := clientConnReader.ReadString(byte('@'))
 		require.NoError(t, err)
 		require.Equal(t, "hello@", receive)
 	})
-}
-
-func mockConnHandler(write []byte) ConnectionHandler {
-	return func(_ context.Context, conn net.Conn) error {
-		_, err := conn.Write(write)
-		return trace.Wrap(err)
-	}
 }
 
 // responseWriterHijacker is a mock http.ResponseWriter that also serves a

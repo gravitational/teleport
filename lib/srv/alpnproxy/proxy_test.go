@@ -349,7 +349,7 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 			Certificates: []tls.Certificate{
 				mustGenCertSignedWithCA(t, customCA),
 			},
-		}, false),
+		}),
 	)
 
 	// Prepare net.Conn to be used for the created alpnConnHandler.

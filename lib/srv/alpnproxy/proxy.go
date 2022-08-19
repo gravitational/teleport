@@ -343,6 +343,22 @@ func (p *Proxy) MakeConnectionHandler(opts ...ConnectionHandlerOption) Connectio
 	}
 }
 
+// MakeDefaultTLSConfig clones provided TLS config and applies necessary
+// upgrades.
+func (p *Proxy) MakeDefaultTLSConfig(config *tls.Config) *tls.Config {
+	configClone := config.Clone()
+
+	// Add all supported protos.
+	configClone.NextProtos = apiutils.Deduplicate(append(configClone.NextProtos, common.ProtocolsToString(p.supportedProtocols)...))
+
+	// Do not ignore client certs if given. Some logic also requires information from the verified client cert.
+	configClone.ClientAuth = tls.VerifyClientCertIfGiven
+
+	// Set proper callback for fetching cluster CAs used for veriying clients.
+	configClone.GetConfigForClient = auth.WithClusterCAs(configClone, p.cfg.AccessPoint, p.cfg.ClusterName, p.cfg.Log)
+	return configClone
+}
+
 // ConnectionInfo contains details about TLS connection.
 type ConnectionInfo struct {
 	// SNI is ServerName value obtained from TLS hello message.
@@ -383,17 +399,10 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, opts *conne
 
 	// Upgrade conn to tls.Conn if not forwarding TLS.
 	if !handlerDesc.ForwardTLS {
-		tlsConn, err := p.terminateTLS(conn, handlerDesc.getTLSConfig(opts.defaultTLSConfig))
+		conn, handlerDesc, err = p.setupTLSConnForHandler(conn, handlerDesc, opts)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		handlerDesc, err = p.maybeUseDatabaseTLSHandler(handlerDesc, tlsConn)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		conn = tlsConn
 	}
 
 	// Do not close clientConn for async handlers. Connections will be closed
@@ -414,30 +423,18 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, opts *conne
 	return trace.Wrap(handlerDesc.handle(ctx, conn, connInfo))
 }
 
-func (p *Proxy) terminateTLS(conn net.Conn, tlsConfig *tls.Config) (*tls.Conn, error) {
-	tlsConn := tls.Server(conn, tlsConfig)
-
+func (p *Proxy) setupTLSConnForHandler(conn net.Conn, handlerDesc *HandlerDesc, opts *connectionHandlerOptions) (net.Conn, *HandlerDesc, error) {
+	tlsConn := tls.Server(conn, handlerDesc.getTLSConfig(opts.defaultTLSConfig))
 	if err := tlsConn.SetReadDeadline(p.cfg.Clock.Now().Add(p.cfg.ReadDeadline)); err != nil {
-		if err := tlsConn.Close(); err != nil {
-			p.log.WithError(err).Error("Failed to close TLS connection.")
-		}
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
-
 	if err := tlsConn.Handshake(); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
-
 	if err := tlsConn.SetReadDeadline(time.Time{}); err != nil {
-		if err := tlsConn.Close(); err != nil {
-			p.log.WithError(err).Error("Failed to close TLS connection.")
-		}
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
-	return tlsConn, nil
-}
 
-func (p *Proxy) maybeUseDatabaseTLSHandler(curHandler *HandlerDesc, tlsConn *tls.Conn) (*HandlerDesc, error) {
 	isDatabaseConnection, err := dbutils.IsDatabaseConnection(tlsConn.ConnectionState())
 	if err != nil {
 		p.log.WithError(err).Debug("Failed to check if connection is database connection.")
@@ -445,12 +442,12 @@ func (p *Proxy) maybeUseDatabaseTLSHandler(curHandler *HandlerDesc, tlsConn *tls
 
 	if isDatabaseConnection {
 		if p.cfg.Router.databaseTLSHandler == nil {
-			return nil, trace.BadParameter("missing database TLS handler")
+			return nil, nil, trace.BadParameter("missing database TLS handler")
 		}
-		return p.cfg.Router.databaseTLSHandler, nil
+		return tlsConn, p.cfg.Router.databaseTLSHandler, nil
 	}
 
-	return curHandler, nil
+	return tlsConn, handlerDesc, nil
 }
 
 // readHelloMessageWithoutTLSTermination allows reading a ClientHelloInfo message without termination of
@@ -490,8 +487,20 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 	// Mongo client establishes a connection to SNI ALPN Local Proxy with server name 127.0.0.1 where LocalProxy wraps
 	// the connection in TLS and forward to Teleport SNI ALPN Proxy where first TLS layer is terminated
 	// by Proxy.handleConn using ProxyConfig.WebTLSConfig.
-	tlsConn, err := p.terminateTLS(conn, p.cfg.IdentityTLSConfig)
-	if err != nil {
+	tlsConn := tls.Server(conn, p.cfg.IdentityTLSConfig)
+	if err := tlsConn.SetReadDeadline(p.cfg.Clock.Now().Add(p.cfg.ReadDeadline)); err != nil {
+		if err := tlsConn.Close(); err != nil {
+			p.log.WithError(err).Error("Failed to close TLS connection.")
+		}
+		return trace.Wrap(err)
+	}
+	if err := tlsConn.Handshake(); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := tlsConn.SetReadDeadline(time.Time{}); err != nil {
+		if err := tlsConn.Close(); err != nil {
+			p.log.WithError(err).Error("Failed to close TLS connection.")
+		}
 		return trace.Wrap(err)
 	}
 
@@ -584,33 +593,12 @@ func (p *Proxy) closeClientConnAndLogError(clientConn net.Conn) {
 
 // getHandleConnOptions creates the connection handler options.
 func (p *Proxy) getHandleConnOptions(opts ...ConnectionHandlerOption) *connectionHandlerOptions {
-	options := &connectionHandlerOptions{}
+	options := &connectionHandlerOptions{
+		defaultTLSConfig: p.cfg.WebTLSConfig,
+	}
 
-	// Setup defaults.
-	opts = append([]ConnectionHandlerOption{
-		WithDefaultTLSconfig(p.cfg.WebTLSConfig, false),
-	}, opts...)
-
-	// Apply options.
 	for _, applyOpt := range opts {
 		applyOpt(options)
 	}
-
-	// Post-apply updates.
-	if options.setupDefaultTLSConfig {
-		p.setupDefaultTLSConfig(options.defaultTLSConfig)
-	}
 	return options
-}
-
-// setupDefaultTLSConfig applies neccessary upgrades to the default TLS config.
-func (p *Proxy) setupDefaultTLSConfig(config *tls.Config) {
-	// Add all supported protos.
-	config.NextProtos = apiutils.Deduplicate(append(config.NextProtos, common.ProtocolsToString(p.supportedProtocols)...))
-
-	// Do not ignore client certs if given. Some logic also requires information from the verified client cert.
-	config.ClientAuth = tls.VerifyClientCertIfGiven
-
-	// Set proper callback for fetching cluster CAs used for veriying clients.
-	config.GetConfigForClient = auth.WithClusterCAs(config, p.cfg.AccessPoint, p.cfg.ClusterName, p.cfg.Log)
 }

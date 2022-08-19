@@ -186,7 +186,8 @@ func NewTLSRoutingDialer(cfg TLSRoutingDialerConfig) ContextDialer {
 	}
 }
 
-// DialContext implements ContextDialer.
+// DialContext implements ContextDialer. If successful, always returns a
+// *tls.Conn.
 func (d TLSRoutingDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	if d.TLSConfig == nil {
 		return nil, trace.BadParameter("missing TLS config")

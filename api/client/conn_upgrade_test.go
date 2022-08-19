@@ -32,28 +32,24 @@ import (
 )
 
 func TestALPNConnUpgradeTest(t *testing.T) {
-	server1 := newMockALPNServer(t, nil) // Use nil for NextProtos to simulate no ALPN support.
-	server2 := newMockALPNServer(t, []string{constants.ALPNSNIProtocolReverseTunnel})
-	server3 := newMockALPNServer(t, []string{"unknown"})
-
 	tests := []struct {
 		name           string
-		serverAddr     string
+		protos         []string
 		expectedResult bool
 	}{
 		{
 			name:           "upgrade required",
-			serverAddr:     server1.listener.Addr().String(),
+			protos:         nil, // Use nil for NextProtos to simulate no ALPN support.
 			expectedResult: true,
 		},
 		{
 			name:           "upgrade not required (proto neogotiated)",
-			serverAddr:     server2.listener.Addr().String(),
+			protos:         []string{constants.ALPNSNIProtocolReverseTunnel},
 			expectedResult: false,
 		},
 		{
 			name:           "upgrade not required (handshake error)",
-			serverAddr:     server3.listener.Addr().String(),
+			protos:         []string{"unknown"},
 			expectedResult: false,
 		},
 	}
@@ -64,7 +60,8 @@ func TestALPNConnUpgradeTest(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			require.Equal(t, test.expectedResult, alpnConnUpgradeTest(test.serverAddr, true, 5*time.Second))
+			server := mustStartMockALPNServer(t, test.protos)
+			require.Equal(t, test.expectedResult, alpnConnUpgradeTest(server.Addr().String(), true, 5*time.Second))
 		})
 	}
 }
@@ -73,10 +70,7 @@ func TestALPNConUpgradeDialer(t *testing.T) {
 	t.Run("connection upgraded", func(t *testing.T) {
 		t.Parallel()
 
-		server := httptest.NewTLSServer(&mockConnUpgradeHandler{
-			Assertions: require.New(t),
-			WriteData:  []byte("hello"),
-		})
+		server := httptest.NewTLSServer(mockConnUpgradeHandler(t, constants.ConnectionUpgradeTypeALPN, []byte("hello")))
 		addr, err := url.Parse(server.URL)
 		require.NoError(t, err)
 
@@ -104,73 +98,83 @@ func TestALPNConUpgradeDialer(t *testing.T) {
 }
 
 type mockALPNServer struct {
-	listener net.Listener
+	net.Listener
+	cert            tls.Certificate
+	supportedProtos []string
 }
 
-func newMockALPNServer(t *testing.T, supportedProtos []string) *mockALPNServer {
+func (m *mockALPNServer) serve(ctx context.Context, t *testing.T) {
+	config := &tls.Config{
+		NextProtos:   m.supportedProtos,
+		Certificates: []tls.Certificate{m.cert},
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		conn, err := m.Accept()
+		if errors.Is(err, net.ErrClosed) {
+			return
+		}
+
+		go func() {
+			clientConn := tls.Server(conn, config)
+			clientConn.HandshakeContext(ctx)
+			clientConn.Close()
+		}()
+	}
+}
+
+func mustStartMockALPNServer(t *testing.T, supportedProtos []string) *mockALPNServer {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	cert, err := tls.X509KeyPair(tlsCert, keyPEM)
+	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
-
-	listener, err := tls.Listen("tcp", "localhost:0", &tls.Config{
-		NextProtos:   supportedProtos,
-		Certificates: []tls.Certificate{cert},
-	})
-	require.NoError(t, err)
-
 	t.Cleanup(func() {
 		listener.Close()
 	})
 
-	go func() {
-		t.Log("Mock ALPN server started.")
-		defer t.Log("Mock ALPN server closed.")
+	cert, err := tls.X509KeyPair(tlsCert, keyPEM)
+	require.NoError(t, err)
 
-		for {
-			clientConn, err := listener.Accept()
-			if errors.Is(err, net.ErrClosed) {
-				break
-			}
+	m := &mockALPNServer{
+		Listener:        listener,
+		cert:            cert,
+		supportedProtos: supportedProtos,
+	}
+	go m.serve(ctx, t)
+	return m
+}
 
-			go func() {
-				clientConn.(*tls.Conn).HandshakeContext(ctx)
-				clientConn.Close()
-			}()
+// mockConnUpgradeHandler mocks the server side implementation to handle an
+// upgrade request and sends back some data inside the tunnel.
+func mockConnUpgradeHandler(t *testing.T, upgradeType string, write []byte) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, constants.ConnectionUpgradeWebAPI, r.URL.Path)
+		require.Equal(t, upgradeType, r.Header.Get(constants.ConnectionUpgradeHeader))
+
+		hj, ok := w.(http.Hijacker)
+		require.True(t, ok)
+
+		conn, _, err := hj.Hijack()
+		require.NoError(t, err)
+		defer conn.Close()
+
+		// Upgrade response.
+		response := &http.Response{
+			StatusCode: http.StatusSwitchingProtocols,
+			ProtoMajor: 1,
+			ProtoMinor: 1,
 		}
-	}()
+		require.NoError(t, response.Write(conn))
 
-	return &mockALPNServer{
-		listener: listener,
-	}
-}
-
-type mockConnUpgradeHandler struct {
-	*require.Assertions
-
-	WriteData []byte
-}
-
-func (h mockConnUpgradeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	h.Equal(constants.ConnectionUpgradeWebAPI, r.URL.Path)
-	h.Equal(constants.ConnectionUpgradeTypeALPN, r.Header.Get(constants.ConnectionUpgradeHeader))
-
-	hj, ok := w.(http.Hijacker)
-	h.True(ok)
-
-	conn, _, err := hj.Hijack()
-	h.NoError(err)
-	defer conn.Close()
-
-	response := &http.Response{
-		StatusCode: http.StatusSwitchingProtocols,
-		ProtoMajor: 1,
-		ProtoMinor: 1,
-	}
-	h.NoError(response.Write(conn))
-
-	if len(h.WriteData) != 0 {
-		conn.Write(h.WriteData)
-	}
+		// Upgraded.
+		_, err = conn.Write(write)
+		require.NoError(t, err)
+	})
 }

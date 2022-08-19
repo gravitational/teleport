@@ -22,7 +22,6 @@ import (
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"encoding/json"
-	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -475,6 +474,16 @@ func mustCreateKubeConfigFile(t *testing.T, config clientcmdapi.Config) string {
 	return configPath
 }
 
+func mustCreateListener(t *testing.T) net.Listener {
+	listener, err := net.Listen("tcp", ":0")
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		listener.Close()
+	})
+	return listener
+}
+
 func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpncommon.Protocol) *alpnproxy.LocalProxy {
 	return mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:    addr,
@@ -485,9 +494,7 @@ func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpncommon.Prot
 
 func mustStartALPNLocalProxyWithConfig(t *testing.T, config alpnproxy.LocalProxyConfig) *alpnproxy.LocalProxy {
 	if config.Listener == nil {
-		listener, err := net.Listen("tcp", ":0")
-		require.NoError(t, err)
-		config.Listener = listener
+		config.Listener = mustCreateListener(t)
 	}
 	if config.SNI == "" {
 		address, err := utils.ParseAddr(config.RemoteProxyAddr)
@@ -528,87 +535,76 @@ func makeNodeConfig(nodeName, authAddr string) *service.Config {
 	return nodeConfig
 }
 
+func mustCreateSelfSignedCert(t *testing.T) tls.Certificate {
+	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
+		CommonName: "localhost",
+	}, []string{"localhost"}, defaults.CATTL)
+	require.NoError(t, err)
+
+	cert, err := tls.X509KeyPair(caCert, caKey)
+	require.NoError(t, err)
+
+	return cert
+}
+
 // mockAWSALBProxy is a mock proxy server that simulates an AWS application
 // load balancer where ALPN is not supported and SNI gets lost during TLS
 // handshake. Note that this mock does not actually balance traffic.
 type mockAWSALBProxy struct {
 	net.Listener
 	proxyAddr    string
-	ca           tls.Certificate
+	cert         tls.Certificate
 	connDeadline time.Duration
 }
 
-func (m *mockAWSALBProxy) Serve(t *testing.T) {
+func (m *mockAWSALBProxy) serve(ctx context.Context, t *testing.T) {
 	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
 		conn, err := m.Accept()
 		if err != nil {
-			if utils.IsUseOfClosedNetworkError(err) {
+			if utils.IsOKNetworkError(err) {
 				return
 			}
 
 			require.NoError(t, err)
-			return
 		}
 
 		go func() {
 			// Handshake with incoming client and drops ALPN.
 			downstreamConn := tls.Server(conn, &tls.Config{
-				InsecureSkipVerify: true,
-				Certificates:       []tls.Certificate{m.ca},
+				Certificates: []tls.Certificate{m.cert},
 			})
-			require.NoError(t, downstreamConn.Handshake())
-			require.Empty(t, downstreamConn.ConnectionState().NegotiatedProtocol)
 
 			// Make a connection to the proxy server.
-			address, err := utils.ParseAddr(m.proxyAddr)
-			require.NoError(t, err)
-
 			upstreamConn, err := tls.Dial("tcp", m.proxyAddr, &tls.Config{
 				InsecureSkipVerify: true,
-				ServerName:         address.Host(),
 			})
 			require.NoError(t, err)
-			require.Empty(t, upstreamConn.ConnectionState().NegotiatedProtocol)
 
+			// Add some deadline to prevent connection from getting stuck.
 			downstreamConn.SetDeadline(time.Now().Add(m.connDeadline))
 			upstreamConn.SetDeadline(time.Now().Add(m.connDeadline))
 
-			go func() {
-				defer downstreamConn.Close()
-				defer upstreamConn.Close()
-				io.Copy(downstreamConn, upstreamConn)
-			}()
-			go func() {
-				defer downstreamConn.Close()
-				defer upstreamConn.Close()
-				io.Copy(upstreamConn, downstreamConn)
-			}()
+			utils.ProxyConn(ctx, downstreamConn, upstreamConn)
 		}()
 	}
 }
 
 func mustStartMockALBProxy(t *testing.T, proxyAddr string, connDeadline time.Duration) *mockAWSALBProxy {
-	listener, err := net.Listen("tcp", ":0")
-	require.NoError(t, err)
-
-	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
-		CommonName: "localhost",
-	}, []string{"localhost"}, defaults.CATTL)
-	require.NoError(t, err)
-
-	ca, err := tls.X509KeyPair(caCert, caKey)
-	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 
 	m := &mockAWSALBProxy{
-		Listener:     listener,
 		proxyAddr:    proxyAddr,
-		ca:           ca,
 		connDeadline: connDeadline,
+		Listener:     mustCreateListener(t),
+		cert:         mustCreateSelfSignedCert(t),
 	}
-	go m.Serve(t)
-
-	t.Cleanup(func() {
-		m.Close()
-	})
+	go m.serve(ctx, t)
 	return m
 }

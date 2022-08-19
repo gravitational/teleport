@@ -3702,14 +3702,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			HandlerWithConnInfo: authDialerService.HandleConnection,
 			ForwardTLS:          true,
 		})
-		identityTLSConf, err := conn.ServerIdentity.TLSConfig(cfg.CipherSuites)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 
 		alpnServer, err = alpnproxy.New(alpnproxy.ProxyConfig{
 			WebTLSConfig:      tlsConfigWeb.Clone(),
-			IdentityTLSConfig: identityTLSConf,
+			IdentityTLSConfig: serverTLSConfig,
 			Router:            alpnRouter,
 			Listener:          listeners.alpn,
 			ClusterName:       clusterName,
@@ -3721,7 +3717,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		alpnHandlerForWeb.Set(alpnServer.MakeConnectionHandler(
 			alpnproxy.WithWaitForAsyncHandlers(),
-			alpnproxy.WithDefaultTLSconfig(identityTLSConf, true),
+			alpnproxy.WithDefaultTLSconfig(alpnServer.MakeDefaultTLSConfig(serverTLSConfig)),
 		))
 
 		process.RegisterCriticalFunc("proxy.tls.alpn.sni.proxy", func() error {

@@ -37,13 +37,13 @@ import (
 // connection upgrade for ALPN connections.
 //
 // The function makes a test connection to the Proxy Service and checks if the
-// Teleport custom ALPN protocols are preserved. If not, the Proxy Service is
-// likely behind an AWS ALB or some custom proxy services that strip out ALPN
-// and SNI information on the way to our Proxy Service.
+// ALPN is supported. If not, the Proxy Service is likely behind an AWS ALB or
+// some custom proxy services that strip out ALPN and SNI information on the
+// way to our Proxy Service.
 //
-// In those cases, the client makes a HTTP "upgrade" call to the Proxy Service
-// to establish a tunnel for the origianlly planned traffic to preserve the
-// ALPN and SNI information.
+// In those cases, the Teleport client should make a HTTP "upgrade" call to the
+// Proxy Service to establish a tunnel for the origianlly planned traffic to
+// preserve the ALPN and SNI information.
 func IsALPNConnUpgradeRequired(addr string, insecure bool) bool {
 	if utils.IsLoopback(addr) || utils.IsUnspecified(addr) {
 		logrus.Debugf("ALPN connection upgrade not required because %q is either unspecified or a loopback.", addr)
@@ -60,20 +60,19 @@ func alpnConnUpgradeTest(addr string, insecure bool, timeout time.Duration) (upg
 		Timeout: timeout,
 	}
 	tlsConfig := &tls.Config{
-		NextProtos: []string{
-			// Use an old but stable protocol for testing to reduce false
-			// positives in case remote is running a different version.
-			constants.ALPNSNIProtocolReverseTunnel,
-		},
+		NextProtos:         []string{constants.ALPNSNIProtocolReverseTunnel},
 		InsecureSkipVerify: insecure,
 	}
 	testConn, err := tls.DialWithDialer(netDialer, "tcp", addr, tlsConfig)
 	if err != nil {
-		// If TLS dial fails for any reason, we assume connection upgrade is
+		// If dialing TLS fails for any reason, we assume connection upgrade is
 		// not required so it will fallback to original connection method.
 		//
 		// This includes handshake failures where both peers support ALPN but
-		// no common protocol is getting negotiated.
+		// no common protocol is getting negotiated. We may have to revisit
+		// this situation or make it configurable if we have to get through a
+		// middleman with this behavior. For now, we are only interested in the
+		// case where the middleman does not support ALPN.
 		logrus.Warnf("ALPN connection upgrade test failed for %q: %v.", addr, err)
 		return false
 	}
@@ -110,7 +109,7 @@ func newALPNConnUpgradeDialer(keepAlivePeriod, dialTimeout time.Duration, insecu
 
 // DialContext implements ContextDialer
 func (d alpnConnUpgradeDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
-	logrus.Debugf("ALPN connection upgrade started for %v.", addr)
+	logrus.Debugf("ALPN connection upgrade for %v.", addr)
 
 	// Make a TLS connection for the https call.
 	tlsConn, err := tls.DialWithDialer(d.netDialer, network, addr, &tls.Config{
@@ -131,8 +130,6 @@ func (d alpnConnUpgradeDialer) DialContext(ctx context.Context, network, addr st
 		defer tlsConn.Close()
 		return nil, trace.Wrap(err)
 	}
-
-	// For now, only ALPN is supported.
 	req.Header.Add(constants.ConnectionUpgradeHeader, constants.ConnectionUpgradeTypeALPN)
 
 	// Send the request and checks if upgrade is successful.
@@ -159,7 +156,5 @@ func (d alpnConnUpgradeDialer) DialContext(ctx context.Context, network, addr st
 		}
 		return nil, trace.BadParameter("failed to switch Protocols %v", resp.StatusCode)
 	}
-
-	logrus.Debugf("ALPN connection upgrade completed for %v.", addr)
 	return tlsConn, nil
 }

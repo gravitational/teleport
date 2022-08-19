@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"io"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -147,9 +146,12 @@ func (l *LocalProxy) GetAddr() string {
 	return l.cfg.Listener.Addr().String()
 }
 
-// getUpstreamDialer returns the ContextDialer used for making upstream connection.
-func (l *LocalProxy) getUpstreamDialer() (client.ContextDialer, error) {
-	return client.NewTLSRoutingDialer(client.TLSRoutingDialerConfig{
+// handleDownstreamConnection proxies the downstreamConn (connection established to the local proxy) and forward the
+// traffic to the upstreamConn (TLS connection to remote host).
+func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamConn net.Conn) error {
+	defer downstreamConn.Close()
+
+	upstreamDialer := client.NewTLSRoutingDialer(client.TLSRoutingDialerConfig{
 		ALPNConnUpgradeRequired: l.cfg.ALPNConnUpgradeRequired,
 		TLSConfig: &tls.Config{
 			NextProtos:         l.cfg.GetProtocols(),
@@ -158,50 +160,14 @@ func (l *LocalProxy) getUpstreamDialer() (client.ContextDialer, error) {
 			Certificates:       l.cfg.Certs,
 			RootCAs:            l.cfg.RootCAs,
 		},
-	}), nil
-}
-
-// handleDownstreamConnection proxies the downstreamConn (connection established to the local proxy) and forward the
-// traffic to the upstreamConn (TLS connection to remote host).
-func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamConn net.Conn) error {
-	defer downstreamConn.Close()
-
-	upstreamDialer, err := l.getUpstreamDialer()
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	})
 	upstreamConn, err := upstreamDialer.DialContext(ctx, "tcp", l.cfg.RemoteProxyAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer upstreamConn.Close()
 
-	errC := make(chan error, 2)
-	go func() {
-		defer downstreamConn.Close()
-		defer upstreamConn.Close()
-		_, err := io.Copy(downstreamConn, upstreamConn)
-		errC <- err
-	}()
-	go func() {
-		defer downstreamConn.Close()
-		defer upstreamConn.Close()
-		_, err := io.Copy(upstreamConn, downstreamConn)
-		errC <- err
-	}()
-
-	var errs []error
-	for i := 0; i < 2; i++ {
-		select {
-		case <-ctx.Done():
-			return trace.NewAggregate(append(errs, ctx.Err())...)
-		case err := <-errC:
-			if err != nil && !utils.IsOKNetworkError(err) {
-				errs = append(errs, err)
-			}
-		}
-	}
-	return trace.NewAggregate(errs...)
+	return utils.ProxyConn(ctx, downstreamConn, upstreamConn)
 }
 
 func (l *LocalProxy) Close() error {
