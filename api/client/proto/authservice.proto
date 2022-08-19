@@ -1116,7 +1116,7 @@ message DeleteMFADeviceRequestInit {
 }
 
 // DeleteMFADeviceResponseAck is a confirmation of successful device deletion.
-message DeleteMFADeviceResponseAck {}
+message DeleteMFADeviceResponseAck { types.MFADevice Device = 1; }
 
 // DeleteMFADeviceSyncRequest is a request to delete a MFA device (nonstream).
 message DeleteMFADeviceSyncRequest {
