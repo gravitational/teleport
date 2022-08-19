@@ -177,13 +177,13 @@ func (ws *WebSessionV2) WithoutSecrets() WebSession {
 }
 
 // SetAssumedRoleRequestID sets the assumed role's request ID
-func (ws *WebSessionV2) SetAssumedRoleRequestID(requestId string) {
-	ws.Metadata.SetAssumedRoleRequestID(requestId)
+func (ws *WebSessionV2) SetAssumedRoleRequestID(requestID string) {
+	ws.Spec.SetAssumedRoleRequestID(requestID)
 }
 
 // SetAssumedRoleRequestID returns the assumed role's request ID
 func (ws *WebSessionV2) GetAssumedRoleRequestID() string {
-	return ws.Metadata.AssumedRoleRequestID
+	return ws.Spec.AssumedRoleRequestID
 }
 
 // setStaticFields sets static resource header and metadata fields.
