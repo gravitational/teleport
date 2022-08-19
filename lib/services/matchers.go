@@ -59,6 +59,20 @@ type AWSMatcher struct {
 	SSM *AWSSSM
 }
 
+// AzureMatcher matches Azure databases.
+type AzureMatcher struct {
+	// Subscriptions are Azure subscriptions to query for resources.
+	Subscriptions []string
+	// ResourceGroups are Azure resource groups to query for resources.
+	ResourceGroups []string
+	// Types are Azure resource types to match, for example "mysql" or "postgres".
+	Types []string
+	// Regions are Azure regions to query for databases.
+	Regions []string
+	// ResourceTags are Azure tags to match.
+	ResourceTags types.Labels
+}
+
 // MatchResourceLabels returns true if any of the provided selectors matches the provided database.
 func MatchResourceLabels(matchers []ResourceMatcher, resource types.ResourceWithLabels) bool {
 	for _, matcher := range matchers {
@@ -263,4 +277,8 @@ const (
 	AWSMatcherMemoryDB = "memorydb"
 	// AWSMatcherEC2 is the AWS matcher type for EC2 instances.
 	AWSMatcherEC2 = "ec2"
+	// AzureMatcherMySQL is the Azure matcher type for Azure MySQL databases.
+	AzureMatcherMySQL = "mysql"
+	// AzureMatcherPostgres is the Azure matcher type for Azure Postgres databases.
+	AzureMatcherPostgres = "postgres"
 )
