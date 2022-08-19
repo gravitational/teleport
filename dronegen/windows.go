@@ -213,7 +213,7 @@ func buildWindowsTeleportConnectStep(workspace string) step {
 			`cd $WebappsSrc`,
 			`yarn install --frozen-lockfile`,
 			`yarn build-term`,
-			`yarn package-term`,
+			`yarn package-term -c.extraMetadata.version=$VERSION`,
 		},
 	}
 }
