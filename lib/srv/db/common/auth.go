@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	libauth "github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -72,7 +73,7 @@ type AuthConfig struct {
 	// AuthClient is the cluster auth client.
 	AuthClient *libauth.Client
 	// Clients provides interface for obtaining cloud provider clients.
-	Clients CloudClients
+	Clients cloud.Clients
 	// Clock is the clock implementation.
 	Clock clockwork.Clock
 	// Log is used for logging.
@@ -85,7 +86,7 @@ func (c *AuthConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing AuthClient")
 	}
 	if c.Clients == nil {
-		c.Clients = NewCloudClients()
+		c.Clients = cloud.NewClients()
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -259,8 +260,8 @@ func (a *dbAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *Session) (
 }
 
 // updateCloudSQLUser makes a request to Cloud SQL API to update the provided user.
-func (a *dbAuth) updateCloudSQLUser(ctx context.Context, sessionCtx *Session, gcpCloudSQL GCPSQLAdminClient, user *sqladmin.User) error {
-	err := gcpCloudSQL.UpdateUser(ctx, sessionCtx, user)
+func (a *dbAuth) updateCloudSQLUser(ctx context.Context, sessionCtx *Session, gcpCloudSQL cloud.GCPSQLAdminClient, user *sqladmin.User) error {
+	err := gcpCloudSQL.UpdateUser(ctx, sessionCtx.Database, sessionCtx.DatabaseUser, user)
 	if err != nil {
 		return trace.AccessDenied(`Could not update Cloud SQL user %q password:
 
@@ -362,7 +363,7 @@ func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, sessionCtx *Session
 		// Cloud SQL server presented certificates encode instance names as
 		// "<project-id>:<instance-id>" in CommonName. This is verified against
 		// the ServerName in a custom connection verification step (see below).
-		tlsConfig.ServerName = GCPServerName(sessionCtx)
+		tlsConfig.ServerName = sessionCtx.Database.GetGCP().GetServerName()
 		// This just disables default verification.
 		tlsConfig.InsecureSkipVerify = true
 		// This will verify CN and cert chain on each connection.
