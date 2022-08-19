@@ -5285,7 +5285,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:254
+# Generated at dronegen/os_repos.go:279
 ################################################
 
 kind: pipeline
@@ -5294,26 +5294,87 @@ name: migrate-apt-new-repos
 trigger:
   event:
     include:
-    - custom
+    - push
   repo:
     include:
-    - non-existent-repository
+    - gravitational/teleport
   branch:
     include:
-    - non-existent-branch
+    - fred/os-package-fix-1-backport-branch/v9
+workspace:
+  path: /go
 clone:
   disable: true
 steps:
-- name: Placeholder
-  image: alpine:latest
+- name: Check out code
+  image: alpine/git:latest
   commands:
-  - echo "This command, step, and pipeline never runs"
+  - mkdir -p "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
+  - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
+  - git checkout "${DRONE_COMMIT}"
+- name: Download artifacts for "v8.3.17"
+  image: amazon/aws-cli
+  commands:
+  - mkdir -pv "$ARTIFACT_PATH"
+  - rm -rf "${ARTIFACT_PATH}/*"
+  - aws s3 sync --no-progress --delete --exclude "*" --include "*.deb*" s3://$AWS_S3_BUCKET/teleport/tag/8.3.17/
+    "$ARTIFACT_PATH"
+  environment:
+    ARTIFACT_PATH: /go/artifacts
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+- name: Publish debs to APT repos for "v8.3.17"
+  image: golang:1.18.4-bullseye
+  commands:
+  - apt update
+  - apt install -y aptly
+  - mkdir -pv -m0700 "$GNUPGHOME"
+  - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
+  - chown -R root:root "$GNUPGHOME"
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - export VERSION="v8.3.17"
+  - export RELEASE_CHANNEL="stable"
+  - go run ./cmd/build-os-package-repos apt -bucket "$REPO_S3_BUCKET" -local-bucket-path
+    "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
+    -artifact-path "$ARTIFACT_PATH" -log-level 4 -aptly-root-dir "$APTLY_ROOT_DIR"
+  environment:
+    APTLY_ROOT_DIR: /mnt/aptly
+    ARTIFACT_PATH: /go/artifacts
+    AWS_ACCESS_KEY_ID:
+      from_secret: APT_REPO_NEW_AWS_ACCESS_KEY_ID
+    AWS_REGION: us-west-2
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: APT_REPO_NEW_AWS_SECRET_ACCESS_KEY
+    BUCKET_CACHE_PATH: /tmp/bucket
+    DEBIAN_FRONTEND: noninteractive
+    GNUPGHOME: /tmpfs/gnupg
+    GPG_RPM_SIGNING_ARCHIVE:
+      from_secret: GPG_RPM_SIGNING_ARCHIVE
+    REPO_S3_BUCKET:
+      from_secret: APT_REPO_NEW_AWS_S3_BUCKET
+  volumes:
+  - name: apt-persistence
+    path: /mnt
+  - name: tmpfs
+    path: /tmpfs
+volumes:
+- name: apt-persistence
+  claim:
+    name: drone-s3-aptrepo-pvc
+- name: tmpfs
+  temp:
+    medium: memory
 
 ---
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:278
+# Generated at dronegen/os_repos.go:279
 ################################################
 
 kind: pipeline
@@ -5427,7 +5488,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:254
+# Generated at dronegen/os_repos.go:279
 ################################################
 
 kind: pipeline
@@ -5436,26 +5497,88 @@ name: migrate-yum-new-repos
 trigger:
   event:
     include:
-    - custom
+    - push
   repo:
     include:
-    - non-existent-repository
+    - gravitational/teleport
   branch:
     include:
-    - non-existent-branch
+    - fred/os-package-fix-1-backport-branch/v9
+workspace:
+  path: /go
 clone:
   disable: true
 steps:
-- name: Placeholder
-  image: alpine:latest
+- name: Check out code
+  image: alpine/git:latest
   commands:
-  - echo "This command, step, and pipeline never runs"
+  - mkdir -p "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
+  - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
+  - git checkout "${DRONE_COMMIT}"
+- name: Download artifacts for "v8.3.17"
+  image: amazon/aws-cli
+  commands:
+  - mkdir -pv "$ARTIFACT_PATH"
+  - rm -rf "${ARTIFACT_PATH}/*"
+  - aws s3 sync --no-progress --delete --exclude "*" --include "*.rpm*" s3://$AWS_S3_BUCKET/teleport/tag/8.3.17/
+    "$ARTIFACT_PATH"
+  environment:
+    ARTIFACT_PATH: /go/artifacts
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+- name: Publish rpms to YUM repos for "v8.3.17"
+  image: golang:1.18.4-bullseye
+  commands:
+  - apt update
+  - apt install -y createrepo-c
+  - mkdir -pv "$CACHE_DIR"
+  - mkdir -pv -m0700 "$GNUPGHOME"
+  - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
+  - chown -R root:root "$GNUPGHOME"
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - export VERSION="v8.3.17"
+  - export RELEASE_CHANNEL="stable"
+  - go run ./cmd/build-os-package-repos yum -bucket "$REPO_S3_BUCKET" -local-bucket-path
+    "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
+    -artifact-path "$ARTIFACT_PATH" -log-level 4 -cache-dir "$CACHE_DIR"
+  environment:
+    ARTIFACT_PATH: /go/artifacts
+    AWS_ACCESS_KEY_ID:
+      from_secret: YUM_REPO_NEW_AWS_ACCESS_KEY_ID
+    AWS_REGION: us-west-2
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: YUM_REPO_NEW_AWS_SECRET_ACCESS_KEY
+    BUCKET_CACHE_PATH: /mnt/bucket
+    CACHE_DIR: /mnt/createrepo_cache
+    DEBIAN_FRONTEND: noninteractive
+    GNUPGHOME: /tmpfs/gnupg
+    GPG_RPM_SIGNING_ARCHIVE:
+      from_secret: GPG_RPM_SIGNING_ARCHIVE
+    REPO_S3_BUCKET:
+      from_secret: YUM_REPO_NEW_AWS_S3_BUCKET
+  volumes:
+  - name: yum-persistence
+    path: /mnt
+  - name: tmpfs
+    path: /tmpfs
+volumes:
+- name: yum-persistence
+  claim:
+    name: drone-s3-yumrepo-pvc
+- name: tmpfs
+  temp:
+    medium: memory
 
 ---
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:278
+# Generated at dronegen/os_repos.go:279
 ################################################
 
 kind: pipeline
@@ -6171,6 +6294,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: b01b05f22e1e131678c10f5e6d8ec4576fb9e9ee62df48ddbb368a86f5362aa3
+hmac: 5537f335ffd84125d0b6a18be2a79225d3ff2a75dfa7ed56eb47ecd39df674d1
 
 ...
