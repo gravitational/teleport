@@ -57,7 +57,7 @@ DEVBOX=teleport-devbox
 BUILDBOX_NAME=$(BUILDBOX)
 BUILDBOX_FIPS_NAME=$(BUILDBOX_FIPS)
 
-DOCSBOX=quay.io/gravitational/next:main
+DOCSBOX=public.ecr.aws/gravitational/docs
 
 ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)
