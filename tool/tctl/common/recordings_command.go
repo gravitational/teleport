@@ -62,7 +62,7 @@ func (c *RecordingsCommand) Initialize(app *kingpin.Application, config *service
 	c.recordingsList.Flag("from-utc", fmt.Sprintf("Start of time range in which recordings are listed. Format %s. Defaults to 24 hours ago.", defaults.TshTctlSessionListTimeFormat)).StringVar(&c.fromUTC)
 	c.recordingsList.Flag("to-utc", fmt.Sprintf("End of time range in which recordings are listed. Format %s. Defaults to current time.", defaults.TshTctlSessionListTimeFormat)).StringVar(&c.toUTC)
 	c.recordingsList.Flag("limit", fmt.Sprintf("Maximum number of recordings to show. Default %s.", defaults.TshTctlSessionListLimit)).Default(defaults.TshTctlSessionListLimit).IntVar(&c.maxRecordingsToShow)
-	c.recordingsList.Flag("since", fmt.Sprintf("Duration into the past from which session recordings should be listed. Format 5h30m40s")).StringVar(&c.recordingsSince)
+	c.recordingsList.Flag("last", fmt.Sprintf("Duration into the past from which session recordings should be listed. Format 5h30m40s")).StringVar(&c.recordingsSince)
 }
 
 // TryRun attempts to run subcommands like "recordings ls".
