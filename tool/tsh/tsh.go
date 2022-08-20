@@ -718,7 +718,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	benchNode.Flag("duration", "Test duration").Default("1s").DurationVar(&cf.BenchDuration)
 	benchNode.Flag("rate", "Requests per second rate").Default("10").IntVar(&cf.BenchRate)
 	benchNode.Flag("interactive", "Create interactive SSH session").BoolVar(&cf.BenchInteractive)
-	benchNode.Flag("web", "Create interactive web session").BoolVar(&cf.BenchWebSession)
+	//benchNode.Flag("web", "Create interactive web session").BoolVar(&cf.BenchWebSession)
 	benchNode.Flag("export", "Export the latency profile").BoolVar(&cf.BenchExport)
 	benchNode.Flag("path", "Directory to save the latency profile to, default path is the current directory").Default(".").StringVar(&cf.BenchExportPath)
 	benchNode.Flag("ticks", "Ticks per half distance").Default("100").Int32Var(&cf.BenchTicks)
@@ -729,7 +729,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	benchSessions.Arg("user", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	benchSessions.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
 	benchSessions.Flag("max", "The maximum number of sessions to establish").Default("-1").IntVar(&cf.BenchSessions)
-	benchSessions.Flag("web", "Create interactive web session").BoolVar(&cf.BenchWebSession)
+	//benchSessions.Flag("web", "Create interactive web session").BoolVar(&cf.BenchWebSession)
 	benchSessions.Flag("duration", "Test duration").Default("1s").DurationVar(&cf.BenchDuration)
 
 	// show key
