@@ -818,7 +818,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 		return trace.Wrap(fmt.Errorf(`Error: the credential was not issued because the requested TTL exceeded the maximum allowable 
 		value of MAX_ALLOWABLE_TTL. To successfully request a credential, please replace requested TTL %s 
 		with MAX_ALLOWABLE_TTL of %s`,
-		  a.genTTL,
+			a.genTTL,
 			time.Until(expires).Round(time.Second)))
 	}
 
