@@ -80,11 +80,8 @@ build_teleport_fuzzers() {
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/sqlserver/protocol \
     FuzzMSSQLLogin fuzz_mssql_login
 
- compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/mongodb/protocol \
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/mongodb/protocol \
    FuzzMongoRead fuzz_mongo_read
-
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/services \
-    FuzzParserEvalBoolPredicate fuzz_parser_eval_bool_predicate
 
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/auth/webauthn \
     FuzzParseCredentialCreationResponseBody fuzz_parse_credential_creation_response_body

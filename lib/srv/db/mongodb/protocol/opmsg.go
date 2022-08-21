@@ -251,6 +251,11 @@ func readOpMsg(header MessageHeader, payload []byte) (*MessageOpMsg, error) {
 		case wiremessage.DocumentSequence:
 			var id string
 			var docs []bsoncore.Document
+
+			if err := validateDocumentSize(rem); err != nil {
+				return nil, trace.BadParameter("malformed OP_MSG: %v %v", err, payload)
+			}
+
 			id, docs, rem, ok = wiremessage.ReadMsgSectionDocumentSequence(rem)
 			if !ok {
 				return nil, trace.BadParameter("malformed OP_MSG: missing document sequence section %v", payload)
@@ -272,6 +277,23 @@ func readOpMsg(header MessageHeader, payload []byte) (*MessageOpMsg, error) {
 		Checksum:                 checksum,
 		bytes:                    append(header.bytes[:], payload...),
 	}, nil
+}
+
+// validateDocumentSize validates document length encoded in the message.
+func validateDocumentSize(src []byte) error {
+	const headerLen = 4
+	if len(src) < headerLen {
+		return trace.BadParameter("document is too short")
+	}
+
+	// document length is encoded in the first 4 bytes
+	documentLength := int(int32(src[0]) | int32(src[1])<<8 | int32(src[2])<<16 | int32(src[3])<<24)
+
+	// document payload cannot be shorter than the size of the whole message plus the header length.
+	if documentLength+headerLen <= len(src) {
+		return trace.BadParameter("invalid document length")
+	}
+	return nil
 }
 
 // ToWire converts this message to wire protocol message bytes.

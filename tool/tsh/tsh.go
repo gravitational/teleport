@@ -43,6 +43,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -66,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
+	"github.com/gravitational/teleport/tool/common"
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
@@ -356,6 +358,15 @@ type CLIConf struct {
 
 	// disableAccessRequest disables automatic resource access requests.
 	disableAccessRequest bool
+
+	// FromUTC is the start time to use for the range of sessions listed by the session recordings listing command
+	FromUTC string
+
+	// ToUTC is the start time to use for the range of sessions listed by the session recordings listing command
+	ToUTC string
+
+	// maxRecordingsToShow is the maximum number of session recordings to show per page of results
+	maxRecordingsToShow int
 }
 
 // Stdout returns the stdout writer.
@@ -440,7 +451,10 @@ const (
 	// recommended default value of 2s. In the RFC this value is for the
 	// establishment of a TCP connection, rather than the full HTTP round-
 	// trip that we measure against, so some tweaking may be needed.
-	proxyDefaultResolutionTimeout = 2 * time.Second
+	//
+	// Raised to 5 seconds when fallback measure was removed to account for
+	// users with higher latency connections.
+	proxyDefaultResolutionTimeout = 5 * time.Second
 )
 
 // env vars that tsh status will check to provide hints about active env vars to a user.
@@ -448,9 +462,6 @@ var tshStatusEnvVars = [...]string{proxyEnvVar, clusterEnvVar, siteEnvVar, kubeC
 
 // cliOption is used in tests to inject/override configuration within Run
 type cliOption func(*CLIConf) error
-
-// defaultFormats is the default set of formats to use for commands that have the --format flag.
-var defaultFormats = []string{teleport.Text, teleport.JSON, teleport.YAML}
 
 // initLogger initializes the logger taking into account --debug and TELEPORT_DEBUG. If TELEPORT_DEBUG is set, it will also enable CLIConf.Debug.
 func initLogger(cf *CLIConf) {
@@ -529,7 +540,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	app.HelpFlag.Short('h')
 
 	ver := app.Command("version", "Print the version of your tsh binary")
-	ver.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
+	ver.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	// ssh
 	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node")
 	ssh.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
@@ -571,7 +582,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	lsApps.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	lsApps.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	lsApps.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
-	lsApps.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
+	lsApps.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	lsApps.Arg("labels", labelHelp).StringVar(&cf.UserHost)
 	lsApps.Flag("all", "List apps from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
 	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
@@ -584,6 +595,14 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	appConfig.Flag("format", fmt.Sprintf("Optional print format, one of: %q to print app address, %q to print CA cert path, %q to print cert path, %q print key path, %q to print example curl command, %q or %q to print everything as JSON or YAML.",
 		appFormatURI, appFormatCA, appFormatCert, appFormatKey, appFormatCURL, appFormatJSON, appFormatYAML),
 	).Short('f').StringVar(&cf.Format)
+
+	// Recordings.
+	recordings := app.Command("recordings", "View and control session recordings.").Alias("recording")
+	lsRecordings := recordings.Command("ls", "List recorded sessions.")
+	lsRecordings.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+". Defaults to 'text'.").Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
+	lsRecordings.Flag("from-utc", fmt.Sprintf("Start of time range in which recordings are listed. Format %s. Defaults to 24 hours ago.", time.RFC3339)).StringVar(&cf.FromUTC)
+	lsRecordings.Flag("to-utc", fmt.Sprintf("End of time range in which recordings are listed. Format %s. Defaults to current time.", time.RFC3339)).StringVar(&cf.ToUTC)
+	lsRecordings.Flag("limit", fmt.Sprintf("Maximum number of recordings to show. Default %s.", defaults.TshTctlSessionListLimit)).Default(defaults.TshTctlSessionListLimit).IntVar(&cf.maxRecordingsToShow)
 
 	// Local TLS proxy.
 	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode")
@@ -616,7 +635,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	dbList.Flag("verbose", "Show extra database fields.").Short('v').BoolVar(&cf.Verbose)
 	dbList.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	dbList.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
-	dbList.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
+	dbList.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	dbList.Flag("all", "List databases from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
 	dbList.Arg("labels", labelHelp).StringVar(&cf.UserHost)
 	dbLogin := db.Command("login", "Retrieve credentials for a database.")
@@ -626,7 +645,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	dbLogout := db.Command("logout", "Remove database credentials.")
 	dbLogout.Arg("db", "Database to remove credentials for.").StringVar(&cf.DatabaseService)
 	dbEnv := db.Command("env", "Print environment variables for the configured database.")
-	dbEnv.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
+	dbEnv.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	dbEnv.Arg("db", "Print environment for the specified database").StringVar(&cf.DatabaseService)
 	// --db flag is deprecated in favor of positional argument for consistency with other commands.
 	dbEnv.Flag("db", "Print environment for the specified database.").Hidden().StringVar(&cf.DatabaseService)
@@ -651,7 +670,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// play
 	play := app.Command("play", "Replay the recorded SSH session")
 	play.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
-	play.Flag("format", formatFlagDescription(
+	play.Flag("format", defaults.FormatFlagDescription(
 		teleport.PTY, teleport.JSON, teleport.YAML,
 	)).Short('f').Default(teleport.PTY).EnumVar(&cf.Format, teleport.PTY, teleport.JSON, teleport.YAML)
 	play.Arg("session-id", "ID of the session to play").Required().StringVar(&cf.SessionID)
@@ -668,7 +687,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	ls := app.Command("ls", "List remote SSH nodes")
 	ls.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	ls.Flag("verbose", "One-line output (for text format), including node UUIDs").Short('v').BoolVar(&cf.Verbose)
-	ls.Flag("format", formatFlagDescription(
+	ls.Flag("format", defaults.FormatFlagDescription(
 		teleport.Text, teleport.JSON, teleport.YAML, teleport.Names,
 	)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, teleport.Text, teleport.JSON, teleport.YAML, teleport.Names)
 	ls.Arg("labels", labelHelp).StringVar(&cf.UserHost)
@@ -677,7 +696,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	ls.Flag("all", "List nodes from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
 	// clusters
 	clusters := app.Command("clusters", "List available Teleport clusters")
-	clusters.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
+	clusters.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	clusters.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
 
 	// login logs in with remote proxy and obtains a "session certificate" which gets
@@ -725,26 +744,26 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// The status command shows which proxy the user is logged into and metadata
 	// about the certificate.
 	status := app.Command("status", "Display the list of proxy servers and retrieved certificates")
-	status.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
+	status.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	status.Flag("verbose", "Show extra status information after successful login").Short('v').BoolVar(&cf.Verbose)
 
 	// The environment command prints out environment variables for the configured
 	// proxy and cluster. Can be used to create sessions "sticky" to a terminal
 	// even if the user runs "tsh login" again in another window.
 	environment := app.Command("env", "Print commands to set Teleport session environment variables")
-	environment.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
+	environment.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	environment.Flag("unset", "Print commands to clear Teleport session environment variables").BoolVar(&cf.unsetEnvironment)
 
 	req := app.Command("request", "Manage access requests").Alias("requests")
 
 	reqList := req.Command("ls", "List access requests").Alias("list")
-	reqList.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
+	reqList.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	reqList.Flag("reviewable", "Only show requests reviewable by current user").BoolVar(&cf.ReviewableRequests)
 	reqList.Flag("suggested", "Only show requests that suggest current user as reviewer").BoolVar(&cf.SuggestedRequests)
 	reqList.Flag("my-requests", "Only show requests created by current user").BoolVar(&cf.MyRequests)
 
 	reqShow := req.Command("show", "Show request details").Alias("details")
-	reqShow.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaultFormats...)
+	reqShow.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	reqShow.Arg("request-id", "ID of the target request").Required().StringVar(&cf.RequestID)
 
 	reqCreate := req.Command("new", "Create a new access request").Alias("create")
@@ -951,6 +970,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onStatus(&cf)
 	case lsApps.FullCommand():
 		err = onApps(&cf)
+	case lsRecordings.FullCommand():
+		err = onRecordings(&cf)
 	case appLogin.FullCommand():
 		err = onAppLogin(&cf)
 	case appLogout.FullCommand():
@@ -2283,7 +2304,6 @@ func showDatabasesAsText(w io.Writer, clusterFlag string, databases []types.Data
 	if verbose {
 		t = asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect", "Expires"}, rows...)
 	} else {
-
 		t = asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Allowed Users", "Labels", "Connect"}, rows, "Labels")
 	}
 	fmt.Fprintln(w, t.AsBuffer().String())
@@ -2416,7 +2436,8 @@ func onListClusters(cf *CLIConf) error {
 			ClusterName: rootClusterName,
 			Status:      teleport.RemoteClusterStatusOnline,
 			ClusterType: "root",
-			Selected:    isSelected(rootClusterName)}
+			Selected:    isSelected(rootClusterName),
+		}
 		leafClusterInfo := make([]clusterInfo, 0, len(leafClusters))
 		for _, leaf := range leafClusters {
 			leafClusterInfo = append(leafClusterInfo, clusterInfo{
@@ -2424,7 +2445,8 @@ func onListClusters(cf *CLIConf) error {
 				Status:      leaf.GetConnectionStatus(),
 				ClusterType: "leaf",
 				Labels:      leaf.GetMetadata().Labels,
-				Selected:    isSelected(leaf.GetName())})
+				Selected:    isSelected(leaf.GetName()),
+			})
 		}
 		out, err := serializeClusters(rootClusterInfo, leafClusterInfo, format)
 		if err != nil {
@@ -3169,11 +3191,8 @@ func setClientWebProxyAddr(cf *CLIConf, c *client.Config) error {
 
 			proxyAddress, err = pickDefaultAddr(
 				timeout, cf.InsecureSkipVerify, parsedAddrs.Host, defaultWebProxyPorts)
-
-			// On error, fall back to the legacy behavior
 			if err != nil {
-				log.WithError(err).Debug("Proxy port resolution failed, falling back to legacy default.")
-				return c.ParseProxyHost(cf.Proxy)
+				return trace.Wrap(err)
 			}
 		}
 
@@ -3865,6 +3884,36 @@ func serializeAppsWithClusters(apps []appListing, format string) (string, error)
 		out, err = yaml.Marshal(apps)
 	}
 	return string(out), trace.Wrap(err)
+}
+
+func onRecordings(cf *CLIConf) error {
+	fromUTC, toUTC, err := defaults.SearchSessionRange(clockwork.NewRealClock(), cf.FromUTC, cf.ToUTC)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tc, err := makeClient(cf, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Max number of days is limited to prevent too many requests being sent if dynamo is used as a backend.
+	if days := toUTC.Sub(fromUTC).Hours() / 24; days > defaults.TshTctlSessionDayLimit {
+		return trace.Errorf("date range for recordings listing too large: %v days specified: limit %v days",
+			days, defaults.TshTctlSessionDayLimit)
+	}
+	var sessions []apievents.AuditEvent
+	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		sessions, err = tc.SearchSessionEvents(cf.Context,
+			fromUTC, toUTC, apidefaults.DefaultChunkSize,
+			types.EventOrderDescending, cf.maxRecordingsToShow)
+		return err
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := common.ShowSessions(sessions, cf.Format, os.Stdout); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // onEnvironment handles "tsh env" command.

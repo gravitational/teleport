@@ -15,160 +15,51 @@
 package fixtures
 
 import (
-	"reflect"
 	"runtime/debug"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
-	check "gopkg.in/check.v1"
 )
-
-// ExpectNotFound expects not found error
-func ExpectNotFound(c *check.C, err error) {
-	c.Assert(trace.IsNotFound(err), check.Equals, true, check.Commentf("expected NotFound, got %T %v at %v", trace.Unwrap(err), err, string(debug.Stack())))
-}
-
-// ExpectBadParameter expects bad parameter error
-func ExpectBadParameter(c *check.C, err error) {
-	c.Assert(trace.IsBadParameter(err), check.Equals, true, check.Commentf("expected BadParameter, got %T %v at %v", trace.Unwrap(err), err, string(debug.Stack())))
-}
-
-// ExpectCompareFailed expects compare failed error
-func ExpectCompareFailed(c *check.C, err error) {
-	c.Assert(trace.IsCompareFailed(err), check.Equals, true, check.Commentf("expected CompareFailed, got %T %v at %v", trace.Unwrap(err), err, string(debug.Stack())))
-}
-
-// ExpectAccessDenied expects error to be access denied
-func ExpectAccessDenied(c *check.C, err error) {
-	c.Assert(trace.IsAccessDenied(err), check.Equals, true, check.Commentf("expected AccessDenied, got %T %v at %v", trace.Unwrap(err), err, string(debug.Stack())))
-}
-
-// ExpectAlreadyExists expects already exists error
-func ExpectAlreadyExists(c *check.C, err error) {
-	c.Assert(trace.IsAlreadyExists(err), check.Equals, true, check.Commentf("expected AlreadyExists, got %T %v at %v", trace.Unwrap(err), err, string(debug.Stack())))
-}
-
-// ExpectConnectionProblem expects connection problem error
-func ExpectConnectionProblem(c *check.C, err error) {
-	c.Assert(trace.IsConnectionProblem(err), check.Equals, true, check.Commentf("expected ConnectionProblem, got %T %v at %v", trace.Unwrap(err), err, string(debug.Stack())))
-}
-
-// ExpectLimitExceeded expects limit exceeded error
-func ExpectLimitExceeded(c *check.C, err error) {
-	c.Assert(trace.IsLimitExceeded(err), check.Equals, true, check.Commentf("expected LimitExceeded, got %T %v at %v", trace.Unwrap(err), err, string(debug.Stack())))
-}
 
 // AssertNotFound expects not found error
 func AssertNotFound(t *testing.T, err error) {
-	if trace.IsNotFound(err) == false {
+	if !trace.IsNotFound(err) {
 		t.Fatalf("Expected NotFound, got %T %v at %v.", trace.Unwrap(err), err, string(debug.Stack()))
 	}
 }
 
 // AssertBadParameter expects bad parameter error
 func AssertBadParameter(t *testing.T, err error) {
-	if trace.IsBadParameter(err) == false {
+	if !trace.IsBadParameter(err) {
 		t.Fatalf("Expected BadParameter, got %T %v at %v.", trace.Unwrap(err), err, string(debug.Stack()))
 	}
 }
 
 // AssertCompareFailed expects compare failed error
 func AssertCompareFailed(t *testing.T, err error) {
-	if trace.IsCompareFailed(err) == false {
+	if !trace.IsCompareFailed(err) {
 		t.Fatalf("Expected CompareFailed, got %T %v at %v.", trace.Unwrap(err), err, string(debug.Stack()))
 	}
 }
 
 // AssertAccessDenied expects error to be access denied
 func AssertAccessDenied(t *testing.T, err error) {
-	if trace.IsAccessDenied(err) == false {
+	if !trace.IsAccessDenied(err) {
 		t.Fatalf("Expected AccessDenied, got %T %v at %v.", trace.Unwrap(err), err, string(debug.Stack()))
 	}
 }
 
 // AssertAlreadyExists expects already exists error
 func AssertAlreadyExists(t *testing.T, err error) {
-	if trace.IsAlreadyExists(err) == false {
+	if !trace.IsAlreadyExists(err) {
 		t.Fatalf("Expected AlreadyExists, got %T %v at %v.", trace.Unwrap(err), err, string(debug.Stack()))
 	}
 }
 
 // AssertConnectionProblem expects connection problem error
 func AssertConnectionProblem(t *testing.T, err error) {
-	if trace.IsConnectionProblem(err) == false {
+	if !trace.IsConnectionProblem(err) {
 		t.Fatalf("Expected ConnectionProblem, got %T %v at %v.", trace.Unwrap(err), err, string(debug.Stack()))
-	}
-}
-
-// DeepCompare uses gocheck DeepEquals but provides nice diff if things are not equal
-func DeepCompare(c *check.C, a, b interface{}) {
-	if !reflect.DeepEqual(a, b) {
-		c.Fatalf("Values are not equal, diff:\n%s\nStack:\n%v\n", cmp.Diff(a, b), string(debug.Stack()))
-	}
-}
-
-// DeepCompareSlices compares two slices
-func DeepCompareSlices(c *check.C, a, b interface{}) {
-	aval, bval := reflect.ValueOf(a), reflect.ValueOf(b)
-	if aval.Kind() != reflect.Slice {
-		c.Fatalf("%v is not a map, %T", a, a)
-	}
-
-	if bval.Kind() != reflect.Slice {
-		c.Fatalf("%v is not a map, %T", b, b)
-	}
-
-	if aval.Len() != bval.Len() {
-		c.Fatalf("slices have different length of %v and %v", aval.Len(), bval.Len())
-	}
-
-	for i := 0; i < aval.Len(); i++ {
-		DeepCompare(c, aval.Index(i).Interface(), bval.Index(i).Interface())
-	}
-}
-
-// DeepCompareMaps compares two maps
-func DeepCompareMaps(c *check.C, a, b interface{}) {
-	aval, bval := reflect.ValueOf(a), reflect.ValueOf(b)
-	if aval.Kind() != reflect.Map {
-		c.Fatalf("%v is not a map, %T", a, a)
-	}
-
-	if bval.Kind() != reflect.Map {
-		c.Fatalf("%v is not a map, %T", b, b)
-	}
-
-	for _, k := range aval.MapKeys() {
-		vala := aval.MapIndex(k)
-		valb := bval.MapIndex(k)
-
-		if !vala.IsValid() {
-			c.Fatalf("expected valid value for %v in %v", k.Interface(), a)
-		}
-
-		if !valb.IsValid() {
-			c.Fatalf("key %v is found in %v, but not in %v", k.Interface(), a, b)
-		}
-	}
-
-	for _, k := range bval.MapKeys() {
-		vala := aval.MapIndex(k)
-		valb := bval.MapIndex(k)
-
-		if !valb.IsValid() {
-			c.Fatalf("expected valid value for %v in %v", k.Interface(), a)
-		}
-
-		if !vala.IsValid() {
-			c.Fatalf("key %v is found in %v, but not in %v", k.Interface(), a, b)
-		}
-
-		if reflect.ValueOf(vala.Interface()).Kind() == reflect.Map {
-			DeepCompareMaps(c, vala.Interface(), valb.Interface())
-		} else {
-			DeepCompare(c, vala.Interface(), valb.Interface())
-		}
 	}
 }
 

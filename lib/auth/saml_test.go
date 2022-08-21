@@ -410,7 +410,7 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = a.CreateRole(role)
+	err = a.CreateRole(ctx, role)
 	require.NoError(t, err)
 
 	// real response from Okta

@@ -24,6 +24,15 @@ export class AuthSettings extends jspb.Message {
     getHasMessageOfTheDay(): boolean;
     setHasMessageOfTheDay(value: boolean): AuthSettings;
 
+    getAuthType(): string;
+    setAuthType(value: string): AuthSettings;
+
+    getAllowPasswordless(): boolean;
+    setAllowPasswordless(value: boolean): AuthSettings;
+
+    getLocalConnectorName(): string;
+    setLocalConnectorName(value: string): AuthSettings;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AuthSettings.AsObject;
@@ -42,6 +51,9 @@ export namespace AuthSettings {
         preferredMfa: string,
         authProvidersList: Array<AuthProvider.AsObject>,
         hasMessageOfTheDay: boolean,
+        authType: string,
+        allowPasswordless: boolean,
+        localConnectorName: string,
     }
 }
 

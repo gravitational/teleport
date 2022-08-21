@@ -28,6 +28,31 @@ ingest and perform monitoring and alerting on.
 
 Teleport Enhanced Session Recording mitigates all three concerns by providing advanced security and greater logging capabilities, and better correlates a user with their activities.
 
+<Admonition type="warning" title="Security Warning">
+
+Teleport Enhanced Session Recording does not provide a secure environment on
+its own and is not a substitute for a Linux Security Module (SELinux, AppArmor,
+etc.). It must be paired with reasonable system hardening practices to enforce
+a trusted host environment, including proper access control on core system
+binaries and libraries and well-designed user management.
+
+Note that privileged users (either as root or via `sudo`) can interfere with
+session recording activities (such as unloading/disabling the necessary
+libaries, altering how Teleport is run, tampering with kernel functionality,
+creating tunnels, or just performing actions outside of the restricted
+session). Also, a local user with both monitored and unmonitored console
+sessions or ptrace privileges may not be fully captured in recordings.
+
+Commands executed via daemons (systemd, crond, atd, etc.) could be outside of
+the recorded session scope. Proper network-based restrictions for ingress
+traffic must also be implemented to prevent possible unauthorized data transfer.
+
+Additionally, certain forensic information such as full binary paths
+(accounting for any potential symbolic links), any modifications via shared
+library preloading, and environment variables may not be captured in session recordings.
+
+</Admonition>
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)

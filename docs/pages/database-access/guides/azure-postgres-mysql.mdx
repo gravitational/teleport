@@ -313,21 +313,10 @@ $ tsh db ls
 
 </ScopedBlock>
 
-Fetch a short-lived client certificate for your Azure database using the
-`tsh db login` command:
+To retrieve credentials for a database and connect to it:
 
 ```code
-$ tsh db login --db-user=teleport azure-db
-```
-
-<Admonition type="tip">
-  You can be logged in to multiple databases simultaneously.
-</Admonition>
-
-Now connect to the database:
-
-```code
-$ tsh db connect azure-db
+$ tsh db connect --db-user=teleport azure-db
 ```
 
 <Admonition type="note">

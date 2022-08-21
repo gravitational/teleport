@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -42,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -163,7 +165,7 @@ func NewServer(
 	ah AuthMethods,
 	opts ...ServerOption,
 ) (*Server, error) {
-	err := utils.RegisterPrometheusCollectors(proxyConnectionLimitHitCount)
+	err := metrics.RegisterPrometheusCollectors(proxyConnectionLimitHitCount)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -438,6 +440,13 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	wrappedConn := wrapConnection(wconn, s.log)
 	sconn, chans, reqs, err := ssh.NewServerConn(wrappedConn, &s.cfg)
 	if err != nil {
+		// Ignore EOF as these are triggered by loadbalancer health checks
+		if !errors.Is(err, io.EOF) {
+			s.log.
+				WithError(err).
+				WithField("remote_addr", conn.RemoteAddr()).
+				Warn("Error occurred in handshake for new SSH conn")
+		}
 		conn.SetDeadline(time.Time{})
 		return
 	}

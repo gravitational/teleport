@@ -56,7 +56,7 @@ func newSilentLogger() utils.Logger {
 
 func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinMethod types.JoinMethod) *service.Config {
 	config := service.MakeDefaultConfig()
-	config.Token = tokenName
+	config.SetToken(tokenName)
 	config.JoinMethod = joinMethod
 	config.SSH.Enabled = true
 	config.SSH.Addr.Addr = helpers.NewListener(t, service.ListenerNodeSSH, &config.FileDescriptors)
@@ -72,7 +72,7 @@ func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinM
 func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinMethod types.JoinMethod) *service.Config {
 	config := service.MakeDefaultConfig()
 	config.Version = defaults.TeleportConfigVersionV2
-	config.Token = tokenName
+	config.SetToken(tokenName)
 	config.JoinMethod = joinMethod
 	config.SSH.Enabled = false
 	config.Auth.Enabled = false
@@ -377,7 +377,7 @@ func TestEC2Labels(t *testing.T) {
 	var nodes []types.Server
 	var apps []types.AppServer
 	var databases []types.DatabaseServer
-	var kubes []types.Server
+	var kubes []types.KubeServer
 
 	// Wait for everything to come online.
 	require.Eventually(t, func() bool {
@@ -388,7 +388,7 @@ func TestEC2Labels(t *testing.T) {
 		require.NoError(t, err)
 		databases, err = authServer.GetDatabaseServers(ctx, tconf.SSH.Namespace)
 		require.NoError(t, err)
-		kubes, err = authServer.GetKubeServices(ctx)
+		kubes, err = authServer.GetKubernetesServers(ctx)
 		require.NoError(t, err)
 		return len(nodes) == 1 && len(apps) == 1 && len(databases) == 1 && len(kubes) == 1
 	}, 10*time.Second, time.Second)
@@ -415,7 +415,7 @@ func TestEC2Labels(t *testing.T) {
 		kubeClusters := helpers.GetKubeClusters(t, authServer)
 		require.Len(t, kubeClusters, 1)
 		kube := kubeClusters[0]
-		_, kubeHasLabel := kube.StaticLabels[tagName]
+		_, kubeHasLabel := kube.GetStaticLabels()[tagName]
 		return nodeHasLabel && appHasLabel && dbHasLabel && kubeHasLabel
 	}, 10*time.Second, time.Second)
 }

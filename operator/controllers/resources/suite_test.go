@@ -81,6 +81,7 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    integration.Loopback,
+		Log:         logrus.StandardLogger(),
 	})
 
 	rcConf := service.MakeDefaultConfig()
@@ -199,4 +200,45 @@ func validRandomResourceName(prefix string) string {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
 	return prefix + string(b)
+}
+
+type testSetup struct {
+	tClient   auth.ClientI
+	k8sClient kclient.Client
+	namespace *core.Namespace
+}
+
+func setupKubernetesAndTeleport(t *testing.T) testSetup {
+	teleportServer, operatorName := defaultTeleportServiceConfig(t)
+
+	require.NoError(t, teleportServer.Start())
+
+	tClient := clientForTeleport(t, teleportServer, operatorName)
+	k8sClient := startKubernetesOperator(t, tClient)
+
+	ns := createNamespaceForTest(t, k8sClient)
+
+	t.Cleanup(func() {
+		err := tClient.Close()
+		require.NoError(t, err)
+		err = teleportServer.StopAll()
+		require.NoError(t, err)
+	})
+	return testSetup{tClient: tClient, k8sClient: k8sClient, namespace: ns}
+}
+
+func teleportCreateDummyRole(ctx context.Context, t *testing.T, roleName string, tClient auth.ClientI) {
+	// The role is created in Teleport
+	tRole, err := types.NewRole(roleName, types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Logins: []string{"a", "b"},
+		},
+	})
+	require.NoError(t, err)
+	metadata := tRole.GetMetadata()
+	metadata.Labels = map[string]string{types.OriginLabel: types.OriginKubernetes}
+	tRole.SetMetadata(metadata)
+
+	err = tClient.UpsertRole(ctx, tRole)
+	require.NoError(t, err)
 }

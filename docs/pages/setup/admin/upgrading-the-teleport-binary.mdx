@@ -18,15 +18,8 @@ specifying a version.
 
 This guide requires a host where the `teleport` binary is running. The version
 of the binary must be behind the latest.
-  
-Get the latest available version of Teleport by running the following command:
-
-```code
-$ curl https://api.github.com/repos/gravitational/teleport/releases | \
-jq '[.[].tag_name] | sort | last'
-"v(=teleport.version=)"
-```
-
+ 
+For Teleport major version `(=teleport.major_version=)` the latest version is `(=teleport.version=)`.
 Compare this to the version of Teleport you have installed on the host:
 
 ```code
