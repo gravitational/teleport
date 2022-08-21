@@ -42,7 +42,7 @@ import (
 // way to our Proxy Service.
 //
 // In those cases, the Teleport client should make a HTTP "upgrade" call to the
-// Proxy Service to establish a tunnel for the origianlly planned traffic to
+// Proxy Service to establish a tunnel for the originally planned traffic to
 // preserve the ALPN and SNI information.
 func IsALPNConnUpgradeRequired(addr string, insecure bool) bool {
 	// Some shortcuts.
