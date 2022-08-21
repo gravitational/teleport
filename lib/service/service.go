@@ -3938,8 +3938,9 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg
 	if cfg.Proxy.Kube.Enabled {
 		kubeListener := alpnproxy.NewMuxListenerWrapper(listeners.kube, listeners.web)
 		router.AddKubeHandler(alpnproxy.HandlerDesc{
-			Handler: kubeListener.HandleConnection,
-			IsAsync: true,
+			Handler:    kubeListener.HandleConnection,
+			ForwardTLS: true,
+			IsAsync:    true,
 		})
 		listeners.kube = kubeListener
 	}

@@ -45,6 +45,7 @@ import (
 // Proxy Service to establish a tunnel for the origianlly planned traffic to
 // preserve the ALPN and SNI information.
 func IsALPNConnUpgradeRequired(addr string, insecure bool) bool {
+	// Some shortcuts.
 	if utils.IsLoopback(addr) || utils.IsUnspecified(addr) {
 		logrus.Debugf("ALPN connection upgrade not required because %q is either unspecified or a loopback.", addr)
 		return false
@@ -73,7 +74,7 @@ func alpnConnUpgradeTest(addr string, insecure bool, timeout time.Duration) (upg
 		// this situation or make it configurable if we have to get through a
 		// middleman with this behavior. For now, we are only interested in the
 		// case where the middleman does not support ALPN.
-		logrus.Warnf("ALPN connection upgrade test failed for %q: %v.", addr, err)
+		logrus.Infof("ALPN connection upgrade test failed for %q: %v.", addr, err)
 		return false
 	}
 	defer testConn.Close()
@@ -94,10 +95,6 @@ type alpnConnUpgradeDialer struct {
 
 // newALPNConnUpgradeDialer creates a new alpnConnUpgradeDialer.
 func newALPNConnUpgradeDialer(keepAlivePeriod, dialTimeout time.Duration, insecure bool) ContextDialer {
-	if dialTimeout == 0 {
-		dialTimeout = defaults.DefaultDialTimeout
-	}
-
 	return &alpnConnUpgradeDialer{
 		insecure: insecure,
 		netDialer: &net.Dialer{

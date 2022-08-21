@@ -148,10 +148,6 @@ func (r *Router) CheckAndSetDefaults() error {
 func (r *Router) AddKubeHandler(desc HandlerDesc) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
-
-	// Make sure we are forwarding TLS.
-	desc.ForwardTLS = true
-
 	r.kubeHandler = &desc
 }
 
@@ -374,9 +370,11 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, opts *conne
 	conn = waitConn
 
 	// Upgrade conn to tls.Conn if not forwarding TLS.
-	conn, handlerDesc, err = p.setupTLSConnForHandler(conn, handlerDesc, opts)
-	if err != nil {
-		return trace.Wrap(err)
+	if !handlerDesc.ForwardTLS {
+		conn, handlerDesc, err = p.setupTLSConnForHandler(conn, handlerDesc, opts)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// Close clientConn for "sync" handlers. "Async" handlers will close the
@@ -401,10 +399,6 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, opts *conne
 }
 
 func (p *Proxy) setupTLSConnForHandler(conn net.Conn, handlerDesc *HandlerDesc, opts *connectionHandlerOptions) (net.Conn, *HandlerDesc, error) {
-	if handlerDesc.ForwardTLS {
-		return conn, handlerDesc, nil
-	}
-
 	tlsConn := tls.Server(conn, handlerDesc.getTLSConfig(opts.defaultTLSConfig))
 	if err := tlsConn.SetReadDeadline(p.cfg.Clock.Now().Add(p.cfg.ReadDeadline)); err != nil {
 		return nil, nil, trace.Wrap(err)

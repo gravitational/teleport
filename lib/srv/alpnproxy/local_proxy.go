@@ -73,6 +73,8 @@ type LocalProxyConfig struct {
 	RootCAs *x509.CertPool
 	// ALPNConnUpgradeRequired specifies if ALPN connection upgrade is required.
 	ALPNConnUpgradeRequired bool
+	// ALPNConnUpgradeInscure skips server verification when doing ALPN connection upgrade.
+	ALPNConnUpgradeInsecure bool
 }
 
 // CheckAndSetDefaults verifies the constraints for LocalProxyConfig.
@@ -151,8 +153,9 @@ func (l *LocalProxy) GetAddr() string {
 func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamConn net.Conn) error {
 	defer downstreamConn.Close()
 
-	upstreamDialer := client.NewTLSRoutingDialer(client.TLSRoutingDialerConfig{
+	upstreamConn, err := client.DialALPN(ctx, client.ALPNDialerConfig{
 		ALPNConnUpgradeRequired: l.cfg.ALPNConnUpgradeRequired,
+		ALPNConnUpgradeInsecure: l.cfg.ALPNConnUpgradeInsecure,
 		TLSConfig: &tls.Config{
 			NextProtos:         l.cfg.GetProtocols(),
 			InsecureSkipVerify: l.cfg.InsecureSkipVerify,
@@ -160,8 +163,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 			Certificates:       l.cfg.Certs,
 			RootCAs:            l.cfg.RootCAs,
 		},
-	})
-	upstreamConn, err := upstreamDialer.DialContext(ctx, "tcp", l.cfg.RemoteProxyAddr)
+	}, l.cfg.RemoteProxyAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}

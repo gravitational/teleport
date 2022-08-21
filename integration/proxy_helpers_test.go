@@ -570,6 +570,7 @@ func (m *mockAWSALBProxy) serve(ctx context.Context, t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
+			return
 		}
 
 		go func() {
@@ -577,6 +578,7 @@ func (m *mockAWSALBProxy) serve(ctx context.Context, t *testing.T) {
 			downstreamConn := tls.Server(conn, &tls.Config{
 				Certificates: []tls.Certificate{m.cert},
 			})
+			require.NoError(t, downstreamConn.HandshakeContext(ctx))
 
 			// Make a connection to the proxy server with ALPN protos.
 			upstreamConn, err := tls.Dial("tcp", m.proxyAddr, &tls.Config{

@@ -19,6 +19,7 @@ package integration
 import (
 	"bytes"
 	"context"
+	"crypto/x509"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -563,6 +564,15 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 		// ALPN local proxies will point to this ALB instead.
 		albProxy := mustStartMockALBProxy(t, pack.root.cluster.SSHProxy, 5*time.Second)
 
+		// We will be dialing insecure when doing the ALPN connection upgrade
+		// since self-signed cert is used. Though, once inside the connection
+		// upgrade tunnel, the ALPN server wll be serving the server TLS cert.
+		// We will be doing full TLS verifications at this layer by providing
+		// the TLS CA to the local proxy. Also remember to use "127.0.0.1" for
+		// SNI for this verification.
+		localProxyRootCAs := x509.NewCertPool()
+		require.True(t, localProxyRootCAs.AppendCertsFromPEM(pack.root.cluster.Secrets.TLSCACert))
+
 		// Test a protocol in the alpncommon.IsDBTLSProtocol list where the
 		// the database client will perform a native TLS handshake.
 		//
@@ -576,7 +586,9 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 				RemoteProxyAddr:         albProxy.Addr().String(),
 				Protocols:               []alpncommon.Protocol{alpncommon.ProtocolMongoDB},
 				ALPNConnUpgradeRequired: true,
-				InsecureSkipVerify:      true,
+				ALPNConnUpgradeInsecure: true,
+				RootCAs:                 localProxyRootCAs,
+				SNI:                     "127.0.0.1",
 			})
 			client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
 				AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
@@ -613,7 +625,9 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 				RemoteProxyAddr:         albProxy.Addr().String(),
 				Protocols:               []alpncommon.Protocol{alpncommon.ProtocolMySQL},
 				ALPNConnUpgradeRequired: true,
-				InsecureSkipVerify:      true,
+				ALPNConnUpgradeInsecure: true,
+				RootCAs:                 localProxyRootCAs,
+				SNI:                     "127.0.0.1",
 			})
 			client, err := mysql.MakeTestClient(common.TestClientConfig{
 				AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
@@ -664,8 +678,10 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 				RemoteProxyAddr:         albProxy.Addr().String(),
 				Protocols:               []alpncommon.Protocol{alpncommon.ProtocolMySQL},
 				ALPNConnUpgradeRequired: true,
-				InsecureSkipVerify:      true,
+				ALPNConnUpgradeInsecure: true,
 				Certs:                   clientTLSConfig.Certificates,
+				RootCAs:                 localProxyRootCAs,
+				SNI:                     "127.0.0.1",
 			})
 
 			client, err := mysql.MakeTestClientWithoutTLS(lp.GetAddr(), routeToDatabase)

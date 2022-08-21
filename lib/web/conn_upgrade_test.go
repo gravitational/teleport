@@ -40,14 +40,15 @@ func TestWriteUpgradeResponse(t *testing.T) {
 func TestHandlerConnectionUpgrade(t *testing.T) {
 	t.Parallel()
 
-	cfg := Config{
-		ALPNHandler: func(_ context.Context, conn net.Conn) error {
-			conn.Write([]byte("hello@"))
-			return nil
-		},
-	}
+	// Cherry picked some attributes to create a Handler to test only the
+	// connection upgrade portion.
 	h := &Handler{
-		cfg:   cfg,
+		cfg: Config{
+			ALPNHandler: func(_ context.Context, conn net.Conn) error {
+				conn.Write([]byte("hello@"))
+				return nil
+			},
+		},
 		log:   newPackageLogger(),
 		clock: clockwork.NewRealClock(),
 	}

@@ -161,8 +161,8 @@ func sshConnect(ctx context.Context, conn net.Conn, ssh ssh.ClientConfig, dialTi
 	return conn, nil
 }
 
-// TLSRoutingDialerConfig is the config for TLSRoutingDialer.
-type TLSRoutingDialerConfig struct {
+// ALPNDialerConfig is the config for ALPNDialer.
+type ALPNDialerConfig struct {
 	// KeepAlivePeriod defines period between keep alives.
 	KeepAlivePeriod time.Duration
 	// DialTimeout defines how long to attempt dialing before timing out.
@@ -171,31 +171,34 @@ type TLSRoutingDialerConfig struct {
 	TLSConfig *tls.Config
 	// ALPNConnUpgradeRequired specifies if ALPN connection upgrade is required.
 	ALPNConnUpgradeRequired bool
+	// ALPNConnUpgradeInscure skips server verification when doing ALPN connection upgrade.
+	ALPNConnUpgradeInsecure bool
 }
 
-// TLSRoutingDialer is a ContextDialer that dials a connection to the Proxy
-// Service that has TLS routing enabled (aka single-port mode).
-type TLSRoutingDialer struct {
-	TLSRoutingDialerConfig
+// ALPNDialer is a ContextDialer that dials a connection to the Proxy Service
+// with ALPN and SNI configured in the provided TLSConfig. An ALPN connection
+// upgrade is also performed at the initial connection, if an upgrade is
+// required.
+type ALPNDialer struct {
+	ALPNDialerConfig
 }
 
-// TLSRoutingDialer creates a new TLSRoutingDialer.
-func NewTLSRoutingDialer(cfg TLSRoutingDialerConfig) ContextDialer {
-	return &TLSRoutingDialer{
-		TLSRoutingDialerConfig: cfg,
+// ALPNDialer creates a new ALPNDialer.
+func NewALPNDialer(cfg ALPNDialerConfig) ContextDialer {
+	return &ALPNDialer{
+		ALPNDialerConfig: cfg,
 	}
 }
 
-// DialContext implements ContextDialer. If successful, always returns a
-// *tls.Conn.
-func (d TLSRoutingDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+// DialContext implements ContextDialer.
+func (d ALPNDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	if d.TLSConfig == nil {
 		return nil, trace.BadParameter("missing TLS config")
 	}
 
 	dialer := newDirectDialer(d.KeepAlivePeriod, d.DialTimeout)
 	if d.ALPNConnUpgradeRequired {
-		dialer = newALPNConnUpgradeDialer(d.KeepAlivePeriod, d.DialTimeout, d.TLSConfig.InsecureSkipVerify)
+		dialer = newALPNConnUpgradeDialer(d.KeepAlivePeriod, d.DialTimeout, d.ALPNConnUpgradeInsecure)
 	}
 
 	conn, err := dialer.DialContext(ctx, network, addr)
@@ -210,4 +213,14 @@ func (d TLSRoutingDialer) DialContext(ctx context.Context, network, addr string)
 	}
 
 	return tlsConn, nil
+}
+
+// DialALPN a helper to dial using an ALPNDialer and returns a tls.Conn if
+// successful.
+func DialALPN(ctx context.Context, cfg ALPNDialerConfig, addr string) (*tls.Conn, error) {
+	conn, err := NewALPNDialer(cfg).DialContext(ctx, "tcp", addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return conn.(*tls.Conn), nil
 }

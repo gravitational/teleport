@@ -34,22 +34,22 @@ import (
 func TestALPNConnUpgradeTest(t *testing.T) {
 	tests := []struct {
 		name           string
-		protos         []string
+		serverProtos   []string
 		expectedResult bool
 	}{
 		{
 			name:           "upgrade required",
-			protos:         nil, // Use nil for NextProtos to simulate no ALPN support.
+			serverProtos:   nil, // Use nil for NextProtos to simulate no ALPN support.
 			expectedResult: true,
 		},
 		{
 			name:           "upgrade not required (proto neogotiated)",
-			protos:         []string{constants.ALPNSNIProtocolReverseTunnel},
+			serverProtos:   []string{constants.ALPNSNIProtocolReverseTunnel},
 			expectedResult: false,
 		},
 		{
 			name:           "upgrade not required (handshake error)",
-			protos:         []string{"unknown"},
+			serverProtos:   []string{"unknown"},
 			expectedResult: false,
 		},
 	}
@@ -60,7 +60,7 @@ func TestALPNConnUpgradeTest(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			server := mustStartMockALPNServer(t, test.protos)
+			server := mustStartMockALPNServer(t, test.serverProtos)
 			require.Equal(t, test.expectedResult, alpnConnUpgradeTest(server.Addr().String(), true, 5*time.Second))
 		})
 	}

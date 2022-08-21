@@ -80,6 +80,7 @@ func TestProxyKubeHandler(t *testing.T) {
 
 	kubeCert := mustGenCertSignedWithCA(t, suite.ca)
 	suite.router.AddKubeHandler(HandlerDesc{
+		ForwardTLS: true,
 		Handler: func(ctx context.Context, conn net.Conn) error {
 			defer conn.Close()
 			tlsConn := tls.Server(conn, &tls.Config{
