@@ -194,7 +194,7 @@ function Convert-Base64 {
         [string] $Data
     )
     begin {
-        $bytes = [Convert]::FromBase64String($Env:WINDOWS_SIGNING_CERT)
-        [system.Io.File]::WriteAllBytes($FilePath, $bytes)
+        $bytes = [Convert]::FromBase64String($Data)
+        Set-Content -Path $FilePath -Value $bytes -AsByteStream
     }
 }
