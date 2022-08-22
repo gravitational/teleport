@@ -1620,6 +1620,7 @@ type ClientI interface {
 	services.Databases
 	services.WindowsDesktops
 	WebService
+	services.Status
 	services.ClusterConfiguration
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
