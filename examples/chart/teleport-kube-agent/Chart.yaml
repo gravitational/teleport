@@ -1,4 +1,4 @@
-.version: &version "11.0.0-gzdunek.21"
+.version: &version "11.0.0-gzdunek.22"
 
 name: teleport-kube-agent
 apiVersion: v2
