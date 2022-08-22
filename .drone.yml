@@ -1774,9 +1774,9 @@ steps:
     \;
   - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts
     \;
-  - find ./code/webapps/packages/teleterm/build/release -maxdepth 1 \( -iname "teleport-connect*.tar.gz"
-    -o -iname "teleport-connect*.rpm" -o -iname "teleport-connect*.deb" \) -print
-    -exec cp {} /go/artifacts/ \;
+  - find /go/src/github.com/gravitational/webapps/packages/teleterm/build/release
+    -maxdepth 1 \( -iname "teleport-connect*.tar.gz" -o -iname "teleport-connect*.rpm"
+    -o -iname "teleport-connect*.deb" \) -print -exec cp {} /go/artifacts/ \;
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
 - name: Upload to S3
@@ -6489,6 +6489,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 986294b247cdd5d7cfeadf427c7fe487a9bcf83cc83cf8c92e94510ecdefd976
+hmac: 5bdd91c0b27e70dec7c40062f44068a16b4e91c126d3ca71dc7315760f98d4ee
 
 ...
