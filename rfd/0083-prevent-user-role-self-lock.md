@@ -58,7 +58,7 @@ The solution here could be to introduce a new rule:
 
 This will ensure that:
 
-- When one of the _admins_ loses access to the account the second one will be functional
+- When one of the _admins_ loses access to the account the second one will operate.
 - Users won't be able to delete _admin_ user if there are only 2 _admins_. They would have to add a third one and then they can delete it.
 - Users won't be able to unassign the `editor` role from _admin_ user if there are only 2 _admins_. They would have to add a third and then they can unassign.
 - Role system lock will be independent of connector removal or SSO changes: team deletion/user deletion.
