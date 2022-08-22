@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/web"
 )
 
 const (
@@ -112,7 +111,7 @@ func Run(ctx context.Context, lg *Linear, cmd, host, login, proxy string) ([]Res
 		if benchmarkC == nil {
 			break
 		}
-		result, err := benchmarkC.Benchmark(ctx, tc, nil)
+		result, err := benchmarkC.Benchmark(ctx, tc)
 		if err != nil {
 			return results, trace.Wrap(err)
 		}
@@ -154,7 +153,7 @@ func ExportLatencyProfile(path string, h *hdrhistogram.Histogram, ticks int32, v
 // Benchmark connects to remote server and executes requests in parallel according
 // to benchmark spec. It returns benchmark result when completed.
 // This is a blocking function that can be canceled via context argument.
-func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient, pc *web.ProxyClient) (Result, error) {
+func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Result, error) {
 	tc.Stdout = io.Discard
 	tc.Stderr = io.Discard
 	tc.Stdin = &bytes.Buffer{}
@@ -182,7 +181,6 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient, pc *w
 					client:        tc,
 					interactive:   c.Interactive,
 					web:           c.Web,
-					pclt:          pc,
 				}
 				go measure.work(ctx, resultC)
 			case <-ctx.Done():
@@ -223,43 +221,43 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient, pc *w
 	}
 }
 
-func (c *Config) Sessions(ctx context.Context, tc *client.TeleportClient, pc *web.ProxyClient) error {
+func (c *Config) Sessions(ctx context.Context, tc *client.TeleportClient) error {
 	nodes, err := tc.ListAllNodes(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer proxyClient.Close()
-
-	authClt, err := proxyClient.ConnectToRootCluster(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	netConfig, err := authClt.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	//proxyClient, err := tc.ConnectToProxy(ctx)
+	//if err != nil {
+	//	return trace.Wrap(err)
+	//}
+	//defer proxyClient.Close()
+	//
+	//authClt, err := proxyClient.ConnectToRootCluster(ctx)
+	//if err != nil {
+	//	return trace.Wrap(err)
+	//}
+	//
+	//netConfig, err := authClt.GetClusterNetworkingConfig(ctx)
+	//if err != nil {
+	//	return trace.Wrap(err)
+	//}
 
 	sessionCounter := atomic.NewInt64(0)
 
 	cmd := strings.Join(c.Command, " ")
 
-	spawnDuration := 333 * time.Millisecond
-	var sess types.WebSession
-	if c.Web {
-		spawnDuration = 120 * time.Millisecond
-
-		ws, err := pc.CurrentWebSession(ctx, authClt)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		sess = ws
-	}
+	spawnDuration := 750 * time.Millisecond
+	//var sess types.WebSession
+	//if c.Web {
+	//	spawnDuration = 120 * time.Millisecond
+	//
+	//	ws, err := pc.CurrentWebSession(ctx, authClt)
+	//	if err != nil {
+	//		return trace.Wrap(err)
+	//	}
+	//	sess = ws
+	//}
 
 	spawnTicker := time.NewTicker(spawnDuration)
 	// 3 seconds matches the web ui refresh rate
@@ -278,93 +276,60 @@ func (c *Config) Sessions(ctx context.Context, tc *client.TeleportClient, pc *we
 			log := logrus.WithFields(logrus.Fields{"index": idx, "node": node.GetHostname()})
 			f := func() {
 				g, gctx := errgroup.WithContext(ctx)
-				if c.Web {
-					cb := func(terminal io.ReadWriteCloser) error {
-						sessionCounter.Inc()
 
-						// we cannot block here otherwise the session will never be
-						// fully established. Launch another task so that we can properly
-						// clean up the session once it is completed or killed
-						g.Go(func() error {
-							defer sessionCounter.Dec()
+				clt, err := tc.Clone()
+				if err != nil {
+					log.WithError(err).Warn("----- failed to clone client")
+					return
+				}
 
-							// hold the session open until either of these
-							// contexts is canceled
-							select {
-							case <-ctx.Done():
-							case <-gctx.Done():
-							}
+				clt.Stdout = io.Discard
+				clt.Stderr = io.Discard
+				clt.Stdin = reader
+				clt.HostLogin = tc.Host
+				clt.Host = node.GetHostname()
 
-							// send the exit command to kill the ssh session
-							_, err := terminal.Write([]byte("\r\nexit\r\n"))
-							if errors.Is(err, io.EOF) {
-								return nil
-							}
+				clt.OnShellCreated = func(s *tracessh.Session, c *tracessh.Client, terminal io.ReadWriteCloser) (bool, error) {
+					sessionCounter.Inc()
 
-							return trace.Wrap(err)
-						})
-
-						return nil
-					}
-
+					// we cannot block here otherwise the session will never be
+					// fully established. Launch another task so that we can properly
+					// clean up the session once it is completed or killed
 					g.Go(func() error {
-						return pc.SSH(ctx, tc, node.GetHostname(), cmd, authClt, sess, netConfig.GetKeepAliveInterval(), cb)
-					})
-				} else {
-					clt, err := tc.Clone()
-					if err != nil {
-						log.WithError(err).Warn("----- failed to clone client")
-						return
-					}
+						defer sessionCounter.Dec()
 
-					clt.Stdout = io.Discard
-					clt.Stderr = io.Discard
-					clt.Stdin = reader
-					clt.HostLogin = tc.Host
-					clt.Host = node.GetHostname()
-
-					clt.OnShellCreated = func(s *tracessh.Session, c *tracessh.Client, terminal io.ReadWriteCloser) (bool, error) {
-						sessionCounter.Inc()
-
-						// we cannot block here otherwise the session will never be
-						// fully established. Launch another task so that we can properly
-						// clean up the session once it is completed or killed
-						g.Go(func() error {
-							defer sessionCounter.Dec()
-
-							// hold the session open until either of these
-							// contexts is canceled
-							select {
-							case <-ctx.Done():
-							case <-gctx.Done():
-							}
-
-							log.Debug("------ exiting")
-							// send the exit command to kill the ssh session
-							_, err := terminal.Write([]byte("\r\nexit\r\n"))
-							return trace.Wrap(err)
-						})
-
+						// hold the session open until either of these
+						// contexts is canceled
 						select {
 						case <-ctx.Done():
-							return true, nil
 						case <-gctx.Done():
-							return true, nil
-						default:
 						}
 
-						if _, err := terminal.Write([]byte(cmd + "\r\n")); err != nil {
-							return true, trace.Wrap(err)
-						}
+						log.Debug("------ exiting")
+						// send the exit command to kill the ssh session
+						_, err := terminal.Write([]byte("\r\nexit\r\n"))
+						return trace.Wrap(err)
+					})
 
-						return false, nil
+					select {
+					case <-ctx.Done():
+						return true, nil
+					case <-gctx.Done():
+						return true, nil
+					default:
 					}
 
-					// establish the session and run until killed
-					g.Go(func() error {
-						return clt.SSH(gctx, nil, false)
-					})
+					if _, err := terminal.Write([]byte(cmd + "\r\n")); err != nil {
+						return true, trace.Wrap(err)
+					}
+
+					return false, nil
 				}
+
+				// establish the session and run until killed
+				g.Go(func() error {
+					return clt.SSH(gctx, nil, false)
+				})
 
 				if err := g.Wait(); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, io.EOF) {
 					log.WithError(err).Warn(" ----- session ending")
@@ -410,7 +375,7 @@ func (c *Config) Sessions(ctx context.Context, tc *client.TeleportClient, pc *we
 	for {
 		select {
 		case <-ctx.Done():
-			fmt.Printf("waiting for sessions to be terminated...")
+			fmt.Printf("\nTerminating sesions...\n")
 			g.Wait()
 			return nil
 		case <-statusTicker.C:
@@ -427,7 +392,7 @@ type benchMeasure struct {
 	command       []string
 	interactive   bool
 	web           bool
-	pclt          *web.ProxyClient
+	//pclt          *web.ProxyClient
 }
 
 func (m *benchMeasure) work(ctx context.Context, send chan<- *benchMeasure) {
@@ -451,9 +416,9 @@ func (m *benchMeasure) work(ctx context.Context, send chan<- *benchMeasure) {
 }
 
 func (m *benchMeasure) executeWeb(ctx context.Context) error {
-	if m.pclt == nil {
-		return trace.BadParameter("missing proxy client")
-	}
+	//if m.pclt == nil {
+	//	return trace.BadParameter("missing proxy client")
+	//}
 
 	//return trace.Wrap(m.pclt.SSH(ctx, m.client, m.command, m.interactive))
 	return nil
