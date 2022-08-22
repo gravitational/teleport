@@ -18,7 +18,7 @@ Currently, there are multiple ways for users to lock themselves:
 
 | initial state                            | operation                                                                                   | result |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------- | :----: |
-| _admin_ and _regular users_              | _admin_ deletes himself an `editor` role                                                    |   🔒   |
+| _admin_ and _regular users_              | _admin_ removes himself an `editor` role                                                    |   🔒   |
 | _admin_ and _regular users_              | _admin_ loses access to own account                                                         |   🔒   |
 | _admin_, _SSO admin_ and _regular users_ | _SSO admin_ removes the `editor` role from _admin_ and SSO connector. _SSO admin_ logs out. |   🔒   |
 | _SSO admin_ and _regular users_          | Someone on the SSO side removes _SSO admin_ user or team/group containing _SSO admins_      |   🔒   |
@@ -37,7 +37,7 @@ Cases handled currently:
 - 🔒: No one can edit roles. Deadlock
 - 🔓: There is still an active user with an editor role
 
-## Why(TODO)
+## Why
 
 When user locks themselves is unable to futher manage teleport cluster. We want to prevent that since this is bad for user experience. User is unable to futher manage teleport cluster.
 
