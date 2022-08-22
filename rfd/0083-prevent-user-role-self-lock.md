@@ -16,12 +16,12 @@ Users can change the permission in a way that can cause no one to be able to cha
 
 Currently, there are multiple ways for users to lock themselves:
 
-| initial state                            | operation                                                                                   | result |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------- | :----: |
-| _admin_ and _regular users_              | _admin_ removes himself from an `editor` role                                               |   🔒   |
-| _admin_ and _regular users_              | _admin_ loses access to own account                                                         |   🔒   |
-| _admin_, _SSO admin_ and _regular users_ | _SSO admin_ removes the `editor` role from _admin_ and SSO connector. _SSO admin_ logs out. |   🔒   |
-| _SSO admin_ and _regular users_          | Someone on the SSO side removes _SSO admin_ user or team/group containing _SSO admins_      |   🔒   |
+| initial state                              | operation                                                                                   | result |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------- | :----: |
+| 1 _admin_ and _regular users_              | _admin_ removes himself from an `editor` role                                               |   🔒   |
+| 1 _admin_ and _regular users_              | _admin_ loses access to own account                                                         |   🔒   |
+| 1 _admin_, _SSO admin_ and _regular users_ | _SSO admin_ removes the `editor` role from _admin_ and SSO connector. _SSO admin_ logs out. |   🔒   |
+| _SSO admin_ and _regular users_            | Someone on the SSO side removes _SSO admin_ user or team/group containing _SSO admins_      |   🔒   |
 
 Cases handled currently:
 
