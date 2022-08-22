@@ -1,5 +1,21 @@
 # Changelog
 
+## 8.3.17
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with `kubectl exec` sometimes failing during concurrent Kubernetes Access. [#15467](https://github.com/gravitational/teleport/pull/15467)
+* Fixed issue with `get-kubeconfig.sh` script not working for Kubernetes 1.24+.
+* Fixed issue with the token not being sanitized in the node join script. [#14952](https://github.com/gravitational/teleport/pull/14952)
+* Fixed issue with timestamp not being set on `session.upload` events. [#14561](https://github.com/gravitational/teleport/pull/14561)
+* Fixed issue with Teleport components not becoming ready when Desktop Access is enabled. [#14859](https://github.com/gravitational/teleport/pull/14859)
+* Fixed potential panic during concurrent streaming of the same session. [#15376](https://github.com/gravitational/teleport/pull/15376)
+* Fixed issue with `tsh ssh` provided username not being respected in all cases. [#14850](https://github.com/gravitational/teleport/pull/14850)
+* Added SFTP subsystem support. [#14586](https://github.com/gravitational/teleport/pull/14586)
+* Improved port-forwarding error handling. [#14915](https://github.com/gravitational/teleport/pull/14915), [#14999](https://github.com/gravitational/teleport/pull/14999)
+* Improved parsing logic for `second_factor` config option. [#15203](https://github.com/gravitational/teleport/pull/15203)
+* Improved internal cache efficiency in Auth and Proxy servers. [#15447](https://github.com/gravitational/teleport/pull/15447)
+
 ## 8.3.16
 
 This release of Teleport contains multiple improvements and bug fixes.
