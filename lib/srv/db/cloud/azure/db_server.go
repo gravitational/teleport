@@ -24,7 +24,7 @@ import (
 )
 
 // DBServer represents an Azure DB Server.
-// It exists to reduce code duplication, since Azure MySQL and PostgreSQL.
+// It exists to reduce code duplication, since Azure MySQL and PostgreSQL
 // server fields are identical in all but type.
 // TODO(gavin): Remove this in favor of generics when Go supports structural constraints
 // on generic types.
@@ -86,7 +86,7 @@ func ServerFromPostgresServer(server *armpostgresql.Server) *DBServer {
 }
 
 // IsVersionSupported returns true if database supports AAD authentication.
-// Only available for MySQL 5.7 and newer. All Azure managed PostgreSQL single-server.
+// Only available for MySQL 5.7 and newer. All Azure managed PostgreSQL single-server
 // instances support AAD auth.
 func (s *DBServer) IsVersionSupported() bool {
 	switch s.Protocol {
@@ -123,7 +123,5 @@ func convertTags(tags map[string]*string) map[string]string {
 	for k, v := range tags {
 		result[k] = stringVal(v)
 	}
-	x := armmysql.ServerStateReady
-	stringVal(&x)
 	return result
 }

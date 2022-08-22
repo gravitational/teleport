@@ -24,7 +24,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 )
 
-// DBServersClient provides an interface for fetching Azure DB servers.
+// DBServersClient provides an interface for fetching Azure DB Servers.
 type DBServersClient interface {
 	// ListAll returns all Azure DB servers within an Azure subscription.
 	ListAll(ctx context.Context, maxPages int) ([]*DBServer, error)
