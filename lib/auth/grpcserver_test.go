@@ -619,8 +619,17 @@ func testDeleteMFADevice(ctx context.Context, t *testing.T, cl *Client, opts mfa
 	if err != nil {
 		return
 	}
-	require.Empty(t, cmp.Diff(deleteAck.GetAck(), &proto.DeleteMFADeviceResponseAck{}))
-
+	deleted := deleteAck.GetAck().GetDevice()
+	require.NotNil(t, deleted, "deleted device in ack message is nil")
+	require.NotEmpty(t, deleted.Id, "deleted device.Id in ack message is empty")
+	require.NotEmpty(t, deleted.GetName(), "deleted device.Name in ack message is empty")
+	// opts.initReq.DeviceName can be either the device name or ID, so check if
+	// either matches the deleted device.
+	wantName := []string{
+		deleted.Id,
+		deleted.GetName(),
+	}
+	require.Contains(t, wantName, opts.initReq.DeviceName)
 	require.NoError(t, deleteStream.CloseSend())
 }
 
