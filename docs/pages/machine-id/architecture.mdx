@@ -74,6 +74,7 @@ Machine ID currently supports two methods of joining that have some key
 differences.
 
 Static Token:
+
 - The name of the token is the only value needed to join. This value is a
   secret and must be handled securely.
 - Once used, the token resource self-destructs. This means it can only be used 
@@ -83,6 +84,7 @@ Static Token:
 
 
 Dynamic join tokens (e.g AWS IAM):
+
 - These tokens rely on some kind of external system that allows the bot to
   prove it is allowed to join the cluster. The name of the token identifies the
   Token resource in Teleport that contains the configuration.
@@ -112,3 +114,36 @@ value within the certificate and in the database match. If they do not match,
 then the bot user is automatically locked. This means that if certificates are
 stolen, and attempted to be renewed whilst the bot is still running, the next
 renewal will render them useless.
+
+## File permissions
+
+There are two types of folder in use by `tbot`:
+
+- The bot's own files: these store sensitive credentials belonging to the bot
+  user itself. This is by default stored at `/var/lib/teleport/bot/`.
+- Directory destinations: when a directory destination is configured, the bot 
+  outputs the role impersonated credentials as files in the specified directory.
+
+It is important that we ensure that these files can only be accessed by the
+fewest number of users on the system as is necessary.
+
+In the case of the bot's own files, this should only be the user that the bot
+runs as. Running `tbot init` as shown in the documentation should create and
+correctly configure the permissions for this.
+
+In the case of directory destinations, the user the bot runs as requires read
+and write permissions, and users that will need to use the credentials output
+by the bot require read permissions. In most cases, this user that needs to read
+the credentials should be specifically created for your application to run as.
+
+In addition to basic POSIX filesystem permissions, `tbot` also sets up Linux
+ACLs if the system supports it. This allows more granular control by granting
+individual users access.
+// TODO: Explain more
+
+Finally, on systems that support it, `tbot` will by default attempt to prevent 
+the resolution of symbolic links when reading and writing files. This prevents a 
+class of attacks sometimes known as 
+[symlink attacks](https://capec.mitre.org/data/definitions/132.html). This 
+behaviour can be disabled using the `insecure` symlink option when configuring 
+your destination.
