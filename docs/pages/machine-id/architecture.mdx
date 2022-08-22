@@ -8,6 +8,20 @@ This section provides an overview of Teleport Machine ID's inner workings.
 A more in-depth specification of the workings of Machine ID can be found in
 [the Request For Discussion.](https://github.com/gravitational/teleport/blob/master/rfd/0064-bot-for-cert-renewals.md)
 
+## Bot creation
+
+When creating a bot via `tctl`, up to three resources are created:
+
+- Bot user: this will be the user that the Machine ID agent authenticates as.
+- Bot role: the bot user is assigned the bot role, and the bot role contains
+  various permissions that the bot will need to function. For example, the
+  ability to watch the certificate authorities and the ability to 
+  [impersonate roles](#role-impersonation).
+- Token: for [onboarding](#onboarding), a token must exist that allows the
+  Machine ID agent to initially authenticate as the bot user. If an existing
+  token is not specified, then a static single-use token will be created by the
+  Auth Server.
+
 ## `tbot`
 
 `tbot` is the binary that acts as the agent for Machine ID.
@@ -23,7 +37,7 @@ On a configured regular period `tbot` then:
 - For each configured destination:
   - Obtains [role impersonated](#role-impersonation) credentials from the Auth
     Service using its bot user credentials.
-  - Outputs these role impersonated credentials in the configured formats.
+  - Outputs these role impersonated credentials in various formats.
 
 Concurrently to this, `tbot` monitors the Teleport certificate authorities to
 detect certificate rotations. When this occurs, it triggers additional renewals
@@ -52,7 +66,7 @@ Onboarding is the process by which `tbot` initially authenticates with the
 Teleport auth service in order to receive credentials.
 
 Machine ID leverages the existing Token resource within Teleport, with the
-Token containing an additional `botName` field that identifies the bot user
+token containing an additional `botName` field that identifies the bot user
 associated with the token. 
 
 Machine ID currently supports two methods of joining that have some key
@@ -61,8 +75,8 @@ differences.
 Static Token:
 - The name of the token is the only value needed to join. This value is a
   secret and must be handled securely.
-- Once used, the Token resource self-deletes. This means it can only be used to
-  join a single bot to a Teleport cluster.
+- Once used, the token resource self-destructs. This means it can only be used 
+  to join a single bot to a Teleport cluster.
 - The certificates exchanged for the token are 
   [renewable](#renewable-certificates).
 
