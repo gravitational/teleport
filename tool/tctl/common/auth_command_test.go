@@ -281,11 +281,20 @@ type mockClient struct {
 	appServices    []types.AppServer
 	dbServices     []types.DatabaseServer
 	appSession     types.WebSession
+	networkConfig  types.ClusterNetworkingConfig
 }
 
 func (c *mockClient) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
 	return c.clusterName, nil
 }
+
+func (c *mockClient) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+	if c.networkConfig == nil {
+		return &types.ClusterNetworkingConfigV2{}, nil
+	}
+	return c.networkConfig, nil
+}
+
 func (c *mockClient) GenerateUserCerts(ctx context.Context, userCertsReq proto.UserCertsRequest) (*proto.Certs, error) {
 	c.userCertsReq = &userCertsReq
 	return c.userCerts, nil
