@@ -79,5 +79,38 @@ In my opinion `optional on start` variant is better here since `teleport` should
 
 ### UI and behavior changes
 
-To introduce this change we need to communicate it to prevent confusion
-TODO
+To introduce this change we need to communicate it to prevent confusion.
+
+The first thing user should see is some indicator that there is recommended action to perform. It could be:
+
+- ⚠️ icon in nav section + warning on users page:
+
+  - icon:
+
+    ```text
+    👥  Team ⚠️       ⬎
+        👥 Users ⚠️
+        🔑 Roles
+        ...
+    ```
+
+  - warning on /users page:
+    ```text
+    Users                                   [Create new user]
+    ┌-------------------------------------------------------┐
+    │   <Info why it is nessesery to add second user with   │
+    │   `editor` role>                                      │
+    └-------------------------------------------------------┘
+    ... (Table of users)
+    ```
+
+- warning on every page:
+
+  ```text
+  Servers
+  ┌-------------------------------------------------------┐
+  │   <Info why it is nessesery to add second user with   │
+  │   `editor` role + link to /users page>                │
+  └-------------------------------------------------------┘
+  ... (Table of servers)
+  ```
