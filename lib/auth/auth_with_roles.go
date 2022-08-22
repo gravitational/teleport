@@ -3131,10 +3131,8 @@ func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, aft
 			Type: events.SessionRecordingAccessEvent,
 			Code: events.SessionRecordingAccessCode,
 		},
-		SessionID: sid.String(),
-		UserMetadata: apievents.UserMetadata{
-			User: a.context.User.GetName(),
-		},
+		SessionID:    sid.String(),
+		UserMetadata: a.context.Identity.GetIdentity().GetUserMetadata(),
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4543,10 +4541,8 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 				Type: events.SessionRecordingAccessEvent,
 				Code: events.SessionRecordingAccessCode,
 			},
-			SessionID: sessionID.String(),
-			UserMetadata: apievents.UserMetadata{
-				User: a.context.User.GetName(),
-			},
+			SessionID:    sessionID.String(),
+			UserMetadata: a.context.Identity.GetIdentity().GetUserMetadata(),
 		}); err != nil {
 			return createErrorChannel(err)
 		}
