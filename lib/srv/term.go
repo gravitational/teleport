@@ -34,11 +34,10 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 
-	"github.com/kr/pty"
-	"github.com/moby/term"
-	log "github.com/sirupsen/logrus"
-
+	"github.com/creack/pty"
+	"github.com/creack/termios/win"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // LookupUser is used to mock the value returned by user.Lookup(string).
@@ -81,7 +80,7 @@ type Terminal interface {
 	Close() error
 
 	// GetWinSize returns the window size of the terminal.
-	GetWinSize() (*term.Winsize, error)
+	GetWinSize() (*win.Winsize, error)
 
 	// SetWinSize sets the window size of the terminal.
 	SetWinSize(ctx context.Context, params rsession.TerminalParams) error
@@ -302,17 +301,15 @@ func (t *terminal) closePTY() {
 }
 
 // GetWinSize returns the window size of the terminal.
-func (t *terminal) GetWinSize() (*term.Winsize, error) {
+func (t *terminal) GetWinSize() (*win.Winsize, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.pty == nil {
 		return nil, trace.NotFound("no pty")
 	}
-	ws, err := term.GetWinsize(t.pty.Fd())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return ws, nil
+
+	size, err := win.GetWinsize(t.pty.Fd())
+	return size, trace.Wrap(err)
 }
 
 // SetWinSize sets the window size of the terminal.
@@ -322,7 +319,8 @@ func (t *terminal) SetWinSize(ctx context.Context, params rsession.TerminalParam
 	if t.pty == nil {
 		return trace.NotFound("no pty")
 	}
-	if err := term.SetWinsize(t.pty.Fd(), params.Winsize()); err != nil {
+
+	if err := win.SetWinsize(t.pty.Fd(), params.Winsize()); err != nil {
 		return trace.Wrap(err)
 	}
 	t.params = params
@@ -570,7 +568,7 @@ func (t *remoteTerminal) Close() error {
 	return nil
 }
 
-func (t *remoteTerminal) GetWinSize() (*term.Winsize, error) {
+func (t *remoteTerminal) GetWinSize() (*win.Winsize, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 

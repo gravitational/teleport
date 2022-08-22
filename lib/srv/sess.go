@@ -26,6 +26,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/creack/termios/win"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -42,7 +44,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/moby/term"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
@@ -326,7 +327,7 @@ func (s *SessionRegistry) ForceTerminate(ctx *ServerContext) error {
 }
 
 // GetTerminalSize fetches the terminal size of an active SSH session.
-func (s *SessionRegistry) GetTerminalSize(sessionID string) (*term.Winsize, error) {
+func (s *SessionRegistry) GetTerminalSize(sessionID string) (*win.Winsize, error) {
 	s.sessionsMux.Lock()
 	defer s.sessionsMux.Unlock()
 

@@ -27,9 +27,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/creack/termios/win"
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"github.com/moby/term"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -192,8 +192,8 @@ func (p *TerminalParams) String() string {
 }
 
 // Winsize returns low-level parameters for changing PTY
-func (p *TerminalParams) Winsize() *term.Winsize {
-	return &term.Winsize{
+func (p *TerminalParams) Winsize() *win.Winsize {
+	return &win.Winsize{
 		Width:  uint16(p.W),
 		Height: uint16(p.H),
 	}
