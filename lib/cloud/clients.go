@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package common
+package cloud
 
 import (
 	"context"
@@ -26,6 +26,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/aws/aws-sdk-go/aws"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -48,8 +50,8 @@ import (
 	"google.golang.org/grpc"
 )
 
-// CloudClients provides interface for obtaining cloud provider clients.
-type CloudClients interface {
+// Clients provides interface for obtaining cloud provider clients.
+type Clients interface {
 	// GetAWSSession returns AWS session for the specified region.
 	GetAWSSession(region string) (*awssession.Session, error)
 	// GetAWSRDSClient returns AWS RDS client for the specified region.
@@ -66,6 +68,8 @@ type CloudClients interface {
 	GetAWSIAMClient(region string) (iamiface.IAMAPI, error)
 	// GetAWSSTSClient returns AWS STS client for the specified region.
 	GetAWSSTSClient(region string) (stsiface.STSAPI, error)
+	// GetAWSEC2Client returns AWS EC2 client for the specified region.
+	GetAWSEC2Client(region string) (ec2iface.EC2API, error)
 	// GetGCPIAMClient returns GCP IAM client.
 	GetGCPIAMClient(context.Context) (*gcpcredentials.IamCredentialsClient, error)
 	// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
@@ -76,8 +80,8 @@ type CloudClients interface {
 	io.Closer
 }
 
-// NewCloudClients returns a new instance of cloud clients retriever.
-func NewCloudClients() CloudClients {
+// NewClients returns a new instance of cloud clients retriever.
+func NewClients() Clients {
 	return &cloudClients{
 		awsSessions: make(map[string]*awssession.Session),
 	}
@@ -168,6 +172,15 @@ func (c *cloudClients) GetAWSSTSClient(region string) (stsiface.STSAPI, error) {
 		return nil, trace.Wrap(err)
 	}
 	return sts.New(session), nil
+}
+
+// GetAWSEC2Client returns AWS EC2 client for the specified region.
+func (c *cloudClients) GetAWSEC2Client(region string) (ec2iface.EC2API, error) {
+	session, err := c.GetAWSSession(region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ec2.New(session), nil
 }
 
 // GetGCPIAMClient returns GCP IAM client.
@@ -290,6 +303,7 @@ type TestCloudClients struct {
 	IAM            iamiface.IAMAPI
 	STS            stsiface.STSAPI
 	GCPSQL         GCPSQLAdminClient
+	EC2            ec2iface.EC2API
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -350,6 +364,11 @@ func (c *TestCloudClients) GetGCPSQLAdminClient(ctx context.Context) (GCPSQLAdmi
 // GetAzureCredential returns default Azure token credential chain.
 func (c *TestCloudClients) GetAzureCredential() (azcore.TokenCredential, error) {
 	return &azidentity.ChainedTokenCredential{}, nil
+}
+
+// GetAWSEC2Client returns AWS EC2 client for the specified region.
+func (c *TestCloudClients) GetAWSEC2Client(region string) (ec2iface.EC2API, error) {
+	return c.EC2, nil
 }
 
 // Close closes all initialized clients.

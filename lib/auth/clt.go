@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -133,7 +134,7 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 		if len(cfg.Addrs) == 0 {
 			return nil, trace.BadParameter("no addresses to dial")
 		}
-		contextDialer := client.NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
+		contextDialer := client.NewDialer(cfg.Context, cfg.KeepAlivePeriod, cfg.DialTimeout)
 		dialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
 				conn, err = contextDialer.DialContext(ctx, network, addr)
@@ -194,8 +195,11 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 	clientParams := append(
 		[]roundtrip.ClientParam{
 			roundtrip.HTTPClient(&http.Client{
-				Timeout:   defaults.HTTPRequestTimeout,
-				Transport: otelhttp.NewTransport(breaker.NewRoundTripper(cb, transport)),
+				Timeout: defaults.HTTPRequestTimeout,
+				Transport: otelhttp.NewTransport(
+					breaker.NewRoundTripper(cb, transport),
+					otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
+				),
 			}),
 			roundtrip.SanitizerEnabled(true),
 		},
