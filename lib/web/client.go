@@ -45,9 +45,10 @@ import (
 type ShellCreatedCallback func(terminal io.ReadWriteCloser) error
 
 type ProxyClient struct {
-	clt *client.WebClient
-	jar http.CookieJar
-	url url.URL
+	clt    *client.WebClient
+	jar    http.CookieJar
+	url    url.URL
+	cancel context.CancelFunc
 
 	lock    sync.Mutex
 	session types.WebSession
@@ -66,23 +67,37 @@ func NewProxyClient(u url.URL, session types.WebSession, cookies []*http.Cookie)
 		return nil, trace.Wrap(err)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	pc := &ProxyClient{
 		clt:     clt,
 		jar:     jar,
 		session: session,
 		url:     u,
-		expiry:  session.GetBearerTokenExpiryTime().Add(-1 * time.Minute),
+		expiry:  session.GetBearerTokenExpiryTime().Add(-3 * time.Minute),
+		cancel:  cancel,
 	}
 
-	//go pc.renewSession(context.Background())
+	go pc.renewSession(ctx)
 
 	return pc, nil
 }
 
 func (p *ProxyClient) renewSession(ctx context.Context) {
 	for {
-		if p.expiry.Before(time.Now()) {
-			<-time.After(p.expiry.Sub(time.Now()))
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		if p.expiry.After(time.Now()) {
+			select {
+			case <-ctx.Done():
+				return
+
+			case <-time.After(time.Until(p.expiry)):
+			}
 		}
 
 		logrus.Info("---------- attempting to renew session")
@@ -128,6 +143,10 @@ func (p *ProxyClient) renewSession(ctx context.Context) {
 			LoginTime:          time.Now(),
 			IdleTimeout:        types.Duration(time.Duration(sess.SessionInactiveTimeoutMS) * time.Millisecond),
 		})
+		if err != nil {
+			logrus.WithError(err).Warn("failed to create web session")
+			continue
+		}
 
 		jar, err := cookiejar.New(nil)
 		if err != nil {
@@ -147,7 +166,7 @@ func (p *ProxyClient) renewSession(ctx context.Context) {
 		p.clt = clt
 		p.jar = jar
 		p.session = websess
-		p.expiry = websess.GetBearerTokenExpiryTime().Add(-5 * time.Minute)
+		p.expiry = websess.GetBearerTokenExpiryTime().Add(-3 * time.Minute)
 		p.lock.Unlock()
 	}
 }
@@ -269,7 +288,7 @@ func (p *ProxyClient) SSH(ctx context.Context, tc *client.TeleportClient, node s
 	defer conn.Close()
 
 	stream := th.asTerminalStream(conn)
-	g, ctx := errgroup.WithContext(ctx)
+	g, _ := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
 		th.startPingLoop(conn)
@@ -295,4 +314,9 @@ func (p *ProxyClient) SSH(ctx context.Context, tc *client.TeleportClient, node s
 	})
 
 	return g.Wait()
+}
+
+func (p *ProxyClient) Close() error {
+	p.cancel()
+	return nil
 }

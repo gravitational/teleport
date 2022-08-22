@@ -42,11 +42,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
-	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	sess "github.com/gravitational/teleport/lib/session"
@@ -126,6 +124,28 @@ func newFixtureWithoutDiskBasedLogging(t *testing.T) *sshTestFixture {
 	return f
 }
 
+type mockBPF struct {
+}
+
+// OpenBPFSession opens a NOP session. Note this function does nothing.
+func (m *mockBPF) OpenBPFSession(ctx *srv.ServerContext) (uint64, error) {
+	return 0, nil
+}
+
+// CloseBPFSession closes a NOP session. Note this function does nothing.
+func (m *mockBPF) CloseBPFSession(ctx *srv.ServerContext) error {
+	return nil
+}
+
+type mockRestrictedSession struct {
+}
+
+// OpenBPFSession opens a NOP session. Note this function does nothing.
+func (m *mockRestrictedSession) OpenRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {}
+
+// CloseBPFSession closes a NOP session. Note this function does nothing.
+func (m *mockRestrictedSession) CloseRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {}
+
 func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshOpts ...ServerOption) *sshTestFixture {
 	ctx := context.Background()
 
@@ -194,8 +214,8 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 				},
 			}, nil,
 		),
-		SetBPF(&bpf.NOP{}),
-		SetRestrictedSessionManager(&restricted.NOP{}),
+		SetBPF(&mockBPF{}),
+		SetRestrictedSessionManager(&mockRestrictedSession{}),
 		SetClock(clock),
 		SetLockWatcher(newLockWatcher(ctx, t, nodeClient)),
 		SetX11ForwardingConfig(&x11.ServerConfig{}),
@@ -1195,8 +1215,8 @@ func TestProxyRoundRobin(t *testing.T) {
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
-		SetBPF(&bpf.NOP{}),
-		SetRestrictedSessionManager(&restricted.NOP{}),
+		SetBPF(&mockBPF{}),
+		SetRestrictedSessionManager(&mockRestrictedSession{}),
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
 		SetNodeWatcher(nodeWatcher),
@@ -1316,8 +1336,8 @@ func TestProxyDirectAccess(t *testing.T) {
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
-		SetBPF(&bpf.NOP{}),
-		SetRestrictedSessionManager(&restricted.NOP{}),
+		SetBPF(&mockBPF{}),
+		SetRestrictedSessionManager(&mockRestrictedSession{}),
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
 		SetNodeWatcher(nodeWatcher),
@@ -1487,8 +1507,8 @@ func TestLimiter(t *testing.T) {
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
-		SetBPF(&bpf.NOP{}),
-		SetRestrictedSessionManager(&restricted.NOP{}),
+		SetBPF(&mockBPF{}),
+		SetRestrictedSessionManager(&mockRestrictedSession{}),
 		SetClock(f.clock),
 		SetLockWatcher(newLockWatcher(ctx, t, nodeClient)),
 	)
@@ -1975,8 +1995,8 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
-		SetBPF(&bpf.NOP{}),
-		SetRestrictedSessionManager(&restricted.NOP{}),
+		SetBPF(&mockBPF{}),
+		SetRestrictedSessionManager(&mockRestrictedSession{}),
 		SetClock(f.clock),
 		SetLockWatcher(lockWatcher),
 		SetNodeWatcher(nodeWatcher),
@@ -2193,7 +2213,7 @@ func newCertAuthorityWatcher(ctx context.Context, t *testing.T, client types.Eve
 //
 // See the following links for more details.
 //
-//   https://man7.org/linux/man-pages/man7/pipe.7.html
-//   https://github.com/afborchert/pipebuf
-//   https://unix.stackexchange.com/questions/11946/how-big-is-the-pipe-buffer
+//	https://man7.org/linux/man-pages/man7/pipe.7.html
+//	https://github.com/afborchert/pipebuf
+//	https://unix.stackexchange.com/questions/11946/how-big-is-the-pipe-buffer
 const maxPipeSize = 65536 + 1

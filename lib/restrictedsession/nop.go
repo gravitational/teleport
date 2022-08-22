@@ -19,7 +19,19 @@ limitations under the License.
 
 package restrictedsession
 
+import (
+	"github.com/gravitational/teleport/lib/srv"
+)
+
+type NOP struct{}
+
+// OpenRestrictedSession starts enforcing restrictions for a cgroup with cgroupID
+func (s NOP) OpenRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {}
+
+// CloseRestrictedSession stops enforcing restrictions for a cgroup with cgroupID
+func (s NOP) CloseRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {}
+
 // New returns a new NOP service. Note this function does nothing.
-func New(config *Config, wc RestrictionsWatcherClient) (Manager, error) {
-	return &NOP{}, nil
+func New(config *Config, wc RestrictionsWatcherClient) (NOP, error) {
+	return NOP{}, nil
 }

@@ -38,14 +38,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
-	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -177,10 +175,10 @@ type Server struct {
 	fips bool
 
 	// ebpf is the service used for enhanced session recording.
-	ebpf bpf.BPF
+	ebpf srv.BPF
 
 	// restrictedMgr is the service used for restricting access to kernel objects
-	restrictedMgr restricted.Manager
+	restrictedMgr srv.Manager
 
 	// onHeartbeat is a callback for heartbeat status.
 	onHeartbeat func(error)
@@ -273,14 +271,25 @@ func (s *Server) UseTunnel() bool {
 	return s.useTunnel
 }
 
-// GetBPF returns the BPF service used by enhanced session recording.
-func (s *Server) GetBPF() bpf.BPF {
-	return s.ebpf
+// OpenBPFSession will start monitoring all events within a session and
+// emitting them to the Audit Log.
+func (s *Server) OpenBPFSession(ctx *srv.ServerContext) (uint64, error) {
+	return s.ebpf.OpenBPFSession(ctx)
 }
 
-// GetRestrictedSessionManager returns the manager for restricting user activity.
-func (s *Server) GetRestrictedSessionManager() restricted.Manager {
-	return s.restrictedMgr
+// CloseBPFSession will stop monitoring events for a particular session.
+func (s *Server) CloseBPFSession(ctx *srv.ServerContext) error {
+	return s.ebpf.CloseBPFSession(ctx)
+}
+
+// OpenRestrictedSession starts enforcing restrictions for a cgroup with cgroupID
+func (s *Server) OpenRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {
+	s.restrictedMgr.OpenRestrictedSession(ctx, cgroupID)
+}
+
+// CloseRestrictedSession stops enforcing restrictions for a cgroup with cgroupID
+func (s *Server) CloseRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {
+	s.restrictedMgr.CloseRestrictedSession(ctx, cgroupID)
 }
 
 // GetLockWatcher gets the server's lock watcher.
@@ -578,14 +587,14 @@ func SetFIPS(fips bool) ServerOption {
 	}
 }
 
-func SetBPF(ebpf bpf.BPF) ServerOption {
+func SetBPF(ebpf srv.BPF) ServerOption {
 	return func(s *Server) error {
 		s.ebpf = ebpf
 		return nil
 	}
 }
 
-func SetRestrictedSessionManager(m restricted.Manager) ServerOption {
+func SetRestrictedSessionManager(m srv.Manager) ServerOption {
 	return func(s *Server) error {
 		s.restrictedMgr = m
 		return nil

@@ -33,10 +33,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/pam"
-	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -60,19 +58,19 @@ import (
 //
 // To create a forwarding server and serve a single SSH connection on it:
 //
-//   serverConfig := forward.ServerConfig{
-//      ...
-//   }
-//   remoteServer, err := forward.New(serverConfig)
-//   if err != nil {
-//   	return nil, trace.Wrap(err)
-//   }
-//   go remoteServer.Serve()
+//	serverConfig := forward.ServerConfig{
+//	   ...
+//	}
+//	remoteServer, err := forward.New(serverConfig)
+//	if err != nil {
+//		return nil, trace.Wrap(err)
+//	}
+//	go remoteServer.Serve()
 //
-//   conn, err := remoteServer.Dial()
-//   if err != nil {
-//   	return nil, trace.Wrap(err)
-//   }
+//	conn, err := remoteServer.Dial()
+//	if err != nil {
+//		return nil, trace.Wrap(err)
+//	}
 type Server struct {
 	log *logrus.Entry
 
@@ -431,12 +429,22 @@ func (s *Server) UseTunnel() bool {
 	return s.useTunnel
 }
 
-// GetBPF returns the BPF service used by enhanced session recording. BPF
-// for the forwarding server makes no sense (it has to run on the actual
-// node), so return a NOP implementation.
-func (s Server) GetBPF() bpf.BPF {
-	return &bpf.NOP{}
+// OpenBPFSession will start monitoring all events within a session and
+// emitting them to the Audit Log.
+func (s *Server) OpenBPFSession(ctx *srv.ServerContext) (uint64, error) {
+	return 0, nil
 }
+
+// CloseBPFSession will stop monitoring events for a particular session.
+func (s *Server) CloseBPFSession(ctx *srv.ServerContext) error {
+	return nil
+}
+
+// OpenRestrictedSession starts enforcing restrictions for a cgroup with cgroupID
+func (s *Server) OpenRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {}
+
+// CloseRestrictedSession stops enforcing restrictions for a cgroup with cgroupID
+func (s *Server) CloseRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {}
 
 // GetCreateHostUser determines whether users should be created on the
 // host automatically
@@ -444,17 +452,10 @@ func (s *Server) GetCreateHostUser() bool {
 	return false
 }
 
-// GetHostUser returns the HostUsers instance being used to manage
+// GetHostUsers returns the HostUsers instance being used to manage
 // host user provisioning, unimplemented for the forwarder server.
 func (s *Server) GetHostUsers() srv.HostUsers {
 	return nil
-}
-
-// GetRestrictedSessionManager returns a NOP manager since for a
-// forwarding server it makes no sense (it has to run on the actual
-// node).
-func (s Server) GetRestrictedSessionManager() restricted.Manager {
-	return &restricted.NOP{}
 }
 
 // GetInfo returns a services.Server that represents this server.

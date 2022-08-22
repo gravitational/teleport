@@ -19,15 +19,30 @@ limitations under the License.
 
 package bpf
 
-// Service is used on non-Linux systems as a NOP service that allows the
-// caller to open and close sessions that do nothing on systems that don't
-// support eBPF.
-type Service struct {
+import (
+	"github.com/gravitational/teleport/lib/srv"
+)
+
+type NOP struct{}
+
+// OpenBPFSession will start monitoring all events within a session and
+// emitting them to the Audit Log.
+func (n NOP) OpenBPFSession(ctx *srv.ServerContext) (uint64, error) {
+	return 0, nil
+}
+
+// CloseBPFSession will stop monitoring events for a particular session.
+func (n NOP) CloseBPFSession(ctx *srv.ServerContext) error {
+	return nil
+}
+
+func (n NOP) Close() error {
+	return nil
 }
 
 // New returns a new NOP service. Note this function does nothing.
-func New(config *Config) (BPF, error) {
-	return &NOP{}, nil
+func New(config *Config) (NOP, error) {
+	return NOP{}, nil
 }
 
 // SystemHasBPF returns true if the binary was build with support for BPF

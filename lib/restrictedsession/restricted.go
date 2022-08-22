@@ -29,6 +29,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/srv"
+
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -58,9 +60,9 @@ func init() {
 
 var unit = make([]byte, 1)
 
-// sessionMgr implements restrctedsession.Manager interface
+// SessionManager implements srv.Manager interface
 // by enforcing the rules via LSM BPF hooks
-type sessionMgr struct {
+type SessionManager struct {
 	// mod is the handle to the BPF loaded module
 	mod *libbpfgo.Module
 
@@ -83,7 +85,7 @@ type sessionMgr struct {
 }
 
 // New creates a RestrictedSession service.
-func New(config *Config, wc RestrictionsWatcherClient) (Manager, error) {
+func New(config *Config, wc RestrictionsWatcherClient) (srv.Manager, error) {
 	err := config.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -93,7 +95,7 @@ func New(config *Config, wc RestrictionsWatcherClient) (Manager, error) {
 	// right away.
 	if !config.Enabled {
 		log.Debugf("Restricted session is not enabled, skipping.")
-		return &NOP{}, nil
+		return NOP{}, nil
 	}
 
 	// Before proceeding, check that eBPF based LSM is enabled in the kernel
@@ -128,7 +130,7 @@ func New(config *Config, wc RestrictionsWatcherClient) (Manager, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	m := &sessionMgr{
+	m := &SessionManager{
 		mod:               mod,
 		watch:             bpf.NewSessionWatch(),
 		restrictedCGroups: cgroups,
@@ -153,7 +155,7 @@ func New(config *Config, wc RestrictionsWatcherClient) (Manager, error) {
 // Close will stop any running BPF programs. Note this is only for a graceful
 // shutdown, from the man page for BPF: "Generally, eBPF programs are loaded
 // by the user process and automatically unloaded when the process exits."
-func (m *sessionMgr) Close() {
+func (m *SessionManager) Close() {
 	// Close the updater loop
 	m.updateLoop.close()
 
@@ -161,9 +163,9 @@ func (m *sessionMgr) Close() {
 	m.eventLoop.close()
 }
 
-// OpenSession inserts the cgroupID into the BPF hash map to enable
+// OpenRestrictedSession inserts the cgroupID into the BPF hash map to enable
 // enforcement by the kernel
-func (m *sessionMgr) OpenSession(ctx *bpf.SessionContext, cgroupID uint64) {
+func (m *SessionManager) OpenRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {
 	m.watch.Add(cgroupID, ctx)
 
 	key := make([]byte, 8)
@@ -174,9 +176,9 @@ func (m *sessionMgr) OpenSession(ctx *bpf.SessionContext, cgroupID uint64) {
 	log.Debugf("CGroup %v registered", cgroupID)
 }
 
-// CloseSession removes the cgroupID from the BPF hash map to enable
+// CloseRestrictedSession removes the cgroupID from the BPF hash map to enable
 // enforcement by the kernel
-func (m *sessionMgr) CloseSession(ctx *bpf.SessionContext, cgroupID uint64) {
+func (m *SessionManager) CloseRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {
 	key := make([]byte, 8)
 	binary.LittleEndian.PutUint64(key, cgroupID)
 

@@ -75,7 +75,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
-	//"github.com/gravitational/teleport/lib/web"
+	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/tool/common"
 )
 
@@ -717,7 +717,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	benchNode.Flag("duration", "Test duration").Default("1s").DurationVar(&cf.BenchDuration)
 	benchNode.Flag("rate", "Requests per second rate").Default("10").IntVar(&cf.BenchRate)
 	benchNode.Flag("interactive", "Create interactive SSH session").BoolVar(&cf.BenchInteractive)
-	//benchNode.Flag("web", "Create interactive web session").BoolVar(&cf.BenchWebSession)
+	benchNode.Flag("web", "Create interactive web session").BoolVar(&cf.BenchWebSession)
 	benchNode.Flag("export", "Export the latency profile").BoolVar(&cf.BenchExport)
 	benchNode.Flag("path", "Directory to save the latency profile to, default path is the current directory").Default(".").StringVar(&cf.BenchExportPath)
 	benchNode.Flag("ticks", "Ticks per half distance").Default("100").Int32Var(&cf.BenchTicks)
@@ -728,7 +728,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	benchSessions.Arg("user", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	benchSessions.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
 	benchSessions.Flag("max", "The maximum number of sessions to establish").Default("-1").IntVar(&cf.BenchSessions)
-	//benchSessions.Flag("web", "Create interactive web session").BoolVar(&cf.BenchWebSession)
+	benchSessions.Flag("web", "Create interactive web session").BoolVar(&cf.BenchWebSession)
 	benchSessions.Flag("duration", "Test duration").Default("1s").DurationVar(&cf.BenchDuration)
 
 	// show key
@@ -2616,14 +2616,14 @@ func onBenchmark(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	//var pc *web.ProxyClient
-	//if cf.BenchWebSession {
-	//	clt, err := makeProxyWebClient(cf.Context, tc)
-	//	if err != nil {
-	//		return trace.Wrap(err)
-	//	}
-	//	pc = clt
-	//}
+	var pc *web.ProxyClient
+	if cf.BenchWebSession {
+		clt, err := makeProxyWebClient(cf.Context, tc)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		pc = clt
+	}
 
 	cnf := benchmark.Config{
 		Command:       cf.RemoteCommand,
@@ -2633,7 +2633,7 @@ func onBenchmark(cf *CLIConf) error {
 		Web:           cf.BenchWebSession,
 	}
 
-	result, err := cnf.Benchmark(cf.Context, tc)
+	result, err := cnf.Benchmark(cf.Context, tc, pc)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
 		return trace.Wrap(&exitCodeError{code: 255})
@@ -2673,14 +2673,14 @@ func onBenchmarkSessions(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	//var pc *web.ProxyClient
-	//if cf.BenchWebSession {
-	//	clt, err := makeProxyWebClient(cf.Context, tc)
-	//	if err != nil {
-	//		return trace.Wrap(err)
-	//	}
-	//	pc = clt
-	//}
+	var pc *web.ProxyClient
+	if cf.BenchWebSession {
+		clt, err := makeProxyWebClient(cf.Context, tc)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		pc = clt
+	}
 
 	cnf := benchmark.Config{
 		Command:       cf.RemoteCommand,
@@ -2690,7 +2690,7 @@ func onBenchmarkSessions(cf *CLIConf) error {
 		MaxSessions:   cf.BenchSessions,
 	}
 
-	if err := cnf.Sessions(cf.Context, tc); err != nil {
+	if err := cnf.Sessions(cf.Context, tc, pc); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -3102,27 +3102,27 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 
 // makeProxyWebClient takes the command-line configuration and a proxy address and constructs & returns
 // a fully configured TeleportClient object which is constructed from the web api
-//func makeProxyWebClient(ctx context.Context, tc *client.TeleportClient) (*web.ProxyClient, error) {
-//	webSess, cookies, err := tc.LoginWeb(ctx)
-//	if err != nil {
-//		return nil, trace.Wrap(err)
-//	}
-//
-//	webclt, err := web.NewProxyClient(
-//		url.URL{
-//			Scheme: "https",
-//			Host:   tc.WebProxyAddr,
-//		},
-//		webSess,
-//		cookies,
-//	)
-//	if err != nil {
-//		return nil, trace.Wrap(err)
-//	}
-//
-//	return webclt, nil
-//
-//}
+func makeProxyWebClient(ctx context.Context, tc *client.TeleportClient) (*web.ProxyClient, error) {
+	webSess, cookies, err := tc.LoginWeb(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	webclt, err := web.NewProxyClient(
+		url.URL{
+			Scheme: "https",
+			Host:   tc.WebProxyAddr,
+		},
+		webSess,
+		cookies,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return webclt, nil
+
+}
 
 type mfaModeOpts struct {
 	AuthenticatorAttachment wancli.AuthenticatorAttachment

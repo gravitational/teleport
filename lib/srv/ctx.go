@@ -36,10 +36,8 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/pam"
-	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/uacc"
@@ -103,6 +101,24 @@ type AccessPoint interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 }
 
+// BPF implements an interface to open and close a recording session.
+type BPF interface {
+	// OpenBPFSession will start monitoring all events within a session and
+	// emitting them to the Audit Log.
+	OpenBPFSession(ctx *ServerContext) (uint64, error)
+
+	// 	CloseBPFSession will stop monitoring events for a particular session.
+	CloseBPFSession(ctx *ServerContext) error
+}
+
+// Manager starts and stop enforcing restrictions for a given session.
+type Manager interface {
+	// OpenRestrictedSession starts enforcing restrictions for a cgroup with cgroupID
+	OpenRestrictedSession(ctx *ServerContext, cgroupID uint64)
+	// CloseRestrictedSession stops enforcing restrictions for a cgroup with cgroupID
+	CloseRestrictedSession(ctx *ServerContext, cgroupID uint64)
+}
+
 // Server is regular or forwarding SSH server.
 type Server interface {
 	// StreamEmitter allows server to emit audit events and create
@@ -151,11 +167,11 @@ type Server interface {
 	// using reverse tunnel.
 	UseTunnel() bool
 
-	// GetBPF returns the BPF service used for enhanced session recording.
-	GetBPF() bpf.BPF
+	// implement the BPF service used for enhanced session recording.
+	BPF
 
-	// GetRestrictedSessionManager returns the manager for restricting user activity
-	GetRestrictedSessionManager() restricted.Manager
+	// implememtn the manager for restricting user activity
+	Manager
 
 	// Context returns server shutdown context
 	Context() context.Context
@@ -170,7 +186,7 @@ type Server interface {
 	// temporary teleport users or not
 	GetCreateHostUser() bool
 
-	// GetHostUser returns the HostUsers instance being used to manage
+	// GetHostUsers returns the HostUsers instance being used to manage
 	// host user provisioning
 	GetHostUsers() HostUsers
 

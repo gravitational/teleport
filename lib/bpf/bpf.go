@@ -38,6 +38,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	controlgroup "github.com/gravitational/teleport/lib/cgroup"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/srv"
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
@@ -112,10 +113,12 @@ type Service struct {
 
 	// conn is a BPF programs that hooks connect.
 	conn *conn
+
+	nop bool
 }
 
 // New creates a BPF service.
-func New(config *Config) (BPF, error) {
+func New(config *Config) (*Service, error) {
 	err := config.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -125,7 +128,7 @@ func New(config *Config) (BPF, error) {
 	// right away.
 	if !config.Enabled {
 		log.Debugf("Enhanced session recording is not enabled, skipping.")
-		return &NOP{}, nil
+		return &Service{nop: true}, nil
 	}
 
 	// Check if the host can run BPF programs.
@@ -194,6 +197,10 @@ func New(config *Config) (BPF, error) {
 // shutdown, from the man page for BPF: "Generally, eBPF programs are loaded
 // by the user process and automatically unloaded when the process exits."
 func (s *Service) Close() error {
+	if s.nop {
+		return nil
+	}
+
 	// Unload the BPF programs.
 	s.exec.close()
 	s.open.close()
@@ -208,9 +215,13 @@ func (s *Service) Close() error {
 	return nil
 }
 
-// OpenSession will place a process within a cgroup and being monitoring all
+// OpenBPFSession will place a process within a cgroup and being monitoring all
 // events from that cgroup and emitting the results to the audit log.
-func (s *Service) OpenSession(ctx *SessionContext) (uint64, error) {
+func (s *Service) OpenBPFSession(ctx *srv.ServerContext) (uint64, error) {
+	if s.nop {
+		return 0, nil
+	}
+
 	err := s.cgroup.Create(ctx.SessionID)
 	if err != nil {
 		return 0, trace.Wrap(err)
@@ -233,9 +244,13 @@ func (s *Service) OpenSession(ctx *SessionContext) (uint64, error) {
 	return cgroupID, nil
 }
 
-// CloseSession will stop monitoring events from a particular cgroup and
+// CloseBPFSession will stop monitoring events from a particular cgroup and
 // remove the cgroup.
-func (s *Service) CloseSession(ctx *SessionContext) error {
+func (s *Service) CloseBPFSession(ctx *srv.ServerContext) error {
+	if s.nop {
+		return nil
+	}
+	
 	cgroupID, err := s.cgroup.ID(ctx.SessionID)
 	if err != nil {
 		return trace.Wrap(err)

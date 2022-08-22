@@ -25,6 +25,12 @@ import (
 	"os/user"
 	"testing"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -32,20 +38,13 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/pam"
-	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 )
 
 func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *ServerContext {
@@ -236,16 +235,22 @@ func (m *mockServer) UseTunnel() bool {
 	return false
 }
 
-// GetBPF returns the BPF service used for enhanced session recording.
-func (m *mockServer) GetBPF() bpf.BPF {
-	return &bpf.NOP{}
-
+// OpenBPFSession will start monitoring all events within a session and
+// emitting them to the Audit Log.
+func (m *mockServer) OpenBPFSession(ctx *ServerContext) (uint64, error) {
+	return 0, nil
 }
 
-// GetRestrictedSessionManager returns the manager for restricting user activity
-func (m *mockServer) GetRestrictedSessionManager() restricted.Manager {
-	return &restricted.NOP{}
+// CloseBPFSession will stop monitoring events for a particular session.
+func (m *mockServer) CloseBPFSession(ctx *ServerContext) error {
+	return nil
 }
+
+// OpenRestrictedSession starts enforcing restrictions for a cgroup with cgroupID
+func (m *mockServer) OpenRestrictedSession(ctx *ServerContext, cgroupID uint64) {}
+
+// CloseRestrictedSession stops enforcing restrictions for a cgroup with cgroupID
+func (m *mockServer) CloseRestrictedSession(ctx *ServerContext, cgroupID uint64) {}
 
 // Context returns server shutdown context
 func (m *mockServer) Context() context.Context {
