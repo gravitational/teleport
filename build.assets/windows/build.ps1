@@ -186,3 +186,15 @@ function Copy-Artifacts {
         }
     }
 }
+
+function Convert-Base64 {
+    [CmdletBinding()]
+    param(
+        [string] $FilePath,
+        [string] $Data
+    )
+    begin {
+        $bytes = [Convert]::FromBase64String($Env:WINDOWS_SIGNING_CERT)
+        [system.Io.File]::WriteAllBytes($FilePath, $bytes)
+    }
+}
