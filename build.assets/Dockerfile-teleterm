@@ -15,7 +15,7 @@ RUN BIN="/usr/local/bin" && \
     chmod +x "${BIN}/${BINARY_NAME}"
 
 # Install rpmbuild
-RUN apt-get update -y && apt-get install rpm
+RUN apt-get update -y && apt-get install -q -y --no-install-recommends rpm
 
 # Install node
 ARG NODE_VERSION
