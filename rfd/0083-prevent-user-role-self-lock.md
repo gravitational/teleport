@@ -85,42 +85,42 @@ The first thing user should see is some indicator that there is recommended acti
 
 #### WebUI
 
-1. ⚠️ icon in nav section + warning on users page:
+##### Warning
 
-   - icon:
+- ⚠️ icon in nav:
 
-   ```text
-   👥  Team ⚠️       ⬎
-       👥 Users ⚠️
-       🔑 Roles
-       ...
-   ```
+```text
+👥  Team ⚠️       ⬎
+    👥 Users ⚠️
+    🔑 Roles
+    ...
+```
 
-   - warning on /users page:
+- warning on /users page:
 
-   ```text
-   Users                                   [Create new user]
-   ┌-------------------------------------------------------┐
-   │   <Info why it is nessesery to add second user with   │
-   │   `editor` role>                                      │
-   └-------------------------------------------------------┘
-   ... (Table of users)
-   ```
+```text
+Users                                   [Create new user]
+┌-------------------------------------------------------┐
+│   <Info why it is nessesery to add second user with   │
+│   `editor` role>                                      │
+└-------------------------------------------------------┘
+... (Table of users)
+```
 
-2. warning on every page (eg. /cluster/{cluster}/nodes):
-   ```text
-   Servers
-   ┌-------------------------------------------------------┐
-   │   <Info why it is nessesery to add second user with   │
-   │   `editor` role + link to /users page>                │
-   └-------------------------------------------------------┘
-   ... (Table of servers)
-   ```
+> This will be visible only for single _admin_.
 
-I think the `1.` option would be more direct and less distracting since this information is scoped to user managment.
-This warning will be visible only for existing `editor` user.
+##### Roles
+
+When changing roles we should check if user change is not breaking the rule.
+
+- disable `editor` chip when editing user roles
+- disable delete user action
+
+In any case we should inform user that this action is disabled becouse of the rule.
 
 #### CLI
 
 1. `tsh`: no changes required
-2. `tctl`: when using `tctl users ...` we could warn user that second user is highly recommended. This could also print example command that will add `editor` user `tctl users add --roles=editor <name-of-editor>`. Should be visible only when current user is the only `editor` in the cluster.
+2. `tctl`:
+   - when using `tctl users ...` we should warn user that adding second _admin_ is highly recommended. This could also print example command: `tctl users add --roles=editor <name-of-editor>`. Message should be visible for the first _admin_ in the cluster and disapear after second _admin_ is added.
+   - when there is attempt to break the rule program should display error with explanation why this is not allowed (deleting one of two existing _admins_, removing role `admin` from one of two existing _admins_)
