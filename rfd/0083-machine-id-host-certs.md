@@ -86,36 +86,18 @@ This involves:
 
 We have several options for issuing host certificates. Factors to consider
 include:
-1. Certificate lifespan. Do these certificates need to expire every hour?
-2. Does issuing them every hour create additional UX problems of its own?
-3. Does `sshd` gracefully reload these certificates, and if so, how can users be
-   expected to gracefully reload `sshd` when `tbot` is running as a user
-   process?
+1. Certificate lifespan. Do these certificates need to expire every hour? Our
+   documented advice today generates certificates with no expiration date
+   specified.
+2. Does issuing them every hour create additional UX problems of its own? We
+   found this is largely safe with certain caveats (see below).
+3. Does `sshd` gracefully reload these certificates? We found that sshd re-reads
+   the certificate file for each incoming connection, so no reload is necessary
+   unless the `sshd_config` file itself has changed (e.g. changed the path to
+   the host cert / key).
 
-Per (3), we have an open issue to help notify applications of changed
-certificates (https://github.com/gravitational/teleport/issues/11264). It's
-unclear if OpenSSH gracefully handles certificate rotations, though, and
-disconnecting sessions every 20 minutes would not be ideal.
 
-#### Option 0: No-op
-
-Users can already use bot identities to generate host certs with the `host_cert`
-permission granted, by passing the Machine ID `identity` file to `tctl`:
-
-```bash
-$ tctl -i path/to/identity auth sign \
-    --host=foo.example.com \
-    --format=openssh \
-    --out=myhost
-```
-
-This UX works fine in tandem with secure certificate issuance, but users are
-left to issue certs manually and to inform `sshd` of the change. If managed by
-cron / systemd timers / Ansible / etc, this could arguably be more 
-straightforward than `tbot` file change notifications (but complicates handling
-of CA rotation events).
-
-#### Option 1: Config template
+#### Preferred implementation: Config Template
 
 Config Templates in Machine ID are refreshed each iteration of the bots usual
 renewal loop (20min by default). This would be the most straightforward
@@ -134,9 +116,51 @@ destinations:
 
 While rendering the config template, the bot would call `GenerateHostCert()`,
 format it appropriately, and write it to disk. A new certificate would be 
-written every 20 minutes. 
+written at startup, then approximately every 20 minutes while running normally.
 
-It would be up to the end user to inform sshd of the new certificate.
+Per testing, OpenSSH re-reads certificate files on demand, so no additional work
+is needed to make use of these certificates once paths are configured.
+Additionally, sshd does play nice with `tbot init`'s ACL implementation, and
+does not care about file permissions unless they're owned by `root`.
+
+##### `sshd` caveat with short-lived certificates
+
+When `sshd` host certificates expire (because `tbot` crashed, for instance),
+users will see an error like the following:
+
+```
+Certificate invalid: expired
+The authenticity of host '192.168.122.6.foo.example.com (<no hostip for proxy command>)' can't be established.
+RSA key fingerprint is SHA256:CWqUJ7q3uPGX9gMoD7R76Hi8pJsoSL8SA0J1FIMmOc8.
+This key is not known by any other names
+Are you sure you want to continue connecting (yes/no/[fingerprint])?
+```
+
+This is nearly identical to the usual ssh TOFU message, save for the
+easy-to-miss "Certificate invalid: expired" message. Users are likely
+conditioned to accept this, and if that happens the expired or invalid host key
+will be committed to their `known_hosts` permanently, after which the "expired"
+message will not be shown again.
+
+We'll need to document this caveat along with a workaround (e.g. a
+`ssh-keygen -R` command to remove the old entry) to help users avoid connecting
+to potentially untrusted hosts.
+
+#### Alternative 1: No-op
+
+Users can already use bot identities to generate host certs with the `host_cert`
+permission granted, by passing the Machine ID `identity` file to `tctl`:
+
+```bash
+$ tctl -i path/to/identity auth sign \
+    --host=foo.example.com \
+    --format=openssh \
+    --out=myhost
+```
+
+This UX works fine in tandem with secure certificate issuance, but users still
+need to reissue certs when CAs are rotated or when compromised. Users could
+potentially use cron / systemd timers / etc to automate this.
 
 #### Option 2: Out of band
 
@@ -147,4 +171,3 @@ renewals are today.
 
 Open questions: bots still renew all certs at startup. Do we maintain that
 behavior for these? If not, how do we know when to renew certs next?
-
