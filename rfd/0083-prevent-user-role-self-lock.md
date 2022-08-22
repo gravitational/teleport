@@ -73,7 +73,6 @@ Let's compare those two:
 |      | required on start                                                                               | optional on start                                                                                |
 | ---- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | pros | user is unable to self-lock from the start if account is lost                                   | better onboarding experience since there are less steps nessessery to configure and use teleport |
-| -    | ----------------                                                                                | -----------------                                                                                |
 | cons | worse onboarding experience since there are more steps nessessery to configure and use teleport | user is able to self-lock if account is lost                                                     |
 
 In my opinion `optional on start` variant is better here since `teleport` should be as easy as possible to setup and later on when cluster will be used by more people having second admin would have more sense.
