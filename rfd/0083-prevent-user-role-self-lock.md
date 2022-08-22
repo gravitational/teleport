@@ -18,7 +18,7 @@ Currently, there are multiple ways for users to lock themselves:
 
 | initial state                            | operation                                                                                   | result |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------- | :----: |
-| _admin_ and _regular users_              | _admin_ removes himself an `editor` role                                                    |   🔒   |
+| _admin_ and _regular users_              | _admin_ removes himself from an `editor` role                                               |   🔒   |
 | _admin_ and _regular users_              | _admin_ loses access to own account                                                         |   🔒   |
 | _admin_, _SSO admin_ and _regular users_ | _SSO admin_ removes the `editor` role from _admin_ and SSO connector. _SSO admin_ logs out. |   🔒   |
 | _SSO admin_ and _regular users_          | Someone on the SSO side removes _SSO admin_ user or team/group containing _SSO admins_      |   🔒   |
@@ -39,7 +39,7 @@ Cases handled currently:
 
 ## Why
 
-When user locks themselves is unable to futher manage teleport cluster. We want to prevent that since this is bad for user experience. User is unable to futher manage teleport cluster.
+When a user locks themselves are unable to further manage the teleport cluster. We want to prevent that since this is bad for the user experience and prevents them from using the product.
 
 ## Details
 
@@ -58,7 +58,7 @@ The solution here could be to introduce a new rule:
 
 This will ensure that:
 
-- When one of _admins_ loses access to the account the second one will be functional
+- When one of the _admins_ loses access to the account the second one will be functional
 - Users won't be able to delete _admin_ user if there are only 2 _admins_. They would have to add a third one and then they can delete it.
 - Users won't be able to unassign the `editor` role from _admin_ user if there are only 2 _admins_. They would have to add a third and then they can unassign.
 - Role system lock will be independent of connector removal or SSO changes: team deletion/user deletion.
@@ -70,18 +70,18 @@ Should we enforce this rule when a user is setting up its cluster? What about ex
 
 Let's compare those two:
 
-|      | required on start                                                                               | optional on start                                                                                |
-| ---- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| pros | user is unable to self-lock from the start if account is lost                                   | better onboarding experience since there are less steps nessessery to configure and use teleport |
-| cons | worse onboarding experience since there are more steps nessessery to configure and use teleport | user is able to self-lock if account is lost                                                     |
+|      | required on start                                                                              | optional on start                                                                                |
+| ---- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| pros | user is unable to self-lock from the start if an account is lost                               | better onboarding experience since there are fewer steps necessary to configure and use teleport |
+| cons | worse onboarding experience since there are more steps necessary to configure and use teleport | user can self-lock if an account is lost                                                         |
 
-In my opinion `optional on start` variant is better here since `teleport` should be as easy as possible to setup and later on when cluster will be used by more people having second admin would have more sense.
+In my opinion `optional on start` variant is better since `teleport` should be as easy as possible to set up and later on when the cluster will be used by more people having a second admin would make more sense.
 
 ### UI and behavior changes
 
 To introduce this change we need to communicate it to prevent confusion.
 
-The first thing user should see is some indicator that there is recommended action to perform. It could be:
+The first thing user should see is some indicator that there are recommended actions to perform. It could be:
 
 #### WebUI
 
@@ -101,13 +101,13 @@ The first thing user should see is some indicator that there is recommended acti
 ```text
 Users                                   [Create new user]
 ┌-------------------------------------------------------┐
-│   <Info why it is nessesery to add second user with   │
+│   <Info why it is necessary to add a second user with   │
 │   `editor` role>                                      │
 └-------------------------------------------------------┘
 ... (Table of users)
 ```
 
-> This will be visible only for first _admin_.
+> This will be visible only for the first _admin_.
 
 ##### Roles
 
@@ -116,7 +116,7 @@ When changing roles we should check if user change is not breaking the rule.
 - disable `editor` chip when editing user roles
 - disable delete _admin_ user action
 
-In those cases we should inform users why this action is not possible.
+In those cases, we should inform users why this action is not possible.
 
 #### tsh
 
@@ -126,8 +126,8 @@ no changes required
 
 ##### Warning second user is missing
 
-when using `tctl users ...` we should warn user that adding second _admin_ is highly recommended. This could also print example command: `tctl users add --roles=editor <name-of-editor>`. Message should be visible for the first _admin_ in the cluster and disapear after second _admin_ is added.
+when using `tctl users ...` we should warn the user that adding a second _admin_ is highly recommended. This could also print example command: `tctl users add --roles=editor <name-of-editor>`. The message should be visible for the first _admin_ in the cluster and disappear after the second _admin_ is added.
 
 ##### Roles
 
-when there is attempt to break the rule program should display error with explanation why this is not allowed (deleting one of two existing _admins_, removing role `admin` from one of two existing _admins_)
+when there is an attempt to break the rule program should display an error with an explanation of why this is not allowed (deleting one of two existing _admins_, removing the role `admin` from one of two existing _admins_)
