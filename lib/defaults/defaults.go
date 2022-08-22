@@ -831,3 +831,12 @@ func SearchSessionRange(clock clockwork.Clock, fromUTC, toUTC, recordingsSince s
 	}
 	return from, to, nil
 }
+
+const (
+	// AWSInstallerDocument is the name of the default AWS document
+	// that will be called when executing the SSM command.
+	AWSInstallerDocument = "TeleportDiscoveryInstaller"
+	// IAMInviteTokenName is the name of the default Teleport IAM
+	// token to use when templating the script to be executed.
+	IAMInviteTokenName = "aws-discovery-iam-token"
+)

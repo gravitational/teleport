@@ -44,14 +44,21 @@ from Teleport's events API, and forwards them to Fluentd.
   $ tar -zxvf teleport-event-handler-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
   ```
   </TabItem>
+
   <TabItem label="Docker">
   ```code
   $ docker pull quay.io/gravitational/teleport-plugin-event-handler:(=teleport.plugin.version=)
   ```
   </TabItem>
+
+  <TabItem label="Helm">
+  ```code
+  $ helm repo add teleport https://charts.releases.teleport.dev/
+  ```
+  </TabItem>
 </Tabs>
 
-## Step 2/6. Generate configuration
+## Step 2/6. Configure the plugin
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -73,6 +80,24 @@ Run the `configure` command to generate a sample configuration. Replace
 ```code
 $ ./teleport-event-handler configure . mytenant.teleport.sh
 ```
+
+</TabItem>
+<TabItem scope={["oss", "enterprise", "cloud"]} label="Helm Chart">
+
+Run the `configure` command to generate a sample configuration. Assign `TELEPORT_CLUSTER_ADDRESS` to the DNS name and port of your Teleport Auth Service or Proxy Service:
+
+```code
+$ TELEPORT_CLUSTER_ADDRESS=mytenant.teleport.sh:443
+$ docker run -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin quay.io/gravitational/teleport-plugin-event-handler:(=teleport.plugin.version=) configure . ${TELEPORT_CLUSTER_ADDRESS?}
+```
+
+In order to connect to Fluentd, you'll need to have the root certificate and the client credentials available as a secret. Use the following command to create that secret in Kubernetes:
+
+```code
+$ kubectl create secret generic teleport-event-handler-client-tls --from-file=ca.crt=ca.crt,client.crt=client.crt,client.key=client.key
+```
+
+This will pack the content of `ca.crt`, `client.crt`, and `client.key` into the secret, so the Helm Chart can mount them to their appropriate path.
 
 </TabItem>
 </Tabs>
@@ -224,7 +249,28 @@ and `auth.cas` (certificate, private key, and CA certs, respectively).
 $ tctl auth sign --user=teleport-event-handler --out=identity
 ```
 
-The above sequence should result in one PEM-encoded file: `terraform-identity`.
+The above sequence should result in one PEM-encoded file, `identity`.
+
+</TabItem>
+<TabItem label="Helm Chart" scope={["cloud"]}>
+
+If you are planning to use the Helm Chart, you'll need to generate the keys
+with the `file` format, then create a secret in Kubernetes.
+
+Create the identity using the following command:
+
+```code
+$ tctl auth sign --format=file --user=teleport-event-handler --out=identity
+```
+
+Then create the Kubernetes secret:
+
+```code
+$ kubectl create secret generic teleport-event-handler-identity --from-file=auth_id=identity
+```
+
+These commands should result in a PEM-encoded file, `identity`, and a secret
+in Kubernetes with the name `teleport-event-handler-identity`.
 
 </TabItem>
 </Tabs>
@@ -263,7 +309,7 @@ accept events using TLS and print them:
 </source>
 
 # Events sent to test.log will be dumped to STDOUT.
-<match test.log> 
+<match test.log>
   @type stdout
 </match>
 ```
@@ -299,6 +345,12 @@ addr = "example.teleport.com:443"
 identity = "identity"
 ```
 
+To start the event handler, run the following command:
+
+```code
+$ ./teleport-event-handler start --config teleport-event-handler.toml
+```
+
 </TabItem>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
@@ -321,14 +373,49 @@ client_crt = "auth.crt"
 root_cas = "auth.cas"
 ```
 
-</TabItem>
-</Tabs>
-
 To start the event handler, run the following command:
 
 ```code
 $ ./teleport-event-handler start --config teleport-event-handler.toml
 ```
+
+</TabItem>
+<TabItem scope={["oss", "enterprise"]} label="Helm Chart">
+
+Use the following template to create `teleport-plugin-event-handler-values.yaml`:
+
+```yaml
+eventHandler:
+  storagePath: "./storage"
+  timeout: "10s"
+  batch: 20
+  namespace: "default"
+
+teleport:
+  address: "example.teleport.com:443"
+  identitySecretName: teleport-event-handler-identity
+
+fluentd:
+  url: "https://fluentd.fluentd.svc.cluster.local/events.log"
+  sessionUrl: "https://fluentd.fluentd.svc.cluster.local/session.log"
+  certificate:
+    secretName: "teleport-event-handler-client-tls"
+    caPath: "ca.crt"
+    certPath: "client.crt"
+    keyPath: "client.key"
+
+persistentVolumeClaim:
+  enabled: true
+```
+
+To start the event handler in Kubernetes, run the following command:
+
+```code
+$ helm install teleport-plugin-event-handler teleport/teleport-plugin-event-handler --values teleport-plugin-event-handler-values.yaml
+```
+
+</TabItem>
+</Tabs>
 
 <Admonition type="note">
 

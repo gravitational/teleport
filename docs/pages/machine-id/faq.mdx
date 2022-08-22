@@ -3,30 +3,6 @@ title: Machine ID FAQ
 description: Frequently asked questions about Teleport Machine ID
 ---
 
-## Which Teleport features are currently supported by Machine ID?
-
-Machine ID aims to provide access to Teleport and all the resources it protects,
-however access to certain types of resources and certain types of access are not
-yet supported.
-
-Broadly, Machine ID **does** support the following Teleport features:
- - [Server Access](./getting-started.mdx)
- - [Database Access](./guides/databases.mdx)
- - [Kubernetes Access](../kubernetes-access/introduction.mdx) (*in Teleport v10.1*)
- - [Application Access](../application-access/introduction.mdx) (*in Teleport v10.1*)
-   - Note: [AWS Console](../application-access/guides/aws-console.mdx) and API access is currently unsupported.
- - [Teleport API Access](../api/introduction.mdx)
-
-These features are supported in Teleport OSS, Teleport Enterprise, and Teleport
-Cloud.
-
-The following features are **not** supported by Machine ID bots:
- - [Desktop Access](../desktop-access/introduction.mdx)
- - [User Impersonation](../access-controls/guides/impersonation.mdx): Machine 
-   ID uses Role Impersonation which cannot be combined with User Impersonation
- - Multifactor authentication like [WebAuthn](../access-controls/guides/webauthn.mdx) and [Passwordless](../access-controls/guides/passwordless.mdx)
- - [AWS Console Access](../application-access/guides/aws-console.mdx)
-
 ## Can Machine ID be used within CI/CD jobs?
 
 Yes, however it depends on your CI/CD provider. It's currently a good fit in the

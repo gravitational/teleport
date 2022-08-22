@@ -38,7 +38,7 @@ TELEGRAF_VERSION ?= 1.9.3
 INFLUXDB_VERSION ?= 1.8.5
 
 # Grafana version
-GRAFANA_VERSION ?= 5.4.3
+GRAFANA_VERSION ?= 9.0.7
 
 # AWS account ID which hosts the public Teleport AMIs
 AWS_ACCOUNT_ID ?= 126027368216
