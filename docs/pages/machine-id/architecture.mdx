@@ -8,6 +8,28 @@ This section provides an overview of Teleport Machine ID's inner workings.
 A more in-depth specification of the workings of Machine ID can be found in
 [the Request For Discussion.](https://github.com/gravitational/teleport/blob/master/rfd/0064-bot-for-cert-renewals.md)
 
+## `tbot`
+
+`tbot` is the binary that acts as the agent for Machine ID.
+
+On initial load, `tbot` uses the [configured join method](#onboarding) to obtain
+a set of credentials for the bot user from the Teleport Auth Service. It can 
+then use these credentials to communicate with the Teleport Auth Service as the 
+bot.
+
+On a configured regular period `tbot` then:
+
+- Renews these bot user credentials
+- For each configured destination:
+  - Obtains [role impersonated](#role-impersonation) credentials from the Auth
+    Service using its bot user credentials.
+  - Outputs these role impersonated credentials in the configured formats.
+
+Concurrently to this, `tbot` monitors the Teleport certificate authorities to
+detect certificate rotations. When this occurs, it triggers additional renewals
+to ensure that `tbot` has certificates signed by the newly rotated certificate
+authority.
+
 ## Role Impersonation
 
 At the core of Machine ID is the concept of role impersonation.
@@ -24,23 +46,54 @@ role's configured permissions.
 In the case of Machine ID, the bot user is assigned a bot role, which includes 
 permissions to impersonate the roles that the user has configured.
 
-## `tbot`
+## Onboarding
 
-`tbot` is the binary that acts as the agent for Machine ID.
+Onboarding is the process by which `tbot` initially authenticates with the 
+Teleport auth service in order to receive credentials.
 
-On initial load, `tbot` uses the configured join method to obtain a set of
-credentials for the bot user from the Teleport Auth Service. It can then use
-these credentials to communicate with the Teleport Auth Service as the bot.
+Machine ID leverages the existing Token resource within Teleport, with the
+Token containing an additional `botName` field that identifies the bot user
+associated with the token. 
 
-On a configured regular period `tbot` then:
+Machine ID currently supports two methods of joining that have some key
+differences.
 
-- Renews these bot user credentials
-- For each configured destination:
-  - Obtains role impersonated credentials from the Auth Service using its
-    bot user credentials.
-  - Outputs these role impersonated credentials in the configured formats.
+Static Token:
+- The name of the token is the only value needed to join. This value is a
+  secret and must be handled securely.
+- Once used, the Token resource self-deletes. This means it can only be used to
+  join a single bot to a Teleport cluster.
+- The certificates exchanged for the token are 
+  [renewable](#renewable-certificates).
 
-Concurrently to this, `tbot` monitors the Teleport certificate authorities to
-detect certificate rotations. When this occurs, it triggers additional renewals
-to ensure that `tbot` has certificates signed by the newly rotated certificate
-authority.
+
+Dynamic join tokens (e.g AWS IAM):
+- These tokens rely on some kind of external system that allows the bot to
+  prove it is allowed to join the cluster. The name of the token identifies the
+  Token resource in Teleport that contains the configuration.
+- The token can be used to join as many bots as you want.
+- The certificates exchanged for the token are not renewable. When the bot wants
+  to renew its certificates, it simply repeats the original join steps.
+
+Where possible, you should prefer to use a dynamic join token over a static
+token as this eliminates the need to handle a secret.
+
+## Renewable certificates
+
+Human Teleport users are not able to renew their credentials without
+re-authenticating. As Machine ID must work without manual human intervention,
+bots that have joined using static tokens are granted credentials that are
+marked as renewable. This means that the bot can use these credentials to
+fetch a new set of credentials, with an expiry date further in the future.
+
+In order to mitigate the risk of bot user credentials being stolen, and then
+continually renewed by a malicious actor, renewable bot user certificates
+include a **generation counter**.
+
+The generation counter is stored against the user in the database and within the
+certificate. This counter is incremented each time the user renews their 
+certificate. When a bot attempts to renew, the Auth Server ensures that the 
+value within the certificate and in the database match. If they do not match,
+then the bot user is automatically locked. This means that if certificates are
+stolen, and attempted to be renewed whilst the bot is still running, the next
+renewal will render them useless.
