@@ -2113,12 +2113,12 @@ func TestInstallerCRUD(t *testing.T) {
 	var inst types.Installer
 	var err error
 	contents := "#! just some script contents"
-	inst, err = types.NewInstallerV1(types.MetaNameClusterInstallerScript, contents)
+	inst, err = types.NewInstallerV1(defaults.InstallerScriptName, contents)
 	require.NoError(t, err)
 
 	require.NoError(t, s.a.SetInstaller(ctx, inst))
 
-	inst, err = s.a.GetInstaller(ctx, types.MetaNameClusterInstallerScript)
+	inst, err = s.a.GetInstaller(ctx, defaults.InstallerScriptName)
 	require.NoError(t, err)
 	require.Equal(t, contents, inst.GetScript())
 
@@ -2143,10 +2143,10 @@ func TestInstallerCRUD(t *testing.T) {
 		instScripts,
 	)
 
-	err = s.a.DeleteInstaller(ctx, types.MetaNameClusterInstallerScript)
+	err = s.a.DeleteInstaller(ctx, defaults.InstallerScriptName)
 	require.NoError(t, err)
 
-	_, err = s.a.GetInstaller(ctx, types.MetaNameClusterInstallerScript)
+	_, err = s.a.GetInstaller(ctx, defaults.InstallerScriptName)
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
 

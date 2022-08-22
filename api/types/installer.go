@@ -134,7 +134,4 @@ func (c *InstallerV1) SetScript(s string) {
 func (c *InstallerV1) setStaticFields() {
 	c.Kind = KindInstaller
 	c.Version = V1
-	if c.Metadata.Name == "" {
-		c.Metadata.Name = MetaNameClusterInstallerScript
-	}
 }

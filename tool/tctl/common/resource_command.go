@@ -817,7 +817,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if rc.ref.Name == types.MetaNameClusterInstallerScript {
+		if rc.ref.Name == defaults.InstallerScriptName {
 			fmt.Printf("%s has been reset to a default value\n", rc.ref.Name)
 		} else {
 			fmt.Printf("%s has been deleted\n", rc.ref.Name)

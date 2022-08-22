@@ -351,6 +351,7 @@ func TestConfigReading(t *testing.T) {
 							TokenName: "aws-discovery-iam-token",
 							Method:    "iam",
 						},
+						ScriptName: "installer",
 					},
 					SSM: AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
 				},

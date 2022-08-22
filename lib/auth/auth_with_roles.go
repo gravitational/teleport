@@ -3284,7 +3284,7 @@ func (a *ServerWithRoles) GetInstaller(ctx context.Context, name string) (types.
 
 // GetInstallers gets all the installer resources.
 func (a *ServerWithRoles) GetInstallers(ctx context.Context) ([]types.Installer, error) {
-	if err := a.action(apidefaults.Namespace, types.KindInstaller, types.VerbRead); err != nil {
+	if err := a.action(apidefaults.Namespace, types.KindInstaller, types.VerbRead, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetInstallers(ctx)

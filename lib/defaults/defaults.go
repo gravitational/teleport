@@ -868,4 +868,7 @@ const (
 	// IAMInviteTokenName is the name of the default Teleport IAM
 	// token to use when templating the script to be executed.
 	IAMInviteTokenName = "aws-discovery-iam-token"
+	// InstallerScriptName is the name of the by default populated,
+	// EC2 installer script
+	InstallerScriptName = "installer"
 )

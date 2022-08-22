@@ -446,7 +446,7 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 					TokenName: defaults.IAMInviteTokenName,
 					Method:    types.JoinMethodIAM,
 				},
-				ScriptName: types.MetaNameClusterInstallerScript,
+				ScriptName: defaults.InstallerScriptName,
 			}
 		} else {
 			if method := matcher.InstallParams.JoinParams.Method; method == "" {
@@ -459,7 +459,7 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 			}
 
 			if installer := matcher.InstallParams.ScriptName; installer == "" {
-				matcher.InstallParams.ScriptName = types.MetaNameClusterInstallerScript
+				matcher.InstallParams.ScriptName = defaults.InstallerScriptName
 			}
 		}
 

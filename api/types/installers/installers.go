@@ -20,6 +20,7 @@ import (
 	_ "embed"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 //go:embed installer.sh.tmpl
@@ -27,7 +28,7 @@ var defaultInstallScript string
 
 // DefaultInstaller represents a the default installer script provided
 // by teleport
-var DefaultInstaller = types.MustNewInstallerV1(types.MetaNameClusterInstallerScript, defaultInstallScript)
+var DefaultInstaller = types.MustNewInstallerV1(defaults.InstallerScriptName, defaultInstallScript)
 
 // Template is used to fill proxy address and version information into
 // the installer script
