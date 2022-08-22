@@ -55,7 +55,7 @@ func pushBuildCommands(b buildType) []string {
 		`chown -R $UID:$GID /go`,
 		`cd /go/src/github.com/gravitational/teleport`,
 	}
-	if b.fips {
+	if b.fips || b.hasTeleportConnect() {
 		commands = append(commands,
 			`export VERSION=$(cat /go/.version.txt)`,
 		)

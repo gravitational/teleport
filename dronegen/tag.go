@@ -85,7 +85,7 @@ func tagBuildCommands(b buildType) []string {
 		`cd /go/src/github.com/gravitational/teleport`,
 	}
 
-	if b.fips {
+	if b.fips || b.hasTeleportConnect() {
 		commands = append(commands,
 			"export VERSION=$(cat /go/.version.txt)",
 		)
@@ -177,7 +177,7 @@ func tagCopyArtifactCommands(b buildType) []string {
 
 	if b.hasTeleportConnect() {
 		commands = append(commands,
-			`cp /go/src/github.com/gravitational/webapps/packages/teleterm/build/release/teleport-connect*.{tar.gz,deb,rpm} /go/artifacts/`,
+			`find /go/src/github.com/gravitational/webapps/packages/teleterm/build/release -maxdepth 1 \( -iname "teleport-connect*.tar.gz" -o -iname "teleport-connect*.rpm" -o -iname "teleport-connect*.deb" \) -print -exec cp {} /go/artifacts/ \;`,
 		)
 	}
 

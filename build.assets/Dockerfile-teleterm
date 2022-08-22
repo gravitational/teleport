@@ -30,6 +30,11 @@ RUN corepack enable yarn
 RUN (npm install --global grpc_tools_node_protoc_ts@5.0.1)
 RUN go install github.com/golang/protobuf/protoc-gen-go@v1.4.3
 
+# Install rpm tools so we can build rpm packages
+RUN apt-get update -y && apt-get install -q -y --no-install-recommends rpm && \
+    apt-get clean -y && \
+    rm -rf /var/lib/apt/lists/*
+
 FROM base as grpc_node_plugin_binary_prebuilt
 ONBUILD RUN (npm install --global grpc-tools@1.11.2)
 

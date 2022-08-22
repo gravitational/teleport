@@ -91,6 +91,7 @@ steps:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
+  - export VERSION=$(cat /go/.version.txt)
   - make -C build.assets release-amd64-centos7
   - make -C build.assets teleterm
   environment:
@@ -1754,6 +1755,7 @@ steps:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
+  - export VERSION=$(cat /go/.version.txt)
   - make -C build.assets release-amd64-centos7
   - make -C build.assets teleterm
   environment:
@@ -1774,8 +1776,9 @@ steps:
     \;
   - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts
     \;
-  - cp /go/src/github.com/gravitational/webapps/packages/teleterm/build/release/teleport-connect*.{tar.gz,deb,rpm}
-    /go/artifacts/
+  - find /go/src/github.com/gravitational/webapps/packages/teleterm/build/release
+    -maxdepth 1 \( -iname "teleport-connect*.tar.gz" -o -iname "teleport-connect*.rpm"
+    -o -iname "teleport-connect*.deb" \) -print -exec cp {} /go/artifacts/ \;
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
 - name: Upload to S3
@@ -6488,6 +6491,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 8d24d0c35dfe16df503fe14f13cad929fae4aab143149ef8bcc1775d7c0c4e43
+hmac: cf410059a52882504f00af9fbb43ed23ea97c555e3c6fd02a07faf5577afc47d
 
 ...
