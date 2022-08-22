@@ -2864,6 +2864,10 @@ message SAMLConnectorSpecV2 {
     // EncryptionKeyPair is a key pair used for decrypting SAML assertions.
     AsymmetricKeyPair EncryptionKeyPair = 13
         [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "assertion_key_pair,omitempty" ];
+    // AllowIDPInitiated is a flag that indicates if the connector can be used for IdP-initiated
+    // logins.
+    bool AllowIDPInitiated = 14
+        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "allow_idp_initiated,omitempty" ];
 }
 
 // SAMLAuthRequest is a request to authenticate with SAML
@@ -3668,4 +3672,43 @@ message ConnectionDiagnosticTrace {
     string Details = 4 [ (gogoproto.jsontag) = "details" ];
     // Error contains the low level error message in case of a failure.
     string Error = 5 [ (gogoproto.jsontag) = "error" ];
+}
+
+// AlertSeverity represents how problematic/urgent an alert is, and is used to assist
+// in sorting alerts for display.
+enum AlertSeverity {
+    LOW = 0;
+    MEDIUM = 5;
+    HIGH = 10;
+}
+
+// ClusterAlert is a cluster-level alert message.
+message ClusterAlert {
+    ResourceHeader Header = 1
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "", (gogoproto.embed) = true ];
+    ClusterAlertSpec Spec = 2 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// ClusterAlertSpec is a cluster alert specification.
+message ClusterAlertSpec {
+    // Severity represents how problematic/urgent the alert is.
+    AlertSeverity Severity = 1 [ (gogoproto.jsontag) = "severity" ];
+    // Message is the user-facing message associated with the alert.
+    string Message = 2 [ (gogoproto.jsontag) = "message" ];
+    // Created is the time at which the alert was generated.
+    google.protobuf.Timestamp Created = 3 [
+        (gogoproto.jsontag) = "created,omitempty",
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false
+    ];
+}
+
+// GetClusterAlertsRequest matches cluster alerts.
+message GetClusterAlertsRequest {
+    // Severity is an optional minimum severity.
+    AlertSeverity Severity = 1;
+    // AlertID optionally specifies the ID of the alert being requested.
+    string AlertID = 2;
+    // Labels is an optional label selector.
+    map<string, string> Labels = 3;
 }

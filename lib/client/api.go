@@ -1345,6 +1345,25 @@ func (c *Config) DatabaseProxyHostPort(db tlsca.RouteToDatabase) (string, int) {
 	return c.WebProxyHostPort()
 }
 
+// GetKubeTLSServerName returns k8s server name used in KUBECONFIG to leverage TLS Routing.
+func GetKubeTLSServerName(k8host string) string {
+	isIPFormat := net.ParseIP(k8host) != nil
+
+	if k8host == "" || isIPFormat {
+		// If proxy is configured without public_addr set the ServerName to the 'kube.teleport.cluster.local' value.
+		// The k8s server name needs to be a valid hostname but when public_addr is missing from proxy settings
+		// the web_listen_addr is used thus webHost will contain local proxy IP address like: 0.0.0.0 or 127.0.0.1
+		// TODO(smallinsky) UPGRADE IN 10.0. Switch to KubeTeleportProxyALPNPrefix instead.
+		return addSubdomainPrefix(constants.APIDomain, constants.KubeSNIPrefix)
+	}
+	// TODO(smallinsky) UPGRADE IN 10.0. Switch to KubeTeleportProxyALPNPrefix instead.
+	return addSubdomainPrefix(k8host, constants.KubeSNIPrefix)
+}
+
+func addSubdomainPrefix(domain, prefix string) string {
+	return fmt.Sprintf("%s%s", prefix, domain)
+}
+
 // ProxyHost returns the hostname of the proxy server (without any port numbers)
 func ProxyHost(proxyHost string) string {
 	host, _, err := net.SplitHostPort(proxyHost)
@@ -1588,6 +1607,13 @@ func (tc *TeleportClient) RootClusterName(ctx context.Context) (string, error) {
 // getTargetNodes returns a list of node addresses this SSH command needs to
 // operate on.
 func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient) ([]string, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/getTargetNodes",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	var (
 		err    error
 		nodes  []types.Server
@@ -2724,6 +2750,13 @@ func (tc *TeleportClient) runCommandOnNodes(
 
 // runCommand executes a given bash command on an established NodeClient.
 func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient, command []string) error {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/runCommand",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	nodeSession, err := newSession(ctx, nodeClient, nil, tc.Config.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.EnableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2752,6 +2785,13 @@ func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient
 // runShell starts an interactive SSH session/shell.
 // sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
 func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, mode types.SessionParticipantMode, sessToJoin types.SessionTracker, beforeStart func(io.Writer)) error {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/runShell",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	env := make(map[string]string)
 	env[teleport.EnvSSHJoinMode] = string(mode)
 	env[teleport.EnvSSHSessionReason] = tc.Config.Reason

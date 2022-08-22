@@ -490,6 +490,30 @@ var DatabaseProtocols = []string{
 	ProtocolSQLServer,
 }
 
+// ReadableDatabaseProtocol returns a more human readable string of the
+// provided database protocol.
+func ReadableDatabaseProtocol(p string) string {
+	switch p {
+	case ProtocolPostgres:
+		return "PostgreSQL"
+	case ProtocolMySQL:
+		return "MySQL"
+	case ProtocolMongoDB:
+		return "MongoDB"
+	case ProtocolCockroachDB:
+		return "CockroachDB"
+	case ProtocolRedis:
+		return "Redis"
+	case ProtocolSnowflake:
+		return "Snowflake"
+	case ProtocolSQLServer:
+		return "Microsoft SQL Server"
+	default:
+		// Unknown protocol. Return original string.
+		return p
+	}
+}
+
 const (
 	// PerfBufferPageCount is the size of the perf ring buffer in number of pages.
 	// Must be power of 2.
@@ -804,3 +828,12 @@ func SearchSessionRange(clock clockwork.Clock, fromUTC, toUTC string) (from time
 	}
 	return from, to, nil
 }
+
+const (
+	// AWSInstallerDocument is the name of the default AWS document
+	// that will be called when executing the SSM command.
+	AWSInstallerDocument = "TeleportDiscoveryInstaller"
+	// IAMInviteTokenName is the name of the default Teleport IAM
+	// token to use when templating the script to be executed.
+	IAMInviteTokenName = "aws-discovery-iam-token"
+)
