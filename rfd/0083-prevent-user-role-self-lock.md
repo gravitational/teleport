@@ -83,34 +83,41 @@ To introduce this change we need to communicate it to prevent confusion.
 
 The first thing user should see is some indicator that there is recommended action to perform. It could be:
 
-- ⚠️ icon in nav section + warning on users page:
+#### WebUI
 
-  - icon:
+1. ⚠️ icon in nav section + warning on users page:
 
-    ```text
-    👥  Team ⚠️       ⬎
-        👥 Users ⚠️
-        🔑 Roles
-        ...
-    ```
+   - icon:
 
-  - warning on /users page:
-    ```text
-    Users                                   [Create new user]
-    ┌-------------------------------------------------------┐
-    │   <Info why it is nessesery to add second user with   │
-    │   `editor` role>                                      │
-    └-------------------------------------------------------┘
-    ... (Table of users)
-    ```
+   ```text
+   👥  Team ⚠️       ⬎
+       👥 Users ⚠️
+       🔑 Roles
+       ...
+   ```
 
-- warning on every page:
+   - warning on /users page:
 
-  ```text
-  Servers
-  ┌-------------------------------------------------------┐
-  │   <Info why it is nessesery to add second user with   │
-  │   `editor` role + link to /users page>                │
-  └-------------------------------------------------------┘
-  ... (Table of servers)
-  ```
+   ```text
+   Users                                   [Create new user]
+   ┌-------------------------------------------------------┐
+   │   <Info why it is nessesery to add second user with   │
+   │   `editor` role>                                      │
+   └-------------------------------------------------------┘
+   ... (Table of users)
+   ```
+
+2. warning on every page (eg. /cluster/{cluster}/nodes):
+   ```text
+   Servers
+   ┌-------------------------------------------------------┐
+   │   <Info why it is nessesery to add second user with   │
+   │   `editor` role + link to /users page>                │
+   └-------------------------------------------------------┘
+   ... (Table of servers)
+   ```
+
+I think the `1.` option would be more direct and less distracting since this information is scoped in user managment.
+This warning will be visible only for existing `editor` user.
+
+#### CLI
