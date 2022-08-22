@@ -19,8 +19,6 @@ package azure
 import (
 	"context"
 
-	"github.com/gravitational/teleport/lib/cloud/azure"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 )
 
@@ -39,7 +37,7 @@ func NewMySQLServersClient(api ARMMySQL) DBServersClient {
 func (c *mySQLClient) Get(ctx context.Context, group, name string) (*DBServer, error) {
 	res, err := c.api.Get(ctx, group, name, nil)
 	if err != nil {
-		return nil, azure.ConvertResponseError(err)
+		return nil, ConvertResponseError(err)
 	}
 	return ServerFromMySQLServer(&res.Server), nil
 }
@@ -51,7 +49,7 @@ func (c *mySQLClient) ListAll(ctx context.Context, maxPages int) ([]*DBServer, e
 	for pageNum := 0; pageNum < maxPages && pager.More(); pageNum++ {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, azure.ConvertResponseError(err)
+			return nil, ConvertResponseError(err)
 		}
 		for _, s := range page.Value {
 			servers = append(servers, ServerFromMySQLServer(s))
@@ -67,7 +65,7 @@ func (c *mySQLClient) ListWithinGroup(ctx context.Context, group string, maxPage
 	for pageNum := 0; pageNum < maxPages && pager.More(); pageNum++ {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, azure.ConvertResponseError(err)
+			return nil, ConvertResponseError(err)
 		}
 		for _, s := range page.Value {
 			servers = append(servers, ServerFromMySQLServer(s))

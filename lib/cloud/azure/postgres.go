@@ -19,8 +19,6 @@ package azure
 import (
 	"context"
 
-	"github.com/gravitational/teleport/lib/cloud/azure"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 )
 
@@ -39,7 +37,7 @@ func NewPostgresServerClient(api ARMPostgres) DBServersClient {
 func (c *postgresClient) Get(ctx context.Context, group, name string) (*DBServer, error) {
 	res, err := c.api.Get(ctx, group, name, nil)
 	if err != nil {
-		return nil, azure.ConvertResponseError(err)
+		return nil, ConvertResponseError(err)
 	}
 	return ServerFromPostgresServer(&res.Server), nil
 }
@@ -51,7 +49,7 @@ func (c *postgresClient) ListAll(ctx context.Context, maxPages int) ([]*DBServer
 	for pageNum := 0; pageNum < maxPages && pager.More(); pageNum++ {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, azure.ConvertResponseError(err)
+			return nil, ConvertResponseError(err)
 		}
 		for _, s := range page.Value {
 			servers = append(servers, ServerFromPostgresServer(s))
@@ -67,7 +65,7 @@ func (c *postgresClient) ListWithinGroup(ctx context.Context, group string, maxP
 	for pageNum := 0; pageNum < maxPages && pager.More(); pageNum++ {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, azure.ConvertResponseError(err)
+			return nil, ConvertResponseError(err)
 		}
 		for _, s := range page.Value {
 			servers = append(servers, ServerFromPostgresServer(s))
