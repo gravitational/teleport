@@ -9,6 +9,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v0.19.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v0.11.0
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1
+	github.com/Clever/go-utils v0.0.0-20180917210021-2dac0ec6f2ac
 	github.com/HdrHistogram/hdrhistogram-go v1.0.1
 	github.com/Microsoft/go-winio v0.4.16
 	github.com/ThalesIgnite/crypto11 v1.2.4
@@ -38,6 +39,7 @@ require (
 	github.com/go-ldap/ldap/v3 v3.4.1
 	github.com/go-mysql-org/go-mysql v1.5.0
 	github.com/go-redis/redis/v8 v8.11.4
+	github.com/gobuffalo/flect v0.2.5
 	github.com/gogo/protobuf v1.3.2
 	github.com/gokyle/hotp v0.0.0-20160218004637-c180d57d286b
 	github.com/golang/protobuf v1.5.2
@@ -74,6 +76,7 @@ require (
 	github.com/mailgun/timetools v0.0.0-20170619190023-f3a7b8ffff47
 	github.com/mailgun/ttlmap v0.0.0-20170619185759-c1c17f74874f
 	github.com/mattn/go-sqlite3 v1.14.6
+	github.com/mitchellh/mapstructure v1.4.1
 	github.com/moby/term v0.0.0-20210619224110-3f7ff695adc6
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/sftp v1.13.5
@@ -125,12 +128,14 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.24.2
+	k8s.io/apiextensions-apiserver v0.24.2
 	k8s.io/apimachinery v0.24.2
 	k8s.io/cli-runtime v0.24.0
 	k8s.io/client-go v0.24.2
 	k8s.io/kubectl v0.24.0
 	sigs.k8s.io/controller-runtime v0.12.3
 	sigs.k8s.io/controller-tools v0.9.2
+	sigs.k8s.io/yaml v1.3.0
 )
 
 require (
@@ -146,7 +151,6 @@ require (
 	github.com/Azure/go-autorest/logger v0.2.1 // indirect
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/Azure/go-ntlmssp v0.0.0-20200615164410-66371956d46c // indirect
-	github.com/Clever/go-utils v0.0.0-20180917210021-2dac0ec6f2ac
 	github.com/MakeNowJust/heredoc v0.0.0-20170808103936-bb23615498cd // indirect
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
@@ -193,7 +197,6 @@ require (
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.19.5 // indirect
 	github.com/go-openapi/swag v0.19.14 // indirect
-	github.com/gobuffalo/flect v0.2.5
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang-sql/civil v0.0.0-20190719163853-cb61b32ac6fe // indirect
 	github.com/golang-sql/sqlexp v0.0.0-20170517235910-f1bb20e5a188 // indirect
@@ -242,7 +245,6 @@ require (
 	github.com/mdp/rsc v0.0.0-20160131164516-90f07065088d // indirect
 	github.com/miekg/pkcs11 v1.0.3-0.20190429190417-a667d056470f // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
-	github.com/mitchellh/mapstructure v1.4.1 // indirect
 	github.com/moby/spdystream v0.2.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
@@ -291,7 +293,6 @@ require (
 	google.golang.org/appengine v1.6.7 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22 // indirect
-	k8s.io/apiextensions-apiserver v0.24.2
 	k8s.io/component-base v0.24.2 // indirect
 	k8s.io/klog/v2 v2.60.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20220328201542-3ee0da9b0b42 // indirect
@@ -301,7 +302,6 @@ require (
 	sigs.k8s.io/kustomize/api v0.11.4 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.13.6 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.1 // indirect
-	sigs.k8s.io/yaml v1.3.0
 )
 
 replace (
