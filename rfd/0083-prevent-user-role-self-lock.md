@@ -39,7 +39,7 @@ Cases handled currently:
 
 ## Why(TODO)
 
-We want to prevent that since this is bad for user experience and it requires manual work on our side since we need to add a manually new editor user and communicate with teleport consumers.
+When user locks themselves is unable to futher manage teleport cluster. We want to prevent that since this is bad for user experience. User is unable to futher manage teleport cluster.
 
 ## Details
 
@@ -85,9 +85,9 @@ The first thing user should see is some indicator that there is recommended acti
 
 #### WebUI
 
-##### Warning
+##### Warning second user is missing
 
-- ⚠️ icon in nav:
+- ⚠️ icon in navigation:
 
 ```text
 👥  Team ⚠️       ⬎
@@ -96,7 +96,7 @@ The first thing user should see is some indicator that there is recommended acti
     ...
 ```
 
-- warning on /users page:
+- warning on `/users` page:
 
 ```text
 Users                                   [Create new user]
@@ -107,20 +107,27 @@ Users                                   [Create new user]
 ... (Table of users)
 ```
 
-> This will be visible only for single _admin_.
+> This will be visible only for first _admin_.
 
 ##### Roles
 
 When changing roles we should check if user change is not breaking the rule.
 
 - disable `editor` chip when editing user roles
-- disable delete user action
+- disable delete _admin_ user action
 
-In any case we should inform user that this action is disabled becouse of the rule.
+In those cases we should inform users why this action is not possible.
 
-#### CLI
+#### tsh
 
-1. `tsh`: no changes required
-2. `tctl`:
-   - when using `tctl users ...` we should warn user that adding second _admin_ is highly recommended. This could also print example command: `tctl users add --roles=editor <name-of-editor>`. Message should be visible for the first _admin_ in the cluster and disapear after second _admin_ is added.
-   - when there is attempt to break the rule program should display error with explanation why this is not allowed (deleting one of two existing _admins_, removing role `admin` from one of two existing _admins_)
+no changes required
+
+#### tctl
+
+##### Warning second user is missing
+
+when using `tctl users ...` we should warn user that adding second _admin_ is highly recommended. This could also print example command: `tctl users add --roles=editor <name-of-editor>`. Message should be visible for the first _admin_ in the cluster and disapear after second _admin_ is added.
+
+##### Roles
+
+when there is attempt to break the rule program should display error with explanation why this is not allowed (deleting one of two existing _admins_, removing role `admin` from one of two existing _admins_)
