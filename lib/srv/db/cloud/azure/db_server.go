@@ -29,16 +29,18 @@ import (
 // It exists to reduce code duplication, since Azure MySQL and PostgreSQL.
 // server fields are identical in all but type.
 type DBServer struct {
-	Name       string
-	Location   string
-	ID         string
-	Properties struct {
-		FullyQualifiedDomainName string
-		UserVisibleState         string
-		Version                  string
-	}
+	Name           string
+	Location       string
+	ID             string
+	Properties     ServerProperties
 	Tags           map[string]string
 	versionChecker func(*DBServer) bool
+}
+
+type ServerProperties struct {
+	FullyQualifiedDomainName string
+	UserVisibleState         string
+	Version                  string
 }
 
 // ServerFromMySQLServer converts an Azure armmysql.Server into DBServer.
