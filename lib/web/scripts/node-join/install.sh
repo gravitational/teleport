@@ -440,7 +440,7 @@ EOF
 # installs the provided teleport config (for node service)
 install_teleport_node_config() {
     log "Writing Teleport node service config to ${TELEPORT_CONFIG_PATH}"
-    teleport node configure \
+    ${TELEPORT_BINARY_DIR}/teleport node configure \
       --token ${JOIN_TOKEN} \
       ${JOIN_METHOD_FLAG} \
       --ca-pin ${CA_PINS} \
@@ -631,8 +631,8 @@ if [[ "${OSTYPE}" == "linux-gnu"* ]]; then
             fi
         fi
         log "Detected distro type: ${DISTRO_TYPE}"
-        #suse uses a different path for its systemd then other distro types like ubuntu
-        if [[ ${DISTRO_TYPE} =~ "suse"* ]]; then
+        #suse, also identified as sles, uses a different path for its systemd then other distro types like ubuntu
+        if [[ ${DISTRO_TYPE} =~ "suse"* ]] || [[ ${DISTRO_TYPE} =~ "sles"* ]]; then
             SYSTEMD_UNIT_PATH="/etc/systemd/system/teleport.service"
         fi
     fi

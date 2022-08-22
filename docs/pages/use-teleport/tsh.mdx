@@ -767,5 +767,76 @@ $ tsh status
   Extensions:         permit-X11-forwarding
 ```
 
+## Custom aliases and defaults
+
+You can configure `tsh` to define aliases, custom commands and command-specific flag defaults. Using aliases, you can run frequently used `tsh` commands more easily. 
+
+Aliases are defined in configuration files using the following syntax:
+
+```yaml
+aliases:
+    "<alias>": "<command>"
+```
+
+The `<alias>` can only be a top-level subcommand. In other words, you can define `tsh mycommand` alias but not `tsh my command`.
+
+`tsh` loads two kinds of configuration files:
+
+- global: by default `/etc/tsh.yaml`, unless overridden by  the `$TELEPORT_GLOBAL_TSH_CONFIG` env var.
+- user-specific: `$TELEPORT_HOME/config/config.yaml`, which by defaults resolves to `~/.tsh/config/config.yaml`.
+
+`tsh` merges the user-specific config with the global config. In case of conflicts (i.e. same alias defined in both files), the user-specific config has higher priority.
+
+In either of those files you can add define an alias such as:
+
+```yaml
+aliases:
+    "l": "tsh login --auth=okta --username=alice"
+```
+
+From now on, `tsh l` will resolve to `tsh login --auth=okta --username=bob`.
+
+You can also change the defaults for regular `tsh` commands:
+
+```yaml
+aliases:
+    "status": "tsh status --format=json"
+```
+
+Calling external programs other than `tsh` is also possible:
+
+```yaml
+aliases:
+    "connect": "bash -c 'tsh login $0 && tsh ssh $1'"
+```
+
+The example above demonstrates the usage of variables `$0` and `$1`. They represent arguments provided to the alias. With the definition above, `tsh connect foo bar` resolves to `bash -c 'tsh login foo && tsh ssh bar'`. 
+
+The alias can use as many arguments as needed. If the alias is invoked with too few arguments, `tsh` will report an error. Conversely, providing additional arguments is *not* an error. `tsh` will append any additional arguments to the end of an alias definition.
+
+Given the configuration:
+
+```yaml
+aliases:
+    "example": "bash -c 'echo first=$0 $0-$1 $3'"
+```
+
+`tsh example 0 1 unused-2 3 unused-4` will expand to `bash -c 'echo first=0 0-1 3 unused-2 unused-4'`.
+
+You can also add the `$TSH` variable to an alias definition. When invoking the alias, `tsh` will expand this to the absolute path to current `tsh` executable. This can be useful if there are multiple `tsh` versions installed, or the currently used version is not in `PATH`.
+
+```yaml
+aliases:
+    "status": "$TSH status --format=json"
+```
+
+The alias substitution happens before the command line flags are fully parsed. This means that it is not affected by the `--debug` flag. To troubleshoot your aliases, set the `TELEPORT_DEBUG=1` environment variable instead. This will cause the `tsh` logs to be printed to the console:
+
+```bash
+$ TELEPORT_DEBUG=1 tsh status
+DEBU [TSH]       Self re-exec command: tsh [status --format=json]. tsh/aliases.go:203
+...
+```
+
 ## Further reading
 - [CLI Reference](../setup/reference/cli.mdx).

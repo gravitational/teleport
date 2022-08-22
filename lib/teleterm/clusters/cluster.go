@@ -37,7 +37,8 @@ type Cluster struct {
 	URI uri.ResourceURI
 	// Name is the cluster name
 	Name string
-
+	// ProfileName is the name of the tsh profile
+	ProfileName string
 	// Log is a component logger
 	Log *logrus.Entry
 	// dir is the directory where cluster certificates are stored
@@ -89,12 +90,6 @@ func (c *Cluster) GetLoggedInUser() LoggedInUser {
 		SSHLogins: c.status.Logins,
 		Roles:     c.status.Roles,
 	}
-}
-
-// GetActualName returns name of the cluster taken from the key
-// (see an explanation for the field `actual_name` in cluster.proto)
-func (c *Cluster) GetActualName() string {
-	return c.clusterClient.SiteName
 }
 
 // GetProxyHost returns proxy address (host:port) of the cluster
