@@ -19,9 +19,7 @@ package azure
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/trace"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 )
@@ -38,40 +36,16 @@ func NewMySQLServersClient(api ARMMySQL) DBServersClient {
 	return &mySQLClient{api: api}
 }
 
-// ListServers lists all database servers within an Azure subscription.
-func (c *mySQLClient) ListServers(ctx context.Context, group string, maxPages int) ([]*DBServer, error) {
-	var servers []*armmysql.Server
-	var err error
-	if group == types.Wildcard {
-		servers, err = c.listAll(ctx, maxPages)
-	} else {
-		servers, err = c.listByGroup(ctx, group, maxPages)
-	}
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	result := make([]*DBServer, 0, len(servers))
-	for _, s := range servers {
-		server, err := ServerFromMySQLServer(s)
-		if err != nil {
-			continue
-		}
-		result = append(result, server)
-	}
-	return result, nil
-}
-
 func (c *mySQLClient) Get(ctx context.Context, group, name string) (*DBServer, error) {
 	res, err := c.api.Get(ctx, group, name, nil)
 	if err != nil {
 		return nil, azure.ConvertResponseError(err)
 	}
-	return ServerFromMySQLServer(&res.Server)
+	return ServerFromMySQLServer(&res.Server), nil
 }
 
-func (c *mySQLClient) listAll(ctx context.Context, maxPages int) ([]*armmysql.Server, error) {
-	var servers []*armmysql.Server
+func (c *mySQLClient) ListAll(ctx context.Context, maxPages int) ([]*DBServer, error) {
+	var servers []*DBServer
 	options := &armmysql.ServersClientListOptions{}
 	pager := c.api.NewListPager(options)
 	for pageNum := 0; pageNum < maxPages && pager.More(); pageNum++ {
@@ -79,13 +53,15 @@ func (c *mySQLClient) listAll(ctx context.Context, maxPages int) ([]*armmysql.Se
 		if err != nil {
 			return nil, azure.ConvertResponseError(err)
 		}
-		servers = append(servers, page.Value...)
+		for _, s := range page.Value {
+			servers = append(servers, ServerFromMySQLServer(s))
+		}
 	}
 	return servers, nil
 }
 
-func (c *mySQLClient) listByGroup(ctx context.Context, group string, maxPages int) ([]*armmysql.Server, error) {
-	var servers []*armmysql.Server
+func (c *mySQLClient) ListWithinGroup(ctx context.Context, group string, maxPages int) ([]*DBServer, error) {
+	var servers []*DBServer
 	options := &armmysql.ServersClientListByResourceGroupOptions{}
 	pager := c.api.NewListByResourceGroupPager(group, options)
 	for pageNum := 0; pageNum < maxPages && pager.More(); pageNum++ {
@@ -93,7 +69,9 @@ func (c *mySQLClient) listByGroup(ctx context.Context, group string, maxPages in
 		if err != nil {
 			return nil, azure.ConvertResponseError(err)
 		}
-		servers = append(servers, page.Value...)
+		for _, s := range page.Value {
+			servers = append(servers, ServerFromMySQLServer(s))
+		}
 	}
 	return servers, nil
 }

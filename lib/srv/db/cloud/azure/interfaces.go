@@ -26,9 +26,10 @@ import (
 
 // DBServersClient provides an interface for fetching Azure DB servers.
 type DBServersClient interface {
-	// ListServers lists all Azure DB servers within an Azure subscription by resource group.
-	// If the resource group is "*", then all resources within the subscription are queried.
-	ListServers(ctx context.Context, group string, maxPages int) ([]*DBServer, error)
+	// ListAll lists all Azure DB servers within an Azure subscription.
+	ListAll(ctx context.Context, maxPages int) ([]*DBServer, error)
+	// ListWithinGroup lists all Azure DB servers within an Azure resource group.
+	ListWithinGroup(ctx context.Context, group string, maxPages int) ([]*DBServer, error)
 	// Get returns a DBServer with an Azure subscription, queried by group and name
 	Get(ctx context.Context, group, name string) (*DBServer, error)
 }
