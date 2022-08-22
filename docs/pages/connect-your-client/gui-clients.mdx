@@ -62,7 +62,7 @@ Ensure that your environment includes the following:
 </Tabs>
 
 - The Teleport Database Service configured to access a database. See one of our
-  [guides](../guides.mdx) for how to set up Teleport Database Access for your
+  [guides](../database-access/guides.mdx) for how to set up Teleport Database Access for your
   database.
 
 
@@ -96,7 +96,7 @@ is `127.0.0.1:62652`.
 
 </TabItem>
 <TabItem label="TLS routing">
-If you're using Teleport in [TLS routing](../../setup/operations/tls-routing.mdx)
+If you're using Teleport in [TLS routing](../management/operations/tls-routing.mdx)
 mode where each database protocol is multiplexed on the same web proxy port, use
 the following command to start a local TLS proxy your GUI database client will
 be connecting to:
@@ -175,21 +175,21 @@ PostgreSQL servers.
 To configure a new connection, right-click on "Servers" in the main browser view
 and create a new server:
 
-![pgAdmin Add Server](../../../img/database-access/pgadmin-add-server@2x.png)
+![pgAdmin Add Server](../../img/database-access/pgadmin-add-server@2x.png)
 
 In the "General" tab of the new server dialog, enter the server connection name:
 
-![pgAdmin General](../../../img/database-access/pgadmin-general@2x.png)
+![pgAdmin General](../../img/database-access/pgadmin-general@2x.png)
 
 In the "Connection" tab, fill in the hostname, port, user and database name from
 the configuration above:
 
-![pgAdmin Connection](../../../img/database-access/pgadmin-connection@2x.png)
+![pgAdmin Connection](../../img/database-access/pgadmin-connection@2x.png)
 
 In the "SSL" tab, set "SSL Mode" to `Verify-Full` and fill in paths for client
 certificate, key and root certificate from the configuration above:
 
-![pgAdmin SSL](../../../img/database-access/pgadmin-ssl@2x.png)
+![pgAdmin SSL](../../img/database-access/pgadmin-ssl@2x.png)
 
 Click "Save", and pgAdmin should immediately connect. If pgAdmin prompts you
 for password, leave the password field empty and click OK.
@@ -203,7 +203,7 @@ for more information).
 Use the "Database native" authentication with an empty password:
 
 ![DBeaver Postgres Configure
-Server](../../../img/database-access/dbeaver-pg-configure-server.png)
+Server](../../img/database-access/dbeaver-pg-configure-server.png)
 
 Clicking on "Test connection" should return a connection success message. Then,
 click on "Finish" to save the configuration.
@@ -218,17 +218,17 @@ In the MySQL Workbench "Setup New Connection" dialog, fill out "Connection
 Name", "Hostname", "Port", and "Username":
 
 ![MySQL Workbench
-Parameters](../../../img/database-access/workbench-parameters@2x.png)
+Parameters](../../img/database-access/workbench-parameters@2x.png)
 
 In the "SSL" tab, set "Use SSL" to `Require and Verify Identity` and enter the
 paths to your CA, certificate, and private key files (see
 [Get connection information](./gui-clients.mdx#get-connection-information)):
 
-![MySQL Workbench SSL](../../../img/database-access/workbench-ssl@2x.png)
+![MySQL Workbench SSL](../../img/database-access/workbench-ssl@2x.png)
 
 Optionally, click "Test Connection" to verify connectivity:
 
-![MySQL Workbench Test](../../../img/database-access/workbench-test@2x.png)
+![MySQL Workbench Test](../../img/database-access/workbench-test@2x.png)
 
 Save the connection and connect to the database.
 
@@ -236,26 +236,26 @@ Save the connection and connect to the database.
 
 Right-click in the "Database Navigator" menu in the main view and select Create > Connection:
 
-![DBeaver Add Server](../../../img/database-access/dbeaver-add-server.png)
+![DBeaver Add Server](../../img/database-access/dbeaver-add-server.png)
 
 In the search bar of the "Connect to a database" window that opens up, type "mysql", select the MySQL driver, and click "Next":
 
-![DBeaver Select Driver](../../../img/database-access/dbeaver-select-driver.png)
+![DBeaver Select Driver](../../img/database-access/dbeaver-select-driver.png)
 
 In the newly-opened "Connection Settings" tab, use the Host as `localhost` and
 Port as the one returned by the proxy command (`62652` in the example above):
 
-![DBeaver Select Configure Server](../../../img/database-access/dbeaver-configure-server.png)
+![DBeaver Select Configure Server](../../img/database-access/dbeaver-configure-server.png)
 
 In that same tab, set the username to match the one that you are connecting to
 using Teleport and uncheck the "Save password locally" box:
 
-![DBeaver Select Configure User](../../../img/database-access/dbeaver-configure-user.png)
+![DBeaver Select Configure User](../../img/database-access/dbeaver-configure-user.png)
 
 Click the "Edit Driver Settings" button on the "Main" tab, check the "No
 Authentication" box, and click "Ok" to save:
 
-![DBeaver Driver Settings](../../../img/database-access/dbeaver-driver-settings.png)
+![DBeaver Driver Settings](../../img/database-access/dbeaver-driver-settings.png)
 
 Once you are back in the "Connection Settings" window, click "Ok" to finish and
 DBeaver should connect to the remote MySQL server automatically.
@@ -267,21 +267,21 @@ graphical client.
 
 On the "New Connection" panel, click on "Fill in connection fields individually".
 
-![MongoDB Compass new connection](../../../img/database-access/compass-new-connection@2x.png)
+![MongoDB Compass new connection](../../img/database-access/compass-new-connection@2x.png)
 
 On the "Hostname" tab, enter the hostname and port of the proxy you will use to
 access the database (see
 [Get connection information](./gui-clients.mdx#get-connection-information)).
 Leave "Authentication" as None.
 
-![MongoDB Compass hostname](../../../img/database-access/compass-hostname@2x.png)
+![MongoDB Compass hostname](../../img/database-access/compass-hostname@2x.png)
 
 On the "More Options" tab, set SSL to "Client and Server Validation" and set the
 CA as well as the client key and certificate. Note that a CA path must be
 provided and be able to validate the certificate presented by your Teleport
 Proxy Service's web endpoint.
 
-![MongoDB Compass more options](../../../img/database-access/compass-more-options@2x.png)
+![MongoDB Compass more options](../../img/database-access/compass-more-options@2x.png)
 
 Click on the "Connect" button.
 
@@ -294,7 +294,7 @@ more information.)
 
 Use the SQL Server Authentication option and keep the Password field empty:
 
-![DBeaver connection options](../../../img/database-access/guides/sqlserver/dbeaver-connection@2x.png)
+![DBeaver connection options](../../img/database-access/guides/sqlserver/dbeaver-connection@2x.png)
 
 Click OK to connect.
 
@@ -308,7 +308,7 @@ more information.)
 Select the "User & Password" authentication option and keep the "Password" field
 empty:
 
-![DataGrip connection options](../../../img/database-access/guides/sqlserver/datagrip-connection@2x.png)
+![DataGrip connection options](../../img/database-access/guides/sqlserver/datagrip-connection@2x.png)
 
 Click "OK" to connect.
 
@@ -320,7 +320,7 @@ Click "OK" to connect.
 
 After opening Redis Insight click `ADD REDIS DATABASE`.
 
-![Redis Insight Startup Screen](../../../img/database-access/guides/redis/redisinsight-startup.png)
+![Redis Insight Startup Screen](../../img/database-access/guides/redis/redisinsight-startup.png)
 
 Now start a local proxy to your Redis instance:
 
@@ -331,18 +331,18 @@ the `tsh` command you ran in [Get connection information](#get-connection-inform
 
 Provide your Redis username as `Username` and password as `Password`.
 
-![Redis Insight Configuration](../../../img/database-access/guides/redis/redisinsight-add-config.png)
+![Redis Insight Configuration](../../img/database-access/guides/redis/redisinsight-add-config.png)
 
 Next, check the `Use TLS` and `Verify TLS Certificates` boxes and copy the CA certificate returned by `tsh proxy db`.
 Copy the private key and certificate to corresponding fields.
 
 Click `Add Redis Database`.
 
-![Redis Insight TLS Configuration](../../../img/database-access/guides/redis/redisinsight-tls-config.png)
+![Redis Insight TLS Configuration](../../img/database-access/guides/redis/redisinsight-tls-config.png)
 
 Congratulations! You have just connected to your Redis instance.
 
-![Redis Insight Connected](../../../img/database-access/guides/redis/redisinsight-connected.png)
+![Redis Insight Connected](../../img/database-access/guides/redis/redisinsight-connected.png)
 
 
 ## Snowflake: JetBrains (IntelliJ, Goland, DataGrip, PyCharm, etc.)
@@ -355,25 +355,25 @@ tsh proxy db --tunnel --port 2000 snowflake
 
 In "Database Explorer" click the "add" button, pick "Data Source", and then pick "Snowflake":
 
-![JetBrains Add Database](../../../img/database-access/guides/snowflake/jetbrains-add-database.png)
+![JetBrains Add Database](../../img/database-access/guides/snowflake/jetbrains-add-database.png)
 
 Next, set "Host" to `localhost` and "Port" to the port returned by the `tsh proxy db` command you ran earlier (`2000` in the example above).
 Set the "Username" to match the one that you are assuming when you connect to Snowflake
  via Teleport and enter any value (e.g., "teleport") in the "Password" field (the value of
  "Password" will be ignored but is required to create a data source in your IDE):
 
-![JetBrains General](../../../img/database-access/guides/snowflake/jetbrains-general.png)
+![JetBrains General](../../img/database-access/guides/snowflake/jetbrains-general.png)
 
 Switch to the "Advanced" tab, set any value (e.g., "teleport") for "account", and add a new record named `ssl` with value `off` (as with "Password", "account" is ignored while establishing the connection but required by your IDE):
 
-![JetBrains Advanced](../../../img/database-access/guides/snowflake/jetbrains-advanced.png)
+![JetBrains Advanced](../../img/database-access/guides/snowflake/jetbrains-advanced.png)
 
 Teleport ignores the provided password and the account name as internally it uses values from the Database Agent configuration.
 Setting "SSL" to `off` only disables encryption on your local machine. The connection to Snowflake is encrypted by Teleport.
 
 Now you can click "Test Connection" to check your configuration.
 
-![JetBrains Success](../../../img/database-access/guides/snowflake/jetbrains-success.png)
+![JetBrains Success](../../img/database-access/guides/snowflake/jetbrains-success.png)
 
 Congratulations! You have just connected to your Snowflake instance.
 
@@ -386,29 +386,29 @@ tsh proxy db --tunnel --port 2000 snowflake
 
 Add a new database by clicking the "add" icon in the top-left corner:
 
-![DBeaver Main Screen](../../../img/database-access/guides/snowflake/dbeaver-main-screen.png)
+![DBeaver Main Screen](../../img/database-access/guides/snowflake/dbeaver-main-screen.png)
 
 In the search bar of the "Connect to a database" window that opens up, type "snowflake", select the Snowflake driver, and click "Next":
 
-![DBeaver Select Database](../../../img/database-access/guides/snowflake/dbeaver-select-database.png)
+![DBeaver Select Database](../../img/database-access/guides/snowflake/dbeaver-select-database.png)
 
 Set "Host" to `localhost` and "Port" to the port returned by the `tsh proxy db` command you ran earlier (`2000` in the example above).
 In the "Authentication" section set the "Username" to match the database username passed to Teleport with `--db-user`
 and enter any value (e.g., "teleport") in the "Password" field (the value of
  "Password" will be ignored when establishing a connection but is required by DBeaver to register your database):
 
-![DBeaver Main](../../../img/database-access/guides/snowflake/dbeaver-main.png)
+![DBeaver Main](../../img/database-access/guides/snowflake/dbeaver-main.png)
 
 Next, click the "Driver properties" tab and set "account" to any value (e.g., "teleport"; as with "Password", the value of
  "account" will be ignored when establishing a connection but is required by DBeaver to register your database). In "User properties", set "ssl" to `off`:
 
-![DBeaver Driver](../../../img/database-access/guides/snowflake/dbeaver-driver.png)
+![DBeaver Driver](../../img/database-access/guides/snowflake/dbeaver-driver.png)
 
 Teleport ignores the provided password and the account name as internally it uses values from the Database Agent configuration.
 SSL set to `off` disables only encryption on local machine. Connection to Snowflake is encrypted by Teleport.
 
 Now you can click on "Test Connection..." in the bottom-left corner:
 
-![DBeaver Success](../../../img/database-access/guides/snowflake/dbeaver-success.png)
+![DBeaver Success](../../img/database-access/guides/snowflake/dbeaver-success.png)
 
 Congratulations! You have just connected to your Snowflake instance.

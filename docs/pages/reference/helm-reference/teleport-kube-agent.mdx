@@ -446,7 +446,7 @@ Normally the version of Teleport being used will match the version of the chart 
 
 You can optionally override this to use a different published Teleport Docker image tag like `6.0.2` or `7`.
 
-See [this link for information on Community Docker image versions](../../setup/guides/docker.mdx#step-14-pick-your-image).
+See [this link for information on Community Docker image versions](../../management/guides/docker.mdx#step-14-pick-your-image).
 
 <Admonition type="note">
   The `teleport-kube-agent` chart always runs using Teleport Community edition as it does not require any Enterprise features, so it does
@@ -475,7 +475,7 @@ See [this link for information on Community Docker image versions](../../setup/g
 When `caPin` is set, the Teleport pod will use its values to check the
 Auth Service's identity when first joining a cluster. This enables a more secure
 way of adding new Teleport instances to a cluster. See
-["Adding Nodes to the Cluster"](../admin/adding-nodes.mdx).
+["Adding Nodes to the Cluster"](../../management/admin/adding-nodes.mdx).
 
 Each list element can be the pin itself (recommended, works out of the box),
 or a path to a file containing the pin. For the latter it is your
@@ -635,7 +635,7 @@ These labels can then be used with Teleport's RBAC policies to define access rul
   To set labels for applications, add a `labels` element to the [`apps`](#apps) section.
   To set labels for databases, add a `static_labels` element to the [`databases`](#databases) section.
 
-  For more information on how to set static/dynamic labels for Teleport services, see [labelling nodes and applications](../../setup/admin/labels.mdx).
+  For more information on how to set static/dynamic labels for Teleport services, see [labelling nodes and applications](../../management/admin/labels.mdx).
 </Admonition>
 
 <Tabs>
@@ -1119,7 +1119,7 @@ Possible values are `text` (default) or `json`.
 
 `log.extraFields` sets the fields used in logging for the Teleport process.
 
-See the [Teleport config file reference](../../setup/reference/config.mdx) for more details on possible values for `extra_fields`.
+See the [Teleport config file reference](../../reference/config.mdx) for more details on possible values for `extra_fields`.
 
 <Tabs>
   <TabItem label="values.yaml">

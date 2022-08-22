@@ -297,7 +297,7 @@ table for cluster state will be the same as the cluster name configured in the [
 
 In our example, the DynamoDB table would be called `example-cluster`.
 
-More information about how Teleport works with DynamoDB can be found in our [Storage Backends guide](../reference/backends.mdx#dynamodb).
+More information about how Teleport works with DynamoDB can be found in our [Storage Backends guide](../../reference/backends.mdx#dynamodb).
 
 ### Audit event storage
 
@@ -307,7 +307,7 @@ with `-events` appended to the end.
 
 In our example, the DynamoDB table would be called `example-cluster-events`.
 
-More information about how Teleport works with DynamoDB can be found in our [Storage Backends guide](../reference/backends.mdx#dynamodb).
+More information about how Teleport works with DynamoDB can be found in our [Storage Backends guide](../../reference/backends.mdx#dynamodb).
 
 ### Recorded session storage
 
@@ -707,9 +707,9 @@ ways to integrate Teleport onto your servers. We recommend looking at our [Insta
 To add new nodes/EC2 servers that you can "SSH into" you'll need to:
 
 - [Install the Teleport binary on the Server](../../installation.mdx)
-- [Run Teleport - we recommend using systemd](../admin/daemon.mdx)
-- [Set the correct settings in /etc/teleport.yaml](../reference/config.mdx)
-- [Add Nodes to the Teleport cluster](../admin/adding-nodes.mdx)
+- [Run Teleport - we recommend using systemd](../../management/admin/daemon.mdx)
+- [Set the correct settings in /etc/teleport.yaml](../../reference/config.mdx)
+- [Add Nodes to the Teleport cluster](../../management/admin/adding-nodes.mdx)
 
 ### Getting the CA pin hash
 
@@ -731,7 +731,7 @@ $ aws ssm get-parameter --region ${TF_VAR_region} --name "/teleport/${TF_VAR_clu
 # 992a9725-0a64-428d-8e5e-308e6877743d
 ```
 
-You can also generate a Node join token using `tctl tokens add --type=node` [as detailed here in our admin guide](../admin/adding-nodes.mdx).
+You can also generate a Node join token using `tctl tokens add --type=node` [as detailed here in our admin guide](../../management/admin/adding-nodes.mdx).
 
 ### Joining Nodes via the Teleport Auth Service
 
@@ -753,7 +753,7 @@ auth_servers:
 ### Joining Nodes via Teleport IoT/Node tunneling
 
 To join Teleport Nodes from outside the same VPC, you will either need to investigate VPC peering/gateways (out of scope
-for this document) or join your nodes using [Teleport's node tunneling](../admin/adding-nodes.mdx) functionality.
+for this document) or join your nodes using [Teleport's node tunneling](../../management/admin/adding-nodes.mdx) functionality.
 
 With this method, you can join the nodes using the public facing proxy address - `teleport.example.com:443` for our
 example.
@@ -781,7 +781,7 @@ spec:
 ```
 
 You can generate a token for adding the trusted cluster using `tctl tokens add --type=trusted_cluster` after connecting
-to an auth server. Follow the instructions in our [Trusted Clusters guide](../admin/trustedclusters.mdx).
+to an auth server. Follow the instructions in our [Trusted Clusters guide](../../management/admin/trustedclusters.mdx).
 
 ## Script to quickly connect to instances
 

@@ -137,8 +137,8 @@ until existing clients disconnect.
 
 To upgrade a host to a newer version of Teleport, you must:
 
-- Replace the Teleport binaries, usually [`teleport`](../reference/cli.mdx#teleport)
-   and [`tctl`](../reference/cli.mdx#tctl).
+- Replace the Teleport binaries, usually [`teleport`](../../reference/cli.mdx#teleport)
+   and [`tctl`](../../reference/cli.mdx#tctl).
 - Execute `systemctl reload teleport`.
 
 </Admonition>
@@ -147,11 +147,11 @@ To upgrade a host to a newer version of Teleport, you must:
 
 In this guide, we showed you how to run `teleport start` as a systemd service.
 To see all commands that you can run via the `teleport` binary, see the
-[Teleport CLI Reference](../reference/cli.mdx#teleport).
+[Teleport CLI Reference](../../reference/cli.mdx#teleport).
 
 While we used a minimal configuration in this guide, for a production Teleport
 cluster, you should consult our
-[Configuration Reference](../reference/config.mdx).
+[Configuration Reference](../../reference/config.mdx).
 
 For more information on how `systemctl reload teleport` works, see our guide to
 [upgrading a `teleport` binary](./upgrading-the-teleport-binary.mdx).

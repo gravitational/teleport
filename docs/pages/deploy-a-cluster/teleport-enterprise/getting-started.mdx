@@ -173,7 +173,7 @@ You can review the logs of the Teleport service with `journalctl -fu teleport` a
 with `sudo systemctl status teleport`.
 
 You can use `netstat -lptne` to review the port that Teleport is
-listening on  on [TCP/IP ports](../setup/reference/networking.mdx#ports). On *auth.example.com*, it should
+listening on  on [TCP/IP ports](../../reference/networking.mdx#ports). On *auth.example.com*, it should
 look something like this:
 
 ```code
@@ -205,7 +205,7 @@ on *auth.example.com*
 
 Every user in a Teleport cluster must be assigned at least one role. By default,
 Teleport comes with several pre-configured roles known as
-["presets"](../access-controls/reference.mdx#preset-roles). You can see
+["presets"](../../access-controls/reference.mdx#preset-roles). You can see
 these roles by executing `sudo tctl get roles`.
 
 Pay attention to the *allow/logins* field in the role definition: by default, this
@@ -236,7 +236,7 @@ allow:
   type="note"
   title="Note"
 >
-  See the [Kubernetes Guide](../kubernetes-access/introduction.mdx) and [Application Guide](../application-access/introduction.mdx) for enabling access to additional resources.
+  See the [Kubernetes Guide](../../kubernetes-access/introduction.mdx) and [Application Guide](../../application-access/introduction.mdx) for enabling access to additional resources.
 </Admonition>
 
 Then send it back into Teleport:
@@ -332,14 +332,14 @@ $ tsh logout
 The local account is good for administrative purposes but regular users of
 Teleport Enterprise should be using a Single Sign-On (SSO) mechanism that use SAML or OIDC protocols.
 
-Take a look at the [Single Sign-on](sso.mdx) chapter to learn the basics of
+Take a look at the [Single Sign-on](../../access-controls/sso.mdx) chapter to learn the basics of
 integrating Teleport with SSO providers. We have the following detailed guides for
 configuring SSO providers:
 
-- [Okta](sso/okta.mdx)
-- [Active Directory](sso/adfs.mdx)
-- [One Login](sso/one-login.mdx)
-- [GitHub](../setup/admin/github-sso.mdx)
+- [Okta](../../access-controls/sso/okta.mdx)
+- [Active Directory](../../access-controls/sso/adfs.mdx)
+- [One Login](../../access-controls/sso/one-login.mdx)
+- [GitHub](../../access-controls/sso/github-sso.mdx)
 
 Any SAML-compliant provider can be configured with Teleport by following the
 same steps.  There are Teleport Enterprise customers who are using Oracle IDM,
