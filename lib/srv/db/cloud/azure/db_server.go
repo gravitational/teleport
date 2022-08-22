@@ -17,9 +17,7 @@ limitations under the License.
 package azure
 
 import (
-	"encoding/json"
-
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
@@ -28,15 +26,19 @@ import (
 // DBServer represents an Azure DB Server.
 // It exists to reduce code duplication, since Azure MySQL and PostgreSQL.
 // server fields are identical in all but type.
+// TODO(gavin): Remove this in favor of generics when Go supports structural constraints
+// on generic types.
 type DBServer struct {
-	Name           string
-	Location       string
-	ID             string
-	Properties     ServerProperties
-	Tags           map[string]string
-	versionChecker func(*DBServer) bool
+	ID         string
+	Location   string
+	Name       string
+	Port       string
+	Properties ServerProperties
+	Protocol   string
+	Tags       map[string]string
 }
 
+// ServerProperties contains properties for an Azure DB Server.
 type ServerProperties struct {
 	FullyQualifiedDomainName string
 	UserVisibleState         string
@@ -44,20 +46,57 @@ type ServerProperties struct {
 }
 
 // ServerFromMySQLServer converts an Azure armmysql.Server into DBServer.
-func ServerFromMySQLServer(server *armmysql.Server) (*DBServer, error) {
-	return newDBServerFromARMServer(server, isMySQLVersionSupported)
+func ServerFromMySQLServer(server *armmysql.Server) *DBServer {
+	result := &DBServer{
+		ID:       stringVal(server.ID),
+		Location: stringVal(server.Location),
+		Name:     stringVal(server.Name),
+		Port:     MySQLPort,
+		Protocol: defaults.ProtocolMySQL,
+		Tags:     convertTags(server.Tags),
+	}
+	if server.Properties != nil {
+		result.Properties = ServerProperties{
+			FullyQualifiedDomainName: stringVal(server.Properties.FullyQualifiedDomainName),
+			UserVisibleState:         stringVal(server.Properties.UserVisibleState),
+			Version:                  stringVal(server.Properties.Version),
+		}
+	}
+	return result
 }
 
 // ServerFromPostgresServer converts an Azure armpostgresql.Server into DBServer.
-func ServerFromPostgresServer(server *armpostgresql.Server) (*DBServer, error) {
-	return newDBServerFromARMServer(server, isPostgresVersionSupported)
+func ServerFromPostgresServer(server *armpostgresql.Server) *DBServer {
+	result := &DBServer{
+		ID:       stringVal(server.ID),
+		Location: stringVal(server.Location),
+		Name:     stringVal(server.Name),
+		Port:     PostgresPort,
+		Protocol: defaults.ProtocolPostgres,
+		Tags:     convertTags(server.Tags),
+	}
+	if server.Properties != nil {
+		result.Properties = ServerProperties{
+			FullyQualifiedDomainName: stringVal(server.Properties.FullyQualifiedDomainName),
+			UserVisibleState:         stringVal(server.Properties.UserVisibleState),
+			Version:                  stringVal(server.Properties.Version),
+		}
+	}
+	return result
 }
 
 // IsVersionSupported returns true if database supports AAD authentication.
 // Only available for MySQL 5.7 and newer. All Azure managed PostgreSQL single-server.
 // instances support AAD auth.
 func (s *DBServer) IsVersionSupported() bool {
-	return s.versionChecker(s)
+	switch s.Protocol {
+	case defaults.ProtocolMySQL:
+		return isMySQLVersionSupported(s)
+	case defaults.ProtocolPostgres:
+		return isPostgresVersionSupported(s)
+	default:
+		panic("unreachable")
+	}
 }
 
 // IsAvailable returns whether the Azure DBServer is available.
@@ -72,17 +111,19 @@ func (s *DBServer) IsAvailable() bool {
 	}
 }
 
-// newDBServerFromARMServer converts an ARM MySQL or PostgreSQL server into a DBServer.
-func newDBServerFromARMServer(armServer interface{}, versionChecker func(*DBServer) bool) (*DBServer, error) {
-	if armServer == nil {
-		return nil, trace.BadParameter("nil server")
+func stringVal[T ~string](s *T) string {
+	if s != nil {
+		return string(*s)
 	}
-	data, err := json.Marshal(armServer)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	return ""
+}
 
-	result := DBServer{versionChecker: versionChecker}
-	err = json.Unmarshal(data, &result)
-	return &result, trace.Wrap(err)
+func convertTags(tags map[string]*string) map[string]string {
+	result := make(map[string]string, len(tags))
+	for k, v := range tags {
+		result[k] = stringVal(v)
+	}
+	x := armmysql.ServerStateReady
+	stringVal(&x)
+	return result
 }
