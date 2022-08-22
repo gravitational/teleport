@@ -3,7 +3,7 @@ title: teleport-plugin-pagerduty Chart Reference
 description: Values that can be set using the teleport-plugin-pagerduty Helm chart
 ---
 
-The `teleport-plugin-pagerduty` Helm chart is used to configure the PagerDuty Teleport plugin which allows users to receive access requests as pages via PagerDuty.
+The `teleport-plugin-pagerduty` Helm chart is used to configure the PagerDuty Teleport plugin, which allows users to receive access requests as pages via PagerDuty.
 
 You can [browse the source on GitHub](https://github.com/gravitational/teleport-plugins/tree/master/charts/access/pagerduty).
 
@@ -17,7 +17,7 @@ This reference details available values for the `teleport-plugin-pagerduty` char
 | - | - | - |
 | `string` | `""` | Yes |
 
-This parameter contains the host/port combination of the teleport auth server.
+This parameter contains the host/port combination of the Teleport Auth Service or Proxy Service.
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -53,7 +53,7 @@ data:
   auth_id: ...
 ```
 
-Check out the [PagerDuty Helm Chart documentation](https://github.com/gravitational/teleport-plugins/tree/master/charts/access/pagerduty#prerequisites) for more information about how to acquire these credentials!
+Read the [PagerDuty Helm Chart documentation](https://github.com/gravitational/teleport-plugins/tree/master/charts/access/pagerduty#prerequisites) for more information about how to acquire these credentials.
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -119,7 +119,7 @@ Base URL of the PagerDuty instance
 | - | - | - |
 | `string` | `""` | No |
 
-PagerDuty apiKey of the bot user to impersonate when sending the messages. It's only recommended for testing purposes.
+PagerDuty API key of the bot user to impersonate when sending messages. It's only recommended for testing purposes.
 Please use [`pagerduty.apiKeyFromSecret`](#pagerdutyapikeyfromsecret) instead.
 
 <Tabs>
@@ -208,7 +208,7 @@ Key where the token is located inside the secret specified by `pagerduty.apiKeyF
 | - | - | - |
 | `array` | `[]` | Yes |
 
-List of recipients who will receive notifications about access requests.
+List of recipients who will receive notifications about Access Requests.
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -232,7 +232,7 @@ List of recipients who will receive notifications about access requests.
 | - | - | - |
 | `string` | `stdout` | No |
 
-Logger output. Could be "stdout", "stderr" or a file name, eg. "/var/log/teleport/pagerduty.log"
+Logger output. Could be `stdout`, `stderr` or a file name, eg. `/var/log/teleport/pagerduty.log`
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -254,7 +254,7 @@ Logger output. Could be "stdout", "stderr" or a file name, eg. "/var/log/telepor
 | - | - | - |
 | `string` | `stdout` | No |
 
-Logger severity. Possible values are "INFO", "ERROR", "DEBUG" or "WARN".
+Logger severity. Possible values are `INFO`, `ERROR`, `DEBUG` or `WARN`.
 
 <Tabs>
   <TabItem label="values.yaml">
