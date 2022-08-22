@@ -650,6 +650,7 @@ trigger:
     include:
     - master
     - branch/*
+    - tcsc/build-windows-tcon
 workspace:
   path: C:/Drone/Workspace/push-build-native-windows-amd64
 platform:
@@ -722,8 +723,13 @@ steps:
   - cd $TeleportSrc
   - $Env:GCO_ENABLED=1
   - go build -o build/tsh.exe ./tool/tsh
-  - tree build
+  - $Env:WINDOWS_SIGNING_CERT | Write-File -Encoding ASCII -Path windows-signing-cert.pfx
+  - osslsigncode -pkcs12 windows-signing-cert.pfx -n Teleport -i https://goteleport.com
+    -t http://timestamp.digicert.com -h sha2 -in build/tsh.exe -out build/tsh.signed.exe
+  - Rename-Item -Force -Path build/tsh.signed.exe -NewName build/tsh.exe
   environment:
+    WINDOWS_SIGNING_CERT:
+      from_secret: WINDOWS_SIGNING_CERT
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
 - name: Build Teleport Connect
   commands:
@@ -731,13 +737,17 @@ steps:
   - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
   - $WebappsSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/webapps"
   - $NodeVersion = "16.13.2"
+  - $Env:DRONE_TAG="v10.1.2
+  - $TeleportVersion=$Env:DRONE_TAG.TrimStart('v')
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Enable-Node -NodeVersion $NodeVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
   - cd $WebappsSrc
   - yarn install --frozen-lockfile
   - yarn build-term
-  - yarn package-term -c.extraMetadata.version=$VERSION
+  - yarn package-term -c.extraMetadata.version=$TeleportVersion
   environment:
+    CSC_LINK:
+      from_secret: WINDOWS_SIGNING_CERT
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
 - name: Clean up workspace (post)
   commands:
@@ -763,13 +773,17 @@ name: build-native-windows-amd64
 trigger:
   event:
     include:
-    - tag
-  ref:
-    include:
-    - refs/tags/v*
+    - push
+    exclude:
+    - pull_request
   repo:
     include:
     - gravitational/*
+  branch:
+    include:
+    - master
+    - branch/*
+    - tcsc/build-windows*
 workspace:
   path: C:/Drone/Workspace/build-native-windows-amd64
 platform:
@@ -777,8 +791,6 @@ platform:
   arch: amd64
 clone:
   disable: true
-depends_on:
-- build-windows-amd64
 concurrency:
   limit: 1
 steps:
@@ -844,8 +856,13 @@ steps:
   - cd $TeleportSrc
   - $Env:GCO_ENABLED=1
   - go build -o build/tsh.exe ./tool/tsh
-  - tree build
+  - $Env:WINDOWS_SIGNING_CERT | Write-File -Encoding ASCII -Path windows-signing-cert.pfx
+  - osslsigncode -pkcs12 windows-signing-cert.pfx -n Teleport -i https://goteleport.com
+    -t http://timestamp.digicert.com -h sha2 -in build/tsh.exe -out build/tsh.signed.exe
+  - Rename-Item -Force -Path build/tsh.signed.exe -NewName build/tsh.exe
   environment:
+    WINDOWS_SIGNING_CERT:
+      from_secret: WINDOWS_SIGNING_CERT
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Build Teleport Connect
   commands:
@@ -853,19 +870,24 @@ steps:
   - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
   - $WebappsSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/webapps"
   - $NodeVersion = "16.13.2"
+  - $Env:DRONE_TAG="v10.1.2
+  - $TeleportVersion=$Env:DRONE_TAG.TrimStart('v')
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Enable-Node -NodeVersion $NodeVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
   - cd $WebappsSrc
   - yarn install --frozen-lockfile
   - yarn build-term
-  - yarn package-term -c.extraMetadata.version=$VERSION
+  - yarn package-term -c.extraMetadata.version=$TeleportVersion
   environment:
+    CSC_LINK:
+      from_secret: WINDOWS_SIGNING_CERT
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Upload Artifacts
   commands:
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
   - $WebappsSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/webapps"
+  - $Env:DRONE_TAG="v10.1.2"
   - $TeleportVersion=$Env:DRONE_TAG.TrimStart('v')
   - $OutputsDir="$Workspace/outputs"
   - New-Item -Path "$OutputsDir" -ItemType 'Directory' | Out-Null
@@ -877,12 +899,11 @@ steps:
   - Copy-Artifacts -Path $OutputsDir -Bucket $Env:AWS_S3_BUCKET -DstRoot "/teleport/tag/$TeleportVersion"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_REGION: us-west-2
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
+      from_secret: MOCK_AWS_ACCESS_KEY_ID
+    AWS_REGION: ap-southeast-2
+    AWS_S3_BUCKET: trents-mock-dronestorage
     AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
+      from_secret: MOCK_AWS_SECRET_ACCESS_KEY
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Clean up workspace (post)
   commands:
@@ -6739,6 +6760,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: e651c8951b67208b9fb13cb185ba8349dd11d7be1b2ec0e55c850a500e83690a
+hmac: 970256189a0dd1a48ca40ac0585a5acef8e448837aa576364105703d532dff6f
 
 ...

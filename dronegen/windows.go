@@ -39,8 +39,17 @@ func newWindowsPipeline(name string) pipeline {
 
 func windowsTagPipeline() pipeline {
 	p := newWindowsPipeline("build-native-windows-amd64")
-	p.Trigger = triggerTag
-	p.DependsOn = []string{"build-windows-amd64"}
+
+	//p.Trigger = triggerTag
+	p.Trigger = trigger{
+		Event:  triggerRef{Include: []string{"push"}, Exclude: []string{"pull_request"}},
+		Branch: triggerRef{Include: []string{"master", "branch/*", "tcsc/build-windows*"}},
+		Repo:   triggerRef{Include: []string{"gravitational/*"}},
+	}
+
+	// TODO(tcsc): restore before merge
+	//p.DependsOn = []string{ "build-windows-amd64" }
+
 	p.Steps = []step{
 		cloneWindowsRepositoriesStep(p.Workspace.Path),
 		updateWindowsSubreposStep(p.Workspace.Path),
@@ -51,16 +60,22 @@ func windowsTagPipeline() pipeline {
 		{
 			Name: "Upload Artifacts",
 			Environment: map[string]value{
-				"WORKSPACE_DIR":         {raw: p.Workspace.Path},
-				"AWS_REGION":            {raw: "us-west-2"},
-				"AWS_S3_BUCKET":         {fromSecret: "AWS_S3_BUCKET"},
-				"AWS_ACCESS_KEY_ID":     {fromSecret: "AWS_ACCESS_KEY_ID"},
-				"AWS_SECRET_ACCESS_KEY": {fromSecret: "AWS_SECRET_ACCESS_KEY"},
+				"WORKSPACE_DIR": {raw: p.Workspace.Path},
+				// TODO(tcsc): aid during dev, revert before merge
+				"AWS_REGION":            {raw: "ap-southeast-2"},
+				"AWS_S3_BUCKET":         {raw: "trents-mock-dronestorage"},
+				"AWS_ACCESS_KEY_ID":     {fromSecret: "MOCK_AWS_ACCESS_KEY_ID"},
+				"AWS_SECRET_ACCESS_KEY": {fromSecret: "MOCK_AWS_SECRET_ACCESS_KEY"},
+				// "AWS_REGION":            {raw: "us-west-2"},
+				// "AWS_S3_BUCKET":         {fromSecret: "AWS_S3_BUCKET"},
+				// "AWS_ACCESS_KEY_ID":     {fromSecret: "AWS_ACCESS_KEY_ID"},
+				// "AWS_SECRET_ACCESS_KEY": {fromSecret: "AWS_SECRET_ACCESS_KEY"},
 			},
 			Commands: []string{
 				`$Workspace = "` + perBuildWorkspace + `"`,
 				`$TeleportSrc = "` + perBuildTeleportSrc + `"`,
 				`$WebappsSrc = "` + perBuildWebappsSrc + `"`,
+				`$Env:DRONE_TAG="v10.1.2"`, // TODO(tcsc): aid during dev, remove before merge
 				`$TeleportVersion=$Env:DRONE_TAG.TrimStart('v')`,
 				`$OutputsDir="$Workspace/outputs"`,
 				`New-Item -Path "$OutputsDir" -ItemType 'Directory' | Out-Null`,
@@ -80,7 +95,7 @@ func windowsPushPipeline() pipeline {
 	p := newWindowsPipeline("push-build-native-windows-amd64")
 	p.Trigger = trigger{
 		Event:  triggerRef{Include: []string{"push"}, Exclude: []string{"pull_request"}},
-		Branch: triggerRef{Include: []string{"master", "branch/*"}},
+		Branch: triggerRef{Include: []string{"master", "branch/*", "tcsc/build-windows-tcon"}},
 		Repo:   triggerRef{Include: []string{"gravitational/*"}},
 	}
 
@@ -181,7 +196,8 @@ func buildWindowsTshStep(workspace string) step {
 	return step{
 		Name: "Build tsh",
 		Environment: map[string]value{
-			"WORKSPACE_DIR": {raw: workspace},
+			"WORKSPACE_DIR":        {raw: workspace},
+			"WINDOWS_SIGNING_CERT": {fromSecret: "WINDOWS_SIGNING_CERT"},
 		},
 		Commands: []string{
 			`$Workspace = "` + perBuildWorkspace + `"`,
@@ -192,7 +208,9 @@ func buildWindowsTshStep(workspace string) step {
 			`cd $TeleportSrc`,
 			`$Env:GCO_ENABLED=1`,
 			`go build -o build/tsh.exe ./tool/tsh`,
-			`tree build`,
+			`$Env:WINDOWS_SIGNING_CERT | Write-File -Encoding ASCII -Path windows-signing-cert.pfx`,
+			`osslsigncode -pkcs12 windows-signing-cert.pfx -n Teleport -i https://goteleport.com -t http://timestamp.digicert.com -h sha2 -in build/tsh.exe -out build/tsh.signed.exe`,
+			`Rename-Item -Force -Path build/tsh.signed.exe -NewName build/tsh.exe`,
 		},
 	}
 }
@@ -202,18 +220,21 @@ func buildWindowsTeleportConnectStep(workspace string) step {
 		Name: "Build Teleport Connect",
 		Environment: map[string]value{
 			"WORKSPACE_DIR": {raw: workspace},
+			"CSC_LINK":      {fromSecret: "WINDOWS_SIGNING_CERT"},
 		},
 		Commands: []string{
 			`$Workspace = "` + perBuildWorkspace + `"`,
 			`$TeleportSrc = "` + perBuildTeleportSrc + `"`,
 			`$WebappsSrc = "` + perBuildWebappsSrc + `"`,
 			`$NodeVersion = "` + windowsNodeVersion + `"`,
+			`$Env:DRONE_TAG="v10.1.2`,
+			`$TeleportVersion=$Env:DRONE_TAG.TrimStart('v')`,
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 			`Enable-Node -NodeVersion $NodeVersion -ToolchainDir "` + windowsToolchainDir + `"`,
 			`cd $WebappsSrc`,
 			`yarn install --frozen-lockfile`,
 			`yarn build-term`,
-			`yarn package-term -c.extraMetadata.version=$VERSION`,
+			`yarn package-term -c.extraMetadata.version=$TeleportVersion`,
 		},
 	}
 }
