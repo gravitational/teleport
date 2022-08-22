@@ -1012,7 +1012,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		log:         log,
+		Log:         log,
 		Ports:       opts.rootClusterPorts,
 	})
 
@@ -1023,7 +1023,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		log:         log,
+		Log:         log,
 		Ports:       opts.leafClusterPorts,
 	})
 
