@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v2"
 )
@@ -64,6 +65,14 @@ func writePipelines(path string, newPipelines []pipeline) error {
 		return fmt.Errorf("failed to parse existing config: %w", err)
 	}
 
+	darwinPipelines := make([]parsedPipeline, 0)
+
+	for _, p := range existingPipelines {
+		if strings.Contains(p.Name, "darwin") {
+			darwinPipelines = append(darwinPipelines, p)
+		}
+	}
+
 	newPipelinesSet := make(map[string]pipeline, len(newPipelines))
 	for _, p := range newPipelines {
 		// TODO: remove this check once promoteBuildPipeline and
@@ -74,7 +83,7 @@ func writePipelines(path string, newPipelines []pipeline) error {
 		newPipelinesSet[p.Name] = p
 	}
 
-	pipelines := existingPipelines
+	pipelines := darwinPipelines
 	// Overwrite all existing pipelines with new ones that have the same name.
 	for i, p := range pipelines {
 		if np, ok := newPipelinesSet[p.Name]; ok {
@@ -90,13 +99,13 @@ func writePipelines(path string, newPipelines []pipeline) error {
 	}
 	// If we decide to add new pipelines before everything is migrated to this
 	// generator, this check needs to change.
-	if len(newPipelinesSet) != 0 {
-		var names []string
-		for n := range newPipelinesSet {
-			names = append(names, n)
-		}
-		return fmt.Errorf("pipelines %q don't exist in the current config, aborting", names)
-	}
+	// if len(newPipelinesSet) != 0 {
+	// 	var names []string
+	// 	for n := range newPipelinesSet {
+	// 		names = append(names, n)
+	// 	}
+	// 	return fmt.Errorf("pipelines %q don't exist in the current config, aborting", names)
+	// }
 
 	var pipelinesEnc [][]byte
 	for _, p := range pipelines {
