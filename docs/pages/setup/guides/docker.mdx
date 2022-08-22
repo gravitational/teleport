@@ -56,6 +56,13 @@ We provide pre-built Docker images for every version of Teleport.
 
 These images are hosted on Amazon ECR Public. All tags under `public.ecr.aws/gravitational/teleport` [are Teleport Open Source images](https://gallery.ecr.aws/gravitational/teleport).
 
+<Admonition
+  type="warning"
+  title="Quay Docker Images"
+>
+Docker images will continue to be published to quay.io until Teleport 9 is EOL.
+</Admonition>
+
 The table below gives an idea of how our image naming scheme works. We offer images that
 point to a static version of Teleport, as well as images that are automatically rebuilt
 every night. These nightly images point to the latest version of Teleport from the
