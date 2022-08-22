@@ -71,6 +71,7 @@ func (b *Shards) AsyncPollStreams(ctx context.Context) error {
 			b.Log.Errorf("Poll streams returned with error: %v.", err)
 		}
 		b.Log.Debugf("Reloading %v.", retry)
+		// TODO: ensure that reloading starts from an updated cursor!?
 		select {
 		case <-retry.After():
 			retry.Inc()
