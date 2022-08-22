@@ -24,18 +24,20 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
+
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
+
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestListServers(t *testing.T) {
-	myServer1, myDBServer1 := makeMySQLServer(t, "mysql1", "group1", "Ready", "5.7")
-	myServer2, myDBServer2 := makeMySQLServer(t, "mysql2", "group2", "Ready", "5.7")
-	pgServer1, pgDBServer1 := makePostgresServer(t, "pgres1", "group1", "Ready", "11")
-	pgServer2, pgDBServer2 := makePostgresServer(t, "pgres2", "group2", "Ready", "11")
+	myServer1, myDBServer1 := makeMySQLServer("mysql1", "group1")
+	myServer2, myDBServer2 := makeMySQLServer("mysql2", "group2")
+	pgServer1, pgDBServer1 := makePostgresServer("pgres1", "group1")
+	pgServer2, pgDBServer2 := makePostgresServer("pgres2", "group2")
 	mySQLClient := NewMySQLServersClient(&ARMMySQLMock{
 		DBServers: []*armmysql.Server{myServer1, myServer2},
 	})
@@ -78,22 +80,30 @@ func TestListServers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			servers, err := tt.client.ListServers(ctx, tt.group, maxPages)
+			var (
+				servers []*DBServer
+				err     error
+			)
+			if tt.group == types.Wildcard {
+				servers, err = tt.client.ListAll(ctx, maxPages)
+			} else {
+				servers, err = tt.client.ListWithinGroup(ctx, tt.group, maxPages)
+			}
 			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(tt.want, servers, cmpopts.IgnoreFields(DBServer{}, "versionChecker")))
+			require.Empty(t, cmp.Diff(tt.want, servers))
 		})
 	}
 }
 
 func TestGetServer(t *testing.T) {
-	myServer1, _ := makeMySQLServer(t, "a", "group1", "5.7", "Ready")
-	myServer2, myDBServer2 := makeMySQLServer(t, "a", "group2", "5.7", "Ready")
-	myServer3, _ := makeMySQLServer(t, "b", "group1", "5.7", "Ready")
-	myServer4, _ := makeMySQLServer(t, "b", "group2", "5.7", "Ready")
-	pgServer1, pgDBServer1 := makePostgresServer(t, "a", "group1", "5.7", "Ready")
-	pgServer2, _ := makePostgresServer(t, "a", "group2", "5.7", "Ready")
-	pgServer3, _ := makePostgresServer(t, "b", "group1", "5.7", "Ready")
-	pgServer4, _ := makePostgresServer(t, "b", "group2", "5.7", "Ready")
+	myServer1, _ := makeMySQLServer("a", "group1")
+	myServer2, myDBServer2 := makeMySQLServer("a", "group2")
+	myServer3, _ := makeMySQLServer("b", "group1")
+	myServer4, _ := makeMySQLServer("b", "group2")
+	pgServer1, pgDBServer1 := makePostgresServer("a", "group1")
+	pgServer2, _ := makePostgresServer("a", "group2")
+	pgServer3, _ := makePostgresServer("b", "group1")
+	pgServer4, _ := makePostgresServer("b", "group2")
 	mySQLClient := NewMySQLServersClient(&ARMMySQLMock{
 		DBServers: []*armmysql.Server{myServer1, myServer2, myServer3, myServer4},
 	})
@@ -129,7 +139,7 @@ func TestGetServer(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s, err := tt.client.Get(ctx, tt.group, tt.dbName)
 			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(tt.want, s, cmpopts.IgnoreFields(DBServer{}, "versionChecker")))
+			require.Empty(t, cmp.Diff(tt.want, s))
 		})
 	}
 }
@@ -137,7 +147,7 @@ func TestGetServer(t *testing.T) {
 func TestServerConversion(t *testing.T) {
 	tests := []struct {
 		name          string
-		provider      string
+		protocol      string
 		version       string
 		state         string
 		wantAvailable bool
@@ -145,7 +155,7 @@ func TestServerConversion(t *testing.T) {
 	}{
 		{
 			name:          "mysql available and supported",
-			provider:      MySQLNamespace,
+			protocol:      defaults.ProtocolMySQL,
 			version:       "5.7",
 			state:         "Ready",
 			wantAvailable: true,
@@ -153,7 +163,7 @@ func TestServerConversion(t *testing.T) {
 		},
 		{
 			name:          "mysql unavailable and unsupported",
-			provider:      MySQLNamespace,
+			protocol:      defaults.ProtocolMySQL,
 			version:       "5.6",
 			state:         "Disabled",
 			wantAvailable: false,
@@ -161,7 +171,7 @@ func TestServerConversion(t *testing.T) {
 		},
 		{
 			name:          "postgres available and supported",
-			provider:      PostgreSQLNamespace,
+			protocol:      defaults.ProtocolPostgres,
 			version:       "11",
 			state:         "Ready",
 			wantAvailable: true,
@@ -169,7 +179,7 @@ func TestServerConversion(t *testing.T) {
 		},
 		{
 			name:          "postgres unavailable",
-			provider:      PostgreSQLNamespace,
+			protocol:      defaults.ProtocolPostgres,
 			version:       "11",
 			state:         "Disabled",
 			wantAvailable: false,
@@ -186,42 +196,81 @@ func TestServerConversion(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var (
-				server *DBServer
-				fqdn   string
+				dbServer *DBServer
+				fqdn     string
+				id       string
+				port     string
 			)
 			tags := map[string]string{"foo": "bar", "baz": "qux"}
-			switch tt.provider {
-			case MySQLNamespace:
-				fqdn = fmt.Sprintf("%v.mysql.database.azure.com", dbName)
-				_, server = makeMySQLServer(t, dbName, group, tt.state, tt.version)
-			case PostgreSQLNamespace:
-				fqdn = fmt.Sprintf("%v.postgres.database.azure.com", dbName)
-				_, server = makePostgresServer(t, dbName, group, tt.state, tt.version)
+			switch tt.protocol {
+			case defaults.ProtocolMySQL:
+				armServer, _ := makeMySQLServer(dbName, group, withMySQLState(tt.state), withMySQLVersion(tt.version))
+				dbServer = ServerFromMySQLServer(armServer)
+				fqdn = *armServer.Properties.FullyQualifiedDomainName
+				id = *armServer.ID
+				port = "3306"
+			case defaults.ProtocolPostgres:
+				armServer, _ := makePostgresServer(dbName, group, withPostgresState(tt.state), withPostgresVersion(tt.version))
+				dbServer = ServerFromPostgresServer(armServer)
+				fqdn = *armServer.Properties.FullyQualifiedDomainName
+				id = *armServer.ID
+				port = "5432"
 			default:
-				require.FailNow(t, "unknown db namespace specified by test")
+				require.FailNow(t, "unknown db protocol specified by test")
 			}
 
-			rid, err := arm.ParseResourceID(server.ID)
+			expected := DBServer{
+				ID:       id,
+				Location: region,
+				Name:     dbName,
+				Port:     port,
+				Properties: ServerProperties{
+					FullyQualifiedDomainName: fqdn,
+					UserVisibleState:         tt.state,
+					Version:                  tt.version,
+				},
+				Protocol: tt.protocol,
+				Tags:     tags,
+			}
+
+			_, err := arm.ParseResourceID(dbServer.ID)
 			require.NoError(t, err)
 
-			require.Equal(t, dbName, server.Name)
-			require.Equal(t, dbName, rid.Name)
-			require.Equal(t, region, server.Location)
-			require.Equal(t, tags, server.Tags)
-			require.Equal(t, fqdn, server.Properties.FullyQualifiedDomainName)
-			require.Equal(t, tt.state, server.Properties.UserVisibleState)
-			require.Equal(t, tt.version, server.Properties.Version)
-			require.Equal(t, group, rid.ResourceGroupName)
-			require.Equal(t, "subid", rid.SubscriptionID)
-			require.Equal(t, tt.provider, rid.ResourceType.Namespace)
-			require.Equal(t, "servers", rid.ResourceType.Type)
-			require.Equal(t, tt.wantAvailable, server.IsAvailable())
-			require.Equal(t, tt.wantSupported, server.IsVersionSupported())
+			require.Equal(t, expected, *dbServer)
+			require.Equal(t, tt.wantAvailable, dbServer.IsAvailable())
+			require.Equal(t, tt.wantSupported, dbServer.IsVersionSupported())
 		})
 	}
 }
 
-func makeMySQLServer(t *testing.T, name, group, state, version string) (*armmysql.Server, *DBServer) {
+type MySQLServerOptFn func(*armmysql.Server)
+type PostgresServerOptFn func(*armpostgresql.Server)
+
+func withMySQLState(state string) MySQLServerOptFn {
+	return func(s *armmysql.Server) {
+		*s.Properties.UserVisibleState = armmysql.ServerState(state)
+	}
+}
+
+func withMySQLVersion(version string) MySQLServerOptFn {
+	return func(s *armmysql.Server) {
+		*s.Properties.Version = armmysql.ServerVersion(version)
+	}
+}
+
+func withPostgresState(state string) PostgresServerOptFn {
+	return func(s *armpostgresql.Server) {
+		*s.Properties.UserVisibleState = armpostgresql.ServerState(state)
+	}
+}
+
+func withPostgresVersion(version string) PostgresServerOptFn {
+	return func(s *armpostgresql.Server) {
+		*s.Properties.Version = armpostgresql.ServerVersion(version)
+	}
+}
+
+func makeMySQLServer(name, group string, opts ...MySQLServerOptFn) (*armmysql.Server, *DBServer) {
 	id := fmt.Sprintf("/subscriptions/subid/resourceGroups/%v/providers/Microsoft.DBforMySQL/servers/%v",
 		group, name)
 	fqdn := fmt.Sprintf("%v.mysql.database.azure.com", name)
@@ -229,20 +278,22 @@ func makeMySQLServer(t *testing.T, name, group, state, version string) (*armmysq
 		Location: to.Ptr("eastus"),
 		Properties: &armmysql.ServerProperties{
 			FullyQualifiedDomainName: &fqdn,
-			UserVisibleState:         (*armmysql.ServerState)(&state),
-			Version:                  (*armmysql.ServerVersion)(&version),
+			UserVisibleState:         to.Ptr(armmysql.ServerStateReady),
+			Version:                  to.Ptr(armmysql.ServerVersionFive7),
 		},
 		Tags: map[string]*string{"foo": to.Ptr("bar"), "baz": to.Ptr("qux")},
 		ID:   to.Ptr(id),
 		Name: &name,
 		Type: to.Ptr("Microsoft.DBforMySQL/servers"),
 	}
-	dbServer, err := ServerFromMySQLServer(server)
-	require.NoError(t, err)
+	for _, optFn := range opts {
+		optFn(server)
+	}
+	dbServer := ServerFromMySQLServer(server)
 	return server, dbServer
 }
 
-func makePostgresServer(t *testing.T, name, group, state, version string) (*armpostgresql.Server, *DBServer) {
+func makePostgresServer(name, group string, opts ...PostgresServerOptFn) (*armpostgresql.Server, *DBServer) {
 	id := fmt.Sprintf("/subscriptions/subid/resourceGroups/%v/providers/Microsoft.DBforPostgreSQL/servers/%v",
 		group, name)
 	fqdn := fmt.Sprintf("%v.postgres.database.azure.com", name)
@@ -250,15 +301,17 @@ func makePostgresServer(t *testing.T, name, group, state, version string) (*armp
 		Location: to.Ptr("eastus"),
 		Properties: &armpostgresql.ServerProperties{
 			FullyQualifiedDomainName: &fqdn,
-			UserVisibleState:         (*armpostgresql.ServerState)(&state),
-			Version:                  (*armpostgresql.ServerVersion)(&version),
+			UserVisibleState:         to.Ptr(armpostgresql.ServerStateReady),
+			Version:                  to.Ptr(armpostgresql.ServerVersionEleven),
 		},
 		Tags: map[string]*string{"foo": to.Ptr("bar"), "baz": to.Ptr("qux")},
 		ID:   to.Ptr(id),
 		Name: &name,
 		Type: to.Ptr("Microsoft.DBforPostgreSQL/servers"),
 	}
-	dbServer, err := ServerFromPostgresServer(server)
-	require.NoError(t, err)
+	for _, optFn := range opts {
+		optFn(server)
+	}
+	dbServer := ServerFromPostgresServer(server)
 	return server, dbServer
 }

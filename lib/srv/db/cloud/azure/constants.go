@@ -21,8 +21,4 @@ const (
 	MySQLPort = "3306"
 	// PostgresPort is the Azure managed PostgreSQL server port
 	PostgresPort = "5432"
-	// MySQLNamespace is the namespace for Azure managed MySQL DBs
-	MySQLNamespace = "Microsoft.DBforMySQL"
-	// PostgreSQLNamespace is the namespace for Azure managed PostgreSQL DBs
-	PostgreSQLNamespace = "Microsoft.DBforPostgreSQL"
 )
