@@ -4530,8 +4530,12 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 	}
 
 	// StreamSessionEvents can be called internally, and when that happens we don't want to emit an event.
-	_, isBuiltinRole := a.context.Identity.(BuiltinRole)
-	shouldEmitAuditEvent := !isBuiltinRole
+	shouldEmitAuditEvent := true
+	if role, ok := a.context.Identity.(BuiltinRole); ok {
+		if role.IsServer() {
+			shouldEmitAuditEvent = false
+		}
+	}
 
 	if shouldEmitAuditEvent {
 		if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SessionRecordingAccess{
