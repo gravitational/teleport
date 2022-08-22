@@ -4520,9 +4520,9 @@ func (a *ServerWithRoles) ReplaceRemoteLocks(ctx context.Context, clusterName st
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
 func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	createErrorChannel := func(err error) (chan apievents.AuditEvent, chan error) {
-		c, e := make(chan apievents.AuditEvent), make(chan error, 1)
+		e := make(chan error, 1)
 		e <- trace.Wrap(err)
-		return c, e
+		return nil, e
 	}
 
 	if err := a.actionForKindSession(apidefaults.Namespace, types.VerbList, sessionID); err != nil {
