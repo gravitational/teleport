@@ -1779,7 +1779,10 @@ steps:
   - ls src/github.com
   - ls src/github.com/gravitational
   - ls src/github.com/gravitational/webapps
-  - ls src/github.com/gravitational/webapps/webapps
+  - ls src/github.com/gravitational/webapps/packages
+  - ls src/github.com/gravitational/webapps/packages/teleterm
+  - ls src/github.com/gravitational/webapps/packages/teleterm/build
+  - ls src/github.com/gravitational/webapps/packages/teleterm/build/release
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
 - name: Upload to S3
@@ -6492,6 +6495,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: f569e71dd2a1c526de9e4fee93ee8035c7a61c8c1f7466c6b9eed92f0259a714
+hmac: 37548eb735a9b72e0135f6b447bff25c2c50c958aa8b216dae7b4028494746b1
 
 ...

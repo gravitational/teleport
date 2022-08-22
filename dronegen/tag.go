@@ -182,7 +182,10 @@ func tagCopyArtifactCommands(b buildType) []string {
 			`ls src/github.com`,
 			`ls src/github.com/gravitational`,
 			`ls src/github.com/gravitational/webapps`,
-			`ls src/github.com/gravitational/webapps/webapps`,
+			`ls src/github.com/gravitational/webapps/packages`,
+			`ls src/github.com/gravitational/webapps/packages/teleterm`,
+			`ls src/github.com/gravitational/webapps/packages/teleterm/build`,
+			`ls src/github.com/gravitational/webapps/packages/teleterm/build/release`,
 		)
 		//commands = append(commands,
 		//	`cp /go/src/github.com/gravitational/webapps/packages/teleterm/build/release/teleport-connect*.{tar.gz,deb,rpm} /go/artifacts/`,
