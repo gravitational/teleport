@@ -1,6 +1,6 @@
 # Changelog
 
-## 9.3.15
+## 9.3.16
 
 This release of Teleport contains multiple improvements and bug fixes.
 
