@@ -75,7 +75,7 @@ func (b *Shards) AsyncPollStreams(ctx context.Context) error {
 		case <-retry.After():
 			retry.Inc()
 		case <-ctx.Done():
-			b.Log.Debugf("Closed, returning from asyncPollStreams loop.")
+			b.Log.Debug("Closed, returning from asyncPollStreams loop.")
 			return nil
 		}
 	}
@@ -182,6 +182,7 @@ func (b *Shards) pollStreams(externalCtx context.Context) error {
 				b.Log.Debugf("Shard ID %v exited gracefully.", event.shardID)
 			} else {
 				// Q: It seems that there's no checkpointing when streaming changes to the backend.
+				b.Log.Debugf("Pushing %d stream records to channel.", len(event.records))
 				if err := b.OnRecords(event.records); err != nil {
 					return trace.Wrap(err)
 				}

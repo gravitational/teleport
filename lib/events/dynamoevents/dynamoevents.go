@@ -1097,7 +1097,9 @@ func (l *Log) StreamEvents(ctx context.Context, cursor string) (chan apievents.S
 						Event:  event,
 						Cursor: "TODO",
 					}
+					l.Entry.Debug("Pushing stream event to channel.")
 					c <- streamEvent
+					l.Entry.Debug("Pushed stream event to channel.")
 				}
 				return nil
 			},
