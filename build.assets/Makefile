@@ -247,7 +247,7 @@ endif
 #
 .PHONY:teleterm
 teleterm: buildbox-teleterm
-	docker run $(WEBAPPSDOCKERFLAGS) $(NOROOT) $(BUILDBOX_TELETERM) -it \
+	docker run $(WEBAPPSDOCKERFLAGS) $(NOROOT) $(BUILDBOX_TELETERM) \
 		bash -c "cd ../webapps && yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$(CONNECT_VERSION)"
 
 # grpc generates GRPC stubs from inside the buildbox
