@@ -544,6 +544,9 @@ const (
 	// is updated. Used only for teleport cloud.
 	UpgradeWindowStartUpdateEvent = "upgradewindowstart.update"
 
+	// SessionRecordingAccessEvent is emitted when a session recording is accessed
+	SessionRecordingAccessEvent = "session.recording.access"
+
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
 )
