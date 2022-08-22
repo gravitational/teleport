@@ -24,6 +24,7 @@ extern crate log;
 #[macro_use]
 extern crate num_derive;
 
+use derivative::Derivative;
 use errors::try_error;
 use libc::{fd_set, select, FD_SET};
 use rand::Rng;
@@ -1574,12 +1575,14 @@ pub enum TdpErrCode {
 
 /// SharedDirectoryWriteRequest is sent by the TDP server to the client
 /// to write to a file.
-#[derive(Debug, Clone)]
+#[derive(Clone, Derivative)]
+#[derivative(Debug)]
 pub struct SharedDirectoryWriteRequest {
     completion_id: u32,
     directory_id: u32,
     offset: u64,
     path: UnixPath,
+    #[derivative(Debug(format_with = "util::vec_u8_debug"))]
     write_data: Vec<u8>,
 }
 
@@ -1618,11 +1621,13 @@ pub struct CGOSharedDirectoryReadRequest {
 
 /// SharedDirectoryReadResponse is sent by the TDP client to the server
 /// with the data as requested by a SharedDirectoryReadRequest.
-#[derive(Debug)]
+#[derive(Derivative)]
+#[derivative(Debug)]
 #[repr(C)]
 pub struct SharedDirectoryReadResponse {
     pub completion_id: u32,
     pub err_code: TdpErrCode,
+    #[derivative(Debug(format_with = "util::vec_u8_debug"))]
     pub read_data: Vec<u8>,
 }
 

@@ -859,6 +859,7 @@ dependencies = [
  "bitflags",
  "byteorder",
  "cbindgen",
+ "derivative",
  "env_logger",
  "iso7816",
  "iso7816-tlv",
