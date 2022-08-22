@@ -26,16 +26,16 @@ import (
 
 // DBServersClient provides an interface for fetching Azure DB servers.
 type DBServersClient interface {
-	// ListAll lists all Azure DB servers within an Azure subscription.
+	// ListAll returns all Azure DB servers within an Azure subscription.
 	ListAll(ctx context.Context, maxPages int) ([]*DBServer, error)
-	// ListWithinGroup lists all Azure DB servers within an Azure resource group.
+	// ListWithinGroup returns all Azure DB servers within an Azure resource group.
 	ListWithinGroup(ctx context.Context, group string, maxPages int) ([]*DBServer, error)
-	// Get returns a DBServer with an Azure subscription, queried by group and name
+	// Get returns a DBServer within an Azure subscription, queried by group and name
 	Get(ctx context.Context, group, name string) (*DBServer, error)
 }
 
 // ARMMySQL is an interface for armmysql.ServersClient.
-// It is provided so that the client can be mocked.
+// It exists so that the client can be mocked.
 type ARMMySQL interface {
 	// Get - gets information about an Azure DB server.
 	Get(ctx context.Context, group, name string, opts *armmysql.ServersClientGetOptions) (armmysql.ServersClientGetResponse, error)
@@ -48,7 +48,7 @@ type ARMMySQL interface {
 var _ ARMMySQL = (*armmysql.ServersClient)(nil)
 
 // ARMPostgres is an interface for armpostgresql.ServersClient.
-// It is provided so that the client can be mocked.
+// It exists so that the client can be mocked.
 type ARMPostgres interface {
 	// Get - gets information about an Azure DB server.
 	Get(ctx context.Context, group, name string, opts *armpostgresql.ServersClientGetOptions) (armpostgresql.ServersClientGetResponse, error)
