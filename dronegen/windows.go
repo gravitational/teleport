@@ -209,7 +209,7 @@ func buildWindowsTshStep(workspace string) step {
 			`$Env:GCO_ENABLED=1`,
 			`go build -o build/tsh.exe ./tool/tsh`,
 			`[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($Env:WINDOWS_SIGNING_CERT)) | Out-File -Encoding ASCII -FilePath windows-signing-cert.pfx`,
-			`osslsigncode -pkcs12 "windows-signing-cert.pfx" -n "Teleport" -i https://goteleport.com -t http://timestamp.digicert.com -h sha2 -in build/tsh.exe -out build/tsh.signed.exe`,
+			`osslsigncode sign -pkcs12 "windows-signing-cert.pfx" -n "Teleport" -i https://goteleport.com -t http://timestamp.digicert.com -h sha2 -in build/tsh.exe -out build/tsh.signed.exe`,
 			`Rename-Item -Force -Path build/tsh.signed.exe -NewName build/tsh.exe`,
 		},
 	}

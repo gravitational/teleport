@@ -725,7 +725,7 @@ steps:
   - go build -o build/tsh.exe ./tool/tsh
   - '[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($Env:WINDOWS_SIGNING_CERT))
     | Out-File -Encoding ASCII -FilePath windows-signing-cert.pfx'
-  - osslsigncode -pkcs12 "windows-signing-cert.pfx" -n "Teleport" -i https://goteleport.com
+  - osslsigncode sign -pkcs12 "windows-signing-cert.pfx" -n "Teleport" -i https://goteleport.com
     -t http://timestamp.digicert.com -h sha2 -in build/tsh.exe -out build/tsh.signed.exe
   - Rename-Item -Force -Path build/tsh.signed.exe -NewName build/tsh.exe
   environment:
@@ -859,7 +859,7 @@ steps:
   - go build -o build/tsh.exe ./tool/tsh
   - '[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($Env:WINDOWS_SIGNING_CERT))
     | Out-File -Encoding ASCII -FilePath windows-signing-cert.pfx'
-  - osslsigncode -pkcs12 "windows-signing-cert.pfx" -n "Teleport" -i https://goteleport.com
+  - osslsigncode sign -pkcs12 "windows-signing-cert.pfx" -n "Teleport" -i https://goteleport.com
     -t http://timestamp.digicert.com -h sha2 -in build/tsh.exe -out build/tsh.signed.exe
   - Rename-Item -Force -Path build/tsh.signed.exe -NewName build/tsh.exe
   environment:
@@ -6762,6 +6762,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: c9e921fdd687ebaae367676a5738cd2afb25fe073244c6bb133af665ec89fc8a
+hmac: cc42a61f783c2f694b2013053964e07ae6a46c359829795df1c47086210fd2c0
 
 ...
