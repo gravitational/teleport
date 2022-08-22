@@ -14,6 +14,9 @@ RUN BIN="/usr/local/bin" && \
     -o "${BIN}/${BINARY_NAME}" && \
     chmod +x "${BIN}/${BINARY_NAME}"
 
+# Install rpmbuild
+RUN apt-get update -y && apt-get install rpm
+
 # Install node
 ARG NODE_VERSION
 ENV NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${BUILDARCH}.tar.xz"
