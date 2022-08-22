@@ -7370,12 +7370,12 @@ func (m *UpgradeWindowStartUpdate) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_UpgradeWindowStartUpdate proto.InternalMessageInfo
 
-// SessionRecordingAccess is emitted when a session is viewed in the web UI, allowing
+// SessionRecordingAccess is emitted when a session recording is accessed, allowing
 // session views to be included in the audit log
 type SessionRecordingAccess struct {
 	// Metadata is a common event metadata.
 	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
-	// SessionID is the ID of the application session.
+	// SessionID is the ID of the session.
 	SessionID string `protobuf:"bytes,2,opt,name=SessionID,proto3" json:"sid"`
 	// UserMetadata is a common user event metadata.
 	UserMetadata         `protobuf:"bytes,3,opt,name=UserMetadata,proto3,embedded=UserMetadata" json:""`
