@@ -13,18 +13,119 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
 package aws
 
-import "context"
+import (
+	"context"
+	"fmt"
+	"regexp"
+	"strings"
+	"time"
 
-// InstanceMetadata is an interface for fetching information from EC2 instance
-// metadata.
-type InstanceMetadata interface {
-	// IsAvailable checks if instance metadata is available.
-	IsAvailable(ctx context.Context) bool
-	// GetTagKeys gets all of the EC2 tag keys.
-	GetTagKeys(ctx context.Context) ([]string, error)
-	// GetTagValue gets the value for a specified tag key.
-	GetTagValue(ctx context.Context, key string) (string, error)
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+)
+
+// metadataReadLimit is the largest number of bytes that will be read from imds responses.
+const metadataReadLimit = 1_000_000
+
+// InstanceMetadataClient is a wrapper for an imds.Client.
+type InstanceMetadataClient struct {
+	c *imds.Client
+}
+
+// InstanceMetadataClientOption allows setting options as functional arguments to an InstanceMetadataClient.
+type InstanceMetadataClientOption func(client *InstanceMetadataClient) error
+
+// WithIMDSClient adds a custom internal imds.Client to an InstanceMetadataClient.
+func WithIMDSClient(client *imds.Client) InstanceMetadataClientOption {
+	return func(clt *InstanceMetadataClient) error {
+		clt.c = client
+		return nil
+	}
+}
+
+// NewInstanceMetadataClient creates a new instance metadata client.
+func NewInstanceMetadataClient(ctx context.Context, opts ...InstanceMetadataClientOption) (*InstanceMetadataClient, error) {
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt := &InstanceMetadataClient{
+		c: imds.NewFromConfig(cfg),
+	}
+
+	for _, opt := range opts {
+		if err := opt(clt); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return clt, nil
+}
+
+// EC2 resource ID is i-{8 or 17 hex digits}, see
+//   https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/resource-ids.html
+var ec2ResourceIDRE = regexp.MustCompile("^i-[0-9a-f]{8,}$")
+
+// IsAvailable checks if instance metadata is available.
+func (client *InstanceMetadataClient) IsAvailable(ctx context.Context) bool {
+	ctx, cancel := context.WithTimeout(ctx, 250*time.Millisecond)
+	defer cancel()
+
+	// try to retrieve the instance id of our EC2 instance
+	id, err := client.getMetadata(ctx, "instance-id")
+	return err == nil && ec2ResourceIDRE.MatchString(id)
+}
+
+// getMetadata gets the raw metadata from a specified path.
+func (client *InstanceMetadataClient) getMetadata(ctx context.Context, path string) (string, error) {
+	output, err := client.c.GetMetadata(ctx, &imds.GetMetadataInput{Path: path})
+	if err != nil {
+		return "", trace.Wrap(ParseMetadataClientError(err))
+	}
+	defer output.Content.Close()
+	body, err := utils.ReadAtMost(output.Content, metadataReadLimit)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return string(body), nil
+}
+
+// getTagKeys gets all of the EC2 tag keys.
+func (client *InstanceMetadataClient) getTagKeys(ctx context.Context) ([]string, error) {
+	body, err := client.getMetadata(ctx, "tags/instance")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return strings.Split(body, "\n"), nil
+}
+
+// getTagValue gets the value for a specified tag key.
+func (client *InstanceMetadataClient) getTagValue(ctx context.Context, key string) (string, error) {
+	body, err := client.getMetadata(ctx, fmt.Sprintf("tags/instance/%s", key))
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return body, nil
+}
+
+// GetTags gets all of the EC2 instance's tags.
+func (client *InstanceMetadataClient) GetTags(ctx context.Context) (map[string]string, error) {
+	keys, err := client.getTagKeys(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tags := make(map[string]string, len(keys))
+	for _, key := range keys {
+		value, err := client.getTagValue(ctx, key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tags[key] = value
+	}
+	return tags, nil
 }

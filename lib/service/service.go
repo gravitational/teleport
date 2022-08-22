@@ -73,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/postgres"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -381,13 +382,13 @@ type keyPairKey struct {
 
 // newTeleportConfig provides extra options to NewTeleport().
 type newTeleportConfig struct {
-	imdsClient aws.InstanceMetadata
+	imdsClient cloud.InstanceMetadata
 }
 
 type NewTeleportOption func(*newTeleportConfig)
 
 // WithIMDSClient provides NewTeleport with a custom EC2 instance metadata client.
-func WithIMDSClient(client aws.InstanceMetadata) NewTeleportOption {
+func WithIMDSClient(client cloud.InstanceMetadata) NewTeleportOption {
 	return func(c *newTeleportConfig) {
 		c.imdsClient = client
 	}
@@ -888,21 +889,20 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	// Check if we're on an EC2 instance, and if we should override the node's hostname.
 	imClient := newTeleportConf.imdsClient
 	if imClient == nil {
-		imClient, err = utils.NewInstanceMetadataClient(supervisor.ExitContext())
+		imClient, err = aws.NewInstanceMetadataClient(supervisor.ExitContext())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
 	if imClient.IsAvailable(supervisor.ExitContext()) {
-		ec2Hostname, err := imClient.GetTagValue(supervisor.ExitContext(), types.EC2HostnameTag)
-		if err == nil {
-			if ec2Hostname != "" {
-				cfg.Log.Infof("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2HostnameTag, ec2Hostname)
-				cfg.Hostname = ec2Hostname
-			}
-		} else if !trace.IsNotFound(err) {
-			cfg.Log.Errorf("Unexpected error while looking for EC2 hostname: %v", err)
+		ec2Tags, err := imClient.GetTags(supervisor.ExitContext())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if ec2Hostname, ok := ec2Tags[types.EC2HostnameTag]; ok && ec2Hostname != "" {
+			cfg.Log.Infof("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2HostnameTag, ec2Hostname)
+			cfg.Hostname = ec2Hostname
 		}
 
 		ec2Labels, err := ec2.New(supervisor.ExitContext(), &ec2.Config{

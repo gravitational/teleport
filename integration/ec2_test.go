@@ -28,7 +28,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -301,19 +300,8 @@ func (m *mockIMDSClient) IsAvailable(ctx context.Context) bool {
 	return true
 }
 
-func (m *mockIMDSClient) GetTagKeys(ctx context.Context) ([]string, error) {
-	keys := make([]string, 0, len(m.tags))
-	for k := range m.tags {
-		keys = append(keys, k)
-	}
-	return keys, nil
-}
-
-func (m *mockIMDSClient) GetTagValue(ctx context.Context, key string) (string, error) {
-	if value, ok := m.tags[key]; ok {
-		return value, nil
-	}
-	return "", trace.NotFound("Tag %q not found", key)
+func (m *mockIMDSClient) GetTags(ctx context.Context) (map[string]string, error) {
+	return m.tags, nil
 }
 
 // TestEC2Labels is an integration test which asserts that Teleport correctly picks up

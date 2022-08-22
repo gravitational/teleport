@@ -27,8 +27,8 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -41,14 +41,14 @@ const (
 
 // Config is the configuration for the EC2 label service.
 type Config struct {
-	Client aws.InstanceMetadata
+	Client cloud.InstanceMetadata
 	Clock  clockwork.Clock
 	Log    logrus.FieldLogger
 }
 
 func (conf *Config) checkAndSetDefaults(ctx context.Context) error {
 	if conf.Client == nil {
-		client, err := utils.NewInstanceMetadataClient(ctx)
+		client, err := aws.NewInstanceMetadataClient(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -112,7 +112,7 @@ func (l *EC2) Apply(r types.ResourceWithLabels) {
 func (l *EC2) Sync(ctx context.Context) error {
 	m := make(map[string]string)
 
-	tags, err := l.c.Client.GetTagKeys(ctx)
+	tags, err := l.c.Client.GetTags(ctx)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			// Only show the error the first time around.
@@ -124,35 +124,18 @@ func (l *EC2) Sync(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	currentLabels := l.Get()
-	var errors []error
-	for _, t := range tags {
-		if !types.IsValidLabelKey(t) {
-			l.c.Log.Debugf("Skipping EC2 tag %q, not a valid label key.", t)
+	for key, value := range tags {
+		if !types.IsValidLabelKey(key) {
+			l.c.Log.Debugf("Skipping EC2 tag %q, not a valid label key.", key)
 			continue
 		}
-
-		key := toAWSLabel(t)
-		value, err := l.c.Client.GetTagValue(ctx, t)
-		if err != nil {
-			errors = append(errors, err)
-			// If we know the key exists but GetTagValue failed, use the current value
-			// if it exists.
-			if currentValue, ok := currentLabels[key]; ok {
-				m[key] = currentValue
-			} else {
-				m[key] = ""
-			}
-		} else {
-			m[key] = value
-		}
-
+		m[toAWSLabel(key)] = value
 	}
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.labels = m
-	return trace.NewAggregate(errors...)
+	return nil
 }
 
 // Start will start a loop that continually keeps EC2 labels updated.

@@ -28,35 +28,17 @@ import (
 type mockIMDSClient struct {
 	tagsDisabled bool
 	tags         map[string]string
-	// errorKeys are the keys that should return an error from GetTagValue.
-	errorKeys []string
 }
 
 func (m *mockIMDSClient) IsAvailable(ctx context.Context) bool {
 	return true
 }
 
-func (m *mockIMDSClient) GetTagKeys(ctx context.Context) ([]string, error) {
+func (m *mockIMDSClient) GetTags(ctx context.Context) (map[string]string, error) {
 	if m.tagsDisabled {
 		return nil, trace.NotFound("")
 	}
-	keys := make([]string, 0, len(m.tags))
-	for k := range m.tags {
-		keys = append(keys, k)
-	}
-	return keys, nil
-}
-
-func (m *mockIMDSClient) GetTagValue(ctx context.Context, key string) (string, error) {
-	for _, k := range m.errorKeys {
-		if k == key {
-			return "", trace.NotFound("Tag %q not found", key)
-		}
-	}
-	if value, ok := m.tags[key]; ok {
-		return value, nil
-	}
-	return "", trace.NotFound("Tag %q not found", key)
+	return m.tags, nil
 }
 
 func TestEC2LabelsSync(t *testing.T) {
@@ -144,26 +126,4 @@ func TestEC2LabelsDisabled(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, ec2Labels.Sync(ctx))
 	require.Equal(t, map[string]string{}, ec2Labels.Get())
-}
-
-func TestEC2LabelsGetValueFail(t *testing.T) {
-	ctx := context.Background()
-	tags := map[string]string{"a": "1", "b": "2", "c": "3"}
-	updateTags := map[string]string{"b": "6", "c": "7", "d": "8"}
-	errorTags := []string{"b", "d"}
-	expectedTags := map[string]string{"aws/b": "2", "aws/c": "7", "aws/d": ""}
-
-	imdsClient := &mockIMDSClient{
-		tags: tags,
-	}
-	ec2Labels, err := New(ctx, &Config{
-		Client: imdsClient,
-	})
-	require.NoError(t, err)
-	require.NoError(t, ec2Labels.Sync(ctx))
-
-	imdsClient.tags = updateTags
-	imdsClient.errorKeys = errorTags
-	require.Error(t, ec2Labels.Sync(ctx))
-	require.Equal(t, expectedTags, ec2Labels.Get())
 }
