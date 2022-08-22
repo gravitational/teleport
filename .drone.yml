@@ -723,7 +723,7 @@ steps:
   - cd $TeleportSrc
   - $Env:GCO_ENABLED=1
   - go build -o build/tsh.exe ./tool/tsh
-  - $Env:WINDOWS_SIGNING_CERT | Write-File -Encoding ASCII -Path windows-signing-cert.pfx
+  - $Env:WINDOWS_SIGNING_CERT | File-Out -Encoding ASCII -Path windows-signing-cert.pfx
   - osslsigncode -pkcs12 windows-signing-cert.pfx -n Teleport -i https://goteleport.com
     -t http://timestamp.digicert.com -h sha2 -in build/tsh.exe -out build/tsh.signed.exe
   - Rename-Item -Force -Path build/tsh.signed.exe -NewName build/tsh.exe
@@ -856,7 +856,7 @@ steps:
   - cd $TeleportSrc
   - $Env:GCO_ENABLED=1
   - go build -o build/tsh.exe ./tool/tsh
-  - $Env:WINDOWS_SIGNING_CERT | Write-File -Encoding ASCII -Path windows-signing-cert.pfx
+  - $Env:WINDOWS_SIGNING_CERT | File-Out -Encoding ASCII -Path windows-signing-cert.pfx
   - osslsigncode -pkcs12 windows-signing-cert.pfx -n Teleport -i https://goteleport.com
     -t http://timestamp.digicert.com -h sha2 -in build/tsh.exe -out build/tsh.signed.exe
   - Rename-Item -Force -Path build/tsh.signed.exe -NewName build/tsh.exe
@@ -6760,6 +6760,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 970256189a0dd1a48ca40ac0585a5acef8e448837aa576364105703d532dff6f
+hmac: 154b62e74f151c6daa254e555195da77d48f8ca3618df620c279082f6c5a1630
 
 ...
