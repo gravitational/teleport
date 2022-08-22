@@ -117,7 +117,10 @@ The first thing user should see is some indicator that there is recommended acti
    ... (Table of servers)
    ```
 
-I think the `1.` option would be more direct and less distracting since this information is scoped in user managment.
+I think the `1.` option would be more direct and less distracting since this information is scoped to user managment.
 This warning will be visible only for existing `editor` user.
 
 #### CLI
+
+1. `tsh`: no changes required
+2. `tctl`: when using `tctl users ...` we could warn user that second user is highly recommended. This could also print example command that will add `editor` user `tctl users add --roles=editor <name-of-editor>`. Should be visible only when current user is the only `editor` in the cluster.
