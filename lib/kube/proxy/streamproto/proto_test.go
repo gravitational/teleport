@@ -100,8 +100,9 @@ func TestPingPong(t *testing.T) {
 	defer server.Close()
 
 	url := "ws" + strings.TrimPrefix(server.URL, "http")
-	ws, _, err := websocket.DefaultDialer.Dial(url, nil)
+	ws, resp, err := websocket.DefaultDialer.Dial(url, nil)
 	require.NoError(t, err)
+	defer resp.Body.Close()
 
 	go func() {
 		defer ws.Close()
