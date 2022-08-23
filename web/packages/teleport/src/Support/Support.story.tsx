@@ -15,7 +15,8 @@
  */
 
 import React from 'react';
-import { Support } from './Support';
+
+import { Props, Support } from './Support';
 
 export default {
   title: 'Teleport/Support',
@@ -33,10 +34,11 @@ export const SupportWithTunnelAddress = () => (
   <Support {...props} tunnelPublicAddress="localhost:11005"></Support>
 );
 
-const props = {
+const props: Props = {
   clusterId: 'test',
   authVersion: '4.4.0-dev',
   publicURL: 'localhost:3080',
   isEnterprise: false,
   isCloud: false,
+  tunnelPublicAddress: null,
 };
