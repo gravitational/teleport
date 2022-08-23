@@ -92,7 +92,7 @@ func darwinConnectDmgPipeline() pipeline {
 				"APPLE_USERNAME": {fromSecret: "APPLE_USERNAME"},
 				"APPLE_PASSWORD": {fromSecret: "APPLE_PASSWORD"},
 			},
-			Commands: darwinConnectBuildCommands(),
+			Commands: darwinConnectBuildCommands(toolchainConfig),
 		},
 		{
 			Name: "Copy dmg artifact",
@@ -162,7 +162,7 @@ func darwinPushPipeline() pipeline {
 				"WORKSPACE_DIR":     {raw: p.Workspace.Path},
 				"BUILDBOX_PASSWORD": {fromSecret: "BUILDBOX_PASSWORD"},
 			},
-			Commands: darwinTagBuildCommands(b, darwinBuildOptions{unlockKeychain: false, hasTeleportConnect: true}),
+			Commands: darwinTagBuildCommands(b, darwinBuildOptions{unlockKeychain: false, hasTeleportConnect: true}, toolchainConfig),
 		},
 		cleanUpToolchainsStep(p.Workspace.Path, toolchainConfig),
 		cleanUpExecStorageStep(p.Workspace.Path),
@@ -228,7 +228,7 @@ func darwinTagPipeline() pipeline {
 				"APPLE_USERNAME": {fromSecret: "APPLE_USERNAME"},
 				"APPLE_PASSWORD": {fromSecret: "APPLE_PASSWORD"},
 			},
-			Commands: darwinTagBuildCommands(b, darwinBuildOptions{}),
+			Commands: darwinTagBuildCommands(b, darwinBuildOptions{}, toolchainConfig),
 		},
 		{
 			Name: "Copy Mac artifacts",
@@ -390,6 +390,45 @@ func installNodeToolchainStep(workspacePath string) step {
 	}
 }
 
+func configureToolchainsCommands(config toolchainConfig) []string {
+	commands := []string{
+		// HOME needs to be set to the actual user rather than what Drone sets it to by default. This
+		// way we're able to unlock Keychain which is needed for Connect signing.
+		`echo HOME=$${HOME}`,
+		`export HOME=/Users/$(whoami)`,
+		`export TOOLCHAIN_DIR=` + perBuildToolchainsDir,
+	}
+
+	// Configure toolchains in descending order so that Node.js is added to PATH last.
+	// We expect that Node.js will add the most packages so we want to avoid any bin conflicts with Go
+	// or Rust toolchains.
+	if config.nodejs {
+		commands = append(commands,
+			`export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-node-version)`,
+			`export NODE_HOME=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64`,
+			`export PATH=$NODE_HOME/bin:$PATH`,
+		)
+	}
+
+	if config.rust {
+		commands = append(commands,
+			`export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-rust-version)`,
+			`export CARGO_HOME=`+perBuildCargoDir,
+			`export RUST_HOME=$CARGO_HOME`,
+			`export RUSTUP_HOME=`+perBuildRustupDir,
+			`export PATH=$CARGO_HOME/bin:/Users/build/.cargo/bin:$PATH`,
+		)
+	}
+
+	if config.golang {
+		commands = append(commands,
+			`export PATH=$TOOLCHAIN_DIR/go/bin:$PATH`,
+		)
+	}
+
+	return commands
+}
+
 func cleanUpToolchainsStep(workspacePath string, config toolchainConfig) step {
 	step := step{
 		Name:        "Clean up toolchains (post)",
@@ -450,25 +489,18 @@ type darwinBuildOptions struct {
 	hasTeleportConnect bool
 }
 
-func darwinTagBuildCommands(b buildType, opts darwinBuildOptions) []string {
+func darwinTagBuildCommands(b buildType, opts darwinBuildOptions, toolchainConfig toolchainConfig) []string {
 	commands := []string{
 		`set -u`,
-		`echo HOME=$${HOME}`,
-		`export HOME=/Users/$(whoami)`,
-		`export TOOLCHAIN_DIR=` + perBuildToolchainsDir,
-		`export VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport print-version)`,
-		// TODO: Remove Node stuff from tag pipeline.
-		`export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-node-version)`,
-		`export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-rust-version)`,
-		`export CARGO_HOME=` + perBuildCargoDir,
-		`export RUST_HOME=$CARGO_HOME`,
-		`export RUSTUP_HOME=` + perBuildRustupDir,
-		`export NODE_HOME=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64`,
-		`export PATH=$TOOLCHAIN_DIR/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$NODE_HOME/bin:$PATH`,
+	}
+	commands = append(commands, configureToolchainsCommands(toolchainConfig)...)
+	commands = append(commands,
 		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 		`build.assets/build-fido2-macos.sh build`,
 		`export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"`,
 		`rustup override set $RUST_VERSION`,
+		// TODO: VERSION is needed only for push.
+		`export VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport print-version)`,
 		// BUILD_NUMBER is used by electron-builder to add an extra fourth integer to CFBundleVersion on macOS.
 		// This makes the full app version look like this: 9.3.5.12489
 		// https://www.electron.build/configuration/configuration.html#Configuration-buildVersion
@@ -477,7 +509,7 @@ func darwinTagBuildCommands(b buildType, opts darwinBuildOptions) []string {
 		// available.
 		// https://www.electron.build/code-signing
 		`export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83`,
-	}
+	)
 
 	// TODO: Remove Keychain stuff from tag pipeline as it won't be signing anything.
 	if opts.unlockKeychain {
@@ -505,16 +537,12 @@ func darwinTagBuildCommands(b buildType, opts darwinBuildOptions) []string {
 	return commands
 }
 
-func darwinConnectBuildCommands() []string {
+func darwinConnectBuildCommands(toolchainConfig toolchainConfig) []string {
 	commands := []string{
 		`set -u`,
-		`echo HOME=$${HOME}`,
-		`export HOME=/Users/$(whoami)`,
-		`export TOOLCHAIN_DIR=` + perBuildToolchainsDir,
-		`export VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport print-version)`,
-		`export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-node-version)`,
-		`export NODE_HOME=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64`,
-		`export PATH=$NODE_HOME/bin:$PATH`,
+	}
+	commands = append(commands, configureToolchainsCommands(toolchainConfig)...)
+	commands = append(commands,
 		// BUILD_NUMBER is used by electron-builder to add an extra fourth integer to CFBundleVersion on macOS.
 		// This makes the full app version look like this: 9.3.5.12489
 		// https://www.electron.build/configuration/configuration.html#Configuration-buildVersion
@@ -538,7 +566,7 @@ func darwinConnectBuildCommands() []string {
 		// c.extraMetadata.version overwrites the version property from package.json to $VERSION
 		// https://www.electron.build/configuration/configuration.html#Configuration-extraMetadata
 		`yarn install && yarn build-term && yarn package-term -c.extraMetadata.version=$VERSION`,
-	}
+	)
 
 	return commands
 }
