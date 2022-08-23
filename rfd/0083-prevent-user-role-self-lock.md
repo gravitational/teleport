@@ -16,18 +16,18 @@ Users can change their permissions in a way that leaves them incapable of making
 
 Currently, there are multiple ways to trigger this scenario:
 
-| initial state                              | change                                                                                    |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------- | :----: |
-| 1 _admin_ and _regular users_              | _admin_ removes himself from an `editor` role                                               | 
-| 1 _admin_ and _regular users_              | _admin_ loses access to own account                                                         |   
-| 1 _admin_, _SSO admin_ and _regular users_ | _SSO admin_ removes the `editor` role from _admin_ and SSO connector. _SSO admin_ logs out. | 
+| initial state                              | change                                                                                      |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| 1 _admin_ and _regular users_              | _admin_ removes himself from an `editor` role                                               |
+| 1 _admin_ and _regular users_              | _admin_ loses access to own account                                                         |
+| 1 _admin_, _SSO admin_ and _regular users_ | _SSO admin_ removes the `editor` role from _admin_ and SSO connector. _SSO admin_ logs out. |
 | _SSO admin_ and _regular users_            | Someone on the SSO side removes _SSO admin_ user or team/group containing _SSO admins_      |
 
 Teleport already protects against a similar case in the following scenario:
 
-| initial state               | change                                                                       |
-| --------------------------- | ---------------------------------------------------------------------------------- | :----: |
-| _admin_ and _regular users_ | _admin_ tries to delete his account. Operation is not permitted, an error is shown | 
+| initial state               | change                                                                             |
+| --------------------------- | ---------------------------------------------------------------------------------- |
+| _admin_ and _regular users_ | _admin_ tries to delete his account. Operation is not permitted, an error is shown |
 
 ## Terminology
 
@@ -38,6 +38,10 @@ Teleport already protects against a similar case in the following scenario:
 ## Why
 
 When a user locks themselves are unable to further manage the teleport cluster. We want to prevent that since this is bad for the user experience and prevents them from using the product.
+
+Further, for our Cloud offering we don't perform account resets as a policy. The only recurse for a customer is to delete their cluster & deploy a new one. This inevitably leads to data-loss.
+
+On-prem customers could work around this "locked out" state by manually instrumenting the auth process using tctl.
 
 ## Details
 
