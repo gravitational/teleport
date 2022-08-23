@@ -34,7 +34,11 @@ import (
 func TestWriteUpgradeResponse(t *testing.T) {
 	var buf bytes.Buffer
 	require.NoError(t, writeUpgradeResponse(&buf, "custom"))
-	require.Equal(t, "HTTP/1.1 101 Switching Protocols\r\nUpgrade: custom\r\n\r\n", buf.String())
+
+	resp, err := http.ReadResponse(bufio.NewReader(&buf), nil)
+	require.NoError(t, err)
+	require.Equal(t, resp.StatusCode, http.StatusSwitchingProtocols)
+	require.Equal(t, "custom", resp.Header.Get(constants.ConnectionUpgradeHeader))
 }
 
 func TestHandlerConnectionUpgrade(t *testing.T) {
@@ -42,10 +46,13 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 
 	// Cherry picked some attributes to create a Handler to test only the
 	// connection upgrade portion.
+	expectedPayload := "hello@"
 	h := &Handler{
 		cfg: Config{
 			ALPNHandler: func(_ context.Context, conn net.Conn) error {
-				conn.Write([]byte("hello@"))
+				n, err := conn.Write([]byte(expectedPayload))
+				require.NoError(t, err)
+				require.Equal(t, len(expectedPayload), n)
 				return nil
 			},
 		},
@@ -87,7 +94,7 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 		// Verify clientConn receives data sent by Config.ALPNHandler.
 		receive, err := clientConnReader.ReadString(byte('@'))
 		require.NoError(t, err)
-		require.Equal(t, "hello@", receive)
+		require.Equal(t, expectedPayload, receive)
 	})
 }
 

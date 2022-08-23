@@ -30,7 +30,6 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/constants"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -228,9 +227,8 @@ type HandlerFunc func(ctx context.Context, conn net.Conn) error
 // Proxy server allows routing downstream connections based on
 // TLS SNI ALPN values to particular service.
 type Proxy struct {
-	cfg                ProxyConfig
-	supportedProtocols []common.Protocol
-	log                logrus.FieldLogger
+	cfg ProxyConfig
+	log logrus.FieldLogger
 
 	// mu guards cancel
 	mu     sync.Mutex
@@ -285,9 +283,8 @@ func New(cfg ProxyConfig) (*Proxy, error) {
 	}
 
 	return &Proxy{
-		cfg:                cfg,
-		log:                cfg.Log,
-		supportedProtocols: common.SupportedProtocols,
+		cfg: cfg,
+		log: cfg.Log,
 	}, nil
 }
 
@@ -564,23 +561,6 @@ func (p *Proxy) MakeConnectionHandler(opts ...ConnectionHandlerOption) Connectio
 	return func(ctx context.Context, conn net.Conn) error {
 		return p.handleConn(ctx, conn, options)
 	}
-}
-
-// MakeDefaultTLSConfig clones provided TLS config and applies necessary
-// upgrades.
-func (p *Proxy) MakeDefaultTLSConfig(config *tls.Config) *tls.Config {
-	configClone := config.Clone()
-
-	// Add all supported protos.
-	configClone.NextProtos = apiutils.Deduplicate(append(configClone.NextProtos, common.ProtocolsToString(p.supportedProtocols)...))
-
-	// Do not ignore client certs if given. Some logic also requires
-	// information from the verified client cert.
-	configClone.ClientAuth = tls.VerifyClientCertIfGiven
-
-	// Set proper callback for fetching cluster CAs used for veriying clients.
-	configClone.GetConfigForClient = auth.WithClusterCAs(configClone, p.cfg.AccessPoint, p.cfg.ClusterName, p.cfg.Log)
-	return configClone
 }
 
 // getHandleConnOptions creates the connection handler options.

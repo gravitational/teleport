@@ -562,7 +562,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 	t.Run("ALPN connection upgrade", func(t *testing.T) {
 		// Make a mock ALB which points to the Teleport Proxy Service. Then
 		// ALPN local proxies will point to this ALB instead.
-		albProxy := mustStartMockALBProxy(t, pack.root.cluster.SSHProxy, 5*time.Second)
+		albProxy := mustStartMockALBProxy(t, pack.root.cluster.Web, 5*time.Second)
 
 		// We will be dialing insecure when doing the ALPN connection upgrade
 		// since self-signed cert is used. Though, once inside the connection

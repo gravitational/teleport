@@ -18,7 +18,6 @@ package main
 
 import (
 	"context"
-	"crypto/x509"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -626,18 +625,10 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
 	// If ALPN connection upgrade is required, explicitly use the profile CAs
 	// since the tunneled TLS routing connection serves the Host cert.
 	if opts.alpnConnUpgradeRequired {
-		bytes, err := os.ReadFile(arg.profile.CACertPathForCluster(arg.teleportClient.SiteName))
+		var err error
+		opts.rootCAs, err = utils.NewCertPoolFromPath(arg.profile.CACertPathForCluster(arg.teleportClient.SiteName))
 		if err != nil {
 			return localProxyOpts{}, trace.Wrap(err)
-		}
-		cas, err := utils.ReadCertificateChain(bytes)
-		if err != nil {
-			return localProxyOpts{}, trace.Wrap(err)
-		}
-
-		opts.rootCAs = x509.NewCertPool()
-		for _, ca := range cas {
-			opts.rootCAs.AddCert(ca)
 		}
 	}
 

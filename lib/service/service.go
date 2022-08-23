@@ -3786,10 +3786,13 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			HandlerWithConnInfo: authDialerService.HandleConnection,
 			ForwardTLS:          true,
 		})
-
+		identityTLSConf, err := conn.ServerIdentity.TLSConfig(cfg.CipherSuites)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		alpnServer, err = alpnproxy.New(alpnproxy.ProxyConfig{
 			WebTLSConfig:      tlsConfigWeb.Clone(),
-			IdentityTLSConfig: serverTLSConfig,
+			IdentityTLSConfig: identityTLSConf,
 			Router:            alpnRouter,
 			Listener:          listeners.alpn,
 			ClusterName:       clusterName,
@@ -3799,9 +3802,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 
+		alpnTLSConfigForWeb := process.setupALPNTLSConfigForWeb(serverTLSConfig, accessPoint, clusterName)
 		alpnHandlerForWeb.Set(alpnServer.MakeConnectionHandler(
 			alpnproxy.WithWaitForAsyncHandlers(),
-			alpnproxy.WithDefaultTLSconfig(alpnServer.MakeDefaultTLSConfig(serverTLSConfig)),
+			alpnproxy.WithDefaultTLSconfig(alpnTLSConfigForWeb),
 		))
 
 		process.RegisterCriticalFunc("proxy.tls.alpn.sni.proxy", func() error {
@@ -4016,10 +4020,6 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		tlsConfig.NextProtos = apiutils.Deduplicate(append(tlsConfig.NextProtos, acme.ALPNProto))
 	}
 
-	// Go 1.17 introduced strict ALPN https://golang.org/doc/go1.17#ALPN If a client protocol is not recognized
-	// the TLS handshake will fail.
-	tlsConfig.NextProtos = apiutils.Deduplicate(append(tlsConfig.NextProtos, alpncommon.ProtocolsToString(alpncommon.SupportedProtocols)...))
-
 	for _, pair := range process.Config.Proxy.KeyPairs {
 		process.Config.Log.Infof("Loading TLS certificate %v and key %v.", pair.Certificate, pair.PrivateKey)
 
@@ -4030,6 +4030,18 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		tlsConfig.Certificates = append(tlsConfig.Certificates, certificate)
 	}
 
+	setupTLSConfigALPNProtocols(tlsConfig)
+	setupTLSConfigClientCAsForCluster(tlsConfig, accessPoint, clusterName)
+	return tlsConfig, nil
+}
+
+func setupTLSConfigALPNProtocols(tlsConfig *tls.Config) {
+	// Go 1.17 introduced strict ALPN https://golang.org/doc/go1.17#ALPN If a client protocol is not recognized
+	// the TLS handshake will fail.
+	tlsConfig.NextProtos = apiutils.Deduplicate(append(tlsConfig.NextProtos, alpncommon.ProtocolsToString(alpncommon.SupportedProtocols)...))
+}
+
+func setupTLSConfigClientCAsForCluster(tlsConfig *tls.Config, accessPoint auth.ReadProxyAccessPoint, clusterName string) {
 	tlsConfig.GetConfigForClient = func(*tls.ClientHelloInfo) (*tls.Config, error) {
 		tlsClone := tlsConfig.Clone()
 
@@ -4055,7 +4067,15 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 
 		return tlsClone, nil
 	}
-	return tlsConfig, nil
+}
+
+func (process *TeleportProcess) setupALPNTLSConfigForWeb(serverTLSConfig *tls.Config, accessPoint auth.ReadProxyAccessPoint, clusterName string) *tls.Config {
+	tlsConfig := utils.TLSConfig(process.Config.CipherSuites)
+	tlsConfig.Certificates = serverTLSConfig.Certificates
+
+	setupTLSConfigALPNProtocols(tlsConfig)
+	setupTLSConfigClientCAsForCluster(tlsConfig, accessPoint, clusterName)
+	return tlsConfig
 }
 
 func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg *Config) *alpnproxy.Router {

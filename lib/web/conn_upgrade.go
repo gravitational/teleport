@@ -76,7 +76,7 @@ func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p ht
 
 func writeUpgradeResponse(w io.Writer, upgradeType string) error {
 	header := make(http.Header)
-	header.Add("Upgrade", upgradeType)
+	header.Add(constants.ConnectionUpgradeHeader, upgradeType)
 	response := &http.Response{
 		Status:     http.StatusText(http.StatusSwitchingProtocols),
 		StatusCode: http.StatusSwitchingProtocols,

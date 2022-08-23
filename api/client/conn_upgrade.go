@@ -29,7 +29,6 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 )
 
@@ -45,20 +44,8 @@ import (
 // Proxy Service to establish a tunnel for the originally planned traffic to
 // preserve the ALPN and SNI information.
 func IsALPNConnUpgradeRequired(addr string, insecure bool) bool {
-	// Some shortcuts.
-	if utils.IsLoopback(addr) || utils.IsUnspecified(addr) {
-		logrus.Debugf("ALPN connection upgrade not required because %q is either unspecified or a loopback.", addr)
-		return false
-	}
-
-	// TODO make dial timeout configurable.
-	return alpnConnUpgradeTest(addr, insecure, defaults.DefaultDialTimeout)
-}
-
-// alpnConnUpgradeTest performs the ALPN connection test.
-func alpnConnUpgradeTest(addr string, insecure bool, timeout time.Duration) (upgradeRequired bool) {
 	netDialer := &net.Dialer{
-		Timeout: timeout,
+		Timeout: defaults.DefaultDialTimeout,
 	}
 	tlsConfig := &tls.Config{
 		NextProtos:         []string{constants.ALPNSNIProtocolReverseTunnel},
@@ -116,42 +103,48 @@ func (d alpnConnUpgradeDialer) DialContext(ctx context.Context, network, addr st
 		return nil, trace.Wrap(err)
 	}
 
+	// Do upgrade.
+	if err := upgradeConnection(tlsConn, addr); err != nil {
+		defer tlsConn.Close()
+		return nil, trace.Wrap(err)
+	}
+	return tlsConn, nil
+}
+
+func upgradeConnection(conn net.Conn, addr string) error {
 	// Prepare the upgrade request.
 	url := url.URL{
 		Host:   addr,
 		Scheme: "https",
 		Path:   constants.ConnectionUpgradeWebAPI,
 	}
-	req, err := http.NewRequest("GET", url.String(), nil)
+	req, err := http.NewRequest(http.MethodGet, url.String(), nil)
 	if err != nil {
-		defer tlsConn.Close()
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
+
+	// For now, only "alpn" is supported.
 	req.Header.Add(constants.ConnectionUpgradeHeader, constants.ConnectionUpgradeTypeALPN)
 
 	// Send the request and checks if upgrade is successful.
-	if err = req.Write(tlsConn); err != nil {
-		defer tlsConn.Close()
-		return nil, trace.Wrap(err)
+	if err = req.Write(conn); err != nil {
+		return trace.Wrap(err)
 	}
-	resp, err := http.ReadResponse(bufio.NewReader(tlsConn), req)
+	resp, err := http.ReadResponse(bufio.NewReader(conn), req)
 	if err != nil {
-		defer tlsConn.Close()
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	defer resp.Body.Close()
 
 	if http.StatusSwitchingProtocols != resp.StatusCode {
-		defer tlsConn.Close()
-
 		if http.StatusNotFound == resp.StatusCode {
-			return nil, trace.NotImplemented(
+			return trace.NotImplemented(
 				"connection upgrade call to %q failed with status code %v. Please upgrade the server and try again.",
 				constants.ConnectionUpgradeWebAPI,
 				resp.StatusCode,
 			)
 		}
-		return nil, trace.BadParameter("failed to switch Protocols %v", resp.StatusCode)
+		return trace.BadParameter("failed to switch Protocols %v", resp.StatusCode)
 	}
-	return tlsConn, nil
+	return nil
 }

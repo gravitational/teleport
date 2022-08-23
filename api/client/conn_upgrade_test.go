@@ -31,7 +31,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestALPNConnUpgradeTest(t *testing.T) {
+func TestIsALPNConnUpgradeRequired(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		serverProtos   []string
@@ -43,7 +45,7 @@ func TestALPNConnUpgradeTest(t *testing.T) {
 			expectedResult: true,
 		},
 		{
-			name:           "upgrade not required (proto neogotiated)",
+			name:           "upgrade not required (proto negotiated)",
 			serverProtos:   []string{constants.ALPNSNIProtocolReverseTunnel},
 			expectedResult: false,
 		},
@@ -55,21 +57,17 @@ func TestALPNConnUpgradeTest(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
-
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
 			server := mustStartMockALPNServer(t, test.serverProtos)
-			require.Equal(t, test.expectedResult, alpnConnUpgradeTest(server.Addr().String(), true, 5*time.Second))
+			require.Equal(t, test.expectedResult, IsALPNConnUpgradeRequired(server.Addr().String(), true))
 		})
 	}
 }
 
 func TestALPNConUpgradeDialer(t *testing.T) {
-	t.Run("connection upgraded", func(t *testing.T) {
-		t.Parallel()
+	t.Parallel()
 
+	t.Run("connection upgraded", func(t *testing.T) {
 		server := httptest.NewTLSServer(mockConnUpgradeHandler(t, constants.ConnectionUpgradeTypeALPN, []byte("hello")))
 		addr, err := url.Parse(server.URL)
 		require.NoError(t, err)
@@ -85,8 +83,6 @@ func TestALPNConUpgradeDialer(t *testing.T) {
 	})
 
 	t.Run("connection upgrade API not found", func(t *testing.T) {
-		t.Parallel()
-
 		server := httptest.NewTLSServer(http.NotFoundHandler())
 		addr, err := url.Parse(server.URL)
 		require.NoError(t, err)

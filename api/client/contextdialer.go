@@ -194,7 +194,7 @@ type ALPNDialerConfig struct {
 	TLSConfig *tls.Config
 	// ALPNConnUpgradeRequired specifies if ALPN connection upgrade is required.
 	ALPNConnUpgradeRequired bool
-	// ALPNConnUpgradeInscure skips server verification when doing ALPN connection upgrade.
+	// ALPNConnUpgradeInsecure skips server verification when doing ALPN connection upgrade.
 	ALPNConnUpgradeInsecure bool
 }
 
@@ -206,7 +206,7 @@ type ALPNDialer struct {
 	ALPNDialerConfig
 }
 
-// ALPNDialer creates a new ALPNDialer.
+// NewALPNDialer creates a new ALPNDialer.
 func NewALPNDialer(cfg ALPNDialerConfig) ContextDialer {
 	return &ALPNDialer{
 		ALPNDialerConfig: cfg,
