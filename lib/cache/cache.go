@@ -104,6 +104,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindKubeServer},
+		{Kind: types.KindInstaller},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -141,6 +142,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindKubeServer},
+		{Kind: types.KindInstaller},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -172,6 +174,7 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindDatabase},
 		{Kind: types.KindKubeServer},
+		{Kind: types.KindInstaller},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -844,12 +847,12 @@ func (c *Cache) notify(ctx context.Context, event Event) {
 //
 // 2. Replays of stale events. Etcd provides a strong
 // mechanism to track the versions of the storage - revisions
-// of every operation that are uniquely numbered and monothonically
+// of every operation that are uniquely numbered and monotonically
 // and consistently ordered thanks to Raft. Unfortunately, DynamoDB
 // does not provide such a mechanism for its event system, so
-// some tradeofs have to be made:
+// some tradeoffs have to be made:
 //   a. We assume that events are ordered in regards to the
-//   individual key operations which is the guarantees both Etcd and DynamodDB
+//   individual key operations which is the guarantees both Etcd and DynamoDB
 //   provide.
 //   b. Thanks to the init event sent by the server on a successful connect,
 //   and guarantees 1 and 2a, client assumes that once it connects and receives an event,
@@ -985,7 +988,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 			// most recent internally-consistent "view" of the backend, and individual consumers should
 			// determine if the resources they are handling are sufficiently fresh.  Resource-level expiry
 			// is a convenience/cleanup feature and aught not be relied upon for meaningful logic anyhow.
-			// If we need to protect against a stale cache, we aught to invalidate the cache in its entirity, rather
+			// If we need to protect against a stale cache, we aught to invalidate the cache in its entirety, rather
 			// than pruning the resources that we think *might* have been removed from the real backend.
 			// TODO(fspmarshall): ^^^
 			//
@@ -1497,6 +1500,21 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 	return rg.clusterConfig.GetClusterName(opts...)
 }
 
+// GetInstaller gets the installer script resource for the cluster
+func (c *Cache) GetInstaller(ctx context.Context) (types.Installer, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetInstaller")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	inst, err := rg.clusterConfig.GetInstaller(ctx)
+	return inst, trace.Wrap(err)
+}
+
 // GetRoles is a part of auth.Cache implementation
 func (c *Cache) GetRoles(ctx context.Context) ([]types.Role, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetRoles")
@@ -1618,7 +1636,7 @@ func (c *Cache) getNodesWithTTLCache(ctx context.Context, rg readGuard, namespac
 	}
 	cachedNodes, ok := ni.([]types.Server)
 	if !ok {
-		return nil, trace.Errorf("TTL-cache returned unexpexted type %T (this is a bug!).", ni)
+		return nil, trace.Errorf("TTL-cache returned unexpected type %T (this is a bug!).", ni)
 	}
 	ta(cachedNodes)
 	return cachedNodes, nil

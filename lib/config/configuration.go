@@ -1061,10 +1061,14 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	for _, matcher := range fc.SSH.AWSMatchers {
 		cfg.SSH.AWSMatchers = append(cfg.SSH.AWSMatchers,
 			services.AWSMatcher{
-				Types:       matcher.Types,
-				Regions:     matcher.Regions,
-				Tags:        matcher.Tags,
-				SSMDocument: matcher.SSMDocument,
+				Types:   matcher.Matcher.Types,
+				Regions: matcher.Matcher.Regions,
+				Tags:    matcher.Matcher.Tags,
+				Params: services.InstallerParams{
+					JoinMethod: matcher.InstallParams.JoinParams.Method,
+					JoinToken:  matcher.InstallParams.JoinParams.TokenName,
+				},
+				SSM: &services.AWSSSM{DocumentName: matcher.SSM.DocumentName},
 			})
 	}
 
@@ -1134,6 +1138,16 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				Types:   matcher.Types,
 				Regions: matcher.Regions,
 				Tags:    matcher.Tags,
+			})
+	}
+	for _, matcher := range fc.Databases.AzureMatchers {
+		cfg.Databases.AzureMatchers = append(cfg.Databases.AzureMatchers,
+			services.AzureMatcher{
+				Subscriptions:  matcher.Subscriptions,
+				ResourceGroups: matcher.ResourceGroups,
+				Types:          matcher.Types,
+				Regions:        matcher.Regions,
+				ResourceTags:   matcher.ResourceTags,
 			})
 	}
 	for _, database := range fc.Databases.Databases {
@@ -2147,12 +2161,10 @@ func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.AuthToken != "" {
 		cfg.JoinMethod = types.JoinMethodToken
 		cfg.SetToken(fc.AuthToken)
-
-		return nil
 	}
 
 	if fc.JoinParams != (JoinParams{}) {
-		if !cfg.HasToken() {
+		if cfg.HasToken() {
 			return trace.BadParameter("only one of auth_token or join_params should be set")
 		}
 
@@ -2165,5 +2177,6 @@ func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.BadParameter(`unknown value for join_params.method: %q, expected one of %v`, fc.JoinParams.Method, []types.JoinMethod{types.JoinMethodEC2, types.JoinMethodIAM, types.JoinMethodToken})
 		}
 	}
+
 	return nil
 }
