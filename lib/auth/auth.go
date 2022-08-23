@@ -36,6 +36,7 @@ import (
 	insecurerand "math/rand"
 	"net"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -51,6 +52,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/mod/semver"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -82,6 +84,8 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
+	vc "github.com/gravitational/teleport/lib/versioncontrol"
+	"github.com/gravitational/teleport/lib/versioncontrol/github"
 )
 
 const (
@@ -208,7 +212,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		SessionTrackerService: cfg.SessionTrackerService,
 		Enforcer:              cfg.Enforcer,
 		ConnectionsDiagnostic: cfg.ConnectionsDiagnostic,
-		Status:                cfg.Status,
+		StatusInternal:        cfg.Status,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -260,7 +264,7 @@ type Services struct {
 	services.SessionTrackerService
 	services.Enforcer
 	services.ConnectionsDiagnostic
-	services.Status
+	services.StatusInternal
 	types.Events
 	events.IAuditLog
 }
@@ -459,6 +463,24 @@ func (a *Server) runPeriodicOperations() {
 	defer ticker.Stop()
 	defer heartbeatCheckTicker.Stop()
 	defer promTicker.Stop()
+
+	firstReleaseCheck := utils.FullJitter(time.Hour * 6)
+
+	// this environment variable is "unstable" since it will be deprecated
+	// by an upcoming tctl command. currently exists for testing purposes only.
+	if os.Getenv("TELEPORT_UNSTABLE_VC_SYNC_ON_START") == "yes" {
+		firstReleaseCheck = utils.HalfJitter(time.Second * 10)
+	}
+
+	// note the use of FullJitter for the releases check interval. this lets us ensure
+	// that frequent restarts don't prevent checks from happening despite the infrequent
+	// effective check rate.
+	releaseCheck := interval.New(interval.Config{
+		Duration:      time.Hour * 24,
+		FirstDuration: firstReleaseCheck,
+		Jitter:        utils.NewFullJitter(),
+	})
+	defer releaseCheck.Stop()
 	for {
 		select {
 		case <-a.closeCtx.Done():
@@ -486,8 +508,91 @@ func (a *Server) runPeriodicOperations() {
 			heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
 		case <-promTicker.C:
 			a.updateVersionMetrics()
+		case <-releaseCheck.Next():
+			a.checkForReleases(ctx)
 		}
 	}
+}
+
+// checkForReleases loads latest github releases and generates an alert if
+// an appropriate upgrade is available.
+func (a *Server) checkForReleases(ctx context.Context) {
+	const alertID = "upgrade-suggestion"
+	log.Debug("Checking for new teleport releases via github api.")
+
+	// NOTE: essentially everything in this function is going to be
+	// scrapped/replaced once the inventory and version-control systems
+	// are a bit further along.
+
+	var loadFailed bool
+	current := vc.Normalize(teleport.Version)
+
+	latest, err := github.LatestStable()
+	if err != nil {
+		log.Warnf("Failed to load github releases: %v (this will not impact teleport functionality)", err)
+		loadFailed = true
+		latest = current
+	}
+
+	// use visitor to find the oldest version among connected instances
+	// TODO(fspmarshall): replace this check as soon as we have a backend inventory repr. using
+	// connected instances is a poor approximation and may lead to missed notifications if auth
+	// server is up to date, but instances not connected to this auth need update.
+	var instanceVisitor vc.Visitor
+	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+		instanceVisitor.Visit(vc.Normalize(handle.Hello().Version))
+	})
+
+	msg := makeUpgradeSuggestionMsg(current, latest, instanceVisitor.Oldest())
+
+	if msg != "" {
+		alert, err := types.NewClusterAlert(
+			alertID,
+			msg,
+			types.WithAlertLabel(types.AlertOnLogin, "yes"),
+			types.WithAlertLabel(types.AlertPermitAll, "yes"),
+		)
+		if err != nil {
+			log.Warnf("Failed to build %s alert: %v (this is a bug)", alertID, err)
+			return
+		}
+		if err := a.UpsertClusterAlert(ctx, alert); err != nil {
+			log.Warnf("Failed to set %s alert: %v", alertID, err)
+			return
+		}
+	} else if !loadFailed {
+		log.Debugf("Cluster appears up to date, clearing %s alert.", alertID)
+		err := a.DeleteClusterAlert(ctx, alertID)
+		if err != nil && !trace.IsNotFound(err) {
+			log.Warnf("Failed to delete %s alert: %v", alertID, err)
+		}
+	}
+}
+
+// makeUpgradeSuggestionMsg generates an upgrade suggestion alert msg if one is
+// needed (returns "" if everything looks up to date).
+func makeUpgradeSuggestionMsg(current, latest, oldestInstance string) string {
+	// check if this teleport instance wants upgrade
+	if semver.Compare(latest, current) == 1 {
+		// specialize the message a bit to distinguish between a major and minor upgrade.
+		var msg string
+		if semver.Major(latest) != semver.Major(current) {
+			log.Debugf("Generating alert msg for new major version. current=%s, latest=%s", current, latest)
+			msg = fmt.Sprintf("The latest major version of Teleport is %s. Please consider upgrading your Cluster.", semver.Major(latest))
+		} else {
+			log.Debugf("Generating alert msg for new minor or patch release. current=%s, latest=%s", current, latest)
+			msg = fmt.Sprintf("Teleport %s is now available, please consider upgrading your cluster.", latest)
+		}
+		return msg
+	}
+
+	if oldestInstance != "" && semver.Compare(latest, oldestInstance) == 1 {
+		log.Debugf("Generating alert msg for older peripheral instance(s). latest=%s, oldestInstance=%s", latest, oldestInstance)
+		// at least one connected instance is older than this auth server.
+		return "Some Agents within this Cluster are running an older version of Teleport.  Please consider upgrading them."
+	}
+
+	return ""
 }
 
 // updateVersionMetrics leverages the cache to report all versions of teleport servers connected to the
