@@ -958,10 +958,14 @@ func (b *Backend) asyncPollStream(ctx context.Context) error {
 	}
 
 	for {
-		b.buf.SetInit()
+		// there's no stream resuming for backend changes so the stream cursor is empty
 		cursor := ""
+
+		// unblock any registered watchers
+		b.buf.SetInit()
 		err := s.PollStream(ctx, cursor)
 		b.buf.Reset()
+
 		if err != nil {
 			// this is optimization to avoid extra logging
 			// and extra checks, the code path could end up
