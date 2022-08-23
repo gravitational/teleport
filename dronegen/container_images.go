@@ -34,7 +34,7 @@ func buildContainerImagePipelines() []pipeline {
 type TriggerInfo struct {
 	Trigger           trigger
 	Name              string
-	SupportedVersions []*teleportVersion
+	SupportedVersions []*releaseVersion
 	SetupSteps        []step
 }
 
@@ -46,7 +46,7 @@ func NewPromoteTrigger(branchMajorVersion string) *TriggerInfo {
 	return &TriggerInfo{
 		Trigger: promoteTrigger,
 		Name:    "promote",
-		SupportedVersions: []*teleportVersion{
+		SupportedVersions: []*releaseVersion{
 			{
 				MajorVersion:        branchMajorVersion,
 				ShellVersion:        "$DRONE_TAG",
@@ -64,10 +64,10 @@ func NewCronTrigger(latestMajorVersions []string) *TriggerInfo {
 
 	majorVersionVarDirectory := "/go/vars/full-version"
 
-	supportedVersions := make([]*teleportVersion, 0, len(latestMajorVersions))
+	supportedVersions := make([]*releaseVersion, 0, len(latestMajorVersions))
 	if len(latestMajorVersions) > 0 {
 		latestMajorVersion := latestMajorVersions[0]
-		supportedVersions = append(supportedVersions, &teleportVersion{
+		supportedVersions = append(supportedVersions, &releaseVersion{
 			MajorVersion:        latestMajorVersion,
 			ShellVersion:        readCronShellVersionCommand(majorVersionVarDirectory, latestMajorVersion),
 			RelativeVersionName: "current-version",
@@ -76,7 +76,7 @@ func NewCronTrigger(latestMajorVersions []string) *TriggerInfo {
 
 		if len(latestMajorVersions) > 1 {
 			for i, majorVersion := range latestMajorVersions[1:] {
-				supportedVersions = append(supportedVersions, &teleportVersion{
+				supportedVersions = append(supportedVersions, &releaseVersion{
 					MajorVersion:        majorVersion,
 					ShellVersion:        readCronShellVersionCommand(majorVersionVarDirectory, majorVersion),
 					RelativeVersionName: fmt.Sprintf("previous-version-%d", i+1),
@@ -128,17 +128,17 @@ func (ti *TriggerInfo) buildPipelines() []pipeline {
 	return pipelines
 }
 
-type teleportVersion struct {
+type releaseVersion struct {
 	MajorVersion        string // This is the major version of a given build. `SearchVersion` should match this when evaluated.
 	ShellVersion        string // This value will be evaluated by the shell in the context of a Drone step
 	RelativeVersionName string // The set of values for this should not change between major releases
 	SetupSteps          []step // Version-specific steps that must be ran before executing build and push steps
 }
 
-func (tv *teleportVersion) buildVersionPipeline(triggerSetupSteps []step) pipeline {
-	pipelineName := fmt.Sprintf("teleport-container-images-%s", tv.RelativeVersionName)
+func (rv *releaseVersion) buildVersionPipeline(triggerSetupSteps []step) pipeline {
+	pipelineName := fmt.Sprintf("teleport-container-images-%s", rv.RelativeVersionName)
 
-	setupSteps, dependentStepNames := tv.getSetupStepInformation(triggerSetupSteps)
+	setupSteps, dependentStepNames := rv.getSetupStepInformation(triggerSetupSteps)
 
 	pipeline := newKubePipeline(pipelineName)
 	pipeline.Workspace = workspace{Path: "/go"}
@@ -149,21 +149,21 @@ func (tv *teleportVersion) buildVersionPipeline(triggerSetupSteps []step) pipeli
 			raw: "noninteractive",
 		},
 	}
-	pipeline.Steps = append(setupSteps, tv.buildSteps(dependentStepNames)...)
+	pipeline.Steps = append(setupSteps, rv.buildSteps(dependentStepNames)...)
 
 	return pipeline
 }
 
-func (tv *teleportVersion) getSetupStepInformation(triggerSetupSteps []step) ([]step, []string) {
+func (rv *releaseVersion) getSetupStepInformation(triggerSetupSteps []step) ([]step, []string) {
 	triggerSetupStepNames := make([]string, 0, len(triggerSetupSteps))
 	for _, triggerSetupStep := range triggerSetupSteps {
 		triggerSetupStepNames = append(triggerSetupStepNames, triggerSetupStep.Name)
 	}
 
 	nextStageSetupStepNames := triggerSetupStepNames
-	if len(tv.SetupSteps) > 0 {
-		versionSetupStepNames := make([]string, 0, len(tv.SetupSteps))
-		for _, versionSetupStep := range tv.SetupSteps {
+	if len(rv.SetupSteps) > 0 {
+		versionSetupStepNames := make([]string, 0, len(rv.SetupSteps))
+		for _, versionSetupStep := range rv.SetupSteps {
 			versionSetupStep.DependsOn = append(versionSetupStep.DependsOn, triggerSetupStepNames...)
 			versionSetupStepNames = append(versionSetupStepNames, versionSetupStep.Name)
 		}
@@ -171,24 +171,24 @@ func (tv *teleportVersion) getSetupStepInformation(triggerSetupSteps []step) ([]
 		nextStageSetupStepNames = versionSetupStepNames
 	}
 
-	setupSteps := make([]step, 0, len(triggerSetupSteps)+len(tv.SetupSteps))
+	setupSteps := make([]step, 0, len(triggerSetupSteps)+len(rv.SetupSteps))
 	setupSteps = append(setupSteps, triggerSetupSteps...)
-	setupSteps = append(setupSteps, tv.SetupSteps...)
+	setupSteps = append(setupSteps, rv.SetupSteps...)
 
 	return setupSteps, nextStageSetupStepNames
 }
 
-func (tv *teleportVersion) buildSteps(setupStepNames []string) []step {
+func (rv *releaseVersion) buildSteps(setupStepNames []string) []step {
 	clonedRepoPath := "/go/src/github.com/gravitational/teleport"
 
 	teleportProducts := []*product{
-		NewTeleportProduct(false, false, tv), // OSS
-		NewTeleportProduct(true, false, tv),  // Enterprise
-		NewTeleportProduct(true, true, tv),   // Enterprise/FIPS
+		NewTeleportProduct(false, false, rv), // OSS
+		NewTeleportProduct(true, false, rv),  // Enterprise
+		NewTeleportProduct(true, true, rv),   // Enterprise/FIPS
 	}
 	teleportLabProducts := make([]*product, 0, len(teleportProducts))
 	for _, teleportProduct := range teleportProducts {
-		teleportLabProducts = append(teleportLabProducts, NewTeleportLabProduct(clonedRepoPath, tv, teleportProduct))
+		teleportLabProducts = append(teleportLabProducts, NewTeleportLabProduct(clonedRepoPath, rv, teleportProduct))
 	}
 	teleportOperatorProduct := NewTeleportOperatorProduct(clonedRepoPath)
 
@@ -201,7 +201,7 @@ func (tv *teleportVersion) buildSteps(setupStepNames []string) []step {
 
 	setupSteps := []step{
 		waitForDockerStep(),
-		cloneRepoStep(clonedRepoPath, tv.ShellVersion),
+		cloneRepoStep(clonedRepoPath, rv.ShellVersion),
 	}
 	for _, setupStep := range setupSteps {
 		steps = append(steps, setupStep)
@@ -209,7 +209,7 @@ func (tv *teleportVersion) buildSteps(setupStepNames []string) []step {
 	}
 
 	for _, product := range products {
-		steps = append(steps, product.BuildSteps(tv, setupStepNames)...)
+		steps = append(steps, product.BuildSteps(rv, setupStepNames)...)
 	}
 
 	return steps
@@ -227,7 +227,7 @@ type product struct {
 	GetRequiredStepNames func(arch string) []string
 }
 
-func NewTeleportProduct(isEnterprise, isFips bool, version *teleportVersion) *product {
+func NewTeleportProduct(isEnterprise, isFips bool, version *releaseVersion) *product {
 	workingDirectory := "/go/build"
 	dockerfile := path.Join(workingDirectory, "Dockerfile")
 	downloadURL := "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
@@ -276,7 +276,7 @@ func NewTeleportProduct(isEnterprise, isFips bool, version *teleportVersion) *pr
 	}
 }
 
-func NewTeleportLabProduct(cloneDirectory string, version *teleportVersion, teleport *product) *product {
+func NewTeleportLabProduct(cloneDirectory string, version *releaseVersion, teleport *product) *product {
 	workingDirectory := "/tmp/build"
 	dockerfile := path.Join(cloneDirectory, "docker", "sshd", "Dockerfile")
 	name := "teleport-lab"
@@ -361,11 +361,11 @@ func teleportSetupStep(shellVersion, packageName, dockerfilePath, downloadURL st
 	}, downloadPath
 }
 
-func (p *product) BuildLocalImageName(arch string, version *teleportVersion) string {
+func (p *product) BuildLocalImageName(arch string, version *releaseVersion) string {
 	return fmt.Sprintf("%s-%s-%s", p.Name, version.MajorVersion, arch)
 }
 
-func (p *product) BuildSteps(version *teleportVersion, setupStepNames []string) []step {
+func (p *product) BuildSteps(version *releaseVersion, setupStepNames []string) []step {
 	containerRepos := GetContainerRepos()
 
 	steps := make([]step, 0)
@@ -396,11 +396,11 @@ func (p *product) BuildSteps(version *teleportVersion, setupStepNames []string) 
 	return steps
 }
 
-func (p *product) GetBuildStepName(arch string, version *teleportVersion) string {
+func (p *product) GetBuildStepName(arch string, version *releaseVersion) string {
 	return fmt.Sprintf("Build %s image %q", p.Name, p.BuildLocalImageName(arch, version))
 }
 
-func (p *product) createBuildStep(arch string, version *teleportVersion) (step, *buildStepOutput) {
+func (p *product) createBuildStep(arch string, version *releaseVersion) (step, *buildStepOutput) {
 	imageName := p.BuildLocalImageName(arch, version)
 
 	if p.DockerfileTarget == "" {
@@ -444,7 +444,7 @@ type buildStepOutput struct {
 	StepName       string
 	BuiltImageName string
 	BuiltImageArch string
-	Version        *teleportVersion
+	Version        *releaseVersion
 	Product        *product
 }
 
