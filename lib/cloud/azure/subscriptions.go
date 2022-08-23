@@ -17,7 +17,6 @@ package azure
 
 import (
 	"context"
-	"sync"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
@@ -31,25 +30,18 @@ type ARMSubscriptions interface {
 
 var _ ARMSubscriptions = (*armsubscription.SubscriptionsClient)(nil)
 
-// SubscriptionIDsClient wraps the Azure SubscriptionsAPI to fetch subscription IDs.
-type SubscriptionIDsClient struct {
-	api   ARMSubscriptions
-	cache []string
-	mu    sync.Mutex
+// SubscriptionClient wraps the Azure SubscriptionsAPI to fetch subscription IDs.
+type SubscriptionClient struct {
+	api ARMSubscriptions
 }
 
-// NewSubscriptionIDsClient returns a SubscriptionsClient.
-func NewSubscriptionIDsClient(api ARMSubscriptions) *SubscriptionIDsClient {
-	return &SubscriptionIDsClient{api: api}
+// NewSubscriptionClient returns a SubscriptionsClient.
+func NewSubscriptionClient(api ARMSubscriptions) *SubscriptionClient {
+	return &SubscriptionClient{api: api}
 }
 
-// ListSubscriptionIDs lists all subscription IDs using the Azure SubscriptionsAPI.
-func (c *SubscriptionIDsClient) ListSubscriptionIDs(ctx context.Context, maxPages int, useCache bool) ([]string, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if useCache && c.cache != nil {
-		return c.cache, nil
-	}
+// ListSubscriptionIDs lists all subscription IDs using the Azure Subscription API.
+func (c *SubscriptionClient) ListSubscriptionIDs(ctx context.Context, maxPages int) ([]string, error) {
 	pagerOpts := &armsubscription.SubscriptionsClientListOptions{}
 	pager := c.api.NewListPager(pagerOpts)
 	subIDs := []string{}
@@ -65,6 +57,5 @@ func (c *SubscriptionIDsClient) ListSubscriptionIDs(ctx context.Context, maxPage
 		}
 	}
 
-	c.cache = subIDs
-	return c.cache, nil
+	return subIDs, nil
 }
