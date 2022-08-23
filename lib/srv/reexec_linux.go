@@ -18,10 +18,29 @@
 package srv
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
 	"os/exec"
+	"os/user"
+	"path/filepath"
+	"strconv"
 	"syscall"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/pam"
+	"github.com/gravitational/teleport/lib/shell"
+	"github.com/gravitational/teleport/lib/srv/uacc"
+	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils/x11"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func init() {

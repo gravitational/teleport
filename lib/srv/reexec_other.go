@@ -20,6 +20,8 @@ package srv
 import (
 	"io"
 	"os/exec"
+
+	"github.com/gravitational/trace"
 )
 
 func reexecCommandOSTweaks(cmd *exec.Cmd) {}
@@ -27,5 +29,5 @@ func reexecCommandOSTweaks(cmd *exec.Cmd) {}
 func userCommandOSTweaks(cmd *exec.Cmd) {}
 
 func RunCommand() (errw io.Writer, code int, err error) {
-
+	return nil, 0, trace.NotImplemented("re-exec not supported outside of linux")
 }
