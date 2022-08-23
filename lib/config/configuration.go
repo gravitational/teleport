@@ -23,6 +23,7 @@ package config
 import (
 	"bufio"
 	"crypto/x509"
+	"encoding/pem"
 	"io"
 	stdlog "log"
 	"net"
@@ -1441,6 +1442,9 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" && fc.WindowsDesktop.LDAP.PEMEncodedCACert != "" {
+		return trace.BadParameter("WindowsDesktopService can not use both der_ca_file and pem_ca_cert")
+	}
 
 	var cert *x509.Certificate
 	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" {
@@ -1453,6 +1457,20 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 		if err != nil {
 			return trace.WrapWithMessage(err, "parsing the LDAP root CA file %v", fc.WindowsDesktop.LDAP.DEREncodedCAFile)
 		}
+	}
+
+	if fc.WindowsDesktop.LDAP.PEMEncodedCACert != "" {
+		block, _ := pem.Decode([]byte(fc.WindowsDesktop.LDAP.PEMEncodedCACert))
+
+		if block == nil || block.Type != "CERTIFICATE" {
+			log.Fatal("failed to decode PEM block containing x509 certificate")
+		}
+
+		cert, err = x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return trace.WrapWithMessage(err, "parsing the LDAP root CA PEM cert")
+		}
+
 	}
 
 	cfg.WindowsDesktop.LDAP = service.LDAPConfig{

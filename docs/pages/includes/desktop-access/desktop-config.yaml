@@ -27,10 +27,18 @@ windows_desktop_service:
     # You can skip LDAPS certificate verification by setting
     # this to true. It is recommended that this be set to false
     # and the certificate added your system's trusted repository,
-    # or its filepath provided in with the der_ca_file variable below.
+    # or its filepath provided in with der_ca_file variable below
+    # or as PEM encoded certificate using pem_ca_cert variable.
     insecure_skip_verify: false
     # DER encoded LDAP CA certificate.
     der_ca_file: /path/to/cert
+    # PEM encoded LDAP CA certificate.
+    pem_ca_cert: |
+      -----BEGIN CERTIFICATE-----
+          *certificate data*
+      -----END CERTIFICATE-----
+
+
   # (optional) hosts is a list of hostnames to register as WindowsDesktop
   # objects in Teleport.
   hosts:
