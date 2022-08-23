@@ -21,6 +21,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // DBServer represents an Azure DB Server.
@@ -85,10 +87,10 @@ func ServerFromPostgresServer(server *armpostgresql.Server) *DBServer {
 	return result
 }
 
-// IsVersionSupported returns true if database supports AAD authentication.
+// IsSupported returns true if database supports AAD authentication.
 // Only available for MySQL 5.7 and newer. All Azure managed PostgreSQL single-server
 // instances support AAD auth.
-func (s *DBServer) IsVersionSupported() bool {
+func (s *DBServer) IsSupported() bool {
 	switch s.Protocol {
 	case defaults.ProtocolMySQL:
 		return isMySQLVersionSupported(s)
@@ -107,6 +109,10 @@ func (s *DBServer) IsAvailable() bool {
 	case "Inaccessible", "Dropping", "Disabled":
 		return false
 	default:
+		log.Warnf("Unknown server state: %q. Assuming Azure DB server %q is available.",
+			s.Properties.UserVisibleState,
+			s.Name,
+		)
 		return true
 	}
 }

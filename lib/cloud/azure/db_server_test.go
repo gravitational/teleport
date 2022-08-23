@@ -238,7 +238,7 @@ func TestServerConversion(t *testing.T) {
 
 			require.Equal(t, expected, *dbServer)
 			require.Equal(t, tt.wantAvailable, dbServer.IsAvailable())
-			require.Equal(t, tt.wantSupported, dbServer.IsVersionSupported())
+			require.Equal(t, tt.wantSupported, dbServer.IsSupported())
 		})
 	}
 }
