@@ -3295,23 +3295,6 @@ steps:
   - rustup toolchain install $RUST_VERSION
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64
-- name: Install Node Toolchain
-  commands:
-  - set -u
-  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
-    print-node-version)
-  - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
-  - mkdir -p $TOOLCHAIN_DIR
-  - curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-darwin-x64.tar.gz
-  - tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-darwin-x64.tar.gz
-  - rm -f node-v$NODE_VERSION-darwin-x64.tar.gz
-  - export PATH=$NODE_DIR/bin:$PATH
-  - corepack enable yarn
-  - echo Node reporting version $(node --version)
-  - echo Yarn reporting version $(yarn --version)
-  environment:
-    WORKSPACE_DIR: /tmp/build-darwin-amd64
 - name: Build Mac release artifacts
   commands:
   - set -u
@@ -6665,7 +6648,7 @@ steps:
       from_secret: RELEASES_KEY_STAGING
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
   failure: ignore
-- name: Clean up Node toolchain (post)
+- name: Clean up toolchains (post)
   commands:
   - set -u
   - rm -rf /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED
@@ -6684,6 +6667,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: caa718126b4a9fac6418e4660ffb92c8f085481f97b2fef5c16d62fba75569ce
+hmac: e8276f8f9751620945d7aeaa355c834cd9290f97da438a4fb964f5e563bc9f8d
 
 ...
