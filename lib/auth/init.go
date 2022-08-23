@@ -541,6 +541,7 @@ func createPresets(ctx context.Context, asrv *Server) error {
 				return trace.WrapWithMessage(err, "failed to create preset role %v", role.GetName())
 			}
 
+<<<<<<< HEAD
 			currentRole, err := asrv.GetRole(ctx, role.GetName())
 			if err != nil {
 				return trace.Wrap(err)
@@ -551,6 +552,14 @@ func createPresets(ctx context.Context, asrv *Server) error {
 			err = asrv.UpsertRole(ctx, role)
 			if err != nil {
 				return trace.WrapWithMessage(err, "failed to update preset role %v", role.GetName())
+=======
+			if role.GetName() == teleport.PresetAuditorRoleName {
+				role = services.UpdateAuditorRoleRFD82(role)
+				err = asrv.UpsertRole(ctx, role)
+				if err != nil {
+					return trace.WrapWithMessage(err, "failed to update preset role %v", role.GetName())
+				}
+>>>>>>> 4aa70edc6b (add role migration)
 			}
 		}
 	}
