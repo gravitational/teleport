@@ -54,8 +54,8 @@ pub fn unicode_size(s: &str, with_null_term: bool) -> u32 {
     u32::try_from(to_unicode(s, with_null_term).len()).unwrap()
 }
 
-pub fn vec_u8_debug(v: &[u8], f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-    write!(f, "&[u8] of length {}", v.len())
+pub fn vec_u8_debug(v: &[u8]) -> String {
+    format!("&[u8] of length {}", v.len())
 }
 
 #[cfg(test)]
