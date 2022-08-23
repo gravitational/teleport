@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -164,7 +165,7 @@ func NewServer(
 	ah AuthMethods,
 	opts ...ServerOption,
 ) (*Server, error) {
-	err := utils.RegisterPrometheusCollectors(proxyConnectionLimitHitCount)
+	err := metrics.RegisterPrometheusCollectors(proxyConnectionLimitHitCount)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

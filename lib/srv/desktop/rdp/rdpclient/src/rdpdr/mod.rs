@@ -768,6 +768,7 @@ impl Client {
         self.tdp_sd_write(rdp_req)
     }
 
+    #[allow(clippy::wildcard_in_or_patterns)]
     fn process_irp_set_information(
         &mut self,
         device_io_request: DeviceIoRequest,

@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/app/common"
-	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
@@ -226,7 +225,7 @@ func (s *SigningService) prepareSignedRequest(r *http.Request, re *endpoints.Res
 func rewriteHeaders(r *http.Request, reqCopy *http.Request) {
 	for key, values := range r.Header {
 		// Remove Teleport app headers.
-		if appcommon.IsReservedHeader(key) {
+		if common.IsReservedHeader(key) {
 			continue
 		}
 		for _, v := range values {

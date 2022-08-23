@@ -389,7 +389,7 @@ func AccessInfoFromLocalIdentity(identity tlsca.Identity, access UserGetter) (*A
 			return nil, trace.Wrap(err)
 		}
 
-		log.Warnf("Failed to find roles or traits in x509 identity for %v. Fetching	"+
+		log.Warnf("Failed to find roles in x509 identity for %v. Fetching "+
 			"from backend. If the identity provider allows username changes, this can "+
 			"potentially allow an attacker to change the role of the existing user.",
 			identity.Username)

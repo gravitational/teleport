@@ -20,7 +20,6 @@ limitations under the License.
 // * Authority server itself that implements signing and acl logic
 // * HTTP server wrapper for authority server
 // * HTTP client wrapper
-//
 package auth
 
 import (
@@ -72,6 +71,7 @@ import (
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -96,7 +96,7 @@ type ServerOption func(*Server) error
 
 // NewServer creates and configures a new Server instance
 func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
-	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -135,6 +135,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.Databases == nil {
 		cfg.Databases = local.NewDatabasesService(cfg.Backend)
 	}
+	if cfg.Status == nil {
+		cfg.Status = local.NewStatusService(cfg.Backend)
+	}
 	if cfg.Events == nil {
 		cfg.Events = local.NewEventsService(cfg.Backend)
 	}
@@ -161,6 +164,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	if cfg.Enforcer == nil {
 		cfg.Enforcer = local.NewNoopEnforcer()
+	}
+	if cfg.AssertionReplayService == nil {
+		cfg.AssertionReplayService = local.NewAssertionReplayService(cfg.Backend)
 	}
 	if cfg.KeyStoreConfig.RSAKeyPairSource == nil {
 		native.PrecomputeKeys()
@@ -202,6 +208,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		SessionTrackerService: cfg.SessionTrackerService,
 		Enforcer:              cfg.Enforcer,
 		ConnectionsDiagnostic: cfg.ConnectionsDiagnostic,
+		Status:                cfg.Status,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -218,7 +225,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		closeCtx:        closeCtx,
 		emitter:         cfg.Emitter,
 		streamer:        cfg.Streamer,
-		unstable:        local.NewUnstableService(cfg.Backend),
+		unstable:        local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
 		Services:        services,
 		Cache:           services,
 		keyStore:        keyStore,
@@ -253,6 +260,7 @@ type Services struct {
 	services.SessionTrackerService
 	services.Enforcer
 	services.ConnectionsDiagnostic
+	services.Status
 	types.Events
 	events.IAuditLog
 }
@@ -332,8 +340,8 @@ var (
 // Server keeps the cluster together. It acts as a certificate authority (CA) for
 // a cluster and:
 //   - generates the keypair for the node it's running on
-//	 - invites other SSH nodes to a cluster, by issuing invite tokens
-//	 - adds other SSH nodes to a cluster, by checking their token and signing their keys
+//   - invites other SSH nodes to a cluster, by issuing invite tokens
+//   - adds other SSH nodes to a cluster, by checking their token and signing their keys
 //   - same for users and their sessions
 //   - checks public keys to see if they're signed by it (can be trusted or not)
 type Server struct {
@@ -1565,20 +1573,21 @@ func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADe
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(a.deleteMFADeviceSafely(ctx, token.GetUser(), req.GetDeviceName()))
+	_, err = a.deleteMFADeviceSafely(ctx, token.GetUser(), req.GetDeviceName())
+	return trace.Wrap(err)
 }
 
 // deleteMFADeviceSafely deletes the user's mfa device while preventing users from deleting their last device
 // for clusters that require second factors, which prevents users from being locked out of their account.
-func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName string) error {
+func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName string) (*types.MFADevice, error) {
 	devs, err := a.Services.GetMFADevices(ctx, user, true)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	kindToSF := map[string]constants.SecondFactorType{
@@ -1600,7 +1609,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		sf, ok := kindToSF[fmt.Sprintf("%T", d.Device)]
 		switch {
 		case !ok && d == deviceToDelete:
-			return trace.NotImplemented("cannot delete device of type %T", d.Device)
+			return nil, trace.NotImplemented("cannot delete device of type %T", d.Device)
 		case !ok:
 			log.Warnf("Ignoring unknown device with type %T in deletion.", d.Device)
 			continue
@@ -1610,7 +1619,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		knownDevices++
 	}
 	if deviceToDelete == nil {
-		return trace.NotFound("MFA device %q does not exist", deviceName)
+		return nil, trace.NotFound("MFA device %q does not exist", deviceName)
 	}
 
 	// Prevent users from deleting their last device for clusters that require second factors.
@@ -1619,26 +1628,26 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 	case constants.SecondFactorOff, constants.SecondFactorOptional: // MFA is not required, allow deletion
 	case constants.SecondFactorOn:
 		if knownDevices < minDevices {
-			return trace.BadParameter(
+			return nil, trace.BadParameter(
 				"cannot delete the last MFA device for this user; add a replacement device first to avoid getting locked out")
 		}
 	case constants.SecondFactorOTP, constants.SecondFactorWebauthn:
 		if sfToCount[sf] < minDevices {
-			return trace.BadParameter(
+			return nil, trace.BadParameter(
 				"cannot delete the last %s device for this user; add a replacement device first to avoid getting locked out", sf)
 		}
 	default:
-		return trace.BadParameter("unexpected second factor type: %s", sf)
+		return nil, trace.BadParameter("unexpected second factor type: %s", sf)
 	}
 
 	if err := a.DeleteMFADevice(ctx, user, deviceToDelete.Id); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Emit deleted event.
 	clusterName, err := a.GetClusterName()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.MFADeviceDelete{
 		Metadata: apievents.Metadata{
@@ -1651,10 +1660,9 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		},
 		MFADeviceMetadata: mfaDeviceEventMetadata(deviceToDelete),
 	}); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
-	return nil
+	return deviceToDelete, nil
 }
 
 // AddMFADeviceSync implements AuthService.AddMFADeviceSync.

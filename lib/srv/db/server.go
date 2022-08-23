@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/labels"
@@ -43,8 +44,6 @@ import (
 
 	// Import to register MongoDB engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/mongodb"
-	// Import to register MySQL engine.
-	_ "github.com/gravitational/teleport/lib/srv/db/mysql"
 	// Import to register Postgres engine.
 	_ "github.com/gravitational/teleport/lib/srv/db/postgres"
 	// Import to register Snowflake engine.
@@ -90,6 +89,8 @@ type Config struct {
 	ResourceMatchers []services.ResourceMatcher
 	// AWSMatchers is a list of AWS databases matchers.
 	AWSMatchers []services.AWSMatcher
+	// AzureMatchers is a list of Azure databases matchers.
+	AzureMatchers []services.AzureMatcher
 	// Databases is a list of proxied databases from static configuration.
 	Databases types.Databases
 	// CloudLabels is a service that imports labels from a cloud provider. The labels are shared
@@ -106,7 +107,7 @@ type Config struct {
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
 	// CloudClients creates cloud API clients.
-	CloudClients common.CloudClients
+	CloudClients clients.Clients
 	// CloudMeta fetches cloud metadata for cloud hosted databases.
 	CloudMeta *cloud.Metadata
 	// CloudIAM configures IAM for cloud hosted databases.
@@ -175,7 +176,7 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 		return trace.BadParameter("missing LockWatcher")
 	}
 	if c.CloudClients == nil {
-		c.CloudClients = common.NewCloudClients()
+		c.CloudClients = clients.NewClients()
 	}
 	if c.CloudMeta == nil {
 		c.CloudMeta, err = cloud.NewMetadata(cloud.MetadataConfig{
