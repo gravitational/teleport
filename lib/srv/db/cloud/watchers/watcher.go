@@ -195,19 +195,23 @@ func makeAWSFetchers(clients cloud.Clients, matchers []services.AWSMatcher) (res
 }
 
 func makeAzureFetchers(ctx context.Context, clients cloud.Clients, matchers []services.AzureMatcher) (result []Fetcher, err error) {
-	subIDsClient, err := clients.GetAzureSubscriptionIDsClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	var allSubIDs []string
 	for _, matcher := range matchers {
 		reduceAzureMatcher(&matcher)
 		subIDs := matcher.Subscriptions
 		if utils.SliceContainsStr(subIDs, types.Wildcard) {
-			// hit the subscriptions API at most once
-			subIDs, err = subIDsClient.ListSubscriptionIDs(ctx, common.MaxPages, true /*useCache*/)
-			if err != nil {
-				return nil, trace.Wrap(err)
+			if allSubIDs == nil {
+				// hit the subscriptions API at most once
+				subscriptionClient, err := clients.GetAzureSubscriptionClient()
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				allSubIDs, err = subscriptionClient.ListSubscriptionIDs(ctx, common.MaxPages)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
 			}
+			subIDs = allSubIDs
 		}
 		for _, sub := range subIDs {
 			for _, matcherType := range matcher.Types {

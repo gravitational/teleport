@@ -392,7 +392,7 @@ func TestWatcher(t *testing.T) {
 						DBServers: []*armpostgresql.Server{azPostgresServer4},
 					}),
 				},
-				AzureSubscriptionIDsClient: azure.NewSubscriptionIDsClient(&azure.ARMSubscriptionsMock{
+				AzureSubscriptionIDsClient: azure.NewSubscriptionClient(&azure.ARMSubscriptionsMock{
 					Subscriptions: []*armsubscription.Subscription{azureSub1, azureSub2},
 				}),
 			},
