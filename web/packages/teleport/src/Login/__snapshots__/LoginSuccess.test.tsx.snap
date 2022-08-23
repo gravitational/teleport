@@ -3,7 +3,7 @@
 exports[`renders 1`] = `
 .c2 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   margin-bottom: 16px;
   color: #00bfa5;
   font-size: 56px;

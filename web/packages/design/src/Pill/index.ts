@@ -14,6 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import {Pill} from "./Pill";
+import { Pill } from './Pill';
 
-export {Pill}
+export { Pill };

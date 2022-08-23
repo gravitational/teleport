@@ -60,14 +60,8 @@ const Pane = styled(Flex)`
 `;
 
 export function PaneSide(props) {
-  const {
-    children,
-    position,
-    isDragging,
-    split,
-    defaultSize,
-    hasTwoSides,
-  } = props;
+  const { children, position, isDragging, split, defaultSize, hasTwoSides } =
+    props;
 
   const compRef = React.useRef();
 

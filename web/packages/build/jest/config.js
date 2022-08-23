@@ -17,7 +17,7 @@ limitations under the License.
 const path = require('path');
 
 module.exports = {
-  testEnvironment: "jsdom",
+  testEnvironment: 'jsdom',
   moduleNameMapper: {
     // mock all imports to asset files
     '\\.(css|scss|stylesheet)$': path.join(__dirname, 'mockStyles.js'),

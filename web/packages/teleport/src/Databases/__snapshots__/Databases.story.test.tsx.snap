@@ -75,12 +75,12 @@ exports[`empty state for enterprise, can create 1`] = `
   font-family: inherit;
   font-weight: bold;
   outline: none;
-  opacity: .56;
+  opacity: 0.56;
   position: relative;
   text-align: center;
   text-decoration: none;
   text-transform: uppercase;
-  transition: all .3s;
+  transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
   border-color: rgba(255,255,255,0.87);
   color: #FFFFFF;
@@ -98,7 +98,7 @@ exports[`empty state for enterprise, can create 1`] = `
 }
 
 .c12:active {
-  opacity: .24;
+  opacity: 0.24;
 }
 
 .c12 > span {
@@ -370,13 +370,13 @@ exports[`failed 1`] = `
 
 .c18 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
 }
 
 .c28 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
 }
@@ -1123,13 +1123,13 @@ exports[`open source loaded 1`] = `
 
 .c18 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
 }
 
 .c28 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
 }

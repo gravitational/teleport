@@ -17,20 +17,20 @@ limitations under the License.
 export default class AddressResolver {
   _cfg = {
     ttyUrl: null,
-    ttyParams: {}
-  }
+    ttyParams: {},
+  };
 
-  constructor(cfg){
+  constructor(cfg) {
     this._cfg = {
       ...cfg,
-    }
+    };
   }
 
-  getConnStr(w, h){
+  getConnStr(w, h) {
     const { ttyParams, ttyUrl } = this._cfg;
     const params = JSON.stringify({
       ...ttyParams,
-      term: { h, w }
+      term: { h, w },
     });
 
     const encoded = window.encodeURI(params);

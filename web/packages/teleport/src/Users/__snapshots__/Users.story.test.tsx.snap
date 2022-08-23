@@ -98,20 +98,20 @@ exports[`success state 1`] = `
 
 .c14 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
 }
 
 .c16 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
 }
 
 .c19 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   margin-left: 8px;
   margin-right: -8px;
   color: rgba(255,255,255,0.56);

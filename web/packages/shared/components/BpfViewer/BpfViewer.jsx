@@ -96,7 +96,7 @@ const StyledTextEditor = styled.div`
 
   .ace-monokai .ace_marker-layer .ace_active-line {
     //background: #928787;
-   }
+  }
 
   //.ace-monokai .ace_gutter,
   //.ace-monokai .ace_gutter-cell {

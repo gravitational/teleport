@@ -14,8 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import service, { getUrlParameter  } from './history';
+import service, { getUrlParameter } from './history';
 export default service;
-export {
-  getUrlParameter
-}
+export { getUrlParameter };

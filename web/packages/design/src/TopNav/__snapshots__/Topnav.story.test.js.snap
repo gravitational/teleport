@@ -40,7 +40,7 @@ exports[`rendering of TopNav and TopNavItem 1`] = `
 
 .c1.active:after {
   background-color: #651FFF;
-  content: "";
+  content: '';
   position: absolute;
   bottom: 0;
   left: 0;
@@ -79,7 +79,7 @@ exports[`rendering of TopNav and TopNavItem 1`] = `
 
 .c2.active:after {
   background-color: #651FFF;
-  content: "";
+  content: '';
   position: absolute;
   bottom: 0;
   left: 0;

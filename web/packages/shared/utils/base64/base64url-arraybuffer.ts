@@ -29,8 +29,5 @@ export function bufferToBase64url(buffer: ArrayBuffer): string {
   const base64str = arrayBufferToBase64(buffer);
 
   // Assuming the base64str is a well-formed url.
-  return base64str
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=/g, '');
+  return base64str.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 }

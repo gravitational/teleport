@@ -19,7 +19,7 @@ exports[`support Cloud 1`] = `
 
 .c6 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
 }
 
@@ -396,7 +396,7 @@ exports[`support Enterprise 1`] = `
 
 .c6 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
 }
 
@@ -780,7 +780,7 @@ exports[`support OSS 1`] = `
 
 .c6 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
 }
 

@@ -25,7 +25,7 @@ if (typeof Promise !== 'function') {
 }
 
 if (typeof Promise.prototype.finally !== 'function') {
-  var speciesConstructor = function(O, defaultConstructor) {
+  var speciesConstructor = function (O, defaultConstructor) {
     if (!O || (typeof O !== 'object' && typeof O !== 'function')) {
       throw new TypeError('Assertion failed: Type(O) is not Object');
     }

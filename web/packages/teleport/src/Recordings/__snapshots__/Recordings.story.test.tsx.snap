@@ -48,20 +48,20 @@ exports[`rendering of Session Recordings 1`] = `
 
 .c15 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
 }
 
 .c17 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
 }
 
 .c18 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   margin-right: 16px;
   padding: 4px;
   color: #FFFFFF;

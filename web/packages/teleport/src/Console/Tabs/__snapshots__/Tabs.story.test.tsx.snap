@@ -3,13 +3,13 @@
 exports[`render ConsoleTabs 1`] = `
 .c7 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
 }
 
 .c10 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
 }
@@ -27,7 +27,7 @@ exports[`render ConsoleTabs 1`] = `
   flex: 0 0 auto;
   background: transparent;
   color: inherit;
-  transition: all .3s;
+  transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
   font-size: 12px;
   height: 24px;

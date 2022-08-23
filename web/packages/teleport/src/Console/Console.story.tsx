@@ -34,11 +34,9 @@ storiesOf('Teleport/Console', module).add('Console', () => {
 });
 
 export function TestLayout(props: PropType) {
-  const [context] = React.useState(
-    (): ConsoleContext => {
-      return props.ctx || new ConsoleContext();
-    }
-  );
+  const [context] = React.useState((): ConsoleContext => {
+    return props.ctx || new ConsoleContext();
+  });
 
   const [history] = React.useState((): any => {
     const history =

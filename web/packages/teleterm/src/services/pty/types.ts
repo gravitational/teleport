@@ -15,9 +15,7 @@ export interface PtyHostClient {
 }
 
 export type PtyServiceClient = {
-  createPtyProcess: (
-    cmd: PtyCommand
-  ) => Promise<{
+  createPtyProcess: (cmd: PtyCommand) => Promise<{
     process: IPtyProcess;
     creationStatus: PtyProcessCreationStatus;
   }>;

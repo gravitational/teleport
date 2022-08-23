@@ -152,5 +152,4 @@ function createDefaultConfig() {
   };
 }
 
-
 module.exports = configFactory;

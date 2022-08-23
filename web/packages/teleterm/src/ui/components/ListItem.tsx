@@ -19,8 +19,7 @@ export const ListItem = styled.li`
   border: none;
   border-radius: 4px;
 
-  background: ${props =>
-          props.isActive ? 'rgba(255, 255, 255, 0.05)' : null};
+  background: ${props => (props.isActive ? 'rgba(255, 255, 255, 0.05)' : null)};
 
   &:focus,
   &:hover {

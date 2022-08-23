@@ -18,16 +18,16 @@ import React from 'react';
 import Image from 'design/Image';
 import defaultLogoSvg from 'design/assets/images/teleport-medallion.svg';
 
-const LogoHero = ({...rest}) => {
-  return <Image {...rest}/>
-}
+const LogoHero = ({ ...rest }) => {
+  return <Image {...rest} />;
+};
 
 LogoHero.defaultProps = {
   src: defaultLogoSvg,
-  maxHeight: "120px",
-  maxWidth: "200px",
+  maxHeight: '120px',
+  maxWidth: '200px',
   my: 6,
-  mx: "auto"
-}
+  mx: 'auto',
+};
 
 export default LogoHero;

@@ -46,10 +46,7 @@ export default function JoinedUsers(props) {
 
   const $users = users.map((u, index) => {
     const name = u.user || '';
-    const initial = name
-      .trim()
-      .charAt(0)
-      .toUpperCase();
+    const initial = name.trim().charAt(0).toUpperCase();
     return (
       <UserItem key={`${index}${u.user}`}>
         <StyledAvatar>{initial}</StyledAvatar>

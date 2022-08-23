@@ -31,9 +31,7 @@ module.exports = {
   },
   devtool: false,
   mode: 'development',
-  plugins: [
-    configFactory.plugins.reactRefresh(),
-  ],
+  plugins: [configFactory.plugins.reactRefresh()],
   module: {
     strictExportPresence: true,
     rules: [

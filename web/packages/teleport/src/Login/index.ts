@@ -19,7 +19,4 @@ import LoginFailed from './LoginFailed';
 import LoginSuccess from './LoginSuccess';
 
 export default Login;
-export {
-  LoginFailed,
-  LoginSuccess
-}
+export { LoginFailed, LoginSuccess };

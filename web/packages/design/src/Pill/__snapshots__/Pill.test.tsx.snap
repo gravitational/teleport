@@ -4,7 +4,7 @@ exports[`design/Pill render the label with dismissable 1`] = `
 HTMLCollection [
   .c1 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
 }
 
@@ -30,7 +30,7 @@ exports[`design/Pill renders the label without dismissable 1`] = `
 HTMLCollection [
   .c1 {
   display: inline-block;
-  transition: color .3s;
+  transition: color 0.3s;
   color: #FFFFFF;
 }
 

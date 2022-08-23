@@ -31,14 +31,15 @@ ace.define(
     const oop = acequire('../lib/oop');
     const TextMode = acequire('./text').Mode;
     const FoldMode = acequire('./folding/coffee').FoldMode;
-    const MatchingBraceOutdent = acequire('./matching_brace_outdent')
-      .MatchingBraceOutdent;
+    const MatchingBraceOutdent = acequire(
+      './matching_brace_outdent'
+    ).MatchingBraceOutdent;
 
     const GravitationalHighlightRules = acequire(
       'ace/mode/grv_bpf_highlight_rules'
     ).GravitationalHighlightRules;
 
-    const Mode = function() {
+    const Mode = function () {
       this.$outdent = new MatchingBraceOutdent();
       this.foldingRules = new FoldMode();
       this.HighlightRules = GravitationalHighlightRules;
@@ -55,8 +56,9 @@ ace.define(
   ['require', 'exports', 'ace/lib/oop', 'ace/mode/text_highlight_rules'],
   (acequire, exports) => {
     const oop = acequire('ace/lib/oop');
-    const TextHighlightRules = acequire('ace/mode/text_highlight_rules')
-      .TextHighlightRules;
+    const TextHighlightRules = acequire(
+      'ace/mode/text_highlight_rules'
+    ).TextHighlightRules;
 
     function GravitationalHighlightRules() {
       this.$rules = new TextHighlightRules().getRules(); // Use Text's rules as a base
@@ -88,7 +90,7 @@ ace.define(
         {
           token: 'string', // multi line string start
           regex: /[|>][-+\d]*(?:$|\s+(?:$|#))/,
-          onMatch: function(val, state, stack, line) {
+          onMatch: function (val, state, stack, line) {
             line = line.replace(/ #.*/, '');
             var indent = /^ *((:\s*)?-(\s*[^|>])?)?/
               .exec(line)[0]
@@ -122,7 +124,7 @@ ace.define(
         {
           token: 'indent',
           regex: /^ */,
-          onMatch: function(val, state, stack) {
+          onMatch: function (val, state, stack) {
             var curIndent = stack[1];
 
             if (curIndent >= val.length) {
@@ -150,7 +152,7 @@ ace.define(
         {
           token: 'indent',
           regex: /^ */,
-          onMatch: function(val, state, stack) {
+          onMatch: function (val, state, stack) {
             var curIndent = stack[1];
 
             if (curIndent >= val.length) {

@@ -14,6 +14,6 @@
  * limitations under the License.
  */
 
-import SlideTabs from "./SlideTabs";
+import SlideTabs from './SlideTabs';
 
 export default SlideTabs;
