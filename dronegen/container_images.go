@@ -180,7 +180,25 @@ func (rv *releaseVersion) getSetupStepInformation(triggerSetupSteps []step) ([]s
 
 func (rv *releaseVersion) buildSteps(setupStepNames []string) []step {
 	clonedRepoPath := "/go/src/github.com/gravitational/teleport"
+	steps := make([]step, 0)
 
+	setupSteps := []step{
+		waitForDockerStep(),
+		cloneRepoStep(clonedRepoPath, rv.ShellVersion),
+	}
+	for _, setupStep := range setupSteps {
+		steps = append(steps, setupStep)
+		setupStepNames = append(setupStepNames, setupStep.Name)
+	}
+
+	for _, product := range rv.getProducts(clonedRepoPath) {
+		steps = append(steps, product.BuildSteps(rv, setupStepNames)...)
+	}
+
+	return steps
+}
+
+func (rv *releaseVersion) getProducts(clonedRepoPath string) []*product {
 	teleportProducts := []*product{
 		NewTeleportProduct(false, false, rv), // OSS
 		NewTeleportProduct(true, false, rv),  // Enterprise
@@ -197,22 +215,7 @@ func (rv *releaseVersion) buildSteps(setupStepNames []string) []step {
 	products = append(products, teleportLabProducts...)
 	products = append(products, teleportOperatorProduct)
 
-	steps := make([]step, 0)
-
-	setupSteps := []step{
-		waitForDockerStep(),
-		cloneRepoStep(clonedRepoPath, rv.ShellVersion),
-	}
-	for _, setupStep := range setupSteps {
-		steps = append(steps, setupStep)
-		setupStepNames = append(setupStepNames, setupStep.Name)
-	}
-
-	for _, product := range products {
-		steps = append(steps, product.BuildSteps(rv, setupStepNames)...)
-	}
-
-	return steps
+	return products
 }
 
 type product struct {
@@ -231,19 +234,17 @@ func NewTeleportProduct(isEnterprise, isFips bool, version *releaseVersion) *pro
 	workingDirectory := "/go/build"
 	dockerfile := path.Join(workingDirectory, "Dockerfile")
 	downloadURL := "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-	target := "teleport"
-	if isFips {
-		target += "-fips"
-	}
 	name := "teleport"
+	dockerfileTarget := "teleport"
+	supportedArches := []string{"amd64"}
+
 	if isEnterprise {
 		name += "-ent"
 	}
 	if isFips {
+		dockerfileTarget += "-fips"
 		name += "-fips"
-	}
-	supportedArches := []string{"amd64"}
-	if !isFips {
+	} else {
 		supportedArches = append(supportedArches, "arm", "arm64")
 	}
 
@@ -253,7 +254,7 @@ func NewTeleportProduct(isEnterprise, isFips bool, version *releaseVersion) *pro
 		Name:             name,
 		DockerfilePath:   dockerfile,
 		WorkingDirectory: workingDirectory,
-		DockerfileTarget: target,
+		DockerfileTarget: dockerfileTarget,
 		SupportedArchs:   supportedArches,
 		SetupSteps:       []step{setupStep},
 		DockerfileArgBuilder: func(arch string) []string {
