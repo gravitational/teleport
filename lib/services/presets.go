@@ -170,6 +170,7 @@ func defaultAllowRules() map[string][]types.Rule {
 	return map[string][]types.Rule{
 		teleport.PresetEditorRoleName: {
 			types.NewRule(types.KindConnectionDiagnostic, RW()),
+			types.NewRule(types.KindSessionTracker, RO()),
 		},
 	}
 }
