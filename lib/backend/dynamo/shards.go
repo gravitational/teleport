@@ -105,6 +105,63 @@ func StreamInit(ctx context.Context, cfg StreamConfig) (*Stream, error) {
 	return s, nil
 }
 
+func (s *Stream) shouldStartPoll(shard *dynamodbstreams.Shard) bool {
+	shardId := aws.StringValue(shard.ShardId)
+	parentShardId := aws.StringValue(shard.ParentShardId)
+	if _, ok := s.shardIds[shardId]; ok {
+		// already being polled
+		return false
+	}
+	if _, ok := s.shardIds[parentShardId]; ok {
+		s.Debugf("Skipping child shard: %s, still polling parent %s", shardId, parentShardId)
+		// still processing parent
+		return false
+	}
+	return true
+}
+
+func (s *Stream) refreshShards(ctx context.Context, init bool) error {
+	shards, err := s.collectActiveShards(ctx, s.streamArn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var initC chan error
+	if init {
+		// first call to refreshShards requires us to block on shard iterator
+		// registration.
+		initC = make(chan error, len(shards))
+	}
+
+	started := 0
+	for i := range shards {
+		if !s.shouldStartPoll(shards[i]) {
+			continue
+		}
+		shardID := aws.StringValue(shards[i].ShardId)
+		s.Debugf("Adding active shard %v.", shardID)
+		s.shardIds[shardID] = struct{}{}
+		go s.asyncPollShard(ctx, shards[i], initC)
+		started++
+	}
+
+	if init {
+		// block on shard iterator registration.
+		for i := 0; i < started; i++ {
+			select {
+			case err = <-initC:
+				if err != nil {
+					return trace.Wrap(err)
+				}
+			case <-ctx.Done():
+				return trace.Wrap(ctx.Err())
+			}
+		}
+	}
+
+	return nil
+}
+
 func (s *Stream) Poll(externalCtx context.Context, cursor string) error {
 	ctx, cancel := context.WithCancel(externalCtx)
 	defer cancel()
@@ -157,63 +214,6 @@ func findStream(ctx context.Context, dynamoDB dynamodbiface.DynamoDBAPI, tableNa
 	}
 
 	return aws.StringValue(status.Table.LatestStreamArn), nil
-}
-
-func (s *Stream) refreshShards(ctx context.Context, init bool) error {
-	shards, err := s.collectActiveShards(ctx, s.streamArn)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	var initC chan error
-	if init {
-		// first call to refreshShards requires us to block on shard iterator
-		// registration.
-		initC = make(chan error, len(shards))
-	}
-
-	started := 0
-	for i := range shards {
-		if !s.shouldStartPoll(shards[i]) {
-			continue
-		}
-		shardID := aws.StringValue(shards[i].ShardId)
-		s.Debugf("Adding active shard %v.", shardID)
-		s.shardIds[shardID] = struct{}{}
-		go s.asyncPollShard(ctx, shards[i], initC)
-		started++
-	}
-
-	if init {
-		// block on shard iterator registration.
-		for i := 0; i < started; i++ {
-			select {
-			case err = <-initC:
-				if err != nil {
-					return trace.Wrap(err)
-				}
-			case <-ctx.Done():
-				return trace.Wrap(ctx.Err())
-			}
-		}
-	}
-
-	return nil
-}
-
-func (s *Stream) shouldStartPoll(shard *dynamodbstreams.Shard) bool {
-	shardId := aws.StringValue(shard.ShardId)
-	parentShardId := aws.StringValue(shard.ParentShardId)
-	if _, ok := s.shardIds[shardId]; ok {
-		// already being polled
-		return false
-	}
-	if _, ok := s.shardIds[parentShardId]; ok {
-		s.Debugf("Skipping child shard: %s, still polling parent %s", shardId, parentShardId)
-		// still processing parent
-		return false
-	}
-	return true
 }
 
 func (s *Stream) pollShard(ctx context.Context, shard *dynamodbstreams.Shard, initC chan<- error) error {
