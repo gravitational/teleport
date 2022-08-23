@@ -313,8 +313,8 @@ const (
 //
 // All spans received will have a `teleport.forwarded.for` attribute added to them with the value being one of
 // two things depending on the role of the forwarder:
-//  1) User forwarded: `teleport.forwarded.for: alice`
-//  2) Instance forwarded: `teleport.forwarded.for: Proxy.clustername:Proxy,Node,Instance`
+//  1. User forwarded: `teleport.forwarded.for: alice`
+//  2. Instance forwarded: `teleport.forwarded.for: Proxy.clustername:Proxy,Node,Instance`
 //
 // This allows upstream consumers of the spans to be able to identify forwarded spans and act on them accordingly.
 func (a *ServerWithRoles) Export(ctx context.Context, req *collectortracev1.ExportTraceServiceRequest) (*collectortracev1.ExportTraceServiceResponse, error) {
@@ -792,6 +792,53 @@ func (a *ServerWithRoles) PingInventory(ctx context.Context, req proto.Inventory
 		return proto.InventoryPingResponse{}, trace.AccessDenied("requires builtin admin role")
 	}
 	return a.authServer.PingInventory(ctx, req)
+}
+
+func (a *ServerWithRoles) GetClusterAlerts(ctx context.Context, query types.GetClusterAlertsRequest) ([]types.ClusterAlert, error) {
+	// unauthenticated clients can never check for alerts. we don't normally explicitly
+	// check for this kind of thing, but since alerts use an unusual access-control
+	// pattern, explicitly rejecting the nop role makes things easier.
+	if a.hasBuiltinRole(types.RoleNop) {
+		return nil, trace.AccessDenied("alerts not available to unauthenticated clients")
+	}
+
+	alerts, err := a.authServer.GetClusterAlerts(ctx, query)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// admin can see all alerts
+	if a.hasBuiltinRole(types.RoleAdmin) {
+		return alerts, nil
+	}
+
+	// filter alerts by teleport.internal labels to determine whether the alert
+	// was intended to be visible to the calling user.
+	filtered := alerts[:0]
+	for _, alert := range alerts {
+		if alert.Metadata.Labels[types.AlertPermitAll] == "yes" {
+			// alert may be shown to all authenticated users
+			filtered = append(filtered, alert)
+			continue
+		}
+
+		// TODO(fspmarshall): Support additional internal labels to help customize alert targets.
+		// maybe we could use labels to specify that an alert should only be shown to users with a
+		// specific permission (e.g. `"teleport.internal/alert-permit-permission": "node:read"`).
+		// requires further consideration.
+	}
+
+	return filtered, nil
+}
+
+func (a *ServerWithRoles) UpsertClusterAlert(ctx context.Context, alert types.ClusterAlert) error {
+	// admin-only API. the expected usage of this is mostly as something the auth server itself would do
+	// internally, but it is useful to be able to create alerts via tctl for testing/debug purposes.
+	if !a.hasBuiltinRole(types.RoleAdmin) {
+		return trace.AccessDenied("cluster alert creation is admin-only")
+	}
+
+	return a.authServer.UpsertClusterAlert(ctx, alert)
 }
 
 func (a *ServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
@@ -2814,9 +2861,9 @@ func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.S
 }
 
 // ValidateSAMLResponse validates SAML auth response.
-func (a *ServerWithRoles) ValidateSAMLResponse(ctx context.Context, re string) (*SAMLAuthResponse, error) {
+func (a *ServerWithRoles) ValidateSAMLResponse(ctx context.Context, re string, connectorID string) (*SAMLAuthResponse, error) {
 	// auth callback is it's own authz, no need to check extra permissions
-	return a.authServer.ValidateSAMLResponse(ctx, re)
+	return a.authServer.ValidateSAMLResponse(ctx, re, connectorID)
 }
 
 // GetSAMLAuthRequest returns SAML auth request if found.
@@ -3075,6 +3122,18 @@ func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offs
 
 func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, afterN int, includePrintEvents bool) ([]events.EventFields, error) {
 	if err := a.actionForKindSession(namespace, types.VerbRead, sid); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// emit a session recording view event for the audit log
+	if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SessionRecordingAccess{
+		Metadata: apievents.Metadata{
+			Type: events.SessionRecordingAccessEvent,
+			Code: events.SessionRecordingAccessCode,
+		},
+		SessionID:    sid.String(),
+		UserMetadata: a.context.Identity.GetIdentity().GetUserMetadata(),
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4470,10 +4529,35 @@ func (a *ServerWithRoles) StreamEvents(ctx context.Context, cursor string) (chan
 // channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 // The event channel is not closed on error to prevent race conditions in downstream select statements.
 func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	if err := a.actionForKindSession(apidefaults.Namespace, types.VerbList, sessionID); err != nil {
-		c, e := make(chan apievents.AuditEvent), make(chan error, 1)
+	createErrorChannel := func(err error) (chan apievents.AuditEvent, chan error) {
+		e := make(chan error, 1)
 		e <- trace.Wrap(err)
-		return c, e
+		return nil, e
+	}
+
+	if err := a.actionForKindSession(apidefaults.Namespace, types.VerbList, sessionID); err != nil {
+		return createErrorChannel(err)
+	}
+
+	// StreamSessionEvents can be called internally, and when that happens we don't want to emit an event.
+	shouldEmitAuditEvent := true
+	if role, ok := a.context.Identity.(BuiltinRole); ok {
+		if role.IsServer() {
+			shouldEmitAuditEvent = false
+		}
+	}
+
+	if shouldEmitAuditEvent {
+		if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SessionRecordingAccess{
+			Metadata: apievents.Metadata{
+				Type: events.SessionRecordingAccessEvent,
+				Code: events.SessionRecordingAccessCode,
+			},
+			SessionID:    sessionID.String(),
+			UserMetadata: a.context.Identity.GetIdentity().GetUserMetadata(),
+		}); err != nil {
+			return createErrorChannel(err)
+		}
 	}
 
 	return a.alog.StreamSessionEvents(ctx, sessionID, startIndex)

@@ -84,7 +84,7 @@ type AuditEvent interface {
 Session events embed session metadata:
 
 ```
-// SesssionMetadata is a common session event metadata
+// SessionMetadata is a common session event metadata
 message SessionMetadata {
     // SessionID is a unique UUID of the session.
     string SessionID = 1;
