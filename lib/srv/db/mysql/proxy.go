@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
@@ -195,14 +194,12 @@ func (p *Proxy) performHandshake(conn *multiplexer.Conn, server *server.Conn) (u
 	case *tls.Conn:
 		return c, nil
 	case *multiplexer.Conn:
-		switch tlsConn := c.Conn.(type) {
-		case *tls.Conn:
-			return tlsConn, nil
-		case *alpnproxy.PingConn:
-			return tlsConn, nil
-		default:
+		tlsConn, ok := c.Conn.(utils.TLSConn)
+		if !ok {
 			return nil, trace.BadParameter("expected TLS connection, got: %T", c.Conn)
 		}
+
+		return tlsConn, nil
 	}
 	return nil, trace.BadParameter("expected *tls.Conn or *multiplexer.Conn, got: %T",
 		server.Conn.Conn)
