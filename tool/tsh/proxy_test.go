@@ -131,9 +131,12 @@ func testLeafClusterSSHAccess(t *testing.T, s *suite) {
 // logged in to the root cluster by default (i.e. no --cluster flag).
 func testRootLoginLeafSSHBlocked(t *testing.T, s *suite) {
 	tshHome := mustLogin(t, s)
+	leafPort := helpers.PortStr(t, s.leaf.Config.SSH.Addr.Addr)
 	require.Never(t, func() bool {
 		err := Run(context.Background(), []string{
 			"ssh",
+			"--insecure",
+			"-p", leafPort,
 			s.leaf.Config.Hostname,
 			"echo", "hello",
 		}, setHomePath(tshHome))
@@ -196,7 +199,7 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 // the root cluster without the --cluster flag if LoadAllHostCAs is true.
 func TestSSHLeafFromRoot(t *testing.T) {
 	lib.SetInsecureDevMode(true)
-	defer lib.SetInsecureDevMode(false)
+	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
 
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *service.Config) {
@@ -221,7 +224,7 @@ func TestSSHLeafFromRoot(t *testing.T) {
 			"echo", "hello",
 		}, setHomePath(tshHome))
 		return err == nil
-	}, 10*time.Second, time.Second)
+	}, 20*time.Second, 2*time.Second)
 }
 
 // TestProxySSH verifies "tsh proxy ssh" functionality

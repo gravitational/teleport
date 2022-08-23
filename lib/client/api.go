@@ -1895,24 +1895,17 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		tc.Config.HostLogin,
 	)
 	if connectErr != nil {
-		if tc.ExplicitSiteName {
+		if tc.shouldGuessCluster(ctx) {
+			// If the user didn't provide a cluster and the auth server says to load all CAs,
+			// try to guess the cluster.
+			nodeClient, err = tc.tryConnectToNodeAnyCluster(ctx, proxyClient, nodeAddrs[0])
+			if err != nil {
+				tc.ExitStatus = 1
+				return trace.NewAggregate(connectErr, err)
+			}
+		} else {
 			tc.ExitStatus = 1
 			return trace.Wrap(connectErr)
-		}
-		pr, err := tc.Ping(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if !pr.Auth.LoadAllHostCAs {
-			tc.ExitStatus = 1
-			return trace.Wrap(connectErr)
-		}
-
-		// If the user didn't provide a cluster and the auth server says to load all CAs,
-		// try to guess the cluster.
-		nodeClient, err = tc.tryConnectToNodeAnyCluster(ctx, proxyClient, nodeAddrs[0])
-		if err != nil {
-			return trace.NewAggregate(connectErr, err)
 		}
 	}
 	defer nodeClient.Close()
@@ -1959,6 +1952,17 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %v\n", nodeAddrs[0])
 	}
 	return tc.runShell(ctx, nodeClient, types.SessionPeerMode, nil, nil)
+}
+
+func (tc *TeleportClient) shouldGuessCluster(ctx context.Context) bool {
+	if tc.ExplicitSiteName {
+		return false
+	}
+	pr, err := tc.Ping(ctx)
+	if err != nil {
+		return false
+	}
+	return pr.Auth.LoadAllHostCAs
 }
 
 // tryConnectToNodeAnyCluster attempts to connect to a node in an unknown cluster.

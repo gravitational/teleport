@@ -934,6 +934,12 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 
+	pingResp, err := authClient.Ping(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	loadlAllHostCAs := pingResp.LoadAllHostCAs
+
 	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -951,6 +957,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 			return nil, trace.Wrap(err)
 		}
 		response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
+		response.Auth.LoadAllHostCAs = loadlAllHostCAs
 		response.Auth.Local.Name = connectorName // echo connector queried by caller
 		return response, nil
 	}
@@ -967,6 +974,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 			if value.GetMetadata().Name == connectorName {
 				response.Auth = oidcSettings(oidcConnectors[index], cap)
 				response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
+				response.Auth.LoadAllHostCAs = loadlAllHostCAs
 				return response, nil
 			}
 		}
@@ -980,6 +988,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 			if value.GetMetadata().Name == connectorName {
 				response.Auth = samlSettings(samlConnectors[index], cap)
 				response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
+				response.Auth.LoadAllHostCAs = loadlAllHostCAs
 				return response, nil
 			}
 		}
@@ -993,6 +1002,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 			if value.GetMetadata().Name == connectorName {
 				response.Auth = githubSettings(githubConnectors[index], cap)
 				response.Auth.HasMessageOfTheDay = hasMessageOfTheDay
+				response.Auth.LoadAllHostCAs = loadlAllHostCAs
 				return response, nil
 			}
 		}
