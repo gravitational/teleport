@@ -144,6 +144,11 @@ func (tv *teleportVersion) buildVersionPipeline(triggerSetupSteps []step) pipeli
 	pipeline.Workspace = workspace{Path: "/go"}
 	pipeline.Services = []service{dockerService()}
 	pipeline.Volumes = dockerVolumes()
+	pipeline.Environment = map[string]value{
+		"DEBIAN_FRONTEND": {
+			raw: "noninteractive",
+		},
+	}
 	pipeline.Steps = append(setupSteps, tv.buildSteps(dependentStepNames)...)
 
 	return pipeline
@@ -177,13 +182,13 @@ func (tv *teleportVersion) buildSteps(setupStepNames []string) []step {
 	clonedRepoPath := "/go/src/github.com/gravitational/teleport"
 
 	teleportProducts := []*product{
-		NewTeleportProduct(false, false), // OSS
-		NewTeleportProduct(true, false),  // Enterprise
-		NewTeleportProduct(true, true),   // Enterprise/FIPS
+		NewTeleportProduct(false, false, tv), // OSS
+		NewTeleportProduct(true, false, tv),  // Enterprise
+		NewTeleportProduct(true, true, tv),   // Enterprise/FIPS
 	}
 	teleportLabProducts := make([]*product, 0, len(teleportProducts))
 	for _, teleportProduct := range teleportProducts {
-		teleportLabProducts = append(teleportLabProducts, NewTeleportLabProduct(clonedRepoPath, teleportProduct))
+		teleportLabProducts = append(teleportLabProducts, NewTeleportLabProduct(clonedRepoPath, tv, teleportProduct))
 	}
 	teleportOperatorProduct := NewTeleportOperatorProduct(clonedRepoPath)
 
@@ -215,25 +220,23 @@ type product struct {
 	DockerfilePath       string
 	WorkingDirectory     string
 	DockerfileTarget     string
-	BuildSetupCommands   []string
 	SupportedArchs       []string
-	DockerfileArgBuilder func(arch string, version *teleportVersion) []string
+	SetupSteps           []step
+	DockerfileArgBuilder func(arch string) []string
 	ImageNameBuilder     func(repo, tag string) string
-	GetRequiredStepNames func(arch string, version *teleportVersion) []string
+	GetRequiredStepNames func(arch string) []string
 }
 
-func NewTeleportProduct(isEnterprise, isFips bool) *product {
+func NewTeleportProduct(isEnterprise, isFips bool, version *teleportVersion) *product {
 	workingDirectory := "/go/build"
 	dockerfile := path.Join(workingDirectory, "Dockerfile")
 	downloadURL := "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
 	target := "teleport"
 	if isFips {
-		target += "fips"
+		target += "-fips"
 	}
 	name := "teleport"
-	packageName := "teleport"
 	if isEnterprise {
-		packageName += "-ent"
 		name += "-ent"
 	}
 	if isFips {
@@ -244,70 +247,118 @@ func NewTeleportProduct(isEnterprise, isFips bool) *product {
 		supportedArches = append(supportedArches, "arm", "arm64")
 	}
 
+	setupStep, debPath := teleportSetupStep(version.ShellVersion, name, dockerfile, downloadURL)
+
 	return &product{
 		Name:             name,
 		DockerfilePath:   dockerfile,
 		WorkingDirectory: workingDirectory,
 		DockerfileTarget: target,
-		BuildSetupCommands: []string{
-			"apk --update --no-cache add curl",
-			fmt.Sprintf("curl -Ls -o %q %q", dockerfile, downloadURL),
-		},
-		SupportedArchs: supportedArches,
-		DockerfileArgBuilder: func(arch string, version *teleportVersion) []string {
+		SupportedArchs:   supportedArches,
+		SetupSteps:       []step{setupStep},
+		DockerfileArgBuilder: func(arch string) []string {
 			return []string{
-				"DEB_SOURCE=apt",
-				fmt.Sprintf("PACKAGE_VERSION=%s", version.ShellVersion),
-				fmt.Sprintf("PACKAGE_NAME=%s", packageName),
+				fmt.Sprintf("DEB_PATH=%s", debPath),
 			}
 		},
 		ImageNameBuilder: func(repo, tag string) string {
+			imageProductName := "teleport"
 			if isEnterprise {
-				repo += "-ent"
+				imageProductName += "-ent"
 			}
 
 			if isFips {
 				tag += "-fips"
 			}
 
-			return defaultImageTagBuilder(repo, tag)
+			return defaultImageTagBuilder(repo, imageProductName, tag)
 		},
 	}
 }
 
-func NewTeleportLabProduct(cloneDirectory string, teleport *product) *product {
+func NewTeleportLabProduct(cloneDirectory string, version *teleportVersion, teleport *product) *product {
 	workingDirectory := "/tmp/build"
 	dockerfile := path.Join(cloneDirectory, "docker", "sshd", "Dockerfile")
+	name := "teleport-lab"
 
 	return &product{
-		Name:             "teleport-lab",
+		Name:             name,
 		DockerfilePath:   dockerfile,
 		WorkingDirectory: workingDirectory,
 		SupportedArchs:   teleport.SupportedArchs,
-		DockerfileArgBuilder: func(arch string, version *teleportVersion) []string {
+		DockerfileArgBuilder: func(arch string) []string {
 			return []string{
 				fmt.Sprintf("BASE_IMAGE=%s", teleport.BuildLocalImageName(arch, version)),
 			}
 		},
-		ImageNameBuilder: defaultImageTagBuilder,
-		GetRequiredStepNames: func(arch string, version *teleportVersion) []string {
+		ImageNameBuilder: func(repo, tag string) string { return defaultImageTagBuilder(repo, name, tag) },
+		GetRequiredStepNames: func(arch string) []string {
 			return []string{teleport.GetBuildStepName(arch, version)}
 		},
 	}
 }
 
 func NewTeleportOperatorProduct(cloneDirectory string) *product {
+	name := "teleport-operator"
 	return &product{
-		Name:             "teleport-operator",
+		Name:             name,
 		DockerfilePath:   path.Join(cloneDirectory, "operator", "Dockerfile"),
 		WorkingDirectory: cloneDirectory,
 		SupportedArchs:   []string{"amd64", "arm", "arm64"},
-		ImageNameBuilder: defaultImageTagBuilder,
+		ImageNameBuilder: func(repo, tag string) string { return defaultImageTagBuilder(repo, name, tag) },
 	}
 }
 
-func defaultImageTagBuilder(repo, tag string) string {
-	return fmt.Sprintf("%s:%s", repo, tag)
+func defaultImageTagBuilder(repo, name, tag string) string {
+	return fmt.Sprintf("%s%s:%s", repo, name, tag)
+}
+
+func teleportSetupStep(shellVersion, packageName, dockerfilePath, downloadURL string) (step, string) {
+	keyPath := "/usr/share/keyrings/teleport-archive-keyring.asc"
+	downloadDirectory := path.Join("/go/artifacts/deb/", shellVersion)
+	downloadPath := path.Join(downloadDirectory, fmt.Sprintf("%s.deb", packageName))
+	timeout := 30 * 60 // 30 minutes in seconds
+	sleepTime := 15    // 15 seconds
+
+	return step{
+		Name:  "Download DEB artifact from APT",
+		Image: "ubuntu:20.04",
+		Commands: []string{
+			// Setup the environment
+			fmt.Sprintf("PACKAGE_VERSION=%q", shellVersion),
+			fmt.Sprintf("PACKAGE_NAME=%q", packageName),
+			"apt update",
+			"apt install --no-install-recommends -y ca-certificates curl",
+			"update-ca-certificates",
+			fmt.Sprintf("curl https://apt.releases.teleport.dev/gpg -o %q", keyPath),
+			". /etc/os-release",
+			"MAJOR_VERSION=$(echo ${PACKAGE_VERSION?} | cut -d'.' -f 1)",
+			fmt.Sprintf("echo \"deb [signed-by=%s] https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/${MAJOR_VERSION?}\""+
+				" > /etc/apt/sources.list.d/teleport.list", keyPath),
+			fmt.Sprintf("END_TIME=$(( $(date +%%s) + %d ))", timeout),
+			"TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)",
+			"TIMED_OUT=true",
+			// Poll APT until the timeout is reached or the package becomes available
+			"while [ $(date +%s) -lt $END_TIME ]; do",
+			"echo 'Running apt update...'",
+			// This will error on new major versions where the "stable/${MAJOR_VERSION}" component doesn't exist yet, so we ignore it here.
+			"apt update > /dev/null || true",
+			"[ $(apt-cache madison ${PACKAGE_NAME} | grep $TRIMMED_VERSION | wc -l) -ge 1 ] && TIMED_OUT=false && break;",
+			fmt.Sprintf("echo 'Package not found yet, waiting another %d seconds...'", sleepTime),
+			fmt.Sprintf("sleep %d", sleepTime),
+			"done",
+			// Log success or failure and record full version string
+			"[ $TIMED_OUT = true ] && echo \"Timed out while looking for APT package \\\"${PACKAGE_NAME}\\\" matching $TRIMMED_VERSION\" && exit 1",
+			"FULL_VERSION=$(apt-cache madison ${PACKAGE_NAME} | grep $TRIMMED_VERSION | cut -d'|' -f 2 | tr -d ' ' | head -n 1)",
+			"echo \"Found APT package, downloading \\\"${PACKAGE_NAME}=${FULL_VERSION}\\\"...\"",
+			fmt.Sprintf("mkdir -pv %q", downloadDirectory),
+			fmt.Sprintf("cd %q", downloadDirectory),
+			"apt download ${PACKAGE_NAME}=$FULL_VERSION",
+			fmt.Sprintf("mv *.deb %q", downloadPath),
+			// Download the dockerfile
+			fmt.Sprintf("curl -Ls -o %q %q", dockerfilePath, downloadURL),
+		},
+	}, downloadPath
 }
 
 func (p *product) BuildLocalImageName(arch string, version *teleportVersion) string {
@@ -319,13 +370,19 @@ func (p *product) BuildSteps(version *teleportVersion, setupStepNames []string) 
 
 	steps := make([]step, 0)
 
+	for _, setupStep := range p.SetupSteps {
+		setupStep.DependsOn = append(setupStep.DependsOn, setupStepNames...)
+		steps = append(steps, setupStep)
+		setupStepNames = append(setupStepNames, setupStep.Name)
+	}
+
 	archBuildStepDetails := make([]*buildStepOutput, 0, len(p.SupportedArchs))
 	for _, supportedArch := range p.SupportedArchs {
 		archBuildStep, archBuildStepDetail := p.createBuildStep(supportedArch, version)
 
 		archBuildStep.DependsOn = append(archBuildStep.DependsOn, setupStepNames...)
 		if p.GetRequiredStepNames != nil {
-			archBuildStep.DependsOn = append(archBuildStep.DependsOn, p.GetRequiredStepNames(supportedArch, version)...)
+			archBuildStep.DependsOn = append(archBuildStep.DependsOn, p.GetRequiredStepNames(supportedArch)...)
 		}
 
 		steps = append(steps, archBuildStep)
@@ -356,7 +413,7 @@ func (p *product) createBuildStep(arch string, version *teleportVersion) (step, 
 	buildCommand += fmt.Sprintf(" --tag %q", imageName)
 	buildCommand += fmt.Sprintf(" --file %q", p.DockerfilePath)
 	if p.DockerfileArgBuilder != nil {
-		for _, buildArg := range p.DockerfileArgBuilder(arch, version) {
+		for _, buildArg := range p.DockerfileArgBuilder(arch) {
 			buildCommand += fmt.Sprintf(" --build-arg %q", buildArg)
 		}
 		buildCommand += " " + p.WorkingDirectory
@@ -366,12 +423,10 @@ func (p *product) createBuildStep(arch string, version *teleportVersion) (step, 
 		Name:    p.GetBuildStepName(arch, version),
 		Image:   "docker",
 		Volumes: dockerVolumeRefs(),
-		Commands: append(p.BuildSetupCommands,
-			[]string{
-				fmt.Sprintf("mkdir -p %q && cd %q", p.WorkingDirectory, p.WorkingDirectory),
-				buildCommand,
-			}...,
-		),
+		Commands: []string{
+			fmt.Sprintf("mkdir -p %q && cd %q", p.WorkingDirectory, p.WorkingDirectory),
+			buildCommand,
+		},
 	}
 
 	return step, &buildStepOutput{
