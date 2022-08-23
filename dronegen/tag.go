@@ -453,6 +453,7 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 
 	packageBuildCommands := []string{
 		fmt.Sprintf("apk add --no-cache %s", strings.Join(apkPackages, " ")),
+		`apk add --no-cache aws-cli`,
 		`cd /go/src/github.com/gravitational/teleport`,
 		`export VERSION=$(cat /go/.version.txt)`,
 		// Login to Amazon ECR Public

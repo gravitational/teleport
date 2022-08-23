@@ -2094,6 +2094,7 @@ steps:
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar go
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
@@ -2282,6 +2283,7 @@ steps:
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar go
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
@@ -2477,6 +2479,7 @@ steps:
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
@@ -2651,6 +2654,7 @@ steps:
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
@@ -2983,6 +2987,7 @@ steps:
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar go
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
@@ -3173,6 +3178,7 @@ steps:
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
@@ -4289,6 +4295,7 @@ steps:
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
@@ -4465,6 +4472,7 @@ steps:
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
@@ -4641,6 +4649,7 @@ steps:
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar go
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
@@ -4831,6 +4840,7 @@ steps:
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar go
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
   - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
@@ -6556,6 +6566,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 5d9256c17215140f45bab364fb9f504a1be62180b3447971258f97626589344f
+hmac: 84dfa8fbc87b22389078ffeb706fa44d4bab9fbd6c6db7c42cc7e5c2a6f69cce
 
 ...
