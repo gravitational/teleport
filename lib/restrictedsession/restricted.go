@@ -82,10 +82,12 @@ type SessionManager struct {
 	// updateLoop listens for restriction updates and applies them
 	// to the audit subsystem
 	updateLoop *restrictionsUpdateLoop
+
+	nop bool
 }
 
 // New creates a RestrictedSession service.
-func New(config *Config, wc RestrictionsWatcherClient) (srv.Manager, error) {
+func New(config *Config, wc RestrictionsWatcherClient) (*SessionManager, error) {
 	err := config.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -95,7 +97,7 @@ func New(config *Config, wc RestrictionsWatcherClient) (srv.Manager, error) {
 	// right away.
 	if !config.Enabled {
 		log.Debugf("Restricted session is not enabled, skipping.")
-		return NOP{}, nil
+		return &SessionManager{nop: true}, nil
 	}
 
 	// Before proceeding, check that eBPF based LSM is enabled in the kernel
@@ -166,6 +168,10 @@ func (m *SessionManager) Close() {
 // OpenRestrictedSession inserts the cgroupID into the BPF hash map to enable
 // enforcement by the kernel
 func (m *SessionManager) OpenRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {
+	if m.nop {
+		return
+	}
+
 	m.watch.Add(cgroupID, ctx)
 
 	key := make([]byte, 8)
@@ -179,6 +185,10 @@ func (m *SessionManager) OpenRestrictedSession(ctx *srv.ServerContext, cgroupID 
 // CloseRestrictedSession removes the cgroupID from the BPF hash map to enable
 // enforcement by the kernel
 func (m *SessionManager) CloseRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {
+	if m.nop {
+		return
+	}
+
 	key := make([]byte, 8)
 	binary.LittleEndian.PutUint64(key, cgroupID)
 
@@ -293,7 +303,7 @@ func (l *auditEventLoop) loop() {
 			continue
 		}
 
-		if err = ctx.Emitter.EmitAuditEvent(ctx.Context, event); err != nil {
+		if err = ctx.GetRecorder().EmitAuditEvent(ctx.Context, event); err != nil {
 			log.WithError(err).Warn("Failed to emit network event.")
 		}
 	}

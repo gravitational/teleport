@@ -26,7 +26,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/creack/termios/win"
+	"github.com/moby/term"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -327,7 +327,7 @@ func (s *SessionRegistry) ForceTerminate(ctx *ServerContext) error {
 }
 
 // GetTerminalSize fetches the terminal size of an active SSH session.
-func (s *SessionRegistry) GetTerminalSize(sessionID string) (*win.Winsize, error) {
+func (s *SessionRegistry) GetTerminalSize(sessionID string) (*term.Winsize, error) {
 	s.sessionsMux.Lock()
 	defer s.sessionsMux.Unlock()
 

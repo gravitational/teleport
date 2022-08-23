@@ -527,6 +527,10 @@ func (c *ServerContext) GetServer() Server {
 	return c.srv
 }
 
+func (c *ServerContext) GetRecorder() events.StreamWriter {
+	return c.session.Recorder()
+}
+
 // CreateOrJoinSession will look in the SessionRegistry for the session ID. If
 // no session is found, a new one is created. If one is found, it is returned.
 func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {

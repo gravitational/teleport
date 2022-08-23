@@ -26,8 +26,6 @@ import (
 	"sync"
 	"syscall"
 
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/services"
@@ -35,9 +33,10 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 
 	"github.com/creack/pty"
-	"github.com/creack/termios/win"
 	"github.com/gravitational/trace"
+	"github.com/moby/term"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 )
 
 // LookupUser is used to mock the value returned by user.Lookup(string).
@@ -80,7 +79,7 @@ type Terminal interface {
 	Close() error
 
 	// GetWinSize returns the window size of the terminal.
-	GetWinSize() (*win.Winsize, error)
+	GetWinSize() (*term.Winsize, error)
 
 	// SetWinSize sets the window size of the terminal.
 	SetWinSize(ctx context.Context, params rsession.TerminalParams) error
@@ -301,30 +300,15 @@ func (t *terminal) closePTY() {
 }
 
 // GetWinSize returns the window size of the terminal.
-func (t *terminal) GetWinSize() (*win.Winsize, error) {
+func (t *terminal) GetWinSize() (*term.Winsize, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.pty == nil {
 		return nil, trace.NotFound("no pty")
 	}
 
-	size, err := win.GetWinsize(t.pty.Fd())
-	return size, trace.Wrap(err)
-}
-
-// SetWinSize sets the window size of the terminal.
-func (t *terminal) SetWinSize(ctx context.Context, params rsession.TerminalParams) error {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if t.pty == nil {
-		return trace.NotFound("no pty")
-	}
-
-	if err := win.SetWinsize(t.pty.Fd(), params.Winsize()); err != nil {
-		return trace.Wrap(err)
-	}
-	t.params = params
-	return nil
+	ws, err := term.GetWinsize(t.pty.Fd())
+	return ws, trace.Wrap(err)
 }
 
 // GetTerminalParams is a fast call to get cached terminal parameters
@@ -568,7 +552,7 @@ func (t *remoteTerminal) Close() error {
 	return nil
 }
 
-func (t *remoteTerminal) GetWinSize() (*win.Winsize, error) {
+func (t *remoteTerminal) GetWinSize() (*term.Winsize, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
