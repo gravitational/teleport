@@ -614,10 +614,10 @@ func (k *Key) RootClusterName() (string, error) {
 	return clusterName, nil
 }
 
-// EqualPrivateKey returns wheter this key and the given key have the same PrivateKey.
+// EqualPrivateKey returns whether this key and the given key have the same PrivateKey.
 func (k *Key) EqualPrivateKey(other *Key) bool {
 	// Compare both private and public key PEM, since hardware keys
-	// may not be uniquely indetifiable by their private key PEM alone.
+	// may not be uniquely identifiable by their private key PEM alone.
 	// For example, for PIV keys, the private key PEM only uniquely
 	// identifies a PIV slot, so we can use the public key to verify
 	// that the private key on the slot hasn't changed.
