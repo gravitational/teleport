@@ -40,30 +40,39 @@ const (
 	Failed  ResultType = "failed"
 )
 
+// UnknownValue is used by auditd when a value is not provided.
+const UnknownValue = "?"
+
 var ErrAuditdDisabled = trace.Errorf("auditd is disabled")
 
-type NetlinkConnecter interface {
+type NetlinkConnector interface {
 	Execute(m netlink.Message) ([]netlink.Message, error)
 	Receive() ([]netlink.Message, error)
 
 	Close() error
 }
 
+// Message is a
 type Message struct {
-	SystemUser   string
+	// SystemUser is a name of Linux user.
+	SystemUser string
+	// TeleportUser is a name of Teleport user.
 	TeleportUser string
-	ConnAddress  string
-	TTYName      string
+	// ConnAddress is an address of incoming connection.
+	ConnAddress string
+	// TTYName is a name of TTY used by SSH session is allocated, ex: /dev/tty1
+	// or 'teleport' if empty.
+	TTYName string
 }
 
 // SetDefaults set default values to match what OpenSSH does.
 func (m *Message) SetDefaults() {
 	if m.SystemUser == "" {
-		m.SystemUser = "?"
+		m.SystemUser = UnknownValue
 	}
 
 	if m.ConnAddress == "" {
-		m.ConnAddress = "?"
+		m.ConnAddress = UnknownValue
 	}
 
 	if m.TTYName == "" {

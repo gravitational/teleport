@@ -22,7 +22,7 @@ package auditd
 import (
 	"bytes"
 	"encoding/binary"
-	"sync"
+	"errors"
 	"testing"
 
 	"github.com/mdlayher/netlink"
@@ -99,7 +99,7 @@ func TestSendEvent(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		newMock func(t *testing.T) NetlinkConnecter
+		newMock func(t *testing.T) NetlinkConnector
 		errMsg  string
 	}{
 		{
@@ -108,7 +108,7 @@ func TestSendEvent(t *testing.T) {
 				event:  AuditUserLogin,
 				result: Success,
 			},
-			newMock: func(t *testing.T) NetlinkConnecter {
+			newMock: func(t *testing.T) NetlinkConnector {
 				return &netlinkMock{
 					t: t,
 					expectedMessages: []msgOrErr{
@@ -139,7 +139,7 @@ func TestSendEvent(t *testing.T) {
 				event:  AuditUserLogin,
 				result: Failed,
 			},
-			newMock: func(t *testing.T) NetlinkConnecter {
+			newMock: func(t *testing.T) NetlinkConnector {
 				return &netlinkMock{
 					t: t,
 					expectedMessages: []msgOrErr{
@@ -170,7 +170,7 @@ func TestSendEvent(t *testing.T) {
 				event:  AuditUserEnd,
 				result: Success,
 			},
-			newMock: func(t *testing.T) NetlinkConnecter {
+			newMock: func(t *testing.T) NetlinkConnector {
 				return &netlinkMock{
 					t: t,
 					expectedMessages: []msgOrErr{
@@ -201,7 +201,7 @@ func TestSendEvent(t *testing.T) {
 				event:  AuditUserErr,
 				result: Success,
 			},
-			newMock: func(t *testing.T) NetlinkConnecter {
+			newMock: func(t *testing.T) NetlinkConnector {
 				return &netlinkMock{
 					t: t,
 					expectedMessages: []msgOrErr{
@@ -232,7 +232,7 @@ func TestSendEvent(t *testing.T) {
 				event:  AuditUserLogin,
 				result: Success,
 			},
-			newMock: func(t *testing.T) NetlinkConnecter {
+			newMock: func(t *testing.T) NetlinkConnector {
 				return &netlinkMock{
 					t:        t,
 					disabled: true,
@@ -248,7 +248,26 @@ func TestSendEvent(t *testing.T) {
 					},
 				}
 			},
-			errMsg: "audutd is disabled",
+			errMsg: "auditd is disabled",
+		},
+		{
+			name: "connection error",
+			args: args{
+				event:  AuditUserLogin,
+				result: Success,
+			},
+			newMock: func(t *testing.T) NetlinkConnector {
+				return &netlinkMock{
+					t:        t,
+					disabled: true,
+					expectedMessages: []msgOrErr{
+						{
+							err: errors.New("connection failure"),
+						},
+					},
+				}
+			},
+			errMsg: "failed to get auditd status: connection failure",
 		},
 	}
 
@@ -262,8 +281,7 @@ func TestSendEvent(t *testing.T) {
 				teleportUser: "alice",
 				address:      "127.0.0.1",
 				ttyName:      "teleport",
-				mtx:          &sync.Mutex{},
-				dial: func(family int, config *netlink.Config) (NetlinkConnecter, error) {
+				dial: func(family int, config *netlink.Config) (NetlinkConnector, error) {
 					return tt.newMock(t), nil
 				},
 				enabled: false,

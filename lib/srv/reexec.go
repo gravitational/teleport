@@ -123,7 +123,7 @@ type ExecCommand struct {
 	// UaccMetadata contains metadata needed for user accounting.
 	UaccMetadata UaccMetadata `json:"uacc_meta"`
 
-	// X11Config contains a xauth entry to be added to the command user's xauthority.
+	// X11Config contains an xauth entry to be added to the command user's xauthority.
 	X11Config X11Config `json:"x11_config"`
 
 	// ExtraFilesLen is the number of extra files that are inherited from

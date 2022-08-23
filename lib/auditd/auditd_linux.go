@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"sync"
@@ -34,7 +35,7 @@ import (
 
 // Client is auditd client.
 type Client struct {
-	conn NetlinkConnecter
+	conn NetlinkConnector
 
 	execName     string
 	hostname     string
@@ -43,8 +44,8 @@ type Client struct {
 	address      string
 	ttyName      string
 
-	mtx     *sync.Mutex
-	dial    func(family int, config *netlink.Config) (NetlinkConnecter, error)
+	mtx     sync.Mutex
+	dial    func(family int, config *netlink.Config) (NetlinkConnector, error)
 	enabled bool
 }
 
@@ -86,8 +87,8 @@ func IsLoginUIDSet() bool {
 	}
 
 	// if value is not set, logind PAM module will set it to the correct value
-	// after fork. 4294967295 is -1 converted to uint32.
-	return loginuid != 4294967295
+	// after fork. 4294967295 (math.MaxUint32) is -1 converted to uint32.
+	return loginuid != math.MaxUint32
 }
 
 func getSelfLoginUID() (int64, error) {
@@ -164,12 +165,12 @@ func NewClient(msg Message) *Client {
 	execName, err := os.Executable()
 	if err != nil {
 		log.WithError(err).Warn("failed to get executable name")
-		execName = "?"
+		execName = UnknownValue
 	}
 
 	// Teleport never tries to get the hostname name.
 	// Let's mimic the sshd behavior.
-	const hostname = "?"
+	const hostname = UnknownValue
 
 	return &Client{
 		execName:     execName,
@@ -179,14 +180,14 @@ func NewClient(msg Message) *Client {
 		address:      msg.ConnAddress,
 		ttyName:      msg.TTYName,
 
-		dial: func(family int, config *netlink.Config) (NetlinkConnecter, error) {
+		dial: func(family int, config *netlink.Config) (NetlinkConnector, error) {
 			return netlink.Dial(family, config)
 		},
-		mtx: &sync.Mutex{},
+		mtx: sync.Mutex{},
 	}
 }
 
-func getAuditStatus(conn NetlinkConnecter) (*auditStatus, error) {
+func getAuditStatus(conn NetlinkConnector) (*auditStatus, error) {
 	_, err := conn.Execute(netlink.Message{
 		Header: netlink.Header{
 			Type:  netlink.HeaderType(AuditGet),
