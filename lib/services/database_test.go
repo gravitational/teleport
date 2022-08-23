@@ -104,7 +104,7 @@ spec:
   ca_cert: |
 %v`
 
-// TestDatabaseFromAzureMySQLServer tests converting an Azure DB Server to a database resource.
+// TestDatabaseFromAzureDBServer tests converting an Azure DB Server to a database resource.
 func TestDatabaseFromAzureDBServer(t *testing.T) {
 	subscription := "sub1"
 	resourceGroup := "defaultRG"
