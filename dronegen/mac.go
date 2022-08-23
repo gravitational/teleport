@@ -45,6 +45,7 @@ func newDarwinPipeline(name string) pipeline {
 
 func darwinConnectDmgPipeline() pipeline {
 	b := buildType{os: "darwin", arch: "amd64"}
+	toolchainConfig := toolchainConfig{nodejs: true}
 	p := newDarwinPipeline("build-darwin-amd64-connect")
 	p.Trigger = triggerTag
 	p.DependsOn = []string{"build-darwin-amd64-pkg-tsh"}
@@ -58,7 +59,10 @@ func darwinConnectDmgPipeline() pipeline {
 			},
 			Commands: darwinTagCheckoutCommands(b),
 		},
-		installNodeToolchainStep(p.Workspace.Path),
+	}
+	p.Steps = append(p.Steps,
+		installToolchains(p.Workspace.Path, toolchainConfig)...)
+	p.Steps = append(p.Steps, []step{
 		{
 			Name: "Download tsh.pkg artifact from S3",
 			Environment: map[string]value{
@@ -118,14 +122,16 @@ func darwinConnectDmgPipeline() pipeline {
 				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY_STAGING"},
 			},
 		},
-		cleanUpNodeToolchainStep(p.Workspace.Path),
+		cleanUpToolchainsStep(p.Workspace.Path, toolchainConfig),
 		cleanUpExecStorageStep(p.Workspace.Path),
-	}
+	}...,
+	)
 	return p
 }
 
 func darwinPushPipeline() pipeline {
 	b := buildType{os: "darwin", arch: "amd64"}
+	toolchainConfig := toolchainConfig{golang: true, rust: true, nodejs: true}
 	p := newDarwinPipeline("push-build-darwin-amd64")
 	p.Trigger = trigger{
 		Event:  triggerRef{Include: []string{"push"}, Exclude: []string{"pull_request"}},
@@ -142,9 +148,10 @@ func darwinPushPipeline() pipeline {
 			},
 			Commands: pushCheckoutCommandsDarwin(b),
 		},
-		installGoToolchainStep(),
-		installRustToolchainStep(p.Workspace.Path),
-		installNodeToolchainStep(p.Workspace.Path),
+	}
+	p.Steps = append(p.Steps,
+		installToolchains(p.Workspace.Path, toolchainConfig)...)
+	p.Steps = append(p.Steps, []step{
 		{
 			Name: "Build Mac artifacts",
 			Environment: map[string]value{
@@ -157,7 +164,7 @@ func darwinPushPipeline() pipeline {
 			},
 			Commands: darwinTagBuildCommands(b, darwinBuildOptions{unlockKeychain: false, hasTeleportConnect: true}),
 		},
-		cleanUpToolchainsStep(p.Workspace.Path),
+		cleanUpToolchainsStep(p.Workspace.Path, toolchainConfig),
 		cleanUpExecStorageStep(p.Workspace.Path),
 		{
 			Name:        "Send Slack notification (exec)",
@@ -177,7 +184,7 @@ curl -sL -X POST -H 'Content-type: application/json' --data "{\"text\":\"Warning
 			},
 			When: &condition{Status: []string{"failure"}},
 		},
-	}
+	}...)
 	return p
 }
 
@@ -186,6 +193,7 @@ func darwinTagPipeline() pipeline {
 		arch: "amd64",
 		os:   "darwin",
 	}
+	toolchainConfig := toolchainConfig{golang: true, rust: true}
 	p := newDarwinPipeline("build-darwin-amd64")
 	p.Trigger = triggerTag
 	p.Steps = []step{
@@ -198,9 +206,11 @@ func darwinTagPipeline() pipeline {
 			},
 			Commands: darwinTagCheckoutCommands(b),
 		},
-		installGoToolchainStep(),
-		installRustToolchainStep(p.Workspace.Path),
-		installNodeToolchainStep(p.Workspace.Path),
+	}
+	p.Steps = append(p.Steps,
+		installToolchains(p.Workspace.Path, toolchainConfig)...,
+	)
+	p.Steps = append(p.Steps, []step{
 		{
 			Name: "Build Mac release artifacts",
 			Environment: map[string]value{
@@ -248,9 +258,9 @@ func darwinTagPipeline() pipeline {
 				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY_STAGING"},
 			},
 		},
-		cleanUpToolchainsStep(p.Workspace.Path),
+		cleanUpToolchainsStep(p.Workspace.Path, toolchainConfig),
 		cleanUpExecStorageStep(p.Workspace.Path),
-	}
+	}...)
 	return p
 }
 
@@ -302,6 +312,28 @@ func setUpExecStorageStep(path string) step {
 			"rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh",
 		},
 	}
+}
+
+type toolchainConfig struct {
+	golang bool
+	rust   bool
+	nodejs bool
+}
+
+func installToolchains(workspacePath string, config toolchainConfig) (steps []step) {
+	if config.golang {
+		steps = append(steps, installGoToolchainStep())
+	}
+
+	if config.rust {
+		steps = append(steps, installRustToolchainStep(workspacePath))
+	}
+
+	if config.nodejs {
+		steps = append(steps, installNodeToolchainStep(workspacePath))
+	}
+
+	return steps
 }
 
 func installGoToolchainStep() step {
@@ -358,44 +390,38 @@ func installNodeToolchainStep(workspacePath string) step {
 	}
 }
 
-// TODO: Add `toolchains` flag to build options? (node: bool, rust: bool, go: bool)
-func cleanUpToolchainsStep(path string) step {
-	return step{
+func cleanUpToolchainsStep(workspacePath string, config toolchainConfig) step {
+	step := step{
 		Name:        "Clean up toolchains (post)",
-		Environment: map[string]value{"WORKSPACE_DIR": {raw: path}},
+		Environment: map[string]value{"WORKSPACE_DIR": {raw: workspacePath}},
 		When: &condition{
 			Status: []string{"success", "failure"},
 		},
 		Commands: []string{
 			`set -u`,
+		},
+	}
+
+	if config.rust {
+		step.Commands = append(step.Commands,
 			`export PATH=/Users/$(whoami)/.cargo/bin:$PATH`,
-			`export CARGO_HOME=` + perBuildCargoDir,
+			`export CARGO_HOME=`+perBuildCargoDir,
 			`export RUST_HOME=$CARGO_HOME`,
-			`export RUSTUP_HOME=` + perBuildRustupDir,
+			`export RUSTUP_HOME=`+perBuildRustupDir,
 			`export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets print-rust-version)`,
 			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 			// clean up the rust toolchain even though we're about to delete the directory
 			// this ensures we don't leave behind a broken link
 			`rustup override unset`,
 			`rustup toolchain uninstall $RUST_VERSION`,
-			`rm -rf ` + perBuildDir,
-		},
+		)
 	}
-}
 
-// TODO: Consider reusing `cleanUpNodeToolchainStep` with additional flags.
-func cleanUpNodeToolchainStep(path string) step {
-	return step{
-		Name:        "Clean up Node toolchain (post)",
-		Environment: map[string]value{"WORKSPACE_DIR": {raw: path}},
-		When: &condition{
-			Status: []string{"success", "failure"},
-		},
-		Commands: []string{
-			`set -u`,
-			`rm -rf ` + perBuildDir,
-		},
-	}
+	step.Commands = append(step.Commands,
+		`rm -rf `+perBuildDir,
+	)
+
+	return step
 }
 
 func cleanUpExecStorageStep(path string) step {
