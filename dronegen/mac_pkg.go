@@ -25,6 +25,8 @@ func darwinPkgPipeline(name, makeTarget string, pkgGlobs []string, extraQualific
 		arch: "amd64",
 		os:   "darwin",
 	}
+	artifactConfig := onlyBinaries
+
 	p := newDarwinPipeline(name)
 	p.Trigger = triggerTag
 	p.DependsOn = []string{"build-darwin-amd64"}
@@ -36,7 +38,7 @@ func darwinPkgPipeline(name, makeTarget string, pkgGlobs []string, extraQualific
 				"WORKSPACE_DIR":      {raw: p.Workspace.Path},
 				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
-			Commands: darwinTagCheckoutCommands(b),
+			Commands: darwinTagCheckoutCommands(artifactConfig),
 		},
 		{
 			Name: "Download built tarball artifacts from S3",
