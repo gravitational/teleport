@@ -1078,12 +1078,9 @@ func (l *Log) StreamEvents(ctx context.Context, cursor string) (chan apievents.S
 			Log:              l.Entry,
 			DynamoDB:         l.svc,
 			DynamoDBStreams:  l.streams,
-			RetryPeriod:      l.RetryPeriod,
 			PollStreamPeriod: l.PollStreamPeriod,
 			TableName:        l.TableName,
-			OnStreamingStart: func() {},
-			OnStreamingEnd:   func() {},
-			OnRecords: func(records []*dynamodbstreams.Record) error {
+			OnStreamRecords: func(records []*dynamodbstreams.Record) error {
 				for i := range records {
 					var e event
 					if err := dynamodbattribute.UnmarshalMap(records[i].Dynamodb.NewImage, &e); err != nil {
@@ -1095,15 +1092,16 @@ func (l *Log) StreamEvents(ctx context.Context, cursor string) (chan apievents.S
 					}
 					streamEvent := apievents.StreamEvent{
 						Event:  event,
-						Cursor: "TODO",
+						Cursor: cursor,
 					}
 					c <- streamEvent
 				}
 				return nil
 			},
 		}
-		if err := s.AsyncPollStreams(ctx); err != nil {
-			l.Errorf("Stream polling loop exited: %v", err)
+		if err := s.PollStream(ctx, cursor); err != nil {
+			l.Errorf("PollStream returned with error: %v.", err)
+			e <- trace.Wrap(err)
 		}
 	}()
 	return c, e

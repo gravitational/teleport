@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
+	libutils "github.com/gravitational/teleport/lib/utils"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -259,6 +260,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	b.streams = streams
 
 	// check if the table exists?
 	ts, err := b.getTableStatus(ctx, b.TableName)
@@ -311,30 +313,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	}
 
 	go func() {
-		s := &Shards{
-			Log:              b.Entry,
-			DynamoDB:         svc,
-			DynamoDBStreams:  streams,
-			RetryPeriod:      b.RetryPeriod,
-			PollStreamPeriod: b.PollStreamPeriod,
-			TableName:        b.TableName,
-			// shard iterators are initialized, unblock any registered watchers
-			OnStreamingStart: func() { b.buf.SetInit() },
-			OnStreamingEnd:   func() { b.buf.Reset() },
-			OnRecords: func(records []*dynamodbstreams.Record) error {
-				events := make([]backend.Event, 0, len(records))
-				for i := range records {
-					event, err := toEvent(records[i])
-					if err != nil {
-						return trace.Wrap(err)
-					}
-					events = append(events, *event)
-				}
-				b.buf.Emit(events...)
-				return nil
-			},
-		}
-		if err := s.AsyncPollStreams(ctx); err != nil {
+		if err := b.asyncPollStream(ctx); err != nil {
 			b.Errorf("Stream polling loop exited: %v", err)
 		}
 	}()
@@ -946,4 +925,59 @@ func (r records) Swap(i, j int) {
 // Less is part of sort.Interface.
 func (r records) Less(i, j int) bool {
 	return r[i].FullPath < r[j].FullPath
+}
+
+func (b *Backend) asyncPollStream(ctx context.Context) error {
+	retry, err := libutils.NewLinear(libutils.LinearConfig{
+		Step: b.RetryPeriod / 10,
+		Max:  b.RetryPeriod,
+	})
+	if err != nil {
+		b.Errorf("Bad retry parameters: %v", err)
+		return trace.Wrap(err)
+	}
+
+	s := &Shards{
+		Log:              b.Entry,
+		DynamoDB:         b.svc,
+		DynamoDBStreams:  b.streams,
+		PollStreamPeriod: b.PollStreamPeriod,
+		TableName:        b.TableName,
+		OnStreamRecords: func(records []*dynamodbstreams.Record) error {
+			events := make([]backend.Event, 0, len(records))
+			for i := range records {
+				event, err := toEvent(records[i])
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				events = append(events, *event)
+			}
+			b.buf.Emit(events...)
+			return nil
+		},
+	}
+
+	for {
+		b.buf.SetInit()
+		cursor := ""
+		err := s.PollStream(ctx, cursor)
+		b.buf.Reset()
+		if err != nil {
+			// this is optimization to avoid extra logging
+			// and extra checks, the code path could end up
+			// in ctx.Done() select condition below
+			if b.isClosed() {
+				return trace.Wrap(err)
+			}
+			b.Errorf("PollStream returned with error: %v.", err)
+		}
+		b.Debugf("Reloading %v.", retry)
+		select {
+		case <-retry.After():
+			retry.Inc()
+		case <-ctx.Done():
+			b.Debug("Closed, returning from asyncPollStream loop.")
+			return nil
+		}
+	}
 }

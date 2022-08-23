@@ -23,7 +23,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
@@ -42,47 +41,15 @@ type shardEvent struct {
 }
 
 type Shards struct {
-	Log             *log.Entry
-	DynamoDB        dynamodbiface.DynamoDBAPI
-	DynamoDBStreams dynamodbstreamsiface.DynamoDBStreamsAPI
-	// RetryPeriod is a period between dynamo backend retries on failures
-	RetryPeriod time.Duration
-	// PollStreamPeriod is a polling period for event stream
+	Log              *log.Entry
+	DynamoDB         dynamodbiface.DynamoDBAPI
+	DynamoDBStreams  dynamodbstreamsiface.DynamoDBStreamsAPI
 	PollStreamPeriod time.Duration
 	TableName        string
-	OnStreamingStart func()
-	OnStreamingEnd   func()
-	OnRecords        func([]*dynamodbstreams.Record) error
+	OnStreamRecords  func([]*dynamodbstreams.Record) error
 }
 
-func (b *Shards) AsyncPollStreams(ctx context.Context) error {
-	retry, err := utils.NewLinear(utils.LinearConfig{
-		Step: b.RetryPeriod / 10,
-		Max:  b.RetryPeriod,
-	})
-	if err != nil {
-		b.Log.Errorf("Bad retry parameters: %v", err)
-		return trace.Wrap(err)
-	}
-
-	for {
-		err := b.pollStreams(ctx)
-		if err != nil {
-			b.Log.Errorf("Poll streams returned with error: %v.", err)
-		}
-		b.Log.Debugf("Reloading %v.", retry)
-		// TODO: ensure that reloading starts from an updated cursor!?
-		select {
-		case <-retry.After():
-			retry.Inc()
-		case <-ctx.Done():
-			b.Log.Debug("Closed, returning from asyncPollStreams loop.")
-			return nil
-		}
-	}
-}
-
-func (b *Shards) pollStreams(externalCtx context.Context) error {
+func (b *Shards) PollStream(externalCtx context.Context, cursor string) error {
 	ctx, cancel := context.WithCancel(externalCtx)
 	defer cancel()
 
@@ -158,10 +125,6 @@ func (b *Shards) pollStreams(externalCtx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	// shard iterators are initialized, unblock any registered watchers
-	b.OnStreamingStart()
-	defer b.OnStreamingEnd()
-
 	ticker := time.NewTicker(b.PollStreamPeriod)
 	defer ticker.Stop()
 
@@ -183,7 +146,7 @@ func (b *Shards) pollStreams(externalCtx context.Context) error {
 				b.Log.Debugf("Shard ID %v exited gracefully.", event.shardID)
 			} else {
 				// Q: It seems that there's no checkpointing when streaming changes to the backend.
-				if err := b.OnRecords(event.records); err != nil {
+				if err := b.OnStreamRecords(event.records); err != nil {
 					return trace.Wrap(err)
 				}
 			}
