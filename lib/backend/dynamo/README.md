@@ -7,59 +7,50 @@ This package enables Teleport auth server to store secrets in
 
 WARNING: Using DynamoDB involves recurring charge from AWS.
 
-The table created by the backend will provision 5/5 R/W capacity.
-It should be covered by the free tier.
-
 ### Running tests
 
-The DynamodDB tests are not run by default. To run them locally, try:
-
 ```
-go test -tags dynamodb -v  ./lib/backend/dynamo
+TELEPORT_DYNAMODB_TEST=true go test -v  ./lib/backend/dynamo
 ```
 
-*NOTE:* you will need to provide a AWS credentials & a default region 
+*NOTE:* you will need to provide a AWS credentials and a default region
 (e.g. in your `~/.aws/credentials` & `~/.aws/config` files, or via
 environment vars) for the tests to work.
 
-### Quick Start
+Here's one way to achieve that:
 
-Add this storage configuration in `teleport` section of the config file (by default it's `/etc/teleport.yaml`):
-
-```yaml
-teleport:
-  storage:
-    type: dynamodb
-    region: eu-west-1
-    table_name: teleport.state
-    access_key: XXXXXXXXXXXXXXXXXXXXX
-    secret_key: YYYYYYYYYYYYYYYYYYYYY
 ```
+echo '{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "*"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}' > assume-policy.json
+aws iam create-role --role-name dynamodb-tests-role --assume-role-policy-document file://assume-policy.json
 
-Replace `region` and `table_name` with your own settings. Teleport will create the table automatically.
+echo '{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": [
+        "dynamodb:*"
+      ],
+      "Effect": "Allow",
+      "Resource": "*"
+    }
+  ]
+}' > dynamodb-access.json
+aws iam put-role-policy --role-name dynamodb-tests-role --policy-name dynamodb-access --policy-document file://dynamodb-access.json
 
-### AWS IAM Role
+aws sts assume-role --role-arn $(aws iam get-role --role-name dynamodb-tests-role | jq '.Role.Arn' | xargs) --role-session-name session-test > credentials.json
 
-You can use IAM role instead of hard coded access and secret key (IAM role is
-recommended).  You must apply correct policy in order to the auth to
-create/get/update K/V in DynamoDB.
-
-Example of a typical policy (change region and account ID):
-
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Sid": "AllAPIActionsOnTeleportAuth",
-            "Effect": "Allow",
-            "Action": "dynamodb:*",
-            "Resource": "arn:aws:dynamodb:eu-west-1:123456789012:table/prod.teleport.auth"
-        }
-    ]
-}
+export AWS_ACCESS_KEY_ID=$(cat credentials.json | jq '.Credentials.AccessKeyId' | xargs)
+export AWS_SECRET_ACCESS_KEY=$(cat credentials.json | jq '.Credentials.SecretAccessKey' | xargs)
+export AWS_SESSION_TOKEN=$(cat credentials.json | jq '.Credentials.SessionToken' | xargs)
 ```
-
-### Get Help
-
-This backend has been contributed by https://github.com/apestel
