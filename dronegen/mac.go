@@ -95,7 +95,7 @@ func darwinConnectDmgPipeline() pipeline {
 			Environment: map[string]value{
 				"WORKSPACE_DIR": {raw: p.Workspace.Path},
 			},
-			Commands: darwinTagCopyPackageArtifactCommands(b, true),
+			Commands: darwinConnectCopyDmgArtifactCommands(),
 		},
 		{
 			Name: "Upload to S3",
@@ -545,6 +545,17 @@ func darwinTagCopyPackageArtifactCommands(b buildType, hasTeleportConnect bool) 
 		commands = append(commands,
 			`cd $WORKSPACE_DIR/go/artifacts && for FILE in *.dmg; do shasum -a 256 "$FILE" > "$FILE.sha256"; done && ls -l`,
 		)
+	}
+
+	return commands
+}
+
+func darwinConnectCopyDmgArtifactCommands() []string {
+	commands := []string{
+		`set -u`,
+		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps/packages/teleterm/build/release`,
+		`cp *.dmg $WORKSPACE_DIR/go/artifacts`,
+		`cd $WORKSPACE_DIR/go/artifacts && for FILE in *.dmg; do shasum -a 256 "$FILE" > "$FILE.sha256"; done && ls -l`,
 	}
 
 	return commands
