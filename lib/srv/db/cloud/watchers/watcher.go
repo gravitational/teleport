@@ -23,7 +23,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -77,7 +79,7 @@ func NewWatcher(ctx context.Context, config WatcherConfig) (*Watcher, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	fetchers, err := makeFetchers(config.Clients, config.AWSMatchers)
+	fetchers, err := makeFetchers(ctx, &config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -145,7 +147,23 @@ func (w *Watcher) DatabasesC() <-chan types.Databases {
 }
 
 // makeFetchers returns cloud fetchers for the provided matchers.
-func makeFetchers(clients cloud.Clients, matchers []services.AWSMatcher) (result []Fetcher, err error) {
+func makeFetchers(ctx context.Context, config *WatcherConfig) (result []Fetcher, err error) {
+	fetchers, err := makeAWSFetchers(config.Clients, config.AWSMatchers)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	result = append(result, fetchers...)
+
+	fetchers, err = makeAzureFetchers(ctx, config.Clients, config.AzureMatchers)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	result = append(result, fetchers...)
+
+	return result, nil
+}
+
+func makeAWSFetchers(clients cloud.Clients, matchers []services.AWSMatcher) (result []Fetcher, err error) {
 	type makeFetcherFunc func(cloud.Clients, string, types.Labels) (Fetcher, error)
 	makeFetcherFuncs := map[string][]makeFetcherFunc{
 		services.AWSMatcherRDS:         {makeRDSInstanceFetcher, makeRDSAuroraFetcher},
@@ -163,6 +181,55 @@ func makeFetchers(clients cloud.Clients, matchers []services.AWSMatcher) (result
 
 				for _, makeFetcher := range makeFetchers {
 					fetcher, err := makeFetcher(clients, region, matcher.Tags)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+					result = append(result, fetcher)
+				}
+			}
+		}
+	}
+	return result, nil
+}
+
+func makeAzureFetchers(ctx context.Context, clients cloud.Clients, matchers []services.AzureMatcher) (result []Fetcher, err error) {
+	subIDsClient, err := clients.GetAzureSubscriptionIDsClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, matcher := range matchers {
+		reduceAzureMatcher(&matcher)
+		subIDs := matcher.Subscriptions
+		if utils.SliceContainsStr(subIDs, types.Wildcard) {
+			// hit the subscriptions API at most once
+			subIDs, err = subIDsClient.ListSubscriptionIDs(ctx, common.MaxPages, true /*useCache*/)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		for _, sub := range subIDs {
+			for _, matcherType := range matcher.Types {
+				var client azure.DBServersClient
+				var err error
+				switch matcherType {
+				case services.AzureMatcherMySQL:
+					client, err = clients.GetAzureMySQLClient(sub)
+				case services.AzureMatcherPostgres:
+					client, err = clients.GetAzurePostgresClient(sub)
+				default:
+					continue
+				}
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				for _, group := range matcher.ResourceGroups {
+					fetcher, err := newAzureFetcher(azureFetcherConfig{
+						Client:        client,
+						Subscription:  sub,
+						ResourceGroup: group,
+						Labels:        matcher.ResourceTags,
+						Regions:       matcher.Regions,
+					})
 					if err != nil {
 						return nil, trace.Wrap(err)
 					}
