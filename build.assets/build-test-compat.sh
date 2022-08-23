@@ -51,14 +51,43 @@ DISTROS=(
 # It will be set to non-zero value if any of run commands returns an error.
 EXIT_CODE=0
 
-# Run binary in a Docker container and propagate returned exit code.
+# Run binary in a Docker container and propagate returned exit code. 
+#
+# This will sometimes run under Google Cloud Build, which implies using Docker-
+# out-of-Docker to interact with containers. This means that simply mounting
+# the test targest into the test container won't work, as it would require
+# knowledge of (and control over) the build container that we just don't have.
+#
+# In order to have a solution that works on both GCB and on a developer desktop,
+# we instead jump through a lot of hoops that `docker run` normally takes care 
+# of (like manually creating the container, copying the test targets into it, 
+# manually starting it, etc). 
 #
 # Arguments:
-# $1 - distro name
-# $2 - binary to run
+# $1    - distro name
+# $2    - binary to run
+# $3... - arguments to binary
 function run_docker {
-  docker run --rm -v "$(pwd)":/teleport "$1" "${@:2}"
-  EXIT_CODE=$((EXIT_CODE || $?))
+  distro=$1
+  binary=$(basename $2)
+
+  container=$(docker create $distro /tmp/$binary "${@:3}")
+  # I *want* the variable below expanded now, so disabling lint
+  # shellcheck disable=SC2064
+  trap "docker rm $container > /dev/null" RETURN
+
+  docker cp $2 $container:/tmp/$binary
+  docker start $container > /dev/null
+  test_result=$(docker wait $container)
+
+  EXIT_CODE=$((EXIT_CODE || test_result))
+  if [ $test_result -ne 0 ]
+  then
+    echo "$binary failed on $distro:"
+    docker logs $container
+  fi
+
+  return $test_result
 }
 
 for DISTRO in "${DISTROS[@]}";
@@ -66,10 +95,10 @@ do
   echo "============ Checking ${DISTRO} ============"
   docker pull "${DISTRO}"
 
-  run_docker "$DISTRO" /teleport/build/teleport version
-  run_docker "$DISTRO" /teleport/build/tsh version
-  run_docker "$DISTRO" /teleport/build/tctl version
-  run_docker "$DISTRO" /teleport/build/tbot version
+  run_docker "$DISTRO" $PWD/build/teleport version
+  run_docker "$DISTRO" $PWD/build/tsh version
+  run_docker "$DISTRO" $PWD/build/tctl version
+  run_docker "$DISTRO" $PWD/build/tbot version
 done
 
 exit $EXIT_CODE
