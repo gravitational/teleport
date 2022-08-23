@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	azurelib "github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 
@@ -393,7 +392,7 @@ func TestWatcher(t *testing.T) {
 						DBServers: []*armpostgresql.Server{azPostgresServer4},
 					}),
 				},
-				AzureSubscriptionIDsClient: azurelib.NewSubscriptionIDsClient(&azurelib.ARMSubscriptionsMock{
+				AzureSubscriptionIDsClient: azure.NewSubscriptionIDsClient(&azure.ARMSubscriptionsMock{
 					Subscriptions: []*armsubscription.Subscription{azureSub1, azureSub2},
 				}),
 			},
