@@ -1046,6 +1046,7 @@ and non interactive tsh bench loads.
     - Begin sharing works
       - [ ] The shared directory icon in the top right of the screen is highlighted when directory sharing is initiated
       - [ ] The shared directory appears as a network drive named "<directory_name> on teleport"
+      - [ ] The share directory menu option dissapears from the menu
     - Navigation
       - [ ] The folders of the shared directory are navigable (move up and down the directory tree)
     - CRUD
@@ -1054,20 +1055,20 @@ and non interactive tsh bench loads.
       - [ ] The text file can be read (close it, check that its saved on the local machine, then open it again on the remote)
       - [ ] The text file can be deleted
     - File/Folder movement
-      - Out to in
-        - [ ] A file from outside the shared directory can be drag-and-dropped into the shared directory
-        - [ ] A folder from outside the shared directory can be drag-and-dropped into the shared directory (and its contents retained)
-        - [ ] A file from outside the shared directory can be cut-pasted into the shared directory
-        - [ ] A folder from outside the shared directory can be cut-pasted into the shared directory
-        - [ ] A file from outside the shared directory can be copy-pasted into the shared directory
-        - [ ] A folder from outside the shared directory can be copy-pasted into the shared directory
-      - In to out
+      - In to out (make at least one of these from a non-top-level-directory)
         - [ ] A file from inside the shared directory can be drag-and-dropped outside the shared directory
         - [ ] A folder from inside the shared directory can be drag-and-dropped outside the shared directory (and its contents retained)
         - [ ] A file from inside the shared directory can be cut-pasted outside the shared directory
         - [ ] A folder from inside the shared directory can be cut-pasted outside the shared directory
         - [ ] A file from inside the shared directory can be copy-pasted outside the shared directory
         - [ ] A folder from inside the shared directory can be copy-pasted outside the shared directory
+      - Out to in (make at least one of these overwrite an existing file, and one go into a non-top-level directory)
+        - [ ] A file from outside the shared directory can be drag-and-dropped into the shared directory
+        - [ ] A folder from outside the shared directory can be drag-and-dropped into the shared directory (and its contents retained)
+        - [ ] A file from outside the shared directory can be cut-pasted into the shared directory
+        - [ ] A folder from outside the shared directory can be cut-pasted into the shared directory
+        - [ ] A file from outside the shared directory can be copy-pasted into the shared directory
+        - [ ] A folder from outside the shared directory can be copy-pasted into the shared directory
       - Within
         - [ ] A file from inside the shared directory cannot be drag-and-dropped to another folder inside the shared directory: a dismissible "Unsupported Action" dialog is shown
         - [ ] A folder from inside the shared directory cannot be drag-and-dropped to another folder inside the shared directory: a dismissible "Unsupported Action" dialog is shown
