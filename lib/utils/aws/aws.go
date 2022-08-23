@@ -201,10 +201,10 @@ func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials)
 // NewSigner creates a new V4 signer.
 func NewSigner(credentials *credentials.Credentials, signingServiceName string) *v4.Signer {
 	options := func(s *v4.Signer) {
-		// Service s3 and s3control sign with URL unescaped. Both services use
-		// "s3" as signing name.
-		//
-		// https://github.com/aws/aws-sdk-go/blob/d4f5f556a9fb0bdca8da5e52f752b7fba6bedce5/aws/signer/v4/v4.go#L182-L189
+		// s3 and s3control requests are signed with URL unescaped (found by
+		// searching "DisableURIPathEscaping" in "aws-sdk-go/service"). Both
+		// services use "s3" as signing name. See description of
+		// "DisableURIPathEscaping" for more details.
 		if signingServiceName == "s3" {
 			s.DisableURIPathEscaping = true
 		}
