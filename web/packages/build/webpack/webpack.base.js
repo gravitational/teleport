@@ -35,6 +35,9 @@ const configFactory = {
         typescript: {
           configFile: tsconfigPath,
         },
+        issue: {
+          exclude: [{ file: '**/*.story.tsx' }],
+        },
       });
     },
     indexHtml(options) {
