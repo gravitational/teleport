@@ -6598,13 +6598,8 @@ steps:
 - name: Copy dmg artifact
   commands:
   - set -u
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - cp teleport*.tar.gz $WORKSPACE_DIR/go/artifacts
-  - cp e/teleport-ent*.tar.gz $WORKSPACE_DIR/go/artifacts
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps/packages/teleterm/build/release
   - cp *.dmg $WORKSPACE_DIR/go/artifacts
-  - cd $WORKSPACE_DIR/go/artifacts && for FILE in teleport*.tar.gz; do shasum -a 256
-    $FILE > $FILE.sha256; done && ls -l
   - cd $WORKSPACE_DIR/go/artifacts && for FILE in *.dmg; do shasum -a 256 "$FILE"
     > "$FILE.sha256"; done && ls -l
   environment:
@@ -6689,6 +6684,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 4daf394882e54f7d5ea328b090a19e8aced01bf8b5ebbe1fbedceefed9e2dfaf
+hmac: caa718126b4a9fac6418e4660ffb92c8f085481f97b2fef5c16d62fba75569ce
 
 ...
