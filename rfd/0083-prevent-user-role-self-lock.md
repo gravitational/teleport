@@ -12,9 +12,9 @@ state: draft
 
 ## What
 
-Users can change the permission in a way that can cause no one to be able to change it further.
+Users can change their permissions in a way that leaves them incapable of making further changes to the cluster - in effect they lock themselves out.
 
-Currently, there are multiple ways for users to lock themselves:
+Currently, there are multiple ways to trigger this scenario:
 
 | initial state                              | operation                                                                                   | result |
 | ------------------------------------------ | ------------------------------------------------------------------------------------------- | :----: |
