@@ -101,9 +101,11 @@ type AzureClients interface {
 // NewClients returns a new instance of cloud clients retriever.
 func NewClients() Clients {
 	return &cloudClients{
-		awsSessions:          make(map[string]*awssession.Session),
-		azureMySQLClients:    make(map[string]azure.DBServersClient),
-		azurePostgresClients: make(map[string]azure.DBServersClient),
+		awsSessions: make(map[string]*awssession.Session),
+		azureClients: azureClients{
+			azureMySQLClients:    make(map[string]azure.DBServersClient),
+			azurePostgresClients: make(map[string]azure.DBServersClient),
+		},
 	}
 }
 
@@ -117,6 +119,14 @@ type cloudClients struct {
 	gcpIAM *gcpcredentials.IamCredentialsClient
 	// gcpSQLAdmin is the cached GCP Cloud SQL Admin client.
 	gcpSQLAdmin GCPSQLAdminClient
+	// azureClients contains Azure-specific clients.
+	azureClients
+	// mtx is used for locking.
+	mtx sync.RWMutex
+}
+
+// azureClients contains Azure-specific clients.
+type azureClients struct {
 	// azureCredential is the cached Azure credential.
 	azureCredential azcore.TokenCredential
 	// azureMySQLClients is the cached Azure MySQL Server clients.
@@ -125,8 +135,6 @@ type cloudClients struct {
 	azurePostgresClients map[string]azure.DBServersClient
 	// azureSubscriptionsClient is the cached Azure Subscriptions client.
 	azureSubscriptionsClient *azure.SubscriptionClient
-	// mtx is used for locking.
-	mtx sync.RWMutex
 }
 
 // GetAWSSession returns AWS session for the specified region.
