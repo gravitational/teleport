@@ -46,6 +46,7 @@ type Shards struct {
 	DynamoDBStreams  dynamodbstreamsiface.DynamoDBStreamsAPI
 	PollStreamPeriod time.Duration
 	TableName        string
+	OnStreamingStart func()
 	OnStreamRecords  func([]*dynamodbstreams.Record) error
 }
 
@@ -124,6 +125,8 @@ func (b *Shards) PollStream(externalCtx context.Context, cursor string) error {
 	if err := refreshShards(true); err != nil {
 		return trace.Wrap(err)
 	}
+
+	b.OnStreamingStart()
 
 	ticker := time.NewTicker(b.PollStreamPeriod)
 	defer ticker.Stop()

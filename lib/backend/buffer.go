@@ -409,7 +409,7 @@ const (
 // closeAndRemove closes the watcher, could
 // be called multiple times, removes the watcher
 // from the buffer queue synchronously (used in tests)
-// or asyncronously, used in prod, to avoid potential deadlocks
+// or asynchronously, used in prod, to avoid potential deadlocks
 func (w *BufferWatcher) closeAndRemove(sync bool) {
 	w.closeWatcher()
 	if sync {

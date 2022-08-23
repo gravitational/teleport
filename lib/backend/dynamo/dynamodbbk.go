@@ -943,7 +943,11 @@ func (b *Backend) asyncPollStream(ctx context.Context) error {
 		DynamoDBStreams:  b.streams,
 		PollStreamPeriod: b.PollStreamPeriod,
 		TableName:        b.TableName,
-		OnStreamRecords: func(records []*dynamodbstreams.Record) error {
+		OnStreamingStart: func() {
+			// shard iterators are initialized, unblock any registered watchers
+			b.buf.SetInit()
+		},
+		OnStreamRecords:  func(records []*dynamodbstreams.Record) error {
 			events := make([]backend.Event, 0, len(records))
 			for i := range records {
 				event, err := toEvent(records[i])
@@ -960,9 +964,6 @@ func (b *Backend) asyncPollStream(ctx context.Context) error {
 	for {
 		// there's no stream resuming for backend changes so the stream cursor is empty
 		cursor := ""
-
-		// unblock any registered watchers
-		b.buf.SetInit()
 		err := s.PollStream(ctx, cursor)
 		b.buf.Reset()
 
