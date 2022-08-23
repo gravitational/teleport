@@ -24,8 +24,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
@@ -132,6 +135,32 @@ func setDBName(meta types.Metadata, firstNamePart string, extraNameParts ...stri
 	meta.Name = strings.Join(nameParts, "-")
 
 	return meta
+}
+
+// NewDatabaseFromAzureServer creates a database resource from an AzureDB server.
+func NewDatabaseFromAzureServer(server *azure.DBServer) (types.Database, error) {
+	rid, err := arm.ParseResourceID(server.ID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	labels := labelsFromAzureServer(server, rid)
+	fqdn := server.Properties.FullyQualifiedDomainName
+	if fqdn == "" {
+		return nil, trace.BadParameter("empty FQDN")
+	}
+
+	return types.NewDatabaseV3(
+		setDBName(types.Metadata{
+			Description: fmt.Sprintf("Azure %v server in %v", server.Protocol, server.Location),
+			Labels:      labels,
+		}, server.Name),
+		types.DatabaseSpecV3{
+			Protocol: server.Protocol,
+			URI:      fmt.Sprintf("%v:%v", server.Properties.FullyQualifiedDomainName, server.Port),
+			Azure: types.Azure{
+				Name: server.Name,
+			},
+		})
 }
 
 // NewDatabaseFromRDSInstance creates a database resource from an RDS instance.
@@ -512,6 +541,18 @@ func engineToProtocol(engine string) string {
 	return ""
 }
 
+// labelsFromAzureServer creates database labels for the provided Azure DB server.
+func labelsFromAzureServer(server *azure.DBServer, rid *arm.ResourceID) map[string]string {
+	labels := azureTagsToLabels(server.Tags)
+	labels[types.OriginLabel] = types.OriginCloud
+	labels[labelRegion] = server.Location
+	labels[labelEngineVersion] = server.Properties.Version
+	labels[labelEngine] = rid.ResourceType.String()
+	labels[labelResourceGroup] = rid.ResourceGroupName
+	labels[labelSubscriptionID] = rid.SubscriptionID
+	return labels
+}
+
 // labelsFromRDSInstance creates database labels for the provided RDS instance.
 func labelsFromRDSInstance(rdsInstance *rds.DBInstance, meta *types.AWS) map[string]string {
 	labels := rdsTagsToLabels(rdsInstance.TagList)
@@ -563,6 +604,19 @@ func labelsFromMetaAndEndpointType(meta *types.AWS, endpointType string, extraLa
 	labels[labelAccountID] = meta.AccountID
 	labels[labelRegion] = meta.Region
 	labels[labelEndpointType] = endpointType
+	return labels
+}
+
+// azureTagsToLabels converts Azure tags to a labels map.
+func azureTagsToLabels(tags map[string]string) map[string]string {
+	labels := make(map[string]string)
+	for key, val := range tags {
+		if types.IsValidLabelKey(key) {
+			labels[key] = val
+		} else {
+			log.Debugf("Skipping Azure tag %q, not a valid label key.", key)
+		}
+	}
 	return labels
 }
 
@@ -876,4 +930,11 @@ const (
 	RDSEngineModeGlobal = "global"
 	// RDSEngineModeMultiMaster is the RDS engine mode for Multi-master clusters
 	RDSEngineModeMultiMaster = "multimaster"
+)
+
+const (
+	// labelSubscriptionID is the label key for Azure subscription ID.
+	labelSubscriptionID = "subscription-id"
+	// labelResourceGroup is the label key for the Azure resource group name.
+	labelResourceGroup = "resource-group"
 )
