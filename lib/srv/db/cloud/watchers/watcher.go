@@ -33,6 +33,8 @@ import (
 type WatcherConfig struct {
 	// AWSMatchers is a list of matchers for AWS databases.
 	AWSMatchers []services.AWSMatcher
+	// AzureMatchers is a list of matchers for Azure databases.
+	AzureMatchers []services.AzureMatcher
 	// Clients provides cloud API clients.
 	Clients cloud.Clients
 	// Interval is the interval between fetches.
