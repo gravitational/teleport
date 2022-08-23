@@ -2208,8 +2208,8 @@ func (process *TeleportProcess) initSSH() error {
 		}
 
 		if auditd.IsLoginUIDSet() {
-			log.Warnf("login UID is set, but it shouldn't. Incorrect login UID breaks session ID when using auditd. " +
-				"Please make sure that Teleport runs as a daemon and any parent process don't set the login UID.")
+			log.Warnf("Login UID is set, but it shouldn't be. Incorrect login UID breaks session ID when using auditd. " +
+				"Please make sure that Teleport runs as a daemon and any parent process doesn't set the login UID.")
 		}
 
 		// Provide helpful log message if listen_addr or public_addr are not being

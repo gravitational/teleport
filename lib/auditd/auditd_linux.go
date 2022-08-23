@@ -104,10 +104,10 @@ func getSelfLoginUID() (int64, error) {
 }
 
 // SendEvent sends a single auditd event. Each request create a new netlink connection.
-// This function returns no error if it runs with no root permissions.
+// This function does not send the event and returns no error if it runs with no root permissions.
 func SendEvent(event EventType, result ResultType, msg Message) error {
 	if !hasCapabilities() {
-		// Disable auditd when not running as a root.
+		// Disable auditd when not running as root.
 		return nil
 	}
 
@@ -157,7 +157,7 @@ func (c *Client) connect() error {
 	return nil
 }
 
-// NewClient creates a new auditd client. Client is not connected when is returned.
+// NewClient creates a new auditd client. Client is not connected when it is returned.
 func NewClient(msg Message) *Client {
 	msg.SetDefaults()
 

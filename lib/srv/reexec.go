@@ -214,7 +214,6 @@ func RunCommand() (errw io.Writer, code int, err error) {
 
 		if err != nil && *err != nil {
 			result = auditd.Failed
-			//fmt.Fprintf(errorWriter, "magic cmd: %v", *err)
 			if strings.Contains((*err).Error(), "unknown user") {
 				if err := auditd.SendEvent(auditd.AuditUserErr, result, auditdMsg); err != nil {
 					log.WithError(err).Errorf("failed to login user end: %v", err)
