@@ -139,14 +139,13 @@ func setDBName(meta types.Metadata, firstNamePart string, extraNameParts ...stri
 
 // NewDatabaseFromAzureServer creates a database resource from an AzureDB server.
 func NewDatabaseFromAzureServer(server *azure.DBServer) (types.Database, error) {
-	rid, err := arm.ParseResourceID(server.ID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	labels := labelsFromAzureServer(server, rid)
 	fqdn := server.Properties.FullyQualifiedDomainName
 	if fqdn == "" {
 		return nil, trace.BadParameter("empty FQDN")
+	}
+	labels, err := labelsFromAzureServer(server)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return types.NewDatabaseV3(
@@ -156,7 +155,7 @@ func NewDatabaseFromAzureServer(server *azure.DBServer) (types.Database, error) 
 		}, server.Name),
 		types.DatabaseSpecV3{
 			Protocol: server.Protocol,
-			URI:      fmt.Sprintf("%v:%v", server.Properties.FullyQualifiedDomainName, server.Port),
+			URI:      fmt.Sprintf("%v:%v", fqdn, server.Port),
 			Azure: types.Azure{
 				Name: server.Name,
 			},
@@ -542,15 +541,20 @@ func engineToProtocol(engine string) string {
 }
 
 // labelsFromAzureServer creates database labels for the provided Azure DB server.
-func labelsFromAzureServer(server *azure.DBServer, rid *arm.ResourceID) map[string]string {
+func labelsFromAzureServer(server *azure.DBServer) (map[string]string, error) {
 	labels := azureTagsToLabels(server.Tags)
 	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = server.Location
 	labels[labelEngineVersion] = server.Properties.Version
+
+	rid, err := arm.ParseResourceID(server.ID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	labels[labelEngine] = rid.ResourceType.String()
 	labels[labelResourceGroup] = rid.ResourceGroupName
 	labels[labelSubscriptionID] = rid.SubscriptionID
-	return labels
+	return labels, nil
 }
 
 // labelsFromRDSInstance creates database labels for the provided RDS instance.
