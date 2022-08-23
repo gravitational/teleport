@@ -17,6 +17,7 @@ limitations under the License.
 package client
 
 import (
+	"bytes"
 	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
@@ -615,5 +616,11 @@ func (k *Key) RootClusterName() (string, error) {
 
 // EqualPrivateKey returns wheter this key and the given key have the same PrivateKey.
 func (k *Key) EqualPrivateKey(other *Key) bool {
-	return subtle.ConstantTimeCompare(k.PrivateKeyPEM(), other.PrivateKeyPEM()) == 1
+	// Compare both private and public key PEM, since hardware keys
+	// may not be uniquely indetifiable by their private key PEM alone.
+	// For example, for PIV keys, the private key PEM only uniquely
+	// identifies a PIV slot, so we can use the public key to verify
+	// that the private key on the slot hasn't changed.
+	return subtle.ConstantTimeCompare(k.PrivateKeyPEM(), other.PrivateKeyPEM()) == 1 &&
+		bytes.Equal(k.SSHPublicKeyPEM(), other.SSHPublicKeyPEM())
 }

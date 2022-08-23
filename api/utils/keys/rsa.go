@@ -50,14 +50,6 @@ func NewRSAPrivateKey(priv *rsa.PrivateKey) (*RSAPrivateKey, error) {
 	}, nil
 }
 
-// Equal returns whether the given key is the same as this RSAPrivateKey.
-func (r *RSAPrivateKey) Equal(other PrivateKey) bool {
-	if o, ok := other.(*RSAPrivateKey); ok {
-		return r.PrivateKey.Equal(o.PrivateKey)
-	}
-	return false
-}
-
 // PrivateKeyPEM returns the PEM encoded RSA private key.
 func (r *RSAPrivateKey) PrivateKeyPEM() []byte {
 	return pem.EncodeToMemory(&pem.Block{

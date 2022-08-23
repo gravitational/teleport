@@ -38,8 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -68,9 +66,9 @@ func TestListKeys(t *testing.T) {
 
 	// read all bob keys:
 	for i := 0; i < keyNum; i++ {
-		keys2, err := s.store.GetKey(keys[i].KeyIndex, WithSSHCerts{}, WithDBCerts{})
+		key, err := s.store.GetKey(keys[i].KeyIndex, WithSSHCerts{}, WithDBCerts{})
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(*keys2, keys[i], cmpopts.EquateEmpty()))
+		require.Equal(t, &keys[i], key)
 	}
 
 	// read sam's key and make sure it's the same:
@@ -122,7 +120,7 @@ func TestKeyCRUD(t *testing.T) {
 	keyCopy, err := s.store.GetKey(idx, WithSSHCerts{}, WithDBCerts{})
 	require.NoError(t, err)
 	key.ProxyHost = keyCopy.ProxyHost
-	require.Empty(t, cmp.Diff(key, keyCopy, cmpopts.EquateEmpty()))
+	require.Equal(t, keyCopy, key)
 	require.Len(t, key.DBTLSCerts, 1)
 
 	// Delete just the db cert, reload & verify it's gone
@@ -130,8 +128,8 @@ func TestKeyCRUD(t *testing.T) {
 	require.NoError(t, err)
 	keyCopy, err = s.store.GetKey(idx, WithSSHCerts{}, WithDBCerts{})
 	require.NoError(t, err)
-	key.DBTLSCerts = nil
-	require.Empty(t, cmp.Diff(key, keyCopy, cmpopts.EquateEmpty()))
+	key.DBTLSCerts = make(map[string][]byte)
+	require.Equal(t, keyCopy, key)
 
 	// Delete & verify that it's gone
 	err = s.store.DeleteKey(idx)
@@ -496,14 +494,14 @@ func (s *keyStoreTest) makeSignedKey(t *testing.T, idx KeyIndex, makeExpired boo
 	})
 	require.NoError(t, err)
 
-	return &Key{
-		KeyIndex:   idx,
-		PrivateKey: priv,
-		Cert:       cert,
-		TLSCert:    tlsCert,
-		TrustedCA:  []auth.TrustedCerts{s.tlsCACert},
-		DBTLSCerts: map[string][]byte{"example-db": tlsCert},
-	}
+	key := NewKey(priv)
+	key.KeyIndex = idx
+	key.PrivateKey = priv
+	key.Cert = cert
+	key.TLSCert = tlsCert
+	key.TrustedCA = []auth.TrustedCerts{s.tlsCACert}
+	key.DBTLSCerts["example-db"] = tlsCert
+	return key
 }
 
 func newSelfSignedCA(privateKey []byte) (*tlsca.CertAuthority, auth.TrustedCerts, error) {

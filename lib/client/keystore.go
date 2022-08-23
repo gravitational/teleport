@@ -309,18 +309,12 @@ func (fs *FSLocalKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error
 		return nil, trace.ConvertSystemError(err)
 	}
 
-	key := &Key{
-		KeyIndex:   idx,
-		PrivateKey: priv,
-		TLSCert:    tlsCert,
-		TrustedCA: []auth.TrustedCerts{{
-			TLSCertificates: tlsCA,
-		}},
-		KubeTLSCerts:        make(map[string][]byte),
-		DBTLSCerts:          make(map[string][]byte),
-		AppTLSCerts:         make(map[string][]byte),
-		WindowsDesktopCerts: make(map[string][]byte),
-	}
+	key := NewKey(priv)
+	key.KeyIndex = idx
+	key.TLSCert = tlsCert
+	key.TrustedCA = []auth.TrustedCerts{{
+		TLSCertificates: tlsCA,
+	}}
 
 	tlsCertExpiration, err := key.TeleportTLSCertValidBefore()
 	if err != nil {
