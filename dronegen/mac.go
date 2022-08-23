@@ -46,6 +46,8 @@ func newDarwinPipeline(name string) pipeline {
 func darwinConnectDmgPipeline() pipeline {
 	b := buildType{os: "darwin", arch: "amd64"}
 	toolchainConfig := toolchainConfig{nodejs: true}
+	artifactConfig := onlyConnectWithBundledTshApp
+
 	p := newDarwinPipeline("build-darwin-amd64-connect")
 	p.Trigger = triggerTag
 	p.DependsOn = []string{"build-darwin-amd64-pkg-tsh"}
@@ -57,7 +59,7 @@ func darwinConnectDmgPipeline() pipeline {
 				"WORKSPACE_DIR":      {raw: p.Workspace.Path},
 				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
-			Commands: darwinTagCheckoutCommands(b),
+			Commands: darwinTagCheckoutCommands(artifactConfig),
 		},
 	}
 	p.Steps = append(p.Steps,
@@ -75,7 +77,7 @@ func darwinConnectDmgPipeline() pipeline {
 			},
 			Commands: darwinConnectDownloadArtifactCommands(),
 		},
-		buildMacArtifactsStep(p.Workspace.Path, b, toolchainConfig, onlyConnectWithBundledTshApp),
+		buildMacArtifactsStep(p.Workspace.Path, b, toolchainConfig, artifactConfig),
 		{
 			Name: "Copy dmg artifact",
 			Environment: map[string]value{
@@ -114,6 +116,8 @@ func darwinConnectDmgPipeline() pipeline {
 func darwinPushPipeline() pipeline {
 	b := buildType{os: "darwin", arch: "amd64"}
 	toolchainConfig := toolchainConfig{golang: true, rust: true, nodejs: true}
+	artifactConfig := binariesWithConnect
+
 	p := newDarwinPipeline("push-build-darwin-amd64")
 	p.Trigger = trigger{
 		Event:  triggerRef{Include: []string{"push"}, Exclude: []string{"pull_request"}},
@@ -128,13 +132,13 @@ func darwinPushPipeline() pipeline {
 				"WORKSPACE_DIR":      {raw: p.Workspace.Path},
 				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
-			Commands: pushCheckoutCommandsDarwin(b),
+			Commands: pushCheckoutCommandsDarwin(artifactConfig),
 		},
 	}
 	p.Steps = append(p.Steps,
 		installToolchains(p.Workspace.Path, toolchainConfig)...)
 	p.Steps = append(p.Steps, []step{
-		buildMacArtifactsStep(p.Workspace.Path, b, toolchainConfig, binariesWithConnect),
+		buildMacArtifactsStep(p.Workspace.Path, b, toolchainConfig, artifactConfig),
 		cleanUpToolchainsStep(p.Workspace.Path, toolchainConfig),
 		cleanUpExecStorageStep(p.Workspace.Path),
 		{
@@ -165,6 +169,8 @@ func darwinTagPipeline() pipeline {
 		os:   "darwin",
 	}
 	toolchainConfig := toolchainConfig{golang: true, rust: true}
+	artifactConfig := onlyBinaries
+
 	p := newDarwinPipeline("build-darwin-amd64")
 	p.Trigger = triggerTag
 	p.Steps = []step{
@@ -175,14 +181,14 @@ func darwinTagPipeline() pipeline {
 				"WORKSPACE_DIR":      {raw: p.Workspace.Path},
 				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
-			Commands: darwinTagCheckoutCommands(b),
+			Commands: darwinTagCheckoutCommands(artifactConfig),
 		},
 	}
 	p.Steps = append(p.Steps,
 		installToolchains(p.Workspace.Path, toolchainConfig)...,
 	)
 	p.Steps = append(p.Steps, []step{
-		buildMacArtifactsStep(p.Workspace.Path, b, toolchainConfig, onlyBinaries),
+		buildMacArtifactsStep(p.Workspace.Path, b, toolchainConfig, artifactConfig),
 		{
 			Name: "Copy Mac artifacts",
 			Environment: map[string]value{
@@ -217,7 +223,7 @@ func darwinTagPipeline() pipeline {
 	return p
 }
 
-func pushCheckoutCommandsDarwin(b buildType) []string {
+func pushCheckoutCommandsDarwin(artifactConfig darwinArtifactConfig) []string {
 	commands := []string{
 		`set -u`,
 		`mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
@@ -227,7 +233,7 @@ func pushCheckoutCommandsDarwin(b buildType) []string {
 	}
 
 	// clone github.com/gravitational/webapps for the Teleport Connect source code
-	if b.hasTeleportConnect() {
+	if artifactConfig == binariesWithConnect || artifactConfig == onlyConnectWithBundledTshApp {
 		commands = append(commands,
 			`mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
 			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
@@ -429,9 +435,9 @@ func cleanUpExecStorageStep(path string) step {
 	}
 }
 
-func darwinTagCheckoutCommands(b buildType) []string {
+func darwinTagCheckoutCommands(artifactConfig darwinArtifactConfig) []string {
 	return append(
-		pushCheckoutCommandsDarwin(b),
+		pushCheckoutCommandsDarwin(artifactConfig),
 		`mkdir -p $WORKSPACE_DIR/go/artifacts`,
 		`echo "${DRONE_TAG##v}" > $WORKSPACE_DIR/go/.version.txt`,
 		`cat $WORKSPACE_DIR/go/.version.txt`,
