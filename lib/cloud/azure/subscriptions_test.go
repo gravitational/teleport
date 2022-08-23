@@ -50,25 +50,12 @@ func TestListSubscriptionIDs(t *testing.T) {
 	ctx := context.Background()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client := NewSubscriptionIDsClient(tt.mockAPI)
+			client := NewSubscriptionClient(tt.mockAPI)
 
-			// verify we get subscriptions
-			subIDs, err := client.ListSubscriptionIDs(ctx, 10, true)
+			// verify we get all subscriptions
+			subIDs, err := client.ListSubscriptionIDs(ctx, 10)
 			require.NoError(t, err)
 			require.ElementsMatch(t, tt.wantIDs, subIDs)
-
-			// clear out subscriptions in api
-			tt.mockAPI.Subscriptions = nil
-
-			// verify the cache is used
-			subIDs, err = client.ListSubscriptionIDs(ctx, 10, true)
-			require.NoError(t, err)
-			require.ElementsMatch(t, tt.wantIDs, subIDs)
-
-			// verify the cache is not used
-			subIDs, err = client.ListSubscriptionIDs(ctx, 10, false)
-			require.NoError(t, err)
-			require.Empty(t, subIDs)
 		})
 	}
 }
