@@ -3787,3 +3787,77 @@ func TestGenerateHostCert(t *testing.T) {
 		})
 	}
 }
+
+type getActiveSessionsTestCase struct {
+	tracker   types.SessionTracker
+	role      types.Role
+	hasAccess bool
+}
+
+func TestGetActiveSessionTrackers(t *testing.T) {
+	t.Parallel()
+
+	case1 := func() getActiveSessionsTestCase {
+		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+			SessionID: "1",
+			Kind:      types.KindSSHSession,
+		})
+		require.NoError(t, err)
+
+		role, err := types.NewRole("foo", types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{{
+					Resources: []string{types.KindSessionTracker},
+					Verbs:     []string{types.VerbList, types.VerbRead},
+				}},
+			},
+		})
+		require.NoError(t, err)
+
+		return getActiveSessionsTestCase{tracker, role, true}
+	}
+
+	case2 := func() getActiveSessionsTestCase {
+		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+			SessionID: "1",
+			Kind:      types.KindSSHSession,
+		})
+		require.NoError(t, err)
+
+		role, err := types.NewRole("foo", types.RoleSpecV5{})
+		require.NoError(t, err)
+
+		return getActiveSessionsTestCase{tracker, role, false}
+	}
+
+	testCases := []getActiveSessionsTestCase{case1(), case2()}
+
+	for _, testCase := range testCases {
+		ctx := context.Background()
+		srv := newTestTLSServer(t)
+		err := srv.Auth().CreateRole(ctx, testCase.role)
+		require.NoError(t, err)
+
+		_, err = srv.Auth().CreateSessionTracker(ctx, testCase.tracker)
+		require.NoError(t, err)
+
+		user, err := types.NewUser(uuid.NewString())
+		require.NoError(t, err)
+
+		user.AddRole(testCase.role.GetName())
+		err = srv.Auth().UpsertUser(user)
+		require.NoError(t, err)
+
+		clt, err := srv.NewClient(TestUser(user.GetName()))
+		require.NoError(t, err)
+
+		found, err := clt.GetActiveSessionTrackers(ctx)
+		require.NoError(t, err)
+
+		if len(found) == 0 {
+			require.False(t, testCase.hasAccess)
+		} else {
+			require.True(t, testCase.hasAccess)
+		}
+	}
+}
