@@ -132,7 +132,7 @@ type InitConfig struct {
 	Databases services.Databases
 
 	// Status is a service that manages cluster status info.
-	Status services.Status
+	Status services.StatusInternal
 
 	// Roles is a set of roles to create
 	Roles []types.Role

@@ -1547,7 +1547,34 @@ func onLogin(cf *CLIConf) error {
 	cf.Proxy = webProxyHost
 
 	// Print status to show information of the logged in user.
-	return trace.Wrap(onStatus(cf))
+	if err := onStatus(cf); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// get any "on login" alerts
+	alerts, err := tc.GetClusterAlerts(cf.Context, types.GetClusterAlertsRequest{
+		Labels: map[string]string{
+			types.AlertOnLogin: "yes",
+		},
+	})
+	if err != nil && !trace.IsNotImplemented(err) {
+		return trace.Wrap(err)
+	}
+
+	types.SortClusterAlerts(alerts)
+
+	for _, alert := range alerts {
+		if err := alert.CheckMessage(); err != nil {
+			log.Warnf("Skipping invalid alert %q: %v", alert.Metadata.Name, err)
+		}
+		fmt.Fprintf(os.Stderr, "%s\n\n", alert.Spec.Message)
+	}
+	// NOTE: we currently print all alerts that are marked as `on-login`, because we
+	// don't use the alert API very heavily. If we start to make more use of it, we
+	// could probably add a separate `tsh alerts ls` command, and truncate the list
+	// with a message like "run 'tsh alerts ls' to view N additional alerts".
+
+	return nil
 }
 
 // setupNoninteractiveClient sets up existing client to use
