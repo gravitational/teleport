@@ -1074,8 +1074,8 @@ func convertError(err error) error {
 func (l *Log) StreamEvents(ctx context.Context, cursor string) (chan apievents.StreamEvent, chan error) {
 	c, e := make(chan apievents.StreamEvent), make(chan error, 1)
 	go func() {
-		s := &dynamo.Shards{
-			Log:              l.Entry,
+		cfg := dynamo.StreamConfig{
+			Entry:              l.Entry,
 			DynamoDB:         l.svc,
 			DynamoDBStreams:  l.streams,
 			PollStreamPeriod: l.PollStreamPeriod,
@@ -1099,7 +1099,12 @@ func (l *Log) StreamEvents(ctx context.Context, cursor string) (chan apievents.S
 				return nil
 			},
 		}
-		if err := s.PollStream(ctx, cursor); err != nil {
+		stream, err := dynamo.StreamInit(ctx, cfg);
+		if err != nil {
+			l.Errorf("PollStream returned with error: %v.", err)
+			e <- trace.Wrap(err)
+		}
+		if err := stream.Poll(ctx, cursor); err != nil {
 			l.Errorf("PollStream returned with error: %v.", err)
 			e <- trace.Wrap(err)
 		}

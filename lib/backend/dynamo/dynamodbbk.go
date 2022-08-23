@@ -927,6 +927,7 @@ func (r records) Less(i, j int) bool {
 	return r[i].FullPath < r[j].FullPath
 }
 
+// asyncPollStream polls the DynamoDB stream in a loop, retrying in case any errors occur.
 func (b *Backend) asyncPollStream(ctx context.Context) error {
 	retry, err := libutils.NewLinear(libutils.LinearConfig{
 		Step: b.RetryPeriod / 10,
@@ -937,17 +938,13 @@ func (b *Backend) asyncPollStream(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	s := &Shards{
-		Log:              b.Entry,
+	cfg := StreamConfig{
+		Entry:            b.Entry,
 		DynamoDB:         b.svc,
 		DynamoDBStreams:  b.streams,
 		PollStreamPeriod: b.PollStreamPeriod,
 		TableName:        b.TableName,
-		OnStreamingStart: func() {
-			// shard iterators are initialized, unblock any registered watchers
-			b.buf.SetInit()
-		},
-		OnStreamRecords:  func(records []*dynamodbstreams.Record) error {
+		OnStreamRecords: func(records []*dynamodbstreams.Record) error {
 			events := make([]backend.Event, 0, len(records))
 			for i := range records {
 				event, err := toEvent(records[i])
@@ -964,8 +961,14 @@ func (b *Backend) asyncPollStream(ctx context.Context) error {
 	for {
 		// there's no stream resuming for backend changes so the stream cursor is empty
 		cursor := ""
-		err := s.PollStream(ctx, cursor)
-		b.buf.Reset()
+
+		stream, err := StreamInit(ctx, cfg)
+		if err == nil {
+			// shard iterators are initialized, unblock any registered watchers
+			b.buf.SetInit()
+			err = stream.Poll(ctx, cursor)
+			b.buf.Reset()
+		}
 
 		if err != nil {
 			// this is optimization to avoid extra logging
