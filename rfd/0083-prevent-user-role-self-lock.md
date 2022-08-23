@@ -23,11 +23,11 @@ Currently, there are multiple ways to trigger this scenario:
 | 1 _admin_, _SSO admin_ and _regular users_ | _SSO admin_ removes the `editor` role from _admin_ and SSO connector. _SSO admin_ logs out. |   🔒   |
 | _SSO admin_ and _regular users_            | Someone on the SSO side removes _SSO admin_ user or team/group containing _SSO admins_      |   🔒   |
 
-Cases handled currently:
+Teleport already protects against a similar case in the following scenario:
 
-| initial state               | operation                                                                          | result |
+| initial state               | change                                                                       |
 | --------------------------- | ---------------------------------------------------------------------------------- | :----: |
-| _admin_ and _regular users_ | _admin_ tries to delete his account. Operation is not permitted, an error is shown |   🔓   |
+| _admin_ and _regular users_ | _admin_ tries to delete his account. Operation is not permitted, an error is shown | 
 
 ## Terminology
 
