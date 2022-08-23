@@ -168,7 +168,9 @@ func (c *PingConn) Write(p []byte) (int, error) {
 	c.muWrite.Lock()
 	defer c.muWrite.Unlock()
 
-	// Avoid casting into something bigger than acceptable.
+	// Avoid overflow when casting data length. It is only present to avoid
+	// panicking if the size cannot be cast. Callers should handle packet length
+	// limits, such as protocol implementations and audits.
 	if len(p) > math.MaxUint32 {
 		return 0, trace.BadParameter("invalid content size, max size permitted is %d", math.MaxUint32)
 	}

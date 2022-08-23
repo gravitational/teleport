@@ -17,16 +17,12 @@ package alpnproxy
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"crypto/tls"
 	"fmt"
-	"math"
 	"net"
-	"os"
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -225,90 +221,6 @@ func TestPingConnection(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, dataWritten, buf[:n])
 		}
-	})
-
-	t.Run("LargeContent", func(t *testing.T) {
-		if os.Getenv("TELEPORT_TEST_PING_CONN_LARGE") == "" {
-			t.Skip()
-		}
-
-		t.Run("SingleRead", func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-			t.Cleanup(cancel)
-
-			r, w := makePingConn(t)
-			t.Cleanup(func() {
-				r.Close()
-				w.Close()
-			})
-
-			largeSlice := make([]byte, math.MaxUint32)
-			errChan := make(chan error, 2)
-
-			// Produce some data to it to match after reading.
-			written, err := rand.Read(largeSlice)
-			require.NoError(t, err)
-			require.Equal(t, math.MaxUint32, written)
-
-			// Write goroutine.
-			go func() {
-				_, err = w.Write(largeSlice)
-				errChan <- err
-			}()
-
-			// Read goroutine.
-			go func() {
-				buf := make([]byte, math.MaxUint32)
-				read, err := r.Read(buf)
-				if err != nil {
-					errChan <- fmt.Errorf("expected no read error but got %s", err)
-					return
-				}
-
-				if read != math.MaxUint32 {
-					errChan <- fmt.Errorf("expected to read %d but got %d", math.MaxUint32, read)
-					return
-				}
-
-				if !bytes.Equal(largeSlice, buf) {
-					errChan <- fmt.Errorf("expected to content to be the same")
-					return
-				}
-			}()
-
-			for i := 0; i < 1; i++ {
-				select {
-				case <-ctx.Done():
-					require.Fail(t, "exceeded time to read/write message")
-				case err := <-errChan:
-					require.NoError(t, err)
-				}
-			}
-		})
-
-		t.Run("LargerThanUint32", func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-
-			errChan := make(chan error)
-			_, w := makePingConn(t)
-			defer w.Close()
-
-			// Place into a goroutine to avoid freezing tests in case where the
-			// write succeeds.
-			go func() {
-				largeSlice := make([]byte, math.MaxUint32+1)
-				_, err := w.Write(largeSlice)
-				errChan <- err
-			}()
-
-			select {
-			case err := <-errChan:
-				require.True(t, trace.IsBadParameter(err), "expected error to be `BadParameter` but got %T", err)
-			case <-ctx.Done():
-				require.Fail(t, "expected to receive the write error but nothing was received")
-			}
-		})
 	})
 }
 
