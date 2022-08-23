@@ -16,12 +16,12 @@ Users can change their permissions in a way that leaves them incapable of making
 
 Currently, there are multiple ways to trigger this scenario:
 
-| initial state                              | operation                                                                                   | result |
+| initial state                              | change                                                                                    |
 | ------------------------------------------ | ------------------------------------------------------------------------------------------- | :----: |
-| 1 _admin_ and _regular users_              | _admin_ removes himself from an `editor` role                                               |   🔒   |
-| 1 _admin_ and _regular users_              | _admin_ loses access to own account                                                         |   🔒   |
-| 1 _admin_, _SSO admin_ and _regular users_ | _SSO admin_ removes the `editor` role from _admin_ and SSO connector. _SSO admin_ logs out. |   🔒   |
-| _SSO admin_ and _regular users_            | Someone on the SSO side removes _SSO admin_ user or team/group containing _SSO admins_      |   🔒   |
+| 1 _admin_ and _regular users_              | _admin_ removes himself from an `editor` role                                               | 
+| 1 _admin_ and _regular users_              | _admin_ loses access to own account                                                         |   
+| 1 _admin_, _SSO admin_ and _regular users_ | _SSO admin_ removes the `editor` role from _admin_ and SSO connector. _SSO admin_ logs out. | 
+| _SSO admin_ and _regular users_            | Someone on the SSO side removes _SSO admin_ user or team/group containing _SSO admins_      |
 
 Teleport already protects against a similar case in the following scenario:
 
