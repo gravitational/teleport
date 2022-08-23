@@ -1771,7 +1771,7 @@ message OneOf {
         events.SessionConnect SessionConnect = 67;
         events.CertificateCreate CertificateCreate = 68;
         events.SFTP SFTP = 69;
-        events.SessionRecordingAccess SessionRecordingAccess = 70;
+        events.SessionRecordingAccess SessionRecordingAccess = 94;
         events.Unknown Unknown = 80;
     }
 }
