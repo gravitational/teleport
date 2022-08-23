@@ -374,7 +374,7 @@ func TestStreamSessionEvents_User(t *testing.T) {
 	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(
 		srv.Clock().Now().Add(-time.Hour),
 		srv.Clock().Now().Add(time.Hour),
-		defaults.Namespace,
+		"",
 		[]string{events.SessionRecordingAccessEvent},
 		1,
 		types.EventOrderDescending,
@@ -407,7 +407,7 @@ func TestStreamSessionEvents_Builtin(t *testing.T) {
 	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(
 		srv.Clock().Now().Add(-time.Hour),
 		srv.Clock().Now().Add(time.Hour),
-		defaults.Namespace,
+		"",
 		[]string{events.SessionRecordingAccessEvent},
 		1,
 		types.EventOrderDescending,
@@ -441,7 +441,7 @@ func TestGetSessionEvents(t *testing.T) {
 	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(
 		srv.Clock().Now().Add(-time.Hour),
 		srv.Clock().Now().Add(time.Hour),
-		defaults.Namespace,
+		"",
 		[]string{events.SessionRecordingAccessEvent},
 		1,
 		types.EventOrderDescending,
