@@ -47,7 +47,7 @@ Requests in your Teleport cluster.
 
 We recommend installing Teleport plugins on the same host as the Teleport Proxy
 Service. This is an ideal location as plugins have a low memory footprint, and
-will require both public internet access and Teleport Auth Service access. 
+will require both public internet access and Teleport Auth Service access.
 
 </ScopedBlock>
 
@@ -83,6 +83,11 @@ Run `./install` from `teleport-mattermost` or place the executable in the approp
   $ docker pull public.ecr.aws/gravitational/teleport-plugin-mattermost:(=teleport.plugin.version=)
   ```
 </TabItem>
+<TabItem label="Helm Chart">
+  ```code
+  $ helm repo add teleport (=teleport.helm_repo_url=)
+  ```
+</TabItem>
 </Tabs>
 
 ## Step 3/8. Create a user and role for the plugin
@@ -100,7 +105,7 @@ Teleport cluster, register your plugin with Mattermost so it can send Access
 Request messages to your workspace.
 
 In Mattermost, click the menu button in the upper left of the UI, then click
-System Console → Integrations → Bot Accounts. 
+System Console → Integrations → Bot Accounts.
 
 Set "Enable Bot Account Creation" to "true".
 
@@ -132,6 +137,8 @@ to connect to Teleport and Mattermost. You will now configure the Mattermost
 plugin to use these credentials and post messages in the right channels for your
 workspace.
 
+<Tabs dropdownCaption="Environment type" dropdownSelected="Executable">
+<TabItem label="Teleport Enterprise" options="Executable">
 The Mattermost plugin uses a config file in TOML format. On the host where you
 will run the Mattermost plugin, generate a boilerplate config by running the
 following commands:
@@ -140,13 +147,33 @@ following commands:
 $ teleport-mattermost configure > teleport-mattermost.toml
 $ sudo mv teleport-mattermost.toml /etc
 ```
+</TabItem>
+<TabItem label="Self-Hosted" options="Helm Chart">
+The Mattermost Helm Chart uses a YAML values file to configure the plugin. On
+the host where you will run the Mattermost plugin, generate a boilerplate
+config by running the following commands:
+
+```yaml
+(!examples/resources/plugins/teleport-mattermost-helm-self.yaml!)
+```
+</TabItem>
+<TabItem label="Teleport Cloud" options="Helm Chart">
+The Mattermost Helm Chart uses a YAML values file to configure the plugin. On
+the host where you will run the Mattermost plugin, generate a boilerplate
+config by running the following commands:
+
+```yaml
+(!examples/resources/plugins/teleport-mattermost-helm-cloud.yaml!)
+```
+</TabItem>
+</Tabs>
 
 Edit the configuration as explained below:
 
 ### `[teleport]`
 
-<Tabs>
-<TabItem label="Teleport Enterprise" scope={["oss", "enterprise"]}>
+<Tabs dropdownCaption="Environment type" dropdownSelected="Executable">
+<TabItem label="Teleport Enterprise" scope={["oss", "enterprise"]} options="Executable">
 
 **`addr`**: Include the hostname and HTTPS port of your Teleport Proxy Service
 (e.g., `mytenant.teleport.sh:443`). If you are configuring your plugin to
@@ -155,7 +182,7 @@ endpoint (e.g., `teleport.example.com:3025`).
 
 **`identity`**, **`client_key`**, **`client_crt`**, **`root_cas`**: The values
 you will use for these fields depend on whether the Mattermost plugin will
-connect to the Proxy Service or the Auth Service. 
+connect to the Proxy Service or the Auth Service.
 
 If you exported an identity file earlier, fill in the `identity` field with the
 path to the file and comment out the other fields.
@@ -165,7 +192,7 @@ the `client_key`, `client_crt`, and `root_cas` fields with the paths to these
 files and leave `identity` commented out.
 
 </TabItem>
-<TabItem label="Teleport Cloud" scope="cloud">
+<TabItem label="Teleport Cloud" scope="cloud" options="Executable">
 
 **`addr`**: Include the hostname and HTTPS port of your Teleport Cloud tenant
 (e.g., `mytenant.teleport.sh:443`).
@@ -175,10 +202,33 @@ files and leave `identity` commented out.
 comment out the other fields.
 
 </TabItem>
+<TabItem label="Teleport Enterprise " scope={["oss", "enterprise"]} options="Helm Chart">
+
+**`address`**: Include the hostname and HTTPS port of your Teleport Cloud tenant
+(e.g., `mytenant.teleport.sh:443`).
+
+**`identitySecretName`**: Fill in the `identitySecretName` field with the name
+of the Kubernetes secret you created earlier.
+If you exported an identity file earlier, fill in the `identity` field with the
+path to the file and comment out the other fields.
+
+</TabItem>
+<TabItem label="Teleport Cloud " scope="cloud" options="Helm Chart">
+
+**`address`**: Include the hostname and HTTPS port of your Teleport Cloud tenant
+(e.g., `mytenant.teleport.sh:443`).
+
+**`identitySecretName`**: Fill in the `identitySecretName` field with the name
+of the Kubernetes secret you created earlier.
+
+</TabItem>
 </Tabs>
 
 
 ### `[mattermost]`
+
+<Tabs dropdownCaption="Environment type" dropdownSelected="Executable">
+<TabItem label="Teleport Enterprise or Cloud" scope={["oss", "enterprise"]} options="Executable">
 
 **`url`**: Include the scheme (`https://`) and fully qualified domain name of
 your Mattermost deployment.
@@ -208,6 +258,39 @@ recipients = [
 ]
 ```
 
+</TabItem>
+<TabItem label="Teleport Enterprise or Cloud " scope={["oss", "enterprise"]} options="Helm Chart">
+
+**`url`**: Include the scheme (`https://`) and fully qualified domain name of
+your Mattermost deployment.
+
+**`token`**: Find your Mattermost bot's OAuth 2.0 token. To do so, visit
+Mattermost. In the menu on the upper left of the UI, go to Integrations → Bot
+Accounts. Find the listing for the Teleport plugin and click "Create New Token".
+After you save the token, you will see a message with text in the format,
+"Access Token: TOKEN". Copy the token and paste it here.
+
+**`recipients`**: This field configures the channels that the Mattermost plugin
+will notify when it receives an Access Request message. The value is an array of
+strings, where each element is either:
+
+- The email address of a Mattermost user to notify via a direct message when the
+  plugin receives an Access Request event
+- A channel name in the format `team/channel`, where `/` separates the name
+  of the team and the name of the channel
+
+For example, this configuration will notify `first.last@example.com` and
+the `Town Square` channel in the `myteam` team of any Access Request events:
+
+```yaml
+recipients:
+  - "myteam/Town Square"
+  - first.last@example.com
+```
+
+</TabItem>
+</Tabs>
+
 You will need to invite your Teleport plugin to any channel you add to the
 `recipients` list (aside from direct message channels). Visit Mattermost,
 navigate to each channel you want to invite the plugin to, and enter `/invite
@@ -236,8 +319,8 @@ Mattermost.
 
 The final configuration should look similar to this:
 
-<Tabs>
-<TabItem scopes={["cloud"]} label="Connect to the Proxy Service">
+<Tabs dropdownCaption="Environment type" dropdownSelected="Executable">
+<TabItem scopes={["cloud"]} label="Connect to the Proxy Service" options="Executable">
 ```yaml
 # example mattermost configuration TOML file
 [teleport]
@@ -258,7 +341,7 @@ severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN"
 
 ```
 </TabItem>
-<TabItem scopes={["oss", "enterprise"]} label="Connect to the Auth Service">
+<TabItem scopes={["oss", "enterprise"]} label="Connect to the Auth Service" options="Executable">
 ```yaml
 # example mattermost configuration TOML file
 [teleport]
@@ -280,10 +363,23 @@ output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/tele
 severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
 ```
 </TabItem>
+<TabItem scopes={["cloud"]} label="Connect to the Proxy Service " options="Helm Chart">
+```yaml
+(!examples/resources/plugins/teleport-mattermost-helm-cloud.yaml!)
+```
+</TabItem>
+<TabItem scopes={["oss", "enterprise"]} label="Connect to the Auth Service " options="Helm Chart">
+```yaml
+(!examples/resources/plugins/teleport-mattermost-helm-self.yaml!)
+```
+</TabItem>
 </Tabs>
 
 ## Step 7/8. Test your Mattermost bot
 
+
+<Tabs dropdownCaption="Environment type" dropdownSelected="Executable">
+<TabItem label="Teleport Enterprise" scope={["oss", "enterprise"]} options="Executable">
 After modifying your configuration, run the bot with the following command:
 
 ```code
@@ -301,6 +397,16 @@ DEBU   Starting secure HTTPS server on :8081 utils/http.go:146
 DEBU   Watcher connected mattermost/main.go:260
 DEBU   Mattermost API health check finished ok mattermost/main.go:19
 ```
+</TabItem>
+<TabItem label="Teleport Enterprise" scope={["oss", "enterprise"]} options="Helm Chart">
+After modifying your configuration, run the bot with the following command:
+
+```code
+$ helm install teleport-plugin-mattermost teleport/teleport-plugin-mattermost --values teleport-mattermost-helm.yaml
+```
+
+</TabItem>
+</Tabs>
 
 ### Create an Access Request
 
