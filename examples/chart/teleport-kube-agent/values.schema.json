@@ -199,7 +199,7 @@
         "image": {
             "$id": "#/properties/image",
             "type": "string",
-            "default": "quay.io/gravitational/teleport"
+            "default": "public.ecr.aws/gravitational/teleport"
         },
         "imagePullSecrets": {
             "$id": "#/properties/imagePullSecrets",

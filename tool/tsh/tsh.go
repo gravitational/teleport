@@ -370,6 +370,10 @@ type CLIConf struct {
 
 	// maxRecordingsToShow is the maximum number of session recordings to show per page of results
 	maxRecordingsToShow int
+
+	// command is the selected command (and subcommands) parsed from command
+	// line args. Note that this command does not contain the binary (e.g. tsh).
+	command string
 }
 
 // Stdout returns the stdout writer.
@@ -386,6 +390,11 @@ func (c *CLIConf) Stderr() io.Writer {
 		return c.overrideStderr
 	}
 	return os.Stderr
+}
+
+// CommandWithBinary returns the current/selected command with the binary.
+func (c *CLIConf) CommandWithBinary() string {
+	return fmt.Sprintf("%s %s", teleport.ComponentTSH, c.command)
 }
 
 type exitCodeError struct {
@@ -868,6 +877,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// Did we initially get the Username and SiteName from flags/env?
 	cf.ExplicitUsername = cf.Username != ""
 	cf.ExplicitSiteName = cf.SiteName != ""
+
+	cf.command = command
 
 	// apply any options after parsing of arguments to ensure
 	// that defaults don't overwrite options.
@@ -2260,7 +2271,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 	for _, a := range active {
 		if a.ServiceName == name {
 			name = formatActiveDB(a)
-			connect = formatConnectCommand(clusterFlag, a)
+			connect = formatDatabaseConnectCommand(clusterFlag, a)
 		}
 	}
 
@@ -2343,25 +2354,6 @@ func formatDatabaseLabels(database types.Database) string {
 	// Hide the origin label unless printing verbose table.
 	delete(labels, types.OriginLabel)
 	return sortedLabels(labels)
-}
-
-// formatConnectCommand formats an appropriate database connection command
-// for a user based on the provided database parameters.
-func formatConnectCommand(clusterFlag string, active tlsca.RouteToDatabase) string {
-	cmdTokens := []string{"tsh", "db", "connect"}
-
-	if clusterFlag != "" {
-		cmdTokens = append(cmdTokens, fmt.Sprintf("--cluster=%s", clusterFlag))
-	}
-	if active.Username == "" {
-		cmdTokens = append(cmdTokens, "--db-user=<user>")
-	}
-	if active.Database == "" {
-		cmdTokens = append(cmdTokens, "--db-name=<name>")
-	}
-
-	cmdTokens = append(cmdTokens, active.ServiceName)
-	return strings.Join(cmdTokens, " ")
 }
 
 func formatActiveDB(active tlsca.RouteToDatabase) string {
