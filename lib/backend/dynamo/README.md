@@ -9,6 +9,8 @@ WARNING: Using DynamoDB involves recurring charge from AWS.
 
 ### Running tests
 
+The DynamoDB tests are not run by default. To run them locally, try:
+
 ```
 TELEPORT_DYNAMODB_TEST=true go test -v  ./lib/backend/dynamo
 ```
