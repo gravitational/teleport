@@ -34,8 +34,6 @@ Cases handled currently:
 - _admin_: local user with `editor` role
 - _SSO admin_: user with `editor` role added via SSO connector (eg. GitHub)
 - _regular user_: user without `editor` role
-- 🔒: No one can edit roles. Deadlock
-- 🔓: There is still an active user with an editor role
 
 ## Why
 
