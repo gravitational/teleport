@@ -364,7 +364,6 @@ func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string)
 		SearchKeywords:      client.ParseSearchKeywords(values.Get("search"), ' '),
 		UseSearchAsRoles:    values.Get("searchAsRoles") == "yes",
 	}
-	req.NeedTotalCount = req.RequiresFakePagination()
 
 	return clt.ListResources(r.Context(), req)
 }

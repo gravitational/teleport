@@ -389,7 +389,6 @@ func TestListResources(t *testing.T) {
 				PredicateExpression: `labels.env == "prod"`,
 				SortBy:              types.SortBy{Field: "foo", IsDesc: true},
 				UseSearchAsRoles:    true,
-				NeedTotalCount:      true,
 			},
 		},
 		{
@@ -404,20 +403,18 @@ func TestListResources(t *testing.T) {
 			name: "sort partially defined: fieldName",
 			url:  `https://dev:3080/login?sort=foo`,
 			expected: proto.ListResourcesRequest{
-				ResourceType:   types.KindNode,
-				Limit:          defaults.MaxIterationLimit,
-				SortBy:         types.SortBy{Field: "foo", IsDesc: false},
-				NeedTotalCount: true,
+				ResourceType: types.KindNode,
+				Limit:        defaults.MaxIterationLimit,
+				SortBy:       types.SortBy{Field: "foo", IsDesc: false},
 			},
 		},
 		{
 			name: "sort partially defined: fieldName with colon",
 			url:  `https://dev:3080/login?sort=foo:`,
 			expected: proto.ListResourcesRequest{
-				ResourceType:   types.KindNode,
-				Limit:          defaults.MaxIterationLimit,
-				SortBy:         types.SortBy{Field: "foo", IsDesc: false},
-				NeedTotalCount: true,
+				ResourceType: types.KindNode,
+				Limit:        defaults.MaxIterationLimit,
+				SortBy:       types.SortBy{Field: "foo", IsDesc: false},
 			},
 		},
 		{
