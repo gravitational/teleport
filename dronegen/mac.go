@@ -562,40 +562,6 @@ func darwinBuildCommands(toolchainConfig toolchainConfig, artifactConfig darwinA
 	return commands
 }
 
-func darwinConnectBuildCommands(toolchainConfig toolchainConfig) []string {
-	commands := []string{
-		`set -u`,
-	}
-	commands = append(commands, configureToolchainsCommands(toolchainConfig)...)
-	commands = append(commands,
-		// BUILD_NUMBER is used by electron-builder to add an extra fourth integer to CFBundleVersion on macOS.
-		// This makes the full app version look like this: 9.3.5.12489
-		// https://www.electron.build/configuration/configuration.html#Configuration-buildVersion
-		`export BUILD_NUMBER=$DRONE_BUILD_NUMBER`,
-
-		// Unlock Keychain so that electron-builder can use developer ID cert for signing.
-		`security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain`,
-		`security find-identity -v`,
-		// CSC_NAME tells electron-builder which cert to use for signing when there are multiple certs
-		// available.
-		// https://www.electron.build/code-signing
-		`export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83`,
-
-		// Unpack tsh.pkg.
-		`cd $WORKSPACE_DIR/go/src/github.com/gravitational`,
-		`pkgutil --expand-full tsh-$${VERSION}.pkg tsh`,
-		`export CONNECT_TSH_APP_PATH=$WORKSPACE_DIR/go/src/github.com/gravitational/tsh/Payload/tsh.app`,
-
-		// Build and package Connect
-		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
-		// c.extraMetadata.version overwrites the version property from package.json to $VERSION
-		// https://www.electron.build/configuration/configuration.html#Configuration-extraMetadata
-		`yarn install && yarn build-term && yarn package-term -c.extraMetadata.version=$VERSION`,
-	)
-
-	return commands
-}
-
 func darwinTagCopyPackageArtifactCommands() []string {
 	commands := []string{
 		`set -u`,
