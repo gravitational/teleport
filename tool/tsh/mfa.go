@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"encoding/base32"
+	"errors"
 	"fmt"
 	"image/png"
 	"os"
@@ -37,6 +38,7 @@ import (
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 
@@ -94,7 +96,7 @@ func newMFALSCommand(parent *kingpin.CmdClause) *mfaLSCommand {
 		CmdClause: parent.Command("ls", "Get a list of registered MFA devices"),
 	}
 	c.Flag("verbose", "Print more information about MFA devices").Short('v').BoolVar(&c.verbose)
-	c.Flag("format", formatFlagDescription(defaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaultFormats...)
+	c.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaults.DefaultFormats...)
 	return c
 }
 
@@ -605,6 +607,11 @@ func (c *mfaRemoveCommand) run(cf *CLIConf) error {
 		if ack == nil {
 			return trace.BadParameter("server bug: server sent %T when client expected DeleteMFADeviceResponse_Ack", resp.Response)
 		}
+		// If deleted device was webauthn device, try to delete touch-id credentials.
+		if wanDevice := ack.GetDevice().GetWebauthn(); wanDevice != nil {
+			deleteTouchIDCredentialIfApplicable(string(wanDevice.CredentialId))
+		}
+
 		return nil
 	}); err != nil {
 		return trace.Wrap(err)
@@ -661,4 +668,13 @@ func showOTPQRCode(k *otp.Key) (cleanup func(), retErr error) {
 			log.WithError(err).Debug("Failed to stop the QR code image viewer")
 		}
 	}, nil
+}
+
+func deleteTouchIDCredentialIfApplicable(credentialID string) {
+	switch err := touchid.AttemptDeleteNonInteractive(credentialID); {
+	case errors.Is(err, &touchid.ErrAttemptFailed{}):
+		// Nothing to do here, just proceed.
+	case err != nil:
+		log.WithError(err).Errorf("Failed to delete credential: %s\n", credentialID)
+	}
 }

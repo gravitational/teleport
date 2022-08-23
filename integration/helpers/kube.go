@@ -69,18 +69,18 @@ func EnableKube(t *testing.T, config *service.Config, clusterName string) error 
 }
 
 // GetKubeClusters gets all kubernetes clusters accessible from a given auth server.
-func GetKubeClusters(t *testing.T, as *auth.Server) []*types.KubernetesCluster {
+func GetKubeClusters(t *testing.T, as *auth.Server) []types.KubeCluster {
 	ctx := context.Background()
 	resources, err := apiclient.GetResourcesWithFilters(ctx, as, proto.ListResourcesRequest{
-		ResourceType: types.KindKubeService,
+		ResourceType: types.KindKubeServer,
 	})
 	require.NoError(t, err)
-	kss, err := types.ResourcesWithLabels(resources).AsServers()
+	kss, err := types.ResourcesWithLabels(resources).AsKubeServers()
 	require.NoError(t, err)
 
-	clusters := make([]*types.KubernetesCluster, 0)
+	clusters := make([]types.KubeCluster, 0)
 	for _, ks := range kss {
-		clusters = append(clusters, ks.GetKubernetesClusters()...)
+		clusters = append(clusters, ks.GetCluster())
 	}
 	return clusters
 }

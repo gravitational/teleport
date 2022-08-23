@@ -63,7 +63,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
-	apiProto "github.com/gravitational/teleport/api/client/proto"
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -77,6 +76,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/conntest"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -192,7 +192,7 @@ func newWebSuite(t *testing.T) *WebSuite {
 
 	// start node
 	certs, err := s.server.Auth().GenerateHostCerts(s.ctx,
-		&apiProto.HostCertsRequest{
+		&authproto.HostCertsRequest{
 			HostID:       hostID,
 			NodeName:     s.server.ClusterName(),
 			Role:         types.RoleNode,
@@ -235,7 +235,6 @@ func newWebSuite(t *testing.T) *WebSuite {
 		regular.SetUUID(nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetShell("/bin/sh"),
-		regular.SetSessionServer(nodeClient),
 		regular.SetEmitter(nodeClient),
 		regular.SetPAMConfig(&pam.Config{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
@@ -320,7 +319,6 @@ func newWebSuite(t *testing.T) *WebSuite {
 		s.proxyClient,
 		regular.SetUUID(proxyID),
 		regular.SetProxyMode("", revTunServer, s.proxyClient),
-		regular.SetSessionServer(s.proxyClient),
 		regular.SetEmitter(s.proxyClient),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
@@ -1233,13 +1231,13 @@ func TestTerminalRequireSessionMfa(t *testing.T) {
 				return ap
 			},
 			registerDevice: func() *auth.TestDevice {
-				webauthnDev, err := auth.RegisterTestDevice(ctx, clt, "webauthn", apiProto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
+				webauthnDev, err := auth.RegisterTestDevice(ctx, clt, "webauthn", authproto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
 				require.NoError(t, err)
 
 				return webauthnDev
 			},
 			getChallengeResponseBytes: func(chals *client.MFAAuthenticateChallenge, dev *auth.TestDevice) []byte {
-				res, err := dev.SolveAuthn(&apiProto.MFAAuthenticateChallenge{
+				res, err := dev.SolveAuthn(&authproto.MFAAuthenticateChallenge{
 					WebauthnChallenge: wanlib.CredentialAssertionToProto(chals.WebauthnChallenge),
 				})
 				require.Nil(t, err)
@@ -1380,7 +1378,7 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 			},
 			mfaHandler: handleMFAWebauthnChallenge,
 			registerDevice: func(t *testing.T, ctx context.Context, clt *auth.Client) *auth.TestDevice {
-				webauthnDev, err := auth.RegisterTestDevice(ctx, clt, "webauthn", apiProto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
+				webauthnDev, err := auth.RegisterTestDevice(ctx, clt, "webauthn", authproto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
 				require.NoError(t, err)
 				return webauthnDev
 			},
@@ -1439,7 +1437,7 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 func handleMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *auth.TestDevice) {
 	mfaChallange, err := tdp.DecodeMFAChallenge(bufio.NewReader(&WebsocketIO{Conn: ws}))
 	require.NoError(t, err)
-	res, err := dev.SolveAuthn(&apiProto.MFAAuthenticateChallenge{
+	res, err := dev.SolveAuthn(&authproto.MFAAuthenticateChallenge{
 		WebauthnChallenge: wanlib.CredentialAssertionToProto(mfaChallange.WebauthnChallenge),
 	})
 	require.NoError(t, err)
@@ -2171,6 +2169,16 @@ func TestTokenGeneration(t *testing.T) {
 			err = json.Unmarshal(re.Bytes(), &responseToken)
 			require.NoError(t, err)
 
+			require.NotEmpty(t, responseToken.SuggestedLabels)
+			require.Condition(t, func() (success bool) {
+				for _, uiLabel := range responseToken.SuggestedLabels {
+					if uiLabel.Name == types.InternalResourceIDLabel && uiLabel.Value != "" {
+						return true
+					}
+				}
+				return false
+			})
+
 			// generated token roles should match the requested ones
 			generatedToken, err := proxy.auth.Auth().GetToken(context.Background(), responseToken.ID)
 			require.NoError(t, err)
@@ -2424,6 +2432,7 @@ func TestClusterKubesGet(t *testing.T) {
 		Kind:     types.KindKubeService,
 		Version:  types.V2,
 		Spec: types.ServerSpecV2{
+			Addr: "test",
 			KubernetesClusters: []*types.KubernetesCluster{
 				{
 					Name:         "test-kube-name",
@@ -2738,9 +2747,9 @@ func TestAddMFADevice(t *testing.T) {
 			deviceName: "new-totp",
 			getTOTPCode: func() string {
 				// Create totp secrets.
-				res, err := env.server.Auth().CreateRegisterChallenge(ctx, &apiProto.CreateRegisterChallengeRequest{
+				res, err := env.server.Auth().CreateRegisterChallenge(ctx, &authproto.CreateRegisterChallengeRequest{
 					TokenID:    privilegeToken,
-					DeviceType: apiProto.DeviceType_DEVICE_TYPE_TOTP,
+					DeviceType: authproto.DeviceType_DEVICE_TYPE_TOTP,
 				})
 				require.NoError(t, err)
 
@@ -2755,9 +2764,9 @@ func TestAddMFADevice(t *testing.T) {
 			deviceName: "new-webauthn",
 			getWebauthnResp: func() *wanlib.CredentialCreationResponse {
 				// Get webauthn register challenge.
-				res, err := env.server.Auth().CreateRegisterChallenge(ctx, &apiProto.CreateRegisterChallengeRequest{
+				res, err := env.server.Auth().CreateRegisterChallenge(ctx, &authproto.CreateRegisterChallengeRequest{
 					TokenID:    privilegeToken,
-					DeviceType: apiProto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+					DeviceType: authproto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 				})
 				require.NoError(t, err)
 
@@ -3378,9 +3387,9 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 		Name: "invalid-name-for-recovery",
 	})
 	require.NoError(t, err)
-	res, err := env.server.Auth().CreateRegisterChallenge(ctx, &apiProto.CreateRegisterChallengeRequest{
+	res, err := env.server.Auth().CreateRegisterChallenge(ctx, &authproto.CreateRegisterChallengeRequest{
 		TokenID:    resetToken.GetName(),
-		DeviceType: apiProto.DeviceType_DEVICE_TYPE_TOTP,
+		DeviceType: authproto.DeviceType_DEVICE_TYPE_TOTP,
 	})
 	require.NoError(t, err)
 	totpCode, err := totp.GenerateCode(res.GetTOTP().GetSecret(), env.clock.Now())
@@ -3388,11 +3397,11 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 
 	// Test invalid username does not receive codes.
 	clt := env.proxies[0].client
-	re, err := clt.ChangeUserAuthentication(ctx, &apiProto.ChangeUserAuthenticationRequest{
+	re, err := clt.ChangeUserAuthentication(ctx, &authproto.ChangeUserAuthenticationRequest{
 		TokenID:     resetToken.GetName(),
 		NewPassword: []byte("abc123"),
-		NewMFARegisterResponse: &apiProto.MFARegisterResponse{Response: &apiProto.MFARegisterResponse_TOTP{
-			TOTP: &apiProto.TOTPRegisterResponse{Code: totpCode},
+		NewMFARegisterResponse: &authproto.MFARegisterResponse{Response: &authproto.MFARegisterResponse_TOTP{
+			TOTP: &authproto.TOTPRegisterResponse{Code: totpCode},
 		}},
 	})
 	require.NoError(t, err)
@@ -3408,20 +3417,20 @@ func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 		Name: "valid-username@example.com",
 	})
 	require.NoError(t, err)
-	res, err = env.server.Auth().CreateRegisterChallenge(ctx, &apiProto.CreateRegisterChallengeRequest{
+	res, err = env.server.Auth().CreateRegisterChallenge(ctx, &authproto.CreateRegisterChallengeRequest{
 		TokenID:    resetToken.GetName(),
-		DeviceType: apiProto.DeviceType_DEVICE_TYPE_TOTP,
+		DeviceType: authproto.DeviceType_DEVICE_TYPE_TOTP,
 	})
 	require.NoError(t, err)
 	totpCode, err = totp.GenerateCode(res.GetTOTP().GetSecret(), env.clock.Now())
 	require.NoError(t, err)
 
 	// Test valid username (email) returns codes.
-	re, err = clt.ChangeUserAuthentication(ctx, &apiProto.ChangeUserAuthenticationRequest{
+	re, err = clt.ChangeUserAuthentication(ctx, &authproto.ChangeUserAuthenticationRequest{
 		TokenID:     resetToken.GetName(),
 		NewPassword: []byte("abc123"),
-		NewMFARegisterResponse: &apiProto.MFARegisterResponse{Response: &apiProto.MFARegisterResponse_TOTP{
-			TOTP: &apiProto.TOTPRegisterResponse{Code: totpCode},
+		NewMFARegisterResponse: &authproto.MFARegisterResponse{Response: &authproto.MFARegisterResponse_TOTP{
+			TOTP: &authproto.TOTPRegisterResponse{Code: totpCode},
 		}},
 	})
 	require.NoError(t, err)
@@ -3538,6 +3547,8 @@ func TestGetUserOrResetToken(t *testing.T) {
 }
 
 func TestListConnectionsDiagnostic(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	username := "someuser"
 	diagName := "diag1"
@@ -3578,6 +3589,69 @@ func TestListConnectionsDiagnostic(t *testing.T) {
 	require.True(t, receivedConnectionDiagnostic.Success)
 	require.Equal(t, receivedConnectionDiagnostic.ID, diagName)
 	require.Equal(t, receivedConnectionDiagnostic.Message, "success for cd0")
+
+	diag, err := env.server.Auth().GetConnectionDiagnostic(ctx, diagName)
+	require.NoError(t, err)
+
+	// Adding traces
+	diag.AppendTrace(&types.ConnectionDiagnosticTrace{
+		ID:        "some id",
+		TraceType: "rbac checks",
+		Status:    "some status",
+		Details:   "some details",
+	})
+	diag.SetMessage("after update")
+	require.NoError(t, env.server.Auth().UpdateConnectionDiagnostic(ctx, diag))
+
+	resp, err = pack.clt.Get(ctx, connectionsEndpoint, url.Values{})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &receivedConnectionDiagnostic))
+
+	require.True(t, receivedConnectionDiagnostic.Success)
+	require.Equal(t, receivedConnectionDiagnostic.ID, diagName)
+	require.Equal(t, receivedConnectionDiagnostic.Message, "after update")
+	require.Len(t, receivedConnectionDiagnostic.Traces, 1)
+	require.NotNil(t, receivedConnectionDiagnostic.Traces[0])
+	require.Equal(t, receivedConnectionDiagnostic.Traces[0].Details, "some details")
+}
+
+func TestDiagnoseConnection(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	username := "someuser"
+	roleRWConnectionDiagnostic, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindConnectionDiagnostic,
+					[]string{types.VerbRead, types.VerbCreate, types.VerbUpdate}),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	env := newWebPack(t, 1)
+	clusterName := env.server.ClusterName()
+	pack := env.proxies[0].authPack(t, username, []types.Role{roleRWConnectionDiagnostic})
+
+	createConnectionEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "diagnostics", "connections")
+
+	resp, err := pack.clt.PostJSON(ctx, createConnectionEndpoint, conntest.TestConnectionRequest{
+		ResourceKind: "node",
+		ResourceName: "host1",
+		SSHPrincipal: username,
+	})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+
+	var receivedConnectionDiagnostic ui.ConnectionDiagnostic
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &receivedConnectionDiagnostic))
+
+	require.True(t, receivedConnectionDiagnostic.Success)
+	require.Equal(t, receivedConnectionDiagnostic.Message, "dry-run")
+	require.Len(t, receivedConnectionDiagnostic.Traces, 0)
 }
 
 type authProviderMock struct {
@@ -3935,7 +4009,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 
 	// start auth server
 	certs, err := server.Auth().GenerateHostCerts(ctx,
-		&apiProto.HostCertsRequest{
+		&authproto.HostCertsRequest{
 			HostID:       hostID,
 			NodeName:     server.TLS.ClusterName(),
 			Role:         types.RoleNode,
@@ -3981,7 +4055,6 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 		regular.SetUUID(nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetShell("/bin/sh"),
-		regular.SetSessionServer(nodeClient),
 		regular.SetEmitter(nodeClient),
 		regular.SetPAMConfig(&pam.Config{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
@@ -4097,7 +4170,6 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		client,
 		regular.SetUUID(proxyID),
 		regular.SetProxyMode("", revTunServer, client),
-		regular.SetSessionServer(client),
 		regular.SetEmitter(client),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),

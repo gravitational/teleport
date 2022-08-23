@@ -301,7 +301,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 
 	switch event.Type {
 	// Args are sent in their own event by execsnoop to save stack space. Store
-	// the args in a ttlmap so they can be retrieved when the return event arrives.
+	// the args in a ttlmap, so they can be retrieved when the return event arrives.
 	case eventArg:
 		var buf []string
 		buffer, ok := s.argsCache.Get(strconv.FormatUint(event.PID, 10))
@@ -422,7 +422,7 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 		return
 	}
 
-	// If the event comes from a unmonitored process/cgroup, don't process it.
+	// If the event comes from an unmonitored process/cgroup, don't process it.
 	ctx, ok := s.watch.Get(event.CgroupID)
 	if !ok {
 		return
@@ -436,12 +436,12 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 
 	// Source.
 	src := make([]byte, 4)
-	binary.LittleEndian.PutUint32(src, uint32(event.SrcAddr))
+	binary.LittleEndian.PutUint32(src, event.SrcAddr)
 	srcAddr := net.IP(src)
 
 	// Destination.
 	dst := make([]byte, 4)
-	binary.LittleEndian.PutUint32(dst, uint32(event.DstAddr))
+	binary.LittleEndian.PutUint32(dst, event.DstAddr)
 	dstAddr := net.IP(dst)
 
 	sessionNetworkEvent := &apievents.SessionNetwork{
@@ -485,7 +485,7 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 		return
 	}
 
-	// If the event comes from a unmonitored process/cgroup, don't process it.
+	// If the event comes from an unmonitored process/cgroup, don't process it.
 	ctx, ok := s.watch.Get(event.CgroupID)
 	if !ok {
 		return

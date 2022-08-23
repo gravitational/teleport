@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
-	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -176,11 +175,6 @@ func (m *mockServer) PermitUserEnvironment() bool {
 // GetAccessPoint returns an AccessPoint for this cluster.
 func (m *mockServer) GetAccessPoint() AccessPoint {
 	return m.auth
-}
-
-// GetSessionServer returns a session server.
-func (m *mockServer) GetSessionServer() rsession.Service {
-	return rsession.NewDiscardSessionServer()
 }
 
 // GetDataDir returns data directory of the server

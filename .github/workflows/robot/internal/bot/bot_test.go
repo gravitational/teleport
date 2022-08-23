@@ -113,6 +113,7 @@ func TestIsLargePR(t *testing.T) {
 				{Name: "file_pb.js", Additions: 10000, Deletions: 2000},
 				{Name: "file2_pb.d.ts", Additions: 10000, Deletions: 2000},
 				{Name: "webassets/12345/app.js", Additions: 10000, Deletions: 2000},
+				{Name: "vendor/golang.org/x/sys", Additions: 10000, Deletions: 2000},
 			},
 			isLarge: false,
 		},

@@ -29,6 +29,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
 	"net/url"
 	"strings"
 	"testing"
@@ -365,6 +366,20 @@ func (p *pack) appAccessJWT(t *testing.T) {
 
 	// Verify JWT token.
 	verifyJWT(t, p, token, p.jwtAppURI)
+
+	// Connect to websocket application that dumps the upgrade request.
+	wsCookie := p.createAppSession(t, p.wsHeaderAppPublicAddr, p.wsHeaderAppClusterName)
+	body, err := p.makeWebsocketRequest(wsCookie, "/")
+	require.NoError(t, err)
+
+	// Parse the upgrade request the websocket application received.
+	req, err := http.ReadRequest(bufio.NewReader(strings.NewReader(body)))
+	require.NoError(t, err)
+
+	// Extract JWT token from header and verify it.
+	wsToken := req.Header.Get(teleport.AppJWTHeader)
+	require.NotEmpty(t, wsToken, "websocket upgrade request doesn't contain JWT header")
+	verifyJWT(t, p, wsToken, p.wsHeaderAppURI)
 }
 
 func verifyJWT(t *testing.T, pack *pack, token, appURI string) {
@@ -792,6 +807,11 @@ type pack struct {
 	headerAppClusterName string
 	headerAppURI         string
 
+	wsHeaderAppName        string
+	wsHeaderAppPublicAddr  string
+	wsHeaderAppClusterName string
+	wsHeaderAppURI         string
+
 	flushAppName        string
 	flushAppPublicAddr  string
 	flushAppClusterName string
@@ -890,6 +910,10 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		headerAppPublicAddr:  "app-04.example.com",
 		headerAppClusterName: "example.com",
 
+		wsHeaderAppName:        "ws-header",
+		wsHeaderAppPublicAddr:  "ws-header.example.com",
+		wsHeaderAppClusterName: "example.com",
+
 		flushAppName:        "app-05",
 		flushAppPublicAddr:  "app-05.example.com",
 		flushAppClusterName: "example.com",
@@ -901,7 +925,6 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 				ReadBufferSize:  1024,
 				WriteBufferSize: 1024,
 			}
-
 			conn, err := upgrader.Upgrade(w, r, nil)
 			require.NoError(t, err)
 			handler(conn)
@@ -954,10 +977,21 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		c.Close()
 	})
 	t.Cleanup(func() { leafTCPServer.Close() })
+	// JWT server writes generated JWT token in the response.
 	jwtServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, r.Header.Get(teleport.AppJWTHeader))
 	}))
 	t.Cleanup(jwtServer.Close)
+	// Websocket header server dumps initial HTTP upgrade request in the response.
+	wsHeaderServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := (&websocket.Upgrader{}).Upgrade(w, r, nil)
+		require.NoError(t, err)
+		reqDump, err := httputil.DumpRequest(r, false)
+		require.NoError(t, err)
+		require.NoError(t, conn.WriteMessage(websocket.BinaryMessage, reqDump))
+		require.NoError(t, conn.Close())
+	}))
+	t.Cleanup(wsHeaderServer.Close)
 	headerServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		for _, headerName := range forwardedHeaderNames {
 			fmt.Fprintln(w, r.Header.Get(headerName))
@@ -999,6 +1033,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	p.leafTCPAppURI = fmt.Sprintf("tcp://%v", leafTCPServer.Addr().String())
 	p.jwtAppURI = jwtServer.URL
 	p.headerAppURI = headerServer.URL
+	p.wsHeaderAppURI = wsHeaderServer.URL
 	p.flushAppURI = flushServer.URL
 	p.dumperAppURI = dumperServer.URL
 
@@ -1501,7 +1536,7 @@ func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 		raConf.Console = nil
 		raConf.Log = log
 		raConf.DataDir = t.TempDir()
-		raConf.Token = "static-token-value"
+		raConf.SetToken("static-token-value")
 		raConf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
@@ -1543,6 +1578,11 @@ func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 				Name:       p.headerAppName,
 				URI:        p.headerAppURI,
 				PublicAddr: p.headerAppPublicAddr,
+			},
+			{
+				Name:       p.wsHeaderAppName,
+				URI:        p.wsHeaderAppURI,
+				PublicAddr: p.wsHeaderAppPublicAddr,
 			},
 			{
 				Name:       p.flushAppName,
@@ -1635,7 +1675,7 @@ func (p *pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 		laConf.Console = nil
 		laConf.Log = log
 		laConf.DataDir = t.TempDir()
-		laConf.Token = "static-token-value"
+		laConf.SetToken("static-token-value")
 		laConf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",

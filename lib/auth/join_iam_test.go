@@ -130,7 +130,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					&types.TokenRule{
+					{
 						AWSAccount: "1234",
 						AWSARN:     "arn:aws::1111",
 					},
@@ -154,7 +154,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					&types.TokenRule{
+					{
 						AWSAccount: "1234",
 						AWSARN:     "arn:aws::role/admins-*",
 					},
@@ -178,7 +178,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					&types.TokenRule{
+					{
 						AWSAccount: "1234",
 						AWSARN:     "arn:aws::role/admins-???",
 					},
@@ -202,7 +202,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					&types.TokenRule{
+					{
 						AWSAccount: "1234",
 						AWSARN:     "arn:aws::1111",
 					},
@@ -226,7 +226,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					&types.TokenRule{
+					{
 						AWSAccount: "1234",
 						AWSARN:     "arn:aws::1111",
 					},
@@ -251,7 +251,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					&types.TokenRule{
+					{
 						AWSAccount: "1234",
 						AWSARN:     "arn:aws::role/admins-???",
 					},
@@ -275,7 +275,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					&types.TokenRule{
+					{
 						AWSAccount: "1234",
 						AWSARN:     "arn:aws::1111",
 					},
@@ -300,7 +300,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					&types.TokenRule{
+					{
 						AWSAccount: "1234",
 						AWSARN:     "arn:aws::1111",
 					},
@@ -324,7 +324,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					&types.TokenRule{
+					{
 						AWSAccount: "1234",
 						AWSARN:     "arn:aws::1111",
 					},
@@ -345,7 +345,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					&types.TokenRule{
+					{
 						AWSAccount: "1234",
 						AWSARN:     "arn:aws::1111",
 					},
@@ -369,7 +369,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					&types.TokenRule{
+					{
 						AWSAccount: "1234",
 						AWSARN:     "arn:aws::1111",
 					},

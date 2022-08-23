@@ -51,8 +51,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type RotationGetter func(role types.SystemRole) (*types.Rotation, error)
-
 // Config is the configuration for an application server.
 type Config struct {
 	// Clock is used to control time.
@@ -84,7 +82,7 @@ type Config struct {
 	Authorizer auth.Authorizer
 
 	// GetRotation returns the certificate rotation state.
-	GetRotation RotationGetter
+	GetRotation services.RotationGetter
 
 	// Apps is a list of statically registered apps this agent proxies.
 	Apps types.Apps

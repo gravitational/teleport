@@ -437,6 +437,37 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 		}
 	}
 
+	matchers := make([]AWSEC2Matcher, 0, len(conf.SSH.AWSMatchers))
+
+	for _, matcher := range conf.SSH.AWSMatchers {
+		if matcher.InstallParams == nil {
+			matcher.InstallParams = &InstallParams{
+				JoinParams: JoinParams{
+					TokenName: defaults.IAMInviteTokenName,
+					Method:    types.JoinMethodIAM,
+				},
+			}
+		} else {
+			method := matcher.InstallParams.JoinParams.Method
+			if method == "" {
+				matcher.InstallParams.JoinParams.Method = types.JoinMethodIAM
+			} else if method != types.JoinMethodIAM {
+				return trace.BadParameter("only IAM joining is supported for EC2 auto-discovery")
+			}
+			token := matcher.InstallParams.JoinParams.TokenName
+			if token == "" {
+				matcher.InstallParams.JoinParams.TokenName = defaults.IAMInviteTokenName
+			}
+		}
+
+		if matcher.SSM.DocumentName == "" {
+			matcher.SSM.DocumentName = defaults.AWSInstallerDocument
+		}
+		matchers = append(matchers, matcher)
+	}
+
+	conf.SSH.AWSMatchers = matchers
+
 	return nil
 }
 
@@ -996,7 +1027,7 @@ type SSH struct {
 	DisableCreateHostUser bool `yaml:"disable_create_host_user,omitempty"`
 
 	// AWSMatchers are used to match EC2 instances
-	AWSMatchers []AWSMatcher `yaml:"aws,omitempty"`
+	AWSMatchers []AWSEC2Matcher `yaml:"aws,omitempty"`
 }
 
 // AllowTCPForwarding checks whether the config file allows TCP forwarding or not.
@@ -1166,6 +1197,8 @@ type Databases struct {
 	ResourceMatchers []ResourceMatcher `yaml:"resources,omitempty"`
 	// AWSMatchers match AWS hosted databases.
 	AWSMatchers []AWSMatcher `yaml:"aws,omitempty"`
+	// AzureMatchers match Azure hosted databases.
+	AzureMatchers []AzureMatcher `yaml:"azure,omitempty"`
 }
 
 // ResourceMatcher matches cluster resources.
@@ -1183,9 +1216,44 @@ type AWSMatcher struct {
 	Regions []string `yaml:"regions,omitempty"`
 	// Tags are AWS tags to match.
 	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
-	// SSMDocument is the ssm command document to execute for EC2
-	// installation
-	SSMDocument string `yaml:"ssm_command_document"`
+}
+
+// AWSEC2Matcher matches EC2 instances
+type AWSEC2Matcher struct {
+	// Matcher is used to match EC2 instances based on tags
+	Matcher AWSMatcher `yaml:",inline"`
+	// InstallParams sets the join method when installing on
+	// discovered EC2 nodes
+	InstallParams *InstallParams `yaml:"install,omitempty"`
+	// SSM provides options to use when sending a document command to
+	// an EC2 node
+	SSM AWSSSM `yaml:"ssm,omitempty"`
+}
+
+// InstallParams sets join method to use on discovered nodes
+type InstallParams struct {
+	JoinParams JoinParams `yaml:"join_params,omitempty"`
+}
+
+// AWSSSM provides options to use when executing SSM documents
+type AWSSSM struct {
+	// DocumentName is the name of the document to use when executing an
+	// SSM command
+	DocumentName string `yaml:"document_name,omitempty"`
+}
+
+// AzureMatcher matches Azure databases.
+type AzureMatcher struct {
+	// Subscriptions are Azure subscriptions to query for resources.
+	Subscriptions []string `yaml:"subscriptions,omitempty"`
+	// ResourceGroups are Azure resource groups to query for resources.
+	ResourceGroups []string `yaml:"resource_groups,omitempty"`
+	// Types are Azure database types to match: "mysql", "postgres"
+	Types []string `yaml:"types,omitempty"`
+	// Regions are Azure locations to match for databases.
+	Regions []string `yaml:"regions,omitempty"`
+	// ResourceTags are Azure tags on resources to match.
+	ResourceTags map[string]apiutils.Strings `yaml:"tags,omitempty"`
 }
 
 // Database represents a single database proxied by the service.
@@ -1380,6 +1448,9 @@ type Proxy struct {
 	TunAddr string `yaml:"tunnel_listen_addr,omitempty"`
 	// PeerAddr is the address this proxy will be dialed at by its peers.
 	PeerAddr string `yaml:"peer_listen_addr,omitempty"`
+	// PeerPublicAddr is the hostport the proxy advertises for peer proxy
+	// client connections.
+	PeerPublicAddr string `yaml:"peer_public_addr,omitempty"`
 	// KeyFile is a TLS key file
 	KeyFile string `yaml:"https_key_file,omitempty"`
 	// CertFile is a TLS Certificate file

@@ -130,6 +130,9 @@ type InitConfig struct {
 	// Databases is a service that manages database resources.
 	Databases services.Databases
 
+	// Status is a service that manages cluster status info.
+	Status services.Status
+
 	// Roles is a set of roles to create
 	Roles []types.Role
 
@@ -170,6 +173,7 @@ type InitConfig struct {
 	// WindowsServices is a service that manages Windows desktop resources.
 	WindowsDesktops services.WindowsDesktops
 
+	// SessionTrackerService is a service that manages trackers for all active sessions.
 	SessionTrackerService services.SessionTrackerService
 
 	// Enforcer is used to enforce Teleport Enterprise license compliance.
@@ -180,6 +184,9 @@ type InitConfig struct {
 
 	// TraceClient is used to forward spans to the upstream telemetry collector
 	TraceClient otlptrace.Client
+
+	// AssertionReplayService is a service that mitigatates SSO assertion replay.
+	*local.AssertionReplayService
 }
 
 // Init instantiates and configures an instance of AuthServer

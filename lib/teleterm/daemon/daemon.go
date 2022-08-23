@@ -90,7 +90,7 @@ func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
 		}
 	}
 
-	if err := s.cfg.Storage.Remove(ctx, cluster.Name); err != nil {
+	if err := s.cfg.Storage.Remove(ctx, cluster.ProfileName); err != nil {
 		return trace.Wrap(err)
 	}
 
