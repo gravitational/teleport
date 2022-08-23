@@ -371,15 +371,7 @@ func TestStreamSessionEvents_User(t *testing.T) {
 	// we need to wait for a short period to ensure the event is returned
 	time.Sleep(500 * time.Millisecond)
 
-	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(
-		srv.Clock().Now().Add(-time.Hour),
-		srv.Clock().Now().Add(time.Hour),
-		"",
-		[]string{events.SessionRecordingAccessEvent},
-		1,
-		types.EventOrderDescending,
-		"",
-	)
+	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(time.Time{}, time.Now().Add(time.Minute), "", []string{events.SessionRecordingAccessEvent}, 10, types.EventOrderDescending, "")
 	require.NoError(t, err)
 
 	event := searchEvents[0].(*apievents.SessionRecordingAccess)
@@ -404,15 +396,7 @@ func TestStreamSessionEvents_Builtin(t *testing.T) {
 	// we need to wait for a short period to ensure the event is returned
 	time.Sleep(500 * time.Millisecond)
 
-	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(
-		srv.Clock().Now().Add(-time.Hour),
-		srv.Clock().Now().Add(time.Hour),
-		"",
-		[]string{events.SessionRecordingAccessEvent},
-		1,
-		types.EventOrderDescending,
-		"",
-	)
+	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(time.Time{}, time.Now().Add(time.Minute), "", []string{events.SessionRecordingAccessEvent}, 10, types.EventOrderDescending, "")
 	require.NoError(t, err)
 
 	require.Equal(t, 0, len(searchEvents))
@@ -438,15 +422,7 @@ func TestGetSessionEvents(t *testing.T) {
 	// we need to wait for a short period to ensure the event is returned
 	time.Sleep(500 * time.Millisecond)
 
-	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(
-		srv.Clock().Now().Add(-time.Hour),
-		srv.Clock().Now().Add(time.Hour),
-		"",
-		[]string{events.SessionRecordingAccessEvent},
-		1,
-		types.EventOrderDescending,
-		"",
-	)
+	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(time.Time{}, time.Now().Add(time.Minute), "", []string{events.SessionRecordingAccessEvent}, 10, types.EventOrderDescending, "")
 	require.NoError(t, err)
 
 	event := searchEvents[0].(*apievents.SessionRecordingAccess)
