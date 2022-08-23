@@ -27,8 +27,13 @@ after the session ends.
   with Desktop Access](./getting-started.mdx) before beginning this guide.
 - A browser on your local machine that supports the File System Access API,
   which Teleport uses for Directory Sharing. We support the latest versions of
-  Chromium-based browsers like Google Chrome, Brave, and Microsoft Edge. You can
-  see a full compatibility table in the [Mozilla Developer Network
+  Chromium-based browsers like Google Chrome, Brave, and Microsoft Edge. 
+
+  Brave users can enable the File System Access API by navigating to
+  [brave://flags/#file-system-access-api](brave://flags/#file-system-access-api)
+  and selecting "Enable".
+
+  You can see a full compatibility table in the [Mozilla Developer Network
   documentation](https://developer.mozilla.org/en-US/docs/Web/API/File_System_Access_API#browser_compatibility).
 
 (!docs/pages/includes/tctl.mdx!)
@@ -51,6 +56,8 @@ enable directory sharing.
 After you grant permissions, you will see a new directory in File Explorer on
 the remote desktop. The directory will have the same name as the directory on
 your local machine, but with "on teleport" appended to the name. 
+
+![Shared directory in File Explorer](../../img/desktop-access/shared-dir.png)
 
 You can only share a single directory at a time.
 
@@ -141,7 +148,7 @@ spec:
   - auditor
 + - no-sharing
   status:
-    is_locked:false
+    is_locked: false
 ```
 
 Apply your changes:
@@ -180,9 +187,18 @@ The Teleport Web UI establishes a secure WebSocket session with the Teleport
 Proxy Service, which forwards traffic to and from the relevant Teleport Desktop
 Service instance. 
 
-The Teleport Desktop Service converts traffic from the Teleport Web UI into RDP
-messages to send to the remote desktop. The Desktop Service also converts RDP
-traffic from the the remote desktop into messages to send to the Teleport Web
-UI. Based on these messages, the Teleport Web UI advertises information about—or
-performs modifications on—the shared directory.
+The Teleport Desktop Service enables the Web UI to communicate with remote
+desktops by implementing Teleport Desktop Protocol (TDP), which creates an
+abstraction layer between the WebSocket protocol and RDP.
+
+The Teleport Desktop Service converts TDP traffic from the Teleport Web UI into
+RDP traffic to send to the remote desktop. The Desktop Service also converts RDP
+traffic from the the remote desktop into TDP messages to send to the Teleport
+Web UI. Based on these messages, the Teleport Web UI advertises information
+about—or performs modifications on—the shared directory.
+
+You can read more about TDP in [Teleport RFD
+37](https://github.com/gravitational/teleport/blob/master/rfd/0067-desktop-access-file-system-sharing.md)
+and how Directory Sharing uses it in [RFD
+67](https://github.com/gravitational/teleport/blob/master/rfd/0067-desktop-access-file-system-sharing.md).
 
