@@ -477,6 +477,8 @@ const (
 	ProtocolSQLServer = "sqlserver"
 	// ProtocolSnowflake is the Snowflake REST database protocol.
 	ProtocolSnowflake = "snowflake"
+	// ProtocolElasticsearch is the Elasticsearch database protocol.
+	ProtocolElasticsearch = "elasticsearch"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
@@ -488,6 +490,7 @@ var DatabaseProtocols = []string{
 	ProtocolRedis,
 	ProtocolSnowflake,
 	ProtocolSQLServer,
+	ProtocolElasticsearch,
 }
 
 // ReadableDatabaseProtocol returns a more human readable string of the
