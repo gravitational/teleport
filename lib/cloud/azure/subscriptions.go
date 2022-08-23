@@ -17,6 +17,7 @@ package azure
 
 import (
 	"context"
+	"sync"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
@@ -34,6 +35,7 @@ var _ ARMSubscriptions = (*armsubscription.SubscriptionsClient)(nil)
 type SubscriptionIDsClient struct {
 	api   ARMSubscriptions
 	cache []string
+	mu    sync.Mutex
 }
 
 // NewSubscriptionIDsClient returns a SubscriptionsClient.
@@ -43,6 +45,8 @@ func NewSubscriptionIDsClient(api ARMSubscriptions) *SubscriptionIDsClient {
 
 // ListSubscriptionIDs lists all subscription IDs using the Azure SubscriptionsAPI.
 func (c *SubscriptionIDsClient) ListSubscriptionIDs(ctx context.Context, maxPages int, useCache bool) ([]string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if useCache && c.cache != nil {
 		return c.cache, nil
 	}
