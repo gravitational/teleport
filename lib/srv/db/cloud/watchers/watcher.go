@@ -246,3 +246,19 @@ func makeMemoryDBFetcher(clients cloud.Clients, region string, tags types.Labels
 		MemoryDB: memorydb,
 	})
 }
+
+// filterDatabasesByLabels filters input databases with provided labels.
+func filterDatabasesByLabels(databases types.Databases, labels types.Labels, log logrus.FieldLogger) types.Databases {
+	var matchedDatabases types.Databases
+	for _, database := range databases {
+		match, _, err := services.MatchLabels(labels, database.GetAllLabels())
+		if err != nil {
+			log.Warnf("Failed to match %v against selector: %v.", database, err)
+		} else if match {
+			matchedDatabases = append(matchedDatabases, database)
+		} else {
+			log.Debugf("%v doesn't match selector.", database)
+		}
+	}
+	return matchedDatabases
+}
