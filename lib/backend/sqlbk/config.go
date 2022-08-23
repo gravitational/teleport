@@ -19,10 +19,11 @@ package sqlbk
 import (
 	"time"
 
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 const (
@@ -47,6 +48,10 @@ type Config struct {
 
 	// Database is the database where teleport will store its data.
 	Database string `json:"database,omitempty"`
+
+	// Username is the username to use to connect. Might be optional depending
+	// on the authentication mechanism.
+	Username string `json:"username,omitempty"`
 
 	// TLS defines configurations for validating server certificates
 	// and mutual authentication.

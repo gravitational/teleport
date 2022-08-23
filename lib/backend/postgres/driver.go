@@ -26,11 +26,12 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/gravitational/teleport/lib/backend/sqlbk"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/stdlib"
+
+	"github.com/gravitational/teleport/lib/backend/sqlbk"
 )
 
 // pgDriver implements backend.Driver for a PostgreSQL or CockroachDB database.
@@ -64,7 +65,7 @@ func (d *pgDriver) open(ctx context.Context, u *url.URL) (sqlbk.DB, error) {
 	connConfig.Logger = d.sqlLogger
 
 	// extract the user from the first client certificate in TLSConfig.
-	if connConfig.TLSConfig != nil {
+	if connConfig.User == "" && connConfig.TLSConfig != nil {
 		connConfig.User, err = tlsConfigUser(connConfig.TLSConfig)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -81,10 +82,7 @@ func (d *pgDriver) open(ctx context.Context, u *url.URL) (sqlbk.DB, error) {
 	}
 
 	// Open connection/pool for backend database.
-	db, err := sql.Open("pgx", stdlib.RegisterConnConfig(connConfig))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	db := stdlib.OpenDB(*connConfig)
 
 	// Configure the connection pool.
 	db.SetConnMaxIdleTime(d.cfg.ConnMaxIdleTime)
@@ -155,6 +153,7 @@ func (d *pgDriver) url() *url.URL {
 	}
 	q := u.Query()
 	q.Set("sslmode", "verify-full")
+	q.Set("user", d.cfg.Username)
 	q.Set("sslrootcert", d.cfg.TLS.CAFile)
 	q.Set("sslcert", d.cfg.TLS.ClientCertFile)
 	q.Set("sslkey", d.cfg.TLS.ClientKeyFile)
