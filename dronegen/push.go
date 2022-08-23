@@ -39,6 +39,21 @@ func pushCheckoutCommands(b buildType) []string {
 		// do a recursive submodule checkout to get both webassets and webassets/e
 		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
 		`git submodule update --init --recursive webassets || true`,
+	)
+
+	if b.hasTeleportConnect() {
+		// TODO(zmb3): this can be removed after webapps migration
+		// clone webapps for the Teleport Connect Source code
+		commands = append(commands,
+			`cd /go/src/github.com/gravitational/webapps`,
+			`git clone https://github.com/gravitational/webapps.git .`,
+			`git checkout "$(/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)"`,
+			`git submodule update --init packages/webapps.e`,
+			`cd -`,
+		)
+	}
+
+	commands = append(commands,
 		`rm -f /root/.ssh/id_rsa`,
 	)
 

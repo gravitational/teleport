@@ -74,6 +74,11 @@ steps:
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
   - git submodule update --init --recursive webassets || true
+  - cd /go/src/github.com/gravitational/webapps
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout "$(/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)"
+  - git submodule update --init packages/webapps.e
+  - cd -
   - rm -f /root/.ssh/id_rsa
   environment:
     GITHUB_PRIVATE_KEY:
@@ -6491,6 +6496,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: cf410059a52882504f00af9fbb43ed23ea97c555e3c6fd02a07faf5577afc47d
+hmac: c1662657f9cc4bd916ace21962d53852e8cfcb66b6af8b89e95602c882e0779c
 
 ...
