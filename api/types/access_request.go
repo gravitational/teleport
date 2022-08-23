@@ -401,9 +401,10 @@ func (r *AccessRequestV3) SetLoginHint(login string) {
 	r.Spec.LoginHint = login
 }
 
-// SetAssumedRoleRequestID sets the request ID of the access request from which the assumed role was obtained
-func (s *WebSessionSpecV2) SetAssumedRoleRequestID(requestID string) {
-	s.AssumedRoleRequestID = requestID
+// SetConsumedAccessRequestID sets the request ID of the access request from which the assumed role was
+// obtained
+func (s *WebSessionSpecV2) SetConsumedAccessRequestID(requestID string) {
+	s.ConsumedAccessRequestID = requestID
 }
 
 // GetDryRun returns true if this request should not be created and is only

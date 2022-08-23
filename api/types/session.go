@@ -88,10 +88,10 @@ type WebSession interface {
 	WithoutSecrets() WebSession
 	// String returns string representation of the session.
 	String() string
-	// SetAssumedRoleRequestID sets the request ID of the access request from which the assumed role was obtained
-	SetAssumedRoleRequestID(string)
-	// GetAssumedRoleRequestID returns the request ID of the access request from which the assumed role was obtained
-	GetAssumedRoleRequestID() string
+	// SetConsumedAccessRequestID sets the request ID of the access request from which the assumed role was obtained
+	SetConsumedAccessRequestID(string)
+	// SetConsumedAccessRequestID returns the request ID of the access request from which the assumed role was obtained
+	GetConsumedAccessRequestID() string
 }
 
 // NewWebSession returns new instance of the web session based on the V2 spec
@@ -176,14 +176,14 @@ func (ws *WebSessionV2) WithoutSecrets() WebSession {
 	return ws
 }
 
-// SetAssumedRoleRequestID sets the assumed role's request ID
-func (ws *WebSessionV2) SetAssumedRoleRequestID(requestID string) {
-	ws.Spec.SetAssumedRoleRequestID(requestID)
+// SetConsumedAccessRequestID sets the assumed role's request ID
+func (ws *WebSessionV2) SetConsumedAccessRequestID(requestID string) {
+	ws.Spec.SetConsumedAccessRequestID(requestID)
 }
 
-// SetAssumedRoleRequestID returns the assumed role's request ID
-func (ws *WebSessionV2) GetAssumedRoleRequestID() string {
-	return ws.Spec.AssumedRoleRequestID
+// SetConsumedAccessRequestID returns the assumed role's request ID
+func (ws *WebSessionV2) GetConsumedAccessRequestID() string {
+	return ws.Spec.ConsumedAccessRequestID
 }
 
 // setStaticFields sets static resource header and metadata fields.

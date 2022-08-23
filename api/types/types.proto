@@ -2479,9 +2479,10 @@ message WebSessionSpecV2 {
     // IdleTimeout is the max time a user can be inactive in a session.
     int64 IdleTimeout = 9
         [ (gogoproto.jsontag) = "idle_timeout", (gogoproto.casttype) = "Duration" ];
-    // AssumedRoleRequestID is the request ID of the access request from which the assumed role was
-    // obtained
-    string AssumedRoleRequestID = 10 [ (gogoproto.jsontag) = "assumed_role_request_id,omitempty" ];
+    // ConsumedAccessRequestID is the request ID of the access request from which the assumed role
+    // was obtained
+    string ConsumedAccessRequestID = 10
+        [ (gogoproto.jsontag) = "consumed_access_request_id,omitempty" ];
 }
 
 // WebSessionFilter encodes cache watch parameters for filtering web sessions.

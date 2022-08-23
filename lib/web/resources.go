@@ -376,9 +376,6 @@ type listResourcesGetResponse struct {
 	// TotalCount is the total count of resources available
 	// after filter.
 	TotalCount int `json:"totalCount"`
-	// AssumedRoleRequestID is the request ID of the access request from which the assumed role was
-	// obtained
-	AssumedRoleRequestID string `json:"assumedRoleRequestId,omitempty"`
 }
 
 type checkAccessToRegisteredResourceResponse struct {

@@ -45,10 +45,9 @@ func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p http
 	}
 
 	return listResourcesGetResponse{
-		Items:                ui.MakeKubeClusters(clusters),
-		StartKey:             resp.NextKey,
-		TotalCount:           resp.TotalCount,
-		AssumedRoleRequestID: ctx.session.GetAssumedRoleRequestID(),
+		Items:      ui.MakeKubeClusters(clusters),
+		StartKey:   resp.NextKey,
+		TotalCount: resp.TotalCount,
 	}, nil
 }
 
@@ -76,10 +75,9 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	return listResourcesGetResponse{
-		Items:                ui.MakeDatabases(h.auth.clusterName, databases),
-		StartKey:             resp.NextKey,
-		TotalCount:           resp.TotalCount,
-		AssumedRoleRequestID: ctx.session.GetAssumedRoleRequestID(),
+		Items:      ui.MakeDatabases(h.auth.clusterName, databases),
+		StartKey:   resp.NextKey,
+		TotalCount: resp.TotalCount,
 	}, nil
 }
 
