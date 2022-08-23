@@ -61,8 +61,8 @@ type azureFetcherConfig struct {
 	Labels types.Labels
 	// Regions is the Azure regions selectors to match cloud databases.
 	Regions []string
-	// regionSet is a set of Azure regions to efficiently filter databases.
-	regionSet map[string]struct{}
+	// regionMatches returns whether a given region matches the configured Regions selector
+	regionMatches func(region string) bool
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
@@ -82,7 +82,16 @@ func (c *azureFetcherConfig) CheckAndSetDefaults() error {
 	if len(c.Regions) == 0 {
 		return trace.BadParameter("missing parameter Regions")
 	}
-	c.regionSet = utils.StringsSet(c.Regions)
+	if apiutils.SliceContainsStr(c.Regions, types.Wildcard) {
+		// wildcard matches all regions
+		c.regionMatches = func(_ string) bool { return true }
+	} else {
+		regionSet := utils.StringsSet(c.Regions)
+		c.regionMatches = func(region string) bool {
+			_, ok := regionSet[region]
+			return ok
+		}
+	}
 	return nil
 }
 
@@ -121,7 +130,7 @@ func (f *azureFetcher) getDatabases(ctx context.Context) (types.Databases, error
 			continue
 		}
 		// azure sdk provides no way to query by region, so we have to filter results
-		if _, ok := f.cfg.regionSet[server.Location]; !ok {
+		if !f.cfg.regionMatches(server.Location) {
 			continue
 		}
 
@@ -170,5 +179,8 @@ func reduceAzureMatcher(matcher *services.AzureMatcher) {
 	}
 	if len(matcher.ResourceGroups) == 0 || apiutils.SliceContainsStr(matcher.ResourceGroups, types.Wildcard) {
 		matcher.ResourceGroups = []string{types.Wildcard}
+	}
+	if len(matcher.Regions) == 0 || apiutils.SliceContainsStr(matcher.Regions, types.Wildcard) {
+		matcher.Regions = []string{types.Wildcard}
 	}
 }

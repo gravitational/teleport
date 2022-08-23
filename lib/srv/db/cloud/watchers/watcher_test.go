@@ -366,13 +366,13 @@ func TestWatcher(t *testing.T) {
 			expectedDatabases: types.Databases{azMySQLDB1, azPostgresDB1},
 		},
 		{
-			name: "Azure matching labels with all subscriptions",
+			name: "Azure matching labels with all subscriptions, resource groups, and regions",
 			azureMatchers: []services.AzureMatcher{
 				{
 					Subscriptions:  []string{"*"},
 					ResourceGroups: []string{"*"},
 					Types:          []string{services.AzureMatcherMySQL, services.AzureMatcherPostgres},
-					Regions:        []string{eastus, westus},
+					Regions:        []string{"*"},
 					ResourceTags:   types.Labels{"env": []string{"prod"}},
 				},
 			},
