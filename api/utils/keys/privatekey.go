@@ -44,6 +44,9 @@ const (
 type PrivateKey interface {
 	crypto.Signer
 
+	// Equal returns whether the given key is equal to this key.
+	Equal(x PrivateKey) bool
+
 	// PrivateKeyPEM returns PEM encoded private key data. This may be data necessary
 	// to retrieve the key, such as a Yubikey serial number and slot, or it can be a
 	// PKCS marshaled private key.

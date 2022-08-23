@@ -50,6 +50,14 @@ func newED25519(priv ed25519.PrivateKey) (*ED25519PrivateKey, error) {
 	}, nil
 }
 
+// Equal returns whether the given key is the same as this ED25519PrivateKey.
+func (r *ED25519PrivateKey) Equal(other PrivateKey) bool {
+	if o, ok := other.(*ED25519PrivateKey); ok {
+		return r.PrivateKey.Equal(o.PrivateKey)
+	}
+	return false
+}
+
 // PrivateKeyPEM returns the PEM encoded ed25519 private key.
 func (r *ED25519PrivateKey) PrivateKeyPEM() []byte {
 	return pem.EncodeToMemory(&pem.Block{

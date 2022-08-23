@@ -50,6 +50,14 @@ func newECDSAPrivateKey(priv *ecdsa.PrivateKey) (*ECDSAPrivateKey, error) {
 	}, nil
 }
 
+// Equal returns whether the given key is the same as this ECDSAPrivateKey.
+func (r *ECDSAPrivateKey) Equal(other PrivateKey) bool {
+	if o, ok := other.(*ECDSAPrivateKey); ok {
+		return r.PrivateKey.Equal(o.PrivateKey)
+	}
+	return false
+}
+
 // PrivateKeyPEM returns the PEM encoded ECDSA private key.
 func (r *ECDSAPrivateKey) PrivateKeyPEM() []byte {
 	return pem.EncodeToMemory(&pem.Block{

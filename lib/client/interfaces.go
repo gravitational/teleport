@@ -613,7 +613,7 @@ func (k *Key) RootClusterName() (string, error) {
 	return clusterName, nil
 }
 
-// Equal returns wheter this key and the given key have the same PrivateKey
-func (k *Key) Equal(other *Key) bool {
+// EqualPrivateKey returns wheter this key and the given key have the same PrivateKey.
+func (k *Key) EqualPrivateKey(other *Key) bool {
 	return subtle.ConstantTimeCompare(k.PrivateKeyPEM(), other.PrivateKeyPEM()) == 1
 }
