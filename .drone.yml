@@ -5489,10 +5489,10 @@ steps:
   image: docker
   commands:
   - apk --update --no-cache add curl
-  - curl -Ls -o "/go/build/Dockerfile-cron" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-v10-amd64"
-    --file "/go/build/Dockerfile-cron" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
+    --file "/go/build/Dockerfile" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
     '/go/vars/full-version/v10')" --build-arg "PACKAGE_NAME=teleport" /go/build
   volumes:
   - name: dockersock
@@ -5505,10 +5505,10 @@ steps:
   image: docker
   commands:
   - apk --update --no-cache add curl
-  - curl -Ls -o "/go/build/Dockerfile-cron" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm" --tag "teleport-v10-arm"
-    --file "/go/build/Dockerfile-cron" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
+    --file "/go/build/Dockerfile" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
     '/go/vars/full-version/v10')" --build-arg "PACKAGE_NAME=teleport" /go/build
   volumes:
   - name: dockersock
@@ -5521,10 +5521,10 @@ steps:
   image: docker
   commands:
   - apk --update --no-cache add curl
-  - curl -Ls -o "/go/build/Dockerfile-cron" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-v10-arm64"
-    --file "/go/build/Dockerfile-cron" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
+    --file "/go/build/Dockerfile" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
     '/go/vars/full-version/v10')" --build-arg "PACKAGE_NAME=teleport" /go/build
   volumes:
   - name: dockersock
@@ -5783,10 +5783,10 @@ steps:
   image: docker
   commands:
   - apk --update --no-cache add curl
-  - curl -Ls -o "/go/build/Dockerfile-cron" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-ent-v10-amd64"
-    --file "/go/build/Dockerfile-cron" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
+    --file "/go/build/Dockerfile" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
     '/go/vars/full-version/v10')" --build-arg "PACKAGE_NAME=teleport-ent" /go/build
   volumes:
   - name: dockersock
@@ -5799,10 +5799,10 @@ steps:
   image: docker
   commands:
   - apk --update --no-cache add curl
-  - curl -Ls -o "/go/build/Dockerfile-cron" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm" --tag "teleport-ent-v10-arm"
-    --file "/go/build/Dockerfile-cron" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
+    --file "/go/build/Dockerfile" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
     '/go/vars/full-version/v10')" --build-arg "PACKAGE_NAME=teleport-ent" /go/build
   volumes:
   - name: dockersock
@@ -5815,10 +5815,10 @@ steps:
   image: docker
   commands:
   - apk --update --no-cache add curl
-  - curl -Ls -o "/go/build/Dockerfile-cron" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-ent-v10-arm64"
-    --file "/go/build/Dockerfile-cron" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
+    --file "/go/build/Dockerfile" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
     '/go/vars/full-version/v10')" --build-arg "PACKAGE_NAME=teleport-ent" /go/build
   volumes:
   - name: dockersock
@@ -6077,10 +6077,10 @@ steps:
   image: docker
   commands:
   - apk --update --no-cache add curl
-  - curl -Ls -o "/go/build/Dockerfile-cron" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleportfips" --platform "linux/amd64" --tag "teleport-ent-fips-v10-amd64"
-    --file "/go/build/Dockerfile-cron" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
+    --file "/go/build/Dockerfile" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
     '/go/vars/full-version/v10')" --build-arg "PACKAGE_NAME=teleport-ent" /go/build
   volumes:
   - name: dockersock
@@ -7270,10 +7270,10 @@ steps:
   image: docker
   commands:
   - apk --update --no-cache add curl
-  - curl -Ls -o "/go/build/Dockerfile-cron" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-v9-amd64"
-    --file "/go/build/Dockerfile-cron" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
+    --file "/go/build/Dockerfile" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
     '/go/vars/full-version/v9')" --build-arg "PACKAGE_NAME=teleport" /go/build
   volumes:
   - name: dockersock
@@ -7286,10 +7286,10 @@ steps:
   image: docker
   commands:
   - apk --update --no-cache add curl
-  - curl -Ls -o "/go/build/Dockerfile-cron" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm" --tag "teleport-v9-arm"
-    --file "/go/build/Dockerfile-cron" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
+    --file "/go/build/Dockerfile" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
     '/go/vars/full-version/v9')" --build-arg "PACKAGE_NAME=teleport" /go/build
   volumes:
   - name: dockersock
@@ -7302,10 +7302,10 @@ steps:
   image: docker
   commands:
   - apk --update --no-cache add curl
-  - curl -Ls -o "/go/build/Dockerfile-cron" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-v9-arm64"
-    --file "/go/build/Dockerfile-cron" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
+    --file "/go/build/Dockerfile" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
     '/go/vars/full-version/v9')" --build-arg "PACKAGE_NAME=teleport" /go/build
   volumes:
   - name: dockersock
@@ -7564,10 +7564,10 @@ steps:
   image: docker
   commands:
   - apk --update --no-cache add curl
-  - curl -Ls -o "/go/build/Dockerfile-cron" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-ent-v9-amd64"
-    --file "/go/build/Dockerfile-cron" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
+    --file "/go/build/Dockerfile" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
     '/go/vars/full-version/v9')" --build-arg "PACKAGE_NAME=teleport-ent" /go/build
   volumes:
   - name: dockersock
@@ -7580,10 +7580,10 @@ steps:
   image: docker
   commands:
   - apk --update --no-cache add curl
-  - curl -Ls -o "/go/build/Dockerfile-cron" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm" --tag "teleport-ent-v9-arm"
-    --file "/go/build/Dockerfile-cron" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
+    --file "/go/build/Dockerfile" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
     '/go/vars/full-version/v9')" --build-arg "PACKAGE_NAME=teleport-ent" /go/build
   volumes:
   - name: dockersock
@@ -7596,10 +7596,10 @@ steps:
   image: docker
   commands:
   - apk --update --no-cache add curl
-  - curl -Ls -o "/go/build/Dockerfile-cron" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-ent-v9-arm64"
-    --file "/go/build/Dockerfile-cron" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
+    --file "/go/build/Dockerfile" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
     '/go/vars/full-version/v9')" --build-arg "PACKAGE_NAME=teleport-ent" /go/build
   volumes:
   - name: dockersock
@@ -7858,10 +7858,10 @@ steps:
   image: docker
   commands:
   - apk --update --no-cache add curl
-  - curl -Ls -o "/go/build/Dockerfile-cron" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleportfips" --platform "linux/amd64" --tag "teleport-ent-fips-v9-amd64"
-    --file "/go/build/Dockerfile-cron" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
+    --file "/go/build/Dockerfile" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
     '/go/vars/full-version/v9')" --build-arg "PACKAGE_NAME=teleport-ent" /go/build
   volumes:
   - name: dockersock
@@ -9051,10 +9051,10 @@ steps:
   image: docker
   commands:
   - apk --update --no-cache add curl
-  - curl -Ls -o "/go/build/Dockerfile-cron" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-v8-amd64"
-    --file "/go/build/Dockerfile-cron" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
+    --file "/go/build/Dockerfile" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
     '/go/vars/full-version/v8')" --build-arg "PACKAGE_NAME=teleport" /go/build
   volumes:
   - name: dockersock
@@ -9067,10 +9067,10 @@ steps:
   image: docker
   commands:
   - apk --update --no-cache add curl
-  - curl -Ls -o "/go/build/Dockerfile-cron" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm" --tag "teleport-v8-arm"
-    --file "/go/build/Dockerfile-cron" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
+    --file "/go/build/Dockerfile" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
     '/go/vars/full-version/v8')" --build-arg "PACKAGE_NAME=teleport" /go/build
   volumes:
   - name: dockersock
@@ -9083,10 +9083,10 @@ steps:
   image: docker
   commands:
   - apk --update --no-cache add curl
-  - curl -Ls -o "/go/build/Dockerfile-cron" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-v8-arm64"
-    --file "/go/build/Dockerfile-cron" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
+    --file "/go/build/Dockerfile" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
     '/go/vars/full-version/v8')" --build-arg "PACKAGE_NAME=teleport" /go/build
   volumes:
   - name: dockersock
@@ -9345,10 +9345,10 @@ steps:
   image: docker
   commands:
   - apk --update --no-cache add curl
-  - curl -Ls -o "/go/build/Dockerfile-cron" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-ent-v8-amd64"
-    --file "/go/build/Dockerfile-cron" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
+    --file "/go/build/Dockerfile" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
     '/go/vars/full-version/v8')" --build-arg "PACKAGE_NAME=teleport-ent" /go/build
   volumes:
   - name: dockersock
@@ -9361,10 +9361,10 @@ steps:
   image: docker
   commands:
   - apk --update --no-cache add curl
-  - curl -Ls -o "/go/build/Dockerfile-cron" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm" --tag "teleport-ent-v8-arm"
-    --file "/go/build/Dockerfile-cron" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
+    --file "/go/build/Dockerfile" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
     '/go/vars/full-version/v8')" --build-arg "PACKAGE_NAME=teleport-ent" /go/build
   volumes:
   - name: dockersock
@@ -9377,10 +9377,10 @@ steps:
   image: docker
   commands:
   - apk --update --no-cache add curl
-  - curl -Ls -o "/go/build/Dockerfile-cron" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-ent-v8-arm64"
-    --file "/go/build/Dockerfile-cron" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
+    --file "/go/build/Dockerfile" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
     '/go/vars/full-version/v8')" --build-arg "PACKAGE_NAME=teleport-ent" /go/build
   volumes:
   - name: dockersock
@@ -9639,10 +9639,10 @@ steps:
   image: docker
   commands:
   - apk --update --no-cache add curl
-  - curl -Ls -o "/go/build/Dockerfile-cron" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleportfips" --platform "linux/amd64" --tag "teleport-ent-fips-v8-amd64"
-    --file "/go/build/Dockerfile-cron" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
+    --file "/go/build/Dockerfile" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$(cat
     '/go/vars/full-version/v8')" --build-arg "PACKAGE_NAME=teleport-ent" /go/build
   volumes:
   - name: dockersock
@@ -10849,10 +10849,10 @@ steps:
   image: docker
   commands:
   - apk --update --no-cache add curl
-  - curl -Ls -o "/go/build/Dockerfile-cron" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-v10-amd64"
-    --file "/go/build/Dockerfile-cron" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$DRONE_TAG"
+    --file "/go/build/Dockerfile" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$DRONE_TAG"
     --build-arg "PACKAGE_NAME=teleport" /go/build
   volumes:
   - name: dockersock
@@ -10867,10 +10867,10 @@ steps:
   image: docker
   commands:
   - apk --update --no-cache add curl
-  - curl -Ls -o "/go/build/Dockerfile-cron" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm" --tag "teleport-v10-arm"
-    --file "/go/build/Dockerfile-cron" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$DRONE_TAG"
+    --file "/go/build/Dockerfile" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$DRONE_TAG"
     --build-arg "PACKAGE_NAME=teleport" /go/build
   volumes:
   - name: dockersock
@@ -10885,10 +10885,10 @@ steps:
   image: docker
   commands:
   - apk --update --no-cache add curl
-  - curl -Ls -o "/go/build/Dockerfile-cron" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-v10-arm64"
-    --file "/go/build/Dockerfile-cron" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$DRONE_TAG"
+    --file "/go/build/Dockerfile" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$DRONE_TAG"
     --build-arg "PACKAGE_NAME=teleport" /go/build
   volumes:
   - name: dockersock
@@ -11149,10 +11149,10 @@ steps:
   image: docker
   commands:
   - apk --update --no-cache add curl
-  - curl -Ls -o "/go/build/Dockerfile-cron" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-ent-v10-amd64"
-    --file "/go/build/Dockerfile-cron" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$DRONE_TAG"
+    --file "/go/build/Dockerfile" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$DRONE_TAG"
     --build-arg "PACKAGE_NAME=teleport-ent" /go/build
   volumes:
   - name: dockersock
@@ -11167,10 +11167,10 @@ steps:
   image: docker
   commands:
   - apk --update --no-cache add curl
-  - curl -Ls -o "/go/build/Dockerfile-cron" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm" --tag "teleport-ent-v10-arm"
-    --file "/go/build/Dockerfile-cron" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$DRONE_TAG"
+    --file "/go/build/Dockerfile" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$DRONE_TAG"
     --build-arg "PACKAGE_NAME=teleport-ent" /go/build
   volumes:
   - name: dockersock
@@ -11185,10 +11185,10 @@ steps:
   image: docker
   commands:
   - apk --update --no-cache add curl
-  - curl -Ls -o "/go/build/Dockerfile-cron" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-ent-v10-arm64"
-    --file "/go/build/Dockerfile-cron" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$DRONE_TAG"
+    --file "/go/build/Dockerfile" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$DRONE_TAG"
     --build-arg "PACKAGE_NAME=teleport-ent" /go/build
   volumes:
   - name: dockersock
@@ -11449,10 +11449,10 @@ steps:
   image: docker
   commands:
   - apk --update --no-cache add curl
-  - curl -Ls -o "/go/build/Dockerfile-cron" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleportfips" --platform "linux/amd64" --tag "teleport-ent-fips-v10-amd64"
-    --file "/go/build/Dockerfile-cron" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$DRONE_TAG"
+    --file "/go/build/Dockerfile" --build-arg "DEB_SOURCE=apt" --build-arg "PACKAGE_VERSION=$DRONE_TAG"
     --build-arg "PACKAGE_NAME=teleport-ent" /go/build
   volumes:
   - name: dockersock
@@ -13089,3 +13089,8 @@ volumes:
   - name: tmpfs
     temp:
       medium: memory
+---
+kind: signature
+hmac: 02ff1d0fc8627d019ea7d889fbb75e11e938a0fe65d123be99f269c6a7414424
+
+...

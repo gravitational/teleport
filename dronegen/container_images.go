@@ -224,8 +224,8 @@ type product struct {
 
 func NewTeleportProduct(isEnterprise, isFips bool) *product {
 	workingDirectory := "/go/build"
-	dockerfile := path.Join(workingDirectory, "Dockerfile-cron")
-	downloadURL := "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron"
+	dockerfile := path.Join(workingDirectory, "Dockerfile")
+	downloadURL := "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
 	target := "teleport"
 	if isFips {
 		target += "fips"
