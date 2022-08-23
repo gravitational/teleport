@@ -75,25 +75,7 @@ func darwinConnectDmgPipeline() pipeline {
 			},
 			Commands: darwinConnectDownloadArtifactCommands(),
 		},
-		{
-			Name: "Build dmg artifact",
-			Environment: map[string]value{
-				"GOPATH":            {raw: path.Join(p.Workspace.Path, "/go")},
-				"GOCACHE":           {raw: path.Join(p.Workspace.Path, "/go/cache")},
-				"OS":                {raw: b.os},
-				"ARCH":              {raw: b.arch},
-				"WORKSPACE_DIR":     {raw: p.Workspace.Path},
-				"BUILDBOX_PASSWORD": {fromSecret: "BUILDBOX_PASSWORD"},
-
-				// These credentials are necessary for the signing and notarization of
-				// Teleport Connect, which is built in to the Electron tooling.
-				// The rest of the mac artifacts are signed and notarized with gon
-				// in the darwin pkg pipeline.
-				"APPLE_USERNAME": {fromSecret: "APPLE_USERNAME"},
-				"APPLE_PASSWORD": {fromSecret: "APPLE_PASSWORD"},
-			},
-			Commands: darwinConnectBuildCommands(toolchainConfig),
-		},
+		buildMacArtifactsStep(p.Workspace.Path, b, toolchainConfig, onlyConnectWithBundledTshApp),
 		{
 			Name: "Copy dmg artifact",
 			Environment: map[string]value{
@@ -152,18 +134,7 @@ func darwinPushPipeline() pipeline {
 	p.Steps = append(p.Steps,
 		installToolchains(p.Workspace.Path, toolchainConfig)...)
 	p.Steps = append(p.Steps, []step{
-		{
-			Name: "Build Mac artifacts",
-			Environment: map[string]value{
-				"GOPATH":            {raw: path.Join(p.Workspace.Path, "/go")},
-				"GOCACHE":           {raw: path.Join(p.Workspace.Path, "/go/cache")},
-				"OS":                {raw: "darwin"},
-				"ARCH":              {raw: "amd64"},
-				"WORKSPACE_DIR":     {raw: p.Workspace.Path},
-				"BUILDBOX_PASSWORD": {fromSecret: "BUILDBOX_PASSWORD"},
-			},
-			Commands: darwinTagBuildCommands(b, darwinBuildOptions{unlockKeychain: false, hasTeleportConnect: true}, toolchainConfig),
-		},
+		buildMacArtifactsStep(p.Workspace.Path, b, toolchainConfig, binariesWithConnect),
 		cleanUpToolchainsStep(p.Workspace.Path, toolchainConfig),
 		cleanUpExecStorageStep(p.Workspace.Path),
 		{
@@ -211,25 +182,7 @@ func darwinTagPipeline() pipeline {
 		installToolchains(p.Workspace.Path, toolchainConfig)...,
 	)
 	p.Steps = append(p.Steps, []step{
-		{
-			Name: "Build Mac release artifacts",
-			Environment: map[string]value{
-				"GOPATH":            {raw: path.Join(p.Workspace.Path, "/go")},
-				"GOCACHE":           {raw: path.Join(p.Workspace.Path, "/go/cache")},
-				"OS":                {raw: b.os},
-				"ARCH":              {raw: b.arch},
-				"WORKSPACE_DIR":     {raw: p.Workspace.Path},
-				"BUILDBOX_PASSWORD": {fromSecret: "BUILDBOX_PASSWORD"},
-
-				// These credentials are necessary for the signing and notarization of
-				// Teleport Connect, which is built in to the Electron tooling.
-				// The rest of the mac artifacts are signed and notarized with gon
-				// in the darwin pkg pipeline.
-				"APPLE_USERNAME": {fromSecret: "APPLE_USERNAME"},
-				"APPLE_PASSWORD": {fromSecret: "APPLE_PASSWORD"},
-			},
-			Commands: darwinTagBuildCommands(b, darwinBuildOptions{}, toolchainConfig),
-		},
+		buildMacArtifactsStep(p.Workspace.Path, b, toolchainConfig, onlyBinaries),
 		{
 			Name: "Copy Mac artifacts",
 			Environment: map[string]value{
@@ -417,6 +370,7 @@ func configureToolchainsCommands(config toolchainConfig) []string {
 			`export RUST_HOME=$CARGO_HOME`,
 			`export RUSTUP_HOME=`+perBuildRustupDir,
 			`export PATH=$CARGO_HOME/bin:/Users/build/.cargo/bin:$PATH`,
+			`rustup override set $RUST_VERSION`,
 		)
 	}
 
@@ -484,49 +438,114 @@ func darwinTagCheckoutCommands(b buildType) []string {
 	)
 }
 
-type darwinBuildOptions struct {
-	unlockKeychain     bool
-	hasTeleportConnect bool
+// darwinArtifactConfig describes artifacts made by the build step in different macOS pipelines.
+//
+// On a commit push, we run one pipeline that builds artifacts (darwinPushPipeline). It uses
+// binariesWithConnect as the artifact config as it only checks if we can still compile/build the
+// artifacts after a commit lands in master.
+//
+// On a version tag push, we run two pipelines from this file that build artifacts. First we run
+// darwinTagPipeline with onlyBinaries as the artifact config. It builds, among others, the tsh
+// binary which later gets signed, bundled into tsh.app and packaged into a .pkg file.
+//
+// After that, we run darwinConnectDmgPipeline with onlyConnectWithBundledTshApp as the artifact
+// config. darwinConnectDmgPipeline downloads the signed tsh.app bundle and puts it within Connect's
+// own bundle.
+type darwinArtifactConfig int
+
+const (
+	onlyBinaries darwinArtifactConfig = iota
+	binariesWithConnect
+	onlyConnectWithBundledTshApp
+)
+
+func buildMacArtifactsStep(workspacePath string, b buildType, toolchainConfig toolchainConfig, artifactConfig darwinArtifactConfig) step {
+	step := step{
+		Name: "Build Mac artifacts",
+		Environment: map[string]value{
+			"GOPATH":            {raw: path.Join(workspacePath, "/go")},
+			"GOCACHE":           {raw: path.Join(workspacePath, "/go/cache")},
+			"OS":                {raw: b.os},
+			"ARCH":              {raw: b.arch},
+			"WORKSPACE_DIR":     {raw: workspacePath},
+			"BUILDBOX_PASSWORD": {fromSecret: "BUILDBOX_PASSWORD"},
+		},
+		Commands: darwinBuildCommands(toolchainConfig, artifactConfig),
+	}
+
+	var artifactDesc string
+	switch artifactConfig {
+	case onlyBinaries:
+		artifactDesc = "binaries"
+	case binariesWithConnect:
+		artifactDesc = "binaries and Teleport Connect"
+	case onlyConnectWithBundledTshApp:
+		artifactDesc = "Teleport Connect"
+	}
+	step.Name = step.Name + " (" + artifactDesc + ")"
+
+	if artifactConfig == onlyConnectWithBundledTshApp {
+		// These credentials are necessary for the signing and notarization of Teleport Connect, which
+		// is built in to the Electron tooling.
+		// The rest of the mac artifacts are signed and notarized with gon in the darwin pkg pipeline.
+		step.Environment["APPLE_USERNAME"] = value{fromSecret: "APPLE_USERNAME"}
+		step.Environment["APPLE_PASSWORD"] = value{fromSecret: "APPLE_PASSWORD"}
+	}
+
+	return step
 }
 
-func darwinTagBuildCommands(b buildType, opts darwinBuildOptions, toolchainConfig toolchainConfig) []string {
+func darwinBuildCommands(toolchainConfig toolchainConfig, artifactConfig darwinArtifactConfig) []string {
 	commands := []string{
 		`set -u`,
 	}
 	commands = append(commands, configureToolchainsCommands(toolchainConfig)...)
-	commands = append(commands,
-		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
-		`build.assets/build-fido2-macos.sh build`,
-		`export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"`,
-		`rustup override set $RUST_VERSION`,
-		// TODO: VERSION is needed only for push.
-		`export VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport print-version)`,
-		// BUILD_NUMBER is used by electron-builder to add an extra fourth integer to CFBundleVersion on macOS.
-		// This makes the full app version look like this: 9.3.5.12489
-		// https://www.electron.build/configuration/configuration.html#Configuration-buildVersion
-		`export BUILD_NUMBER=$DRONE_BUILD_NUMBER`,
-		// CSC_NAME tells electron-builder which cert to use for signing when there are multiple certs
-		// available.
-		// https://www.electron.build/code-signing
-		`export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83`,
-	)
 
-	// TODO: Remove Keychain stuff from tag pipeline as it won't be signing anything.
-	if opts.unlockKeychain {
+	// Commands for building binaries.
+	if artifactConfig == onlyBinaries || artifactConfig == binariesWithConnect {
 		commands = append(commands,
-			`security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain`,
-			`security find-identity -v`,
+			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
+			`build.assets/build-fido2-macos.sh build`,
+			`export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"`,
+			`make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes`,
 		)
 	}
 
-	commands = append(commands,
-		`make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes`,
-	)
-
-	// TODO: Remove building Connect and Node stuff from tag pipeline. However, these are currently
-	// shared between push and tag. Push will have to continue building Connect without signing.
-	if opts.hasTeleportConnect {
+	// Commands for building Teleport Connect.
+	if artifactConfig == binariesWithConnect || artifactConfig == onlyConnectWithBundledTshApp {
 		commands = append(commands,
+			`export VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport print-version)`,
+			// BUILD_NUMBER is used by electron-builder to add an extra fourth integer to CFBundleVersion on macOS.
+			// This makes the full app version look like this: 9.3.5.12489
+			// https://www.electron.build/configuration/configuration.html#Configuration-buildVersion
+			`export BUILD_NUMBER=$DRONE_BUILD_NUMBER`,
+
+			// Unlock Keychain so that electron-builder can use developer ID cert for signing.
+			`security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain`,
+			`security find-identity -v`,
+			// CSC_NAME tells electron-builder which cert to use for signing when there are multiple certs
+			// available.
+			// https://www.electron.build/code-signing
+			`export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83`,
+		)
+
+		if artifactConfig == binariesWithConnect {
+			commands = append(commands,
+				`export CONNECT_TSH_BIN_PATH=$WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build/tsh`,
+			)
+		}
+
+		if artifactConfig == onlyConnectWithBundledTshApp {
+			commands = append(commands,
+				// Unpack tsh.pkg.
+				`cd $WORKSPACE_DIR/go/src/github.com/gravitational`,
+				`pkgutil --expand-full tsh-$${VERSION}.pkg tsh`,
+				`export CONNECT_TSH_APP_PATH=$WORKSPACE_DIR/go/src/github.com/gravitational/tsh/Payload/tsh.app`,
+			)
+		}
+
+		commands = append(commands,
+			// Build and package Connect
 			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
 			// c.extraMetadata.version overwrites the version property from package.json to $VERSION
 			// https://www.electron.build/configuration/configuration.html#Configuration-extraMetadata
