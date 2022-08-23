@@ -509,13 +509,6 @@ func (s *APIServer) createWebSession(auth ClientI, w http.ResponseWriter, r *htt
 		return nil, trace.Wrap(err)
 	}
 
-	// DELETE IN 8.0: proxy v5 sends request with no user field.
-	// And since proxy v6, request will come with user field set, so grabbing user
-	// by param is not required.
-	if req.User == "" {
-		req.User = p.ByName("user")
-	}
-
 	if req.PrevSessionID != "" {
 		sess, err := auth.ExtendWebSession(r.Context(), req)
 		if err != nil {
