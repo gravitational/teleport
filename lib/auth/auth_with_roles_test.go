@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -35,11 +36,8 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
-<<<<<<< HEAD
-=======
+
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/fixtures"
->>>>>>> 1d269b09b (Record when a session recording is accessed)
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
