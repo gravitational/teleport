@@ -88,9 +88,9 @@ type WebSession interface {
 	WithoutSecrets() WebSession
 	// String returns string representation of the session.
 	String() string
-	// SetConsumedAccessRequestID sets the request ID of the access request from which the assumed role was obtained
+	// SetConsumedAccessRequestID sets the ID of the access request from which additional roles to assume were obtained.
 	SetConsumedAccessRequestID(string)
-	// SetConsumedAccessRequestID returns the request ID of the access request from which the assumed role was obtained
+	// GetConsumedAccessRequestID returns the ID of the access request from which additional roles to assume were obtained.
 	GetConsumedAccessRequestID() string
 }
 
@@ -176,12 +176,12 @@ func (ws *WebSessionV2) WithoutSecrets() WebSession {
 	return ws
 }
 
-// SetConsumedAccessRequestID sets the assumed role's request ID
+// SetConsumedAccessRequestID sets the ID of the access request from which additional roles to assume were obtained.
 func (ws *WebSessionV2) SetConsumedAccessRequestID(requestID string) {
 	ws.Spec.SetConsumedAccessRequestID(requestID)
 }
 
-// SetConsumedAccessRequestID returns the assumed role's request ID
+// GetConsumedAccessRequestID returns the ID of the access request from which additional roles to assume were obtained.
 func (ws *WebSessionV2) GetConsumedAccessRequestID() string {
 	return ws.Spec.ConsumedAccessRequestID
 }
