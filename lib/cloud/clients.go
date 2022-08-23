@@ -80,6 +80,14 @@ type Clients interface {
 	GetGCPIAMClient(context.Context) (*gcpcredentials.IamCredentialsClient, error)
 	// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
 	GetGCPSQLAdminClient(context.Context) (GCPSQLAdminClient, error)
+	// AzureClients is an interface for Azure-specific API clients
+	AzureClients
+	// Closer closes all initialized clients.
+	io.Closer
+}
+
+// AzureClients is an interface for Azure-specific API clients
+type AzureClients interface {
 	// GetAzureCredential returns Azure default token credential chain.
 	GetAzureCredential() (azcore.TokenCredential, error)
 	// GetAzureMySQLClient returns Azure MySQL client for the specified subscription.
@@ -88,8 +96,6 @@ type Clients interface {
 	GetAzurePostgresClient(subscription string) (azure.DBServersClient, error)
 	// GetAzureSubscriptionClient returns an Azure Subscriptions client
 	GetAzureSubscriptionClient() (*azure.SubscriptionClient, error)
-	// Closer closes all initialized clients.
-	io.Closer
 }
 
 // NewClients returns a new instance of cloud clients retriever.
