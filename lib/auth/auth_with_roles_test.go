@@ -3800,7 +3800,7 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 	case1 := func() getActiveSessionsTestCase {
 		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
 			SessionID: "1",
-			Kind:      types.KindSSHSession,
+			Kind:      string(types.SSHSessionKind),
 		})
 		require.NoError(t, err)
 
@@ -3820,7 +3820,7 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 	case2 := func() getActiveSessionsTestCase {
 		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
 			SessionID: "1",
-			Kind:      types.KindSSHSession,
+			Kind:      string(types.SSHSessionKind),
 		})
 		require.NoError(t, err)
 
@@ -3830,7 +3830,49 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 		return getActiveSessionsTestCase{tracker, role, false}
 	}
 
-	testCases := []getActiveSessionsTestCase{case1(), case2()}
+	case3 := func() getActiveSessionsTestCase {
+		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+			SessionID: "1",
+			Kind:      string(types.KubernetesSessionKind),
+		})
+		require.NoError(t, err)
+
+		role, err := types.NewRole("foo", types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{{
+					Resources: []string{types.KindSessionTracker},
+					Verbs:     []string{types.VerbList, types.VerbRead},
+					Where:     "equals(tracker.session_id, \"1\")",
+				}},
+			},
+		})
+		require.NoError(t, err)
+
+		return getActiveSessionsTestCase{tracker, role, true}
+	}
+
+	case4 := func() getActiveSessionsTestCase {
+		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+			SessionID: "2",
+			Kind:      string(types.KubernetesSessionKind),
+		})
+		require.NoError(t, err)
+
+		role, err := types.NewRole("foo", types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{{
+					Resources: []string{types.KindSessionTracker},
+					Verbs:     []string{types.VerbList, types.VerbRead},
+					Where:     "equals(tracker.session_id, \"1\")",
+				}},
+			},
+		})
+		require.NoError(t, err)
+
+		return getActiveSessionsTestCase{tracker, role, false}
+	}
+
+	testCases := []getActiveSessionsTestCase{case1(), case2(), case3(), case4()}
 
 	for _, testCase := range testCases {
 		ctx := context.Background()
