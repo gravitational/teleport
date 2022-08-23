@@ -71,6 +71,12 @@ const service = {
   applyUserTraits() {
     return session.renewSession({ updateUserTraits: true });
   },
+
+  checkUserHasAccessToRegisteredResource(): Promise<boolean> {
+    return api
+      .get(cfg.getCheckAccessToRegisteredResourceUrl())
+      .then(res => Boolean(res.hasResource));
+  },
 };
 
 export default service;

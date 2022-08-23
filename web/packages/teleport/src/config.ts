@@ -117,6 +117,7 @@ const cfg = {
     clusterEventsRecordingsPath: `/v1/webapi/sites/:clusterId/events/search/sessions?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?`,
 
     connectionDiagnostic: `/v1/webapi/sites/:clusterId/diagnostics/connections`,
+    checkAccessToRegisteredResource: `/v1/webapi/sites/:clusterId/resources/check`,
 
     scp: '/v1/webapi/sites/:clusterId/nodes/:serverId/:login/scp?location=:location&filename=:filename',
     renewTokenPath: '/v1/webapi/sessions/renew',
@@ -334,6 +335,13 @@ const cfg = {
   getConnectionDiagnosticUrl() {
     const clusterId = cfg.proxyCluster;
     return generatePath(cfg.api.connectionDiagnostic, { clusterId });
+  },
+
+  getCheckAccessToRegisteredResourceUrl() {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.checkAccessToRegisteredResource, {
+      clusterId,
+    });
   },
 
   getUserContextUrl() {

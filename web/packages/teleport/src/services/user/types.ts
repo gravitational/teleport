@@ -65,6 +65,7 @@ export interface Acl {
   dbServers: Access;
   desktops: Access;
   nodes: Access;
+  connectionDiagnostic: Access;
 }
 
 export interface User {
@@ -108,3 +109,14 @@ export interface ResetToken {
 }
 
 export type ResetPasswordType = 'invite' | 'password';
+
+// OnboardDiscover describes states related to onboarding a
+// user to using the discover wizard to add a resource.
+export type OnboardDiscover = {
+  // notified is a flag to indicate if user has been notified
+  // that they can add a resource using the discover wizard.
+  notified?: boolean;
+  // hasResource is a flag to indicate if user has access to
+  // any registered resource.
+  hasResource: boolean;
+};

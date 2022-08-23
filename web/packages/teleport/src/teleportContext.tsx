@@ -32,6 +32,7 @@ import DatabaseService from './services/databases';
 import desktopService from './services/desktops';
 import MfaService from './services/mfa';
 import { agentService } from './services/agents';
+import localStorage from './services/localStorage';
 
 class TeleportContext implements types.Context {
   // stores
@@ -59,15 +60,27 @@ class TeleportContext implements types.Context {
 
   agentService = agentService;
 
-  init(features: types.Feature[]) {
-    return userService.fetchUserContext().then(user => {
-      this.storeUser.setState(user);
-      features.forEach(f => {
-        if (f.isAvailable(this)) {
-          f.register(this);
-        }
-      });
+  // init fetches data required for initial rendering of components.
+  // The caller of this function provides the try/catch
+  // block.
+  async init(features: types.Feature[]) {
+    const user = await userService.fetchUserContext();
+    this.storeUser.setState(user);
+    features.forEach(f => {
+      if (f.isAvailable(this)) {
+        f.register(this);
+      }
     });
+
+    if (
+      this.storeUser.hasPrereqAccessToAddAgents() &&
+      this.storeUser.hasAccessToQueryAgent() &&
+      !localStorage.getOnboardDiscover()
+    ) {
+      const hasResource =
+        await userService.checkUserHasAccessToRegisteredResource();
+      localStorage.setOnboardDiscover({ hasResource });
+    }
   }
 
   getFeatureFlags() {

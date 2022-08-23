@@ -42,6 +42,7 @@ export const fullAcl: Acl = {
   dbServers: fullAccess,
   desktops: fullAccess,
   nodes: fullAccess,
+  connectionDiagnostic: fullAccess,
   clipboardSharingEnabled: true,
   desktopSessionRecordingEnabled: true,
   directorySharingEnabled: true,
