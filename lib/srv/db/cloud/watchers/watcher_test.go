@@ -492,8 +492,8 @@ func TestWatcher(t *testing.T) {
 			name: "Azure skip group not found errors",
 			azureMatchers: []services.AzureMatcher{
 				{
-					Subscriptions:  []string{subscription1, subscription2},
-					ResourceGroups: []string{"foobar"},
+					Subscriptions:  []string{subscription1},
+					ResourceGroups: []string{"foobar", group1, "baz"},
 					Types:          []string{services.AzureMatcherMySQL, services.AzureMatcherPostgres},
 					Regions:        []string{eastus, westus},
 					ResourceTags:   types.Labels{"*": []string{"*"}},
@@ -511,7 +511,7 @@ func TestWatcher(t *testing.T) {
 					},
 				}),
 			},
-			expectedDatabases: types.Databases{},
+			expectedDatabases: types.Databases{azMySQLDB1, azPostgresDB1},
 		},
 		{
 			name: "multiple cloud matchers",
