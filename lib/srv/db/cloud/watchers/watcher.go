@@ -125,7 +125,9 @@ func (w *Watcher) fetchAndSend() {
 		if err != nil {
 			// DB agent may have permissions to fetch some databases but not
 			// others. This is acceptable, thus continue to other fetchers.
-			if trace.IsAccessDenied(err) {
+			// DB agent may also query for resources that do not exist. This is ok.
+			// If the resource is created in the future, we will fetch it then.
+			if trace.IsAccessDenied(err) || trace.IsNotFound(err) {
 				w.log.WithError(err).Debugf("Skipping fetcher %v.", fetcher)
 				continue
 			}
