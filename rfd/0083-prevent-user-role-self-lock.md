@@ -45,7 +45,7 @@ When a user locks themselves are unable to further manage the teleport cluster. 
 
 > Context: SSO users
 >
-> Teleport has this feature called SSO auth. It allows to addition SSO connector to a cluster and maps SSO users/user groups to teleport roles. Currently, it works this way:
+> Teleport has this feature called SSO auth. It allows for the addition of an SSO connector to a cluster and maps SSO users/user groups to teleport roles. Currently, it works this way:
 >
 > 1. Authorized teleport users can add SSO connector (eg. GitHub SSO https://goteleport.com/docs/setup/admin/github-sso)
 > 2. GitHub users that are members of a particular organization and the team can log in as teleport users with a defined role.
