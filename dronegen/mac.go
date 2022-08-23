@@ -95,7 +95,7 @@ func darwinConnectDmgPipeline() pipeline {
 			Environment: map[string]value{
 				"WORKSPACE_DIR": {raw: p.Workspace.Path},
 			},
-			Commands: darwinTagCopyPackageArtifactCommands(b, true),
+			Commands: darwinConnectCopyDmgArtifactCommands(),
 		},
 		{
 			Name: "Upload to S3",
@@ -225,7 +225,7 @@ func darwinTagPipeline() pipeline {
 			Environment: map[string]value{
 				"WORKSPACE_DIR": {raw: p.Workspace.Path},
 			},
-			Commands: darwinTagCopyPackageArtifactCommands(b, false),
+			Commands: darwinTagCopyPackageArtifactCommands(),
 		},
 		{
 			Name: "Upload to S3",
@@ -517,34 +517,28 @@ func darwinConnectBuildCommands() []string {
 	return commands
 }
 
-func darwinTagCopyPackageArtifactCommands(b buildType, hasTeleportConnect bool) []string {
+func darwinTagCopyPackageArtifactCommands() []string {
 	commands := []string{
 		`set -u`,
 		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 		// copy release archives to artifact directory
 		`cp teleport*.tar.gz $WORKSPACE_DIR/go/artifacts`,
 		`cp e/teleport-ent*.tar.gz $WORKSPACE_DIR/go/artifacts`,
-	}
-
-	// copy Teleport Connect artifacts
-	// TODO: Extract to separate function. Currently Connect's pipeline calls this function.
-	if hasTeleportConnect {
-		commands = append(commands,
-			// TODO: Tag release won't have this dir.
-			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps/packages/teleterm/build/release`,
-			`cp *.dmg $WORKSPACE_DIR/go/artifacts`,
-		)
-	}
-
-	// generate checksums
-	commands = append(commands,
+		// generate checksums
 		`cd $WORKSPACE_DIR/go/artifacts && for FILE in teleport*.tar.gz; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l`,
-	)
-	// TODO: Extract to separate function.
-	if hasTeleportConnect {
-		commands = append(commands,
-			`cd $WORKSPACE_DIR/go/artifacts && for FILE in *.dmg; do shasum -a 256 "$FILE" > "$FILE.sha256"; done && ls -l`,
-		)
+	}
+
+	return commands
+}
+
+func darwinConnectCopyDmgArtifactCommands() []string {
+	commands := []string{
+		`set -u`,
+		// copy dmg to artifact directory
+		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps/packages/teleterm/build/release`,
+		`cp *.dmg $WORKSPACE_DIR/go/artifacts`,
+		// generate checksums
+		`cd $WORKSPACE_DIR/go/artifacts && for FILE in *.dmg; do shasum -a 256 "$FILE" > "$FILE.sha256"; done && ls -l`,
 	}
 
 	return commands
@@ -563,6 +557,8 @@ func darwinConnectDownloadArtifactCommands() []string {
 		`set -u`,
 		`export VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)`,
 		`export S3_PATH="tag/$${DRONE_TAG##v}/"`,
+		// Download tsh.pkg. We're going to extract tsh.app from it which is then packaged within the
+		// Teleport Connect bundle.
 		`aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}tsh-$${VERSION}.pkg $WORKSPACE_DIR/go/src/github.com/gravitational/`,
 	}
 }
