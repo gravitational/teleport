@@ -320,7 +320,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	// authenticate with LDAP when the LDAP server name is not correct
 	// in the certificate).
 	if cfg.LDAPConfig.CA != nil && cfg.LDAPConfig.InsecureSkipVerify {
-		cfg.Log.Warn("LDAP configuration specifies both der_ca_file and insecure_skip_verify." +
+		cfg.Log.Warn("LDAP configuration specifies both der_ca_file or pem_ca_cert and insecure_skip_verify." +
 			"TLS connections to the LDAP server will not be verified. If this is intentional, disregard this warning.")
 	}
 
