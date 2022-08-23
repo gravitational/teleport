@@ -413,6 +413,11 @@
               "title": "TLS Routing Migration",
               "slug": "/management/operations/tls-routing/",
               "forScopes": ["oss", "enterprise"]
+            },
+            {
+              "title": "Proxy Peering Migration",
+              "slug": "/management/operations/proxy-peering/",
+              "forScopes": ["oss", "enterprise"]
             }
           ]
         },
@@ -1001,6 +1006,10 @@
         {
           "title": "TLS Routing",
           "slug": "/architecture/tls-routing/"
+        },
+        {
+          "title": "Proxy Peering",
+          "slug": "/architecture/proxy-peering/"
         }
       ]
     },
@@ -1743,6 +1752,11 @@
     {
       "source": "/setup/operations/ca-rotation/",
       "destination": "/management/operations/ca-rotation/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/operations/proxy-peering/",
+      "destination": "/management/operations/proxy-peering/",
       "permanent": true
     },
     {

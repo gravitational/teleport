@@ -484,6 +484,21 @@ auth_service:
     # See "TLS Routing" in Architecture section for additional information.
     proxy_listener_mode: multiplex
 
+    # Determines the tunnel strategy used by the cluster.
+    tunnel_strategy:
+      # Possible tunnel strategy types are:
+      #
+      # "agent_mesh":    The default behavior, where agents will connect to every
+      #                  Teleport proxy instance.
+      # "proxy_peering": Agents will connect to a subset of proxies and clients
+      #                  will be routed between proxies for end to end connectivity
+      type: proxy_peering
+
+      # The number of reverse tunnel connections agents will attempt to create.
+      # This field is only available when using the "proxy_peering" tunnel
+      # strategy type.
+      agent_connection_count: 1
+
 # This section configures the 'node service':
 ssh_service:
     # Turns 'ssh' role on. Default is 'yes'

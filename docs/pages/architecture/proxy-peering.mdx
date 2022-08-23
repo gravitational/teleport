@@ -1,0 +1,55 @@
+---
+title: Proxy Peering
+description: How Teleport implements more efficient networking with proxy peering.
+---
+
+<Details
+  title="Version warning"
+  opened={true}
+  scope={["oss", "enterprise"]}
+  scopeOnly={true}
+  min="10.0"
+>
+  Proxy peering is available starting from Teleport `10.0`.
+</Details>
+
+## Overview
+
+Proxy peering is a type of tunnel strategy configurable in Teleport. A tunnel
+strategy defines the behavior for agent reverse tunnel connections as well as
+how client are connected to those reverse tunnels. A Teleport Cluster's tunnel
+strategy is configurable in the Teleport Auth service.
+
+Proxy peering enables an agent to be reachable without it connecting to every
+proxy instance. This allows proxies to scale horizontally without increasing
+the number of connections created by agents.
+
+## How it works
+
+### Proxy Service
+
+A GRPC service on Teleport Proxy servers provides an API for establishing a
+bi-directional connection to the agents connected to that proxy. Proxy servers
+manage a GRPC client to all other proxies in the cluster.
+
+Routing information on which proxies each agent is connected to is stored in
+Teleport's backend and propagated to each proxy instance.
+
+The routing information and GRPC service allow a Proxy to identify where an
+agent is connected and create an end to end connection from a client to that
+agent.
+
+### Reverse Tunnel Agents
+
+Normally teleport agents need to create a reverse tunnel to every Teleport Proxy
+to ensure a client is able to reach the agent. With proxy peering this is no
+longer a requirement. When proxy peering is enabled agents will automatically
+change their behavior to connect to the configured number of proxy servers.
+
+By default agents are configured to connect to a single proxy server. For high
+availability a cluster administrator may configure agents to connect to 2 or
+more proxy servers.
+
+## Next Steps
+- See the [migration guide] to learn how to upgrade an existing cluster to use
+proxy peering
