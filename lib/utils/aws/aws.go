@@ -179,7 +179,7 @@ func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials)
 		return trace.BadParameter(err.Error())
 	}
 
-	signer := v4.NewSigner(credentials)
+	signer := NewSigner(credentials, sigV4.Service)
 	_, err = signer.Sign(reqCopy, bytes.NewReader(payload), sigV4.Service, sigV4.Region, t)
 	if err != nil {
 		return trace.Wrap(err)
@@ -196,6 +196,20 @@ func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials)
 		return trace.AccessDenied("signature verification failed")
 	}
 	return nil
+}
+
+// NewSigner creates a new V4 signer.
+func NewSigner(credentials *credentials.Credentials, signingServiceName string) *v4.Signer {
+	options := func(s *v4.Signer) {
+		// Service s3 and s3control sign with URL unescaped. Both services use
+		// "s3" as signing name.
+		//
+		// https://github.com/aws/aws-sdk-go/blob/d4f5f556a9fb0bdca8da5e52f752b7fba6bedce5/aws/signer/v4/v4.go#L182-L189
+		if signingServiceName == "s3" {
+			s.DisableURIPathEscaping = true
+		}
+	}
+	return v4.NewSigner(credentials, options)
 }
 
 // filterHeaders removes request headers that are not in the headers list.
