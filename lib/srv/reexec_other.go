@@ -18,9 +18,14 @@
 package srv
 
 import (
+	"io"
 	"os/exec"
 )
 
 func reexecCommandOSTweaks(cmd *exec.Cmd) {}
 
 func userCommandOSTweaks(cmd *exec.Cmd) {}
+
+func RunCommand() (errw io.Writer, code int, err error) {
+
+}
