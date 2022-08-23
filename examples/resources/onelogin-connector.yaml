@@ -3,7 +3,9 @@ version: v2
 metadata:
   name: OneLogin
 spec:
-  acs: https://<cluster-url>/v1/webapi/saml/acs
+  # The last segment of the URL must be identical to the connector metadata name.
+  acs: https://<cluster-url>/v1/webapi/saml/acs/OneLogin
+  allow_idp_initiated: false
   attributes_to_roles:
     - {name: "groups", value: "admin", roles: ["editor"]}
     - {name: "groups", value: "dev", roles: ["access"]}

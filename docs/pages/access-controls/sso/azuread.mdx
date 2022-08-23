@@ -103,9 +103,14 @@ metadata:
   name: azure-saml
 spec:
   display: "Microsoft"
+
+  # enables/disables idp-initiated saml login
+  allow_idp_initiated: false
+
   # acs is the Assertion Consumer Service URL. This should be the address of
   # the Teleport proxy that your identity provider will communicate with.
-  acs: https://teleport.example.com:3080/v1/webapi/saml/acs
+  # The last segment of the URL must be identical to the connector metadata name.
+  acs: https://teleport.example.com:3080/v1/webapi/saml/acs/azure-saml
   attributes_to_roles:
     - {name: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups", value: "<group id 930210...>", roles: ["editor"]}
     - {name: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups", value: "<group id 93b110...>", roles: ["dev"]}
