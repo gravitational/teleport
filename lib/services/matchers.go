@@ -29,6 +29,21 @@ type ResourceMatcher struct {
 	Labels types.Labels
 }
 
+// AWSSSM provides options to use when executing SSM documents
+type AWSSSM struct {
+	// DocumentName is the name of the document to use when executing an
+	// SSM command
+	DocumentName string
+}
+
+// InstallerParams are passed to the AWS SSM document
+type InstallerParams struct {
+	// JoinMethod is the method to use when joining the cluster
+	JoinMethod types.JoinMethod
+	// JoinToken is the token to use when joining the cluster
+	JoinToken string
+}
+
 // AWSMatcher matches AWS databases.
 type AWSMatcher struct {
 	// Types are AWS database types to match, "rds" or "redshift".
@@ -37,9 +52,25 @@ type AWSMatcher struct {
 	Regions []string
 	// Tags are AWS tags to match.
 	Tags types.Labels
-	// SSMDocument is the SSM document used to execute the
-	// installation script
-	SSMDocument string
+	// Params are passed to AWS when executing the SSM document
+	Params InstallerParams
+	// SSM provides options to use when sending a document command to
+	// an EC2 node
+	SSM *AWSSSM
+}
+
+// AzureMatcher matches Azure databases.
+type AzureMatcher struct {
+	// Subscriptions are Azure subscriptions to query for resources.
+	Subscriptions []string
+	// ResourceGroups are Azure resource groups to query for resources.
+	ResourceGroups []string
+	// Types are Azure resource types to match, for example "mysql" or "postgres".
+	Types []string
+	// Regions are Azure regions to query for databases.
+	Regions []string
+	// ResourceTags are Azure tags to match.
+	ResourceTags types.Labels
 }
 
 // MatchResourceLabels returns true if any of the provided selectors matches the provided database.
@@ -246,4 +277,8 @@ const (
 	AWSMatcherMemoryDB = "memorydb"
 	// AWSMatcherEC2 is the AWS matcher type for EC2 instances.
 	AWSMatcherEC2 = "ec2"
+	// AzureMatcherMySQL is the Azure matcher type for Azure MySQL databases.
+	AzureMatcherMySQL = "mysql"
+	// AzureMatcherPostgres is the Azure matcher type for Azure Postgres databases.
+	AzureMatcherPostgres = "postgres"
 )
