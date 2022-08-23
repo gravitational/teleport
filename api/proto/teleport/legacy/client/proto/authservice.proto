@@ -2549,6 +2549,8 @@ service AuthService {
   rpc UpdateConnectionDiagnostic(types.ConnectionDiagnosticV1) returns (google.protobuf.Empty);
   // GetConnectionDiagnostic reads a connection diagnostic.
   rpc GetConnectionDiagnostic(GetConnectionDiagnosticRequest) returns (types.ConnectionDiagnosticV1);
+  // AppendDiagnosticTrace appends a Trace to the ConnectionDiagnostic.
+  rpc AppendDiagnosticTrace(AppendDiagnosticTraceRequest) returns (types.ConnectionDiagnosticV1);
 
   // ChangeUserAuthentication allows a user to change their password and if enabled,
   // also adds a new MFA device. After successful invocation, a new web session is created as well

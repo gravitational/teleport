@@ -17,9 +17,10 @@ limitations under the License.
 package conntest
 
 import (
+	"bytes"
 	"context"
 	"fmt"
-	"net"
+	"io"
 	"strings"
 	"time"
 
@@ -28,8 +29,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -70,75 +69,37 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 			Message: types.DiagnosticMessageFailed,
 		})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "new conn diag")
 	}
 
 	if err := s.clt.CreateConnectionDiagnostic(ctx, connectionDiagnostic); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "create conn diag")
 	}
 
-	sshNode, err := s.clt.GetNode(ctx, defaults.Namespace, req.ResourceName)
+	key, err := client.GenerateRSAKey()
 	if err != nil {
-		if trace.IsNotFound(err) {
-			connDiag, err := s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewFailedTraceConnectionDiagnostic(
-				types.ConnectionDiagnosticTrace_RBAC_NODE,
-				"Node not found. Ensure the Node exists and your role allows you to access it.",
-				err,
-			))
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return connDiag, nil
-		}
-
-		connDiag, err := s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewFailedTraceConnectionDiagnostic(
-			types.ConnectionDiagnosticTrace_UNKNOWN_ERROR,
-			"Failed to read the Node.",
-			err,
-		))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return connDiag, nil
-	}
-
-	_, err = s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewSuccessTraceConnectionDiagnostic(
-		types.ConnectionDiagnosticTrace_RBAC_NODE,
-		"Node found.",
-	))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sshNodeAddr := sshNode.GetAddr()
-
-	key, err := client.NewKey()
-	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "generate rsa key")
 	}
 
 	currentUser, err := s.clt.GetCurrentUser(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "current user")
 	}
 
 	certs, err := s.clt.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		NodeName:               sshNode.GetName(),
-		PublicKey:              key.Pub,
+		PublicKey:              key.MarshalSSHPublicKey(),
 		Username:               currentUser.GetName(),
 		Expires:                time.Now().Add(time.Minute).UTC(),
-		Format:                 constants.CertificateFormatStandard,
-		Usage:                  proto.UserCertsRequest_SSH,
 		ConnectionDiagnosticID: connectionDiagnosticID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	key.Cert = certs.SSH
 
-	certAuths, err := s.clt.GetCertAuthorities(ctx, types.HostCA, false)
+	key.Cert = certs.SSH
+	key.TLSCert = certs.TLS
+
+	certAuths, err := s.clt.GetCertAuthorities(ctx, types.HostCA, false /* loadKeys */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -148,106 +109,72 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		return nil, trace.Wrap(err)
 	}
 
-	sshClientConfig, err := key.ProxyClientSSHConfig(nil, sshNodeAddr)
+	key.TrustedCA = auth.AuthoritiesToTrustedCerts(certAuths)
+
+	keyAuthMethod, err := key.AsAuthMethod()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sshClientConfig.HostKeyCallback = hostkeyCallback
-	sshClientConfig.User = req.SSHPrincipal
+	clusterName, err := s.clt.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	dialCtx, cancelFunc := context.WithTimeout(ctx, req.DialTimeout)
+	clientConfTLS, err := key.TeleportClientTLSConfig(nil, []string{clusterName.GetClusterName()})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	host := req.ResourceName
+	tlsRoutingEnabled := true
+
+	webProxyAddr, sshProxyAddr, err := s.proxyAddrs()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	key.KeyIndex = client.KeyIndex{
+		Username:    req.SSHPrincipal,
+		ProxyHost:   webProxyAddr,
+		ClusterName: clusterName.GetClusterName(),
+	}
+
+	processStdout := &bytes.Buffer{}
+
+	clientConf := client.MakeDefaultConfig()
+	clientConf.AuthMethods = []ssh.AuthMethod{keyAuthMethod}
+	clientConf.Host = host
+	clientConf.HostKeyCallback = hostkeyCallback
+	clientConf.HostLogin = req.SSHPrincipal
+	clientConf.SkipLocalAuth = true
+	clientConf.SSHProxyAddr = sshProxyAddr // TODO(marco): remove the next line?
+	clientConf.SSHProxyAddr = webProxyAddr
+	clientConf.Stderr = io.Discard
+	clientConf.Stdin = &bytes.Buffer{}
+	clientConf.Stdout = processStdout
+	clientConf.TLS = clientConfTLS
+	clientConf.TLSRoutingEnabled = tlsRoutingEnabled
+	clientConf.UseKeyPrincipals = true
+	clientConf.Username = currentUser.GetName()
+	clientConf.WebProxyAddr = webProxyAddr
+	clientConf.AddKeysToAgent = client.AddKeysToAgentNo
+
+	teleClient, err := client.NewClient(clientConf)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ctxWithTimeout, cancelFunc := context.WithTimeout(ctx, req.DialTimeout)
 	defer cancelFunc()
 
-	var dialer net.Dialer
-	conn, err := dialer.DialContext(dialCtx, "tcp", sshNodeAddr)
-	if err != nil {
-		connDiag, err := s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewFailedTraceConnectionDiagnostic(
-			types.ConnectionDiagnosticTrace_CONNECTIVITY,
-			"Failed to access the host. Please ensure it's network reachable.",
-			err,
-		))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return connDiag, nil
+	if err := teleClient.SSH(ctxWithTimeout, []string{"whoami"}, false); err != nil {
+		return s.handleErrFromSSH(ctx, connectionDiagnosticID, req.SSHPrincipal, err, processStdout)
 	}
-	defer conn.Close()
-
-	_, err = s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewSuccessTraceConnectionDiagnostic(
-		types.ConnectionDiagnosticTrace_CONNECTIVITY,
-		"Host is alive and reachable.",
-	))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sshConn, sshNewChannel, sshReq, err := ssh.NewClientConn(conn, sshNodeAddr, sshClientConfig)
-	if err != nil {
-		connDiag, err := s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewFailedTraceConnectionDiagnostic(
-			types.ConnectionDiagnosticTrace_NODE_SSH_SERVER,
-			"Failed to open SSH connection. Please ensure Teleport is running.",
-			err,
-		))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return connDiag, nil
-	}
-
-	_, err = s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewSuccessTraceConnectionDiagnostic(
-		types.ConnectionDiagnosticTrace_NODE_SSH_SERVER,
-		"Established an SSH connection.",
-	))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sshClient := ssh.NewClient(sshConn, sshNewChannel, sshReq)
-
-	sshSession, err := sshClient.NewSession()
-	if err != nil {
-		connDiag, err := s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewFailedTraceConnectionDiagnostic(
-			types.ConnectionDiagnosticTrace_NODE_SSH_SESSION,
-			"Failed to create a new SSH Session. Please ensure Teleport is running.",
-			err,
-		))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return connDiag, nil
-	}
-	defer sshSession.Close()
-
-	_, err = s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewSuccessTraceConnectionDiagnostic(
-		types.ConnectionDiagnosticTrace_NODE_SSH_SESSION,
-		"Created an SSH session.",
-	))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	output, err := sshSession.CombinedOutput("whoami")
-	if err != nil {
-		connDiag, err := s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewFailedTraceConnectionDiagnostic(
-			types.ConnectionDiagnosticTrace_NODE_PRINCIPAL,
-			fmt.Sprintf("Failed to query the current user in the target node. Please ensure the principal %q is a valid Linux login in the target node. Output from Node: %s", sshClientConfig.User, strings.TrimSpace(string(output))),
-			err,
-		))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return connDiag, nil
-	}
-	whoamiOutput := strings.TrimSpace(string(output))
 
 	connDiag, err := s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewSuccessTraceConnectionDiagnostic(
 		types.ConnectionDiagnosticTrace_NODE_PRINCIPAL,
-		fmt.Sprintf("%q user exists in target node", whoamiOutput),
+		fmt.Sprintf("%q user exists in target node", req.SSHPrincipal),
 	))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -257,6 +184,90 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	connDiag.SetSuccess(true)
 
 	if err := s.clt.UpdateConnectionDiagnostic(ctx, connDiag); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return connDiag, nil
+}
+
+func (s SSHConnectionTester) proxyAddrs() (webProxyAddr string, sshProxyAddr string, err error) {
+	proxies, err := s.clt.GetProxies()
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+
+	if len(proxies) == 0 {
+		return "", "", trace.NotFound("cluster has no proxies")
+	}
+
+	parsedAddrs, err := client.ParseProxyHost(proxies[0].GetAddr())
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+
+	return parsedAddrs.WebProxyAddr, parsedAddrs.SSHProxyAddr, nil
+}
+
+func (s SSHConnectionTester) handleErrFromSSH(ctx context.Context, connectionDiagnosticID string, sshPrincipal string, sshError error, processStdout *bytes.Buffer) (types.ConnectionDiagnostic, error) {
+	// Either the node doesn't exist or the user doesn't have access to it.
+	if trace.IsNotFound(sshError) {
+		connDiag, err := s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewFailedTraceConnectionDiagnostic(
+			types.ConnectionDiagnosticTrace_RBAC_NODE,
+			"Node not found. Ensure the Node exists and your role allows you to access it.",
+			sshError,
+		))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return connDiag, nil
+	}
+
+	if trace.IsConnectionProblem(sshError) {
+		connDiag, err := s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewFailedTraceConnectionDiagnostic(
+			types.ConnectionDiagnosticTrace_CONNECTIVITY,
+			"Failed to connect to the Node. Ensure teleport is running.",
+			sshError,
+		))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return connDiag, nil
+	}
+
+	processStdoutString := strings.TrimSpace(processStdout.String())
+
+	if strings.Contains(sshError.Error(), "Process exited with status 255") && strings.HasPrefix(processStdoutString, "Failed to launch: user: unknown user") {
+		connDiag, err := s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewFailedTraceConnectionDiagnostic(
+			types.ConnectionDiagnosticTrace_NODE_PRINCIPAL,
+			fmt.Sprintf("Invalid user. Please ensure the principal %q is a valid Linux login in the target node. Output from Node: %v", sshPrincipal, processStdoutString),
+			sshError,
+		))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return connDiag, nil
+	}
+
+	// This happens when the principal is not part of the allowed ones.
+	// A trace was already added by the Node and, here, we just return the diagnostic.
+	if trace.IsAccessDenied(sshError) {
+		connDiag, err := s.clt.GetConnectionDiagnostic(ctx, connectionDiagnosticID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return connDiag, nil
+	}
+
+	connDiag, err := s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewFailedTraceConnectionDiagnostic(
+		types.ConnectionDiagnosticTrace_UNKNOWN_ERROR,
+		"Unknown error.",
+		sshError,
+	))
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 

@@ -358,6 +358,14 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		return permissions, nil
 	}
 
+	if err := maybeAppendDiagnosticTrace(ctx, connectionDiagnosticID, h.c.AccessPoint,
+		types.ConnectionDiagnosticTrace_RBAC_NODE,
+		"Node found.",
+		nil,
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// check if the user has permission to log into the node.
 	switch {
 	case h.c.Component == teleport.ComponentForwardingNode:
@@ -368,6 +376,15 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	if err != nil {
 		log.Errorf("Permission denied: %v", err)
 		recordFailedLogin(err)
+		return nil, trace.Wrap(err)
+	}
+
+	if err := maybeAppendDiagnosticTrace(ctx, connectionDiagnosticID, h.c.AccessPoint,
+		types.ConnectionDiagnosticTrace_CONNECTIVITY,
+		"Node is alive and reachable.",
+		nil,
+	); err != nil {
+		fmt.Println(err)
 		return nil, trace.Wrap(err)
 	}
 

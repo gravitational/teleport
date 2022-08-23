@@ -4157,24 +4157,19 @@ message ConnectionDiagnosticTrace {
   // TraceType is an identification of the checkpoint.
   enum TraceType {
     TRACE_TYPE_UNSPECIFIED = 0;
-    // RBAC_NODE is for RBAC checks for the node.
-    RBAC_NODE = 1;
-    // CONNECTIVITY is for network connectivity checks.
-    CONNECTIVITY = 2;
-    // NODE_SSH_SERVER is used to validate that the server is accepting SSH Connections.
-    NODE_SSH_SERVER = 3;
-    // RBAC_PRINCIPAL is used when checking if the principal is allowed per RBAC rules.
-    RBAC_PRINCIPAL = 4;
-    // NODE_SSH_SESSION is used when checking if the SSH Server accepts creating a new
-    // session.
-    NODE_SSH_SESSION = 5;
-    // NODE_PRINCIPAL is used when checking if the Node has the requested principal.
-    NODE_PRINCIPAL = 6;
     // UNKNOWN_ERROR is used when we don't know the error.
     // It's not always possible to offer guidance based on the received error.
     // This trace type should be used when the error is too generic given the context we
     // have.
-    UNKNOWN_ERROR = 7;
+    UNKNOWN_ERROR = 1;
+    // RBAC_NODE is for RBAC checks for the node.
+    RBAC_NODE = 2;
+    // CONNECTIVITY is for network connectivity checks.
+    CONNECTIVITY = 3;
+    // RBAC_PRINCIPAL is used when checking if the principal is allowed per RBAC rules.
+    RBAC_PRINCIPAL = 4;
+    // NODE_PRINCIPAL is used when checking if the Node has the requested principal.
+    NODE_PRINCIPAL = 5;
   }
   TraceType Type = 1 [(gogoproto.jsontag) = "type"];
   // StatusType describes whether this was a success or a failure.
