@@ -2,8 +2,8 @@
 title: Run Teleport as a Daemon
 description: Configure Teleport to run as a daemon using systemd
 ---
-On Linux systems in non-containerized environments, we recommend running the `teleport` binary as a daemon using
-systemd. Using a daemon helps to ensure that the `teleport` process can remain running and available regardless of a controlling terminal session or parent process, and opens up additional
+On Linux systems in non-containerized environments, we recommend running the `teleport` binary as a daemon using systemd.
+Using a daemon helps to ensure that the `teleport` process can remain running and available regardless of a controlling terminal session or parent process, and opens up additional
 configuration options that allow for better optimization, uptime, and availability.
 
 This guide will outline best practices for installing, configuring, and starting teleport as a daemon on a Linux host using systemd.
@@ -71,7 +71,7 @@ any service daemon on systemd, in this case the `teleport` service. The rest of 
        Active: inactive (dead)
   ```
 
-  Enter the following command to enable the systemd `teleport` daemon. Enabling the daemon using `systemctl` allows systemd to place the daemon in its dependency tree, ensuring that the teleport service will be automatically restarted on any potential reboot:
+  Enter the following command to enable the systemd `teleport` daemon. Enabling the daemon using `systemctl` allows systemd to place the daemon in its dependency tree, ensuring that the Teleport service will be automatically restarted on any potential reboot:
 
   ```code
   $ sudo systemctl enable teleport
@@ -96,7 +96,7 @@ any service daemon on systemd, in this case the `teleport` service. The rest of 
   Enter the following `teleport` command to have Teleport output a systemd unit file to `stdout` to be reviewed and applied as needed:
 
   ```code
-  $ sudo teleport install systemd
+  $ teleport install systemd
   ```
 
   If the output describes a good configuration for your environment, enter the command once again using the `-o` flag to
@@ -157,10 +157,10 @@ To upgrade a host to a newer version of Teleport, you must:
 ## Understanding Teleport daemon command line options for unit file configuration
 
 The `teleport install systemd` command includes a number of optional flags that you can use to strictly define parameters of the generated unit file and set where that output will be written.
-The following table includes all command line options available with the `teleport install systemd` command, a brief description of what they do, and our general recommended defaults tested on **Ubuntu 20.04 LTS**:
+The following table includes all command line options available with the `teleport install systemd` command, a brief description of what they do, and their default settings:
 
 
-| Flag | Description | General Recommended Default |
+| Flag | Description | Default |
 | --- | ----------- | ---- |
 | `--fd-limit` | The maximum number of open file descriptors by the service, defined by `LimitNOFILE` in the unit file. |  `--fd-limit=8192` |
 | `--env-file` | The path to the `EnvironmentFile` defined by the system unit file, containing any potential variables to be used in the configuration. | `--envfile=/etc/default/teleport` |
@@ -168,7 +168,8 @@ The following table includes all command line options available with the `telepo
 | `--teleport-path` | The full path to the `teleport` binary. | `--teleport-path=/usr/local/bin/teleport` |
 | `-o`, `--output` | The full unit file load path which will define where to create and store the system unit file itself. This flag is used to write the output to the designated file. | `--output=/etc/systemd/system/teleport.service` |
 
-If using the recommended defaults, you can enter all command line options in a single command as follows:
+While a default configuration can always be created using the `sudo teleport install systemd -o /etc/systemd/system/teleport.service`command,
+the same configuration using command line options is demonstrated below:
 
 ```code
 $ sudo teleport install systemd \
@@ -193,4 +194,4 @@ If you need information on how `systemctl reload teleport` works, see our guide 
 [upgrading a Teleport binary](./upgrading-the-teleport-binary.mdx).
 
 For information on unit file configurations and unit file load paths,
- see [systemd's documentation on systemd.unit configurations](https://www.freedesktop.org/software/systemd/man/systemd.unit.html)
+see [systemd's documentation on systemd.unit configurations](https://www.freedesktop.org/software/systemd/man/systemd.unit.html)
