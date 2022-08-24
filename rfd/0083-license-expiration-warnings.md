@@ -36,7 +36,7 @@ TSH - on “tsh login”, in “tsh status”
 When the user uses either the “tsh login” or ‘tsh status” commands the appropriate license warning will be displayed. (see examples below)
 TCTL - “tctl status”
 When the user uses the “tctl status” command the appropriate license warning will be displayed.
-After expiration all tsh and tctl will display the license expiry warning.
+After expiration all tsh and tctl commands will display the license expiry warning.
 
 ### Example outputs
 
@@ -99,9 +99,9 @@ Snoozing allows users to disable the warning in the web UI from being displayed 
 
 The time interval in which to show a warning before expiry can be configured on a per role basis.
 Interval can be configured by modifying a role option ‘license_warning_days’.
-Default will be 30 days, admins can configure if needed.
+Default will be 90 days, admins can configure if needed.
 Default preset roles will use the default. For example the editor/auditor/access roles.
-When multiple roles for the same user have different values for this interval the shortest one will be used.
+When multiple roles for the same user have different values for this interval the longest one will be used.
 This value cannot be configured to be below the minimum value of 10 days.
 
 
@@ -120,7 +120,7 @@ Editor - 90 days
 Auditor - 30 days
 Access - 30 days
 
-If you have multiple roles, the shortest time period takes precedence.
+If you have multiple roles, the longest time period takes precedence.
 
 ## Implementation details
 
@@ -137,7 +137,7 @@ message LicenseWarning {
 ```
 
 ## Security considerations
-Admins cannot fully disable warnings, because there will be a minimum threshold of 30 days.
+Admins cannot fully disable warnings, because there will be a minimum threshold of 10 days.
 If your license expired, you can’t disable or snooze the warning.
 Users could avoid seeing this warning by passing the output of the CLI through a program that strips the warning from it.
 
