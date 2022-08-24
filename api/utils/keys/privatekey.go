@@ -20,8 +20,6 @@ package keys
 import (
 	"bytes"
 	"crypto"
-	"crypto/ecdsa"
-	"crypto/ed25519"
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
@@ -50,20 +48,8 @@ type PrivateKey struct {
 	sshPub ssh.PublicKey
 }
 
-// NewPrivateKey returns a new PrivateKey for the given crypto.PrivateKey.
-func NewPrivateKey(priv crypto.PrivateKey) (*PrivateKey, error) {
-	var signer Signer
-	var err error
-	switch p := priv.(type) {
-	case *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey:
-		signer, err = newStandardSigner(p)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	default:
-		return nil, trace.BadParameter("unsupported private key type %T", priv)
-	}
-
+// NewPrivateKey returns a new PrivateKey for the given crypto.Signer.
+func NewPrivateKey(signer Signer) (*PrivateKey, error) {
 	sshPub, err := ssh.NewPublicKey(signer.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -180,24 +166,32 @@ func ParsePrivateKey(keyPEM []byte) (*PrivateKey, error) {
 		return nil, trace.BadParameter("expected PEM encoded private key")
 	}
 
-	var priv crypto.PrivateKey
-	var err error
 	switch block.Type {
 	case PKCS1PrivateKeyType:
-		priv, err = x509.ParsePKCS1PrivateKey(block.Bytes)
+		cryptoSigner, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return NewPrivateKey(newStandardSigner(cryptoSigner, keyPEM))
 	case ECPrivateKeyType:
-		priv, err = x509.ParseECPrivateKey(block.Bytes)
+		cryptoSigner, err := x509.ParseECPrivateKey(block.Bytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return NewPrivateKey(newStandardSigner(cryptoSigner, keyPEM))
 	case PKCS8PrivateKeyType:
-		priv, err = x509.ParsePKCS8PrivateKey(block.Bytes)
+		priv, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cryptoSigner, ok := priv.(crypto.Signer)
+		if !ok {
+			return nil, trace.BadParameter("x509.ParsePKCS8PrivateKey returned an invalid private key of type %T", priv)
+		}
+		return NewPrivateKey(newStandardSigner(cryptoSigner, keyPEM))
 	default:
 		return nil, trace.BadParameter("unexpected private key PEM type %q", block.Type)
 	}
-
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return NewPrivateKey(priv)
 }
 
 // LoadKeyPair returns the PrivateKey for the given private and public key files.

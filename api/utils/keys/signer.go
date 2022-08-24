@@ -47,40 +47,41 @@ type Signer interface {
 type StandardSigner struct {
 	// Signer is an *rsa.PrivateKey, *ecdsa.PrivateKey, or ed25519.PrivateKey.
 	crypto.Signer
-	// privPEM is the PEM-encoded private key.
-	privPEM []byte
+	// keyPEM is the PEM-encoded private key.
+	keyPEM []byte
 }
 
-// newStandardSigner creates a new StandardSigner from the given *rsa.PrivateKey, *ecdsa.PrivateKey or ed25519.PrivateKey.
-func newStandardSigner(priv crypto.PrivateKey) (*StandardSigner, error) {
-	signer, ok := priv.(crypto.Signer)
-	if !ok {
-		return nil, trace.BadParameter("private key of type %T is not a standard private key", priv)
-	}
-
-	keyDER, err := x509.MarshalPKCS8PrivateKey(priv)
+// NewStandardSigner creates a new StandardSigner from the given *rsa.PrivateKey, *ecdsa.PrivateKey or ed25519.PrivateKey.
+func NewStandardSigner(signer crypto.Signer) (*StandardSigner, error) {
+	keyDER, err := x509.MarshalPKCS8PrivateKey(signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	keyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:    PKCS8PrivateKeyType,
+		Headers: nil,
+		Bytes:   keyDER,
+	})
+
+	return newStandardSigner(signer, keyPEM), nil
+}
+
+func newStandardSigner(signer crypto.Signer, keyPEM []byte) *StandardSigner {
 	return &StandardSigner{
 		Signer: signer,
-		privPEM: pem.EncodeToMemory(&pem.Block{
-			Type:    PKCS8PrivateKeyType,
-			Headers: nil,
-			Bytes:   keyDER,
-		}),
-	}, nil
+		keyPEM: keyPEM,
+	}
 }
 
 // PrivateKeyPEM returns the PEM-encoded private key.
 func (s *StandardSigner) PrivateKeyPEM() []byte {
-	return s.privPEM
+	return s.keyPEM
 }
 
 // TLSCertificate parses the given TLS certificate paired with the private key
 // to return a tls.Certificate, ready to be used in a TLS handshake.
 func (s *StandardSigner) TLSCertificate(certRaw []byte) (tls.Certificate, error) {
-	cert, err := tls.X509KeyPair(certRaw, s.privPEM)
+	cert, err := tls.X509KeyPair(certRaw, s.keyPEM)
 	return cert, trace.Wrap(err)
 }

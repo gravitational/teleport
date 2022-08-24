@@ -83,7 +83,11 @@ func GeneratePrivateKey() (*keys.PrivateKey, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return keys.NewPrivateKey(rsaKey)
+	rsaSigner, err := keys.NewStandardSigner(rsaKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return keys.NewPrivateKey(rsaSigner)
 }
 
 func generateRSAPrivateKey() (*rsa.PrivateKey, error) {
