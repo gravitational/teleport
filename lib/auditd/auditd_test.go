@@ -97,10 +97,11 @@ func TestSendEvent(t *testing.T) {
 	}
 
 	tests := []struct {
-		name    string
-		args    args
-		newMock func(t *testing.T) NetlinkConnector
-		errMsg  string
+		name             string
+		args             args
+		auditdDisabled   bool
+		expectedMessages []msgOrErr
+		errMsg           string
 	}{
 		{
 			name: "send login",
@@ -108,29 +109,24 @@ func TestSendEvent(t *testing.T) {
 				event:  AuditUserLogin,
 				result: Success,
 			},
-			newMock: func(t *testing.T) NetlinkConnector {
-				return &netlinkMock{
-					t: t,
-					expectedMessages: []msgOrErr{
-						{
-							msg: netlink.Message{
-								Header: netlink.Header{
-									Type:  0x3e8,
-									Flags: 0x5,
-								},
-							},
-						},
-						{
-							msg: netlink.Message{
-								Header: netlink.Header{
-									Type:  0x458,
-									Flags: 0x5,
-								},
-								Data: []byte("op=login acct=\"root\" exe=teleport hostname=? addr=127.0.0.1 terminal=teleport teleportUser=alice res=success"),
-							},
+			expectedMessages: []msgOrErr{
+				{
+					msg: netlink.Message{
+						Header: netlink.Header{
+							Type:  0x3e8,
+							Flags: 0x5,
 						},
 					},
-				}
+				},
+				{
+					msg: netlink.Message{
+						Header: netlink.Header{
+							Type:  0x458,
+							Flags: 0x5,
+						},
+						Data: []byte("op=login acct=\"root\" exe=teleport hostname=? addr=127.0.0.1 terminal=teleport teleportUser=alice res=success"),
+					},
+				},
 			},
 		},
 		{
@@ -139,29 +135,24 @@ func TestSendEvent(t *testing.T) {
 				event:  AuditUserLogin,
 				result: Failed,
 			},
-			newMock: func(t *testing.T) NetlinkConnector {
-				return &netlinkMock{
-					t: t,
-					expectedMessages: []msgOrErr{
-						{
-							msg: netlink.Message{
-								Header: netlink.Header{
-									Type:  0x3e8,
-									Flags: 0x5,
-								},
-							},
-						},
-						{
-							msg: netlink.Message{
-								Header: netlink.Header{
-									Type:  0x458,
-									Flags: 0x5,
-								},
-								Data: []byte("op=login acct=\"root\" exe=teleport hostname=? addr=127.0.0.1 terminal=teleport teleportUser=alice res=failed"),
-							},
+			expectedMessages: []msgOrErr{
+				{
+					msg: netlink.Message{
+						Header: netlink.Header{
+							Type:  0x3e8,
+							Flags: 0x5,
 						},
 					},
-				}
+				},
+				{
+					msg: netlink.Message{
+						Header: netlink.Header{
+							Type:  0x458,
+							Flags: 0x5,
+						},
+						Data: []byte("op=login acct=\"root\" exe=teleport hostname=? addr=127.0.0.1 terminal=teleport teleportUser=alice res=failed"),
+					},
+				},
 			},
 		},
 		{
@@ -170,29 +161,24 @@ func TestSendEvent(t *testing.T) {
 				event:  AuditUserEnd,
 				result: Success,
 			},
-			newMock: func(t *testing.T) NetlinkConnector {
-				return &netlinkMock{
-					t: t,
-					expectedMessages: []msgOrErr{
-						{
-							msg: netlink.Message{
-								Header: netlink.Header{
-									Type:  0x3e8,
-									Flags: 0x5,
-								},
-							},
-						},
-						{
-							msg: netlink.Message{
-								Header: netlink.Header{
-									Type:  0x452,
-									Flags: 0x5,
-								},
-								Data: []byte("op=session_close acct=\"root\" exe=teleport hostname=? addr=127.0.0.1 terminal=teleport teleportUser=alice res=success"),
-							},
+			expectedMessages: []msgOrErr{
+				{
+					msg: netlink.Message{
+						Header: netlink.Header{
+							Type:  0x3e8,
+							Flags: 0x5,
 						},
 					},
-				}
+				},
+				{
+					msg: netlink.Message{
+						Header: netlink.Header{
+							Type:  0x452,
+							Flags: 0x5,
+						},
+						Data: []byte("op=session_close acct=\"root\" exe=teleport hostname=? addr=127.0.0.1 terminal=teleport teleportUser=alice res=success"),
+					},
+				},
 			},
 		},
 		{
@@ -201,29 +187,24 @@ func TestSendEvent(t *testing.T) {
 				event:  AuditUserErr,
 				result: Success,
 			},
-			newMock: func(t *testing.T) NetlinkConnector {
-				return &netlinkMock{
-					t: t,
-					expectedMessages: []msgOrErr{
-						{
-							msg: netlink.Message{
-								Header: netlink.Header{
-									Type:  0x3e8,
-									Flags: 0x5,
-								},
-							},
-						},
-						{
-							msg: netlink.Message{
-								Header: netlink.Header{
-									Type:  0x455,
-									Flags: 0x5,
-								},
-								Data: []byte("op=invalid_user acct=\"root\" exe=teleport hostname=? addr=127.0.0.1 terminal=teleport teleportUser=alice res=success"),
-							},
+			expectedMessages: []msgOrErr{
+				{
+					msg: netlink.Message{
+						Header: netlink.Header{
+							Type:  0x3e8,
+							Flags: 0x5,
 						},
 					},
-				}
+				},
+				{
+					msg: netlink.Message{
+						Header: netlink.Header{
+							Type:  0x455,
+							Flags: 0x5,
+						},
+						Data: []byte("op=invalid_user acct=\"root\" exe=teleport hostname=? addr=127.0.0.1 terminal=teleport teleportUser=alice res=success"),
+					},
+				},
 			},
 		},
 		{
@@ -232,21 +213,16 @@ func TestSendEvent(t *testing.T) {
 				event:  AuditUserLogin,
 				result: Success,
 			},
-			newMock: func(t *testing.T) NetlinkConnector {
-				return &netlinkMock{
-					t:        t,
-					disabled: true,
-					expectedMessages: []msgOrErr{
-						{
-							msg: netlink.Message{
-								Header: netlink.Header{
-									Type:  0x3e8,
-									Flags: 0x5,
-								},
-							},
+			auditdDisabled: true,
+			expectedMessages: []msgOrErr{
+				{
+					msg: netlink.Message{
+						Header: netlink.Header{
+							Type:  0x3e8,
+							Flags: 0x5,
 						},
 					},
-				}
+				},
 			},
 			errMsg: "auditd is disabled",
 		},
@@ -256,16 +232,11 @@ func TestSendEvent(t *testing.T) {
 				event:  AuditUserLogin,
 				result: Success,
 			},
-			newMock: func(t *testing.T) NetlinkConnector {
-				return &netlinkMock{
-					t:        t,
-					disabled: true,
-					expectedMessages: []msgOrErr{
-						{
-							err: errors.New("connection failure"),
-						},
-					},
-				}
+			auditdDisabled: true,
+			expectedMessages: []msgOrErr{
+				{
+					err: errors.New("connection failure"),
+				},
 			},
 			errMsg: "failed to get auditd status: connection failure",
 		},
@@ -282,9 +253,14 @@ func TestSendEvent(t *testing.T) {
 				address:      "127.0.0.1",
 				ttyName:      "teleport",
 				dial: func(family int, config *netlink.Config) (NetlinkConnector, error) {
-					return tt.newMock(t), nil
+					return func() NetlinkConnector {
+						return &netlinkMock{
+							t:                t,
+							disabled:         tt.auditdDisabled,
+							expectedMessages: tt.expectedMessages,
+						}
+					}(), nil
 				},
-				enabled: false,
 			}
 
 			err := client.SendMsg(tt.args.event, tt.args.result)
