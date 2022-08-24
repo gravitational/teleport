@@ -34,6 +34,12 @@ export default function Container() {
   return <DesktopSession {...state} />;
 }
 
+declare global {
+  interface Window {
+    showDirectoryPicker: () => Promise<FileSystemDirectoryHandle>;
+  }
+}
+
 export function DesktopSession(props: State) {
   const {
     directorySharingState,

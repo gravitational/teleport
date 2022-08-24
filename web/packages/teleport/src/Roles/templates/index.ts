@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import role from 'raw-loader!./role.yaml';
+import role from './role.yaml?raw';
 
 const templates = { role };
 

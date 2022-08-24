@@ -16,15 +16,25 @@ limitations under the License.
 
 const path = require('path');
 const HtmlWebPackPlugin = require('html-webpack-plugin');
+const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
 const ReactRefreshPlugin = require('@pmmmwh/react-refresh-webpack-plugin');
 
 const resolvePath = require('./resolvepath');
+
+const tsconfigPath = path.join(__dirname, '/../../../tsconfig.json');
 
 const configFactory = {
   createDefaultConfig,
   plugins: {
     reactRefresh(options) {
       return new ReactRefreshPlugin(options);
+    },
+    tsChecker() {
+      return new ForkTsCheckerWebpackPlugin({
+        typescript: {
+          configFile: tsconfigPath,
+        },
+      });
     },
     indexHtml(options) {
       return new HtmlWebPackPlugin({
@@ -37,20 +47,30 @@ const configFactory = {
     },
   },
   rules: {
+    raw() {
+      return {
+        resourceQuery: /raw/,
+        type: 'asset/source',
+      };
+    },
     fonts() {
       return {
-        test: /fonts\/(.)+\.(woff|woff2|ttf|eot|svg)/,
-        loader: 'url-loader',
-        options: {
-          limit: 102400, // 100kb
-          name: '/assets/fonts/[name].[ext]',
+        test: /fonts\/(.)+\.(woff|woff2|ttf|svg)/,
+        type: 'asset',
+        generator: {
+          filename: 'assets/fonts/[name][ext]',
+        },
+        parser: {
+          dataUrlCondition: {
+            maxSize: 102400, // 100kb
+          },
         },
       };
     },
     svg() {
       return {
         test: /\.svg$/,
-        loader: 'svg-url-loader',
+        type: 'asset/inline',
         exclude: /node_modules/,
       };
     },
@@ -63,10 +83,14 @@ const configFactory = {
     images() {
       return {
         test: /\.(png|jpg|gif|ico)$/,
-        loader: 'url-loader',
-        options: {
-          limit: 10000,
-          name: '/assets/img/img-[hash:6].[ext]',
+        type: 'asset',
+        generator: {
+          filename: 'assets/img/img-[hash:6][ext]',
+        },
+        parser: {
+          dataUrlCondition: {
+            maxSize: 10240, // 10kb
+          },
         },
       };
     },
@@ -77,6 +101,13 @@ const configFactory = {
         use: [
           {
             loader: 'babel-loader',
+          },
+          {
+            loader: 'ts-loader',
+            options: {
+              onlyCompileBundledFiles: true,
+              configFile: tsconfigPath,
+            },
           },
         ],
       };
@@ -126,7 +157,7 @@ function createDefaultConfig() {
        * format of the output file names. [name] stands for 'entry' keys
        * defined in the 'entry' section
        **/
-      filename: '[name].[hash].js',
+      filename: '[name].[contenthash].js',
 
       // chunk file name format
       chunkFilename: '[name].[chunkhash].js',

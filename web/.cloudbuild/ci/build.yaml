@@ -18,19 +18,27 @@ steps:
       - "go run ./cmd/checkout -w=/workspace"
 
   - name: gcr.io/cloud-builders/docker
-    id: type-check-and-lint
-    waitFor: ['checkout']
+    id: install-deps
     args:
       - build
       - '--build-arg'
-      - NPM_SCRIPT=type-check-and-lint
+      - YARN_FROZEN_LOCKFILE=true
+      - .
+
+  - name: gcr.io/cloud-builders/docker
+    id: lint
+    waitFor: ['install-deps']
+    args:
+      - build
+      - '--build-arg'
+      - NPM_SCRIPT=lint
       - '--build-arg'
       - YARN_FROZEN_LOCKFILE=true
       - .
 
   - name: gcr.io/cloud-builders/docker
     id: build-teleport
-    waitFor: ['type-check-and-lint']
+    waitFor: ['install-deps']
     args:
       - build
       - '--build-arg'
@@ -41,7 +49,7 @@ steps:
 
   - name: gcr.io/cloud-builders/docker
     id: build-term
-    waitFor: ['type-check-and-lint']
+    waitFor: ['install-deps']
     args:
       - build
       - '--build-arg'

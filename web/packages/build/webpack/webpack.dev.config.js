@@ -29,12 +29,16 @@ module.exports = {
     filename: '[name].js',
     chunkFilename: '[name].js',
   },
-  devtool: false,
+  devtool: process.env.WEBPACK_SOURCE_MAP || 'eval-source-map',
   mode: 'development',
-  plugins: [configFactory.plugins.reactRefresh()],
+  plugins: [
+    configFactory.plugins.tsChecker(),
+    configFactory.plugins.reactRefresh(),
+  ],
   module: {
     strictExportPresence: true,
     rules: [
+      configFactory.rules.raw(),
       configFactory.rules.fonts(),
       configFactory.rules.svg(),
       configFactory.rules.images(),

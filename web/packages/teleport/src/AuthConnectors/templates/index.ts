@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import github from 'raw-loader!./github.yaml';
+import github from './github.yaml?raw';
 
 const templates = { github };
 
