@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package client
+package alpnproxy
 
 import (
 	"bufio"
@@ -25,11 +25,11 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
 
 // IsALPNConnUpgradeRequired returns true if a tunnel is required through a HTTP
@@ -48,7 +48,7 @@ func IsALPNConnUpgradeRequired(addr string, insecure bool) bool {
 		Timeout: defaults.DefaultDialTimeout,
 	}
 	tlsConfig := &tls.Config{
-		NextProtos:         []string{constants.ALPNSNIProtocolReverseTunnel},
+		NextProtos:         []string{string(common.ProtocolReverseTunnel)},
 		InsecureSkipVerify: insecure,
 	}
 	testConn, err := tls.DialWithDialer(netDialer, "tcp", addr, tlsConfig)
@@ -95,7 +95,6 @@ func newALPNConnUpgradeDialer(keepAlivePeriod, dialTimeout time.Duration, insecu
 func (d alpnConnUpgradeDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	logrus.Debugf("ALPN connection upgrade for %v.", addr)
 
-	// Make a TLS connection for the https call.
 	tlsConn, err := tls.DialWithDialer(d.netDialer, network, addr, &tls.Config{
 		InsecureSkipVerify: d.insecure,
 	})
@@ -103,30 +102,28 @@ func (d alpnConnUpgradeDialer) DialContext(ctx context.Context, network, addr st
 		return nil, trace.Wrap(err)
 	}
 
-	// Do upgrade.
-	if err := upgradeConnection(tlsConn, addr); err != nil {
+	err = upgradeConnThroughWebAPI(tlsConn, url.URL{
+		Host:   addr,
+		Scheme: "https",
+		Path:   connectionUpgradeWebAPI,
+	})
+	if err != nil {
 		defer tlsConn.Close()
 		return nil, trace.Wrap(err)
 	}
 	return tlsConn, nil
 }
 
-func upgradeConnection(conn net.Conn, addr string) error {
-	// Prepare the upgrade request.
-	url := url.URL{
-		Host:   addr,
-		Scheme: "https",
-		Path:   constants.ConnectionUpgradeWebAPI,
-	}
-	req, err := http.NewRequest(http.MethodGet, url.String(), nil)
+func upgradeConnThroughWebAPI(conn net.Conn, api url.URL) error {
+	req, err := http.NewRequest(http.MethodGet, api.String(), nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// For now, only "alpn" is supported.
-	req.Header.Add(constants.ConnectionUpgradeHeader, constants.ConnectionUpgradeTypeALPN)
+	req.Header.Add("Upgrade", "alpn")
 
-	// Send the request and checks if upgrade is successful.
+	// Send the request and check if upgrade is successful.
 	if err = req.Write(conn); err != nil {
 		return trace.Wrap(err)
 	}
@@ -140,7 +137,7 @@ func upgradeConnection(conn net.Conn, addr string) error {
 		if http.StatusNotFound == resp.StatusCode {
 			return trace.NotImplemented(
 				"connection upgrade call to %q failed with status code %v. Please upgrade the server and try again.",
-				constants.ConnectionUpgradeWebAPI,
+				connectionUpgradeWebAPI,
 				resp.StatusCode,
 			)
 		}
@@ -148,3 +145,9 @@ func upgradeConnection(conn net.Conn, addr string) error {
 	}
 	return nil
 }
+
+const (
+	// connectionUpgradeWebAPI is the HTTP web API to make the connection
+	// upgrade call.
+	connectionUpgradeWebAPI = "/webapi/connectionupgrade"
+)

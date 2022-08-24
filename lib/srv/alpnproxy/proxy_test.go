@@ -291,6 +291,9 @@ func TestProxyHTTPConnection(t *testing.T) {
 	suite := NewSuite(t)
 	l := mustCreateLocalListener(t)
 
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(rw http.ResponseWriter, r *http.Request) {})
+
 	lw := NewMuxListenerWrapper(l, suite.serverListener)
 
 	mustStartHTTPServer(t, lw)
@@ -335,7 +338,7 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 	svr := suite.CreateProxyServer(t)
 	customCA := mustGenSelfSignedCert(t)
 
-	// Create a ConnectionHandler from the proxy server with some options.
+	// Create a ConnectionHandler from the proxy server.
 	alpnConnHandler := svr.MakeConnectionHandler(&tls.Config{
 		NextProtos: []string{string(common.ProtocolHTTP)},
 		Certificates: []tls.Certificate{
@@ -351,6 +354,7 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	t.Cleanup(cancel)
 
+	// Let alpnConnHandler serve the connection in a separate go routine.
 	go func() {
 		alpnConnHandler(timeoutCtx, serverConn)
 		require.NoError(t, timeoutCtx.Err())

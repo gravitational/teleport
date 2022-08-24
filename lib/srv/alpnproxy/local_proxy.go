@@ -29,7 +29,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
@@ -73,8 +72,6 @@ type LocalProxyConfig struct {
 	RootCAs *x509.CertPool
 	// ALPNConnUpgradeRequired specifies if ALPN connection upgrade is required.
 	ALPNConnUpgradeRequired bool
-	// ALPNConnUpgradeInscure skips server verification when doing ALPN connection upgrade.
-	ALPNConnUpgradeInsecure bool
 }
 
 // CheckAndSetDefaults verifies the constraints for LocalProxyConfig.
@@ -153,9 +150,8 @@ func (l *LocalProxy) GetAddr() string {
 func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamConn net.Conn) error {
 	defer downstreamConn.Close()
 
-	upstreamConn, err := client.DialALPN(ctx, client.ALPNDialerConfig{
+	upstreamConn, err := DialALPN(ctx, l.cfg.RemoteProxyAddr, ALPNDialerConfig{
 		ALPNConnUpgradeRequired: l.cfg.ALPNConnUpgradeRequired,
-		ALPNConnUpgradeInsecure: l.cfg.ALPNConnUpgradeInsecure,
 		TLSConfig: &tls.Config{
 			NextProtos:         l.cfg.GetProtocols(),
 			InsecureSkipVerify: l.cfg.InsecureSkipVerify,
@@ -163,7 +159,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 			Certificates:       l.cfg.Certs,
 			RootCAs:            l.cfg.RootCAs,
 		},
-	}, l.cfg.RemoteProxyAddr)
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}

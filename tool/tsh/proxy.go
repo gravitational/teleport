@@ -462,7 +462,6 @@ func mkLocalProxy(ctx context.Context, opts localProxyOpts) (*alpnproxy.LocalPro
 		Certs:                   certs,
 		RootCAs:                 opts.rootCAs,
 		ALPNConnUpgradeRequired: opts.alpnConnUpgradeRequired,
-		ALPNConnUpgradeInsecure: opts.insecure,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

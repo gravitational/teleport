@@ -14,11 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package client
+package alpnproxy
 
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509/pkix"
 	"errors"
 	"net"
 	"net/http"
@@ -27,8 +28,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func TestIsALPNConnUpgradeRequired(t *testing.T) {
@@ -46,7 +50,7 @@ func TestIsALPNConnUpgradeRequired(t *testing.T) {
 		},
 		{
 			name:           "upgrade not required (proto negotiated)",
-			serverProtos:   []string{constants.ALPNSNIProtocolReverseTunnel},
+			serverProtos:   []string{string(common.ProtocolReverseTunnel)},
 			expectedResult: false,
 		},
 		{
@@ -68,11 +72,11 @@ func TestALPNConUpgradeDialer(t *testing.T) {
 	t.Parallel()
 
 	t.Run("connection upgraded", func(t *testing.T) {
-		server := httptest.NewTLSServer(mockConnUpgradeHandler(t, constants.ConnectionUpgradeTypeALPN, []byte("hello")))
+		server := httptest.NewTLSServer(mockConnUpgradeHandler(t, "alpn", []byte("hello")))
 		addr, err := url.Parse(server.URL)
 		require.NoError(t, err)
 
-		dialer := newALPNConnUpgradeDialer(5*time.Second, 5*time.Second, true)
+		dialer := newALPNConnUpgradeDialer(0, 5*time.Second, true)
 		conn, err := dialer.DialContext(context.TODO(), "tcp", addr.Host)
 		require.NoError(t, err)
 
@@ -87,7 +91,7 @@ func TestALPNConUpgradeDialer(t *testing.T) {
 		addr, err := url.Parse(server.URL)
 		require.NoError(t, err)
 
-		dialer := newALPNConnUpgradeDialer(5*time.Second, 5*time.Second, true)
+		dialer := newALPNConnUpgradeDialer(0, 5*time.Second, true)
 		_, err = dialer.DialContext(context.TODO(), "tcp", addr.Host)
 		require.Error(t, err)
 	})
@@ -135,7 +139,12 @@ func mustStartMockALPNServer(t *testing.T, supportedProtos []string) *mockALPNSe
 		listener.Close()
 	})
 
-	cert, err := tls.X509KeyPair(tlsCert, keyPEM)
+	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
+		CommonName: "localhost",
+	}, []string{"localhost"}, defaults.CATTL)
+	require.NoError(t, err)
+
+	cert, err := tls.X509KeyPair(caCert, caKey)
 	require.NoError(t, err)
 
 	m := &mockALPNServer{
@@ -151,8 +160,8 @@ func mustStartMockALPNServer(t *testing.T, supportedProtos []string) *mockALPNSe
 // upgrade request and sends back some data inside the tunnel.
 func mockConnUpgradeHandler(t *testing.T, upgradeType string, write []byte) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, constants.ConnectionUpgradeWebAPI, r.URL.Path)
-		require.Equal(t, upgradeType, r.Header.Get(constants.ConnectionUpgradeHeader))
+		require.Equal(t, connectionUpgradeWebAPI, r.URL.Path)
+		require.Equal(t, upgradeType, r.Header.Get("Upgrade"))
 
 		hj, ok := w.(http.Hijacker)
 		require.True(t, ok)

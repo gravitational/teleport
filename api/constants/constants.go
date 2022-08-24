@@ -321,17 +321,3 @@ const (
 	// allowed AWS role ARNs.
 	TraitAWSRoleARNs = "aws_role_arns"
 )
-
-const (
-	// ConnectionUpgradeWebAPI is the HTTP web API to make the connection
-	// upgrade call.
-	ConnectionUpgradeWebAPI = "/webapi/connectionupgrade"
-
-	// ConnectionUpgradeHeader is the HTTP header used to indicate requested
-	// connection upgrade types.
-	ConnectionUpgradeHeader = "Upgrade"
-
-	// ConnectionUpgradeTypeALPN is the requested connection upgrade type for
-	// server-side ALPN handler to handle the tunneled traffic.
-	ConnectionUpgradeTypeALPN = "alpn"
-)

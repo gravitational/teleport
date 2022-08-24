@@ -540,3 +540,25 @@ func (p *Proxy) MakeConnectionHandler(defaultOverride *tls.Config) ConnectionHan
 		return p.handleConn(ctx, conn, defaultOverride)
 	}
 }
+
+// ConnectionHandler defines a function for serving incoming connections.
+type ConnectionHandler func(ctx context.Context, conn net.Conn) error
+
+// ConnectionHandlerWrapper is a wrapper of ConnectionHandler. This wrapper is
+// mainly used as a placeholder to resolve circular dependencies.
+type ConnectionHandlerWrapper struct {
+	h ConnectionHandler
+}
+
+// Set updates inner ConnectionHandler to use.
+func (w *ConnectionHandlerWrapper) Set(h ConnectionHandler) {
+	w.h = h
+}
+
+// HandleConnection implements ConnectionHandler.
+func (w *ConnectionHandlerWrapper) HandleConnection(ctx context.Context, conn net.Conn) error {
+	if w.h == nil {
+		return trace.NotFound("missing ConnectionHandler")
+	}
+	return w.h(ctx, conn)
+}

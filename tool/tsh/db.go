@@ -27,7 +27,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport"
-	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
@@ -35,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -619,17 +619,17 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
 		insecure:                arg.cliConf.InsecureSkipVerify,
 		certFile:                certFile,
 		keyFile:                 keyFile,
-		alpnConnUpgradeRequired: apiclient.IsALPNConnUpgradeRequired(arg.teleportClient.WebProxyAddr, arg.cliConf.InsecureSkipVerify),
+		alpnConnUpgradeRequired: alpnproxy.IsALPNConnUpgradeRequired(arg.teleportClient.WebProxyAddr, arg.cliConf.InsecureSkipVerify),
 	}
 
 	// If ALPN connection upgrade is required, explicitly use the profile CAs
 	// since the tunneled TLS routing connection serves the Host cert.
 	if opts.alpnConnUpgradeRequired {
-		var err error
-		opts.rootCAs, err = utils.NewCertPoolFromPath(arg.profile.CACertPathForCluster(arg.teleportClient.SiteName))
+		profileCAs, err := utils.NewCertPoolFromPath(arg.profile.CACertPathForCluster(arg.teleportClient.SiteName))
 		if err != nil {
 			return localProxyOpts{}, trace.Wrap(err)
 		}
+		opts.rootCAs = profileCAs
 	}
 
 	// For SQL Server connections, local proxy must be configured with the

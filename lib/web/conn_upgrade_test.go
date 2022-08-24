@@ -25,7 +25,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -38,33 +37,39 @@ func TestWriteUpgradeResponse(t *testing.T) {
 	resp, err := http.ReadResponse(bufio.NewReader(&buf), nil)
 	require.NoError(t, err)
 	require.Equal(t, resp.StatusCode, http.StatusSwitchingProtocols)
-	require.Equal(t, "custom", resp.Header.Get(constants.ConnectionUpgradeHeader))
+	require.Equal(t, "custom", resp.Header.Get("Upgrade"))
 }
 
 func TestHandlerConnectionUpgrade(t *testing.T) {
 	t.Parallel()
 
+	expectedPayload := "hello@"
+	alpnHandler := func(_ context.Context, conn net.Conn) error {
+		// Handles connection asynchronously to verify web handler waits until
+		// connection is closed.
+		go func() {
+			defer conn.Close()
+			n, err := conn.Write([]byte(expectedPayload))
+			require.NoError(t, err)
+			require.Equal(t, len(expectedPayload), n)
+		}()
+		return nil
+	}
+
 	// Cherry picked some attributes to create a Handler to test only the
 	// connection upgrade portion.
-	expectedPayload := "hello@"
 	h := &Handler{
 		cfg: Config{
-			ALPNHandler: func(_ context.Context, conn net.Conn) error {
-				defer conn.Close()
-				n, err := conn.Write([]byte(expectedPayload))
-				require.NoError(t, err)
-				require.Equal(t, len(expectedPayload), n)
-				return nil
-			},
+			ALPNHandler: alpnHandler,
 		},
 		log:   newPackageLogger(),
 		clock: clockwork.NewRealClock(),
 	}
 
 	t.Run("unsupported type", func(t *testing.T) {
-		r, err := http.NewRequest("GET", "http://localhost/"+constants.ConnectionUpgradeWebAPI, nil)
+		r, err := http.NewRequest("GET", "http://localhost/webapi/connectionupgrade", nil)
 		require.NoError(t, err)
-		r.Header.Add(constants.ConnectionUpgradeHeader, "unsupported-protocol")
+		r.Header.Add("Upgrade", "unsupported-protocol")
 
 		_, err = h.connectionUpgrade(httptest.NewRecorder(), r, nil)
 		require.True(t, trace.IsBadParameter(err))
@@ -75,9 +80,9 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 		defer serverConn.Close()
 		defer clientConn.Close()
 
-		r, err := http.NewRequest("GET", "http://localhost/"+constants.ConnectionUpgradeWebAPI, nil)
+		r, err := http.NewRequest("GET", "http://localhost/webapi/connectionupgrade", nil)
 		require.NoError(t, err)
-		r.Header.Add(constants.ConnectionUpgradeHeader, constants.ConnectionUpgradeTypeALPN)
+		r.Header.Add("Upgrade", "alpn")
 
 		go func() {
 			// serverConn will be hijacked.

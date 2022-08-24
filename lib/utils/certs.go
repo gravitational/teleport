@@ -256,7 +256,7 @@ func ReadCertificates(certificateChainBytes []byte) ([]*x509.Certificate, error)
 	return x509Certs, nil
 }
 
-// ReadCertificatesFromPath parses PEM encoded certificates from provided file.
+// ReadCertificatesFromPath parses PEM encoded certificates from provided path.
 func ReadCertificatesFromPath(path string) ([]*x509.Certificate, error) {
 	bytes, err := ReadPath(path)
 	if err != nil {
@@ -270,7 +270,7 @@ func ReadCertificatesFromPath(path string) ([]*x509.Certificate, error) {
 	return certs, nil
 }
 
-// NewCertPoolFromPath creates a new x509.CertPool from provided file path.
+// NewCertPoolFromPath creates a new x509.CertPool from provided path.
 func NewCertPoolFromPath(path string) (*x509.CertPool, error) {
 	// x509.CertPool.AppendCertsFromPEM skips parse errors. Using our own
 	// implementation here to be more strict.
