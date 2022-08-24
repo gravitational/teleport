@@ -25,4 +25,7 @@ type InstanceMetadata interface {
 	IsAvailable(ctx context.Context) bool
 	// GetTags gets all of the instance's tags.
 	GetTags(ctx context.Context) (map[string]string, error)
+	// GetHostname gets the hostname set by the cloud instance that Teleport
+	// should use, if any.
+	GetHostname(ctx context.Context) (string, error)
 }

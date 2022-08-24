@@ -895,13 +895,12 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	}
 
 	if imClient.IsAvailable(supervisor.ExitContext()) {
-		ec2Tags, err := imClient.GetTags(supervisor.ExitContext())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if ec2Hostname, ok := ec2Tags[types.EC2HostnameTag]; ok && ec2Hostname != "" {
-			cfg.Log.Infof("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2HostnameTag, ec2Hostname)
+		ec2Hostname, err := imClient.GetHostname(supervisor.ExitContext())
+		if err == nil {
+			cfg.Log.Infof("Found %q tag in cloud instance. Using %q as hostname.", types.CloudHostnameTag, ec2Hostname)
 			cfg.Hostname = ec2Hostname
+		} else if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
 		}
 
 		ec2Labels, err := labels.NewEC2(supervisor.ExitContext(), &labels.CloudConfig{

@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
@@ -158,6 +159,20 @@ func (client *InstanceMetadataClient) GetTags(ctx context.Context) (map[string]s
 		tags[tag.Name] = tag.Value
 	}
 	return tags, nil
+}
+
+// GetHostname gets the hostname set by the cloud instance that Teleport
+// should use, if any.
+func (client *InstanceMetadataClient) GetHostname(ctx context.Context) (string, error) {
+	tags, err := client.GetTags(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	value, ok := tags[types.CloudHostnameTag]
+	if !ok {
+		return "", trace.NotFound("Tag %q not found", types.CloudHostnameTag)
+	}
+	return value, nil
 }
 
 // selectVersion selects the most recent API version greater than or equal to

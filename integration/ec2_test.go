@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 func newSilentLogger() utils.Logger {
@@ -304,6 +305,14 @@ func (m *mockIMDSClient) GetTags(ctx context.Context) (map[string]string, error)
 	return m.tags, nil
 }
 
+func (m *mockIMDSClient) GetHostname(ctx context.Context) (string, error) {
+	value, ok := m.tags[types.CloudHostnameTag]
+	if !ok {
+		return "", trace.NotFound("")
+	}
+	return value, nil
+}
+
 // TestEC2Labels is an integration test which asserts that Teleport correctly picks up
 // EC2 tags when running on an EC2 instance.
 func TestEC2Labels(t *testing.T) {
@@ -437,7 +446,7 @@ func TestEC2Hostname(t *testing.T) {
 
 	imClient := &mockIMDSClient{
 		tags: map[string]string{
-			types.EC2HostnameTag: teleportHostname,
+			types.CloudHostnameTag: teleportHostname,
 		},
 	}
 

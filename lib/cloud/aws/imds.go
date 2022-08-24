@@ -24,6 +24,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
@@ -128,4 +129,11 @@ func (client *InstanceMetadataClient) GetTags(ctx context.Context) (map[string]s
 		tags[key] = value
 	}
 	return tags, nil
+}
+
+// GetHostname gets the hostname set by EC2 that Teleport
+// should use, if any.
+func (client *InstanceMetadataClient) GetHostname(ctx context.Context) (string, error) {
+	value, err := client.getTagValue(ctx, types.CloudHostnameTag)
+	return value, trace.Wrap(err)
 }

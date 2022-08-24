@@ -29,3 +29,7 @@ func (d *DisabledIMDSClient) IsAvailable(ctx context.Context) bool {
 func (d *DisabledIMDSClient) GetTags(ctx context.Context) (map[string]string, error) {
 	return nil, nil
 }
+
+func (d *DisabledIMDSClient) GetHostname(ctx context.Context) (string, error) {
+	return "", nil
+}
