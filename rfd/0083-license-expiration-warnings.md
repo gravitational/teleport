@@ -1,5 +1,5 @@
 ---
-authors: edwarddowling (edward.dolwing@goteleport.com), r0mant (roman@goteleport.com)
+authors: edwarddowling (edward.dowling@goteleport.com), r0mant (roman@goteleport.com)
 ---
 
 
