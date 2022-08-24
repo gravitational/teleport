@@ -64,7 +64,16 @@ func (d *pgDriver) open(ctx context.Context, u *url.URL) (sqlbk.DB, error) {
 	}
 	connConfig.Logger = d.sqlLogger
 
-	// extract the user from the first client certificate in TLSConfig.
+	beforeConnect := func(ctx context.Context, config *pgx.ConnConfig) error { return nil }
+	if d.cfg.Azure.Username != "" {
+		beforeConnect, err = azureBeforeConnect(d.cfg.Azure.ClientID, d.cfg.Log)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// Unless otherwise specified, extract the user from the first client
+	// certificate in TLSConfig.
 	if connConfig.User == "" && connConfig.TLSConfig != nil {
 		connConfig.User, err = tlsConfigUser(connConfig.TLSConfig)
 		if err != nil {
@@ -76,13 +85,19 @@ func (d *pgDriver) open(ctx context.Context, u *url.URL) (sqlbk.DB, error) {
 	}
 
 	// Attempt to create backend database if it does not exist.
-	err = d.maybeCreateDatabase(ctx, connConfig)
+	createConfig := *connConfig
+	// We have to do the beforeConnect dance manually here because it's not part
+	// of pgx.ConnConfig, it's only stored in connection pool configs.
+	if err := beforeConnect(ctx, &createConfig); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = d.maybeCreateDatabase(ctx, &createConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Open connection/pool for backend database.
-	db := stdlib.OpenDB(*connConfig)
+	db := stdlib.OpenDB(*connConfig, stdlib.OptionBeforeConnect(beforeConnect))
 
 	// Configure the connection pool.
 	db.SetConnMaxIdleTime(d.cfg.ConnMaxIdleTime)
@@ -153,7 +168,11 @@ func (d *pgDriver) url() *url.URL {
 	}
 	q := u.Query()
 	q.Set("sslmode", "verify-full")
-	q.Set("user", d.cfg.Username)
+	user := d.cfg.TLS.Username
+	if d.cfg.Azure.Username != "" {
+		user = d.cfg.Azure.Username
+	}
+	q.Set("user", user)
 	q.Set("sslrootcert", d.cfg.TLS.CAFile)
 	q.Set("sslcert", d.cfg.TLS.ClientCertFile)
 	q.Set("sslkey", d.cfg.TLS.ClientKeyFile)

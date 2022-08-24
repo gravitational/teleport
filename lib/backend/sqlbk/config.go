@@ -49,10 +49,6 @@ type Config struct {
 	// Database is the database where teleport will store its data.
 	Database string `json:"database,omitempty"`
 
-	// Username is the username to use to connect. Might be optional depending
-	// on the authentication mechanism.
-	Username string `json:"username,omitempty"`
-
 	// TLS defines configurations for validating server certificates
 	// and mutual authentication.
 	TLS struct {
@@ -67,7 +63,21 @@ type Config struct {
 		// TLSCAFile is the trusted certificate authority used to generate the
 		// client certificates.
 		CAFile string `json:"ca_file,omitempty"`
+
+		// Username is the optional username used to connect, overriding the CN
+		// specified by the client certificate.
+		Username string `json:"username,omitempty"`
 	} `json:"tls"`
+
+	Azure struct {
+		// Username is the username used to connect.
+		Username string `json:"username,omitempty"`
+
+		// ClientID is the optional client ID of the managed identity to use.
+		// Might be required if there's more than one managed identity available
+		// through the IDMS.
+		ClientID string `json:"client_id,omitempty"`
+	} `json:"azure"`
 
 	// BufferSize is a default buffer size used to emit events.
 	BufferSize int `json:"buffer_size,omitempty"`
@@ -121,7 +131,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.RetryTimeout = DefaultRetryTimeout
 	}
 	if c.EventsTTL < c.PollStreamPeriod {
-		return trace.BadParameter("PollStreamPeriod must be greater than EventsTTL to emit storage events")
+		return trace.BadParameter("EventsTTL must be greater than PollStreamPeriod to emit storage events")
 	}
 	if c.Log == nil {
 		return trace.BadParameter("Log is required")
@@ -132,14 +142,36 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Addr == "" {
 		return trace.BadParameter("Addr is required")
 	}
-	if c.TLS.CAFile == "" {
-		return trace.BadParameter("TLS.CAFile is required")
-	}
-	if c.TLS.ClientKeyFile == "" {
-		return trace.BadParameter("TLS.ClientKeyFile is required")
-	}
-	if c.TLS.ClientCertFile == "" {
-		return trace.BadParameter("TLS.ClientCertFile is required")
+
+	// TODO: find a way to have less boilerplate here
+	if c.Azure.Username == "" {
+		const when = " when using mTLS authentication"
+		if c.TLS.CAFile == "" {
+			return trace.BadParameter("TLS.CAFile is required" + when)
+		}
+		if c.TLS.ClientKeyFile == "" {
+			return trace.BadParameter("TLS.ClientKeyFile is required" + when)
+		}
+		if c.TLS.ClientCertFile == "" {
+			return trace.BadParameter("TLS.ClientCertFile is required" + when)
+		}
+		if c.Azure.ClientID != "" {
+			return trace.BadParameter("Azure.ClientID is not supported" + when)
+		}
+	} else {
+		const when = " when using Azure AD authentication"
+		if c.TLS.CAFile == "" {
+			return trace.BadParameter("TLS.CAFile is required" + when)
+		}
+		if c.TLS.ClientKeyFile != "" {
+			return trace.BadParameter("TLS.ClientKeyFile is not supported" + when)
+		}
+		if c.TLS.ClientCertFile != "" {
+			return trace.BadParameter("TLS.ClientCertFile is not supported" + when)
+		}
+		if c.TLS.Username != "" {
+			return trace.BadParameter("TLS.Username is not supported" + when)
+		}
 	}
 	return nil
 }
