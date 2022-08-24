@@ -20,15 +20,15 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // newAzureFetcher returns a Azure DB server fetcher for the provided subscription, group, regions, and tags.
