@@ -281,10 +281,10 @@ func tagPipeline(b buildType) pipeline {
 		tagEnvironment["WINDOWS_SIGNING_CERT"] = value{fromSecret: "WINDOWS_SIGNING_CERT"}
 	}
 
-	var extraQualifications []string
-	if b.os == "windows" {
-		extraQualifications = []string{"tsh client only"}
-	}
+	//var extraQualifications []string
+	//if b.os == "windows" {
+	//	extraQualifications = []string{"tsh client only"}
+	//}
 
 	p := newKubePipeline(pipelineName)
 	p.Environment = map[string]value{
@@ -333,22 +333,22 @@ func tagPipeline(b buildType) pipeline {
 			Image:    "docker",
 			Commands: tagCopyArtifactCommands(b),
 		},
-		uploadToS3Step(s3Settings{
-			region:      "us-west-2",
-			source:      "/go/artifacts/*",
-			target:      "teleport/tag/${DRONE_TAG##v}",
-			stripPrefix: "/go/artifacts/",
-		}),
-		{
-			Name:     "Register artifacts",
-			Image:    "docker",
-			Commands: tagCreateReleaseAssetCommands(b, "", extraQualifications),
-			Failure:  "ignore",
-			Environment: map[string]value{
-				"RELEASES_CERT": {fromSecret: "RELEASES_CERT_STAGING"},
-				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY_STAGING"},
-			},
-		},
+		//uploadToS3Step(s3Settings{
+		//	region:      "us-west-2",
+		//	source:      "/go/artifacts/*",
+		//	target:      "teleport/tag/${DRONE_TAG##v}",
+		//	stripPrefix: "/go/artifacts/",
+		//}),
+		//{
+		//	Name:     "Register artifacts",
+		//	Image:    "docker",
+		//	Commands: tagCreateReleaseAssetCommands(b, "", extraQualifications),
+		//	Failure:  "ignore",
+		//	Environment: map[string]value{
+		//		"RELEASES_CERT": {fromSecret: "RELEASES_CERT_STAGING"},
+		//		"RELEASES_KEY":  {fromSecret: "RELEASES_KEY_STAGING"},
+		//	},
+		//},
 	}
 	return p
 }
@@ -560,22 +560,22 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 			Image:    "docker",
 			Commands: tagCopyPackageArtifactCommands(b, packageType),
 		},
-		uploadToS3Step(s3Settings{
-			region:      "us-west-2",
-			source:      "/go/artifacts/*",
-			target:      "teleport/tag/${DRONE_TAG##v}",
-			stripPrefix: "/go/artifacts/",
-		}),
-		{
-			Name:     "Register artifacts",
-			Image:    "docker",
-			Commands: tagCreateReleaseAssetCommands(b, strings.ToUpper(packageType), nil),
-			Failure:  "ignore",
-			Environment: map[string]value{
-				"RELEASES_CERT": {fromSecret: "RELEASES_CERT_STAGING"},
-				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY_STAGING"},
-			},
-		},
+		//uploadToS3Step(s3Settings{
+		//	region:      "us-west-2",
+		//	source:      "/go/artifacts/*",
+		//	target:      "teleport/tag/${DRONE_TAG##v}",
+		//	stripPrefix: "/go/artifacts/",
+		//}),
+		//{
+		//	Name:     "Register artifacts",
+		//	Image:    "docker",
+		//	Commands: tagCreateReleaseAssetCommands(b, strings.ToUpper(packageType), nil),
+		//	Failure:  "ignore",
+		//	Environment: map[string]value{
+		//		"RELEASES_CERT": {fromSecret: "RELEASES_CERT_STAGING"},
+		//		"RELEASES_KEY":  {fromSecret: "RELEASES_KEY_STAGING"},
+		//	},
+		//},
 	}
 	return p
 }
