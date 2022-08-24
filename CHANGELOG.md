@@ -1,5 +1,24 @@
 # Changelog
 
+## 9.3.18
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with log spam related to EC2 label import when not running on AWS. [#15179](https://github.com/gravitational/teleport/pull/15179)
+* Fixed issue with `tctl auth sign` not including TLS server name in kubeconfig. [#15631](https://github.com/gravitational/teleport/pull/15631)
+* Fixed issue with `--no-enable-escape-sequences` not being honored in `tsh`. [#14457](https://github.com/gravitational/teleport/pull/14457)
+* Fixed issue with node name not showing up in recordings list in proxy recording mode. [#14995](https://github.com/gravitational/teleport/pull/14995)
+* Fixed issue with improper shutdown of Desktop Access connections. [#15074](https://github.com/gravitational/teleport/pull/15074)
+* Fixed issue with `teleport configure` failing it output directory does not exist. [#15386](https://github.com/gravitational/teleport/pull/15386)
+* Fixed issue with string `"true"` causing issues in `email_verified` OIDC claim. [#14918](https://github.com/gravitational/teleport/pull/14918)
+* Fixed issue with `kubectl exec` failing during concurrent Kubernetes Access. [#15465](https://github.com/gravitational/teleport/pull/15465)
+* Fixed issue with `get-kubeconfig.sh` script not working for Kubernetes 1.24+. [#15620](https://github.com/gravitational/teleport/pull/15620)
+* Fixed issue with `second_factor` setting unmarshal in some cases. [#15202](https://github.com/gravitational/teleport/pull/15202)
+* Fixed issue with Desktop Access always using LDAP DNS resolver. [#15256](https://github.com/gravitational/teleport/pull/15256)
+* Improved error handling for Kubernetes session joining. [#15493](https://github.com/gravitational/teleport/pull/15493)
+* Added support for variable playback speed for Desktop Access session recordings. [#15327](https://github.com/gravitational/teleport/pull/15327)
+* Added `teleport install systemd` command. [#15271](https://github.com/gravitational/teleport/pull/15271)
+
 ## 9.3.14
 
 This release of Teleport contains multiple improvements and bug fixes.

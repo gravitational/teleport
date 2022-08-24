@@ -161,9 +161,10 @@ func TestWrite(t *testing.T) {
 	cfg.OutputPath = filepath.Join(outputDir, "kubeconfig")
 	cfg.Format = FormatKubernetes
 	cfg.KubeProxyAddr = "far.away.cluster"
+	cfg.KubeTLSServerName = "kube.far.away.cluster"
 	_, err = Write(cfg)
 	require.NoError(t, err)
-	assertKubeconfigContents(t, cfg.OutputPath, key.ClusterName, "far.away.cluster")
+	assertKubeconfigContents(t, cfg.OutputPath, key.ClusterName, "far.away.cluster", cfg.KubeTLSServerName)
 }
 
 func TestKubeconfigOverwrite(t *testing.T) {
@@ -184,17 +185,18 @@ func TestKubeconfigOverwrite(t *testing.T) {
 	cfg.KubeProxyAddr = "far.away.cluster"
 	_, err = Write(cfg)
 	require.NoError(t, err)
-	assertKubeconfigContents(t, cfg.OutputPath, key.ClusterName, "far.away.cluster")
+	assertKubeconfigContents(t, cfg.OutputPath, key.ClusterName, "far.away.cluster", "")
 
 	// Write a kubeconfig for a different cluster to the same file path. It
 	// should be overwritten.
 	cfg.KubeProxyAddr = "other.cluster"
+	cfg.KubeTLSServerName = "kube.other.cluster"
 	_, err = Write(cfg)
 	require.NoError(t, err)
-	assertKubeconfigContents(t, cfg.OutputPath, key.ClusterName, "other.cluster")
+	assertKubeconfigContents(t, cfg.OutputPath, key.ClusterName, "other.cluster", cfg.KubeTLSServerName)
 }
 
-func assertKubeconfigContents(t *testing.T, path, clusterName, serverAddr string) {
+func assertKubeconfigContents(t *testing.T, path, clusterName, serverAddr, kubeTLSName string) {
 	t.Helper()
 
 	kc, err := kubeconfig.Load(path)
@@ -204,4 +206,5 @@ func assertKubeconfigContents(t *testing.T, path, clusterName, serverAddr string
 	require.Len(t, kc.Contexts, 1)
 	require.Len(t, kc.Clusters, 1)
 	require.Equal(t, kc.Clusters[clusterName].Server, serverAddr)
+	require.Equal(t, kc.Clusters[clusterName].TLSServerName, kubeTLSName)
 }
