@@ -62,8 +62,18 @@ type azureFetcherConfig struct {
 	Labels types.Labels
 	// Regions is the Azure regions selectors to match cloud databases.
 	Regions []string
-	// regionMatches returns whether a given region matches the configured Regions selector
-	regionMatches func(region string) bool
+	// regionSet is a set of regions, used for efficient region match lookup.
+	regionSet map[string]struct{}
+}
+
+// regionMatches returns whether a given region matches the configured Regions selector
+func (f *azureFetcher) regionMatches(region string) bool {
+	if _, ok := f.cfg.regionSet[types.Wildcard]; ok {
+		// wildcard matches all regions
+		return true
+	}
+	_, ok := f.cfg.regionSet[region]
+	return ok
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
@@ -83,16 +93,7 @@ func (c *azureFetcherConfig) CheckAndSetDefaults() error {
 	if len(c.Regions) == 0 {
 		return trace.BadParameter("missing parameter Regions")
 	}
-	if apiutils.SliceContainsStr(c.Regions, types.Wildcard) {
-		// wildcard matches all regions
-		c.regionMatches = func(_ string) bool { return true }
-	} else {
-		regionSet := utils.StringsSet(c.Regions)
-		c.regionMatches = func(region string) bool {
-			_, ok := regionSet[region]
-			return ok
-		}
-	}
+	c.regionSet = utils.StringsSet(c.Regions)
 	return nil
 }
 
@@ -132,7 +133,7 @@ func (f *azureFetcher) getDatabases(ctx context.Context) (types.Databases, error
 			continue
 		}
 		// azure sdk provides no way to query by region, so we have to filter results
-		if !f.cfg.regionMatches(server.Location) {
+		if !f.regionMatches(server.Location) {
 			continue
 		}
 
