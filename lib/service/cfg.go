@@ -609,6 +609,10 @@ type SSHConfig struct {
 
 	// X11 holds x11 forwarding configuration for Teleport.
 	X11 *x11.ServerConfig
+
+	// AllowFileCopying indicates whether this node is allowed to handle
+	// remote file operations via SCP or SFTP.
+	AllowFileCopying bool
 }
 
 // KubeConfig specifies configuration for kubernetes service
@@ -1272,6 +1276,7 @@ func ApplyDefaults(cfg *Config) {
 	cfg.SSH.BPF = &bpf.Config{Enabled: false}
 	cfg.SSH.RestrictedSession = &restricted.Config{Enabled: false}
 	cfg.SSH.AllowTCPForwarding = true
+	cfg.SSH.AllowFileCopying = true
 
 	// Kubernetes service defaults.
 	cfg.Kube.Enabled = false

@@ -197,6 +197,7 @@ func TestRoleParse(t *testing.T) {
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
+						SSHFileCopy:             types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{},
@@ -231,6 +232,7 @@ func TestRoleParse(t *testing.T) {
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
+						SSHFileCopy:             types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
 						Namespaces: []string{apidefaults.Namespace},
@@ -257,7 +259,8 @@ func TestRoleParse(t *testing.T) {
 							"disconnect_expired_cert": "yes",
 							"enhanced_recording": ["command", "network"],
 							"desktop_clipboard": true,
-							"desktop_directory_sharing": true
+							"desktop_directory_sharing": true,
+							"ssh_file_copy" : false
 						},
 						"allow": {
 							"node_labels": {"a": "b", "c-d": "e"},
@@ -302,6 +305,7 @@ func TestRoleParse(t *testing.T) {
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
+						SSHFileCopy:             types.NewBoolOption(false),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{"a": []string{"b"}, "c-d": []string{"e"}},
@@ -346,7 +350,8 @@ func TestRoleParse(t *testing.T) {
 							  "disconnect_expired_cert": "no",
 							  "enhanced_recording": ["command", "network"],
 							  "desktop_clipboard": true,
-								"desktop_directory_sharing": true
+							  "desktop_directory_sharing": true,
+							  "ssh_file_copy" : true
 							},
 							"allow": {
 							  "node_labels": {"a": "b"},
@@ -389,6 +394,7 @@ func TestRoleParse(t *testing.T) {
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
+						SSHFileCopy:             types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{"a": []string{"b"}},
@@ -431,7 +437,8 @@ func TestRoleParse(t *testing.T) {
 							  "disconnect_expired_cert": "no",
 							  "enhanced_recording": ["command", "network"],
 							  "desktop_clipboard": true,
-								"desktop_directory_sharing": true
+							  "desktop_directory_sharing": true,
+							  "ssh_file_copy" : true
 							},
 							"allow": {
 							  "node_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
@@ -463,6 +470,7 @@ func TestRoleParse(t *testing.T) {
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
+						SSHFileCopy:             types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
 						NodeLabels: types.Labels{
@@ -523,7 +531,7 @@ func TestRoleParse(t *testing.T) {
 }
 
 func TestValidateRole(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
 		name         string
 		spec         types.RoleSpecV5
 		err          error
@@ -605,7 +613,7 @@ func TestValidateRole(t *testing.T) {
 }
 
 func TestValidateRoleName(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
 		name         string
 		roleName     string
 		err          error
@@ -1836,7 +1844,7 @@ func TestApplyTraits(t *testing.T) {
 		inImpersonate           types.ImpersonateConditions
 		outImpersonate          types.ImpersonateConditions
 	}
-	var tests = []struct {
+	tests := []struct {
 		comment  string
 		inTraits map[string][]string
 		allow    rule
@@ -2387,7 +2395,7 @@ func TestExtractFrom(t *testing.T) {
 // TestBoolOptions makes sure that bool options (like agent forwarding and
 // port forwarding) can be disabled in a role.
 func TestBoolOptions(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
 		inOptions                  types.RoleOptions
 		outCanPortForward          bool
 		outCanForwardAgents        bool
@@ -3902,22 +3910,21 @@ func TestCheckAccessToWindowsDesktop(t *testing.T) {
 //
 // To run benchmark:
 //
-//    go test -bench=.
+//	go test -bench=.
 //
 // To run benchmark and obtain CPU and memory profiling:
 //
-//    go test -bench=. -cpuprofile=cpu.prof -memprofile=mem.prof
+//	go test -bench=. -cpuprofile=cpu.prof -memprofile=mem.prof
 //
 // To use the command line tool to read the profile:
 //
-//   go tool pprof cpu.prof
-//   go tool pprof cpu.prof
+//	go tool pprof cpu.prof
+//	go tool pprof cpu.prof
 //
 // To generate a graph:
 //
-//   go tool pprof --pdf cpu.prof > cpu.pdf
-//   go tool pprof --pdf mem.prof > mem.pdf
-//
+//	go tool pprof --pdf cpu.prof > cpu.pdf
+//	go tool pprof --pdf mem.prof > mem.pdf
 func BenchmarkCheckAccessToServer(b *testing.B) {
 	servers := make([]*types.ServerV2, 0, 4000)
 

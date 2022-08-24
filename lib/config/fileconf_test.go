@@ -127,7 +127,6 @@ func TestAuthSection(t *testing.T) {
 			desc: "Web idle timeout",
 			mutate: func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["web_idle_timeout"] = "10m"
-
 			},
 			expectError:          require.NoError,
 			expectWebIdleTimeout: requireEqual(types.Duration(10 * time.Minute)),
@@ -135,7 +134,6 @@ func TestAuthSection(t *testing.T) {
 			desc: "Web idle timeout (invalid)",
 			mutate: func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["web_idle_timeout"] = "potato"
-
 			},
 			expectError: require.Error,
 		},
@@ -318,7 +316,8 @@ func TestAuthenticationConfig_HandleSecondFactorOffOnWithoutQoutes(t *testing.T)
 		expectError        require.ErrorAssertionFunc
 		expectSecondFactor require.ValueAssertionFunc
 	}{
-		{desc: "handle off with quotes", input: `
+		{
+			desc: "handle off with quotes", input: `
 auth_service:
   enabled: yes
   authentication:
@@ -329,8 +328,10 @@ teleport:
 ssh_service:
   enabled: yes`,
 			expectError:        require.NoError,
-			expectSecondFactor: requireEqual(constants.SecondFactorOff)},
-		{desc: "handle off without quotes", input: `
+			expectSecondFactor: requireEqual(constants.SecondFactorOff),
+		},
+		{
+			desc: "handle off without quotes", input: `
 auth_service:
   enabled: yes
   authentication:
@@ -341,8 +342,10 @@ teleport:
 ssh_service:
   enabled: yes`,
 			expectError:        require.NoError,
-			expectSecondFactor: requireEqual(constants.SecondFactorOff)},
-		{desc: "handle on without quotes", input: `
+			expectSecondFactor: requireEqual(constants.SecondFactorOff),
+		},
+		{
+			desc: "handle on without quotes", input: `
 auth_service:
   enabled: yes
   authentication:
@@ -353,8 +356,10 @@ teleport:
 ssh_service:
   enabled: yes`,
 			expectError:        require.NoError,
-			expectSecondFactor: requireEqual(constants.SecondFactorOn)},
-		{desc: "unsupported numeric type as second_factor", input: `
+			expectSecondFactor: requireEqual(constants.SecondFactorOn),
+		},
+		{
+			desc: "unsupported numeric type as second_factor", input: `
 auth_service:
   enabled: yes
   authentication:
@@ -446,6 +451,7 @@ func TestSSHSection(t *testing.T) {
 		expectError               require.ErrorAssertionFunc
 		expectEnabled             require.BoolAssertionFunc
 		expectAllowsTCPForwarding require.BoolAssertionFunc
+		expectFileCopying         require.BoolAssertionFunc
 	}{
 		{
 			desc:                      "default",
@@ -492,7 +498,30 @@ func TestSSHSection(t *testing.T) {
 			},
 			expectError: require.Error,
 		}, {
-			desc: "X11 enabled",
+			desc: "File copying is enabled",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["ssh_file_copy"] = true
+			},
+			expectError:       require.NoError,
+			expectEnabled:     require.True,
+			expectFileCopying: require.True,
+		}, {
+			desc: "File copying is disabled",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["ssh_file_copy"] = false
+			},
+			expectError:       require.NoError,
+			expectEnabled:     require.True,
+			expectFileCopying: require.False,
+		}, {
+			desc:              "File copying is enabled by default",
+			mutate:            func(cfg cfgMap) {},
+			expectError:       require.NoError,
+			expectEnabled:     require.True,
+			expectFileCopying: require.True,
+		}, {
+			desc:        "X11 enabled",
+			expectError: require.NoError,
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["x11"] = cfgMap{
 					"enabled": "yes",
@@ -544,9 +573,12 @@ func TestSSHSection(t *testing.T) {
 			if testCase.expectAllowsTCPForwarding != nil {
 				testCase.expectAllowsTCPForwarding(t, cfg.SSH.AllowTCPForwarding())
 			}
+
+			if testCase.expectFileCopying != nil {
+				testCase.expectFileCopying(t, cfg.SSH.SSHFileCopy())
+			}
 		})
 	}
-
 }
 
 func TestX11Config(t *testing.T) {

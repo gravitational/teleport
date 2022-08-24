@@ -995,6 +995,8 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 		return trace.Wrap(err)
 	}
 
+	cfg.SSH.AllowFileCopying = fc.SSH.SSHFileCopy()
+
 	return nil
 }
 

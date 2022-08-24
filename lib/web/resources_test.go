@@ -124,6 +124,7 @@ spec:
     port_forwarding: true
     record_session:
       desktop: true
+    ssh_file_copy: true
 version: v3
 `
 	role, err := types.NewRole("roleName", types.RoleSpecV5{

@@ -1630,6 +1630,14 @@ message RoleOptions {
         (gogoproto.jsontag) = "desktop_directory_sharing",
         (gogoproto.customtype) = "BoolOption"
     ];
+
+    // SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed
+    // over an SSH session. It defaults to true unless explicitly set to false.
+    BoolValue SSHFileCopy = 22 [
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "ssh_file_copy",
+        (gogoproto.customtype) = "BoolOption"
+    ];
 }
 
 message RecordSession {

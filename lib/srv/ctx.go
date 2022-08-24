@@ -71,6 +71,8 @@ var (
 	)
 )
 
+var ErrNodeFileCopyingNotPermitted = trace.AccessDenied("node does not allow file copying via SCP or SFTP")
+
 func init() {
 	prometheus.MustRegister(serverTX)
 	prometheus.MustRegister(serverRX)
@@ -331,6 +333,10 @@ type ServerContext struct {
 	// port to connect to in a "direct-tcpip" request. This value is only
 	// populated for port forwarding requests.
 	DstAddr string
+
+	// allowFileCopying controls if remote file operations via SCP/SFTP are allowed
+	// by the server.
+	AllowFileCopying bool
 
 	// x11rdy{r,w} is used to signal from the child process to the
 	// parent process when X11 forwarding is set up.
@@ -598,6 +604,25 @@ func (c *ServerContext) getSession() *session {
 	return c.session
 }
 
+func (c *ServerContext) SetAllowFileCopying(allow bool) {
+	c.AllowFileCopying = allow
+}
+
+// CheckFileCopyingAllowed returns an error if remote file operations via
+// SCP or SFTP are not allowed by the user's role or the node's config.
+func (c *ServerContext) CheckFileCopyingAllowed() error {
+	// Check if remote file operations are disabled for this node.
+	if !c.AllowFileCopying {
+		return ErrNodeFileCopyingNotPermitted
+	}
+	// Check if the user's RBAC role allows remote file operations.
+	if !c.Identity.RoleSet.CanCopyFiles() {
+		return errRoleFileCopyingNotPermitted
+	}
+
+	return nil
+}
+
 // OpenXServerListener opens a new XServer unix listener.
 func (c *ServerContext) OpenXServerListener(x11Req x11.ForwardRequestPayload, displayOffset, maxDisplays int) error {
 	l, display, err := x11.OpenNewXServerListener(displayOffset, maxDisplays, x11Req.ScreenNumber)
@@ -858,7 +883,7 @@ func (c *ServerContext) SendSubsystemResult(r SubsystemResult) {
 // available proxy. if public_address is not set, fall back to the hostname
 // of the first proxy we get back.
 func (c *ServerContext) ProxyPublicAddress() string {
-	//TODO(tross): Get the proxy address somehow - types.KindProxy is not replicated to Nodes
+	// TODO(tross): Get the proxy address somehow - types.KindProxy is not replicated to Nodes
 	return "<proxyhost>:3080"
 }
 
