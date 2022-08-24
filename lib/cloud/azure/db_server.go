@@ -97,7 +97,7 @@ func (s *DBServer) IsSupported() bool {
 	case defaults.ProtocolPostgres:
 		return isPostgresVersionSupported(s)
 	default:
-		panic("unreachable")
+		return false
 	}
 }
 
