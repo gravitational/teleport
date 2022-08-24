@@ -68,15 +68,15 @@ type ProxyConfig struct {
 // NewRouter creates a ALPN new router.
 func NewRouter() *Router {
 	return &Router{
-		alpnHandlers: make([]*HandlerDesc, 0),
+		alpnHandlers: make([]*HandlerDecs, 0),
 	}
 }
 
 // Router contains information about protocol handlers and routing rules.
 type Router struct {
-	alpnHandlers       []*HandlerDesc
-	kubeHandler        *HandlerDesc
-	databaseTLSHandler *HandlerDesc
+	alpnHandlers       []*HandlerDecs
+	kubeHandler        *HandlerDecs
+	databaseTLSHandler *HandlerDecs
 	mtx                sync.Mutex
 }
 
@@ -144,28 +144,33 @@ func (r *Router) CheckAndSetDefaults() error {
 }
 
 // AddKubeHandler adds the handle for Kubernetes protocol (distinguishable by  "kube." SNI prefix).
-func (r *Router) AddKubeHandler(desc HandlerDesc) {
+func (r *Router) AddKubeHandler(handler HandlerFunc) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
-	r.kubeHandler = &desc
+	r.kubeHandler = &HandlerDecs{
+		Handler:    handler,
+		ForwardTLS: true,
+	}
 }
 
 // AddDBTLSHandler adds the handler for DB TLS traffic.
-func (r *Router) AddDBTLSHandler(desc HandlerDesc) {
+func (r *Router) AddDBTLSHandler(handler HandlerFunc) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
-	r.databaseTLSHandler = &desc
+	r.databaseTLSHandler = &HandlerDecs{
+		Handler: handler,
+	}
 }
 
 // Add sets the handler for DB TLS traffic.
-func (r *Router) Add(desc HandlerDesc) {
+func (r *Router) Add(desc HandlerDecs) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 	r.alpnHandlers = append(r.alpnHandlers, &desc)
 }
 
-// HandlerDesc describes the handler for particular protocols.
-type HandlerDesc struct {
+// HandlerDecs describes the handler for particular protocols.
+type HandlerDecs struct {
 	// Handler is protocol handling logic.
 	Handler HandlerFunc
 	// HandlerWithConnInfo is protocol handler function providing additional TLS insight.
@@ -183,13 +188,9 @@ type HandlerDesc struct {
 	// By default, the ProxyConfig.WebTLSConfig configuration is used to TLS terminate incoming connection
 	// but if HandleDesc.TLSConfig is present it will take precedence over ProxyConfig TLS configuration.
 	TLSConfig *tls.Config
-	// IsAsync specifies that the provided handler is asynchronous and it will
-	// handle closing of the client connections. The handler is typically async
-	// when using the ListenerMuxWrapper.
-	IsAsync bool
 }
 
-func (h *HandlerDesc) CheckAndSetDefaults() error {
+func (h *HandlerDecs) CheckAndSetDefaults() error {
 	if h.Handler != nil && h.HandlerWithConnInfo != nil {
 		return trace.BadParameter("can't create route with both Handler and HandlerWithConnInfo handlers")
 	}
@@ -203,7 +204,7 @@ func (h *HandlerDesc) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (h *HandlerDesc) handle(ctx context.Context, conn net.Conn, info ConnectionInfo) error {
+func (h *HandlerDecs) handle(ctx context.Context, conn net.Conn, info ConnectionInfo) error {
 	if h.HandlerWithConnInfo != nil {
 		return h.HandlerWithConnInfo(ctx, conn, info)
 	}
@@ -213,7 +214,7 @@ func (h *HandlerDesc) handle(ctx context.Context, conn net.Conn, info Connection
 	return h.Handler(ctx, conn)
 }
 
-func (h *HandlerDesc) getTLSConfig(defaultTLSConfig *tls.Config) *tls.Config {
+func (h *HandlerDecs) getTLSConfig(defaultTLSConfig *tls.Config) *tls.Config {
 	if h.TLSConfig != nil {
 		return h.TLSConfig
 	}
@@ -311,9 +312,11 @@ func (p *Proxy) Serve(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 		go func() {
+			// In case of successful handleConn call leave the connection Close() call up to service handler.
+			// For example in ReverseTunnel handles connection asynchronously and closing conn after
+			// service handler returned will break service logic.
+			// https://github.com/gravitational/teleport/blob/master/lib/sshutils/server.go#L397
 			if err := p.handleConn(ctx, clientConn, options); err != nil {
-				// Try to close clientConn in case err happens before
-				// clientConn is closed.
 				if cerr := clientConn.Close(); cerr != nil && !utils.IsOKNetworkError(cerr) {
 					p.log.WithError(cerr).Warnf("Failed to close client connection.")
 				}
@@ -356,55 +359,29 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, opts *conne
 		return trace.Wrap(err)
 	}
 
-	handlerDesc, err := p.getHandlerDescBaseOnClientHelloMsg(hello)
+	handlerDesc, err := p.getHandlerDecsBaseOnClientHelloMsg(hello)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-
-	// Wrap incoming net.Conn with waitConn in case we have to wait for aysnc
-	// handlers.
-	waitConn := newWaitConn(ctx, conn)
-	conn = waitConn
-
-	// Upgrade conn to tls.Conn if not forwarding TLS.
-	if !handlerDesc.ForwardTLS {
-		conn, handlerDesc, err = p.setupTLSConnForHandler(conn, handlerDesc, opts)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	// Close clientConn for "sync" handlers. "Async" handlers will close the
-	// connections by themselves.
-	if !handlerDesc.IsAsync {
-		defer func() {
-			if err := clientConn.Close(); err != nil && !utils.IsOKNetworkError(err) {
-				p.log.WithError(err).Warnf("Failed to close client connection.")
-			}
-		}()
-	}
-	// Wait for async handlers if options says so.
-	if handlerDesc.IsAsync && opts.waitForAsyncHandlers {
-		defer waitConn.WaitForClose()
 	}
 
 	connInfo := ConnectionInfo{
 		SNI:  hello.ServerName,
 		ALPN: hello.SupportedProtos,
 	}
-	return trace.Wrap(handlerDesc.handle(ctx, conn, connInfo))
-}
 
-func (p *Proxy) setupTLSConnForHandler(conn net.Conn, handlerDesc *HandlerDesc, opts *connectionHandlerOptions) (net.Conn, *HandlerDesc, error) {
+	if handlerDesc.ForwardTLS {
+		return trace.Wrap(handlerDesc.handle(ctx, conn, connInfo))
+	}
+
 	tlsConn := tls.Server(conn, handlerDesc.getTLSConfig(opts.defaultTLSConfig))
 	if err := tlsConn.SetReadDeadline(p.cfg.Clock.Now().Add(p.cfg.ReadDeadline)); err != nil {
-		return nil, nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	if err := tlsConn.Handshake(); err != nil {
-		return nil, nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	if err := tlsConn.SetReadDeadline(time.Time{}); err != nil {
-		return nil, nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	isDatabaseConnection, err := dbutils.IsDatabaseConnection(tlsConn.ConnectionState())
@@ -412,13 +389,9 @@ func (p *Proxy) setupTLSConnForHandler(conn net.Conn, handlerDesc *HandlerDesc, 
 		p.log.WithError(err).Debug("Failed to check if connection is database connection.")
 	}
 	if isDatabaseConnection {
-		if p.cfg.Router.databaseTLSHandler == nil {
-			return nil, nil, trace.BadParameter("missing database TLS handler")
-		}
-		return tlsConn, p.cfg.Router.databaseTLSHandler, nil
+		return trace.Wrap(p.handleDatabaseConnection(ctx, tlsConn, connInfo))
 	}
-
-	return tlsConn, handlerDesc, nil
+	return trace.Wrap(handlerDesc.handle(ctx, tlsConn, connInfo))
 }
 
 // readHelloMessageWithoutTLSTermination allows reading a ClientHelloInfo message without termination of
@@ -448,6 +421,13 @@ func (p *Proxy) readHelloMessageWithoutTLSTermination(conn net.Conn) (*tls.Clien
 		return nil, nil, trace.Wrap(err)
 	}
 	return hello, newBufferedConn(conn, buff), nil
+}
+
+func (p *Proxy) handleDatabaseConnection(ctx context.Context, conn net.Conn, connInfo ConnectionInfo) error {
+	if p.cfg.Router.databaseTLSHandler == nil {
+		return trace.BadParameter("database handle not enabled")
+	}
+	return p.cfg.Router.databaseTLSHandler.handle(ctx, conn, connInfo)
 }
 
 func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.Conn, info ConnectionInfo) error {
@@ -482,13 +462,10 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 	if !isDatabaseConnection {
 		return trace.BadParameter("not database connection")
 	}
-	if p.cfg.Router.databaseTLSHandler == nil {
-		return trace.BadParameter("database handle not enabled")
-	}
-	return trace.Wrap(p.cfg.Router.databaseTLSHandler.handle(ctx, tlsConn, info))
+	return trace.Wrap(p.handleDatabaseConnection(ctx, tlsConn, info))
 }
 
-func (p *Proxy) getHandlerDescBaseOnClientHelloMsg(clientHelloInfo *tls.ClientHelloInfo) (*HandlerDesc, error) {
+func (p *Proxy) getHandlerDecsBaseOnClientHelloMsg(clientHelloInfo *tls.ClientHelloInfo) (*HandlerDecs, error) {
 	if shouldRouteToKubeService(clientHelloInfo.ServerName) {
 		if p.cfg.Router.kubeHandler == nil {
 			return nil, trace.BadParameter("received kube request but k8 service is disabled")
@@ -498,8 +475,8 @@ func (p *Proxy) getHandlerDescBaseOnClientHelloMsg(clientHelloInfo *tls.ClientHe
 	return p.getHandleDescBasedOnALPNVal(clientHelloInfo)
 }
 
-// getHandleDescBasedOnALPNVal returns the HandlerDesc base on ALPN field read from ClientHelloInfo message.
-func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo) (*HandlerDesc, error) {
+// getHandleDescBasedOnALPNVal returns the HandlerDecs base on ALPN field read from ClientHelloInfo message.
+func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo) (*HandlerDecs, error) {
 	// Add the HTTP protocol as a default protocol. If client supported
 	// list is empty the default HTTP handler will be returned.
 	clientProtocols := clientHelloInfo.SupportedProtos
@@ -513,11 +490,10 @@ func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo
 			if p.cfg.Router.databaseTLSHandler == nil {
 				return nil, trace.BadParameter("missing database TLS handler")
 			}
-			return &HandlerDesc{
+			return &HandlerDecs{
 				MatchFunc:           MatchByProtocol(protocol),
 				HandlerWithConnInfo: p.databaseHandlerWithTLSTermination,
 				ForwardTLS:          false,
-				IsAsync:             p.cfg.Router.databaseTLSHandler.IsAsync,
 			}, nil
 		}
 

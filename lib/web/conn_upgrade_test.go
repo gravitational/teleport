@@ -50,6 +50,7 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 	h := &Handler{
 		cfg: Config{
 			ALPNHandler: func(_ context.Context, conn net.Conn) error {
+				defer conn.Close()
 				n, err := conn.Write([]byte(expectedPayload))
 				require.NoError(t, err)
 				require.Equal(t, len(expectedPayload), n)

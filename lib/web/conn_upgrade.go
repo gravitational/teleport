@@ -17,7 +17,9 @@ limitations under the License.
 package web
 
 import (
+	"context"
 	"io"
+	"net"
 	"net/http"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -33,10 +35,7 @@ func (h *Handler) selectConnectionUpgrade(r *http.Request) (string, ConnectionHa
 	for _, upgradeType := range upgrades {
 		switch upgradeType {
 		case constants.ConnectionUpgradeTypeALPN:
-			if h.cfg.ALPNHandler == nil {
-				return "", nil, trace.BadParameter("missing ALPNHandler")
-			}
-			return upgradeType, h.cfg.ALPNHandler, nil
+			return upgradeType, h.upgradeALPN, nil
 		}
 	}
 
@@ -74,6 +73,20 @@ func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p ht
 	return nil, nil
 }
 
+func (h *Handler) upgradeALPN(ctx context.Context, conn net.Conn) error {
+	if h.cfg.ALPNHandler == nil {
+		return trace.BadParameter("missing ALPNHandler")
+	}
+
+	// ALPNHandler may handle some connections asynchronously. Here we want to
+	// block until the handling is done by waiting until the connection is
+	// closed.
+	waitConn := newWaitConn(ctx, conn)
+	defer waitConn.WaitForClose()
+
+	return h.cfg.ALPNHandler(ctx, waitConn)
+}
+
 func writeUpgradeResponse(w io.Writer, upgradeType string) error {
 	header := make(http.Header)
 	header.Add(constants.ConnectionUpgradeHeader, upgradeType)
@@ -85,4 +98,34 @@ func writeUpgradeResponse(w io.Writer, upgradeType string) error {
 		ProtoMinor: 1,
 	}
 	return response.Write(w)
+}
+
+// waitConn is a net.Conn that provides a "WaitForClose" function to wait until
+// the connection is closed.
+type waitConn struct {
+	net.Conn
+	ctx    context.Context
+	cancel context.CancelFunc
+}
+
+// newWaitConn creates a new waitConn.
+func newWaitConn(ctx context.Context, conn net.Conn) *waitConn {
+	ctx, cancel := context.WithCancel(ctx)
+	return &waitConn{
+		Conn:   conn,
+		ctx:    ctx,
+		cancel: cancel,
+	}
+}
+
+// WaitForClose blocks until the Close() function of this connection is called.
+func (conn *waitConn) WaitForClose() {
+	<-conn.ctx.Done()
+}
+
+// Close implements net.Conn.
+func (conn *waitConn) Close() error {
+	err := conn.Conn.Close()
+	conn.cancel()
+	return trace.Wrap(err)
 }

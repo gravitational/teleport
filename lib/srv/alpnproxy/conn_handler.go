@@ -27,9 +27,6 @@ import (
 // connectionHandlerOptions contains options when ALPN server handles an
 // incoming connection.
 type connectionHandlerOptions struct {
-	// waitForAsyncHandlers makes the connection handler wait until the
-	// connection is closed for async handlers.
-	waitForAsyncHandlers bool
 	// defaultTLSConfig is the default TLS config served to the incoming
 	// connection during TLS handshake, if HandlerDesc does not provide a
 	// tls.Config.
@@ -39,14 +36,6 @@ type connectionHandlerOptions struct {
 // ConnectionHandlerOption defines an option function for specifying connection
 // handler options.
 type ConnectionHandlerOption func(*connectionHandlerOptions)
-
-// WithWaitForAsyncHandlers is an option function that makes the server wait
-// for async handlers to close the connections.
-func WithWaitForAsyncHandlers() ConnectionHandlerOption {
-	return func(opt *connectionHandlerOptions) {
-		opt.waitForAsyncHandlers = true
-	}
-}
 
 // WithDefaultTLSconfig is an option function that provides a default TLS
 // config.
