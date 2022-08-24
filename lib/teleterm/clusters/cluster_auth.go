@@ -151,7 +151,7 @@ func (c *Cluster) SSOLogin(ctx context.Context, providerType, providerName strin
 	response, err := client.SSHAgentSSOLogin(ctx, client.SSHLoginSSO{
 		SSHLogin: client.SSHLogin{
 			ProxyAddr:         c.clusterClient.WebProxyAddr,
-			PubKey:            key.SSHPublicKeyPEM(),
+			PubKey:            key.MarshalSSHPublicKey(),
 			TTL:               c.clusterClient.KeyTTL,
 			Insecure:          c.clusterClient.InsecureSkipVerify,
 			Compatibility:     c.clusterClient.CertificateFormat,
@@ -182,7 +182,7 @@ func (c *Cluster) localMFALogin(ctx context.Context, user, password string) erro
 	response, err := client.SSHAgentMFALogin(ctx, client.SSHLoginMFA{
 		SSHLogin: client.SSHLogin{
 			ProxyAddr:         c.clusterClient.WebProxyAddr,
-			PubKey:            key.SSHPublicKeyPEM(),
+			PubKey:            key.MarshalSSHPublicKey(),
 			TTL:               c.clusterClient.KeyTTL,
 			Insecure:          c.clusterClient.InsecureSkipVerify,
 			Compatibility:     c.clusterClient.CertificateFormat,
@@ -212,7 +212,7 @@ func (c *Cluster) localLogin(ctx context.Context, user, password, otpToken strin
 	response, err := client.SSHAgentLogin(ctx, client.SSHLoginDirect{
 		SSHLogin: client.SSHLogin{
 			ProxyAddr:         c.clusterClient.WebProxyAddr,
-			PubKey:            key.SSHPublicKeyPEM(),
+			PubKey:            key.MarshalSSHPublicKey(),
 			TTL:               c.clusterClient.KeyTTL,
 			Insecure:          c.clusterClient.InsecureSkipVerify,
 			Compatibility:     c.clusterClient.CertificateFormat,
@@ -300,7 +300,7 @@ func (c *Cluster) PasswordlessLogin(ctx context.Context, stream api.TerminalServ
 	response, err := client.SSHAgentPasswordlessLogin(ctx, client.SSHLoginPasswordless{
 		SSHLogin: client.SSHLogin{
 			ProxyAddr:         c.clusterClient.WebProxyAddr,
-			PubKey:            key.SSHPublicKeyPEM(),
+			PubKey:            key.MarshalSSHPublicKey(),
 			TTL:               c.clusterClient.KeyTTL,
 			Insecure:          c.clusterClient.InsecureSkipVerify,
 			Compatibility:     c.clusterClient.CertificateFormat,

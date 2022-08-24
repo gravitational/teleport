@@ -78,12 +78,12 @@ func GenerateKeyPair() ([]byte, []byte, error) {
 }
 
 // GeneratePrivateKey generates a new RSA private key.
-func GeneratePrivateKey() (keys.PrivateKey, error) {
+func GeneratePrivateKey() (*keys.PrivateKey, error) {
 	rsaKey, err := generateRSAPrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return keys.NewRSAPrivateKey(rsaKey)
+	return keys.NewPrivateKey(rsaKey)
 }
 
 func generateRSAPrivateKey() (*rsa.PrivateKey, error) {

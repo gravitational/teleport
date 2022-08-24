@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -637,7 +636,7 @@ func (c *kubeCredentialsCommand) writeResponse(key *client.Key, kubeClusterName 
 
 	// TODO (Joerger): Create a custom k8s Auth Provider or Exec Provider to use non-rsa
 	// private keys for kube credentials (if possible)
-	rsaKeyPEM, err := keys.GetRSAPrivateKeyPEM(key.PrivateKey)
+	rsaKeyPEM, err := key.PrivateKey.RSAPrivateKeyPEM()
 	if err != nil {
 		return trace.Wrap(err)
 	}

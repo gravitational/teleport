@@ -47,7 +47,7 @@ func NewWithClock(clock clockwork.Clock) *Keygen {
 }
 
 // GeneratePrivateKey generates a new PrivateKey.
-func (n *Keygen) GeneratePrivateKey() (keys.PrivateKey, error) {
+func (n *Keygen) GeneratePrivateKey() (*keys.PrivateKey, error) {
 	priv, _, err := n.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)

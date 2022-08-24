@@ -23,6 +23,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"runtime"
 	"strings"
 
 	"golang.org/x/crypto/ssh"
@@ -31,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -204,9 +206,27 @@ func (a *LocalKeyAgent) LoadKeyForCluster(clusterName string) error {
 // agent.
 func (a *LocalKeyAgent) LoadKey(key Key) error {
 	// convert keys into a format understood by the ssh agent
-	agentKeys, err := key.AsAgentKeys()
+	agentKey, err := key.AsAgentKey()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// On all OS'es, load the certificate with the private key embedded.
+	agentKeys := []agent.AddedKey{agentKey}
+	if runtime.GOOS != constants.WindowsOS {
+		// On Unix, also load a lone private key.
+		//
+		// (2016-08-01) have a bug in how they use certificates that have been lo
+		// This is done because OpenSSH clients older than OpenSSH 7.3/7.3p1aded
+		// in an agent. Specifically when you add a certificate to an agent, you can't
+		// just embed the private key within the certificate, you have to add the
+		// certificate and private key to the agent separately. Teleport works around
+		// this behavior to ensure OpenSSH interoperability.
+		//
+		// For more details see the following: https://bugzilla.mindrot.org/show_bug.cgi?id=2550
+		// WARNING: callers expect the returned slice to be __exactly as it is__
+		agentKey.Certificate = nil
+		agentKeys = append(agentKeys, agentKey)
 	}
 
 	a.log.Infof("Loading SSH key for user %q and cluster %q.", a.username, key.ClusterName)

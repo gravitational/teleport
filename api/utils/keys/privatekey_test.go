@@ -17,6 +17,9 @@ limitations under the License.
 package keys
 
 import (
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/rsa"
 	"crypto/tls"
 	"testing"
 
@@ -53,7 +56,9 @@ func TestParsePrivateKey(t *testing.T) {
 			keyPEM:      rsaKeyPEM,
 			assertError: require.NoError,
 			assertKey: func(tt require.TestingT, key interface{}, i2 ...interface{}) {
-				require.IsType(t, &RSAPrivateKey{}, key)
+				privateKey, ok := key.(*PrivateKey)
+				require.True(t, ok)
+				require.IsType(t, &rsa.PrivateKey{}, privateKey.GetBaseSigner())
 			},
 		},
 		{
@@ -61,7 +66,9 @@ func TestParsePrivateKey(t *testing.T) {
 			keyPEM:      ecdsaKeyPEM,
 			assertError: require.NoError,
 			assertKey: func(tt require.TestingT, key interface{}, i2 ...interface{}) {
-				require.IsType(t, &ECDSAPrivateKey{}, key)
+				privateKey, ok := key.(*PrivateKey)
+				require.True(t, ok)
+				require.IsType(t, &ecdsa.PrivateKey{}, privateKey.GetBaseSigner())
 			},
 		},
 		{
@@ -69,7 +76,9 @@ func TestParsePrivateKey(t *testing.T) {
 			keyPEM:      ed25519KeyPEM,
 			assertError: require.NoError,
 			assertKey: func(tt require.TestingT, key interface{}, i2 ...interface{}) {
-				require.IsType(t, &ED25519PrivateKey{}, key)
+				privateKey, ok := key.(*PrivateKey)
+				require.True(t, ok)
+				require.IsType(t, ed25519.PrivateKey{}, privateKey.GetBaseSigner())
 			},
 		},
 	} {

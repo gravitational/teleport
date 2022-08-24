@@ -18,6 +18,7 @@ limitations under the License.
 package ppk_test
 
 import (
+	"crypto/rsa"
 	"testing"
 
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -216,10 +217,10 @@ Private-MAC: a9b12c6450e46fd7abbaaff5841f8a64f9597c7b2b59bd69d6fd3ceee0ca61ea
 			priv, err := keys.ParsePrivateKey(tc.priv)
 			require.NoError(t, err)
 
-			rsaPriv, ok := priv.(*keys.RSAPrivateKey)
+			rsaPriv, ok := priv.GetBaseSigner().(*rsa.PrivateKey)
 			require.True(t, ok)
 
-			output, err := ppk.ConvertToPPK(rsaPriv.PrivateKey, tc.pub)
+			output, err := ppk.ConvertToPPK(rsaPriv, tc.pub)
 			require.NoError(t, err)
 			require.Equal(t, output, tc.output)
 		})

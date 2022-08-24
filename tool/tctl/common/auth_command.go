@@ -421,7 +421,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI auth.Clie
 	}
 	clusterName := cn.GetClusterName()
 
-	key.Cert, err = clusterAPI.GenerateHostCert(key.SSHPublicKeyPEM(),
+	key.Cert, err = clusterAPI.GenerateHostCert(key.MarshalSSHPublicKey(),
 		"", "", principals,
 		clusterName, types.RoleNode, 0)
 	if err != nil {
@@ -658,7 +658,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 	reqExpiry := time.Now().UTC().Add(a.genTTL)
 	// Request signed certs from `auth` server.
 	certs, err := clusterAPI.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey:         key.SSHPublicKeyPEM(),
+		PublicKey:         key.MarshalSSHPublicKey(),
 		Username:          a.genUser,
 		Expires:           reqExpiry,
 		Format:            certificateFormat,

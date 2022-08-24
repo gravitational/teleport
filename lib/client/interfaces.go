@@ -22,7 +22,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"runtime"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -31,7 +30,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
@@ -73,7 +71,7 @@ type Key struct {
 	KeyIndex
 
 	// PrivateKey is a private key used for cryptographical operations.
-	keys.PrivateKey
+	*keys.PrivateKey
 
 	// Cert is an SSH client certificate
 	Cert []byte `json:"Cert,omitempty"`
@@ -98,15 +96,15 @@ type Key struct {
 
 // GenerateRSAKey generates a new unsigned key.
 func GenerateRSAKey() (*Key, error) {
-	pk, err := native.GeneratePrivateKey()
+	priv, err := native.GeneratePrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return NewKey(pk), nil
+	return NewKey(priv), nil
 }
 
 // NewKey creates a new Key for the given private key.
-func NewKey(priv keys.PrivateKey) *Key {
+func NewKey(priv *keys.PrivateKey) *Key {
 	return &Key{
 		PrivateKey:          priv,
 		KubeTLSCerts:        make(map[string][]byte),
@@ -392,36 +390,12 @@ func (k *Key) CertRoles() ([]string, error) {
 
 // AsAgentKeys converts client.Key struct to a []*agent.AddedKey. All elements
 // of the []*agent.AddedKey slice need to be loaded into the agent!
-func (k *Key) AsAgentKeys() ([]agent.AddedKey, error) {
+func (k *Key) AsAgentKey() (agent.AddedKey, error) {
 	sshCert, err := k.SSHCert()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return agent.AddedKey{}, trace.Wrap(err)
 	}
-
-	agentKey, err := keys.AsAgentKey(k.PrivateKey, sshCert)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// On all OS'es, return the certificate with the private key embedded.
-	agentKeys := []agent.AddedKey{agentKey}
-	if runtime.GOOS != constants.WindowsOS {
-		// On Unix, also return a lone private key.
-		//
-		// (2016-08-01) have a bug in how they use certificates that have been lo
-		// This is done because OpenSSH clients older than OpenSSH 7.3/7.3p1aded
-		// in an agent. Specifically when you add a certificate to an agent, you can't
-		// just embed the private key within the certificate, you have to add the
-		// certificate and private key to the agent separately. Teleport works around
-		// this behavior to ensure OpenSSH interoperability.
-		//
-		// For more details see the following: https://bugzilla.mindrot.org/show_bug.cgi?id=2550
-		// WARNING: callers expect the returned slice to be __exactly as it is__
-		agentKey.Certificate = nil
-		agentKeys = append(agentKeys, agentKey)
-	}
-
-	return agentKeys, nil
+	return k.PrivateKey.AsAgentKey(sshCert)
 }
 
 // TeleportTLSCertificate returns the parsed x509 certificate for
@@ -559,23 +533,6 @@ func (k *Key) checkCert(sshCert *ssh.Certificate) error {
 	return nil
 }
 
-func (k *Key) SSHPublicKeyPEM() []byte {
-	return ssh.MarshalAuthorizedKey(k.SSHPublicKey())
-}
-
-// PPKFile returns a PuTTY PPK-formatted keypair
-func (k *Key) PPKFile() ([]byte, error) {
-	priv, ok := k.PrivateKey.(*keys.RSAPrivateKey)
-	if !ok {
-		return nil, trace.BadParameter("cannot use private key of type %T as rsa.PrivateKey", k)
-	}
-	ppkFile, err := ppk.ConvertToPPK(priv.PrivateKey, k.SSHPublicKeyPEM())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return ppkFile, nil
-}
-
 // HostKeyCallback returns an ssh.HostKeyCallback that validates host
 // keys/certs against SSH CAs in the Key.
 //
@@ -622,5 +579,5 @@ func (k *Key) EqualPrivateKey(other *Key) bool {
 	// identifies a PIV slot, so we can use the public key to verify
 	// that the private key on the slot hasn't changed.
 	return subtle.ConstantTimeCompare(k.PrivateKeyPEM(), other.PrivateKeyPEM()) == 1 &&
-		bytes.Equal(k.SSHPublicKeyPEM(), other.SSHPublicKeyPEM())
+		bytes.Equal(k.MarshalSSHPublicKey(), other.MarshalSSHPublicKey())
 }

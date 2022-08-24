@@ -128,7 +128,7 @@ func MakeTestClientTLSCert(config TestClientConfig) (*tls.Certificate, error) {
 	}
 	// Generate client certificate for the Teleport user.
 	cert, err := config.AuthServer.GenerateDatabaseTestCert(auth.DatabaseTestCertRequest{
-		PublicKey:       key.SSHPublicKeyPEM(),
+		PublicKey:       key.MarshalSSHPublicKey(),
 		Cluster:         config.Cluster,
 		Username:        config.Username,
 		RouteToDatabase: config.RouteToDatabase,

@@ -23,7 +23,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -158,7 +157,7 @@ func Update(path string, v Values) error {
 
 		// TODO (Joerger): Create a custom k8s Auth Provider or Exec Provider to use non-rsa
 		// private keys for kube credentials (if possible)
-		rsaKeyPEM, err := keys.GetRSAPrivateKeyPEM(v.Credentials.PrivateKey)
+		rsaKeyPEM, err := v.Credentials.PrivateKey.RSAPrivateKeyPEM()
 		if err == nil {
 			if len(v.Credentials.TLSCert) == 0 {
 				return trace.BadParameter("TLS certificate missing in provided credentials")

@@ -18,7 +18,6 @@ package main
 
 import (
 	"context"
-	"crypto"
 	"errors"
 	"fmt"
 	"io"
@@ -47,7 +46,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -3224,17 +3222,7 @@ func onShow(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	var privateKey crypto.PrivateKey
-	switch priv := key.PrivateKey.(type) {
-	case *keys.RSAPrivateKey:
-		privateKey = priv.PrivateKey
-	case *keys.ECDSAPrivateKey:
-		privateKey = priv.PrivateKey
-	default:
-		privateKey = priv
-	}
-
-	fmt.Printf("Cert: %#v\nPriv: %#v\nPub: %#v\n", cert, privateKey, key.SSHPublicKeyPEM())
+	fmt.Printf("Cert: %#v\nPriv: %#v\nPub: %#v\n", cert, key.GetBaseSigner(), key.MarshalSSHPublicKey())
 	fmt.Printf("Fingerprint: %s\n", ssh.FingerprintSHA256(key.SSHPublicKey()))
 	return nil
 }

@@ -126,17 +126,15 @@ func createAgent(me *user.User, key *client.Key) (*teleagent.AgentServer, string
 	sockDirName := "int-test"
 	sockName := "agent.sock"
 
-	agentKeys, err := key.AsAgentKeys()
+	agentKey, err := key.AsAgentKey()
 	if err != nil {
 		return nil, "", "", trace.Wrap(err)
 	}
 
 	// create a (unstarted) agent and add the agent key(s) to it
 	keyring := agent.NewKeyring()
-	for _, agentKey := range agentKeys {
-		if err := keyring.Add(agentKey); err != nil {
-			return nil, "", "", trace.Wrap(err)
-		}
+	if err := keyring.Add(agentKey); err != nil {
+		return nil, "", "", trace.Wrap(err)
 	}
 
 	teleAgent := teleagent.NewServer(func() (teleagent.Agent, error) {
@@ -196,7 +194,7 @@ func MustCreateUserIdentityFile(t *testing.T, tc *helpers.TeleInstance, username
 	key.ClusterName = tc.Secrets.SiteName
 
 	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCerts(
-		key.SSHPublicKeyPEM(), username, ttl,
+		key.MarshalSSHPublicKey(), username, ttl,
 		constants.CertificateFormatStandard,
 		tc.Secrets.SiteName, "",
 	)

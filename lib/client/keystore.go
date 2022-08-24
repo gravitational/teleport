@@ -143,7 +143,7 @@ func (fs *FSLocalKeyStore) AddKey(key *Key) error {
 		return trace.Wrap(err)
 	}
 
-	if err := fs.writeBytes(key.SSHPublicKeyPEM(), fs.publicKeyPath(key.KeyIndex)); err != nil {
+	if err := fs.writeBytes(key.MarshalSSHPublicKey(), fs.publicKeyPath(key.KeyIndex)); err != nil {
 		return trace.Wrap(err)
 	}
 
