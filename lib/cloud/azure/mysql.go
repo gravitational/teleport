@@ -44,11 +44,11 @@ func (c *mySQLClient) Get(ctx context.Context, group, name string) (*DBServer, e
 	return ServerFromMySQLServer(&res.Server), nil
 }
 
-func (c *mySQLClient) ListAll(ctx context.Context, maxPages int) ([]*DBServer, error) {
+func (c *mySQLClient) ListAll(ctx context.Context) ([]*DBServer, error) {
 	var servers []*DBServer
 	options := &armmysql.ServersClientListOptions{}
 	pager := c.api.NewListPager(options)
-	for pageNum := 0; pageNum < maxPages && pager.More(); pageNum++ {
+	for pageNum := 0; pager.More(); pageNum++ {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			return nil, trace.Wrap(ConvertResponseError(err))
@@ -60,11 +60,11 @@ func (c *mySQLClient) ListAll(ctx context.Context, maxPages int) ([]*DBServer, e
 	return servers, nil
 }
 
-func (c *mySQLClient) ListWithinGroup(ctx context.Context, group string, maxPages int) ([]*DBServer, error) {
+func (c *mySQLClient) ListWithinGroup(ctx context.Context, group string) ([]*DBServer, error) {
 	var servers []*DBServer
 	options := &armmysql.ServersClientListByResourceGroupOptions{}
 	pager := c.api.NewListByResourceGroupPager(group, options)
-	for pageNum := 0; pageNum < maxPages && pager.More(); pageNum++ {
+	for pageNum := 0; pager.More(); pageNum++ {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			return nil, trace.Wrap(ConvertResponseError(err))

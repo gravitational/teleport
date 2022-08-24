@@ -77,7 +77,6 @@ func TestListServers(t *testing.T) {
 			want:   []*DBServer{pgDBServer2},
 		},
 	}
-	maxPages := 10
 	ctx := context.Background()
 
 	for _, tt := range tests {
@@ -87,9 +86,9 @@ func TestListServers(t *testing.T) {
 				err     error
 			)
 			if tt.group == types.Wildcard {
-				servers, err = tt.client.ListAll(ctx, maxPages)
+				servers, err = tt.client.ListAll(ctx)
 			} else {
-				servers, err = tt.client.ListWithinGroup(ctx, tt.group, maxPages)
+				servers, err = tt.client.ListWithinGroup(ctx, tt.group)
 			}
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(tt.want, servers))

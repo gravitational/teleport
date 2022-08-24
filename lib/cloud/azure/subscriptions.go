@@ -42,11 +42,11 @@ func NewSubscriptionClient(api ARMSubscriptions) *SubscriptionClient {
 }
 
 // ListSubscriptionIDs lists all subscription IDs using the Azure Subscription API.
-func (c *SubscriptionClient) ListSubscriptionIDs(ctx context.Context, maxPages int) ([]string, error) {
+func (c *SubscriptionClient) ListSubscriptionIDs(ctx context.Context) ([]string, error) {
 	pagerOpts := &armsubscription.SubscriptionsClientListOptions{}
 	pager := c.api.NewListPager(pagerOpts)
 	subIDs := []string{}
-	for pageNum := 0; pageNum < maxPages && pager.More(); pageNum++ {
+	for pageNum := 0; pager.More(); pageNum++ {
 		res, err := pager.NextPage(ctx)
 		if err != nil {
 			return nil, trace.Wrap(ConvertResponseError(err))

@@ -54,7 +54,7 @@ func TestListSubscriptionIDs(t *testing.T) {
 			client := NewSubscriptionClient(tt.mockAPI)
 
 			// verify we get all subscriptions
-			subIDs, err := client.ListSubscriptionIDs(ctx, 10)
+			subIDs, err := client.ListSubscriptionIDs(ctx)
 			require.NoError(t, err)
 			require.ElementsMatch(t, tt.wantIDs, subIDs)
 		})
