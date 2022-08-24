@@ -27,7 +27,6 @@ import (
 
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/gravitational/trace"
-	cache "github.com/patrickmn/go-cache"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
@@ -103,82 +102,9 @@ type HTTPRequester interface {
 // If userTeams is not nil, only organizations that are both specified
 // in conn and in userTeams will be checked. If client is nil a
 // net/http.Client will be used.
-func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, userTeams []teamResponse, orgCache *cache.Cache, client HTTPRequester) error {
+func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, userTeams []teamResponse, orgCache *utils.FnCache, client HTTPRequester) error {
 	version := modules.GetModules().BuildType()
 	if version == modules.BuildEnterprise {
-		return nil
-	}
-
-	if client == nil {
-		transport, err := defaults.Transport()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		client = &http.Client{
-			Transport: transport,
-		}
-	}
-
-	checkOrg := func(org string) error {
-		errUsesSSO := func() error {
-			return trace.AccessDenied(
-				"GitHub organization %s uses external SSO, please purchase a Teleport Enterprise license if you want to authenticate with this organization",
-				org,
-			)
-		}
-
-		// See if the result is already cached
-		orgResult, ok := orgCache.Get(org)
-		if ok {
-			usesSSO := orgResult.(bool)
-			if usesSSO {
-				return errUsesSSO()
-			}
-			return nil
-		}
-
-		// A Github organization will have a "sso" page reachable if it
-		// supports external SSO. There doesn't seem to be any way to get this
-		// information from the Github REST API without being an owner of the
-		// Github organization, so check if this exists instead.
-		ssoURL := fmt.Sprintf("%s/%s/%s", githubOrgsURL, url.PathEscape(org), "sso")
-
-		const retries int = 3
-		var resp *http.Response
-		for i := 0; i < retries; i++ {
-			ctx, cancel := context.WithTimeout(ctx, defaults.HTTPRequestTimeout)
-			defer cancel()
-
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, ssoURL, nil)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			var urlErr *url.Error
-			resp, err = client.Do(req)
-			if err == nil {
-				break
-			} else if errors.As(err, &urlErr) && urlErr.Timeout() {
-				if i == retries-1 {
-					// The connection timed out a couple of times in a row,
-					// stop trying and return the error.
-					return trace.ConnectionProblem(err, "Timed out trying to reach GitHub to check for organization external SSO.")
-				}
-				// Connection timed out, try to make the request again
-				continue
-			}
-			// Unknown error, don't try making any more requests
-			return trace.Wrap(err, "Unknown error trying to reach GitHub to check for organization external SSO")
-		}
-		resp.Body.Close()
-
-		if resp.StatusCode == 200 {
-			orgCache.Add(org, true, cache.DefaultExpiration)
-			return errUsesSSO()
-		}
-
-		orgCache.Add(org, false, cache.DefaultExpiration)
-
 		return nil
 	}
 
@@ -205,9 +131,72 @@ func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, u
 		addOrg(mapping.Organization)
 	}
 
-	for org := range orgs {
-		if err := checkOrg(org); err != nil {
+	if client == nil {
+		transport, err := defaults.Transport()
+		if err != nil {
 			return trace.Wrap(err)
+		}
+		client = &http.Client{
+			Transport: transport,
+		}
+	}
+
+	checkOrg := func(org string) (bool, error) {
+		// A Github organization will have a "sso" page reachable if it
+		// supports external SSO. There doesn't seem to be any way to get this
+		// information from the Github REST API without being an owner of the
+		// Github organization, so check if this exists instead.
+		ssoURL := fmt.Sprintf("%s/%s/%s", githubOrgsURL, url.PathEscape(org), "sso")
+
+		const retries int = 3
+		var resp *http.Response
+		for i := 0; i < retries; i++ {
+			ctx, cancel := context.WithTimeout(ctx, defaults.HTTPRequestTimeout)
+			defer cancel()
+
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, ssoURL, nil)
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+
+			var urlErr *url.Error
+			resp, err = client.Do(req)
+			if err == nil {
+				break
+			} else if errors.As(err, &urlErr) && urlErr.Timeout() {
+				if i == retries-1 {
+					// The connection timed out a couple of times in a row,
+					// stop trying and return the error.
+					return false, trace.ConnectionProblem(err, "Timed out trying to reach GitHub to check for organization external SSO.")
+				}
+				// Connection timed out, try to make the request again
+				continue
+			}
+			// Unknown error, don't try making any more requests
+			return false, trace.Wrap(err, "Unknown error trying to reach GitHub to check for organization external SSO")
+		}
+		resp.Body.Close()
+
+		if resp.StatusCode == http.StatusOK {
+			return true, nil
+		}
+
+		return false, nil
+	}
+
+	for org := range orgs {
+		orgResult, err := orgCache.Get(ctx, org, func(ctx context.Context) (interface{}, error) {
+			return checkOrg(org)
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		usesSSO := orgResult.(bool)
+		if usesSSO {
+			return trace.AccessDenied(
+				"GitHub organization %s uses external SSO, please purchase a Teleport Enterprise license if you want to authenticate with this organization",
+				org,
+			)
 		}
 	}
 

@@ -47,7 +47,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	cache "github.com/patrickmn/go-cache"
 	"github.com/prometheus/client_golang/prometheus"
 	saml2 "github.com/russellhaering/gosaml2"
 	"github.com/sirupsen/logrus"
@@ -98,7 +97,6 @@ const (
 
 const (
 	githubCacheTimeout = time.Hour
-	githubCachePurge   = 10 * time.Minute
 )
 
 // ServerOption allows setting options as functional arguments to Server
@@ -223,26 +221,25 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := Server{
-		bk:                cfg.Backend,
-		limiter:           limiter,
-		Authority:         cfg.Authority,
-		AuthServiceName:   cfg.AuthServiceName,
-		ServerID:          cfg.HostUUID,
-		oidcClients:       make(map[string]*oidcClient),
-		samlProviders:     make(map[string]*samlProvider),
-		githubClients:     make(map[string]*githubClient),
-		cancelFunc:        cancelFunc,
-		closeCtx:          closeCtx,
-		emitter:           cfg.Emitter,
-		streamer:          cfg.Streamer,
-		unstable:          local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
-		Services:          services,
-		Cache:             services,
-		keyStore:          keyStore,
-		getClaimsFun:      getClaims,
-		inventory:         inventory.NewController(cfg.Presence),
-		githubOrgSSOCache: cache.New(githubCacheTimeout, githubCachePurge),
-		traceClient:       cfg.TraceClient,
+		bk:              cfg.Backend,
+		limiter:         limiter,
+		Authority:       cfg.Authority,
+		AuthServiceName: cfg.AuthServiceName,
+		ServerID:        cfg.HostUUID,
+		oidcClients:     make(map[string]*oidcClient),
+		samlProviders:   make(map[string]*samlProvider),
+		githubClients:   make(map[string]*githubClient),
+		cancelFunc:      cancelFunc,
+		closeCtx:        closeCtx,
+		emitter:         cfg.Emitter,
+		streamer:        cfg.Streamer,
+		unstable:        local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
+		Services:        services,
+		Cache:           services,
+		keyStore:        keyStore,
+		getClaimsFun:    getClaims,
+		inventory:       inventory.NewController(cfg.Presence),
+		traceClient:     cfg.TraceClient,
 	}
 	for _, o := range opts {
 		if err := o(&as); err != nil {
@@ -251,6 +248,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	if as.clock == nil {
 		as.clock = clockwork.NewRealClock()
+	}
+	as.githubOrgSSOCache, err = utils.NewFnCache(utils.FnCacheConfig{
+		TTL: githubCacheTimeout,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return &as, nil
@@ -423,7 +426,7 @@ type Server struct {
 
 	// githubOrgSSOCache is used to cache whether Github organizations use
 	// external SSO or not.
-	githubOrgSSOCache *cache.Cache
+	githubOrgSSOCache *utils.FnCache
 
 	// traceClient is used to forward spans to the upstream collector for components
 	// within the cluster that don't have a direct connection to said collector
