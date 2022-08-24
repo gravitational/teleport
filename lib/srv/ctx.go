@@ -36,10 +36,8 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/pam"
-	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/uacc"
@@ -148,11 +146,18 @@ type Server interface {
 	// using reverse tunnel.
 	UseTunnel() bool
 
-	// GetBPF returns the BPF service used for enhanced session recording.
-	GetBPF() bpf.BPF
+	// OpenBPFSession will start monitoring all events within a session and
+	// emitting them to the Audit Log.
+	OpenBPFSession(ctx *ServerContext) (uint64, error)
 
-	// GetRestrictedSessionManager returns the manager for restricting user activity
-	GetRestrictedSessionManager() restricted.Manager
+	// CloseBPFSession will stop monitoring events for a particular session.
+	CloseBPFSession(ctx *ServerContext) error
+
+	// OpenRestrictedSession  starts enforcing restrictions for a cgroup with cgroupID
+	OpenRestrictedSession(ctx *ServerContext, cgroupID uint64)
+
+	// CloseRestrictedSession stops enforcing restrictions for a cgroup with cgroupID
+	CloseRestrictedSession(ctx *ServerContext, cgroupID uint64)
 
 	// Context returns server shutdown context
 	Context() context.Context
@@ -167,7 +172,7 @@ type Server interface {
 	// temporary teleport users or not
 	GetCreateHostUser() bool
 
-	// GetHostUser returns the HostUsers instance being used to manage
+	// GetHostUsers returns the HostUsers instance being used to manage
 	// host user provisioning
 	GetHostUsers() HostUsers
 
@@ -506,6 +511,14 @@ func (c *ServerContext) SessionID() rsession.ID {
 // GetServer returns the underlying server which this context was created in.
 func (c *ServerContext) GetServer() Server {
 	return c.srv
+}
+
+func (c *ServerContext) StreamWriter() events.StreamWriter {
+	return c.session.Recorder()
+}
+
+func (c *ServerContext) GetPID() int {
+	return c.term.PID()
 }
 
 // CreateOrJoinSession will look in the SessionRegistry for the session ID. If
