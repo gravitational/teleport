@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/trace"
@@ -40,7 +41,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	cache "github.com/patrickmn/go-cache"
 )
 
 type githubContext struct {
@@ -341,6 +341,7 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 		isEnterprise         bool
 		requestShouldSucceed bool
 		httpStatusCode       int
+		reuseCache           bool
 		errFunc              func(error) bool
 	}{
 		{
@@ -348,6 +349,7 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 			connector:            ssoOrg,
 			isEnterprise:         false,
 			requestShouldSucceed: false,
+			reuseCache:           false,
 			errFunc:              trace.IsConnectionProblem,
 		},
 		{
@@ -355,6 +357,7 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 			connector:            ssoOrg,
 			isEnterprise:         true,
 			requestShouldSucceed: false,
+			reuseCache:           false,
 			errFunc:              nil,
 		},
 		{
@@ -362,7 +365,16 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 			connector:            ssoOrg,
 			isEnterprise:         false,
 			requestShouldSucceed: true,
-			httpStatusCode:       200,
+			httpStatusCode:       http.StatusOK,
+			reuseCache:           false,
+			errFunc:              trace.IsAccessDenied,
+		},
+		{
+			testName:             "OSS has SSO with cache",
+			connector:            ssoOrg,
+			isEnterprise:         false,
+			requestShouldSucceed: false,
+			reuseCache:           true,
 			errFunc:              trace.IsAccessDenied,
 		},
 		{
@@ -371,26 +383,22 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 			isEnterprise:         false,
 			requestShouldSucceed: true,
 			httpStatusCode:       404,
+			reuseCache:           true,
 			errFunc:              nil,
-		},
-		{
-			testName:             "OSS has SSO with cache",
-			connector:            ssoOrg,
-			isEnterprise:         false,
-			requestShouldSucceed: false,
-			errFunc:              trace.IsAccessDenied,
 		},
 		{
 			testName:             "OSS doesn't have SSO with cache",
 			connector:            noSSOOrg,
 			isEnterprise:         false,
 			requestShouldSucceed: false,
+			reuseCache:           true,
 			errFunc:              nil,
 		},
 	}
 
+	var orgCache *utils.FnCache
 	ctx := context.Background()
-	orgCache := cache.New(0, 0)
+
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
 			client := mockHTTPRequester{
@@ -402,6 +410,13 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 				modules.SetTestModules(t, &modules.TestModules{
 					TestBuildType: modules.BuildEnterprise,
 				})
+			}
+
+			if !tt.reuseCache {
+				orgCache, err = utils.NewFnCache(utils.FnCacheConfig{
+					TTL: time.Minute,
+				})
+				require.NoError(t, err)
 			}
 
 			err := checkGithubOrgSSOSupport(ctx, tt.connector, nil, orgCache, client)
