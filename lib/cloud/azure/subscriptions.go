@@ -20,6 +20,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
+	"github.com/gravitational/trace"
 )
 
 // ARMSubscriptions provides an interface for armsubscription.SubscriptionsClient.
@@ -48,7 +49,7 @@ func (c *SubscriptionClient) ListSubscriptionIDs(ctx context.Context, maxPages i
 	for pageNum := 0; pageNum < maxPages && pager.More(); pageNum++ {
 		res, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, ConvertResponseError(err)
+			return nil, trace.Wrap(ConvertResponseError(err))
 		}
 		for _, v := range res.Value {
 			if v != nil && v.SubscriptionID != nil {
