@@ -74,6 +74,11 @@ steps:
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
   - git submodule update --init --recursive webassets || true
+  - cd /go/src/github.com/gravitational/webapps
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout "$(/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)"
+  - git submodule update --init packages/webapps.e
+  - cd -
   - rm -f /root/.ssh/id_rsa
   environment:
     GITHUB_PRIVATE_KEY:
@@ -2089,8 +2094,11 @@ steps:
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar go
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
+  - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - mkdir -m0700 $GNUPG_DIR
   - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPG_DIR
   - chown -R root:root $GNUPG_DIR
@@ -2098,6 +2106,10 @@ steps:
   - rm -rf $GNUPG_DIR
   environment:
     ARCH: amd64
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     GNUPG_DIR: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
@@ -2271,8 +2283,11 @@ steps:
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar go
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
+  - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - mkdir -m0700 $GNUPG_DIR
   - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPG_DIR
   - chown -R root:root $GNUPG_DIR
@@ -2280,6 +2295,10 @@ steps:
   - rm -rf $GNUPG_DIR
   environment:
     ARCH: amd64
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     FIPS: "yes"
     GNUPG_DIR: /tmpfs/gnupg
@@ -2460,11 +2479,18 @@ steps:
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
+  - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - make deb
   environment:
     ARCH: amd64
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     OSS_TARBALL_PATH: /go/artifacts
     TMPDIR: /go
@@ -2628,11 +2654,18 @@ steps:
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
+  - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - make -C e deb
   environment:
     ARCH: amd64
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     FIPS: "yes"
     RUNTIME: fips
@@ -2954,8 +2987,11 @@ steps:
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar go
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
+  - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - mkdir -m0700 $GNUPG_DIR
   - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPG_DIR
   - chown -R root:root $GNUPG_DIR
@@ -2963,6 +2999,10 @@ steps:
   - rm -rf $GNUPG_DIR
   environment:
     ARCH: "386"
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     GNUPG_DIR: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
@@ -3138,11 +3178,18 @@ steps:
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
+  - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - make deb
   environment:
     ARCH: "386"
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     OSS_TARBALL_PATH: /go/artifacts
     TMPDIR: /go
@@ -4248,11 +4295,18 @@ steps:
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
+  - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - make deb
   environment:
     ARCH: arm64
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     OSS_TARBALL_PATH: /go/artifacts
     TMPDIR: /go
@@ -4418,11 +4472,18 @@ steps:
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
+  - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - make deb
   environment:
     ARCH: arm
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     OSS_TARBALL_PATH: /go/artifacts
     TMPDIR: /go
@@ -4588,8 +4649,11 @@ steps:
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar go
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
+  - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - mkdir -m0700 $GNUPG_DIR
   - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPG_DIR
   - chown -R root:root $GNUPG_DIR
@@ -4597,6 +4661,10 @@ steps:
   - rm -rf $GNUPG_DIR
   environment:
     ARCH: arm64
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     GNUPG_DIR: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
@@ -4772,8 +4840,11 @@ steps:
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar go
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
+  - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - mkdir -m0700 $GNUPG_DIR
   - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPG_DIR
   - chown -R root:root $GNUPG_DIR
@@ -4781,6 +4852,10 @@ steps:
   - rm -rf $GNUPG_DIR
   environment:
     ARCH: arm
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     GNUPG_DIR: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
@@ -6491,6 +6566,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: cf410059a52882504f00af9fbb43ed23ea97c555e3c6fd02a07faf5577afc47d
+hmac: 84dfa8fbc87b22389078ffeb706fa44d4bab9fbd6c6db7c42cc7e5c2a6f69cce
 
 ...
