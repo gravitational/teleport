@@ -20,7 +20,6 @@ package auditd
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"math"
 	"os"
 	"strconv"
@@ -32,6 +31,15 @@ import (
 	"github.com/mdlayher/netlink"
 	"github.com/mdlayher/netlink/nlenc"
 	log "github.com/sirupsen/logrus"
+)
+
+// featureStatus is a 3 state boolean yes/no/unknown type.
+type featureStatus int
+
+const (
+	unset featureStatus = iota
+	disabled
+	enabled
 )
 
 // Client is auditd client.
@@ -47,7 +55,7 @@ type Client struct {
 
 	mtx     sync.Mutex
 	dial    func(family int, config *netlink.Config) (NetlinkConnector, error)
-	enabled bool
+	enabled featureStatus
 }
 
 // auditStatus represent auditd status.
@@ -75,9 +83,12 @@ func IsLoginUIDSet() bool {
 	}
 
 	client := NewClient(Message{})
-	if client.connect() != nil {
-		// connect returns an error when auditd is disabled,
-		// or when we were not able to talk to it.
+	if err := client.connectUnderMutex(); err != nil {
+		return false
+	}
+
+	enabled, err := client.isEnabledUnderMutex()
+	if err != nil || !enabled {
 		return false
 	}
 
@@ -113,8 +124,6 @@ func SendEvent(event EventType, result ResultType, msg Message) error {
 		return nil
 	}
 
-	msg.SetDefaults()
-
 	client := NewClient(msg)
 	defer func() {
 		err := client.Close()
@@ -130,12 +139,10 @@ func SendEvent(event EventType, result ResultType, msg Message) error {
 	return nil
 }
 
-func (c *Client) connect() error {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
-	if !c.enabled && c.conn != nil {
-		return ErrAuditdDisabled
+func (c *Client) connectUnderMutex() error {
+	if c.conn != nil {
+		// Already connected, return
+		return nil
 	}
 
 	conn, err := c.dial(syscall.NETLINK_AUDIT, nil)
@@ -145,19 +152,28 @@ func (c *Client) connect() error {
 
 	c.conn = conn
 
+	return nil
+}
+
+func (c *Client) isEnabledUnderMutex() (bool, error) {
+	if c.enabled != unset {
+		// We've already gotten the status.
+		return c.enabled == enabled, nil
+	}
+
 	status, err := getAuditStatus(c.conn)
 	if err != nil {
-		return trace.Errorf("failed to get auditd status: %v", trace.ConvertSystemError(err))
+		return false, trace.Errorf("failed to get auditd status: %v", trace.ConvertSystemError(err))
 	}
 
-	// enabled can be either 1 or 2 if enabled and 0 otherwise
-	c.enabled = status.Enabled > 0
-
-	if !c.enabled {
-		return ErrAuditdDisabled
+	// enabled can be either 1 or 2 if enabled, 0 otherwise
+	if status.Enabled > 0 {
+		c.enabled = enabled
+	} else {
+		c.enabled = disabled
 	}
 
-	return nil
+	return c.enabled == enabled, nil
 }
 
 // NewClient creates a new auditd client. Client is not connected when it is returned.
@@ -257,8 +273,20 @@ func (c *Client) SendMsg(event EventType, result ResultType) error {
 }
 
 func (c *Client) sendMsg(eventType netlink.HeaderType, MsgData []byte) error {
-	if err := c.connect(); err != nil {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	if err := c.connectUnderMutex(); err != nil {
 		return trace.Wrap(err)
+	}
+
+	enabled, err := c.isEnabledUnderMutex()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !enabled {
+		return ErrAuditdDisabled
 	}
 
 	msg := netlink.Message{
@@ -275,7 +303,7 @@ func (c *Client) sendMsg(eventType netlink.HeaderType, MsgData []byte) error {
 	}
 
 	if len(resp) != 1 {
-		return fmt.Errorf("unexpected number of responses from kernel for status request: %d, %v", len(resp), resp)
+		return trace.Errorf("unexpected number of responses from kernel for status request: %d, %v", len(resp), resp)
 	}
 
 	return nil
@@ -288,6 +316,8 @@ func (c *Client) Close() error {
 	err := c.conn.Close()
 	// reset to avoid a potential use of closed connection.
 	c.conn = nil
+	c.enabled = unset
+
 	return err
 }
 
