@@ -36,9 +36,9 @@ import (
 )
 
 const (
-	pkcs8PrivateKeyType = "PRIVATE KEY"
-	pkcs1PrivateKeyType = "RSA PRIVATE KEY"
-	ecPrivateKeyType    = "EC PRIVATE KEY"
+	PKCS1PrivateKeyType = "RSA PRIVATE KEY"
+	PKCS8PrivateKeyType = "PRIVATE KEY"
+	ECPrivateKeyType    = "EC PRIVATE KEY"
 )
 
 // PrivateKey implements crypto.Signer with additional helper methods. The underlying
@@ -183,11 +183,11 @@ func ParsePrivateKey(keyPEM []byte) (*PrivateKey, error) {
 	var priv crypto.PrivateKey
 	var err error
 	switch block.Type {
-	case pkcs1PrivateKeyType:
+	case PKCS1PrivateKeyType:
 		priv, err = x509.ParsePKCS1PrivateKey(block.Bytes)
-	case ecPrivateKeyType:
+	case ECPrivateKeyType:
 		priv, err = x509.ParseECPrivateKey(block.Bytes)
-	case pkcs8PrivateKeyType:
+	case PKCS8PrivateKeyType:
 		priv, err = x509.ParsePKCS8PrivateKey(block.Bytes)
 	default:
 		return nil, trace.BadParameter("unexpected private key PEM type %q", block.Type)

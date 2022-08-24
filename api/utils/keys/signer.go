@@ -66,7 +66,7 @@ func newStandardSigner(priv crypto.PrivateKey) (*StandardSigner, error) {
 	return &StandardSigner{
 		Signer: signer,
 		privPEM: pem.EncodeToMemory(&pem.Block{
-			Type:    pkcs8PrivateKeyType,
+			Type:    PKCS8PrivateKeyType,
 			Headers: nil,
 			Bytes:   keyDER,
 		}),
