@@ -3308,7 +3308,7 @@ func (a *ServerWithRoles) DeleteInstaller(ctx context.Context, name string) erro
 
 // DeleteAllInstallers removes all installer script resources
 func (a *ServerWithRoles) DeleteAllInstallers(ctx context.Context) error {
-	if err := a.action(apidefaults.Namespace, types.KindInstaller, types.VerbDelete); err != nil {
+	if err := a.action(apidefaults.Namespace, types.KindInstaller, types.VerbDelete, types.VerbList); err != nil {
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(a.authServer.DeleteAllInstallers(ctx))

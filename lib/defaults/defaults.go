@@ -870,5 +870,5 @@ const (
 	IAMInviteTokenName = "aws-discovery-iam-token"
 	// InstallerScriptName is the name of the by default populated,
 	// EC2 installer script
-	InstallerScriptName = "installer"
+	InstallerScriptName = "default-installer"
 )

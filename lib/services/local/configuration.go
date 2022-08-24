@@ -363,7 +363,7 @@ func (s *ClusterConfigurationService) DeleteSessionRecordingConfig(ctx context.C
 
 // GetInstallers retrieves all the install scripts.
 func (s *ClusterConfigurationService) GetInstallers(ctx context.Context) ([]types.Installer, error) {
-	startKey := backend.Key(clusterConfigPrefix, installerScriptPrefix, "")
+	startKey := backend.Key(clusterConfigPrefix, scriptsPrefix, installerPrefix, "")
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -382,7 +382,7 @@ func (s *ClusterConfigurationService) GetInstallers(ctx context.Context) ([]type
 
 // GetInstaller gets the script of the cluster from the backend.
 func (s *ClusterConfigurationService) GetInstaller(ctx context.Context, name string) (types.Installer, error) {
-	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, installerScriptPrefix, name))
+	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, scriptsPrefix, installerPrefix, name))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -397,7 +397,7 @@ func (s *ClusterConfigurationService) SetInstaller(ctx context.Context, ins type
 	}
 
 	_, err = s.Put(ctx, backend.Item{
-		Key:     backend.Key(clusterConfigPrefix, installerScriptPrefix, ins.GetName()),
+		Key:     backend.Key(clusterConfigPrefix, scriptsPrefix, installerPrefix, ins.GetName()),
 		Value:   value,
 		Expires: ins.Expiry(),
 	})
@@ -407,12 +407,12 @@ func (s *ClusterConfigurationService) SetInstaller(ctx context.Context, ins type
 // DeleteInstaller sets the installer script to default script in the backend.
 func (s *ClusterConfigurationService) DeleteInstaller(ctx context.Context, name string) error {
 	return trace.Wrap(
-		s.Delete(ctx, backend.Key(clusterConfigPrefix, installerScriptPrefix, name)))
+		s.Delete(ctx, backend.Key(clusterConfigPrefix, scriptsPrefix, installerPrefix, name)))
 }
 
 // DeleteAllInstallers removes all installer resources.
 func (s *ClusterConfigurationService) DeleteAllInstallers(ctx context.Context) error {
-	startKey := backend.Key(clusterConfigPrefix, installerScriptPrefix, "")
+	startKey := backend.Key(clusterConfigPrefix, scriptsPrefix, installerPrefix, "")
 	err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 	if err != nil {
 		return trace.Wrap(err)
@@ -430,5 +430,6 @@ const (
 	auditPrefix            = "audit"
 	networkingPrefix       = "networking"
 	sessionRecordingPrefix = "session_recording"
-	installerScriptPrefix  = "installer_scripts"
+	scriptsPrefix          = "scripts"
+	installerPrefix        = "installer"
 )

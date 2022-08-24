@@ -4272,6 +4272,7 @@ func (g *GRPCServer) GetInstaller(ctx context.Context, req *types.ResourceReques
 	return inst, nil
 }
 
+// GetInstallers returns all installer script resources registered in the cluster.
 func (g *GRPCServer) GetInstallers(ctx context.Context, _ *empty.Empty) (*types.InstallerV1List, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -4282,12 +4283,28 @@ func (g *GRPCServer) GetInstallers(ctx context.Context, _ *empty.Empty) (*types.
 		return nil, trace.Wrap(err)
 	}
 	var installersV1 []*types.InstallerV1
+	needDefault := true
 	for _, inst := range res {
 		instV1, ok := inst.(*types.InstallerV1)
 		if !ok {
 			return nil, trace.BadParameter("unsupported installer type %T", inst)
 		}
+		if inst.GetName() == defaults.InstallerScriptName {
+			needDefault = false
+		}
 		installersV1 = append(installersV1, instV1)
+	}
+
+	if len(installersV1) == 0 {
+		return &types.InstallerV1List{
+			Installers: []*types.InstallerV1{
+				installers.DefaultInstaller,
+			},
+		}, nil
+	}
+
+	if needDefault {
+		installersV1 = append(installersV1, installers.DefaultInstaller)
 	}
 
 	return &types.InstallerV1List{

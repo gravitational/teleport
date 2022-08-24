@@ -1271,7 +1271,7 @@ type installerParser struct {
 
 func newInstallerParser() *installerParser {
 	return &installerParser{
-		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, installerScriptPrefix)),
+		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, scriptsPrefix, installerPrefix)),
 	}
 }
 

@@ -1261,8 +1261,8 @@ type InstallParams struct {
 	// JoinParams sets the token and method to use when generating
 	// config on EC2 instances
 	JoinParams JoinParams `yaml:"join_params,omitempty"`
-	// ScriptName is the name of the teleport script for the EC2
-	// instance to execute
+	// ScriptName is the name of the teleport installer script
+	// resource for the EC2 instance to execute
 	ScriptName string `yaml:"script_name,omitempty"`
 }
 
