@@ -88,7 +88,7 @@ Run the `configure` command to generate a sample configuration. Assign `TELEPORT
 
 ```code
 $ TELEPORT_CLUSTER_ADDRESS=mytenant.teleport.sh:443
-$ docker run -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin quay.io/gravitational/teleport-plugin-event-handler:(=teleport.plugin.version=) configure . ${TELEPORT_CLUSTER_ADDRESS?}
+$ docker run -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.plugin.version=) configure . ${TELEPORT_CLUSTER_ADDRESS?}
 ```
 
 In order to connect to Fluentd, you'll need to have the root certificate and the client credentials available as a secret. Use the following command to create that secret in Kubernetes:
