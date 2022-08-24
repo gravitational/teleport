@@ -115,9 +115,8 @@ func (f *azureFetcher) Get(ctx context.Context) (types.Databases, error) {
 func (f *azureFetcher) getDBServers(ctx context.Context) ([]*azure.DBServer, error) {
 	if f.cfg.ResourceGroup == types.Wildcard {
 		return f.cfg.Client.ListAll(ctx, common.MaxPages)
-	} else {
-		return f.cfg.Client.ListWithinGroup(ctx, f.cfg.ResourceGroup, common.MaxPages)
 	}
+	return f.cfg.Client.ListWithinGroup(ctx, f.cfg.ResourceGroup, common.MaxPages)
 }
 
 // getDatabases returns a list of database resources representing Azure database servers.
