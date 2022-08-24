@@ -3803,9 +3803,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 
 		alpnTLSConfigForWeb := process.setupALPNTLSConfigForWeb(serverTLSConfig, accessPoint, clusterName)
-		alpnHandlerForWeb.Set(alpnServer.MakeConnectionHandler(
-			alpnproxy.WithDefaultTLSconfig(alpnTLSConfigForWeb),
-		))
+		alpnHandlerForWeb.Set(alpnServer.MakeConnectionHandler(alpnTLSConfigForWeb))
 
 		process.RegisterCriticalFunc("proxy.tls.alpn.sni.proxy", func() error {
 			log.Infof("Starting TLS ALPN SNI proxy server on %v.", listeners.alpn.Addr())

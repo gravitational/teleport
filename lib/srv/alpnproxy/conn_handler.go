@@ -18,32 +18,10 @@ package alpnproxy
 
 import (
 	"context"
-	"crypto/tls"
 	"net"
 
 	"github.com/gravitational/trace"
 )
-
-// connectionHandlerOptions contains options when ALPN server handles an
-// incoming connection.
-type connectionHandlerOptions struct {
-	// defaultTLSConfig is the default TLS config served to the incoming
-	// connection during TLS handshake, if HandlerDesc does not provide a
-	// tls.Config.
-	defaultTLSConfig *tls.Config
-}
-
-// ConnectionHandlerOption defines an option function for specifying connection
-// handler options.
-type ConnectionHandlerOption func(*connectionHandlerOptions)
-
-// WithDefaultTLSconfig is an option function that provides a default TLS
-// config.
-func WithDefaultTLSconfig(tlsConfig *tls.Config) ConnectionHandlerOption {
-	return func(opt *connectionHandlerOptions) {
-		opt.defaultTLSConfig = tlsConfig
-	}
-}
 
 // ConnectionHandler defines a function for serving incoming connections.
 type ConnectionHandler func(ctx context.Context, conn net.Conn) error

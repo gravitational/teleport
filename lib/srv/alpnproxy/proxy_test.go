@@ -336,14 +336,12 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 	customCA := mustGenSelfSignedCert(t)
 
 	// Create a ConnectionHandler from the proxy server with some options.
-	alpnConnHandler := svr.MakeConnectionHandler(
-		WithDefaultTLSconfig(&tls.Config{
-			NextProtos: []string{string(common.ProtocolHTTP)},
-			Certificates: []tls.Certificate{
-				mustGenCertSignedWithCA(t, customCA),
-			},
-		}),
-	)
+	alpnConnHandler := svr.MakeConnectionHandler(&tls.Config{
+		NextProtos: []string{string(common.ProtocolHTTP)},
+		Certificates: []tls.Certificate{
+			mustGenCertSignedWithCA(t, customCA),
+		},
+	})
 
 	// Prepare net.Conn to be used for the created alpnConnHandler.
 	serverConn, clientConn := net.Pipe()
@@ -362,7 +360,7 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 	req, err := http.NewRequest("GET", "https://localhost/test", nil)
 	require.NoError(t, err)
 
-	// Use the customCA to validate WithDefaultTLSconfig.
+	// Use the customCA to validate default TLS config override.
 	pool := x509.NewCertPool()
 	pool.AddCert(customCA.Cert)
 
