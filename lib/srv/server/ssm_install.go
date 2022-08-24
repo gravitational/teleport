@@ -19,7 +19,6 @@ package server
 import (
 	"context"
 	"errors"
-	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -39,8 +38,6 @@ import (
 type SSMInstallerConfig struct {
 	// Emitter is an events emitter.
 	Emitter apievents.Emitter
-	// InstanceStates is a cache of known ec2 instances and their state.
-	InstanceStates *InstanceFilterCache
 }
 
 // SSMInstaller handles running SSM commands that install Teleport on EC2 instances.
@@ -80,7 +77,6 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 	for _, inst := range req.Instances {
 		ids = append(ids, aws.StringValue(inst.InstanceId))
 	}
-	si.InstanceStates.SetInstances(req.AccountID, ids, InstanceStateNotStarted)
 
 	params := make(map[string][]*string)
 	for k, v := range req.Params {
@@ -138,13 +134,10 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 	}
 	status := aws.StringValue(cmdOut.Status)
 	var code string
-	var state InstanceInstallationState
 	if status == ssm.CommandStatusSuccess {
 		code = libevents.SSMRunSuccessCode
-		state = InstanceStateCompleted
 	} else {
 		code = libevents.SSMRunFailCode
-		state = InstanceStateError
 	}
 
 	event := events.SSMRun{
@@ -160,75 +153,5 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 		Status:     aws.StringValue(cmdOut.Status),
 	}
 
-	si.InstanceStates.SetInstance(InstanceFilterKey{
-		AccountID:  req.AccountID,
-		InstanceID: aws.StringValue(instanceID),
-	}, state)
-
 	return trace.Wrap(si.Emitter.EmitAuditEvent(ctx, &event))
-}
-
-// InstanceFilterKey is used to key the instance filter cache
-type InstanceFilterKey struct {
-	AccountID, InstanceID string
-}
-
-// InstanceInstallationState represents the state that installing
-// teleport is at for an instance.
-type InstanceInstallationState int
-
-const (
-	InstanceStateUnknown InstanceInstallationState = iota
-	// IsntanceStateNotStarted represents an instance that is known
-	// but installation has not yet started.
-	InstanceStateNotStarted
-	// InstanceStateCompleted represents an instance that has had
-	// teleport successfully installed
-	InstanceStateCompleted
-	// InstanceStateInstalling represents an instance where teleport
-	// may still be being installed
-	InstanceStateInstalling
-	// IsntanceStateError represents an instance that failed to
-	// execute the installation script
-	InstanceStateError
-)
-
-// InstanceFilterCache keeps a cache of known EC2 nodes in the
-// teleport cluster
-type InstanceFilterCache struct {
-	sync.RWMutex
-	discoveredNodes map[InstanceFilterKey]InstanceInstallationState
-}
-
-// NewInstanceFilterCache initializes a new InstanceFilterCache with a set of existing servers.
-func NewInstanceFilterCache() *InstanceFilterCache {
-	cache := InstanceFilterCache{
-		discoveredNodes: make(map[InstanceFilterKey]InstanceInstallationState),
-		RWMutex:         sync.RWMutex{},
-	}
-	return &cache
-}
-
-// GetInstance retrieves an instance from the cache
-func (ifc *InstanceFilterCache) GetInstance(cacheKey InstanceFilterKey) (InstanceInstallationState, bool) {
-	ifc.RLock()
-	defer ifc.RUnlock()
-	state, ok := ifc.discoveredNodes[cacheKey]
-	return state, ok
-}
-
-// SetInstance sets an instance and its state in the cache
-func (ifc *InstanceFilterCache) SetInstance(cacheKey InstanceFilterKey, state InstanceInstallationState) {
-	ifc.Lock()
-	defer ifc.Unlock()
-	ifc.discoveredNodes[cacheKey] = state
-}
-
-// SetInstances sets all the specified instances to the provided state
-func (ifc *InstanceFilterCache) SetInstances(accountID string, instanceIDs []string, state InstanceInstallationState) {
-	ifc.Lock()
-	defer ifc.Unlock()
-	for _, inst := range instanceIDs {
-		ifc.discoveredNodes[InstanceFilterKey{AccountID: accountID, InstanceID: inst}] = state
-	}
 }

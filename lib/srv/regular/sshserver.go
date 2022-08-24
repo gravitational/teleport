@@ -234,10 +234,6 @@ type Server struct {
 
 	auth auth.ClientI
 
-	// instanceFilterCache keeps a cache of all ec2 instances that are
-	// in the teleport cluster
-	instanceFilterCache *server.InstanceFilterCache
-
 	// tracerProvider is used to create tracers capable
 	// of starting spans.
 	tracerProvider oteltrace.TracerProvider
@@ -835,10 +831,8 @@ func New(addr utils.NetAddr,
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		s.instanceFilterCache = server.NewInstanceFilterCache()
 		s.ec2Installer = server.NewSSMInstaller(server.SSMInstallerConfig{
-			Emitter:        s,
-			InstanceStates: s.instanceFilterCache,
+			Emitter: s,
 		})
 	}
 
@@ -1061,16 +1055,24 @@ func (s *Server) getServerResource() (types.Resource, error) {
 }
 
 func (s *Server) filterExistingNodes(instances *server.EC2Instances) (*server.EC2Instances, error) {
-	var filtered []*ec2.Instance
-	for _, inst := range instances.Instances {
-		state, found := s.instanceFilterCache.GetInstance(server.InstanceFilterKey{
-			AccountID:  instances.AccountID,
-			InstanceID: aws.StringValue(inst.InstanceId),
-		})
+	nodes, err := s.authService.GetNodes(s.ctx, s.GetNamespace())
+	if err != nil {
+		log.WithError(err).Error("Error creating instances cache")
+	}
 
-		if !found || state == server.InstanceStateError {
-			filtered = append(filtered, inst)
+	var filtered []*ec2.Instance
+outer:
+	for _, inst := range instances.Instances {
+		for _, node := range nodes {
+			match := types.MatchLabels(node, map[string]string{
+				types.AWSAccountIDLabel:  instances.AccountID,
+				types.AWSInstanceIDLabel: aws.StringValue(inst.InstanceId),
+			})
+			if match {
+				continue outer
+			}
 		}
+		filtered = append(filtered, inst)
 	}
 	instances.Instances = filtered
 	return instances, nil
@@ -1102,26 +1104,6 @@ func (s *Server) handleInstances(instances *server.EC2Instances) error {
 }
 
 func (s *Server) handleEC2Discovery() {
-	resources, err := s.authService.GetNodes(s.ctx, s.GetNamespace())
-	if err != nil {
-		log.WithError(err).Error("Error creating instances cache")
-	}
-
-	for _, res := range resources {
-		labels := res.GetAllLabels()
-		accountID, ok := labels[types.AWSAccountIDLabel]
-		if !ok {
-			continue
-		}
-		instanceID, ok := labels[types.AWSInstanceIDLabel]
-		if !ok {
-			continue
-		}
-		s.instanceFilterCache.SetInstance(server.InstanceFilterKey{
-			AccountID:  accountID,
-			InstanceID: instanceID,
-		}, server.InstanceStateCompleted)
-	}
 
 	go s.cloudWatcher.Run()
 	for {
