@@ -40,7 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/labels/ec2"
+	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -381,7 +381,7 @@ func TestEC2Labels(t *testing.T) {
 		return len(nodes) == 1 && len(apps) == 1 && len(databases) == 1 && len(kubes) == 1
 	}, 10*time.Second, time.Second)
 
-	tagName := fmt.Sprintf("%s/Name", ec2.AWSNamespace)
+	tagName := fmt.Sprintf("%s/Name", labels.AWSNamespace)
 
 	// Check that EC2 labels were applied.
 	require.Eventually(t, func() bool {

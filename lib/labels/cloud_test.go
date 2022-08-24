@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package ec2
+package labels
 
 import (
 	"context"
@@ -41,28 +41,30 @@ func (m *mockIMDSClient) GetTags(ctx context.Context) (map[string]string, error)
 	return m.tags, nil
 }
 
-func TestEC2LabelsSync(t *testing.T) {
+func TestCloudLabelsSync(t *testing.T) {
 	ctx := context.Background()
 	tags := map[string]string{"a": "1", "b": "2"}
 	expectedTags := map[string]string{"aws/a": "1", "aws/b": "2"}
 	imdsClient := &mockIMDSClient{
 		tags: tags,
 	}
-	ec2Labels, err := New(ctx, &Config{
-		Client: imdsClient,
+	ec2Labels, err := New(&CloudConfig{
+		Client:    imdsClient,
+		namespace: "aws",
 	})
 	require.NoError(t, err)
 	require.NoError(t, ec2Labels.Sync(ctx))
 	require.Equal(t, expectedTags, ec2Labels.Get())
 }
 
-func TestEC2LabelsAsync(t *testing.T) {
+func TestCloudLabelsAsync(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	imdsClient := &mockIMDSClient{}
 	clock := clockwork.NewFakeClock()
-	ec2Labels, err := New(ctx, &Config{
-		Client: imdsClient,
-		Clock:  clock,
+	ec2Labels, err := New(&CloudConfig{
+		Client:    imdsClient,
+		namespace: "aws",
+		Clock:     clock,
 	})
 	require.NoError(t, err)
 
@@ -90,38 +92,40 @@ func TestEC2LabelsAsync(t *testing.T) {
 	// Check that tags are updated over time.
 	updatedTags := map[string]string{"a": "3", "c": "4"}
 	imdsClient.tags = updatedTags
-	clock.Advance(ec2LabelUpdatePeriod)
+	clock.Advance(labelUpdatePeriod)
 	require.Eventually(t, compareLabels(map[string]string{"aws/a": "3", "aws/c": "4"}), time.Second, 100*time.Millisecond)
 
 	// Check that service stops updating when closed.
 	cancel()
 	imdsClient.tags = map[string]string{"x": "8", "y": "9", "z": "10"}
-	clock.Advance(ec2LabelUpdatePeriod)
+	clock.Advance(labelUpdatePeriod)
 	require.Eventually(t, compareLabels(map[string]string{"aws/a": "3", "aws/c": "4"}), time.Second, 100*time.Millisecond)
 }
 
-func TestEC2LabelsValidKey(t *testing.T) {
+func TestCloudLabelsValidKey(t *testing.T) {
 	ctx := context.Background()
 	tags := map[string]string{"good-label": "1", "bad-l@bel": "2"}
 	expectedTags := map[string]string{"aws/good-label": "1"}
 	imdsClient := &mockIMDSClient{
 		tags: tags,
 	}
-	ec2Labels, err := New(ctx, &Config{
-		Client: imdsClient,
+	ec2Labels, err := New(&CloudConfig{
+		Client:    imdsClient,
+		namespace: "aws",
 	})
 	require.NoError(t, err)
 	require.NoError(t, ec2Labels.Sync(ctx))
 	require.Equal(t, expectedTags, ec2Labels.Get())
 }
 
-func TestEC2LabelsDisabled(t *testing.T) {
+func TestCloudLabelsDisabled(t *testing.T) {
 	ctx := context.Background()
 	imdsClient := &mockIMDSClient{
 		tagsDisabled: true,
 	}
-	ec2Labels, err := New(ctx, &Config{
-		Client: imdsClient,
+	ec2Labels, err := New(&CloudConfig{
+		Client:    imdsClient,
+		namespace: "aws",
 	})
 	require.NoError(t, err)
 	require.NoError(t, ec2Labels.Sync(ctx))
