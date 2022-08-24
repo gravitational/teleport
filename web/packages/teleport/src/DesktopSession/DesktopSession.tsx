@@ -15,8 +15,15 @@ limitations under the License.
 */
 
 import React, { PropsWithChildren } from 'react';
-import styled from 'styled-components';
-import { Indicator, Box, Alert, Text, Flex } from 'design';
+import { Indicator, Box, Text, Flex, ButtonSecondary } from 'design';
+import { Danger, Warning } from 'design/Alert';
+import Dialog, {
+  DialogHeader,
+  DialogTitle,
+  DialogContent,
+  DialogFooter,
+} from 'design/Dialog';
+
 import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import useDesktopSession, { State } from './useDesktopSession';
@@ -29,45 +36,130 @@ export default function Container() {
 
 export function DesktopSession(props: State) {
   const {
+    directorySharingState,
+    setDirectorySharingState,
     clipboardState,
     fetchAttempt,
     tdpConnection,
-    wsConnection,
     disconnected,
+    wsConnection,
+    setTdpConnection,
   } = props;
-
-  const clipboardError = clipboardState.enabled && clipboardState.errorText;
 
   const clipboardProcessing =
     clipboardState.enabled && clipboardState.permission.state === 'prompt';
-
-  // Websocket is closed but we haven't
-  // closed it on purpose or registered a tdp error.
-  const unknownConnectionError =
-    wsConnection === 'closed' &&
-    !disconnected &&
-    tdpConnection.status === 'success';
 
   const processing =
     fetchAttempt.status === 'processing' ||
     tdpConnection.status === 'processing' ||
     clipboardProcessing;
 
-  let alertText: string;
-  if (fetchAttempt.status === 'failed') {
-    alertText = fetchAttempt.statusText || 'fetch attempt failed';
-  } else if (tdpConnection.status === 'failed') {
-    alertText = tdpConnection.statusText || 'tdp connection failed';
-  } else if (clipboardError) {
-    alertText = clipboardState.errorText || 'clipboard sharing failed';
-  } else if (unknownConnectionError) {
-    alertText = 'Session disconnected for an unknown reason';
-  }
+  // onDialogClose is called when a user
+  // dismisses a non-fatal error dialog.
+  const onDialogClose = () => {
+    // The following state-setting calls will
+    // cause the useEffect below to calculate the
+    // errorDialog state.
 
-  if (alertText) {
+    setTdpConnection(prevState => {
+      if (prevState.status === '') {
+        // If prevState.status was a non-fatal error,
+        // we assume that the TDP connection remains open.
+        return { status: 'success' };
+      }
+      return prevState;
+    });
+
+    setDirectorySharingState(prevState => ({
+      ...prevState,
+      browserError: false,
+    }));
+  };
+
+  const computeErrorDialog = () => {
+    const clipboardError = clipboardState.enabled && clipboardState.errorText;
+
+    // Websocket is closed but we haven't
+    // closed it on purpose or registered a fatal tdp error.
+    const unknownConnectionError =
+      wsConnection === 'closed' &&
+      !disconnected &&
+      (tdpConnection.status === 'success' || tdpConnection.status === '');
+
+    let errorText = '';
+    if (fetchAttempt.status === 'failed') {
+      errorText = fetchAttempt.statusText || 'fetch attempt failed';
+    } else if (tdpConnection.status === 'failed') {
+      errorText = tdpConnection.statusText || 'tdp connection failed';
+    } else if (tdpConnection.status === '') {
+      errorText = tdpConnection.statusText || 'encountered a non-fatal error';
+    } else if (clipboardError) {
+      errorText = clipboardState.errorText || 'clipboard sharing failed';
+    } else if (unknownConnectionError) {
+      errorText = 'Session disconnected for an unknown reason.';
+    } else if (directorySharingState.browserError) {
+      errorText =
+        'Your user role supports directory sharing over desktop access, \
+      however this feature is only available by default on some Chromium \
+      based browsers like Google Chrome or Microsoft Edge. Brave users can \
+      use the feature by navigating to brave://flags/#file-system-access-api \
+      and selecting "Enable". Please switch to a supported browser.';
+    }
+    const open = errorText !== '';
+    const fatal = !(
+      tdpConnection.status === '' || directorySharingState.browserError
+    );
+
+    return { open, text: errorText, fatal };
+  };
+
+  const errorDialog = computeErrorDialog();
+
+  if (errorDialog.open) {
     return (
       <Session {...props}>
-        <DesktopSessionAlert my={2} mx={10} children={alertText} />
+        <Dialog
+          dialogCss={() => ({ width: '484px' })}
+          onClose={onDialogClose}
+          open={errorDialog.open}
+        >
+          <DialogHeader style={{ flexDirection: 'column' }}>
+            {errorDialog.fatal && <DialogTitle>Fatal Error</DialogTitle>}
+            {!errorDialog.fatal && (
+              <DialogTitle>Unsupported Action</DialogTitle>
+            )}
+          </DialogHeader>
+          <DialogContent>
+            {errorDialog.fatal && (
+              <>
+                <Danger children={<>{errorDialog.text}</>} />
+                Refresh the page to try again.
+              </>
+            )}
+
+            {!errorDialog.fatal && (
+              <Warning my={2} children={errorDialog.text} />
+            )}
+          </DialogContent>
+          <DialogFooter>
+            {!errorDialog.fatal && (
+              <ButtonSecondary size="large" width="30%" onClick={onDialogClose}>
+                Dismiss
+              </ButtonSecondary>
+            )}
+            {errorDialog.fatal && (
+              <ButtonSecondary
+                size="large"
+                width="30%"
+                onClick={() => {
+                  window.location.reload();
+                }}
+              >
+                Refresh
+              </ButtonSecondary>
+            )}
+          </DialogFooter>
+        </Dialog>
       </Session>
     );
   }
@@ -108,9 +200,8 @@ function Session(props: PropsWithChildren<State>) {
     hostname,
     clipboardState,
     setClipboardState,
-    canShareDirectory,
-    isSharingDirectory,
-    setIsSharingDirectory,
+    directorySharingState,
+    setDirectorySharingState,
     onPngFrame,
     onClipboardData,
     onTdpError,
@@ -137,22 +228,35 @@ function Session(props: PropsWithChildren<State>) {
 
   const showCanvas =
     fetchAttempt.status === 'success' &&
-    tdpConnection.status === 'success' &&
+    (tdpConnection.status === 'success' || tdpConnection.status === '') &&
     wsConnection === 'open' &&
     !disconnected &&
     clipboardSuccess;
 
   const onShareDirectory = () => {
-    window
-      .showDirectoryPicker()
-      .then(sharedDirHandle => {
-        setIsSharingDirectory(true);
-        tdpClient.sharedDirectory = sharedDirHandle;
-        tdpClient.sendSharedDirectoryAnnounce();
-      })
-      .catch(() => {
-        setIsSharingDirectory(false);
-      });
+    try {
+      window
+        .showDirectoryPicker()
+        .then(sharedDirHandle => {
+          setDirectorySharingState(prevState => ({
+            ...prevState,
+            isSharing: true,
+          }));
+          tdpClient.addSharedDirectory(sharedDirHandle);
+          tdpClient.sendSharedDirectoryAnnounce();
+        })
+        .catch(() => {
+          setDirectorySharingState(prevState => ({
+            ...prevState,
+            isSharing: false,
+          }));
+        });
+    } catch (e) {
+      setDirectorySharingState(prevState => ({
+        ...prevState,
+        browserError: true,
+      }));
+    }
   };
 
   return (
@@ -164,13 +268,16 @@ function Session(props: PropsWithChildren<State>) {
             ...prevState,
             enabled: false,
           }));
-          setIsSharingDirectory(false);
+          setDirectorySharingState(prevState => ({
+            ...prevState,
+            isSharing: false,
+          }));
           tdpClient.nuke();
         }}
         userHost={`${username}@${hostname}`}
         clipboardSharingEnabled={clipboardSharingActive}
-        canShareDirectory={canShareDirectory}
-        isSharingDirectory={isSharingDirectory}
+        canShareDirectory={directorySharingState.canShare}
+        isSharingDirectory={directorySharingState.isSharing}
         onShareDirectory={onShareDirectory}
       />
 
@@ -220,8 +327,3 @@ function Session(props: PropsWithChildren<State>) {
     </Flex>
   );
 }
-
-const DesktopSessionAlert = styled(Alert)`
-  align-self: center;
-  min-width: 450px;
-`;

@@ -31,6 +31,9 @@
     "skipLibCheck": true,
     // TODO: https://github.com/gravitational/webapps/issues/957
     "strictNullChecks": false,
+    "types": [
+      "@types/wicg-file-system-access"
+    ],
   },
   "exclude": [
     "node_modules",

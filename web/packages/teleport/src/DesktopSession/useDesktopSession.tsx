@@ -28,10 +28,10 @@ export default function useDesktopSession() {
   const { attempt: fetchAttempt, run } = useAttempt('processing');
 
   // tdpConnection tracks the state of the tdpClient's TDP connection
-  // tdpConnection.status ===
   // - 'processing' at first
   // - 'success' once the first TdpClientEvent.IMAGE_FRAGMENT is seen
-  // - 'failed' if a TdpClientEvent.TDP_ERROR is encountered
+  // - 'failed' if a fatal error is encountered
+  // - '' if a non-fatal error is encountered
   const { attempt: tdpConnection, setAttempt: setTdpConnection } =
     useAttempt('processing');
 
@@ -43,8 +43,11 @@ export default function useDesktopSession() {
   // disconnected tracks whether the user intentionally disconnected the client
   const [disconnected, setDisconnected] = useState(false);
 
-  const [canShareDirectory, setCanShareDirectory] = useState(false);
-  const [isSharingDirectory, setIsSharingDirectory] = useState(false);
+  const [directorySharingState, setDirectorySharingState] = useState({
+    canShare: false,
+    isSharing: false,
+    browserError: false,
+  });
 
   const { username, desktopName, clusterId } = useParams<UrlDesktopParams>();
 
@@ -124,7 +127,10 @@ export default function useDesktopSession() {
           .then(desktop => setHostname(desktop.name)),
         userService.fetchUserContext().then(user => {
           setHasClipboardSharingEnabled(user.acl.clipboardSharingEnabled);
-          setCanShareDirectory(user.acl.directorySharingEnabled);
+          setDirectorySharingState(prevState => ({
+            ...prevState,
+            canShare: user.acl.directorySharingEnabled,
+          }));
         }),
       ])
     );
@@ -137,7 +143,7 @@ export default function useDesktopSession() {
     setTdpConnection,
     setWsConnection,
     setClipboardState,
-    setIsSharingDirectory,
+    setDirectorySharingState,
     enableClipboardSharing:
       clipboardState.enabled &&
       clipboardState.permission.state === 'granted' &&
@@ -151,15 +157,16 @@ export default function useDesktopSession() {
     username,
     clipboardState,
     setClipboardState,
-    canShareDirectory,
-    isSharingDirectory,
-    setIsSharingDirectory,
+    directorySharingState,
+    setDirectorySharingState,
+    isUsingChrome,
     fetchAttempt,
     tdpConnection,
     wsConnection,
     disconnected,
     setDisconnected,
     webauthn,
+    setTdpConnection,
     ...clientCanvasProps,
   };
 }

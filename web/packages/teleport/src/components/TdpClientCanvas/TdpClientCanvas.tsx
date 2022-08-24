@@ -128,9 +128,11 @@ export default function TdpClientCanvas(props: Props) {
   useEffect(() => {
     if (tdpCli && tdpCliOnTdpError) {
       tdpCli.on(TdpClientEvent.TDP_ERROR, tdpCliOnTdpError);
+      tdpCli.on(TdpClientEvent.CLIENT_ERROR, tdpCliOnTdpError);
 
       return () => {
         tdpCli.removeListener(TdpClientEvent.TDP_ERROR, tdpCliOnTdpError);
+        tdpCli.removeListener(TdpClientEvent.CLIENT_ERROR, tdpCliOnTdpError);
       };
     }
   }, [tdpCli, tdpCliOnTdpError]);
@@ -291,7 +293,7 @@ export type Props = {
     pngFrame: PngFrame
   ) => void;
   tdpCliOnClipboardData?: (clipboardData: ClipboardData) => void;
-  tdpCliOnTdpError?: (err: Error) => void;
+  tdpCliOnTdpError?: (error: { err: Error; isFatal: boolean }) => void;
   tdpCliOnWsClose?: () => void;
   tdpCliOnWsOpen?: () => void;
   tdpCliOnClientScreenSpec?: (
