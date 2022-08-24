@@ -14,7 +14,7 @@ const RESOURCES_PATH = app.isPackaged
   ? process.resourcesPath
   : path.join(__dirname, '../../../../');
 
-const TSH_BIN_ENV_VAR = 'TELETERM_TSH_PATH';
+const TSH_BIN_ENV_VAR = 'CONNECT_TSH_BIN_PATH';
 
 const dev = env.NODE_ENV === 'development' || env.DEBUG_PROD === 'true';
 
@@ -86,11 +86,19 @@ function getTshHomeDir() {
 // tshBinPath is used by Connect to call tsh directly.
 function getBinaryPaths(): { binDir?: string; tshBinPath: string } {
   if (app.isPackaged) {
-    const binDir = path.join(RESOURCES_PATH, 'bin');
-    const tshBinPath = path.join(
-      binDir,
-      process.platform === 'win32' ? 'tsh.exe' : 'tsh'
-    );
+    const isWin = process.platform === 'win32';
+    const isMac = process.platform === 'darwin';
+    // On macOS, tsh lives within tsh.app:
+    //
+    //     Teleport Connect.app/Contents/MacOS/tsh.app/Contents/MacOS
+    //
+    // exe path is an absolute path to
+    //
+    //     Teleport Connect.app/Contents/MacOS/Teleport Connect
+    const binDir = isMac
+      ? path.join(app.getPath('exe'), '../tsh.app/Contents/MacOS')
+      : path.join(RESOURCES_PATH, 'bin');
+    const tshBinPath = path.join(binDir, isWin ? 'tsh.exe' : 'tsh');
 
     return { binDir, tshBinPath };
   }

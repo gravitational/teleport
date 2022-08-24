@@ -28,7 +28,10 @@ RUN if [ -n "$YARN_FROZEN_LOCKFILE" ]; then \
 
 # copy the rest of the files and run yarn build command
 COPY  . .
+
 ARG NPM_SCRIPT=nop
 ARG OUTPUT
+ARG CONNECT_TSH_BIN_PATH
+ENV CONNECT_TSH_BIN_PATH=$CONNECT_TSH_BIN_PATH
 # run npm script with optional --output-path parameter
 RUN yarn $NPM_SCRIPT $([ -z $OUTPUT ] || echo --output-path=$OUTPUT)

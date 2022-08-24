@@ -19,7 +19,7 @@ or
 /Applications/Teleport\ Connect.app/Contents/MacOS/Teleport\ Connect --insecure
 ```
 
-## Building and Packaging
+## Building and packaging
 
 Teleport Connect consists of two main components: the `tsh` tool and the Electron app. Our build
 scripts assume that the `webapps` repo and the `teleport` repo are in the same folder.
@@ -53,6 +53,9 @@ $ yarn build-and-package-term
 
 The installable file can be found in `/webapps/packages/teleterm/build/release/`
 
+For more details on how Connect is built for different platforms, see the [Build
+process](#build-process) section.
+
 ## Development
 
 **Make sure to run `yarn build-native-deps-for-term` first** before attempting to launch the app in
@@ -71,13 +74,11 @@ To launch `teleterm` in development mode:
 ```sh
 $ cd webapps
 
-## TELETERM_TSH_PATH has to point to a tsh binary, typically from the teleport repo.
-$ TELETERM_TSH_PATH=$PWD/../teleport/build/tsh yarn start-term
+## CONNECT_TSH_BIN_PATH has to point to a tsh binary, typically from the teleport repo.
+$ CONNECT_TSH_BIN_PATH=$PWD/../teleport/build/tsh yarn start-term
 ```
 
 For a quick restart which restarts all processes and the `tsh` daemon, press `F6`.
-
-## Tips
 
 ### Generating tshd gRPC protobuf files
 
@@ -120,6 +121,67 @@ $ rm -rf ./packages/teleterm/src/services/tshd/v1/ && cp -R ../teleport/lib/tele
 Run `generate-grpc-shared` script from `teleterm/package.json`.
 It generates protobuf files from `*.proto` files in `sharedProcess/api/proto`.
 Resulting files can be found in `sharedProcess/api/protogen`.
+
+## Build process
+
+`yarn package-term` is ran as a part of `yarn build-and-package-term` and is responsible for
+packaging the app code for distribution.
+
+On all platforms, with the exception of production builds on macOS, the `CONNECT_TSH_BIN_PATH` env
+var is used to provide the path to the tsh binary that will be included in the package.
+
+See [Teleport Connect build
+process](https://gravitational.slab.com/posts/teleport-connect-build-process-fu6da5ld) on Slab for
+bulid process documentation that is specific to Gravitational.
+
+### macOS
+
+To make a fully-fledged build on macOS with Touch ID support, you need two things:
+
+- a signed version of tsh.app
+- an Apple Developer ID certificate in your Keychain
+
+When running `yarn build-and-package-term`, you need to provide these environment variables:
+
+- `APPLE_USERNAME`
+- `APPLE_PASSWORD`
+- `CONNECT_TSH_APP_PATH`
+- `CSC_NAME` (optional, developer certificate ID)
+
+The details behind those vars are described below.
+
+#### tsh.app
+
+Unlike other platforms, macOS needs the whole tsh.app to be bundled with Connect, not just the tsh
+binary. This is in order to support Touch ID and provide access to the same Secure Enclave keys.
+That is, if you add Touch ID as MFA through tsh, we want tsh.app bundled with Connect to have access
+to the same keys.
+
+Since Connect piggybacks on tsh for authn, this amounts to just copying a signed & notarized version
+of tsh.app into `Teleport Connect.app/Contents/MacOS`. All interactions with Secure Enclave are done
+through tsh at the moment, so Connect doesn't need to do anything extra, other than skipping signing
+of tsh.app during the build process (as we expect it to be already signed).
+
+The path to a signed version of tsh.app should be provided through the `CONNECT_TSH_APP_PATH` env
+variable.
+
+#### Signing & notarizing
+
+Signing & notarizing is required if the application is supposed to be ran on devices other than the
+one that packaged it. See [electron-builder's docs](https://www.electron.build/code-signing) for a
+general overview and [Teleport Connect build
+process](https://gravitational.slab.com/posts/teleport-connect-build-process-fu6da5ld) Slab page for
+Gravitational-specific nuances.
+
+For the most part, the device that's doing the signing & notarizing needs to have access to an Apple
+Developer ID (certificate + private key). electron-builder should automatically discover it if
+Keychain is unlocked. The `CSC_NAME` env var can be additionally provided to point electron-builder
+towards the specific developer ID certificate/key we want to use, if multiple are available.
+`CSC_NAME` can either be SHA-1 of the certificate or its name.
+
+On top of that, you must provide env vars that will be used for notarization. `APPLE_USERNAME` must
+be set to the account email address associated with the developer ID. `APPLE_PASSWORD` must be [an
+app-specific password](https://support.apple.com/en-us/HT204397), not the account password.
 
 ## Architecture
 
