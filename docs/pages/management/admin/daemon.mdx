@@ -96,7 +96,7 @@ any service daemon on systemd, in this case the `teleport` service. The rest of 
   Enter the following `teleport` command to have Teleport output a systemd unit file to `stdout` to be reviewed and applied as needed:
 
   ```code
-  $ teleport install systemd
+  $ sudo teleport install systemd
   ```
 
   If the output describes a good configuration for your environment, enter the command once again using the `-o` flag to
@@ -162,7 +162,7 @@ The following table includes all command line options available with the `telepo
 
 | Flag | Description | General Recommended Default |
 | --- | ----------- | ---- |
-| `--fd-limit` | The maximum number of open file descriptors, defined by `LimitNOFILE` in the unit file. |  `--fd-limit=8192` |
+| `--fd-limit` | The maximum number of open file descriptors by the service, defined by `LimitNOFILE` in the unit file. |  `--fd-limit=8192` |
 | `--env-file` | The path to the `EnvironmentFile` defined by the system unit file, containing any potential variables to be used in the configuration. | `--envfile=/etc/default/teleport` |
 | `--pid-file` | The path to the pid file containing the process identification number. | `--pid-file=/run/teleport.pid` |
 | `--teleport-path` | The full path to the `teleport` binary. | `--teleport-path=/usr/local/bin/teleport` |
@@ -171,7 +171,7 @@ The following table includes all command line options available with the `telepo
 If using the recommended defaults, you can enter all command line options in a single command as follows:
 
 ```code
-$ teleport install systemd \
+$ sudo teleport install systemd \
 --fd-limit=8192 \
 --env-file=/etc/default/teleport \
 --pid-file=/run/teleport.pid \
