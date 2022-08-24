@@ -104,34 +104,34 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 			require.NoError(t, resp.Body.Close())
 		})
 	}
+}
 
-	// Verifies s3 requests are signed without URL escaping to match AWS SDKs.
-	t.Run("disable URI escape when signing s3", func(t *testing.T) {
-		lp := createAWSAccessProxySuite(t, firstAWSCred)
+// Verifies s3 requests are signed without URL escaping to match AWS SDKs.
+func TestHandleAWSAccessS3Signing(t *testing.T) {
+	cred := credentials.NewStaticCredentials("access-key", "secret-key", "")
+	lp := createAWSAccessProxySuite(t, cred)
 
-		// Avoid loading extra things.
-		t.Setenv("AWS_SDK_LOAD_CONFIG", "false")
+	// Avoid loading extra things.
+	t.Setenv("AWS_SDK_LOAD_CONFIG", "false")
 
-		// Create a real AWS SDK s3 client.
-		awsConfig := aws.NewConfig().
-			WithDisableSSL(true).
-			WithRegion(awsRegion).
-			WithCredentials(firstAWSCred).
-			WithEndpoint(lp.GetAddr()).
-			WithS3ForcePathStyle(true)
+	// Create a real AWS SDK s3 client.
+	awsConfig := aws.NewConfig().
+		WithDisableSSL(true).
+		WithRegion("local").
+		WithCredentials(cred).
+		WithEndpoint(lp.GetAddr()).
+		WithS3ForcePathStyle(true)
 
-		session, err := session.NewSession(awsConfig)
-		require.NoError(t, err)
+	s3client := s3.New(session.Must(session.NewSession(awsConfig)))
 
-		s3client := s3.New(session)
-
-		// Use a bucket name with special charaters. AWS SDK actually signs the
-		// request with the unescaped bucket name.
-		_, err = s3client.ListObjects(&s3.ListObjectsInput{
-			Bucket: aws.String("=bucket=name="),
-		})
-		require.NoError(t, err)
+	// Use a bucket name with special charaters. AWS SDK actually signs the
+	// request with the unescaped bucket name.
+	_, err := s3client.ListObjects(&s3.ListObjectsInput{
+		Bucket: aws.String("=bucket=name="),
 	})
+
+	// Our signature verification should succeed to match what AWS SDK signs.
+	require.NoError(t, err)
 }
 
 func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *LocalProxy {
