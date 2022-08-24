@@ -51,7 +51,7 @@ Wrote config to file "/etc/teleport.yaml". Now you can start the server. Happy T
 Once you've installed the `teleport` binary and created a Teleport configuration file, let's create and configure the Teleport daemon.
 
 Systemd is designed to use **unit files**, which are the files used to define and configure
-any needed service daemon on systemd, in this case the `teleport` service. The rest of this guide will focus on creating and configuring the `teleport` service daemon depending on your preferred installation method, either a package manager, or from source.
+any service daemon on systemd, in this case the `teleport` service. The rest of this guide will focus on creating and configuring the `teleport` service daemon depending on your preferred installation method, either a package manager, or from source.
 
 <Tabs>
   <TabItem label="Package Manager Installation">
@@ -71,7 +71,7 @@ any needed service daemon on systemd, in this case the `teleport` service. The r
        Active: inactive (dead)
   ```
 
-  Enter the following command to enable the systemd `teleport` daemon. Enabling the daemon using `systemctl` allows systemd to place the daemon in its dependancy tree, ensuring that the teleport service will be automatically restarted on any potential reboot:
+  Enter the following command to enable the systemd `teleport` daemon. Enabling the daemon using `systemctl` allows systemd to place the daemon in its dependency tree, ensuring that the teleport service will be automatically restarted on any potential reboot:
 
   ```code
   $ sudo systemctl enable teleport
@@ -92,7 +92,6 @@ any needed service daemon on systemd, in this case the `teleport` service. The r
   </TabItem>
 
   <TabItem label="Source Installation">
-  In order to more readily support systemd configurations, Teleport is capable of recommending and assisting with the installation of a unit file.
 
   Enter the following `teleport` command to have Teleport output a systemd unit file to `stdout` to be reviewed and applied as needed:
 
@@ -107,7 +106,7 @@ any needed service daemon on systemd, in this case the `teleport` service. The r
   $ sudo teleport install systemd -o /etc/systemd/system/teleport.service
   ```
 
-  Enable the `teleport` service daemon using `systemctl` so that systemd can place it in its dependancy tree. This also ensures that the `teleport` service will be automatically restarted on any potential reboot:
+  Enable the `teleport` service daemon using `systemctl` so that systemd can place it in its dependency tree. This also ensures that the `teleport` service will be automatically restarted on any potential reboot:
 
   ```code
   $ sudo systemctl enable teleport
@@ -163,16 +162,16 @@ The following table includes all command line options available with the `telepo
 
 | Flag | Description | General Recommended Default |
 | --- | ----------- | ---- |
-| --fd-limit | The maximum number of open file descriptors, definted by `LimitNOFILE` in the unit file. |  **--fd-limit=8192** |
-| --env-file | The path to the `EnvironmentFile` defined by the system unit file, containing any potential variables to be used in the configuration. | **--envfile=/etc/default/teleport** |
-| --pid-file | The path to the pid file containing the process identification number. | **--pid-file=/run/teleport.pid** |
-| --teleport-path | The full path to the `teleport` binary. | **--teleport-path=/usr/local/bin/teleport** |
-| -o, --output | The full unit file load path which will define where to create and store the system unit file itself. This flag is used to write the output to the designated file. | **--output=/etc/systemd/system/teleport.service** |
+| `--fd-limit` | The maximum number of open file descriptors, defined by `LimitNOFILE` in the unit file. |  `--fd-limit=8192` |
+| `--env-file` | The path to the `EnvironmentFile` defined by the system unit file, containing any potential variables to be used in the configuration. | `--envfile=/etc/default/teleport` |
+| `--pid-file` | The path to the pid file containing the process identification number. | `--pid-file=/run/teleport.pid` |
+| `--teleport-path` | The full path to the `teleport` binary. | `--teleport-path=/usr/local/bin/teleport` |
+| `-o`, `--output` | The full unit file load path which will define where to create and store the system unit file itself. This flag is used to write the output to the designated file. | `--output=/etc/systemd/system/teleport.service` |
 
 If using the recommended defaults, you can enter all command line options in a single command as follows:
 
 ```code
-teleport install systemd \
+$ teleport install systemd \
 --fd-limit=8192 \
 --env-file=/etc/default/teleport \
 --pid-file=/run/teleport.pid \
