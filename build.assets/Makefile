@@ -10,8 +10,9 @@ GOMODCACHE ?= /tmp/gomodcache
 DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e GOMODCACHE=$(GOMODCACHE)
 
 # delete after webapps migration to teleport
+GNUPG_DIR:="$(GNUPG_DIR)":-/tmp/gnupg
 WEBAPPSSRCDIR=/go/src/github.com/gravitational/webapps
-WEBAPPSDOCKERFLAGS := $(DOCKERFLAGS) -v "$$(pwd)/../../webapps":$(WEBAPPSSRCDIR)
+WEBAPPSDOCKERFLAGS := $(DOCKERFLAGS) -v "$$(pwd)/../../webapps":$(WEBAPPSSRCDIR) -v "$$(pwd)/rpm-sign/rpmmacros":/root/.rpmmacros -v $(GNUPG_DIR):/root/.gnupg
 
 ADDFLAGS ?=
 BATSFLAGS :=

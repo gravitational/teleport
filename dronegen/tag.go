@@ -108,7 +108,13 @@ func tagBuildCommands(b buildType) []string {
 	if b.hasTeleportConnect() {
 		switch b.os {
 		case "linux":
-			commands = append(commands, `make -C build.assets teleterm`)
+			commands = append(commands,
+				`mkdir -m0700 $GNUPG_DIR`,
+				`echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPG_DIR`,
+				`chown -R root:root $GNUPG_DIR`,
+				`make -C build.assets teleterm`,
+				`rm -rf $GNUPG_DIR`,
+			)
 		case "mac":
 			commands = append(commands,
 				`cd /go/src/github.com/gravitational/webapps`,
@@ -291,6 +297,20 @@ func tagPipeline(b buildType) pipeline {
 	p.Services = []service{
 		dockerService(),
 	}
+
+	refs := dockerVolumeRefs()
+
+	if b.hasTeleportConnect() && b.os == "linux" {
+		tagEnvironment["GNUPG_DIR"] = value{raw: "/tmpfs/gnupg"}
+		tagEnvironment["GPG_RPM_SIGNING_ARCHIVE"] = value{fromSecret: "GPG_RPM_SIGNING_ARCHIVE"}
+		// RPM builds require tmpfs to hold the key material in memory.
+		refs = dockerVolumeRefs(volumeRefTmpfs)
+		p.Volumes = dockerVolumes(volumeTmpfs)
+		p.Services = []service{
+			dockerService(volumeRefTmpfs),
+		}
+	}
+
 	p.Steps = []step{
 		{
 			Name:  "Check out code",
@@ -305,7 +325,7 @@ func tagPipeline(b buildType) pipeline {
 			Name:        "Build artifacts",
 			Image:       "docker",
 			Environment: tagEnvironment,
-			Volumes:     dockerVolumeRefs(),
+			Volumes:     refs,
 			Commands:    tagBuildCommands(b),
 		},
 		{
