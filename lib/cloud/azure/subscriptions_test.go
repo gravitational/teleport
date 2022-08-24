@@ -26,6 +26,7 @@ import (
 )
 
 func TestListSubscriptionIDs(t *testing.T) {
+        t.Parallel()
 	tests := []struct {
 		name    string
 		mockAPI *ARMSubscriptionsMock
