@@ -3407,7 +3407,6 @@ impl DeviceReadRequest {
 
 /// 2.2.1.5.3 Device Read Response (DR_READ_RSP)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/d35d3f91-fc5b-492b-80be-47f483ad1dc9
-#[derive(Debug)]
 struct DeviceReadResponse {
     /// The CompletionId field of this header MUST match a Device I/O Request (section 2.2.1.4) message that had the MajorFunction field set to IRP_MJ_READ.
     device_io_reply: DeviceIoResponse,
@@ -3415,6 +3414,16 @@ struct DeviceReadResponse {
     length: u32,
     /// A variable-length array of bytes that specifies the output data from the read request.
     read_data: Vec<u8>,
+}
+
+impl std::fmt::Debug for DeviceReadResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DeviceReadResponse")
+            .field("device_io_reply", &self.device_io_reply)
+            .field("length", &self.length)
+            .field("read_data", &util::vec_u8_debug(&self.read_data))
+            .finish()
+    }
 }
 
 impl DeviceReadResponse {
@@ -3446,7 +3455,7 @@ impl DeviceReadResponse {
 
 /// 2.2.1.4.4 Device Write Request (DR_WRITE_REQ)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/2e25f0aa-a4ce-4ff3-ad62-ab6098280a3a
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct DeviceWriteRequest {
     /// The MajorFunction field in this header MUST be set to IRP_MJ_WRITE.
     pub device_io_request: DeviceIoRequest,
@@ -3456,6 +3465,17 @@ pub struct DeviceWriteRequest {
     pub offset: u64,
     /// Data to be written on the target device.
     pub write_data: Vec<u8>,
+}
+
+impl std::fmt::Debug for DeviceWriteRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DeviceWriteRequest")
+            .field("device_io_request", &self.device_io_request)
+            .field("length", &self.length)
+            .field("offset", &self.offset)
+            .field("write_data", &util::vec_u8_debug(&self.write_data))
+            .finish()
+    }
 }
 
 impl DeviceWriteRequest {
