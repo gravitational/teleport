@@ -97,7 +97,9 @@ func darwinConnectDmgPipeline() pipeline {
 			Commands: darwinUploadToS3Commands(),
 		},
 		{
-			Name:     "Register artifact",
+			Name: "Register artifact",
+			// Connect's artifact description is automatically generated based on the filename so we pass
+			// no packageType and extraQualifications.
 			Commands: tagCreateReleaseAssetCommands(b, "", nil),
 			Failure:  "ignore",
 			Environment: map[string]value{
@@ -208,7 +210,9 @@ func darwinTagPipeline() pipeline {
 			Commands: darwinUploadToS3Commands(),
 		},
 		{
-			Name:     "Register artifacts",
+			Name: "Register artifacts",
+			// Binaries built by this pipeline don't require extra description, so we don't pass
+			// packageType and extraQualifications.
 			Commands: tagCreateReleaseAssetCommands(b, "", nil),
 			Failure:  "ignore",
 			Environment: map[string]value{
