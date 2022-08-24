@@ -320,9 +320,14 @@ func (c *Client) Close() error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	err := c.conn.Close()
-	// reset to avoid a potential use of closed connection.
-	c.conn = nil
+	var err error
+
+	if c.conn != nil {
+		err = c.conn.Close()
+		// reset to avoid a potential use of closed connection.
+		c.conn = nil
+	}
+
 	c.enabled = unset
 
 	return err
