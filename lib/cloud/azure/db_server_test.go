@@ -35,6 +35,7 @@ import (
 )
 
 func TestListServers(t *testing.T) {
+    t.Parallel()
 	myServer1, myDBServer1 := makeMySQLServer("mysql1", "group1")
 	myServer2, myDBServer2 := makeMySQLServer("mysql2", "group2")
 	pgServer1, pgDBServer1 := makePostgresServer("pgres1", "group1")
