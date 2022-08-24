@@ -90,7 +90,7 @@ CLI does not support snoozing the warnings as you can in the webUI. Which provid
 
 ### Web UI UX
 
-For web UI - banner on top
+Web UI will display license expiration banner on top of the page with the following rules:
 Show warning (yellow) to users N days prior to expiration, 1 day snooze, based on license_warning_days role option with same warning text as the CLI
 Show error (red) to all users after expiration, no dismiss or snoozing available.
 Snoozing allows users to disable the warning in the web UI from being displayed for N days.
