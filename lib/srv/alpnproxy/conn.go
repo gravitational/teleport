@@ -162,7 +162,7 @@ func (c *PingConn) discardPingReads() error {
 	return nil
 }
 
-// Write writes provided content to the underlaying connection with proper
+// Write writes provided content to the underlying connection with proper
 // protocol fields.
 func (c *PingConn) Write(p []byte) (int, error) {
 	c.muWrite.Lock()

@@ -18,11 +18,11 @@ package sqlserver
 
 import (
 	"context"
+	"net"
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -41,8 +41,8 @@ type Proxy struct {
 
 // HandleConnection accepts connection from a SQL Server client, authenticates
 // it and proxies it to an appropriate database service.
-func (p *Proxy) HandleConnection(ctx context.Context, proxyCtx *common.ProxyContext, tlsConn utils.TLSConn) error {
-	tlsConn, err := p.handlePreLogin(ctx, tlsConn)
+func (p *Proxy) HandleConnection(ctx context.Context, proxyCtx *common.ProxyContext, conn net.Conn) error {
+	conn, err := p.handlePreLogin(ctx, conn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -53,7 +53,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, proxyCtx *common.ProxyCont
 	}
 	defer serviceConn.Close()
 
-	err = p.Service.Proxy(ctx, proxyCtx, tlsConn, serviceConn)
+	err = p.Service.Proxy(ctx, proxyCtx, conn, serviceConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -61,7 +61,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, proxyCtx *common.ProxyCont
 	return nil
 }
 
-func (p *Proxy) handlePreLogin(ctx context.Context, conn utils.TLSConn) (utils.TLSConn, error) {
+func (p *Proxy) handlePreLogin(ctx context.Context, conn net.Conn) (net.Conn, error) {
 	_, err := protocol.ReadPreLoginPacket(conn)
 	if err != nil {
 		return nil, trace.Wrap(err)
