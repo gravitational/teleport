@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"sync"
 	"syscall"
+	"text/template"
 
 	"github.com/gravitational/trace"
 	"github.com/mdlayher/netlink"
@@ -149,9 +150,10 @@ func (c *Client) connect() error {
 		return trace.Errorf("failed to get auditd status: %v", trace.ConvertSystemError(err))
 	}
 
-	c.enabled = status.Enabled == 1
+	// enabled can be either 1 or 2 if enabled and 0 otherwise
+	c.enabled = status.Enabled > 0
 
-	if status.Enabled != 1 {
+	if !c.enabled {
 		return ErrAuditdDisabled
 	}
 
@@ -221,19 +223,37 @@ func getAuditStatus(conn NetlinkConnector) (*auditStatus, error) {
 
 // SendMsg sends a message. Client will create a new connection if not connected already.
 func (c *Client) SendMsg(event EventType, result ResultType) error {
-	extraData := ""
-
-	if c.teleportUser != "" {
-		extraData += fmt.Sprintf("teleportUser=%s ", c.teleportUser)
-	}
-
-	const msgDataTmpl = "op=%s acct=\"%s\" exe=%s hostname=%s addr=%s terminal=%s %sres=%s"
+	const msgDataTmpl = `op={{ .Opcode }} acct="{{ .Msg.SystemUser }}" exe={{ .Exe }} ` +
+		`hostname={{ .Hostname }} addr={{ .Msg.ConnAddress }} terminal={{ .Msg.TTYName }} ` +
+		`{{if .Msg.TeleportUser}}teleportUser={{.Msg.TeleportUser}}{{end}} res={{ .Result }}`
 	op := eventToOp(event)
 
-	msgData := []byte(fmt.Sprintf(msgDataTmpl, op, c.systemUser, c.execName, c.hostname,
-		c.address, c.ttyName, extraData, result))
+	buf := &bytes.Buffer{}
+	if err := template.Must(template.New("auditd-message").
+		Parse(msgDataTmpl)).
+		Execute(buf,
+			struct {
+				Result   ResultType
+				Opcode   string
+				Exe      string
+				Hostname string
+				Msg      Message
+			}{
+				Opcode:   op,
+				Result:   result,
+				Exe:      c.execName,
+				Hostname: c.hostname,
+				Msg: Message{
+					SystemUser:   c.systemUser,
+					TeleportUser: c.teleportUser,
+					ConnAddress:  c.address,
+					TTYName:      c.ttyName,
+				},
+			}); err != nil {
+		return trace.Wrap(err)
+	}
 
-	return trace.Wrap(c.sendMsg(netlink.HeaderType(event), msgData))
+	return trace.Wrap(c.sendMsg(netlink.HeaderType(event), buf.Bytes()))
 }
 
 func (c *Client) sendMsg(eventType netlink.HeaderType, MsgData []byte) error {

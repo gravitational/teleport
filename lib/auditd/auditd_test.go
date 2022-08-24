@@ -35,8 +35,8 @@ type msgOrErr struct {
 	err error
 }
 
-// netlinkMock is a mock of netlink client. Otherwise, we would need run this test as a root with installed
-// and enabled auditd.
+// netlinkMock is a mock of netlink client. Otherwise, we would need run this
+// test as a root with installed and enabled auditd.
 type netlinkMock struct {
 	t                *testing.T
 	expectedMessages []msgOrErr
