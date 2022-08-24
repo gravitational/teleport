@@ -192,7 +192,8 @@ func (b *buildType) Description(packageType string, extraQualifications ...strin
 }
 
 func (b *buildType) hasTeleportConnect() bool {
-	return b.os == "darwin" && b.arch == "amd64"
+	return (b.os == "darwin" && b.arch == "amd64") ||
+		(b.os == "linux" && b.arch == "amd64" && !b.centos7 && !b.fips)
 }
 
 // dockerService generates a docker:dind service
