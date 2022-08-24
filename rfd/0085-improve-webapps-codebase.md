@@ -53,17 +53,10 @@ export default function Container() {
 }
 ```
 
-This causes issues when trying to navigate around the codebase and find instances of the actual React component that is
-being rendered. Default exports are not recommended to be used unless absolutely necessary (for example, with 
-`React.Lazy`).
-- https://blog.neufund.org/why-we-have-banned-default-exports-and-you-should-do-the-same-d51fdc2cf2ad
-- https://rajeshnaroth.medium.com/avoid-es6-default-exports-a24142978a7a
-- https://blog.piotrnalepa.pl/2020/06/26/default-exports-vs-named-exports/
-- https://ilikekillnerds.com/2019/08/default-exports-bad/
 
 ### Testing
 
-As a result of the above, we end up testing the `DesktopSession` component instead of the actual component that is
+As a result of the above, we end up testing the `DesktopSession` component instead of the actual component (`Container`) that is
 rendered in the UI. 
 
 A story may look like this:
@@ -89,34 +82,42 @@ test('fetch error', () => {
 });
 ```
 
-This results in all the logic in `useDesktopSession` to be untested. We're only testing the UI part of the application,
-instead of any business logic.
+This results in all the logic in `useDesktopSession` going untested. We're only testing the UI part of the application,
+but skipping all of the business logic.
 
-Storybook isn't designed for the way we are using it. As a result of putting our large components into stories, we have
-ended up with only testing our UI and nothing else.
+Storybook isn't best suited for the way we are using it. As a result of testing our large components primarily via stories, we have
+ended up only testing our UI and nothing else.
 
 ## Details
 
 ### Changing how we write stories
 
-Stories in Storybook are designed for creating isolated, individual components. We should restrict usage of Storybook to
-our shared component library.
+Experience tells us that Stories in Storybook are used most effectively for documenting how to use reusable components. We should therefore restrict usage of Storybook mostly to
+our shared component library, and test our fullscreen components another way.
 
 ### Changing how we write tests
 
 We should be testing all the different state possibilities in Jest and React Testing Library, mocking any data or 
-network requests to cause the component to render into the state we want.
-
-We should avoid using snapshots when testing, if possible. Snapshots break constantly when styles are updated, and
-don't provide any actual security around behaviour or appearance. Further reading - 
-https://medium.com/@sapegin/whats-wrong-with-snapshot-tests-37fbe20dfe8e.
+network requests to cause the component to render into the state we want. This ensures that the internal logic
+of our components (generally the most critical and difficult-to-get-right aspect of frontend code) gets tested,
+as well as the final UI state.
 
 Tests should check for elements that exist for the specific state being tested, i.e. an error message when the data has 
 failed to load. Elements should be clicked on or events triggered in order to change the state of the component.
 
+By writing tests as described above, snapshot tests typically become redundant and therefore unnecessary. Besides the problem of skipping the business logic, snapshots consistently break for non-bugs, such as when styles are updated, and
+generally don't provide much if any security around behaviour or appearance. Further reading - 
+https://medium.com/@sapegin/whats-wrong-with-snapshot-tests-37fbe20dfe8e.
+
 ### Changing how we export components
 
-Default exports should be avoided at all costs.
+Default exports should be avoided except when absolutely necessary (for example, with 
+`React.Lazy`), as they degrade the developer experience
+for no discernible benefit. For more fully fleshed out reasoning, refer to the articles below:
+- https://blog.neufund.org/why-we-have-banned-default-exports-and-you-should-do-the-same-d51fdc2cf2ad
+- https://rajeshnaroth.medium.com/avoid-es6-default-exports-a24142978a7a
+- https://blog.piotrnalepa.pl/2020/06/26/default-exports-vs-named-exports/
+- https://ilikekillnerds.com/2019/08/default-exports-bad/
 
 When needing to export something as default, we should export it like so:
 
