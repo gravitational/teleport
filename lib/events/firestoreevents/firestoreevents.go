@@ -23,9 +23,8 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/genproto/googleapis/firestore/admin/v1"
-
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/genproto/googleapis/firestore/admin/v1"
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"

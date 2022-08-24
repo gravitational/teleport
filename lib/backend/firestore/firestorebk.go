@@ -764,7 +764,8 @@ type IndexList [][]*adminpb.Index_IndexField
 func (l *IndexList) Index(fields ...adminpb.Index_IndexField) {
 	list := []*adminpb.Index_IndexField{}
 	for _, field := range fields {
-		list = append(list, &field)
+		f := field
+		list = append(list, &f)
 	}
 
 	*l = append(*l, list)
