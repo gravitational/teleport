@@ -91,7 +91,12 @@ func (*DiscardStream) Complete(ctx context.Context) error {
 
 // EmitAuditEvent discards audit event
 func (*DiscardStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	log.Debugf("Dicarding stream event: %v", event)
+	log.WithFields(log.Fields{
+		"event_id":    event.GetID(),
+		"event_type":  event.GetType(),
+		"event_time":  event.GetTime(),
+		"event_index": event.GetIndex(),
+	}).Debugf("Discarding stream event")
 	return nil
 }
 
@@ -105,7 +110,12 @@ type DiscardEmitter struct{}
 
 // EmitAuditEvent discards audit event
 func (*DiscardEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	log.Debugf("Dicarding event: %v", event)
+	log.WithFields(log.Fields{
+		"event_id":    event.GetID(),
+		"event_type":  event.GetType(),
+		"event_time":  event.GetTime(),
+		"event_index": event.GetIndex(),
+	}).Debugf("Discarding event")
 	return nil
 }
 

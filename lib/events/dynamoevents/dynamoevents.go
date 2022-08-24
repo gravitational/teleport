@@ -93,7 +93,7 @@ var tableSchema = []*dynamodb.AttributeDefinition{
 	},
 }
 
-// Config structure represents DynamoDB confniguration as appears in `storage` section
+// Config structure represents DynamoDB configuration as appears in `storage` section
 // of Teleport YAML
 type Config struct {
 	// Region is where DynamoDB Table will be used to store k/v
