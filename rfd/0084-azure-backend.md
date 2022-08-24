@@ -12,7 +12,11 @@ state: draft
 
 ## What
 
-Add support for Azure IAM authentication to the Postgres backend, add audit log capabilities to the `sqlbk`/Postgres backend, add a session uploader that uses Azure Blob Storage (with the same IAM authentication).
+Enable users to leverage Azure-native services as a Teleport backend.
+We will accomplish this by:
+- Add support for Azure IAM authentication to the existing Postgres backend
+- Add audit log capabilities to the `sqlbk`/Postgres backend
+- Add a session uploader that uses Azure Blob Storage (with the same IAM authentication)
 
 ## Why
 
