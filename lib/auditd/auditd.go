@@ -17,6 +17,8 @@
  * limitations under the License.
  */
 
+// Package auditd implements Linux Audit client that allows sending events
+// and checking system configuration.
 package auditd
 
 // SendEvent is a stub function that is called on macOS. Auditd is implemented in Linux kernel and doesn't
