@@ -167,6 +167,13 @@ func getGoogleWorkspaceCredentials(ctx context.Context, connector types.OIDCConn
 	credentialsParams := google.CredentialsParams{
 		Subject: connector.GetGoogleAdminEmail(),
 		Scopes:  scopes,
+		// workaround for https://github.com/golang/oauth2/issues/583 in case
+		// the credential file requires user interaction (which we obviously
+		// can't support in the auth server); without this, the call to Token()
+		// will panic and no error will be reported
+		AuthHandler: func(string) (string, string, error) {
+			return "", "", trace.BadParameter("google service account credentials require unsupported user interaction")
+		},
 	}
 
 	credentials, err := google.CredentialsFromJSONWithParams(ctx, jsonCredentials, credentialsParams)
