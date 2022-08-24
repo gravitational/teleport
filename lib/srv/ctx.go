@@ -132,9 +132,6 @@ type Server interface {
 	// GetAccessPoint returns an AccessPoint for this cluster.
 	GetAccessPoint() AccessPoint
 
-	// GetSessionServer returns a session server.
-	GetSessionServer() rsession.Service
-
 	// GetDataDir returns data directory of the server
 	GetDataDir() string
 

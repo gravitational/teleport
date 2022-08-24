@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -133,7 +134,7 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 		if len(cfg.Addrs) == 0 {
 			return nil, trace.BadParameter("no addresses to dial")
 		}
-		contextDialer := client.NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
+		contextDialer := client.NewDialer(cfg.Context, cfg.KeepAlivePeriod, cfg.DialTimeout)
 		dialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
 				conn, err = contextDialer.DialContext(ctx, network, addr)
@@ -194,8 +195,11 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 	clientParams := append(
 		[]roundtrip.ClientParam{
 			roundtrip.HTTPClient(&http.Client{
-				Timeout:   defaults.HTTPRequestTimeout,
-				Transport: otelhttp.NewTransport(breaker.NewRoundTripper(cb, transport)),
+				Timeout: defaults.HTTPRequestTimeout,
+				Transport: otelhttp.NewTransport(
+					breaker.NewRoundTripper(cb, transport),
+					otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
+				),
 			}),
 			roundtrip.SanitizerEnabled(true),
 		},
@@ -285,70 +289,6 @@ func (c *Client) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &re, nil
-}
-
-// GetSessions returns a list of active sessions in the cluster as reported by
-// the auth server.
-func (c *Client) GetSessions(ctx context.Context, namespace string) ([]session.Session, error) {
-	if namespace == "" {
-		return nil, trace.BadParameter(MissingNamespaceError)
-	}
-	out, err := c.Get(ctx, c.Endpoint("namespaces", namespace, "sessions"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var sessions []session.Session
-	if err := json.Unmarshal(out.Bytes(), &sessions); err != nil {
-		return nil, err
-	}
-	return sessions, nil
-}
-
-// GetSession returns a session by ID
-func (c *Client) GetSession(ctx context.Context, namespace string, id session.ID) (*session.Session, error) {
-	if namespace == "" {
-		return nil, trace.BadParameter(MissingNamespaceError)
-	}
-	// saving extra round-trip
-	if err := id.Check(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out, err := c.Get(ctx, c.Endpoint("namespaces", namespace, "sessions", string(id)), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var sess *session.Session
-	if err := json.Unmarshal(out.Bytes(), &sess); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sess, nil
-}
-
-// DeleteSession removes an active session from the backend.
-func (c *Client) DeleteSession(ctx context.Context, namespace string, id session.ID) error {
-	if namespace == "" {
-		return trace.BadParameter(MissingNamespaceError)
-	}
-	_, err := c.Delete(ctx, c.Endpoint("namespaces", namespace, "sessions", string(id)))
-	return trace.Wrap(err)
-}
-
-// CreateSession creates new session
-func (c *Client) CreateSession(ctx context.Context, sess session.Session) error {
-	if sess.Namespace == "" {
-		return trace.BadParameter(MissingNamespaceError)
-	}
-	_, err := c.PostJSON(ctx, c.Endpoint("namespaces", sess.Namespace, "sessions"), createSessionReq{Session: sess})
-	return trace.Wrap(err)
-}
-
-// UpdateSession updates existing session
-func (c *Client) UpdateSession(ctx context.Context, req session.UpdateRequest) error {
-	if err := req.Check(); err != nil {
-		return trace.Wrap(err)
-	}
-	_, err := c.PutJSON(ctx, c.Endpoint("namespaces", req.Namespace, "sessions", string(req.ID)), updateSessionReq{Update: req})
-	return trace.Wrap(err)
 }
 
 func (c *Client) Close() error {
@@ -1001,9 +941,10 @@ func (c *Client) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*O
 }
 
 // ValidateSAMLResponse validates response returned by SAML identity provider
-func (c *Client) ValidateSAMLResponse(ctx context.Context, re string) (*SAMLAuthResponse, error) {
+func (c *Client) ValidateSAMLResponse(ctx context.Context, re string, connectorID string) (*SAMLAuthResponse, error) {
 	out, err := c.PostJSON(ctx, c.Endpoint("saml", "requests", "validate"), validateSAMLResponseReq{
-		Response: re,
+		Response:    re,
+		ConnectorID: connectorID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1486,7 +1427,7 @@ type IdentityService interface {
 	// CreateSAMLAuthRequest creates SAML AuthnRequest
 	CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error)
 	// ValidateSAMLResponse validates SAML auth response
-	ValidateSAMLResponse(ctx context.Context, re string) (*SAMLAuthResponse, error)
+	ValidateSAMLResponse(ctx context.Context, re string, connectorID string) (*SAMLAuthResponse, error)
 	// GetSAMLAuthRequest returns SAML auth request if found
 	GetSAMLAuthRequest(ctx context.Context, authRequestID string) (*types.SAMLAuthRequest, error)
 
@@ -1680,7 +1621,7 @@ type ClientI interface {
 	services.Databases
 	services.WindowsDesktops
 	WebService
-	session.Service
+	services.Status
 	services.ClusterConfiguration
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic

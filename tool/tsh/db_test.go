@@ -22,6 +22,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/pem"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -44,7 +45,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// TestDatabaseLogin verifies "tsh db login" command.
+// TestDatabaseLogin tests "tsh db login" command and verifies "tsh db
+// env/config" after login.
 func TestDatabaseLogin(t *testing.T) {
 	tmpHomePath := t.TempDir()
 
@@ -63,6 +65,10 @@ func TestDatabaseLogin(t *testing.T) {
 		Name:     "mongo",
 		Protocol: defaults.ProtocolMongoDB,
 		URI:      "localhost:27017",
+	}, service.Database{
+		Name:     "mssql",
+		Protocol: defaults.ProtocolSQLServer,
+		URI:      "localhost:1433",
 	})
 
 	authServer := authProcess.GetAuthServer()
@@ -80,33 +86,85 @@ func TestDatabaseLogin(t *testing.T) {
 	}))
 	require.NoError(t, err)
 
-	// Fetch the active profile.
-	profile, err := client.StatusFor(tmpHomePath, proxyAddr.Host(), alice.GetName())
-	require.NoError(t, err)
+	testCases := []struct {
+		databaseName          string
+		expectCertsLen        int
+		expectKeysLen         int
+		expectErrForConfigCmd bool
+		expectErrForEnvCmd    bool
+	}{
+		{
+			databaseName:   "postgres",
+			expectCertsLen: 1,
+		},
+		{
+			databaseName:       "mongo",
+			expectCertsLen:     1,
+			expectKeysLen:      1,
+			expectErrForEnvCmd: true, // "tsh db env" not supported for Mongo.
+		},
+		{
+			databaseName:          "mssql",
+			expectCertsLen:        1,
+			expectErrForConfigCmd: true, // "tsh db config" not supported for MSSQL.
+			expectErrForEnvCmd:    true, // "tsh db env" not supported for MSSQL.
+		},
+	}
 
-	// Log into test Postgres database.
-	err = Run(context.Background(), []string{
-		"db", "login", "--debug", "postgres",
-	}, setHomePath(tmpHomePath))
-	require.NoError(t, err)
+	// Note: keystore currently races when multiple tsh clients work in the
+	// same profile dir (e.g. StatusCurrent might fail reading if someone else
+	// is writing a key at the same time). Thus running all `tsh db login` in
+	// sequence first before running other test cases in parallel.
+	for _, test := range testCases {
+		t.Run(fmt.Sprintf("%v/%v", "tsh db login", test.databaseName), func(t *testing.T) {
+			err := Run(context.Background(), []string{
+				"db", "login", "--db-user", "admin", test.databaseName,
+			}, setHomePath(tmpHomePath))
+			require.NoError(t, err)
 
-	// Verify Postgres identity file contains certificate.
-	certs, keys, err := decodePEM(profile.DatabaseCertPathForCluster("", "postgres"))
-	require.NoError(t, err)
-	require.Len(t, certs, 1)
-	require.Len(t, keys, 0)
+			// Fetch the active profile.
+			profile, err := client.StatusFor(tmpHomePath, proxyAddr.Host(), alice.GetName())
+			require.NoError(t, err)
 
-	// Log into test Mongo database.
-	err = Run(context.Background(), []string{
-		"db", "login", "--debug", "--db-user", "admin", "mongo",
-	}, setHomePath(tmpHomePath))
-	require.NoError(t, err)
+			// Verify certificates.
+			certs, keys, err := decodePEM(profile.DatabaseCertPathForCluster("", test.databaseName))
+			require.NoError(t, err)
+			require.Len(t, certs, test.expectCertsLen)
+			require.Len(t, keys, test.expectKeysLen)
+		})
+	}
 
-	// Verify Mongo identity file contains both certificate and key.
-	certs, keys, err = decodePEM(profile.DatabaseCertPathForCluster("", "mongo"))
-	require.NoError(t, err)
-	require.Len(t, certs, 1)
-	require.Len(t, keys, 1)
+	for _, test := range testCases {
+		test := test
+
+		t.Run(fmt.Sprintf("%v/%v", "tsh db config", test.databaseName), func(t *testing.T) {
+			t.Parallel()
+
+			err := Run(context.Background(), []string{
+				"db", "config", test.databaseName,
+			}, setHomePath(tmpHomePath))
+
+			if test.expectErrForConfigCmd {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+
+		t.Run(fmt.Sprintf("%v/%v", "tsh db env", test.databaseName), func(t *testing.T) {
+			t.Parallel()
+
+			err := Run(context.Background(), []string{
+				"db", "env", test.databaseName,
+			}, setHomePath(tmpHomePath))
+
+			if test.expectErrForEnvCmd {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestListDatabase(t *testing.T) {
@@ -312,7 +370,11 @@ func makeTestDatabaseServer(t *testing.T, auth *service.TeleportProcess, proxy *
 	require.NoError(t, err)
 
 	cfg.AuthServers = []utils.NetAddr{*proxyAddr}
-	cfg.Token = proxy.Config.Token
+
+	token, err := proxy.Config.Token()
+	require.NoError(t, err)
+
+	cfg.SetToken(token)
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = false
 	cfg.Databases.Enabled = true
@@ -332,14 +394,12 @@ func makeTestDatabaseServer(t *testing.T, auth *service.TeleportProcess, proxy *
 	require.NoError(t, err, "database server didn't start after 10s")
 
 	// Wait for all databases to register to avoid races.
-	for _, database := range dbs {
-		waitForDatabase(t, auth, database)
-	}
+	waitForDatabases(t, auth, dbs)
 
 	return db
 }
 
-func waitForDatabase(t *testing.T, auth *service.TeleportProcess, db service.Database) {
+func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []service.Database) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	for {
@@ -347,13 +407,23 @@ func waitForDatabase(t *testing.T, auth *service.TeleportProcess, db service.Dat
 		case <-time.After(500 * time.Millisecond):
 			all, err := auth.GetAuthServer().GetDatabaseServers(ctx, apidefaults.Namespace)
 			require.NoError(t, err)
-			for _, a := range all {
-				if a.GetName() == db.Name {
-					return
+
+			// Count how many input "dbs" are registered.
+			var registered int
+			for _, db := range dbs {
+				for _, a := range all {
+					if a.GetName() == db.Name {
+						registered++
+						break
+					}
 				}
 			}
+
+			if registered == len(dbs) {
+				return
+			}
 		case <-ctx.Done():
-			t.Fatal("database not registered after 10s")
+			t.Fatal("databases not registered after 10s")
 		}
 	}
 }

@@ -188,7 +188,7 @@ func pushCheckoutCommandsDarwin(b buildType) []string {
 			`mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
 			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
 			`git clone https://github.com/gravitational/webapps.git .`,
-			`git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)`,
+			`git checkout $($WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)`,
 			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 		)
 	}
@@ -348,6 +348,10 @@ func darwinTagBuildCommands(b buildType, opts darwinBuildOptions) []string {
 		// This makes the full app version look like this: 9.3.5.12489
 		// https://www.electron.build/configuration/configuration.html#Configuration-buildVersion
 		`export BUILD_NUMBER=$DRONE_BUILD_NUMBER`,
+		// CSC_NAME tells electron-builder which cert to use for signing when there are multiple certs
+		// available.
+		// https://www.electron.build/code-signing
+		`export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83`,
 	}
 
 	if opts.unlockKeychain {
