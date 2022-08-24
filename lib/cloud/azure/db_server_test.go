@@ -98,6 +98,7 @@ func TestListServers(t *testing.T) {
 }
 
 func TestGetServer(t *testing.T) {
+        t.Parallel()
 	myServer1, _ := makeMySQLServer("a", "group1")
 	myServer2, myDBServer2 := makeMySQLServer("a", "group2")
 	myServer3, _ := makeMySQLServer("b", "group1")
