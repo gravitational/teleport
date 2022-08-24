@@ -104,7 +104,6 @@ Default preset roles will use the default. For example the editor/auditor/access
 When multiple roles for the same user have different values for this interval the shortest one will be used.
 This value cannot be configured to be below the minimum value of 10 days.
 
-Idea: Keep this setting as a role option
 
 ```yaml
 kind: role
