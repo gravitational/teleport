@@ -18,9 +18,16 @@
 package srv
 
 import (
+	"io"
 	"os/exec"
 )
 
 func reexecCommandOSTweaks(cmd *exec.Cmd) {}
 
 func userCommandOSTweaks(cmd *exec.Cmd) {}
+
+// RunCommand reads in the command to run from the parent process (over a
+// pipe) then constructs and runs the command.
+func RunCommand() (errw io.Writer, code int, err error) {
+	return io.Discard, 0, nil
+}
