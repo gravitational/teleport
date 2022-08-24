@@ -136,9 +136,9 @@ and write permissions, and users that will need to use the credentials output
 by the bot require read permissions. In most cases, this user that needs to read
 the credentials should be specifically created for your application to run as.
 
-In addition to basic POSIX filesystem permissions, `tbot` also sets up Linux
-ACLs if the system supports it. This allows more granular control by granting
-individual users access.
+In addition to basic POSIX filesystem permissions, `tbot init` also sets up
+Linux ACLs if the system supports it. This allows more granular control by
+granting individual users access.
 
 Finally, on systems that support it, `tbot` will by default attempt to prevent 
 the resolution of symbolic links when reading and writing files. This prevents a 
