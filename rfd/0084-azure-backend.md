@@ -14,9 +14,9 @@ state: draft
 
 Enable users to leverage Azure-native services as a Teleport backend.
 We will accomplish this by:
-- Add support for Azure IAM authentication to the existing Postgres backend
-- Add audit log capabilities to the `sqlbk`/Postgres backend
-- Add a session uploader that uses Azure Blob Storage (with the same IAM authentication)
+- adding support for Azure IAM authentication to the existing Postgres backend
+- adding audit log capabilities to the `sqlbk`/Postgres backend
+- adding a session uploader that uses Azure Blob Storage (with the same or similar IAM authentication)
 
 ## Why
 
