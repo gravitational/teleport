@@ -1050,7 +1050,7 @@ func TestIsMFARequired(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a fake user.
-	user, role, err := CreateUserAndRole(srv.Auth(), "no-mfa-user", []string{"role"})
+	user, role, err := CreateUserAndRole(srv.Auth(), "no-mfa-user", []string{"no-mfa-user"})
 	require.NoError(t, err)
 
 	for _, required := range []bool{true, false} {
