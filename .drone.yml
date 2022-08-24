@@ -551,7 +551,6 @@ steps:
 - name: Build Mac artifacts (binaries and Teleport Connect)
   commands:
   - set -u
-  - echo HOME=$${HOME}
   - export HOME=/Users/$(whoami)
   - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
   - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
@@ -3298,7 +3297,6 @@ steps:
 - name: Build Mac artifacts (binaries)
   commands:
   - set -u
-  - echo HOME=$${HOME}
   - export HOME=/Users/$(whoami)
   - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
   - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
@@ -6528,7 +6526,6 @@ steps:
 - name: Build Mac artifacts (Teleport Connect)
   commands:
   - set -u
-  - echo HOME=$${HOME}
   - export HOME=/Users/$(whoami)
   - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
   - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
@@ -6647,6 +6644,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 31c84bd9f9c4bcd1eed68fb4a861801e467536a742e90ddfe4c7c7f66890fd11
+hmac: 15c4928178ed1ba375f6e995ea82167ff5a666fe5d2bf073e058dbf3c270fdbc
 
 ...

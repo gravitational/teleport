@@ -355,9 +355,13 @@ func installNodeToolchainStep(workspacePath string) step {
 
 func configureToolchainsCommands(config toolchainConfig) []string {
 	commands := []string{
-		// HOME needs to be set to the actual user rather than what Drone sets it to by default. This
-		// way we're able to unlock Keychain which is needed for Connect signing.
-		`echo HOME=$${HOME}`,
+		// HOME needs to be set to the actual home directory of a macOS user rather than the temporary
+		// directory that Drone sets it to by default. This way we're able to unlock Keychain which is
+		// needed for Connect signing.
+		//
+		// Hence, the toolchains are not installed within the temporary home dir but a separate
+		// TOOLCHAIN_DIR. Every pipeline in this file follows this pattern even though technically we
+		// need to unlock Keychain only for the build-darwin-amd64-connect pipeline.
 		`export HOME=/Users/$(whoami)`,
 		`export TOOLCHAIN_DIR=` + perBuildToolchainsDir,
 	}
