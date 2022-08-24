@@ -66,6 +66,7 @@ You can only share a single directory at a time.
 You can easily share files—and file modifications—between your local machine and
 the remote desktop.  
 
+
 ### Editing on the remote side
 
 When you create, edit, or delete a file in the shared directory on the remote
@@ -76,6 +77,9 @@ If you move a file into the shared directory on the remote side, that
 file will appear on the local side as well. And if you move a file outside the
 directory on the remote side, the remote desktop will copy it, keeping it within
 the shared directory. 
+
+You can also copy a file from one subdirectory within the shared directory and
+paste it into another—the local side will reflect the changes.
 
 <Notice type="warning">
 
@@ -93,6 +97,16 @@ To view your local changes on the remote side, you will need to either refresh
 or re-open the remote directory, or re-open any individual files you changed
 locally. When you do this, the remote desktop will request the current state of
 the directory from the Teleport Web UI.
+
+### File size restrictions
+
+Performance for moving large files to and from the shared directory
+will depend on network conditions, and file editing performance will
+depend on the program you use to edit files.
+
+While there is no size limit for files within your shared directory, we only
+recommend manipulating files up to 32 MB to reduce the impact of the shared
+directory on network bandwidth and system resources. 
 
 ## Step 3/4. Disconnect
 
@@ -198,7 +212,7 @@ Web UI. Based on these messages, the Teleport Web UI advertises information
 about—or performs modifications on—the shared directory.
 
 You can read more about TDP in [Teleport RFD
-37](https://github.com/gravitational/teleport/blob/master/rfd/0067-desktop-access-file-system-sharing.md)
+37](https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-file-system-sharing.md)
 and how Directory Sharing uses it in [RFD
 67](https://github.com/gravitational/teleport/blob/master/rfd/0067-desktop-access-file-system-sharing.md).
 
