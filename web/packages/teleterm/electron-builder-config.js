@@ -91,8 +91,15 @@ module.exports = {
       },
     ].filter(Boolean),
   },
+  rpm: {
+    artifactName: '${name}-${version}.${arch}.${ext}',
+  },
+  deb: {
+    artifactName: '${name}-${version}_${arch}.${ext}',
+  },
   linux: {
     target: ['tar.gz', 'rpm', 'deb'],
+    artifactName: '${name}-${version}-${arch}.${ext}', //tar.gz
     category: 'Development',
     icon: 'assets/icon-linux',
     extraResources: [
