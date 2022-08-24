@@ -109,12 +109,6 @@ func tagBuildCommands(b buildType) []string {
 		switch b.os {
 		case "linux":
 			commands = append(commands, `make -C build.assets teleterm`)
-		case "mac":
-			commands = append(commands,
-				`cd /go/src/github.com/gravitational/webapps`,
-				`yarn install --frozen-lockfile && yarn build-term && yarn package-term`,
-				`cd -`,
-			)
 		}
 
 	}
