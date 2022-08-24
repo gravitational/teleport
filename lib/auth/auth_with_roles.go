@@ -4585,6 +4585,20 @@ func (a *ServerWithRoles) DeleteAllApps(ctx context.Context) error {
 }
 
 func (a *ServerWithRoles) checkAccessToNode(node types.Server) error {
+	// For certain built-in roles, continue to allow full access and return
+	// the full set of nodes to not break existing clusters during migration.
+	//
+	// In addition, allow proxy (and remote proxy) to access all nodes for its
+	// smart resolution address resolution. Once the smart resolution logic is
+	// moved to the auth server, this logic can be removed.
+	builtinRole := HasBuiltinRole(a.context, string(types.RoleAdmin)) ||
+		HasBuiltinRole(a.context, string(types.RoleProxy)) ||
+		HasRemoteBuiltinRole(a.context, string(types.RoleRemoteProxy))
+
+	if builtinRole {
+		return nil
+	}
+
 	return a.context.Checker.CheckAccess(node,
 		// MFA is not required for operations on node resources but
 		// will be enforced at the connection time.
