@@ -22,7 +22,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/desktop"
 )
 
 type access struct {
@@ -227,8 +226,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		Billing:                 billingAccess,
 		Clipboard:               clipboard,
 		DesktopSessionRecording: desktopSessionRecording,
-		// AllowDirectorySharing() ensures this setting is modulated by build flag while in development
-		DirectorySharing: directorySharing && desktop.AllowDirectorySharing(),
+		DirectorySharing:        directorySharing,
 	}
 
 	// local user
