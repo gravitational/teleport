@@ -383,8 +383,8 @@ func (s *SessionRegistry) leaveSession(ctx context.Context, party *party) error 
 // NotifyWinChange is called to notify all members in the party that the PTY
 // size has changed. The notification is sent as a global SSH request and it
 // is the responsibility of the client to update it's window size upon receipt.
-func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *ServerContext) error {
-	session := ctx.getSession()
+func (s *SessionRegistry) NotifyWinChange(ctx context.Context, params rsession.TerminalParams, scx *ServerContext) error {
+	session := scx.getSession()
 	if session == nil {
 		s.log.Debug("Unable to update window size, no session found in context.")
 		return nil
@@ -396,19 +396,19 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 		Metadata: apievents.Metadata{
 			Type:        events.ResizeEvent,
 			Code:        events.TerminalResizeCode,
-			ClusterName: ctx.ClusterName,
+			ClusterName: scx.ClusterName,
 		},
 		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        ctx.srv.HostUUID(),
-			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
+			ServerID:        scx.srv.HostUUID(),
+			ServerLabels:    scx.srv.GetInfo().GetAllLabels(),
 			ServerNamespace: s.srv.GetNamespace(),
 			ServerHostname:  s.srv.GetInfo().GetHostname(),
-			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
+			ServerAddr:      scx.ServerConn.LocalAddr().String(),
 		},
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(sid),
 		},
-		UserMetadata: ctx.Identity.GetUserMetadata(),
+		UserMetadata: scx.Identity.GetUserMetadata(),
 		TerminalSize: params.Serialize(),
 	}
 
@@ -419,7 +419,7 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 	}
 
 	// Update the size of the server side PTY.
-	err := session.term.SetWinSize(params)
+	err := session.term.SetWinSize(ctx, params)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -427,7 +427,7 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 	// If sessions are being recorded at the proxy, sessions can not be shared.
 	// In that situation, PTY size information does not need to be propagated
 	// back to all clients and we can return right away.
-	if services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+	if services.IsRecordAtProxy(scx.SessionRecordingConfig.GetMode()) {
 		return nil
 	}
 
@@ -436,7 +436,7 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 	// OpenSSH clients will ignore this and not update their own local PTY.
 	for _, p := range session.getParties() {
 		// Don't send the window change notification back to the originator.
-		if p.ctx.ID() == ctx.ID() {
+		if p.ctx.ID() == scx.ID() {
 			continue
 		}
 
@@ -679,7 +679,7 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 		}
 	}
 
-	if err := s.term.Run(); err != nil {
+	if err := s.term.Run(ctx); err != nil {
 		scx.Errorf("Unable to run shell command: %v.", err)
 		return trace.ConvertSystemError(err)
 	}
@@ -822,7 +822,7 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 	// wait for the session to end before the shell, kill the shell
 	go func() {
 		<-s.closeC
-		if err := s.term.Kill(); err != nil {
+		if err := s.term.Kill(ctx); err != nil {
 			s.log.Debugf("Failed killing the shell: %v", err)
 		}
 	}()
@@ -903,7 +903,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	// Start execution. If the program failed to start, send that result back.
 	// Note this is a partial start. Teleport will have re-exec'ed itself and
 	// wait until it's been placed in a cgroup and told to continue.
-	result, err := scx.ExecRequest.Start(channel)
+	result, err := scx.ExecRequest.Start(ctx, channel)
 	if err != nil {
 		return trace.Wrap(err)
 	}
