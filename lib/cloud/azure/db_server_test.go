@@ -145,6 +145,7 @@ func TestGetServer(t *testing.T) {
 }
 
 func TestServerConversion(t *testing.T) {
+       t.Parallel()
 	tests := []struct {
 		name          string
 		protocol      string
