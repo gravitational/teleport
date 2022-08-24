@@ -83,6 +83,13 @@ func IsLoginUIDSet() bool {
 	}
 
 	client := NewClient(Message{})
+	defer func() {
+		if err := client.Close(); err != nil {
+			log.WithError(err).Warn("failed to create auditd client")
+		}
+	}()
+	// We don't need to acquire the internal client mutex as the connection is
+	// not shared.
 	if err := client.connectUnderMutex(); err != nil {
 		return false
 	}
@@ -120,7 +127,7 @@ func getSelfLoginUID() (int64, error) {
 // This function does not send the event and returns no error if it runs with no root permissions.
 func SendEvent(event EventType, result ResultType, msg Message) error {
 	if !hasCapabilities() {
-		// Disable auditd when not running as root.
+		// Do nothing when not running as root.
 		return nil
 	}
 
@@ -201,7 +208,6 @@ func NewClient(msg Message) *Client {
 		dial: func(family int, config *netlink.Config) (NetlinkConnector, error) {
 			return netlink.Dial(family, config)
 		},
-		mtx: sync.Mutex{},
 	}
 }
 
@@ -226,6 +232,7 @@ func getAuditStatus(conn NetlinkConnector) (*auditStatus, error) {
 		return nil, trace.Errorf("returned wrong messages number, expected 1, got: %d", len(msgs))
 	}
 
+	// auditd marshalling depends on the system architecture.
 	byteOrder := nlenc.NativeEndian()
 	status := &auditStatus{}
 
@@ -241,7 +248,7 @@ func getAuditStatus(conn NetlinkConnector) (*auditStatus, error) {
 func (c *Client) SendMsg(event EventType, result ResultType) error {
 	const msgDataTmpl = `op={{ .Opcode }} acct="{{ .Msg.SystemUser }}" exe={{ .Exe }} ` +
 		`hostname={{ .Hostname }} addr={{ .Msg.ConnAddress }} terminal={{ .Msg.TTYName }} ` +
-		`{{if .Msg.TeleportUser}}teleportUser={{.Msg.TeleportUser}}{{end}} res={{ .Result }}`
+		`{{if .Msg.TeleportUser}}teleportUser={{.Msg.TeleportUser}} {{end}}res={{ .Result }}`
 	op := eventToOp(event)
 
 	buf := &bytes.Buffer{}
@@ -330,10 +337,12 @@ func eventToOp(event EventType) string {
 	case AuditUserErr:
 		return "invalid_user"
 	default:
-		return "?"
+		return UnknownValue
 	}
 }
 
+// hasCapabilities returns true if the system process has permission to
+// write to auditd events log.
 func hasCapabilities() bool {
 	return os.Getuid() == 0
 }

@@ -99,12 +99,14 @@ func TestSendEvent(t *testing.T) {
 	tests := []struct {
 		name             string
 		args             args
+		teleportUser     string
 		auditdDisabled   bool
 		expectedMessages []msgOrErr
 		errMsg           string
 	}{
 		{
-			name: "send login",
+			name:         "send login",
+			teleportUser: "alice",
 			args: args{
 				event:  AuditUserLogin,
 				result: Success,
@@ -130,7 +132,35 @@ func TestSendEvent(t *testing.T) {
 			},
 		},
 		{
-			name: "send login failed",
+			name:         "missing teleport user",
+			teleportUser: "",
+			args: args{
+				event:  AuditUserLogin,
+				result: Success,
+			},
+			expectedMessages: []msgOrErr{
+				{
+					msg: netlink.Message{
+						Header: netlink.Header{
+							Type:  0x3e8,
+							Flags: 0x5,
+						},
+					},
+				},
+				{
+					msg: netlink.Message{
+						Header: netlink.Header{
+							Type:  0x458,
+							Flags: 0x5,
+						},
+						Data: []byte("op=login acct=\"root\" exe=teleport hostname=? addr=127.0.0.1 terminal=teleport res=success"),
+					},
+				},
+			},
+		},
+		{
+			name:         "send login failed",
+			teleportUser: "alice",
 			args: args{
 				event:  AuditUserLogin,
 				result: Failed,
@@ -156,7 +186,8 @@ func TestSendEvent(t *testing.T) {
 			},
 		},
 		{
-			name: "send session end",
+			name:         "send session end",
+			teleportUser: "alice",
 			args: args{
 				event:  AuditUserEnd,
 				result: Success,
@@ -182,7 +213,8 @@ func TestSendEvent(t *testing.T) {
 			},
 		},
 		{
-			name: "send invalid user",
+			name:         "send invalid user",
+			teleportUser: "alice",
 			args: args{
 				event:  AuditUserErr,
 				result: Success,
@@ -208,7 +240,8 @@ func TestSendEvent(t *testing.T) {
 			},
 		},
 		{
-			name: "auditd disabled",
+			name:         "auditd disabled",
+			teleportUser: "alice",
 			args: args{
 				event:  AuditUserLogin,
 				result: Success,
@@ -227,7 +260,8 @@ func TestSendEvent(t *testing.T) {
 			errMsg: "auditd is disabled",
 		},
 		{
-			name: "connection error",
+			name:         "connection error",
+			teleportUser: "alice",
 			args: args{
 				event:  AuditUserLogin,
 				result: Success,
@@ -249,7 +283,7 @@ func TestSendEvent(t *testing.T) {
 				execName:     "teleport",
 				hostname:     "?",
 				systemUser:   "root",
-				teleportUser: "alice",
+				teleportUser: tt.teleportUser,
 				address:      "127.0.0.1",
 				ttyName:      "teleport",
 				dial: func(family int, config *netlink.Config) (NetlinkConnector, error) {

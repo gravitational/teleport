@@ -209,22 +209,20 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Errorf("failed to login user start: %v", err)
 	}
 
-	defer func(err *error) {
-		result := auditd.Success
-
-		if err != nil && *err != nil {
-			result = auditd.Failed
-			if strings.Contains((*err).Error(), "unknown user") {
-				if err := auditd.SendEvent(auditd.AuditUserErr, result, auditdMsg); err != nil {
-					log.WithError(err).Errorf("failed to login user end: %v", err)
+	defer func() {
+		if err != nil {
+			if strings.Contains(err.Error(), "unknown user") {
+				if err := auditd.SendEvent(auditd.AuditUserErr, auditd.Failed, auditdMsg); err != nil {
+					log.WithError(err).Errorf("failed to send UserErr event to auditd: %v", err)
 				}
+				return
 			}
 		}
 
-		if err := auditd.SendEvent(auditd.AuditUserEnd, result, auditdMsg); err != nil {
-			log.WithError(err).Errorf("failed to login user end: %v", err)
+		if err := auditd.SendEvent(auditd.AuditUserEnd, auditd.Success, auditdMsg); err != nil {
+			log.WithError(err).Errorf("failed to send UserEnd event to auditd: %v", err)
 		}
-	}(&err)
+	}()
 
 	var tty *os.File
 	var pty *os.File
