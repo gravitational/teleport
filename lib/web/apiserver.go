@@ -2447,6 +2447,22 @@ func queryLimit(query url.Values, name string, def int) (int, error) {
 	return limit, nil
 }
 
+// queryLimitAsInt32 returns the limit parameter with the specified name from the
+// query string. Similar to function 'queryLimit' except it returns as type int32.
+//
+// If there's no such parameter, specified default limit is returned.
+func queryLimitAsInt32(query url.Values, name string, def int32) (int32, error) {
+	str := query.Get(name)
+	if str == "" {
+		return def, nil
+	}
+	limit, err := strconv.ParseInt(str, 10, 32)
+	if err != nil {
+		return 0, trace.BadParameter("failed to parse %v as limit: %v", name, str)
+	}
+	return int32(limit), nil
+}
+
 // queryOrder returns the order parameter with the specified name from the
 // query string or a default if the parameter is not provided.
 func queryOrder(query url.Values, name string, def types.EventOrder) (types.EventOrder, error) {

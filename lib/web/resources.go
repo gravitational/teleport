@@ -334,7 +334,7 @@ func ExtractResourceAndValidate(yaml string) (*services.UnknownResource, error) 
 func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string) (*types.ListResourcesResponse, error) {
 	values := r.URL.Query()
 
-	limit, err := queryLimit(values, "limit", defaults.MaxIterationLimit)
+	limit, err := queryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -357,7 +357,7 @@ func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string)
 	startKey := values.Get("startKey")
 	req := proto.ListResourcesRequest{
 		ResourceType:        resourceKind,
-		Limit:               int32(limit),
+		Limit:               limit,
 		StartKey:            startKey,
 		SortBy:              sortBy,
 		PredicateExpression: values.Get("query"),
