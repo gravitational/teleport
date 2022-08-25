@@ -99,6 +99,7 @@ The table below documents the behavior of each option if multiple roles are assi
 | `max_session_ttl` | Max. time to live (TTL) of a user's SSH certificates | The shortest TTL wins |
 | `forward_agent` | Allow SSH agent forwarding | Logical "OR" i.e. if any role allows agent forwarding, it's allowed |
 | `port_forwarding` | Allow TCP port forwarding | Logical "OR" i.e. if any role allows port forwarding, it's allowed |
+| `ssh_file_copy` | Allow SCP/SFTP | Logical "AND" i.e. if all roles allows file copying, it's allowed |
 | `client_idle_timeout` | Forcefully terminate active SSH sessions after an idle interval | The shortest timeout value wins, i.e. the most restrictive value is selected |
 | `disconnect_expired_cert` | Forcefully terminate active SSH sessions when a client certificate expires | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
 | `max_sessions` | Total number of session channels which can be established across a single SSH connection via Teleport | |
