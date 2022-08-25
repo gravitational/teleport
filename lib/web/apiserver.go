@@ -501,6 +501,9 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	// get nodes
 	h.GET("/webapi/sites/:site/nodes", h.WithClusterAuth(h.clusterNodesGet))
 
+	// get login alerts
+	h.GET("/webapi/sites/:site/login-alerts", h.WithClusterAuth(h.clusterLoginAlertsGet))
+
 	// Get applications.
 	h.GET("/webapi/sites/:site/apps", h.WithClusterAuth(h.clusterAppsGet))
 
@@ -2094,6 +2097,34 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 		Items:      ui.MakeServers(site.GetName(), servers, accessChecker.Roles()),
 		StartKey:   resp.NextKey,
 		TotalCount: resp.TotalCount,
+	}, nil
+}
+
+type getLoginAlertsResponse struct {
+	Alerts []types.ClusterAlert `json:"alerts"`
+}
+
+// clusterLoginAlertsGet returns a list of on-login alerts for the user.
+func (h *Handler) clusterLoginAlertsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	// Get a client to the Auth Server with the logged in user's identity. The
+	// identity of the logged in user is used to fetch the list of alerts.
+	clt, err := ctx.GetUserClient(site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	alerts, err := clt.GetClusterAlerts(h.cfg.Context, types.GetClusterAlertsRequest{
+		Labels: map[string]string{
+			types.AlertOnLogin: "yes",
+		},
+	})
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return getLoginAlertsResponse{
+		Alerts: alerts,
 	}, nil
 }
 
