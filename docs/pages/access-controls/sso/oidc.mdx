@@ -226,11 +226,9 @@ A list of available optional prompt parameters are available from the
 
 ### Optional: Disable Email Verification
 
-By default, Teleport will reject OIDC claims/users that do not have a verified email address.
-This information is given to Teleport via the `email_verified` OIDC claim.
+By default, Teleport will validate the `email_verified` claim, and users who attempt to sign in without a verified email address.
 
-For testing and other purposes, this may be disabled as shown below. Note that this may harm
-security and extreme care should be taken outside of testing environments.
+For testing and other purposes, you may opt out of this behavior by enabling `allow_unverified_email` in your OIDC Connector. This option weakens the overall security of the system, so we do not recommend enabling it.
 
 ```yaml
 kind: oidc
