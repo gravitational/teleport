@@ -2264,7 +2264,8 @@ func TestSerializeDatabases(t *testing.T) {
         "elasticache": {},
         "secret_store": {},
         "memorydb": {}
-      }
+      },
+      "azure": {}
     }
   }]
 	`
