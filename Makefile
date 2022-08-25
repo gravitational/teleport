@@ -898,58 +898,8 @@ print/env:
 
 # buildbox-grpc generates GRPC stubs
 .PHONY: buildbox-grpc
-buildbox-grpc: API_IMPORT_PATH := $(shell head -1 api/go.mod | awk '{print $$2}')
-# Proto file dependencies within the api module must be passed with the 'M'
-# flag. This way protoc generated files will use the correct api module import
-# path in the case where the import path has a version suffix, e.g.
-# "github.com/gravitational/teleport/api/v8".
-buildbox-grpc: GOGOPROTO_IMPORTMAP := $\
-	Mgithub.com/gravitational/teleport/api/types/events/events.proto=$(API_IMPORT_PATH)/types/events,$\
-	Mgithub.com/gravitational/teleport/api/types/types.proto=$(API_IMPORT_PATH)/types,$\
-	Mgithub.com/gravitational/teleport/api/types/webauthn/webauthn.proto=$(API_IMPORT_PATH)/types/webauthn,$\
-	Mgithub.com/gravitational/teleport/api/types/wrappers/wrappers.proto=$(API_IMPORT_PATH)/types/wrappers,$\
-	Mignoreme=ignoreme
 buildbox-grpc:
-	@echo "PROTO_INCLUDE = $$PROTO_INCLUDE"
-	$(CLANG_FORMAT) -i -style=$(CLANG_FORMAT_STYLE) \
-		api/client/proto/authservice.proto \
-		api/client/proto/certs.proto \
-		api/client/proto/joinservice.proto \
-		api/client/proto/proxyservice.proto \
-		api/types/events/events.proto \
-		api/types/types.proto \
-		api/types/webauthn/webauthn.proto \
-		api/types/wrappers/wrappers.proto \
-		lib/multiplexer/test/ping.proto \
-		lib/web/envelope.proto
-
-	cd api/client/proto && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
-		authservice.proto certs.proto joinservice.proto proxyservice.proto
-
-	cd api/types/events && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
-		events.proto
-
-	cd api/types && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
-		types.proto
-
-	cd api/types/webauthn && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
-		webauthn.proto
-
-	cd api/types/wrappers && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
-		wrappers.proto
-
-	cd lib/multiplexer/test && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
-		ping.proto
-
-	cd lib/web && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
-		envelope.proto
+	@build.assets/genproto.sh
 
 # grpc-teleterm generates Go, TypeScript and JavaScript gRPC stubs from definitions for Teleport
 # Terminal. This target runs in the buildbox-teleterm container.
