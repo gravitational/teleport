@@ -57,3 +57,13 @@ with leaf clusters for use with OpenSSH. You can track support for this on the
 
 We currently do not support Application Access, Database Access or Kubernetes
 Access to resources in leaf clusters.
+
+## Can Machine ID be used with per-session MFA?
+
+We do not currently support Machine ID and per-session MFA. Enabling per-session
+MFA globally, or for roles impersonated by Machine ID, will prevent credentials
+produced by Machine ID from being used to connect to resources.
+
+As a work-around, ensure that per-session MFA is enforced on individual roles
+rather than enforced globally, and that it is not enforced for roles that you
+will impersonate using Machine ID.
