@@ -27,17 +27,18 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+
+	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 )
 
 const (
 	PKCS1PrivateKeyType      = "RSA PRIVATE KEY"
 	PKCS8PrivateKeyType      = "PRIVATE KEY"
 	ECPrivateKeyType         = "EC PRIVATE KEY"
-	pivYubikeyPrivateKeyType = "PIV YUBIKEY PRIVATE KEY"
+	pivYubiKeyPrivateKeyType = "PIV YUBIKEY PRIVATE KEY"
 )
 
 // PrivateKey implements crypto.Signer with additional helper methods. The underlying
@@ -190,8 +191,8 @@ func ParsePrivateKey(keyPEM []byte) (*PrivateKey, error) {
 			return nil, trace.BadParameter("x509.ParsePKCS8PrivateKey returned an invalid private key of type %T", priv)
 		}
 		return NewPrivateKey(newStandardSigner(cryptoSigner, keyPEM))
-	case pivYubikeyPrivateKeyType:
-		priv, err := parseYubikeyPrivateKeyData(block.Bytes)
+	case pivYubiKeyPrivateKeyType:
+		priv, err := parseYubiKeyPrivateKeyData(block.Bytes)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

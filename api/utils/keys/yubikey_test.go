@@ -20,31 +20,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestGetOrGenerateYubikeyPrivateKey tests GetOrGenerateYubikeyPrivateKey.
-func TestGetOrGenerateYubikeyPrivateKey(t *testing.T) {
-	// This test expects a yubikey to be connected with default PIV settings and will overwrite any PIV data on the yubikey.
+// TestGetOrGenerateYubiKeyPrivateKey tests GetOrGenerateYubiKeyPrivateKey.
+func TestGetOrGenerateYubiKeyPrivateKey(t *testing.T) {
+	// This test expects a yubiKey to be connected with default PIV settings and will overwrite any PIV data on the yubiKey.
 	if os.Getenv("TELEPORT_TEST_YUBIKEY_PIV") == "" {
-		t.Skipf("Skipping TestGenerateYubikeyPrivateKey because TELEPORT_TEST_YUBIKEY_PIV is not set")
+		t.Skipf("Skipping TestGenerateYubiKeyPrivateKey because TELEPORT_TEST_YUBIKEY_PIV is not set")
 	}
 
-	// Connect to the first yubikey and reset it.
-	y, err := findYubikey(0)
+	// Connect to the first yubiKey and reset it.
+	y, err := findYubiKey(0)
 	require.NoError(t, err)
 	yk, err := y.open()
 	require.NoError(t, err)
 	require.NoError(t, yk.Reset())
 	require.NoError(t, yk.Close())
 
-	// Generate a new YubikeyPrivateKey.
-	priv, err := GetOrGenerateYubikeyPrivateKey(false)
+	// Generate a new YubiKeyPrivateKey.
+	priv, err := GetOrGenerateYubiKeyPrivateKey(false)
 	require.NoError(t, err)
 
 	// Test creating a self signed certificate with the key.
 	_, err = selfSignedTeleportClientCertificate(priv, priv.Public())
 	require.NoError(t, err)
 
-	// Another call to GetOrGenerateYubikeyPrivateKey should retrive the previously generated key.
-	retrievePriv, err := GetOrGenerateYubikeyPrivateKey(false)
+	// Another call to GetOrGenerateYubiKeyPrivateKey should retrive the previously generated key.
+	retrievePriv, err := GetOrGenerateYubiKeyPrivateKey(false)
 	require.NoError(t, err)
 	require.Equal(t, priv, retrievePriv)
 
