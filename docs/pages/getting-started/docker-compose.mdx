@@ -1,7 +1,7 @@
 ---
-title: Getting started with Teleport using Docker Compose
+title: Getting Started with Teleport using Docker Compose
 description: How to get started with Teleport Open Source Edition using Docker Compose locally.
-h1: Get started with Docker Compose
+h1: Get Started with Docker Compose
 ---
 
 This guide will help you understand how Teleport works by spinning up a demo
@@ -34,7 +34,7 @@ like to set up Teleport for production usage, please see:
 ## Prerequisites
 
 - Teleport v(=teleport.version=) Open Source or Enterprise.
-- Docker v(=docker.version=) or later and [`docker-compose`](https://docs.docker.com/compose/install/) v(=docker.compose.version=) or later.
+- Docker v(=docker.version=) or later and [`docker-compose`](https://docs.docker.com/compose/install/) v(=docker.compose.version=) or later (or the Compose plugin for Docker).
 
 ```code
 $ docker-compose version
@@ -45,7 +45,7 @@ $ docker version
 # Version:           (=docker.version=)
 ```
 
-## Step 1/3. Start demo lab
+## Step 1/3. Start Demo Lab
 
 Let's use `docker-compose` to start Teleport demo lab - a configured local cluster:
 
@@ -57,11 +57,13 @@ $ docker-compose -f teleport-lab.yml up -d
 ```
 
 <Admonition type="note" title="Note">
+
 You can later stop the Teleport lab using:
 
 ```code
 $ docker-compose -f teleport-lab.yml down
 ```
+
 </Admonition>
 
 ## Step 2/3. Explore CLI
@@ -74,7 +76,9 @@ $ docker exec -ti term /bin/bash
 ```
 
 <Admonition type="note" title="Note">
+
 We will run all future commands from the `term` container.
+
 </Admonition>
 
 Welcome to Teleport Lab. With Teleport you can access servers, databases and web apps in your cluster.
@@ -153,7 +157,7 @@ Port `443` on the Teleport container is published to the local host, so you can 
 Let's unpack some of the setup that made the demo possible.
 Teleport's authentication is based on client certificates and certificate authorities.
 
-Here is `ssh.cfg` that instructs `ssh` client to use Teleport
+Here is `~/ssh/config` which instructs the `ssh` client to use Teleport
 as a bastion server:
 
 ```
@@ -188,7 +192,7 @@ HostKey /mnt/shared/certs/mars.openssh.teleport
 HostCertificate /mnt/shared/certs/mars.openssh.teleport-cert.pub
 ```
 
-Teleport's user and role for used for bot access:
+Teleport's user and role used for bot access:
 
 ```yaml
 kind: role
