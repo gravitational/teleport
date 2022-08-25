@@ -743,6 +743,7 @@ steps:
   - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
   - $WebappsSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/webapps"
   - $NodeVersion = "16.13.2"
+  - $Env:CONNECT_TSH_BIN_PATH="$TeleportSrc\build\tsh.exe"
   - $Env:DRONE_TAG="v10.1.2"
   - $TeleportVersion=$Env:DRONE_TAG.TrimStart('v')
   - . "$TeleportSrc/build.assets/windows/build.ps1"
@@ -872,6 +873,7 @@ steps:
   - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
   - $WebappsSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/webapps"
   - $NodeVersion = "16.13.2"
+  - $Env:CONNECT_TSH_BIN_PATH="$TeleportSrc\build\tsh.exe"
   - $Env:DRONE_TAG="v10.1.2"
   - $TeleportVersion=$Env:DRONE_TAG.TrimStart('v')
   - . "$TeleportSrc/build.assets/windows/build.ps1"
@@ -7020,6 +7022,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 090702a80e487669da6814c3ce81bed24f449bfdafd8c0a0272c91070a07f4c9
+hmac: e412e3fdd63eeece7406bff576f4110cc404ba99c9add8e27fff79c7f107ae8d
 
 ...

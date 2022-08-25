@@ -227,7 +227,8 @@ func buildWindowsTeleportConnectStep(workspace string) step {
 			`$TeleportSrc = "` + perBuildTeleportSrc + `"`,
 			`$WebappsSrc = "` + perBuildWebappsSrc + `"`,
 			`$NodeVersion = "` + windowsNodeVersion + `"`,
-			`$Env:DRONE_TAG="v10.1.2"`,
+			`$Env:CONNECT_TSH_BIN_PATH="$TeleportSrc\build\tsh.exe"`,
+			`$Env:DRONE_TAG="v10.1.2"`, // TODO(tcsc) remove before merge
 			`$TeleportVersion=$Env:DRONE_TAG.TrimStart('v')`,
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 			`Enable-Node -NodeVersion $NodeVersion -ToolchainDir "` + windowsToolchainDir + `"`,
