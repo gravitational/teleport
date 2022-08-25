@@ -178,7 +178,7 @@ func (ws *WebSessionV2) WithoutSecrets() WebSession {
 
 // SetConsumedAccessRequestID sets the ID of the access request from which additional roles to assume were obtained.
 func (ws *WebSessionV2) SetConsumedAccessRequestID(requestID string) {
-	ws.Spec.SetConsumedAccessRequestID(requestID)
+	ws.Spec.ConsumedAccessRequestID = requestID
 }
 
 // GetConsumedAccessRequestID returns the ID of the access request from which additional roles to assume were obtained.

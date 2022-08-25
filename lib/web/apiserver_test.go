@@ -4722,7 +4722,7 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Crate user with the base role.
+	// Create user with the base role.
 	pack := proxy.authPack(t, username, []types.Role{baseRole})
 
 	// Create the requestable role.
@@ -4752,11 +4752,10 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 	response, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
 	require.NoError(t, err)
 
-	// Process the JSON response of the request to fetch the userContext.
+	// Process the JSON response of the request.
 	var userContext ui.UserContext
 	err = json.Unmarshal(response.Bytes(), &userContext)
 	require.NoError(t, err)
-	require.NotEmpty(t, userContext.ConsumedAccessRequestID)
 
 	// Verify that the userContext returned contains the correct Access Request ID.
 	require.Equal(t, accessRequestID, userContext.ConsumedAccessRequestID)

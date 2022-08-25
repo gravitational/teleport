@@ -6877,8 +6877,8 @@ type WebSessionSpecV2 struct {
 	LoginTime time.Time `protobuf:"bytes,8,opt,name=LoginTime,proto3,stdtime" json:"login_time"`
 	// IdleTimeout is the max time a user can be inactive in a session.
 	IdleTimeout Duration `protobuf:"varint,9,opt,name=IdleTimeout,proto3,casttype=Duration" json:"idle_timeout"`
-	// ConsumedAccessRequestID is the request ID of the access request from which the assumed role
-	// was obtained
+	// ConsumedAccessRequestID is the ID of the access request from which additional roles to assume
+	// were obtained.
 	ConsumedAccessRequestID string   `protobuf:"bytes,10,opt,name=ConsumedAccessRequestID,proto3" json:"consumed_access_request_id,omitempty"`
 	XXX_NoUnkeyedLiteral    struct{} `json:"-"`
 	XXX_unrecognized        []byte   `json:"-"`
