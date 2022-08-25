@@ -1,12 +1,17 @@
 # Gravitational Web Applications and Packages
 
-This mono-repository contains the source code for the web UIs of the following projects:
-[Teleport](https://github.com/gravitational/teleport)
+This mono-repository contains the source code for:
+
+* the web UIs served by the `teleport` server
+   * [`packages/teleport`](packages/teleport) for the OSS version
+   * `packages/webapps.e` for the enterprise version
+* the Electron app of [Teleport Connect](https://goteleport.com/connect/)
+   * [`packages/teleterm`](packages/teleterm)
 
 The code is organized in terms of independent yarn packages which reside in
 the [packages directory](https://github.com/gravitational/webapps/tree/master/packages).
 
-## Getting Started
+## Getting Started with Teleport Web UI
 
 You can make production builds locally or you can use Docker to do that.
 
@@ -37,7 +42,13 @@ To build the Teleport community version
 $ make build-teleport-oss
 ```
 
+## Getting Started with Teleport Connect
+
+See [`README.md` in `packages/teleterm`](packages/teleterm).
+
 ## Development
+
+### Web UI
 
 To avoid having to install a dedicated Teleport cluster,
 you can use a local development server which can proxy network requests

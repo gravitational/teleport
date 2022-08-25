@@ -56,4 +56,7 @@ steps:
       - NPM_SCRIPT=build-and-package-term-ci
       - '--build-arg'
       - YARN_FROZEN_LOCKFILE=true
+      - '--build-arg'
+      # Explicitly skip copying tsh binary (since we don't have access to it here).
+      - CONNECT_TSH_BIN_PATH=
       - .
