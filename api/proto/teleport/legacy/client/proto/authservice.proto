@@ -13,18 +13,20 @@
 // limitations under the License.
 
 syntax = "proto3";
+
 package proto;
 
 import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
-import "certs.proto";
+import "teleport/legacy/client/proto/certs.proto";
+import "teleport/legacy/types/events/events.proto";
+import "teleport/legacy/types/types.proto";
+import "teleport/legacy/types/webauthn/webauthn.proto";
+import "teleport/legacy/types/wrappers/wrappers.proto";
 
-import "github.com/gravitational/teleport/api/types/types.proto";
-import "github.com/gravitational/teleport/api/types/webauthn/webauthn.proto";
-import "github.com/gravitational/teleport/api/types/wrappers/wrappers.proto";
-import "github.com/gravitational/teleport/api/types/events/events.proto";
+option go_package = "github.com/gravitational/teleport/api/client/proto";
 
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;

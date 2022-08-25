@@ -13,9 +13,12 @@
 // limitations under the License.
 
 syntax = "proto3";
+
 package proto;
 
 import "gogoproto/gogo.proto";
+
+option go_package = "github.com/gravitational/teleport/api/client/proto";
 
 // ProxyPeerService is a proxy to proxy api.
 service ProxyService {

@@ -13,9 +13,12 @@
 // limitations under the License.
 
 syntax = "proto3";
+
 package wrappers;
 
 import "gogoproto/gogo.proto";
+
+option go_package = "github.com/gravitational/teleport/api/types/wrappers";
 
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
