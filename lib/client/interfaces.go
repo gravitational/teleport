@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/identityfile"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
@@ -72,6 +73,8 @@ type Key struct {
 	Priv []byte `json:"Priv,omitempty"`
 	// Pub is a public key
 	Pub []byte `json:"Pub,omitempty"`
+	// PPK is a PuTTY PPK-formatted keypair
+	PPK []byte `json:"PPK,omitempty"`
 	// Cert is an SSH client certificate
 	Cert []byte `json:"Cert,omitempty"`
 	// TLSCert is a PEM encoded client TLS x509 certificate.
@@ -101,12 +104,33 @@ func NewKey() (key *Key, err error) {
 		return nil, trace.Wrap(err)
 	}
 
+	ppkFile, err := ppk.ConvertToPPK(priv, pub)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &Key{
 		Priv:         priv,
 		Pub:          pub,
+		PPK:          ppkFile,
 		KubeTLSCerts: make(map[string][]byte),
 		DBTLSCerts:   make(map[string][]byte),
 	}, nil
+}
+
+// extractIdentityFromCert parses a tlsca.Identity from raw PEM cert bytes.
+func extractIdentityFromCert(certBytes []byte) (*tlsca.Identity, error) {
+	cert, err := tlsca.ParseCertificatePEM(certBytes)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse TLS certificate")
+	}
+
+	parsed, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return parsed, nil
 }
 
 // KeyFromIdentityFile loads the private key + certificate
@@ -127,11 +151,30 @@ func KeyFromIdentityFile(path string) (*Key, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	dbTLSCerts := make(map[string][]byte)
+	appCerts := make(map[string][]byte)
+
 	// validate TLS Cert (if present):
 	if len(ident.Certs.TLS) > 0 {
 		if _, err := tls.X509KeyPair(ident.Certs.TLS, ident.PrivateKey); err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		parsedIdent, err := extractIdentityFromCert(ident.Certs.TLS)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// If this identity file has any database certs, copy it into the DBTLSCerts map.
+		if parsedIdent.RouteToDatabase.ServiceName != "" {
+			dbTLSCerts[parsedIdent.RouteToDatabase.ServiceName] = ident.Certs.TLS
+		}
+
+		// Similarly, if this identity has any app certs, copy them in.
+		if parsedIdent.RouteToApp.Name != "" {
+			appCerts[parsedIdent.RouteToApp.Name] = ident.Certs.TLS
+		}
+
 	}
 
 	// Validate TLS CA certs (if present).
@@ -157,11 +200,13 @@ func KeyFromIdentityFile(path string) (*Key, error) {
 	}
 
 	return &Key{
-		Priv:      ident.PrivateKey,
-		Pub:       signer.PublicKey().Marshal(),
-		Cert:      ident.Certs.SSH,
-		TLSCert:   ident.Certs.TLS,
-		TrustedCA: trustedCA,
+		Priv:        ident.PrivateKey,
+		Pub:         ssh.MarshalAuthorizedKey(signer.PublicKey()),
+		Cert:        ident.Certs.SSH,
+		TLSCert:     ident.Certs.TLS,
+		TrustedCA:   trustedCA,
+		DBTLSCerts:  dbTLSCerts,
+		AppTLSCerts: appCerts,
 	}, nil
 }
 

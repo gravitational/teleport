@@ -182,16 +182,13 @@ func (s *Suite) SetUpSuite(c *check.C) {
 	if !isRoot() {
 		c.Skip("Tests for package restrictedsession can only be run as root.")
 	}
-	err := bpf.IsHostCompatible()
-	if err != nil {
-		c.Skip(fmt.Sprintf("Tests for package restrictedsession can not be run: %v.", err))
-	}
 
 	s.srcAddrs = map[int]string{
 		4: "0.0.0.0",
 		6: "::",
 	}
 
+	var err error
 	// Create temporary directory where cgroup2 hierarchy will be mounted.
 	s.cgroupDir, err = os.MkdirTemp("", "cgroup-test")
 	c.Assert(err, check.IsNil)
@@ -287,7 +284,7 @@ func (s *Suite) closeSession(c *check.C) {
 var ip4Regex = regexp.MustCompile(`^\d+\.\d+\.\d+\.\d+$`)
 
 // mustParseIP parses the IP and also converts IPv4 addresses
-// to 4 byte represenetation. IPv4 mapped (into IPv6) addresses
+// to 4 byte representation. IPv4 mapped (into IPv6) addresses
 // are kept in 16 byte encoding
 func mustParseIP(addr string) net.IP {
 	is4 := ip4Regex.MatchString(addr)
@@ -508,8 +505,8 @@ func isRoot() bool {
 	return os.Geteuid() == 0
 }
 
-// bpfTestEnabled returns true if BPF tests should run. Tests can be enabled by
-// setting TELEPORT_BPF_TEST environment variable to any value.
+// bpfTestEnabled returns true if BPF/LSM tests should run. Tests can be enabled by
+// setting TELEPORT_BPF_LSM_TEST environment variable to any value.
 func bpfTestEnabled() bool {
-	return os.Getenv("TELEPORT_BPF_TEST") != ""
+	return os.Getenv("TELEPORT_BPF_LSM_TEST") != ""
 }

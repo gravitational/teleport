@@ -10,64 +10,26 @@ Here are the most common scenarios:
 - Improve the security of your system and prevent one successful phishing attack from compromising your system.
 - Satisfy FedRAMP AC-3 Dual authorization control that requires approval of two authorized individuals.
 
-Let's set up Teleport's access requests to require the approval of two team members
-for a privileged role `dbadmin`.
+In this guide, we will set up Teleport's Just-in-Time Access Requests to require the approval
+of two team members for a privileged role `dbadmin`.
 
-<Notice
-  type="danger"
-  scope="oss"
->
+<ScopedBlock scope="oss">
+
   This guide requires a commercial edition of Teleport. The open source
   edition of Teleport only supports [GitHub](../../setup/admin/github-sso.mdx) as
   an SSO provider.
-</Notice>
+
+</ScopedBlock>
 
 <Admonition title="Note" type="tip">
-  The steps below describe how to use Teleport with Mattermost. You can also [integrate with many other providers](../../enterprise/workflow/index.mdx).
+  The steps below describe how to use Teleport with Mattermost. You can also [integrate with many other providers](../access-requests.mdx).
 </Admonition>
 
 ## Prerequisites
 
-<Tabs>
-<TabItem
-  scope={["enterprise"]} label="Enterprise">
-
-- A running Teleport cluster. For details on how to set this up, see our Enterprise
-  [Getting Started](../../enterprise/getting-started.mdx) guide.
-
-- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=),
-  which you can download by visiting the
-  [customer portal](https://dashboard.gravitational.com/web/login).
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  
-  $ tsh version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-</TabItem>
-<TabItem scope={["cloud"]}
-  label="Teleport Cloud">
-
-- A Teleport Cloud account. If you do not have one, visit the
-  [sign up page](https://goteleport.com/signup/) to begin your free trial.
-
-- The `tctl` admin tool and `tsh` client tool version >= (=cloud.version=).
-  To download these tools, visit the [Downloads](../../cloud/downloads.mdx) page.
-
-  ```code
-  $ tctl version
-  # Teleport v(=cloud.version=) go(=teleport.golang=)
-  
-  $ tsh version
-  # Teleport v(=cloud.version=) go(=teleport.golang=)
-  ```
-
-</TabItem>
-</Tabs>
 - Mattermost installed.
+
+(!/docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 <Admonition
   type="tip"
@@ -209,11 +171,11 @@ $ tctl users add alice@example.com --roles=reviewer
 $ tctl users add ivan@example.com --roles=reviewer
 ```
 
-### Create an access request
+### Create an Access Request
 
-Bob does not have a role `dbadmin` assigned to him, but can create an access request for it.
+Bob does not have a role `dbadmin` assigned to him, but can create an Access Request for it.
 
-Bob can create an access request for the `dbadmin` role in the Web UI or CLI:
+Bob can create an Access Request for the `dbadmin` role in the Web UI or CLI:
 
 <Tabs>
 <TabItem label="Web UI">
@@ -253,7 +215,7 @@ Alice and Ivan can review and approve request using Web UI or CLI:
 </Tabs>
 
 If Bob has created a request using CLI, he will assume it once it has been approved.
-Bob can also assume granted access request roles using Web UI:
+Bob can also assume granted Access Request roles using Web UI:
 
 ![Teleport Assume](../../../img/access-controls/dual-authz/teleport-7-bob-assume.png)
 

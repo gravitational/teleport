@@ -80,7 +80,7 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ..
 
 // TestServer is a test Redis server used in functional database
 // access tests. Internally is uses github.com/alicebob/miniredis to
-// simulate Redis server behaviour.
+// simulate Redis server behavior.
 type TestServer struct {
 	cfg    common.TestServerConfig
 	server *miniredis.Miniredis

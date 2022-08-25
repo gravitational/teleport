@@ -46,4 +46,10 @@ int ListCredentials(const char *reason, CredentialInfo **infosOut,
 // Returns zero if successful, non-zero otherwise (typically an OSStatus).
 int DeleteCredential(const char *reason, const char *appLabel, char **errOut);
 
+// DeleteNonInteractive deletes a credential by its app_label, without user
+// interaction.
+// Returns zero if successful, non-zero otherwise (typically an OSStatus).
+// Most callers should prefer DeleteCredential.
+int DeleteNonInteractive(const char *appLabel);
+
 #endif // CREDENTIALS_H_

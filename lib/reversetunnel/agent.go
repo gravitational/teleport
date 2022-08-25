@@ -22,489 +22,550 @@ package reversetunnel
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
+	"io"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
-	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/proxy"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
 
+type AgentState string
+
 const (
-	// agentStateConnecting is when agent is connecting to the target
-	// without particular purpose
-	agentStateConnecting = "connecting"
-	// agentStateConnected means that agent has connected to instance
-	agentStateConnected = "connected"
-	// agentStateDisconnected means that the agent has disconnected from the
-	// proxy and this agent and be removed from the pool.
-	agentStateDisconnected = "disconnected"
+	// AgentInitial is the state of an agent when first created.
+	AgentInitial AgentState = "initial"
+	// AgentConnecting is the state when an agent is starting but not yet connected.
+	AgentConnecting AgentState = "connecting"
+	// AgentConnected is the state of an agent when is successfully connects
+	// to a server and sends its first heartbeat.
+	AgentConnected AgentState = "connected"
+	// AgentClosed is the state of an agent when the connection and all other
+	// resources are cleaned up.
+	AgentClosed AgentState = "closed"
 )
 
-// AgentConfig holds configuration for agent
-type AgentConfig struct {
-	// Addr is target address to dial
-	Addr utils.NetAddr
-	// ClusterName is the name of the cluster the tunnel is connected to. When the
-	// agent is running in a proxy, it's the name of the remote cluster, when the
-	// agent is running in a node, it's the name of the local cluster.
-	ClusterName string
-	// Signers contains authentication signer
-	Signer ssh.Signer
-	// Client is a client to the local auth servers
-	Client auth.ClientI
-	// AccessPoint is a caching access point to the local auth servers
-	AccessPoint auth.AccessCache
-	// Context is a parent context
-	Context context.Context
-	// Username is the name of this client used to authenticate on SSH
-	Username string
-	// Clock is a clock passed in tests, if not set wall clock
-	// will be used
-	Clock clockwork.Clock
-	// EventsC is an optional events channel, used for testing purposes
-	EventsC chan string
-	// KubeDialAddr is a dial address for kubernetes proxy
-	KubeDialAddr utils.NetAddr
-	// Server is either an SSH or application server. It can handle a connection
-	// (perform handshake and handle request).
-	Server ServerHandler
-	// ReverseTunnelServer holds all reverse tunnel connections.
-	ReverseTunnelServer Server
-	// LocalClusterName is the name of the cluster this agent is running in.
-	LocalClusterName string
-	// Component is the teleport component that this agent runs in.
-	// It's important for routing incoming requests for local services (like an
-	// IoT node or kubernetes service).
-	Component string
-	// Tracker tracks proxy
-	Tracker *track.Tracker
-	// Lease manages gossip and exclusive claims.  Lease may be nil
-	// when used in the context of tests.
-	Lease track.Lease
-	// Log optionally specifies the logger
-	Log log.FieldLogger
-	// FIPS indicates if Teleport was started in FIPS mode.
-	FIPS bool
-	// reverseTunnelDetails cacheable details about the Addr endpoint used to reduce proxy ping calls in order to prevent
-	// proxy endpoint stagnation where even numbers of proxy are hidden behind RoundRobbin Load Balancer.
-	// For instance in a situation where only two proxies [A, B] are configured behind RoundRobbin Load Balancer
-	// due to sequential Ping, Dial method order and sequential backend picking by RoundRobbing Load Balancer
-	// the Ping call will always reach Proxy A and the Dial call will always be forwarded by the LB to Proxy B.
-	reverseTunnelDetails *reverseTunnelDetails
+// AgentStateCallback is called when an agent's state changes.
+type AgentStateCallback func(AgentState)
+
+// transporter handles the creation of new transports over ssh.
+type transporter interface {
+	// Transport creates a new transport.
+	transport(context.Context, ssh.Channel, <-chan *ssh.Request, sshutils.Conn) *transport
 }
 
-// CheckAndSetDefaults checks parameters and sets default values
-func (a *AgentConfig) CheckAndSetDefaults() error {
-	if a.Addr.IsEmpty() {
-		return trace.BadParameter("missing parameter Addr")
+// sshDialer is an ssh dialer that returns an SSHClient
+type sshDialer interface {
+	// DialContext dials the given address and creates a new SSHClient.
+	DialContext(context.Context, utils.NetAddr) (SSHClient, error)
+}
+
+// versionGetter gets the connected auth server version.
+type versionGetter interface {
+	getVersion(context.Context) (string, error)
+}
+
+// SSHClient is a client for an ssh connection.
+type SSHClient interface {
+	ssh.ConnMetadata
+	io.Closer
+	Wait() error
+	OpenChannel(ctx context.Context, name string, data []byte) (*tracessh.Channel, <-chan *ssh.Request, error)
+	SendRequest(ctx context.Context, name string, wantReply bool, payload []byte) (bool, []byte, error)
+	Principals() []string
+	GlobalRequests() <-chan *ssh.Request
+	HandleChannelOpen(channelType string) <-chan ssh.NewChannel
+	Reply(*ssh.Request, bool, []byte) error
+}
+
+// agentConfig represents an agent configuration.
+type agentConfig struct {
+	// addr is the target address to dial.
+	addr utils.NetAddr
+	// keepAlive is the interval at which the agent will send heartbeats.
+	keepAlive time.Duration
+	// stateCallback is called each time the state changes.
+	stateCallback AgentStateCallback
+	// sshDialer creates a new ssh connection.
+	sshDialer sshDialer
+	// transporter creates a new transport.
+	transporter transporter
+	// versionGetter gets the connected auth server version.
+	versionGetter versionGetter
+	// tracker tracks existing proxies.
+	tracker *track.Tracker
+	// lease gives the agent an exclusive claim to connect to a proxy.
+	lease track.Lease
+	// clock is use to get the current time. Mock clocks can be used for
+	// testing.
+	clock clockwork.Clock
+	// log is an optional logger.
+	log logrus.FieldLogger
+	// localAuthAddresses is a list of auth servers to use when dialing back to
+	// the local cluster.
+	localAuthAddresses []string
+}
+
+// checkAndSetDefaults ensures an agentConfig contains required parameters.
+func (c *agentConfig) checkAndSetDefaults() error {
+	if c.addr.IsEmpty() {
+		return trace.BadParameter("missing parameter addr")
 	}
-	if a.Context == nil {
-		return trace.BadParameter("missing parameter Context")
+	if c.sshDialer == nil {
+		return trace.BadParameter("missing parameter sshDialer")
 	}
-	if a.Client == nil {
-		return trace.BadParameter("missing parameter Client")
+	if c.transporter == nil {
+		return trace.BadParameter("missing parameter transporter")
 	}
-	if a.AccessPoint == nil {
-		return trace.BadParameter("missing parameter AccessPoint")
+	if c.versionGetter == nil {
+		return trace.BadParameter("missing parameter versionGetter")
 	}
-	if a.Signer == nil {
-		return trace.BadParameter("missing parameter Signer")
+	if c.tracker == nil {
+		return trace.BadParameter("missing parameter tracker")
 	}
-	if len(a.Username) == 0 {
-		return trace.BadParameter("missing parameter Username")
+	if c.clock == nil {
+		c.clock = clockwork.NewRealClock()
 	}
-	if a.Clock == nil {
-		a.Clock = clockwork.NewRealClock()
+	if c.log == nil {
+		c.log = logrus.New()
 	}
-	logger := a.Log
-	if a.Log == nil {
-		logger = log.StandardLogger()
+	if !c.lease.IsZero() {
+		c.log = c.log.WithField("leaseID", c.lease.ID())
 	}
-	a.Log = logger.WithFields(log.Fields{
-		trace.Component: teleport.Component(a.Component, teleport.ComponentReverseTunnelAgent),
-		trace.ComponentFields: log.Fields{
-			"target":  a.Addr.String(),
-			"leaseID": a.Lease.ID(),
-		},
-	})
+
+	c.log = c.log.WithField("target", c.addr.String())
+
 	return nil
 }
 
-// Agent is a reverse tunnel agent running as a part of teleport Proxies
-// to establish outbound reverse tunnels to remote proxies.
-//
-// There are two operation modes for agents:
-// * Standard agent attempts to establish connection
-// to any available proxy. Standard agent transitions between
-// "connecting" -> "connected states.
-// * Discovering agent attempts to establish connection to a subset
-// of remote proxies (specified in the config via DiscoverProxies parameter.)
-// Discovering agent transitions between "discovering" -> "discovered" states.
-type Agent struct {
-	sync.RWMutex
-	AgentConfig
-	log         log.FieldLogger
-	ctx         context.Context
-	cancel      context.CancelFunc
-	authMethods []ssh.AuthMethod
-	// state is the state of this agent
-	state string
-	// stateChange records last time the state was changed
-	stateChange time.Time
-	// principals is the list of principals of the server this agent
-	// is currently connected to
-	principals []string
+// agent creates and manages a reverse tunnel to a remote proxy server.
+type agent struct {
+	agentConfig
+	// client is a client for the agent's ssh connection.
+	client SSHClient
+	// state is the internal state of an agent. Use GetState for threadsafe access.
+	state AgentState
+	// once ensures doneConnecting is closed exactly once.
+	once sync.Once
+	// mu manages concurrent access to agent state.
+	mu sync.RWMutex
+	// doneConnecting is used to synchronize access to fields initialized while
+	// an agent is connecting and protects wait groups from being waited on early.
+	doneConnecting chan struct{}
+	// hbChannel is the channel heartbeats are sent over.
+	hbChannel *tracessh.Channel
+	// hbRequests are requests going over the heartbeat channel.
+	hbRequests <-chan *ssh.Request
+	// discoveryC receives new discovery channels.
+	discoveryC <-chan ssh.NewChannel
+	// transportC receives new tranport channels.
+	transportC <-chan ssh.NewChannel
+	// unclaim releases the claim to the proxy in the tracker.
+	unclaim func()
+	// ctx is the internal context used to release resources used by  the agent.
+	ctx context.Context
+	// cancel cancels the internal context.
+	cancel context.CancelFunc
+	// wg ensures that all concurrent operations finish.
+	wg sync.WaitGroup
+	// drainCtx is used to release resourced that must be stopped to drain the agent.
+	drainCtx context.Context
+	// drainCancel cancels the drain context.
+	drainCancel context.CancelFunc
+	// drainWG tracks transports and other concurrent operations required
+	// to drain a connection are finished.
+	drainWG sync.WaitGroup
 }
 
-// ReverseTunnelDetails contains catchable details about the reverse tunnel.
-type reverseTunnelDetails struct {
-	// TLSRoutingEnabled indicates that remote address listener supports ALPN SNI Listener and
-	// the client needs to dial the remote proxy with proper TLS ALPN protocol.
-	TLSRoutingEnabled bool
-}
-
-// NewAgent returns a new reverse tunnel agent
-func NewAgent(cfg AgentConfig) (*Agent, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
+// newAgent intializes a reverse tunnel agent.
+func newAgent(config agentConfig) (*agent, error) {
+	if err := config.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ctx, cancel := context.WithCancel(cfg.Context)
-	a := &Agent{
-		AgentConfig: cfg,
-		ctx:         ctx,
-		cancel:      cancel,
-		authMethods: []ssh.AuthMethod{ssh.PublicKeys(cfg.Signer)},
-		state:       agentStateConnecting,
-		log:         cfg.Log,
-	}
-	return a, nil
+
+	noop := func() {}
+	return &agent{
+		agentConfig:    config,
+		state:          AgentInitial,
+		cancel:         noop,
+		drainCancel:    noop,
+		unclaim:        noop,
+		doneConnecting: make(chan struct{}),
+	}, nil
 }
 
-func (a *Agent) String() string {
-	return fmt.Sprintf("agent(leaseID=%d,state=%v) -> %v:%v", a.Lease.ID(), a.getState(), a.ClusterName, a.Addr.String())
+// String returns the string representation of an agent.
+func (a *agent) String() string {
+	return fmt.Sprintf("agent(leaseID=%d,state=%s) -> %s", a.lease.ID(), a.GetState(), a.addr.String())
 }
 
-func (a *Agent) setState(state string) {
-	a.Lock()
-	defer a.Unlock()
-	prev := a.state
-	if prev != state {
-		a.log.Debugf("Changing state %v -> %v.", prev, state)
-	}
-	a.state = state
-	a.stateChange = a.Clock.Now().UTC()
-}
-
-func (a *Agent) getState() string {
-	a.RLock()
-	defer a.RUnlock()
+// GetState returns the current state of the agent.
+func (a *agent) GetState() AgentState {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 	return a.state
 }
 
-// Close signals to close all connections and operations
-func (a *Agent) Close() error {
-	a.cancel()
+// GetProxyID returns the proxy id of the proxy the agent is connected to.
+func (a *agent) GetProxyID() (string, bool) {
+	if a.client == nil {
+		return "", false
+	}
+	return proxyIDFromPrincipals(a.client.Principals())
+}
+
+// proxyIDFromPrincipals gets the proxy id from a list of principals.
+func proxyIDFromPrincipals(principals []string) (string, bool) {
+	if len(principals) == 0 {
+		return "", false
+	}
+
+	// The proxy id will always be the first principal.
+	id := principals[0]
+
+	// Return the uuid from the format "<uuid>.<cluster-name>".
+	split := strings.Split(id, ".")
+	if len(split) == 0 {
+		return "", false
+	}
+
+	return split[0], true
+}
+
+// updateState updates the internal state of the agent returning
+// the state of the agent before the update and an error if the
+// state transition is not valid.
+func (a *agent) updateState(state AgentState) (AgentState, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	errMsg := "invalid state transition: %s -> %s"
+
+	// Once closed no state transitions are allowed.
+	if a.state == AgentClosed {
+		return a.state, trace.Errorf(errMsg, a.state, state)
+	}
+
+	// A state must not transition to itself.
+	if a.state == state {
+		return a.state, trace.Errorf(errMsg, a.state, state)
+	}
+
+	// A state must never transition back to initial.
+	if state == AgentInitial {
+		return a.state, trace.Errorf(errMsg, a.state, state)
+	}
+
+	// Connecting must transition from initial.
+	if state == AgentConnecting && a.state != AgentInitial {
+		return a.state, trace.Errorf(errMsg, a.state, state)
+	}
+
+	// Connected must transition from connecting.
+	if state == AgentConnected && a.state != AgentConnecting {
+		return a.state, trace.Errorf(errMsg, a.state, state)
+	}
+
+	prevState := a.state
+	a.state = state
+	a.log.Debugf("Changing state %s -> %s.", prevState, state)
+
+	if a.agentConfig.stateCallback != nil {
+		go a.agentConfig.stateCallback(a.state)
+	}
+
+	return prevState, nil
+}
+
+// Start starts an agent returning after successfully connecting and sending
+// the first heatbeat.
+func (a *agent) Start(ctx context.Context) error {
+	a.log.Debugf("Starting agent %v", a.addr)
+
+	var err error
+	defer func() {
+		a.once.Do(func() {
+			close(a.doneConnecting)
+		})
+		if err != nil {
+			a.Stop()
+		}
+	}()
+
+	_, err = a.updateState(AgentConnecting)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	a.ctx, a.cancel = context.WithCancel(ctx)
+	a.drainCtx, a.drainCancel = context.WithCancel(a.ctx)
+
+	err = a.connect()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Start handing global requests again.
+	a.wg.Add(1)
+	go func() {
+		if err := a.handleGlobalRequests(a.ctx, a.client.GlobalRequests()); err != nil {
+			a.log.WithError(err).Debug("Failed to handle global requests.")
+		}
+		a.wg.Done()
+		a.Stop()
+	}()
+
+	// drainWG.Done will be called from handleDrainChannels.
+	a.drainWG.Add(1)
+	a.wg.Add(1)
+	go func() {
+		if err := a.handleDrainChannels(); err != nil {
+			a.log.WithError(err).Debug("Failed to handle drainable channels.")
+		}
+		a.wg.Done()
+		a.Stop()
+	}()
+
+	a.wg.Add(1)
+	go func() {
+		if err := a.handleChannels(); err != nil {
+			a.log.WithError(err).Debug("Failed to handle channels.")
+		}
+		a.wg.Done()
+		a.Stop()
+	}()
+
+	_, err = a.updateState(AgentConnected)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
-// Start starts agent that attempts to connect to remote server
-func (a *Agent) Start() {
-	go a.run()
-}
-
-func (a *Agent) setPrincipals(principals []string) {
-	a.Lock()
-	defer a.Unlock()
-	a.principals = principals
-}
-
-func (a *Agent) getPrincipalsList() []string {
-	a.RLock()
-	defer a.RUnlock()
-	out := make([]string, len(a.principals))
-	copy(out, a.principals)
-	return out
-}
-
-func (a *Agent) getHostCheckers() ([]ssh.PublicKey, error) {
-	cas, err := a.AccessPoint.GetCertAuthorities(context.TODO(), types.HostCA, false)
+// connect connects to the server and finishes setting up the agent.
+func (a *agent) connect() error {
+	client, err := a.sshDialer.DialContext(a.ctx, a.addr)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-	var keys []ssh.PublicKey
-	for _, ca := range cas {
-		checkers, err := sshutils.GetCheckers(ca)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		keys = append(keys, checkers...)
+	a.client = client
+
+	unclaim, ok := a.tracker.Claim(a.client.Principals()...)
+	if !ok {
+		a.client.Close()
+		return trace.Errorf("Failed to claim proxy: %v claimed by another agent", a.client.Principals())
 	}
-	return keys, nil
-}
+	a.unclaim = unclaim
 
-// getReverseTunnelDetails pings the remote Teleport Proxy address in order to check if this is Web Service or ReverseTunnel Service address.
-// If this is Web Service port check if proxy support ALPN SNI Listener.
-func (a *Agent) getReverseTunnelDetails() *reverseTunnelDetails {
-	pd := reverseTunnelDetails{TLSRoutingEnabled: false}
-	resp, err := webclient.Find(
-		&webclient.Config{Context: a.ctx, ProxyAddr: a.Addr.Addr, Insecure: lib.IsInsecureDevMode(), IgnoreHTTPProxy: true})
+	startupCtx, cancel := context.WithCancel(a.ctx)
 
+	// Add channel handlers immediately to avoid rejecting a channel.
+	a.discoveryC = a.client.HandleChannelOpen(chanDiscovery)
+	a.transportC = a.client.HandleChannelOpen(constants.ChanTransport)
+
+	// Temporarily reply to global requests during startup. This is necessary
+	// due to the server sending a version request when we connect.
+	go func() {
+		a.handleGlobalRequests(startupCtx, a.client.GlobalRequests())
+	}()
+
+	// Stop handling global requests before returning.
+	defer func() {
+		cancel()
+	}()
+
+	err = a.sendFirstHeartbeat(a.ctx)
 	if err != nil {
-		// If TLS Routing is disabled the address is the proxy reverse tunnel
-		// address the ping call will always fail.
-		a.log.Infof("Failed to ping web proxy %q addr: %v", a.Addr.Addr, err)
-	} else {
-		pd.TLSRoutingEnabled = resp.Proxy.TLSRoutingEnabled
+		return trace.Wrap(err)
 	}
-	return &pd
+
+	return nil
 }
 
-func (a *Agent) connect() (conn *ssh.Client, err error) {
-	if a.reverseTunnelDetails == nil {
-		a.reverseTunnelDetails = a.getReverseTunnelDetails()
+// sendFirstHeartbeat opens the heartbeat channel and sends the first
+// heartbeat.
+func (a *agent) sendFirstHeartbeat(ctx context.Context) error {
+	channel, requests, err := a.client.OpenChannel(ctx, chanHeartbeat, nil)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	opts := []proxy.DialerOptionFunc{
-		proxy.WithInsecureSkipTLSVerify(lib.IsInsecureDevMode()),
+	a.hbChannel = channel
+	a.hbRequests = requests
+
+	// Send the first ping right away.
+	if _, err := a.hbChannel.SendRequest(ctx, "ping", false, nil); err != nil {
+		return trace.Wrap(err)
 	}
 
-	if a.reverseTunnelDetails != nil && a.reverseTunnelDetails.TLSRoutingEnabled {
-		opts = append(opts, proxy.WithALPNDialer(&tls.Config{
-			NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
-		}))
+	return nil
+}
+
+// Stop stops the agent ensuring the cleanup runs exactly once.
+func (a *agent) Stop() error {
+	prevState, err := a.updateState(AgentClosed)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	for _, authMethod := range a.authMethods {
-		// Create a dialer (that respects HTTP proxies) and connect to remote host.
-		dialer := proxy.DialerFromEnvironment(a.Addr.Addr, opts...)
-		pconn, err := dialer.DialTimeout(a.Addr.AddrNetwork, a.Addr.Addr, apidefaults.DefaultDialTimeout)
-		if err != nil {
-			a.log.WithError(err).Debugf("Dial to %v failed.", a.Addr.Addr)
-			continue
-		}
-
-		callback, err := apisshutils.NewHostKeyCallback(
-			apisshutils.HostKeyCallbackConfig{
-				GetHostCheckers: a.getHostCheckers,
-				OnCheckCert: func(cert *ssh.Certificate) {
-					a.setPrincipals(cert.ValidPrincipals)
-				},
-				FIPS: a.FIPS,
-			})
-		if err != nil {
-			a.log.Debugf("Failed to create host key callback for %v: %v.", a.Addr.Addr, err)
-			continue
-		}
-
-		// Build a new client connection. This is done to get access to incoming
-		// global requests which dialer.Dial would not provide.
-		conn, chans, reqs, err := ssh.NewClientConn(pconn, a.Addr.Addr, &ssh.ClientConfig{
-			User:            a.Username,
-			Auth:            []ssh.AuthMethod{authMethod},
-			HostKeyCallback: callback,
-			Timeout:         apidefaults.DefaultDialTimeout,
-		})
-		if err != nil {
-			a.log.WithError(err).Debugf("Failed to create client to %v.", a.Addr.Addr)
-			continue
-		}
-
-		// Create an empty channel and close it right away. This will prevent
-		// ssh.NewClient from attempting to process any incoming requests.
-		emptyCh := make(chan *ssh.Request)
-		close(emptyCh)
-
-		client := ssh.NewClient(conn, chans, emptyCh)
-
-		// Start a goroutine to process global requests from the server.
-		go a.handleGlobalRequests(a.ctx, reqs)
-
-		return client, nil
+	// Wait for agent to finish connecting.
+	if prevState == AgentConnecting {
+		<-a.doneConnecting
 	}
-	return nil, trace.BadParameter("failed to dial: all auth methods failed")
+
+	a.drainCancel()
+
+	a.unclaim()
+	a.lease.Release()
+
+	// Wait for open tranports to close before closing the connection.
+	a.drainWG.Wait()
+
+	a.cancel()
+	if a.client != nil {
+		a.client.Close()
+	}
+
+	a.wg.Wait()
+	return nil
 }
 
 // handleGlobalRequests processes global requests from the server.
-func (a *Agent) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.Request) {
+func (a *agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.Request) error {
 	for {
 		select {
-		case r := <-requestCh:
-			// When the channel is closing, nil is returned.
+		case r := <-requests:
+			// The request will be nil when the request channel is closing.
 			if r == nil {
-				return
+				return trace.Errorf("global request channel is closing")
 			}
 
 			switch r.Type {
 			case versionRequest:
-				// reply with the auth server version
-				pong, err := a.Client.Ping(ctx)
+				version, err := a.versionGetter.getVersion(ctx)
 				if err != nil {
-					a.log.WithError(err).Warnf("Failed to ping auth server in response to %v request.", r.Type)
-					if err := r.Reply(false, []byte("Failed to retrieve auth version")); err != nil {
+					a.log.WithError(err).Warnf("Failed to retrieve auth version in response to %v request.", r.Type)
+					if err := a.client.Reply(r, false, []byte("Failed to retrieve auth version")); err != nil {
 						a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
 						continue
 					}
 				}
 
-				if err := r.Reply(true, []byte(pong.ServerVersion)); err != nil {
+				if err := a.client.Reply(r, true, []byte(version)); err != nil {
 					a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
 					continue
 				}
+			case reconnectRequest:
+				a.log.Debugf("Receieved reconnect advisory request from proxy.")
+				if r.WantReply {
+					err := a.client.Reply(r, true, nil)
+					if err != nil {
+						a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
+					}
+				}
+
+				// Fire off stop but continue to handle global requests until the
+				// context is canceled to allow the agent to drain.
+				go a.Stop()
 			default:
-				// This handles keep-alive messages and matches the behaviour of OpenSSH.
-				err := r.Reply(false, nil)
+				// This handles keep-alive messages and matches the behavior of OpenSSH.
+				err := a.client.Reply(r, false, nil)
 				if err != nil {
 					a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
 					continue
 				}
 			}
 		case <-ctx.Done():
-			return
+			return trace.Wrap(ctx.Err())
 		}
 	}
 }
 
-// run is the main agent loop. It tries to establish a connection to the
-// remote proxy and then process requests that come over the tunnel.
-//
-// Once run connects to a proxy it starts processing requests from the proxy
-// via SSH channels opened by the remote Proxy.
-//
-// Agent sends periodic heartbeats back to the Proxy and that is how Proxy
-// determines disconnects.
-func (a *Agent) run() {
-	defer a.setState(agentStateDisconnected)
-	defer a.Lease.Release()
+func (a *agent) isDraining() bool {
+	return a.drainCtx.Err() != nil
+}
 
-	a.setState(agentStateConnecting)
-
-	// Try and connect to remote cluster.
-	conn, err := a.connect()
-	if err != nil || conn == nil {
-		a.log.Warningf("Failed to create remote tunnel: %v, conn: %v.", err, conn)
-		return
-	}
-
-	local := conn.LocalAddr().String()
-	remote := conn.RemoteAddr().String()
-	defer func() {
-		if err := conn.Close(); err != nil {
-			a.log.Warnf("Failed to close remote tunnel: %v, local addr: %s remote addr: %s", err, local, remote)
-		}
+// signalDraining will signal one time when the draining context is canceled.
+func (a *agent) signalDraining() <-chan struct{} {
+	c := make(chan struct{})
+	a.wg.Add(1)
+	go func() {
+		<-a.drainCtx.Done()
+		close(c)
+		a.wg.Done()
 	}()
 
-	// Successfully connected to remote cluster.
-	a.log.WithFields(log.Fields{
-		"addr":        local,
-		"remote-addr": remote,
-	}).Info("Connected.")
-
-	// wrap up remaining business logic in closure for easy
-	// conditional execution.
-	doWork := func() {
-		a.log.Debugf("Agent connected to proxy: %v.", a.getPrincipalsList())
-		a.setState(agentStateConnected)
-		// Notify waiters that the agent has connected.
-		if a.EventsC != nil {
-			select {
-			case a.EventsC <- ConnectedEvent:
-			case <-a.ctx.Done():
-				a.log.Debug("Context is closing.")
-				return
-			default:
-			}
-		}
-
-		// A connection has been established start - processing requests. Note that
-		// this function blocks while the connection is up. It will unblock when
-		// the connection is closed either due to intermittent connectivity issues
-		// or permanent loss of a proxy.
-		err = a.processRequests(conn)
-		if err != nil {
-			a.log.Warnf("Unable to continue processioning requests: %v.", err)
-			return
-		}
-	}
-	// if Tracker was provided, then the agent shouldn't continue unless
-	// no other agents hold a claim.
-	if a.Tracker != nil {
-		if !a.Tracker.WithProxy(doWork, a.getPrincipalsList()...) {
-			a.log.Debugf("Proxy already held by other agent: %v, releasing.", a.getPrincipalsList())
-		}
-	} else {
-		doWork()
-	}
+	return c
 }
 
-// ConnectedEvent is used to indicate that reverse tunnel has connected
-const ConnectedEvent = "connected"
-
-// processRequests is a blocking function which runs in a loop sending heartbeats
-// to the given SSH connection and processes inbound requests from the
-// remote proxy
-func (a *Agent) processRequests(conn *ssh.Client) error {
-	netConfig, err := a.AccessPoint.GetClusterNetworkingConfig(a.ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	ticker := time.NewTicker(netConfig.GetKeepAliveInterval())
+// handleDrainChannels handles channels that should be stopped when the agent is draining.
+func (a *agent) handleDrainChannels() error {
+	ticker := time.NewTicker(a.keepAlive)
 	defer ticker.Stop()
 
-	hb, reqC, err := conn.OpenChannel(chanHeartbeat, nil)
-	if err != nil {
-		return trace.Wrap(err)
+	// once ensures drainWG.Done() is called one more time
+	// after no more transports will be created.
+	once := &sync.Once{}
+	drainWGDone := func() {
+		once.Do(func() {
+			a.drainWG.Done()
+		})
 	}
-	newTransportC := conn.HandleChannelOpen(constants.ChanTransport)
-	newDiscoveryC := conn.HandleChannelOpen(chanDiscovery)
-
-	// send first ping right away, then start a ping timer:
-	if _, err := hb.SendRequest("ping", false, nil); err != nil {
-		return trace.Wrap(err)
-	}
+	defer drainWGDone()
+	drainSignal := a.signalDraining()
 
 	for {
+		if a.isDraining() {
+			drainWGDone()
+		}
+
 		select {
-		// need to exit:
 		case <-a.ctx.Done():
-			return trace.ConnectionProblem(nil, "heartbeat: agent is stopped")
-		// time to ping:
+			return trace.Wrap(a.ctx.Err())
+		// Signal once when the drain context is canceled to ensure we unblock
+		// to call drainWG.Done().
+		case <-drainSignal:
+			continue
+		// Handle closed heartbeat channel.
+		case req := <-a.hbRequests:
+			if req == nil {
+				return trace.ConnectionProblem(nil, "heartbeat: connection closed")
+			}
+		// Send ping over heartbeat channel.
 		case <-ticker.C:
-			bytes, _ := a.Clock.Now().UTC().MarshalText()
-			_, err := hb.SendRequest("ping", false, bytes)
+			if a.isDraining() {
+				continue
+			}
+			bytes, _ := a.clock.Now().UTC().MarshalText()
+			_, err := a.hbChannel.SendRequest(a.ctx, "ping", false, bytes)
 			if err != nil {
 				a.log.Error(err)
 				return trace.Wrap(err)
 			}
-			a.log.Debugf("Ping -> %v.", conn.RemoteAddr())
-		// ssh channel closed:
-		case req := <-reqC:
-			if req == nil {
-				return trace.ConnectionProblem(nil, "heartbeat: connection closed")
-			}
+			a.log.Debugf("Ping -> %v.", a.client.RemoteAddr())
 		// Handle transport requests.
-		case nch := <-newTransportC:
+		case nch := <-a.transportC:
 			if nch == nil {
 				continue
 			}
+			if a.isDraining() {
+				err := nch.Reject(ssh.ConnectionFailed, "agent connection is draining")
+				if err != nil {
+					a.log.WithError(err).Warningf("Failed to reject transport channel.")
+				}
+				continue
+			}
+
 			a.log.Debugf("Transport request: %v.", nch.ChannelType())
 			ch, req, err := nch.Accept()
 			if err != nil {
@@ -512,23 +573,27 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 				continue
 			}
 
-			t := &transport{
-				log:                 a.log,
-				closeContext:        a.ctx,
-				authClient:          a.Client,
-				kubeDialAddr:        a.KubeDialAddr,
-				channel:             ch,
-				requestCh:           req,
-				sconn:               conn.Conn,
-				server:              a.Server,
-				component:           a.Component,
-				reverseTunnelServer: a.ReverseTunnelServer,
-				localClusterName:    a.LocalClusterName,
-				emitter:             a.Client,
-			}
-			go t.start()
+			t := a.transporter.transport(a.ctx, ch, req, a.client)
+
+			a.drainWG.Add(1)
+			go func() {
+				t.start()
+				a.drainWG.Done()
+			}()
+
+		}
+	}
+}
+
+// handleChannels handles channels that should run for the entire lifetime of the agent.
+func (a *agent) handleChannels() error {
+	for {
+		select {
+		// need to exit:
+		case <-a.ctx.Done():
+			return trace.Wrap(a.ctx.Err())
 		// new discovery request channel
-		case nch := <-newDiscoveryC:
+		case nch := <-a.discoveryC:
 			if nch == nil {
 				continue
 			}
@@ -538,7 +603,12 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 				a.log.Warningf("Failed to accept discovery channel request: %v.", err)
 				continue
 			}
-			go a.handleDiscovery(ch, req)
+
+			a.wg.Add(1)
+			go func() {
+				a.handleDiscovery(ch, req)
+				a.wg.Done()
+			}()
 		}
 	}
 }
@@ -549,11 +619,11 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 //
 // ch   : SSH channel which received "teleport-transport" out-of-band request
 // reqC : request payload
-func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
+func (a *agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 	a.log.Debugf("handleDiscovery requests channel.")
 	defer func() {
 		if err := ch.Close(); err != nil {
-			a.log.Warnf("Failed to close discovery channel:: %v", err)
+			a.log.Warnf("Failed to close discovery channel: %v", err)
 		}
 	}()
 
@@ -572,13 +642,14 @@ func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 				a.log.Warningf("Bad payload: %v.", err)
 				return
 			}
-			r.ClusterAddr = a.Addr
-			if a.Tracker != nil {
-				// Notify tracker of all known proxies.
-				for _, p := range r.Proxies {
-					a.Tracker.TrackExpected(p.GetName())
-				}
+
+			var proxies []string
+			for _, proxy := range r.Proxies {
+				proxies = append(proxies, proxy.GetName())
 			}
+
+			a.log.Debugf("Received discovery request: %v", proxies)
+			a.tracker.TrackExpected(proxies...)
 		}
 	}
 }
@@ -587,6 +658,7 @@ const (
 	chanHeartbeat    = "teleport-heartbeat"
 	chanDiscovery    = "teleport-discovery"
 	chanDiscoveryReq = "discovery"
+	reconnectRequest = "reconnect@goteleport.com"
 )
 
 const (

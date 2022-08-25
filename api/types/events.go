@@ -179,7 +179,7 @@ type Watcher interface {
 	// Events returns channel with events
 	Events() <-chan Event
 
-	// Done returns the channel signalling the closure
+	// Done returns the channel signaling the closure
 	Done() <-chan struct{}
 
 	// Close closes the watcher and releases

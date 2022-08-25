@@ -55,6 +55,8 @@ type UploadCompleterConfig struct {
 	// GracePeriod is the period after which an upload's session
 	// tracker will be check to see if it's an abandoned upload.
 	GracePeriod time.Duration
+	// ClusterName identifies the originating teleport cluster
+	ClusterName string
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -64,6 +66,9 @@ func (cfg *UploadCompleterConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.SessionTracker == nil {
 		return trace.BadParameter("missing parameter SessionTracker")
+	}
+	if cfg.ClusterName == "" {
+		return trace.BadParameter("missing parameter ClusterName")
 	}
 	if cfg.Component == "" {
 		cfg.Component = teleport.ComponentAuth
@@ -116,7 +121,7 @@ func (u *UploadCompleter) Close() {
 	close(u.closeC)
 }
 
-// Serve runs the upload completer until closed or until ctx is cancelled.
+// Serve runs the upload completer until closed or until ctx is canceled.
 func (u *UploadCompleter) Serve(ctx context.Context) error {
 	periodic := interval.New(interval.Config{
 		Duration:      u.cfg.CheckPeriod,
@@ -167,9 +172,16 @@ func (u *UploadCompleter) checkUploads(ctx context.Context) error {
 			}
 		}
 
-		if _, err := u.cfg.SessionTracker.GetSessionTracker(ctx, upload.SessionID.String()); err == nil {
+		switch _, err := u.cfg.SessionTracker.GetSessionTracker(ctx, upload.SessionID.String()); {
+		case err == nil: // session is still in progress, continue to other uploads
 			continue
-		} else if !trace.IsNotFound(err) {
+		case trace.IsNotFound(err): // upload abandoned, complete upload
+		case trace.IsAccessDenied(err): // upload abandoned, complete upload
+			// Treat access denied errors as not found errors, since we expect
+			// to get them if the auth server is v9.2.3 or earlier, since only
+			// node, proxy, and kube roles had permissions to create trackers.
+			// DELETE IN 11.0.0
+		default: // aka err != nil
 			return trace.Wrap(err)
 		}
 
@@ -212,10 +224,12 @@ func (u *UploadCompleter) checkUploads(ctx context.Context) error {
 		}()
 		session := &events.SessionUpload{
 			Metadata: events.Metadata{
-				Type:  SessionUploadEvent,
-				Code:  SessionUploadCode,
-				ID:    uuid.New().String(),
-				Index: SessionUploadIndex,
+				Type:        SessionUploadEvent,
+				Code:        SessionUploadCode,
+				Time:        u.cfg.Clock.Now().UTC(),
+				ID:          uuid.New().String(),
+				Index:       SessionUploadIndex,
+				ClusterName: u.cfg.ClusterName,
 			},
 			SessionMetadata: events.SessionMetadata{
 				SessionID: string(uploadData.SessionID),

@@ -21,12 +21,11 @@ This guide will help you to:
 ## Prerequisites
 
 - A self-hosted PostgreSQL instance.
+- Command-line client `psql` installed and added to your system's `PATH` environment variable.
 - A host, e.g., an Amazon EC2 instance, where you will run the Teleport Database
   Service.
 
 (!docs/pages/includes/user-client-prereqs.mdx!)
-
-(!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/5. Set up the Teleport Auth and Proxy services
 
@@ -126,7 +125,7 @@ cluster over a reverse tunnel.
 ```code
 $ teleport db start \
    --token=/tmp/token \
-   --auth-server=mytenant.teleport.sh \
+   --auth-server=mytenant.teleport.sh:443 \
    --name=test \
    --protocol=postgres \
    --uri=postgres.example.com:5432 \
@@ -163,7 +162,7 @@ $ teleport db configure create \
 $ teleport db configure create \
    -o file \
    --token=/tmp/token \
-   --proxy=teleport.example.com:3080 \
+   --proxy=mytenant.teleport.sh:443 \
    --name=test \
    --protocol=postgres \
    --uri=postgres.example.com:5432 \
@@ -222,37 +221,18 @@ $ tsh db ls
 Note that you will only be able to see databases your role has access to. See
 [RBAC](../rbac.mdx) section for more details.
 
-To connect to a particular database server, first retrieve credentials from
-Teleport using `tsh db login` command:
-
-```code
-$ tsh db login example
-```
-
-<Admonition
-  type="tip"
-  title="Tip"
->
-  You can be logged in to multiple databases simultaneously.
-</Admonition>
-
-You can optionally specify the database name and the user to use by default
-when connecting to the database instance:
-
-```code
-$ tsh db login --db-user=postgres --db-name=postgres example
-```
-
-Once logged in, connect to the database:
+To retrieve credentials for a database and connect to it:
 
 ```code
 $ tsh db connect example
 ```
 
-<Admonition type="note" title="Note">
-  The `psql` command-line client should be available in `PATH` in order to be
-  able to connect.
-</Admonition>
+You can optionally specify the database name and the user to use by default
+when connecting to the database instance:
+
+```code
+$ tsh db connect --db-user=postgres --db-name=postgres example
+```
 
 To log out of the database and remove credentials:
 

@@ -18,6 +18,7 @@ package client
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -36,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -272,7 +272,6 @@ func TestHostCertVerification(t *testing.T) {
 	require.NoError(t, err)
 	hostCertBytes, err := keygen.GenerateHostCert(services.HostCertParams{
 		CASigner:      caSigner,
-		CASigningAlg:  defaults.CASignatureAlgorithm,
 		PublicHostKey: hostPub,
 		HostID:        "5ff40d80-9007-4f28-8f49-7d4fda2f574d",
 		NodeName:      "server01",
@@ -358,7 +357,7 @@ func TestHostKeyVerification(t *testing.T) {
 	require.NoError(t, err)
 
 	// test user refusing connection:
-	fakeErr := trace.Errorf("luna cannot be trusted!")
+	fakeErr := fmt.Errorf("luna cannot be trusted")
 	lka.hostPromptFunc = func(host string, k ssh.PublicKey) error {
 		require.Equal(t, "luna", host)
 		require.Equal(t, pk, k)
@@ -367,7 +366,7 @@ func TestHostKeyVerification(t *testing.T) {
 	var a net.TCPAddr
 	err = lka.CheckHostSignature("luna", &a, pk)
 	require.Error(t, err)
-	require.Equal(t, "luna cannot be trusted!", err.Error())
+	require.Equal(t, "luna cannot be trusted", err.Error())
 	require.True(t, lka.UserRefusedHosts())
 
 	// clean user answer:
@@ -520,7 +519,6 @@ func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl
 
 	certificate, err := keygen.GenerateUserCert(services.UserCertParams{
 		CASigner:              caSigner,
-		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         publicKey,
 		Username:              username,
 		AllowedLogins:         allowedLogins,

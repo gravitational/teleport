@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,7 +27,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/fixtures"
 
 	"github.com/stretchr/testify/require"
@@ -44,6 +42,7 @@ func TestMain(m *testing.M) {
 // TestLinear tests retry logic
 func TestLinear(t *testing.T) {
 	t.Parallel()
+
 	r, err := NewLinear(LinearConfig{
 		Step: time.Second,
 		Max:  3 * time.Second,
@@ -63,8 +62,9 @@ func TestLinear(t *testing.T) {
 }
 
 func TestHostUUIDIdempotent(t *testing.T) {
-	// call twice, get same result
 	t.Parallel()
+
+	// call twice, get same result
 	dir := t.TempDir()
 	id, err := ReadOrMakeHostUUID(dir)
 	require.Len(t, id, 36)
@@ -75,8 +75,9 @@ func TestHostUUIDIdempotent(t *testing.T) {
 }
 
 func TestHostUUIDBadLocation(t *testing.T) {
-	// call with a read-only dir, make sure to get an error
 	t.Parallel()
+
+	// call with a read-only dir, make sure to get an error
 	id, err := ReadOrMakeHostUUID("/bad-location")
 	require.Equal(t, id, "")
 	require.Error(t, err)
@@ -84,8 +85,9 @@ func TestHostUUIDBadLocation(t *testing.T) {
 }
 
 func TestHostUUIDIgnoreWhitespace(t *testing.T) {
-	// newlines are getting ignored
 	t.Parallel()
+
+	// newlines are getting ignored
 	dir := t.TempDir()
 	id := fmt.Sprintf("%s\n", uuid.NewString())
 	err := os.WriteFile(filepath.Join(dir, HostUUIDFile), []byte(id), 0666)
@@ -96,8 +98,9 @@ func TestHostUUIDIgnoreWhitespace(t *testing.T) {
 }
 
 func TestHostUUIDRegenerateEmpty(t *testing.T) {
-	// empty UUID in file is regenerated
 	t.Parallel()
+
+	// empty UUID in file is regenerated
 	dir := t.TempDir()
 	err := os.WriteFile(filepath.Join(dir, HostUUIDFile), nil, 0666)
 	require.NoError(t, err)
@@ -107,6 +110,8 @@ func TestHostUUIDRegenerateEmpty(t *testing.T) {
 }
 
 func TestSelfSignedCert(t *testing.T) {
+	t.Parallel()
+
 	creds, err := GenerateSelfSignedCert([]string{"example.com"})
 	require.NoError(t, err)
 	require.NotNil(t, creds)
@@ -116,6 +121,7 @@ func TestSelfSignedCert(t *testing.T) {
 
 func TestRandomDuration(t *testing.T) {
 	t.Parallel()
+
 	expectedMin := time.Duration(0)
 	expectedMax := time.Second * 10
 	for i := 0; i < 50; i++ {
@@ -127,6 +133,7 @@ func TestRandomDuration(t *testing.T) {
 
 func TestRemoveFromSlice(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name     string
 		slice    []string
@@ -149,6 +156,7 @@ func TestRemoveFromSlice(t *testing.T) {
 // TestVersions tests versions compatibility checking
 func TestVersions(t *testing.T) {
 	t.Parallel()
+
 	type tc struct {
 		info      string
 		client    string
@@ -179,6 +187,7 @@ func TestVersions(t *testing.T) {
 // TestClickableURL tests clickable URL conversions
 func TestClickableURL(t *testing.T) {
 	t.Parallel()
+
 	testCases := []struct {
 		info string
 		in   string
@@ -198,30 +207,10 @@ func TestClickableURL(t *testing.T) {
 	}
 }
 
-// TestParseSessionsURI parses sessions URI
-func TestParseSessionsURI(t *testing.T) {
-	t.Parallel()
-	testCases := []struct {
-		info string
-		in   string
-		url  *url.URL
-	}{
-		{info: "local default file system URI", in: "/home/log", url: &url.URL{Scheme: teleport.SchemeFile, Path: "/home/log"}},
-		{info: "explicit filesystem URI", in: "file:///home/log", url: &url.URL{Scheme: teleport.SchemeFile, Path: "/home/log"}},
-		{info: "S3 URI", in: "s3://my-bucket", url: &url.URL{Scheme: teleport.SchemeS3, Host: "my-bucket"}},
-	}
-	for _, testCase := range testCases {
-		t.Run(testCase.info, func(t *testing.T) {
-			out, err := ParseSessionsURI(testCase.in)
-			require.NoError(t, err)
-			require.Equal(t, testCase.url, out)
-		})
-	}
-}
-
 // TestParseAdvertiseAddr tests parsing of advertise address
 func TestParseAdvertiseAddr(t *testing.T) {
 	t.Parallel()
+
 	type tc struct {
 		info string
 		in   string
@@ -265,6 +254,7 @@ func TestParseAdvertiseAddr(t *testing.T) {
 // with regular expression compatible value
 func TestGlobToRegexp(t *testing.T) {
 	t.Parallel()
+
 	testCases := []struct {
 		comment string
 		in      string
@@ -302,6 +292,7 @@ func TestGlobToRegexp(t *testing.T) {
 // TestReplaceRegexp tests regexp-style replacement of values
 func TestReplaceRegexp(t *testing.T) {
 	t.Parallel()
+
 	testCases := []struct {
 		comment string
 		expr    string
@@ -404,6 +395,7 @@ func TestReplaceRegexp(t *testing.T) {
 // TestContainsExpansion tests whether string contains expansion value
 func TestContainsExpansion(t *testing.T) {
 	t.Parallel()
+
 	testCases := []struct {
 		comment  string
 		val      string
@@ -451,6 +443,7 @@ func TestContainsExpansion(t *testing.T) {
 // TestMarshalYAML tests marshal/unmarshal of elements
 func TestMarshalYAML(t *testing.T) {
 	t.Parallel()
+
 	type kv struct {
 		Key string
 	}
@@ -506,13 +499,14 @@ func TestMarshalYAML(t *testing.T) {
 }
 
 // TestReadToken tests reading token from file and as is
-func TestReadToken(t *testing.T) {
+func TestTryReadValueAsFile(t *testing.T) {
 	t.Parallel()
-	tok, err := ReadToken("token")
+
+	tok, err := TryReadValueAsFile("token")
 	require.Equal(t, "token", tok)
 	require.NoError(t, err)
 
-	_, err = ReadToken("/tmp/non-existent-token-for-teleport-tests-not-found")
+	_, err = TryReadValueAsFile("/tmp/non-existent-token-for-teleport-tests-not-found")
 	fixtures.AssertNotFound(t, err)
 
 	dir := t.TempDir()
@@ -520,13 +514,15 @@ func TestReadToken(t *testing.T) {
 	err = os.WriteFile(tokenPath, []byte("shmoken"), 0644)
 	require.NoError(t, err)
 
-	tok, err = ReadToken(tokenPath)
+	tok, err = TryReadValueAsFile(tokenPath)
 	require.NoError(t, err)
 	require.Equal(t, "shmoken", tok)
 }
 
 // TestStringsSet makes sure that nil slice returns empty set (less error prone)
 func TestStringsSet(t *testing.T) {
+	t.Parallel()
+
 	out := StringsSet(nil)
 	require.Len(t, out, 0)
 	require.NotNil(t, out)
@@ -535,6 +531,7 @@ func TestStringsSet(t *testing.T) {
 // TestRepeatReader tests repeat reader
 func TestRepeatReader(t *testing.T) {
 	t.Parallel()
+
 	type tc struct {
 		name     string
 		repeat   byte
@@ -572,6 +569,7 @@ func TestRepeatReader(t *testing.T) {
 
 func TestReadAtMost(t *testing.T) {
 	t.Parallel()
+
 	testCases := []struct {
 		name  string
 		limit int64

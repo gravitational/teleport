@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -163,8 +164,13 @@ type WindowsServiceConfig struct {
 	// Windows Desktops. If multiple filters are specified, they are ANDed
 	// together into a single search.
 	DiscoveryLDAPFilters []string
+	// DiscoveryLDAPAttributeLabels are optional LDAP attributes to convert
+	// into Teleport labels.
+	DiscoveryLDAPAttributeLabels []string
 	// Hostname of the windows desktop service
 	Hostname string
+	// ConnectedProxyGetter gets the proxies teleport is connected to.
+	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 }
 
 // LDAPConfig contains parameters for connecting to an LDAP server.
@@ -277,6 +283,9 @@ func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 	}
 	if err := cfg.checkAndSetDiscoveryDefaults(); err != nil {
 		return trace.Wrap(err)
+	}
+	if cfg.ConnectedProxyGetter == nil {
+		cfg.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
 	}
 
 	return nil
@@ -835,8 +844,8 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		Conn:           tdpConn,
 		AuthorizeFn:    authorize,
 		AllowClipboard: authCtx.Checker.DesktopClipboard(),
-		// allowDirectorySharing() ensures this setting is modulated by build flag while in development
-		AllowDirectorySharing: authCtx.Checker.DesktopDirectorySharing() && allowDirectorySharing(),
+		// AllowDirectorySharing() ensures this setting is modulated by build flag while in development
+		AllowDirectorySharing: authCtx.Checker.DesktopDirectorySharing() && AllowDirectorySharing(),
 	})
 	if err != nil {
 		s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
@@ -862,17 +871,21 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		monitorCfg.DisconnectExpiredCert = identity.Expires
 	}
 
+	// UpdateClientActivity before starting monitor to
+	// be doubly sure that the client isn't disconnected
+	// due to an idle timeout before its had the chance to
+	// call StartAndWait()
+	rdpc.UpdateClientActivity()
 	if err := srv.StartMonitor(monitorCfg); err != nil {
 		// if we can't establish a connection monitor then we can't enforce RBAC.
 		// consider this a connection failure and return an error
 		// (in the happy path, rdpc remains open until Wait() completes)
-		rdpc.Close()
 		s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
 		return trace.Wrap(err)
 	}
 
 	s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, nil)
-	err = rdpc.Wait()
+	err = rdpc.Run(ctx)
 	s.onSessionEnd(ctx, sw, &identity, sessionStartTime, recordSession, windowsUser, string(sessionID), desktop)
 
 	return trace.Wrap(err)
@@ -952,6 +965,7 @@ func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {
 			Addr:            s.cfg.Heartbeat.PublicAddr,
 			TeleportVersion: teleport.Version,
 			Hostname:        s.cfg.Hostname,
+			ProxyIDs:        s.cfg.ConnectedProxyGetter.GetProxyIDs(),
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1282,7 +1296,16 @@ func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, w
 
 	s.cfg.Log.Debugf("Creating tracker for session %v", sessionID)
 	tracker, err := srv.NewSessionTracker(ctx, trackerSpec, s.cfg.AuthClient)
-	if err != nil {
+	switch {
+	case err == nil:
+	case trace.IsAccessDenied(err):
+		// Ignore access denied errors, which we may get if the auth
+		// server is v9.2.3 or earlier, since only node, proxy, and
+		// kube roles had permission to create session trackers.
+		// DELETE IN 11.0.0
+		s.cfg.Log.Debugf("Insufficient permissions to create session tracker, skipping session tracking for session %v", sessionID)
+		return nil
+	default: // aka err != nil
 		return trace.Wrap(err)
 	}
 

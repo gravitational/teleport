@@ -47,10 +47,20 @@ type Cluster struct {
 
 	// uri is the cluster resource URI
 	Uri string `protobuf:"bytes,1,opt,name=uri,proto3" json:"uri,omitempty"`
-	// name is the cluster name
-	Name       string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// name is used throughout the Teleport Connect codebase as the cluster name.
+	// Unfortunately, we made a mistake where instead of taking the name of the cluster from the
+	// key, we take it from the hostname part of the proxy service. These two are not always equal.
+	// And actually there are places in tsh code where it needs the name of the cluster from the
+	// key, not the hostname of the proxy service (like in the `TELEPORT_CLUSTER` env var). Since
+	// this identifier is so widely used, we didn't have time to change it before the preview
+	// release. In the future we plan to fix the value sent under name to the name from the key and
+	// get rid of the `actual_name` field.
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// actual_name is a temporary field that stores the cluster name taken from the key.
+	// See the comment for the name field for an explanation as to why we added this field.
 	ActualName string `protobuf:"bytes,3,opt,name=actual_name,json=actualName,proto3" json:"actual_name,omitempty"`
-	ProxyHost  string `protobuf:"bytes,4,opt,name=proxy_host,json=proxyHost,proto3" json:"proxy_host,omitempty"`
+	// proxy address (only for root clusters)
+	ProxyHost string `protobuf:"bytes,4,opt,name=proxy_host,json=proxyHost,proto3" json:"proxy_host,omitempty"`
 	// connected indicates if connection to the cluster can be established, that is if we have a
 	// cert for the cluster that hasn't expired
 	Connected bool `protobuf:"varint,5,opt,name=connected,proto3" json:"connected,omitempty"`

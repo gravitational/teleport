@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include "context.h"
 #include "credential_info.h"
 
 typedef struct AuthenticateRequest {
@@ -29,6 +30,7 @@ typedef struct AuthenticateRequest {
 // it. The digest is expected to be in SHA256.
 // Authenticate requires user interaction.
 // Returns zero if successful, non-zero otherwise.
-int Authenticate(AuthenticateRequest req, char **sigB64Out, char **errOut);
+int Authenticate(AuthContext *actx, AuthenticateRequest req, char **sigB64Out,
+                 char **errOut);
 
 #endif // AUTHENTICATE_H_

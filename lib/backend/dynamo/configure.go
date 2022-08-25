@@ -24,10 +24,11 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/applicationautoscaling"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 )
 
 // SetContinuousBackups enables continuous backups.
-func SetContinuousBackups(ctx context.Context, svc *dynamodb.DynamoDB, tableName string) error {
+func SetContinuousBackups(ctx context.Context, svc dynamodbiface.DynamoDBAPI, tableName string) error {
 	// Make request to AWS to update continuous backups settings.
 	_, err := svc.UpdateContinuousBackupsWithContext(ctx, &dynamodb.UpdateContinuousBackupsInput{
 		PointInTimeRecoverySpecification: &dynamodb.PointInTimeRecoverySpecification{

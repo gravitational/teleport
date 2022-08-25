@@ -88,14 +88,15 @@ func TestLoadAllConfigs(t *testing.T) {
 	require.Equal(t, &TshConfig{
 		ExtraHeaders: []ExtraProxyHeaders{
 			{
-				Proxy:   "global",
-				Headers: map[string]string{"bar": "123"},
-			},
-			{
 				Proxy:   "user",
 				Headers: map[string]string{"bar": "456"},
 			},
+			{
+				Proxy:   "global",
+				Headers: map[string]string{"bar": "123"},
+			},
 		},
+		Aliases: map[string]string{},
 	}, config)
 
 }
@@ -108,6 +109,7 @@ func TestTshConfigMerge(t *testing.T) {
 				"bar": "baz",
 			},
 		}},
+		Aliases: map[string]string{},
 	}
 
 	tests := []struct {
@@ -120,7 +122,7 @@ func TestTshConfigMerge(t *testing.T) {
 			name:    "empty + empty = empty",
 			config1: nil,
 			config2: nil,
-			want:    TshConfig{},
+			want:    TshConfig{Aliases: map[string]string{}},
 		},
 		{
 			name:    "empty + x = x",
@@ -149,22 +151,25 @@ func TestTshConfigMerge(t *testing.T) {
 					Headers: map[string]string{
 						"baz": "456",
 					},
-				}}},
+				}},
+			},
 			want: TshConfig{
 				ExtraHeaders: []ExtraProxyHeaders{
-					{
-						Proxy: "foo",
-						Headers: map[string]string{
-							"bar": "123",
-						},
-					},
 					{
 						Proxy: "bar",
 						Headers: map[string]string{
 							"baz": "456",
 						},
 					},
-				}},
+					{
+						Proxy: "foo",
+						Headers: map[string]string{
+							"bar": "123",
+						},
+					},
+				},
+				Aliases: map[string]string{},
+			},
 		},
 		{
 			name: "headers combine same proxy",
@@ -187,16 +192,46 @@ func TestTshConfigMerge(t *testing.T) {
 					{
 						Proxy: "foo",
 						Headers: map[string]string{
-							"bar": "123",
+							"bar": "456",
 						},
 					},
 					{
 						Proxy: "foo",
 						Headers: map[string]string{
-							"bar": "456",
+							"bar": "123",
 						},
 					},
-				}},
+				},
+				Aliases: map[string]string{},
+			},
+		},
+		{
+			name: "aliases combine",
+			config1: &TshConfig{
+				ExtraHeaders:   nil,
+				ProxyTemplates: nil,
+				Aliases: map[string]string{
+					"foo": "foo1",
+					"bar": "bar1",
+				},
+			},
+			config2: &TshConfig{
+				ExtraHeaders:   nil,
+				ProxyTemplates: nil,
+				Aliases: map[string]string{
+					"baz": "baz2",
+					"bar": "bar2",
+				},
+			},
+			want: TshConfig{
+				ExtraHeaders:   nil,
+				ProxyTemplates: nil,
+				Aliases: map[string]string{
+					"foo": "foo1",
+					"baz": "baz2",
+					"bar": "bar2",
+				},
+			},
 		},
 	}
 
@@ -204,6 +239,59 @@ func TestTshConfigMerge(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			config3 := tt.config1.Merge(tt.config2)
 			require.Equal(t, tt.want, config3)
+		})
+	}
+}
+
+// TestProxyTemplates verifies proxy templates matching functionality.
+func TestProxyTemplates(t *testing.T) {
+	tshConfig := &TshConfig{
+		ProxyTemplates: ProxyTemplates{
+			{
+				Template: `^(.+)\.(us.example.com):(.+)$`,
+				Proxy:    "$2:443",
+				Host:     "$1:$3",
+			},
+			{
+				Template: `^(.+)\.(eu.example.com):(.+)$`,
+				Proxy:    "$2:3080",
+			},
+		},
+	}
+	require.NoError(t, tshConfig.Check())
+	tests := []struct {
+		testName       string
+		inFullHostname string
+		outProxy       string
+		outHost        string
+		outMatch       bool
+	}{
+		{
+			testName:       "matches first template",
+			inFullHostname: "node-1.us.example.com:3022",
+			outProxy:       "us.example.com:443",
+			outHost:        "node-1:3022",
+			outMatch:       true,
+		},
+		{
+			testName:       "matches second template",
+			inFullHostname: "node-1.eu.example.com:3022",
+			outProxy:       "eu.example.com:3080",
+			outHost:        "node-1.eu.example.com:3022",
+			outMatch:       true,
+		},
+		{
+			testName:       "does not match templates",
+			inFullHostname: "node-1.cn.example.com:3022",
+			outMatch:       false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.testName, func(t *testing.T) {
+			proxy, host, match := tshConfig.ProxyTemplates.Apply(test.inFullHostname)
+			require.Equal(t, test.outProxy, proxy)
+			require.Equal(t, test.outHost, host)
+			require.Equal(t, test.outMatch, match)
 		})
 	}
 }

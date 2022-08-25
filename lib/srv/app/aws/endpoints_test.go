@@ -356,4 +356,18 @@ func TestResolveEndpoints(t *testing.T) {
 		require.Equal(t, signingName, endpoint.SigningName)
 		require.Equal(t, "https://"+signingNameToHostname[signingName], endpoint.URL, "for signing name %q", signingName)
 	}
+
+	t.Run("X-Forwarded-Host", func(t *testing.T) {
+		req, err := http.NewRequest("GET", "http://localhost", nil)
+		require.NoError(t, err)
+		req.Header.Set("X-Forwarded-Host", "some-service.us-east-1.amazonaws.com")
+
+		_, err = signer.Sign(req, bytes.NewReader(nil), "some-service", region, now)
+		require.NoError(t, err)
+
+		endpoint, err := resolveEndpoint(req)
+		require.NoError(t, err)
+		require.Equal(t, "some-service", endpoint.SigningName)
+		require.Equal(t, "https://some-service.us-east-1.amazonaws.com", endpoint.URL)
+	})
 }

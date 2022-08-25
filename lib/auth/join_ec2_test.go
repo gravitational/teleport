@@ -649,16 +649,26 @@ func TestHostUniqueCheck(t *testing.T) {
 		{
 			role: types.RoleKube,
 			upserter: func(name string) {
-				kube := &types.ServerV2{
-					Kind:    types.KindKubeService,
-					Version: types.V2,
-					Metadata: types.Metadata{
+
+				kube, err := types.NewKubernetesServerV3(
+					types.Metadata{
 						Name:      name,
 						Namespace: defaults.Namespace,
 					},
-				}
-				_, err := a.UpsertKubeServiceV2(context.Background(), kube)
+					types.KubernetesServerSpecV3{
+						HostID:   name,
+						Hostname: "test-kuge",
+						Cluster: &types.KubernetesClusterV3{
+							Metadata: types.Metadata{
+								Name:      name,
+								Namespace: defaults.Namespace,
+							},
+						},
+					})
 				require.NoError(t, err)
+				_, err = a.UpsertKubernetesServer(context.Background(), kube)
+				require.NoError(t, err)
+
 			},
 		},
 		{

@@ -15,4 +15,4 @@ if [[ "${USE_LETSENCRYPT}" != "true" ]]; then
 fi
 
 # copy certificates into place
-/bin/aws s3 sync s3://${TELEPORT_S3_BUCKET}/live/${TELEPORT_DOMAIN_NAME} /var/lib/teleport
+/bin/aws s3 sync --exact-timestamps s3://${TELEPORT_S3_BUCKET}/live/${TELEPORT_DOMAIN_NAME} /var/lib/teleport

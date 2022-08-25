@@ -33,6 +33,8 @@ type WindowsDesktopService interface {
 	GetTeleportVersion() string
 	// GetHostname returns the hostname of this service
 	GetHostname() string
+	// ProxiedService provides common methods for a proxied service.
+	ProxiedService
 }
 
 var _ WindowsDesktopService = &WindowsDesktopServiceV3{}
@@ -94,9 +96,29 @@ func (s *WindowsDesktopServiceV3) SetOrigin(origin string) {
 	s.Metadata.SetOrigin(origin)
 }
 
+// GetProxyID returns a list of proxy ids this server is connected to.
+func (s *WindowsDesktopServiceV3) GetProxyIDs() []string {
+	return s.Spec.ProxyIDs
+}
+
+// SetProxyID sets the proxy ids this server is connected to.
+func (s *WindowsDesktopServiceV3) SetProxyIDs(proxyIDs []string) {
+	s.Spec.ProxyIDs = proxyIDs
+}
+
 // GetAllLabels returns the resources labels.
 func (s *WindowsDesktopServiceV3) GetAllLabels() map[string]string {
 	return s.Metadata.Labels
+}
+
+// GetStaticLabels returns the windows desktop static labels.
+func (s *WindowsDesktopServiceV3) GetStaticLabels() map[string]string {
+	return s.Metadata.Labels
+}
+
+// SetStaticLabels sets the windows desktop static labels.
+func (s *WindowsDesktopServiceV3) SetStaticLabels(sl map[string]string) {
+	s.Metadata.Labels = sl
 }
 
 // GetHostname returns the windows hostname of this service.
@@ -175,6 +197,16 @@ func (d *WindowsDesktopV3) GetHostID() string {
 func (d *WindowsDesktopV3) GetAllLabels() map[string]string {
 	// TODO(zmb3): add dynamic labels when running in agent mode
 	return CombineLabels(d.Metadata.Labels, nil)
+}
+
+// GetStaticLabels returns the windows desktop static labels.
+func (d *WindowsDesktopV3) GetStaticLabels() map[string]string {
+	return d.Metadata.Labels
+}
+
+// SetStaticLabels sets the windows desktop static labels.
+func (d *WindowsDesktopV3) SetStaticLabels(sl map[string]string) {
+	d.Metadata.Labels = sl
 }
 
 // LabelsString returns all desktop labels as a string.
@@ -313,5 +345,4 @@ type ListWindowsDesktopsRequest struct {
 	StartKey, PredicateExpression string
 	Labels                        map[string]string
 	SearchKeywords                []string
-	SortBy                        SortBy
 }

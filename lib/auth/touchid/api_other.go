@@ -21,15 +21,27 @@ var native nativeTID = noopNative{}
 
 type noopNative struct{}
 
-func (noopNative) IsAvailable() bool {
-	return false
+func (noopNative) Diag() (*DiagResult, error) {
+	return &DiagResult{}, nil
+}
+
+type noopAuthContext struct{}
+
+func (noopAuthContext) Guard(fn func()) error {
+	return ErrNotAvailable
+}
+
+func (noopAuthContext) Close() {}
+
+func (noopNative) NewAuthContext() AuthContext {
+	return noopAuthContext{}
 }
 
 func (noopNative) Register(rpID, user string, userHandle []byte) (*CredentialInfo, error) {
 	return nil, ErrNotAvailable
 }
 
-func (noopNative) Authenticate(credentialID string, digest []byte) ([]byte, error) {
+func (noopNative) Authenticate(actx AuthContext, credentialID string, digest []byte) ([]byte, error) {
 	return nil, ErrNotAvailable
 }
 
@@ -42,5 +54,9 @@ func (noopNative) ListCredentials() ([]CredentialInfo, error) {
 }
 
 func (noopNative) DeleteCredential(credentialID string) error {
+	return ErrNotAvailable
+}
+
+func (noopNative) DeleteNonInteractive(credentialID string) error {
 	return ErrNotAvailable
 }

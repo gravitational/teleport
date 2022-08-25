@@ -85,15 +85,15 @@ which can be used as a `ProxyCommand`.
 Similarly to `tsh ssh`, `tsh proxy ssh` establishes a TLS tunnel to Teleport
 proxy with `teleport-ssh-proxy` ALPN protocol, which `ssh` then connects over.
 
-See [OpenSSH client](../server-access/guides/openssh.mdx#use-the-openssh-client-to-access-teleport-nodes)
-guide for details on how it's configured.
+See the [OpenSSH client](../server-access/guides/openssh.mdx) guide for details on
+how it's configured.
 
 ## Reverse tunnels
 
-Reverse tunnel agents for Teleport node, application and database services, as
-well as for trusted clusters, open a TLS tunnel to the cluster's proxy with
-`teleport-reversetunnel` ALPN protocol and then dials SSH over it establishing
-the reverse tunnel connection.
+Reverse tunnel workers within the Teleport Node, Application and Database
+Services, as well as for Trusted Clusters, open a TLS tunnel to the cluster's
+Proxy Service with the `teleport-reversetunnel` ALPN protocol. The workers then
+dial SSH over the tunnel, establishing a secure connection.
 
 ## Kubernetes
 

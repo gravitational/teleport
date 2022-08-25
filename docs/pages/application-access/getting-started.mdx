@@ -23,7 +23,10 @@ Let's connect to Grafana using Teleport Application Access in three steps:
 
 ## Prerequisites
 
-- The Teleport Auth Service and Proxy Service, deployed on your own infrastructure or via Teleport Cloud.
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+(!docs/pages/includes/tctl.mdx!)
+
 - A Docker installation, which we will use to launch Grafana in a container. Alternatively, if you have another web application you'd like to protect with Application Access, you can use that instead.
 - A host where you will run the Teleport Application Service.
 
@@ -58,7 +61,7 @@ your platform from our
 
 ### Generate a token
 
-A join token is required to authorize a Teleport Application Service agent to
+A join token is required to authorize a Teleport Application Service instance to
 join the cluster. Generate a short-lived join token and save it, for example,
 in `/tmp/token` on your Teleport Application Service host:
 
@@ -86,7 +89,7 @@ $ sudo teleport app start \
   --auth-server=https://teleport.example.com:3080
 ```
 
-Change `https://teleport.example.com:3080` to the address and port of your Teleport Proxy Server. If you are a Teleport Cloud cluster, use your tenant's subdomain, e.g., `mytenant.teleport.sh`. 
+Change `https://teleport.example.com:3080` to the address and port of your Teleport Proxy Server. If you are a Teleport Cloud customer, use port 443 of your tenant's subdomain, e.g., `mytenant.teleport.sh:443`.
 
 Make sure to update `--app-name` and `--app-uri` accordingly if you're using your own web application.
 
@@ -123,7 +126,7 @@ Alternatively, log in to the Teleport Web Interface at `https://teleport.example
 Dive deeper into the topics relevant to your Application Access use-case:
 
 - Learn in more detail about [connecting applications](./guides/connecting-apps.mdx) with Application Access.
-- Learn about integrating with [JWT tokens](./guides/jwt.mdx) for auth.
+- Learn about integrating with [JWT tokens](./jwt/introduction.mdx) for auth.
 - Learn how to use Application Access with [RESTful APIs](./guides/api-access.mdx).
 - See full configuration and CLI [reference](./reference.mdx).
 - Read about how Let's Encrypt uses the [ACME protocol](https://letsencrypt.org/how-it-works/).

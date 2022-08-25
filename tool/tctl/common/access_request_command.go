@@ -110,32 +110,32 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, config *serv
 }
 
 // TryRun takes the CLI command as an argument (like "access-request list") and executes it.
-func (c *AccessRequestCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
+func (c *AccessRequestCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case c.requestList.FullCommand():
-		err = c.List(client)
+		err = c.List(ctx, client)
 	case c.requestGet.FullCommand():
-		err = c.Get(client)
+		err = c.Get(ctx, client)
 	case c.requestApprove.FullCommand():
-		err = c.Approve(client)
+		err = c.Approve(ctx, client)
 	case c.requestDeny.FullCommand():
-		err = c.Deny(client)
+		err = c.Deny(ctx, client)
 	case c.requestCreate.FullCommand():
-		err = c.Create(client)
+		err = c.Create(ctx, client)
 	case c.requestDelete.FullCommand():
-		err = c.Delete(client)
+		err = c.Delete(ctx, client)
 	case c.requestCaps.FullCommand():
-		err = c.Caps(client)
+		err = c.Caps(ctx, client)
 	case c.requestReview.FullCommand():
-		err = c.Review(client)
+		err = c.Review(ctx, client)
 	default:
 		return false, nil
 	}
 	return true, trace.Wrap(err)
 }
 
-func (c *AccessRequestCommand) List(client auth.ClientI) error {
-	reqs, err := client.GetAccessRequests(context.TODO(), types.AccessRequestFilter{})
+func (c *AccessRequestCommand) List(ctx context.Context, client auth.ClientI) error {
+	reqs, err := client.GetAccessRequests(ctx, types.AccessRequestFilter{})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -157,8 +157,7 @@ func (c *AccessRequestCommand) List(client auth.ClientI) error {
 	return nil
 }
 
-func (c *AccessRequestCommand) Get(client auth.ClientI) error {
-	ctx := context.TODO()
+func (c *AccessRequestCommand) Get(ctx context.Context, client auth.ClientI) error {
 	reqs := []types.AccessRequest{}
 	for _, reqID := range strings.Split(c.reqIDs, ",") {
 		req, err := client.GetAccessRequests(ctx, types.AccessRequestFilter{
@@ -213,8 +212,7 @@ func (c *AccessRequestCommand) splitRoles() []string {
 	return roles
 }
 
-func (c *AccessRequestCommand) Approve(client auth.ClientI) error {
-	ctx := context.TODO()
+func (c *AccessRequestCommand) Approve(ctx context.Context, client auth.ClientI) error {
 	if c.delegator != "" {
 		ctx = auth.WithDelegator(ctx, c.delegator)
 	}
@@ -236,8 +234,7 @@ func (c *AccessRequestCommand) Approve(client auth.ClientI) error {
 	return nil
 }
 
-func (c *AccessRequestCommand) Deny(client auth.ClientI) error {
-	ctx := context.TODO()
+func (c *AccessRequestCommand) Deny(ctx context.Context, client auth.ClientI) error {
 	if c.delegator != "" {
 		ctx = auth.WithDelegator(ctx, c.delegator)
 	}
@@ -258,7 +255,7 @@ func (c *AccessRequestCommand) Deny(client auth.ClientI) error {
 	return nil
 }
 
-func (c *AccessRequestCommand) Create(client auth.ClientI) error {
+func (c *AccessRequestCommand) Create(ctx context.Context, client auth.ClientI) error {
 	req, err := services.NewAccessRequest(c.user, c.splitRoles()...)
 	if err != nil {
 		return trace.Wrap(err)
@@ -266,21 +263,20 @@ func (c *AccessRequestCommand) Create(client auth.ClientI) error {
 	req.SetRequestReason(c.reason)
 
 	if c.dryRun {
-		err = services.ValidateAccessRequestForUser(client, req, services.ExpandVars(true))
+		err = services.ValidateAccessRequestForUser(ctx, client, req, services.ExpandVars(true))
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		return trace.Wrap(printJSON(req, "request"))
 	}
-	if err := client.CreateAccessRequest(context.TODO(), req); err != nil {
+	if err := client.CreateAccessRequest(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("%s\n", req.GetName())
 	return nil
 }
 
-func (c *AccessRequestCommand) Delete(client auth.ClientI) error {
-	ctx := context.TODO()
+func (c *AccessRequestCommand) Delete(ctx context.Context, client auth.ClientI) error {
 	var approvedTokens []string
 	for _, reqID := range strings.Split(c.reqIDs, ",") {
 		// Fetch the requests first to see if they were approved to provide the
@@ -301,7 +297,7 @@ func (c *AccessRequestCommand) Delete(client auth.ClientI) error {
 
 	if len(approvedTokens) == 0 || c.force {
 		for _, reqID := range strings.Split(c.reqIDs, ",") {
-			if err := client.DeleteAccessRequest(context.TODO(), reqID); err != nil {
+			if err := client.DeleteAccessRequest(ctx, reqID); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -313,15 +309,15 @@ func (c *AccessRequestCommand) Delete(client auth.ClientI) error {
 		fmt.Println("the user's access to these roles. If you would like to lock the user's access to the")
 		fmt.Printf("requested roles instead, you can run:\n\n")
 		for _, reqID := range approvedTokens {
-			fmt.Printf("> tctl lock --access_request %s\n", reqID)
+			fmt.Printf("> tctl lock --access-request %s\n", reqID)
 		}
 		fmt.Printf("\nTo disregard this warning and delete the request anyway, re-run this command with --force.\n\n")
 	}
 	return nil
 }
 
-func (c *AccessRequestCommand) Caps(client auth.ClientI) error {
-	caps, err := client.GetAccessCapabilities(context.TODO(), types.AccessCapabilitiesRequest{
+func (c *AccessRequestCommand) Caps(ctx context.Context, client auth.ClientI) error {
+	caps, err := client.GetAccessCapabilities(ctx, types.AccessCapabilitiesRequest{
 		User:               c.user,
 		RequestableRoles:   true,
 		SuggestedReviewers: true,
@@ -356,7 +352,7 @@ func (c *AccessRequestCommand) Caps(client auth.ClientI) error {
 	}
 }
 
-func (c *AccessRequestCommand) Review(client auth.ClientI) error {
+func (c *AccessRequestCommand) Review(ctx context.Context, client auth.ClientI) error {
 	if c.approve == c.deny {
 		return trace.BadParameter("must supply exactly one of '--approve' or '--deny'")
 	}
@@ -368,8 +364,6 @@ func (c *AccessRequestCommand) Review(client auth.ClientI) error {
 	case c.deny:
 		state = types.RequestState_DENIED
 	}
-
-	ctx := context.TODO()
 
 	req, err := client.SubmitAccessReview(ctx, types.AccessReviewSubmission{
 		RequestID: strings.Split(c.reqIDs, ",")[0],
@@ -395,7 +389,17 @@ func (c *AccessRequestCommand) Review(client auth.ClientI) error {
 func printRequestsOverview(reqs []types.AccessRequest, format string) error {
 	switch format {
 	case teleport.Text:
-		table := asciitable.MakeTable([]string{"Token", "Requestor", "Metadata", "Created At (UTC)", "Status"})
+		table := asciitable.MakeTable([]string{"Token", "Requestor", "Metadata"})
+		table.AddColumn(asciitable.Column{
+			Title:         "Resources",
+			MaxCellLength: 20,
+			FootnoteLabel: "[+]",
+		})
+		table.AddFootnote(
+			"[+]",
+			"Requested resources truncated, use the `tctl requests get` subcommand to view the full list")
+		table.AddColumn(asciitable.Column{Title: "Created At (UTC)"})
+		table.AddColumn(asciitable.Column{Title: "Status"})
 		table.AddColumn(asciitable.Column{
 			Title:         "Request Reason",
 			MaxCellLength: 75,
@@ -411,10 +415,15 @@ func printRequestsOverview(reqs []types.AccessRequest, format string) error {
 			"Full reason was truncated, use the `tctl requests get` subcommand to view the full reason.",
 		)
 		for _, req := range reqs {
+			resourceIDsString, err := types.ResourceIDsToString(req.GetRequestedResourceIDs())
+			if err != nil {
+				return trace.Wrap(err)
+			}
 			table.AddRow([]string{
 				req.GetName(),
 				req.GetUser(),
 				fmt.Sprintf("roles=%s", strings.Join(req.GetRoles(), ",")),
+				resourceIDsString,
 				req.GetCreationTime().Format(time.RFC822),
 				req.GetState().String(),
 				quoteOrDefault(req.GetRequestReason(), ""),
@@ -435,16 +444,24 @@ func printRequestsDetailed(reqs []types.AccessRequest, format string) error {
 	switch format {
 	case teleport.Text:
 		for _, req := range reqs {
+			resourceIDsString, err := types.ResourceIDsToString(req.GetRequestedResourceIDs())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if resourceIDsString == "" {
+				resourceIDsString = "[none]"
+			}
 			table := asciitable.MakeHeadlessTable(2)
 			table.AddRow([]string{"Token: ", req.GetName()})
 			table.AddRow([]string{"Requestor: ", req.GetUser()})
 			table.AddRow([]string{"Metadata: ", fmt.Sprintf("roles=%s", strings.Join(req.GetRoles(), ","))})
+			table.AddRow([]string{"Resources: ", resourceIDsString})
 			table.AddRow([]string{"Created At (UTC): ", req.GetCreationTime().Format(time.RFC822)})
 			table.AddRow([]string{"Status: ", req.GetState().String()})
 			table.AddRow([]string{"Request Reason: ", quoteOrDefault(req.GetRequestReason(), "[none]")})
 			table.AddRow([]string{"Resolve Reason: ", quoteOrDefault(req.GetResolveReason(), "[none]")})
 
-			_, err := table.AsBuffer().WriteTo(os.Stdout)
+			_, err = table.AsBuffer().WriteTo(os.Stdout)
 			if err != nil {
 				return trace.Wrap(err)
 			}

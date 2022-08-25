@@ -21,13 +21,22 @@ import (
 	"log"
 	"strings"
 
+	"github.com/gravitational/teleport/.github/workflows/robot/internal/github"
 	"github.com/gravitational/trace"
 )
 
 // Label parses the content of the PR (branch name, files, etc) and sets
 // appropriate labels.
 func (b *Bot) Label(ctx context.Context) error {
-	labels, err := b.labels(ctx)
+	files, err := b.c.GitHub.ListFiles(ctx,
+		b.c.Environment.Organization,
+		b.c.Environment.Repository,
+		b.c.Environment.Number)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	labels, err := b.labels(ctx, files)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -47,30 +56,23 @@ func (b *Bot) Label(ctx context.Context) error {
 	return nil
 }
 
-func (b *Bot) labels(ctx context.Context) ([]string, error) {
+// labels determines which labels should be applied to a PR
+func (b *Bot) labels(ctx context.Context, files []github.PullRequestFile) ([]string, error) {
 	var labels []string
 
 	// The branch name is unsafe, but here we are simply adding a label.
-	if strings.HasPrefix(b.c.Environment.UnsafeHead, "branch/") {
+	if isReleaseBranch(b.c.Environment.UnsafeBase) {
 		log.Println("Label: Found backport branch.")
 		labels = append(labels, "backport")
 	}
 
-	files, err := b.c.GitHub.ListFiles(ctx,
-		b.c.Environment.Organization,
-		b.c.Environment.Repository,
-		b.c.Environment.Number)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	for _, file := range files {
-		if strings.HasPrefix(file, "vendor/") {
+		if strings.HasPrefix(file.Name, "vendor/") {
 			continue
 		}
 
 		for k, v := range prefixes {
-			if strings.HasPrefix(file, k) {
+			if strings.HasPrefix(file.Name, k) {
 				log.Printf("Label: Found prefix %v, attaching labels: %v.", k, v)
 				labels = append(labels, v...)
 			}
@@ -102,6 +104,7 @@ var prefixes = map[string][]string{
 	"lib/bpf/":            {"bpf"},
 	"lib/events":          {"audit-log"},
 	"lib/kube":            {"kubernetes"},
+	"lib/tbot/":           {"machine-id"},
 	"lib/srv/desktop":     {"desktop-access"},
 	"lib/srv/desktop/rdp": {"desktop-access", "rdp"},
 	"lib/srv/app/":        {"application-access"},
@@ -109,4 +112,5 @@ var prefixes = map[string][]string{
 	"lib/web/desktop.go":  {"desktop-access"},
 	"tool/tctl/":          {"tctl"},
 	"tool/tsh/":           {"tsh"},
+	"tool/tbot/":          {"machine-id"},
 }

@@ -21,6 +21,7 @@ package httplib
 import (
 	"encoding/json"
 	"errors"
+	"mime"
 	"net"
 	"net/http"
 	"net/url"
@@ -127,6 +128,18 @@ func WithCSRFProtection(fn HandlerFunc) httprouter.Handle {
 // ReadJSON reads HTTP json request and unmarshals it
 // into passed interface{} obj
 func ReadJSON(r *http.Request, val interface{}) error {
+	// Check content type to mitigate CSRF attack.
+	contentType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil {
+		log.Warningf("Error parsing media type for reading JSON: %v", err)
+		return trace.BadParameter("invalid request")
+	}
+
+	if contentType != "application/json" {
+		log.Warningf("Invalid HTTP request header content-type %q for reading JSON", contentType)
+		return trace.BadParameter("invalid request")
+	}
+
 	data, err := utils.ReadAtMost(r.Body, teleport.MaxHTTPRequestSize)
 	if err != nil {
 		return trace.Wrap(err)

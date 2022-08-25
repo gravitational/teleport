@@ -25,88 +25,114 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/trace"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	"gopkg.in/check.v1"
 )
 
-func TestAPI(t *testing.T) { check.TestingT(t) }
-
-type GithubSuite struct {
+type githubContext struct {
 	a           *Server
 	mockEmitter *eventstest.MockEmitter
 	b           backend.Backend
 	c           clockwork.FakeClock
 }
 
-var _ = check.Suite(&GithubSuite{})
+func setupGithubContext(ctx context.Context, t *testing.T) *githubContext {
+	var tt githubContext
+	t.Cleanup(func() { tt.Close() })
 
-func (s *GithubSuite) SetUpSuite(c *check.C) {
-	s.c = clockwork.NewFakeClockAt(time.Now())
+	tt.c = clockwork.NewFakeClockAt(time.Now())
 
 	var err error
-	s.b, err = lite.NewWithConfig(context.Background(), lite.Config{
-		Path:             c.MkDir(),
-		PollStreamPeriod: 200 * time.Millisecond,
-		Clock:            s.c,
+	tt.b, err = memory.New(memory.Config{
+		Context: context.Background(),
+		Clock:   tt.c,
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "me.localhost",
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	authConfig := &InitConfig{
 		ClusterName:            clusterName,
-		Backend:                s.b,
+		Backend:                tt.b,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 	}
-	s.a, err = NewServer(authConfig)
-	c.Assert(err, check.IsNil)
+	tt.a, err = NewServer(authConfig)
+	require.NoError(t, err)
 
-	s.mockEmitter = &eventstest.MockEmitter{}
-	s.a.emitter = s.mockEmitter
+	tt.mockEmitter = &eventstest.MockEmitter{}
+	tt.a.emitter = tt.mockEmitter
+
+	return &tt
 }
 
-func (s *GithubSuite) TestPopulateClaims(c *check.C) {
+func (tt *githubContext) Close() error {
+	return trace.NewAggregate(
+		tt.a.Close(),
+		tt.b.Close())
+}
+
+func TestPopulateClaims(t *testing.T) {
 	claims, err := populateGithubClaims(&testGithubAPIClient{})
-	c.Assert(err, check.IsNil)
-	c.Assert(claims, check.DeepEquals, &types.GithubClaims{
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(claims, &types.GithubClaims{
 		Username: "octocat",
 		OrganizationToTeams: map[string][]string{
 			"org1": {"team1", "team2"},
 			"org2": {"team1"},
 		},
 		Teams: []string{"team1", "team2", "team1"},
-	})
+	}))
+
 }
 
-func (s *GithubSuite) TestCreateGithubUser(c *check.C) {
-	// Create GitHub user with 1 minute expiry.
-	_, err := s.a.createGithubUser(&createUserParams{
+func TestCreateGithubUser(t *testing.T) {
+	ctx := context.Background()
+	tt := setupGithubContext(ctx, t)
+
+	// Dry-run creation of Github user.
+	user, err := tt.a.createGithubUser(context.Background(), &createUserParams{
 		connectorName: "github",
-		username:      "foo",
-		logins:        []string{"foo"},
+		username:      "foo@example.com",
 		roles:         []string{"admin"},
 		sessionTTL:    1 * time.Minute,
-	})
-	c.Assert(err, check.IsNil)
+	}, true)
+	require.NoError(t, err)
+	require.Equal(t, user.GetName(), "foo@example.com")
+
+	// Dry-run must not create a user.
+	_, err = tt.a.GetUser("foo@example.com", false)
+	require.Error(t, err)
+
+	// Create GitHub user with 1 minute expiry.
+	_, err = tt.a.createGithubUser(context.Background(), &createUserParams{
+		connectorName: "github",
+		username:      "foo",
+		roles:         []string{"admin"},
+		sessionTTL:    1 * time.Minute,
+	}, false)
+	require.NoError(t, err)
 
 	// Within that 1 minute period the user should still exist.
-	_, err = s.a.GetUser("foo", false)
-	c.Assert(err, check.IsNil)
+	_, err = tt.a.GetUser("foo", false)
+	require.NoError(t, err)
 
 	// Advance time 2 minutes, the user should be gone.
-	s.c.Advance(2 * time.Minute)
-	_, err = s.a.GetUser("foo", false)
-	c.Assert(err, check.NotNil)
+	tt.c.Advance(2 * time.Minute)
+	_, err = tt.a.GetUser("foo", false)
+	require.Error(t, err)
 }
 
 type testGithubAPIClient struct{}
@@ -135,43 +161,123 @@ func (c *testGithubAPIClient) getTeams() ([]teamResponse, error) {
 	}, nil
 }
 
-func (s *GithubSuite) TestValidateGithubAuthCallbackEventsEmitted(c *check.C) {
-	auth := &githubAuthResponse{
-		auth: GithubAuthResponse{
-			Username: "test-name",
-		},
-		claims: map[string][]string{
+func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
+	ctx := context.Background()
+	tt := setupGithubContext(ctx, t)
+
+	auth := &GithubAuthResponse{
+		Username: "test-name",
+	}
+
+	claims := &types.GithubClaims{
+		OrganizationToTeams: map[string][]string{
 			"test": {},
 		},
 	}
 
+	ssoDiagInfoCalls := 0
+
 	m := &mockedGithubManager{}
+	m.createSSODiagnosticInfo = func(ctx context.Context, authKind string, authRequestID string, info types.SSODiagnosticInfo) error {
+		ssoDiagInfoCalls++
+		return nil
+	}
+
+	// TestFlow: false
+	m.testFlow = false
 
 	// Test success event.
-	m.mockValidateGithubAuthCallback = func(q url.Values) (*githubAuthResponse, error) {
+	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *ssoDiagContext, q url.Values) (*GithubAuthResponse, error) {
+		diagCtx.info.GithubClaims = claims
 		return auth, nil
 	}
-	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, nil, s.a.emitter)
-	c.Assert(s.mockEmitter.LastEvent().GetType(), check.Equals, events.UserLoginEvent)
-	c.Assert(s.mockEmitter.LastEvent().GetCode(), check.Equals, events.UserSSOLoginCode)
-	s.mockEmitter.Reset()
+	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, nil, tt.a.emitter)
+	require.Equal(t, tt.mockEmitter.LastEvent().GetType(), events.UserLoginEvent)
+	require.Equal(t, tt.mockEmitter.LastEvent().GetCode(), events.UserSSOLoginCode)
+	require.Equal(t, ssoDiagInfoCalls, 0)
+	tt.mockEmitter.Reset()
 
 	// Test failure event.
-	m.mockValidateGithubAuthCallback = func(q url.Values) (*githubAuthResponse, error) {
+	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *ssoDiagContext, q url.Values) (*GithubAuthResponse, error) {
+		diagCtx.info.GithubClaims = claims
 		return auth, trace.BadParameter("")
 	}
-	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, nil, s.a.emitter)
-	c.Assert(s.mockEmitter.LastEvent().GetCode(), check.Equals, events.UserSSOLoginFailureCode)
+	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, nil, tt.a.emitter)
+	require.Equal(t, tt.mockEmitter.LastEvent().GetCode(), events.UserSSOLoginFailureCode)
+	require.Equal(t, ssoDiagInfoCalls, 0)
+
+	// TestFlow: true
+	m.testFlow = true
+
+	// Test success event.
+	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *ssoDiagContext, q url.Values) (*GithubAuthResponse, error) {
+		diagCtx.info.GithubClaims = claims
+		return auth, nil
+	}
+	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, nil, tt.a.emitter)
+	require.Equal(t, tt.mockEmitter.LastEvent().GetType(), events.UserLoginEvent)
+	require.Equal(t, tt.mockEmitter.LastEvent().GetCode(), events.UserSSOTestFlowLoginCode)
+	require.Equal(t, ssoDiagInfoCalls, 1)
+	tt.mockEmitter.Reset()
+
+	// Test failure event.
+	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *ssoDiagContext, q url.Values) (*GithubAuthResponse, error) {
+		diagCtx.info.GithubClaims = claims
+		return auth, trace.BadParameter("")
+	}
+	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, nil, tt.a.emitter)
+	require.Equal(t, tt.mockEmitter.LastEvent().GetCode(), events.UserSSOTestFlowLoginFailureCode)
+	require.Equal(t, ssoDiagInfoCalls, 2)
 }
 
 type mockedGithubManager struct {
-	mockValidateGithubAuthCallback func(q url.Values) (*githubAuthResponse, error)
+	mockValidateGithubAuthCallback func(ctx context.Context, diagCtx *ssoDiagContext, q url.Values) (*GithubAuthResponse, error)
+	createSSODiagnosticInfo        func(ctx context.Context, authKind string, authRequestID string, info types.SSODiagnosticInfo) error
+
+	testFlow bool
 }
 
-func (m *mockedGithubManager) validateGithubAuthCallback(q url.Values) (*githubAuthResponse, error) {
+func (m *mockedGithubManager) newSSODiagContext(authKind string) *ssoDiagContext {
+	if m.createSSODiagnosticInfo == nil {
+		panic("mockedGithubManager.createSSODiagnosticInfo is nil, newSSODiagContext cannot succeed.")
+	}
+
+	return &ssoDiagContext{
+		authKind:                authKind,
+		createSSODiagnosticInfo: m.createSSODiagnosticInfo,
+		requestID:               uuid.New().String(),
+		info:                    types.SSODiagnosticInfo{TestFlow: m.testFlow},
+	}
+}
+
+func (m *mockedGithubManager) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDiagContext, q url.Values) (*GithubAuthResponse, error) {
 	if m.mockValidateGithubAuthCallback != nil {
-		return m.mockValidateGithubAuthCallback(q)
+		return m.mockValidateGithubAuthCallback(ctx, diagCtx, q)
 	}
 
 	return nil, trace.NotImplemented("mockValidateGithubAuthCallback not implemented")
+}
+
+func TestCalculateGithubUserNoTeams(t *testing.T) {
+	a := &Server{}
+	connector, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
+		TeamsToRoles: []types.TeamRolesMapping{
+			{
+				Organization: "org1",
+				Team:         "teamx",
+				Roles:        []string{"role"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = a.calculateGithubUser(connector, &types.GithubClaims{
+		Username: "octocat",
+		OrganizationToTeams: map[string][]string{
+			"org1": {"team1", "team2"},
+			"org2": {"team1"},
+		},
+		Teams: []string{"team1", "team2", "team1"},
+	}, &types.GithubAuthRequest{})
+	require.ErrorIs(t, err, ErrGithubNoTeams)
 }

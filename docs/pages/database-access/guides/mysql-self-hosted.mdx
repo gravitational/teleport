@@ -26,8 +26,6 @@ This guide will help you to:
 
 (!docs/pages/includes/user-client-prereqs.mdx!)
 
-(!docs/pages/includes/tctl.mdx!)
-
 ## Step 1/4. Set up the Teleport Auth and Proxy Services
 
 Teleport Database Access for MySQL is available starting from Teleport version
@@ -151,7 +149,7 @@ over a reverse tunnel.
 ```code
 $ teleport db start \
    --token=/tmp/token \
-   --auth-server=mytenant.teleport.sh \
+   --auth-server=mytenant.teleport.sh:443 \
    --name=test \
    --protocol=mysql \
    --uri=mysql.example.com:3306 \
@@ -189,7 +187,7 @@ $ teleport db configure create \
 $ teleport db configure create \
    -o file \
    --token=/tmp/token \
-   --proxy=mytenant.teleport.sh \
+   --proxy=mytenant.teleport.sh:443 \
    --name=test \
    --protocol=mysql \
    --uri=mysql.example.com:3306 \
@@ -248,31 +246,17 @@ $ tsh db ls
 Note that you will only be able to see databases your role has access to. See
 the [RBAC](../rbac.mdx) guide for more details.
 
-To connect to a particular database server, first retrieve credentials from
-Teleport using the `tsh db login` command:
+To retrieve credentials for a database and connect to it:
 
 ```code
-$ tsh db login example
+$ tsh db connect example
 ```
-
-<Admonition
-  type="tip"
-  title="Tip"
->
-  You can be logged in to multiple databases simultaneously.
-</Admonition>
 
 You can optionally specify the database name and the user to use by default
 when connecting to the database instance:
 
 ```code
-$ tsh db login --db-user=root --db-name=mysql example
-```
-
-Once logged in, connect to the database:
-
-```code
-$ tsh db connect example
+$ tsh db connect --db-user=root --db-name=mysql example
 ```
 
 <Admonition type="note" title="Note">

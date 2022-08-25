@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/.github/workflows/robot/internal/env"
+	"github.com/gravitational/teleport/.github/workflows/robot/internal/github"
 
 	"github.com/stretchr/testify/require"
 )
@@ -30,48 +31,48 @@ func TestLabel(t *testing.T) {
 	tests := []struct {
 		desc   string
 		branch string
-		files  []string
+		files  []github.PullRequestFile
 		labels []string
 	}{
 		{
 			desc:   "code-only",
 			branch: "foo",
-			files: []string{
-				"file.go",
-				"examples/README.md",
+			files: []github.PullRequestFile{
+				{Name: "file.go"},
+				{Name: "examples/README.md"},
 			},
 			labels: []string{},
 		},
 		{
 			desc:   "docs",
 			branch: "foo",
-			files: []string{
-				"docs/docs.md",
+			files: []github.PullRequestFile{
+				{Name: "docs/docs.md"},
 			},
 			labels: []string{"documentation"},
 		},
 		{
 			desc:   "helm",
 			branch: "foo",
-			files: []string{
-				"examples/chart/index.html",
+			files: []github.PullRequestFile{
+				{Name: "examples/chart/index.html"},
 			},
 			labels: []string{"helm"},
 		},
 		{
 			desc:   "docs-and-helm",
 			branch: "foo",
-			files: []string{
-				"docs/docs.md",
-				"examples/chart/index.html",
+			files: []github.PullRequestFile{
+				{Name: "docs/docs.md"},
+				{Name: "examples/chart/index.html"},
 			},
 			labels: []string{"documentation", "helm"},
 		},
 		{
 			desc:   "docs-and-backport",
 			branch: "branch/foo",
-			files: []string{
-				"docs/docs.md",
+			files: []github.PullRequestFile{
+				{Name: "docs/docs.md"},
 			},
 			labels: []string{"backport", "documentation"},
 		},
@@ -86,12 +87,9 @@ func TestLabel(t *testing.T) {
 						Number:       0,
 						UnsafeHead:   test.branch,
 					},
-					GitHub: &fakeGithub{
-						files: test.files,
-					},
 				},
 			}
-			labels, err := b.labels(context.Background())
+			labels, err := b.labels(context.Background(), test.files)
 			require.NoError(t, err)
 			require.ElementsMatch(t, labels, test.labels)
 		})

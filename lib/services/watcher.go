@@ -55,9 +55,6 @@ type ResourceWatcherConfig struct {
 	Log logrus.FieldLogger
 	// MaxRetryPeriod is the maximum retry period on failed watchers.
 	MaxRetryPeriod time.Duration
-	// RefetchPeriod is a period after which to explicitly refetch the resources.
-	// It is to protect against unexpected cache syncing issues.
-	RefetchPeriod time.Duration
 	// Clock is used to control time.
 	Clock clockwork.Clock
 	// Client is used to create new watchers.
@@ -79,9 +76,6 @@ func (cfg *ResourceWatcherConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.MaxRetryPeriod == 0 {
 		cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
-	}
-	if cfg.RefetchPeriod == 0 {
-		cfg.RefetchPeriod = defaults.LowResPollingPeriod
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -217,10 +211,7 @@ func (p *resourceWatcher) runWatchLoop() {
 		}
 		if err != nil {
 			p.Log.Warningf("Restart watch on error: %v.", err)
-		} else {
-			p.Log.Debug("Triggering scheduled refetch.")
 		}
-
 	}
 }
 
@@ -236,7 +227,6 @@ func (p *resourceWatcher) watch() error {
 		return trace.Wrap(err)
 	}
 	defer watcher.Close()
-	refetchC := time.After(p.RefetchPeriod)
 
 	// before fetch, make sure watcher is synced by receiving init event,
 	// to avoid the scenario:
@@ -254,9 +244,7 @@ func (p *resourceWatcher) watch() error {
 	// by receiving init event first.
 	select {
 	case <-watcher.Done():
-		return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
-	case <-refetchC:
-		return nil
+		return trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
 	case <-p.ctx.Done():
 		return trace.ConnectionProblem(p.ctx.Err(), "context is closing")
 	case event := <-watcher.Events():
@@ -274,9 +262,7 @@ func (p *resourceWatcher) watch() error {
 	for {
 		select {
 		case <-watcher.Done():
-			return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
-		case <-refetchC:
-			return nil
+			return trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
 		case <-p.ctx.Done():
 			return trace.ConnectionProblem(p.ctx.Err(), "context is closing")
 		case event := <-watcher.Events():
@@ -292,6 +278,9 @@ type ProxyWatcherConfig struct {
 	ResourceWatcherConfig
 	// ProxyGetter is used to directly fetch the list of active proxies.
 	ProxyGetter
+	// ProxyDiffer is used to decide whether a put operation on an existing proxy should
+	// trigger a event.
+	ProxyDiffer func(old, new types.Server) bool
 	// ProxiesC is a channel used to report the current proxy set. It receives
 	// a fresh list at startup and subsequently a list of all known proxies
 	// whenever an addition or deletion is detected.
@@ -402,10 +391,9 @@ func (p *proxyCollector) processEventAndUpdateCurrent(ctx context.Context, event
 			p.Log.Warningf("Unexpected type %T.", event.Resource)
 			return
 		}
-		_, known := p.current[server.GetName()]
+		current, exists := p.current[server.GetName()]
 		p.current[server.GetName()] = server
-		// Broadcast only creation of new proxies (not known before).
-		if !known {
+		if !exists || (p.ProxyDiffer != nil && p.ProxyDiffer(current, server)) {
 			p.broadcastUpdate(ctx)
 		}
 	default:
@@ -616,9 +604,11 @@ func (p *lockCollector) processEventAndUpdateCurrent(ctx context.Context, event 
 // notifyStale is called when the maximum acceptable staleness (if specified)
 // is exceeded.
 func (p *lockCollector) notifyStale() {
-	p.fanout.Emit(types.Event{Type: types.OpUnreliable})
 	p.currentRW.Lock()
 	defer p.currentRW.Unlock()
+
+	p.fanout.Emit(types.Event{Type: types.OpUnreliable})
+
 	// Do not clear p.current here, the most recent lock set may still be used
 	// with LockingModeBestEffort.
 	p.isStale = true
@@ -938,16 +928,6 @@ func (cfg *CertAuthorityWatcherConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// IsWatched return true if the given certificate auth type is being observer by the watcher.
-func (cfg *CertAuthorityWatcherConfig) IsWatched(certType types.CertAuthType) bool {
-	for _, observedType := range cfg.Types {
-		if observedType == certType {
-			return true
-		}
-	}
-	return false
-}
-
 // NewCertAuthorityWatcher returns a new instance of CertAuthorityWatcher.
 func NewCertAuthorityWatcher(ctx context.Context, cfg CertAuthorityWatcherConfig) (*CertAuthorityWatcher, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
@@ -990,21 +970,17 @@ type caCollector struct {
 	cas map[types.CertAuthType]map[string]types.CertAuthority
 }
 
-// CertAuthorityTarget lists the attributes of interactions to be disabled.
-type CertAuthorityTarget struct {
-	// ClusterName specifies the name of the cluster to watch.
-	ClusterName string
-	// Type specifies the ca types to watch for.
-	Type types.CertAuthType
-}
-
 // Subscribe is used to subscribe to the lock updates.
-func (c *caCollector) Subscribe(ctx context.Context, targets ...CertAuthorityTarget) (types.Watcher, error) {
-	watchKinds, err := caTargetToWatchKinds(targets)
-	if err != nil {
-		return nil, trace.Wrap(err)
+func (c *caCollector) Subscribe(ctx context.Context, filter types.CertAuthorityFilter) (types.Watcher, error) {
+	watch := types.Watch{
+		Kinds: []types.WatchKind{
+			{
+				Kind:   c.resourceKind(),
+				Filter: filter.IntoMap(),
+			},
+		},
 	}
-	sub, err := c.fanout.NewWatcher(ctx, types.Watch{Kinds: watchKinds})
+	sub, err := c.fanout.NewWatcher(ctx, watch)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1017,31 +993,6 @@ func (c *caCollector) Subscribe(ctx context.Context, targets ...CertAuthorityTar
 		return nil, trace.Wrap(sub.Error())
 	}
 	return sub, nil
-}
-
-func caTargetToWatchKinds(targets []CertAuthorityTarget) ([]types.WatchKind, error) {
-	watchKinds := make([]types.WatchKind, 0, len(targets))
-	for _, target := range targets {
-		kind := types.WatchKind{
-			Kind: types.KindCertAuthority,
-			// Note that watching SubKind doesn't work for types.WatchKind - to do so it would
-			// require a custom filter, which was recently added but - we can't use yet due to
-			// older clients not supporting the filter.
-			SubKind: string(target.Type),
-		}
-
-		if target.ClusterName != "" {
-			kind.Name = target.ClusterName
-		}
-
-		watchKinds = append(watchKinds, kind)
-	}
-
-	if len(watchKinds) == 0 {
-		watchKinds = []types.WatchKind{{Kind: types.KindCertAuthority}}
-	}
-
-	return watchKinds, nil
 }
 
 // resourceKind specifies the resource kind to watch.
@@ -1196,8 +1147,6 @@ type Node interface {
 	GetHostname() string
 	// GetNamespace returns server namespace
 	GetNamespace() string
-	// GetLabels returns server's static label key pairs
-	GetLabels() map[string]string
 	// GetCmdLabels gets command labels
 	GetCmdLabels() map[string]types.CommandLabel
 	// GetPublicAddr is an optional field that returns the public address this cluster can be reached at.
@@ -1206,6 +1155,8 @@ type Node interface {
 	GetRotation() types.Rotation
 	// GetUseTunnel gets if a reverse tunnel should be used to connect to this node.
 	GetUseTunnel() bool
+	// GetProxyID returns a list of proxy ids this server is connected to.
+	GetProxyIDs() []string
 }
 
 // GetNodes allows callers to retrieve a subset of nodes that match the filter provided. The

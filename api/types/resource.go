@@ -82,6 +82,10 @@ type ResourceWithLabels interface {
 	ResourceWithOrigin
 	// GetAllLabels returns all resource's labels.
 	GetAllLabels() map[string]string
+	// GetStaticLabels returns the resource's static labels.
+	GetStaticLabels() map[string]string
+	// SetStaticLabels sets the resource's static labels.
+	SetStaticLabels(sl map[string]string)
 	// MatchSearch goes through select field values of a resource
 	// and tries to match against the list of search values.
 	MatchSearch(searchValues []string) bool
@@ -179,6 +183,19 @@ func (r ResourcesWithLabels) AsKubeClusters() ([]KubeCluster, error) {
 		clusters = append(clusters, cluster)
 	}
 	return clusters, nil
+}
+
+// AsKubeServers converts each resource into type KubeServer.
+func (r ResourcesWithLabels) AsKubeServers() ([]KubeServer, error) {
+	servers := make([]KubeServer, 0, len(r))
+	for _, resource := range r {
+		server, ok := resource.(KubeServer)
+		if !ok {
+			return nil, trace.BadParameter("expected types.KubeServer, got: %T", resource)
+		}
+		servers = append(servers, server)
+	}
+	return servers, nil
 }
 
 // GetVersion returns resource version

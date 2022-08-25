@@ -28,9 +28,11 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/session"
+
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
@@ -58,7 +60,7 @@ func waitForSessionToBeEstablished(ctx context.Context, namespace string, site a
 			return nil, ctx.Err()
 
 		case <-ticker.C:
-			ss, err := site.GetSessions(namespace)
+			ss, err := site.GetSessions(ctx, namespace)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -105,10 +107,10 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			cfg.SSH.Enabled = true
 			cfg.SSH.AllowTCPForwarding = tt.portForwardingAllowed
 
-			teleport := suite.newTeleportWithConfig(t, nil, nil, cfg)
+			teleport := suite.NewTeleportWithConfig(t, nil, nil, cfg)
 			defer teleport.StopAll()
 
-			site := teleport.GetSiteAPI(Site)
+			site := teleport.GetSiteAPI(helpers.Site)
 
 			// ...and a running dummy server
 			remoteSvr := httptest.NewServer(http.HandlerFunc(
@@ -120,14 +122,14 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 
 			// ... and a client connection that was launched with port
 			// forwarding enabled to that dummy server
-			localPort := ports.PopInt()
+			localPort := helpers.NewPortValue()
 			remotePort, err := extractPort(remoteSvr)
 			require.NoError(t, err)
 
-			nodeSSHPort := teleport.GetPortSSHInt()
-			cl, err := teleport.NewClient(ClientConfig{
-				Login:   suite.me.Username,
-				Cluster: Site,
+			nodeSSHPort := helpers.Port(t, teleport.SSH)
+			cl, err := teleport.NewClient(helpers.ClientConfig{
+				Login:   suite.Me.Username,
+				Cluster: helpers.Site,
 				Host:    Host,
 				Port:    nodeSSHPort,
 			})

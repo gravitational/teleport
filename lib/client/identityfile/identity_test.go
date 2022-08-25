@@ -93,7 +93,6 @@ func newClientKey(t *testing.T) *client.Key {
 
 	certificate, err := keygen.GenerateUserCert(services.UserCertParams{
 		CASigner:      caSigner,
-		CASigningAlg:  defaults.CASignatureAlgorithm,
 		PublicUserKey: publicKey,
 		Username:      "testuser",
 	})

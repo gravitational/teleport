@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 )
@@ -56,9 +57,16 @@ type DialParams struct {
 	// that are connected over a reverse tunnel.
 	ServerID string
 
+	// ProxyIDs is a list of proxy ids the node is connected to.
+	ProxyIDs []string
+
 	// ConnType is the type of connection requested, either node or application.
 	// Only used when connecting through a tunnel.
 	ConnType types.TunnelType
+
+	// FromPeerProxy indicates that the dial request is being tunneled from
+	// a peer proxy.
+	FromPeerProxy bool
 }
 
 func (params DialParams) String() string {
@@ -124,10 +132,15 @@ type Server interface {
 	Start() error
 	// Close closes server's operations immediately
 	Close() error
-	// Shutdown performs graceful server shutdown
+	// DrainConnections closes listeners and begins draining connections without
+	// closing open connections.
+	DrainConnections(context.Context) error
+	// Shutdown performs graceful server shutdown closing open connections.
 	Shutdown(context.Context) error
 	// Wait waits for server to close all outstanding operations
 	Wait()
+	// GetProxyPeerClient returns the proxy peer client
+	GetProxyPeerClient() *proxy.Client
 }
 
 const (

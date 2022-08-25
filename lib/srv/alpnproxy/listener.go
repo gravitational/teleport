@@ -18,11 +18,17 @@ package alpnproxy
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/tls"
 	"net"
+	"sync"
+
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ListenerMuxWrapper wraps the net.Listener and multiplex incoming connection from serviceListener and connection
@@ -124,4 +130,125 @@ func (l *ListenerMuxWrapper) Close() error {
 		close(l.close)
 	}
 	return trace.NewAggregate(errs...)
+}
+
+// CertGenListenerConfig is the config for CertGenListener.
+type CertGenListenerConfig struct {
+	// ListenAddr is network address to listen.
+	ListenAddr string
+	// CA is the certificate authority for signing certificates.
+	CA tls.Certificate
+}
+
+// CheckAndSetDefaults checks and sets default config values.
+func (c *CertGenListenerConfig) CheckAndSetDefaults() error {
+	if c.ListenAddr == "" {
+		return trace.BadParameter("missing listener address")
+	}
+	if len(c.CA.Certificate) == 0 {
+		return trace.BadParameter("missing CA certificate")
+	}
+	return nil
+}
+
+// CertGenListener is a HTTPS listener that can generate TLS certificates based
+// on SNI during HTTPS handshake.
+type CertGenListener struct {
+	net.Listener
+
+	certAuthority      *tlsca.CertAuthority
+	cfg                CertGenListenerConfig
+	mu                 sync.RWMutex
+	certificatesByHost map[string]*tls.Certificate
+}
+
+// NewCertGenListener creates a new CertGenListener and listens to the
+// configured listen address.
+func NewCertGenListener(config CertGenListenerConfig) (*CertGenListener, error) {
+	if err := config.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certAuthority, err := tlsca.FromTLSCertificate(config.CA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	r := &CertGenListener{
+		cfg:                config,
+		certificatesByHost: make(map[string]*tls.Certificate),
+		certAuthority:      certAuthority,
+	}
+
+	// Use CA for hostnames in the CA.
+	for _, host := range r.certAuthority.Cert.DNSNames {
+		r.certificatesByHost[host] = &config.CA
+	}
+
+	r.Listener, err = tls.Listen("tcp", r.cfg.ListenAddr, &tls.Config{
+		GetCertificate: r.GetCertificate,
+	})
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+
+	return r, nil
+}
+
+// GetCertificate generates and returns TLS certificate for incoming
+// connection. Implements tls.Config.GetCertificate.
+func (r *CertGenListener) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+	// Requests to IPs have no server names. Default to CA.
+	if clientHello.ServerName == "" {
+		return &r.cfg.CA, nil
+	}
+
+	cert, err := r.generateCertFor(clientHello.ServerName)
+	if err != nil {
+		return nil, trace.WrapWithMessage(err, "failed to generate certificate for %q: %v", clientHello.ServerName, err)
+	}
+
+	return cert, nil
+}
+
+// generateCertFor generates a new certificate for the specified host.
+func (r *CertGenListener) generateCertFor(host string) (*tls.Certificate, error) {
+	r.mu.RLock()
+	if cert, found := r.certificatesByHost[host]; found {
+		r.mu.RUnlock()
+		return cert, nil
+	}
+	r.mu.RUnlock()
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if cert, found := r.certificatesByHost[host]; found {
+		return cert, nil
+	}
+
+	certKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	subject := r.certAuthority.Cert.Subject
+	subject.CommonName = host
+
+	certPem, err := r.certAuthority.GenerateCertificate(tlsca.CertificateRequest{
+		PublicKey: &certKey.PublicKey,
+		Subject:   subject,
+		NotAfter:  r.certAuthority.Cert.NotAfter,
+		DNSNames:  []string{host},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cert, err := tls.X509KeyPair(certPem, tlsca.MarshalPrivateKeyPEM(certKey))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	r.certificatesByHost[host] = &cert
+	return &cert, nil
 }

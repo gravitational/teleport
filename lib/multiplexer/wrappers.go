@@ -71,11 +71,7 @@ func (c *Conn) Protocol() Protocol {
 
 // Detect detects the connection protocol by peeking into the first few bytes.
 func (c *Conn) Detect() (Protocol, error) {
-	bytes, err := c.reader.Peek(8)
-	if err != nil {
-		return ProtoUnknown, trace.Wrap(err)
-	}
-	proto, err := detectProto(bytes)
+	proto, err := detectProto(c.reader)
 	if err != nil && !trace.IsBadParameter(err) {
 		return ProtoUnknown, trace.Wrap(err)
 	}

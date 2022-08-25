@@ -57,6 +57,9 @@ type TermManager struct {
 	closed            chan struct{}
 	lastWasBroadcast  bool
 	terminateNotifier chan struct{}
+
+	// called when data is discarded due to multiplexing being disabled, used in tests
+	onDiscard func()
 }
 
 // NewTermManager creates a new TermManager.
@@ -126,6 +129,7 @@ func (g *TermManager) Read(p []byte) (int, error) {
 	}
 
 	q := make(chan struct{})
+	defer close(q)
 	c := make(chan bool)
 	go func() {
 		g.readStateUpdate.L.Lock()
@@ -164,7 +168,6 @@ func (g *TermManager) Read(p []byte) (int, error) {
 		case on = <-c:
 			continue
 		case g.remaining = <-g.incoming:
-			close(q)
 			n := copy(p, g.remaining)
 			g.remaining = g.remaining[n:]
 			return n, nil
@@ -243,8 +246,18 @@ func (g *TermManager) AddReader(name string, r io.Reader) {
 				}
 			}
 
-			g.incoming <- buf[:n]
 			g.mu.Lock()
+
+			if g.on {
+				g.mu.Unlock()
+				g.incoming <- buf[:n]
+				g.mu.Lock()
+			} else {
+				if g.onDiscard != nil {
+					g.onDiscard()
+				}
+			}
+
 			if g.isClosed() || g.readerState[name] {
 				g.mu.Unlock()
 				return

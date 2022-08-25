@@ -43,25 +43,12 @@ func (process *TeleportProcess) initKubernetes() {
 
 	process.registerWithAuthServer(types.RoleKube, KubeIdentityEvent)
 	process.RegisterCriticalFunc("kube.init", func() error {
-		eventsC := make(chan Event)
-		process.WaitForEvent(process.ExitContext(), KubeIdentityEvent, eventsC)
-
-		var event Event
-		select {
-		case event = <-eventsC:
-			log.Debugf("Received event %q.", event.Name)
-		case <-process.ExitContext().Done():
-			log.Debug("Process is exiting.")
-			return nil
+		conn, err := process.waitForConnector(KubeIdentityEvent, log)
+		if conn == nil {
+			return trace.Wrap(err)
 		}
 
-		conn, ok := (event.Payload).(*Connector)
-		if !ok {
-			return trace.BadParameter("unsupported connector type: %T", event.Payload)
-		}
-
-		err := process.initKubernetesService(log, conn)
-		if err != nil {
+		if err := process.initKubernetesService(log, conn); err != nil {
 			warnOnErr(conn.Close(), log)
 			return trace.Wrap(err)
 		}
@@ -84,6 +71,8 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		return trace.Wrap(err)
 	}
 
+	teleportClusterName := conn.ServerIdentity.ClusterName
+
 	// Start uploader that will scan a path on disk and upload completed
 	// sessions to the Auth Server.
 	uploaderCfg := filesessions.UploaderConfig{
@@ -92,10 +81,13 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	}
 	completerCfg := events.UploadCompleterConfig{
 		SessionTracker: conn.Client,
+		ClusterName:    teleportClusterName,
 	}
 	if err := process.initUploaderService(uploaderCfg, completerCfg); err != nil {
 		return trace.Wrap(err)
 	}
+
+	proxyGetter := reversetunnel.NewConnectedProxyGetter()
 
 	// This service can run in 2 modes:
 	// 1. Reachable (by the proxy) - registers with auth server directly and
@@ -125,7 +117,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	// Start a local listener and let proxies dial in.
 	case !conn.UseTunnel() && !cfg.Kube.ListenAddr.IsEmpty():
 		log.Debug("Turning on Kubernetes service listening address.")
-		listener, err = process.importOrCreateListener(listenerKube, cfg.Kube.ListenAddr.Addr)
+		listener, err = process.importOrCreateListener(ListenerKube, cfg.Kube.ListenAddr.Addr)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -143,15 +135,16 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		agentPool, err = reversetunnel.NewAgentPool(
 			process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
-				Component:   teleport.ComponentKube,
-				HostUUID:    conn.ServerIdentity.ID.HostUUID,
-				Resolver:    conn.TunnelProxyResolver(),
-				Client:      conn.Client,
-				AccessPoint: accessPoint,
-				HostSigner:  conn.ServerIdentity.KeySigner,
-				Cluster:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
-				Server:      shtl,
-				FIPS:        process.Config.FIPS,
+				Component:            teleport.ComponentKube,
+				HostUUID:             conn.ServerIdentity.ID.HostUUID,
+				Resolver:             conn.TunnelProxyResolver(),
+				Client:               conn.Client,
+				AccessPoint:          accessPoint,
+				HostSigner:           conn.ServerIdentity.KeySigner,
+				Cluster:              teleportClusterName,
+				Server:               shtl,
+				FIPS:                 process.Config.FIPS,
+				ConnectedProxyGetter: proxyGetter,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -184,8 +177,6 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 			}
 		}()
 	}
-
-	teleportClusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -242,7 +233,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 			StreamEmitter:                 streamEmitter,
 			DataDir:                       cfg.DataDir,
 			CachingAuthClient:             accessPoint,
-			ServerID:                      cfg.HostUUID,
+			HostID:                        cfg.HostUUID,
 			Context:                       process.ExitContext(),
 			KubeconfigPath:                cfg.Kube.KubeconfigPath,
 			KubeClusterName:               cfg.Kube.KubeClusterName,
@@ -250,14 +241,17 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 			Component:                     teleport.ComponentKube,
 			StaticLabels:                  cfg.Kube.StaticLabels,
 			DynamicLabels:                 dynLabels,
+			CloudLabels:                   process.cloudLabels,
 			LockWatcher:                   lockWatcher,
 			CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
 			PublicAddr:                    publicAddr,
 		},
-		TLS:           tlsConfig,
-		AccessPoint:   accessPoint,
-		LimiterConfig: cfg.Kube.Limiter,
-		OnHeartbeat:   process.onHeartbeat(teleport.ComponentKube),
+		TLS:                  tlsConfig,
+		AccessPoint:          accessPoint,
+		LimiterConfig:        cfg.Kube.Limiter,
+		OnHeartbeat:          process.onHeartbeat(teleport.ComponentKube),
+		GetRotation:          process.getRotation,
+		ConnectedProxyGetter: proxyGetter,
 	})
 	if err != nil {
 		return trace.Wrap(err)

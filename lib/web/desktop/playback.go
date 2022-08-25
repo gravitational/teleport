@@ -86,7 +86,7 @@ func (pp *Player) Play(ctx context.Context) {
 	go pp.receiveActions(cancel)
 	go pp.streamSessionEvents(ppCtx, cancel)
 
-	// Wait until the ctx is cancelled, either by
+	// Wait until the ctx is canceled, either by
 	// one of the goroutines above or by the http handler.
 	<-ppCtx.Done()
 }
@@ -107,8 +107,6 @@ const (
 	// actionPlayPause toggles the playback state
 	// between playing and paused
 	actionPlayPause = playbackAction("play/pause")
-
-	// TODO(isaiah): support playbackAction("seek")
 )
 
 // actionMessage is a message passed from the playback client

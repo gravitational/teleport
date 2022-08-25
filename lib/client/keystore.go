@@ -24,11 +24,13 @@ import (
 	osfs "io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth"
@@ -140,6 +142,11 @@ func (fs *FSLocalKeyStore) AddKey(key *Key) error {
 	if err := fs.writeBytes(key.TLSCert, fs.tlsCertPath(key.KeyIndex)); err != nil {
 		return trace.Wrap(err)
 	}
+	if runtime.GOOS == constants.WindowsOS {
+		if err := fs.writeBytes(key.PPK, fs.PPKFilePath(key.KeyIndex)); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 
 	// Store per-cluster key data.
 	if len(key.Cert) > 0 {
@@ -201,6 +208,12 @@ func (fs *FSLocalKeyStore) DeleteKey(idx KeyIndex) error {
 		if err := os.Remove(fn); err != nil {
 			return trace.ConvertSystemError(err)
 		}
+	}
+	// we also need to delete the extra PuTTY-formatted .ppk file when running on Windows,
+	// but it may not exist when upgrading from v9 -> v10 and logging into an existing cluster.
+	// as such, deletion should be best-effort and not generate an error if it fails.
+	if runtime.GOOS == constants.WindowsOS {
+		os.Remove(fs.PPKFilePath(idx))
 	}
 
 	// Clear ClusterName to delete the user certs stored for all clusters.
@@ -528,6 +541,11 @@ func (fs *fsLocalNonSessionKeyStore) tlsCAsPath(proxy string) string {
 // sshCertPath returns the SSH certificate path for the given KeyIndex.
 func (fs *fsLocalNonSessionKeyStore) sshCertPath(idx KeyIndex) string {
 	return keypaths.SSHCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName)
+}
+
+// PPKFilePath returns the PPK (PuTTY-formatted) keypair path for the given KeyIndex.
+func (fs *fsLocalNonSessionKeyStore) PPKFilePath(idx KeyIndex) string {
+	return keypaths.PPKFilePath(fs.KeyDir, idx.ProxyHost, idx.Username)
 }
 
 // sshCAsPath returns the SSH CA certificates path for the given KeyIndex.

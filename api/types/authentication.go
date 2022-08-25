@@ -120,7 +120,7 @@ func NewAuthPreference(spec AuthPreferenceSpecV2) (AuthPreference, error) {
 }
 
 // NewAuthPreferenceFromConfigFile is a convenience method to create
-// AuthPreferenceV2 labelled as originating from config file.
+// AuthPreferenceV2 labeled as originating from config file.
 func NewAuthPreferenceFromConfigFile(spec AuthPreferenceSpecV2) (AuthPreference, error) {
 	return newAuthPreferenceWithLabels(spec, map[string]string{
 		OriginLabel: OriginConfigFile,
@@ -526,9 +526,6 @@ func (c *AuthPreferenceV2) String() string {
 func (u *U2F) Check() error {
 	if u.AppID == "" {
 		return trace.BadParameter("u2f configuration missing app_id")
-	}
-	if len(u.Facets) == 0 {
-		return trace.BadParameter("u2f configuration missing facets")
 	}
 	for _, ca := range u.DeviceAttestationCAs {
 		if err := isValidAttestationCert(ca); err != nil {

@@ -165,28 +165,48 @@ execute the search and create the access request in a single step.
 ### Example Flow - On-Demand SSH
 
 Many times users would not want to search and request access in two steps.
-`tsh` will have a new flag `--request` that will try accessing a node, and
-if access denied it will request access for a node all in one step:
+When `tsh ssh user@node` gets an `AccessDenied` error, it will:
+1. Check if the user is able request access to the node with a resource request.
+   - If not, return the original `AccessDenied` error.
+   - If the user can request access to the node, continue.
+2. Prompt the user for a request reason.
+   - The user can cancel the access request here with `Ctrl-C`.
+3. Automatically create the access request.
+   - 1 role will be automatically selected for the request which allows access
+     to the node with the requested login.
+   - If the node is in a leaf cluster, all available `search_as_roles` will be
+     requested because the root auth server is not able to determine access
+     requirements of remote resources.
+4. Wait for the request to be approved.
+   - Return an error if the request was denied, else continue.
+5. "Assume" the approved access request by getting new certs.
+6. Retry the SSH to the node with the new certs.
 
 ```bash
-$ tsh ssh --request root@db-1
-You do not have access to the system by default, created access request.
+$ tsh ssh root@db-1
+ERROR: access denied to root connecting to db-1 on cluster cluster-one
 
-Please wait...
+You do not currently have access to root@db-1, attempting to request access.
 
-Access request has been approved.
+Enter request reason: responding to incident 123
+Creating request...
+Request ID: c418967c-2127-4f75-a6be-29b7983ceb3b
+Username:   nic
+Roles:      db-admins
+Resources:  ["/cluster-one/node/bbb56211-7b54-4f9e-bee9-b68ea156be5f"]
+Reason:     "responding to incident 123"
+Reviewers:  [none] (suggested)
+Status:     PENDING
+
+hint: use 'tsh login --request-id=<request-id>' to login with an approved
+request
+
+Waiting for request approval...
+
+Approval received, getting updated certificates...
+
 root@db-1:~$
 ```
-
-Some users would want to have the `--request` flag be the default behaviour.
-There are a few options for this:
-
-1. The
-   [alias feature](https://github.com/gravitational/teleport/blob/master/rfd/0061-tsh-aliases.md)
-   in the tsh profile will allow those users to set `tsh ssh as an alias for `tsh ssh --request`.
-2. `tsh` can output a suggested command with the `--request` flag if access is
-   denied but could be requested
-3. `tsh` could prompt the user to create a request with a reason.
 
 ### Which roles will be requested
 
@@ -197,11 +217,10 @@ user has) will be requested. This request will be limited to only the exact
 resources found in the search, and (if approved) the user will have access to
 all logins granted by those roles.
 
-For "on-demand ssh" (`tsh ssh --request user@node`) we will attempt to find and
+For "on-demand ssh" (`tsh ssh user@node`) we will attempt to find and
 request a single role which grants access to the node with the requested login.
-If multiple such roles exist, the role with the lowest number of allowed logins
-will be requested. In case of a tie, the requested role will be chosen
-arbitrarily.
+If multiple such roles exist, the role with the fewest allowed logins will be
+requested. In case of a tie, the requested role will be chosen arbitrarily.
 
 ### Certificate issuance and RBAC
 
@@ -214,7 +233,7 @@ changes for this certificate.
 
 ```
 Assumed-role: [db-admins]
-Resource-UUIDs: [node:uuid-1, node:uuid-2]
+Resource-UUIDs: [/cluster/node/uuid-1, cluster/node/uuid-2]
 ```
 
 ### Trusted clusters
@@ -225,7 +244,8 @@ role using cluster mapping:
 
 ```yaml
 role_map:
-   '*': '*'
+  - remote: "^(.*)$"
+    local: ["$1"]
 ```
 
 Then leaf cluster behavior will be identical. Leaf cluster may choose to narrow
@@ -245,16 +265,17 @@ spec:
     logins: ["root"]
     # node_labels defines what nodes this role will be allowed to search
     # as a part of search_as request and in addition to that will be used to
-evaluate access
+    # evaluate access
     node_labels:
        owner: db-admin
        class: external-access-allowed
 ```
 
 In this case, if the cert issued by the root cluster granted access to nodes
-with uuid “uuid-1” and “uuid-2”. In case if leaf’s uuid-1 has label “class:
-external-access-allowed” and uuid-2 does not. Leaf cluster will reject access to
-the node uuid-2 despite the fact that the root cluster “allowed” it.
+with uuid `uuid-1` and `uuid-2`. If the leaf’s `uuid-1` node has label
+`class: external-access-allowed` and `uuid-2` does not, the leaf cluster will
+reject access to the node `uuid-2` despite the fact that the root cluster
+“allowed” it.
 
 ### Access Requests RBAC Edge-Cases
 

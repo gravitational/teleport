@@ -258,7 +258,7 @@ func TestDBCertSigning(t *testing.T) {
 	}{
 		{
 			name:      "sign from DB service",
-			requester: proto.DatabaseCertRequest_UNSPECIFIED, // default behaviour
+			requester: proto.DatabaseCertRequest_UNSPECIFIED, // default behavior
 			getCertFn: func(dbCAs []types.CertAuthority) []byte {
 				return dbCAs[0].GetActiveKeys().TLS[0].Cert
 			},

@@ -46,8 +46,12 @@ type Announcer interface {
 	// DELETE IN 11.0. Deprecated, use UpsertKubeServiceV2
 	UpsertKubeService(context.Context, types.Server) error
 
-	// UpsertKubeServiceV2 registers a kubernetes kubernetes service
+	// UpsertKubeServiceV2 registers a kubernetes service
+	// DELETE IN 13.0. Deprecated, use UpsertKubernetesServer
 	UpsertKubeServiceV2(context.Context, types.Server) (*types.KeepAlive, error)
+
+	// UpsertKubernetesServer registers a kubernetes server
+	UpsertKubernetesServer(context.Context, types.KubeServer) (*types.KeepAlive, error)
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
@@ -201,7 +205,7 @@ type ReadProxyAccessPoint interface {
 	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
 
 	// GetNodes returns a list of registered servers for this cluster.
-	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]types.Server, error)
@@ -251,7 +255,11 @@ type ReadProxyAccessPoint interface {
 	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
 
 	// GetKubeServices returns a list of kubernetes services registered in the cluster
+	// DELETE IN 13.0. Deprecated, use GetKubernetesServers.
 	GetKubeServices(context.Context) ([]types.Server, error)
+
+	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
+	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
@@ -269,6 +277,14 @@ type ReadProxyAccessPoint interface {
 	GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error)
 	// GetWindowsDesktopService returns a windows desktop host by name.
 	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
+}
+
+// SnowflakeSessionWatcher is watcher interface used by Snowflake web session watcher.
+type SnowflakeSessionWatcher interface {
+	// NewWatcher returns a new event watcher.
+	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
+	// GetSnowflakeSession gets a Snowflake web session for a given request.
+	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
 }
 
 // ProxyAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -329,7 +345,7 @@ type ReadRemoteProxyAccessPoint interface {
 	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
 
 	// GetNodes returns a list of registered servers for this cluster.
-	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]types.Server, error)
@@ -361,7 +377,11 @@ type ReadRemoteProxyAccessPoint interface {
 	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
 
 	// GetKubeServices returns a list of kubernetes services registered in the cluster
+	// DELETE IN 13.0. Deprecated, use GetKubernetesServers.
 	GetKubeServices(context.Context) ([]types.Server, error)
+
+	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
+	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
@@ -425,7 +445,11 @@ type ReadKubernetesAccessPoint interface {
 	GetNamespace(name string) (*types.Namespace, error)
 
 	// GetKubeServices returns a list of kubernetes services registered in the cluster
+	// DELETE IN 13.0. Deprecated, use GetKubernetesServers.
 	GetKubeServices(context.Context) ([]types.Server, error)
+
+	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
+	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 }
 
 // KubernetesAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -697,10 +721,7 @@ type Cache interface {
 	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
 
 	// GetNodes returns a list of registered servers for this cluster.
-	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
-
-	// ListNodes returns a paginated list of registered servers for this cluster.
-	ListNodes(ctx context.Context, req proto.ListNodesRequest) (nodes []types.Server, nextKey string, err error)
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]types.Server, error)
@@ -749,6 +770,9 @@ type Cache interface {
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
 
+	// GetSnowflakeSession gets a Snowflake web session.
+	GetSnowflakeSession(context.Context, types.GetSnowflakeSessionRequest) (types.WebSession, error)
+
 	// GetWebSession gets a web session for the given request
 	GetWebSession(context.Context, types.GetWebSessionRequest) (types.WebSession, error)
 
@@ -762,7 +786,11 @@ type Cache interface {
 	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
 
 	// GetKubeServices returns a list of kubernetes services registered in the cluster
+	// DELETE IN 13.0. Deprecated, use GetKubernetesServers.
 	GetKubeServices(context.Context) ([]types.Server, error)
+
+	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
+	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
@@ -789,7 +817,7 @@ type Cache interface {
 	GetStaticTokens() (types.StaticTokens, error)
 
 	// GetTokens returns all active (non-expired) provisioning tokens
-	GetTokens(ctx context.Context, opts ...services.MarshalOption) ([]types.ProvisionToken, error)
+	GetTokens(ctx context.Context) ([]types.ProvisionToken, error)
 
 	// GetToken finds and returns token by ID
 	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
@@ -967,3 +995,6 @@ type NewRemoteProxyCachingAccessPoint func(clt ClientI, cacheName []string) (Rem
 // notImplementedMessage is the message to return for endpoints that are not
 // implemented. This is due to how service interfaces are used with Teleport.
 const notImplementedMessage = "not implemented: can only be called by auth locally"
+
+// LicenseExpiredNotification defines a license expired notification
+const LicenseExpiredNotification = "licenseExpired"

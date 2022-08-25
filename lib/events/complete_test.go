@@ -18,6 +18,7 @@ package events
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -26,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -64,6 +66,7 @@ func TestUploadCompleterCompletesAbandonedUploads(t *testing.T) {
 		AuditLog:       log,
 		SessionTracker: sessionTrackerService,
 		Clock:          clock,
+		ClusterName:    "teleport-cluster",
 	})
 	require.NoError(t, err)
 
@@ -85,42 +88,50 @@ func TestUploadCompleterCompletesAbandonedUploads(t *testing.T) {
 // completes uploads that have lived past the configured grace period.
 // DELETE IN 11.0.0
 func TestUploadCompleterWithGracePeriod(t *testing.T) {
-	clock := clockwork.NewFakeClock()
-	mu := NewMemoryUploader()
-	mu.Clock = clock
+	for _, sts := range []services.SessionTrackerService{
+		&mockSessionTrackerService{},
+		// Session tracker services will return an access denied error to
+		// db, app, and desktop sessions if the auth server is between v9.2.2
+		// and v9.2.3. We should handle these cases as if the tracker could
+		// not be found, and depend on the grace period to handle the completion.
+		&mockSessionTrackerServiceAccessDenied{},
+	} {
+		t.Run(fmt.Sprintf("%T", sts), func(t *testing.T) {
+			clock := clockwork.NewFakeClock()
+			mu := NewMemoryUploader()
+			mu.Clock = clock
 
-	log := &mockAuditLog{}
+			uc, err := NewUploadCompleter(UploadCompleterConfig{
+				Uploader:       mu,
+				AuditLog:       &mockAuditLog{},
+				SessionTracker: sts,
+				Clock:          clock,
+				GracePeriod:    2 * time.Hour,
+				ClusterName:    "teleport-cluster",
+			})
+			require.NoError(t, err)
+			t.Cleanup(uc.Close)
 
-	sessionID := session.NewID()
-	sessionTrackerService := &mockSessionTrackerService{}
+			upload, err := mu.CreateUpload(context.Background(), session.NewID())
+			require.NoError(t, err)
 
-	uc, err := NewUploadCompleter(UploadCompleterConfig{
-		Uploader:       mu,
-		AuditLog:       log,
-		SessionTracker: sessionTrackerService,
-		Clock:          clock,
-		GracePeriod:    2 * time.Hour,
-	})
-	require.NoError(t, err)
+			err = uc.checkUploads(context.Background())
+			require.NoError(t, err)
+			require.False(t, mu.uploads[upload.ID].completed)
 
-	upload, err := mu.CreateUpload(context.Background(), sessionID)
-	require.NoError(t, err)
+			// Even if session tracker is not found, the completer
+			// should wait until the grace period to complete it
+			clock.Advance(1 * time.Hour)
+			err = uc.checkUploads(context.Background())
+			require.NoError(t, err)
+			require.False(t, mu.uploads[upload.ID].completed)
 
-	err = uc.checkUploads(context.Background())
-	require.NoError(t, err)
-	require.False(t, mu.uploads[upload.ID].completed)
-
-	// Even if session tracker is not found, the completer
-	// should wait until the grace period to complete it
-	clock.Advance(1 * time.Hour)
-	err = uc.checkUploads(context.Background())
-	require.NoError(t, err)
-	require.False(t, mu.uploads[upload.ID].completed)
-
-	clock.Advance(1 * time.Hour)
-	err = uc.checkUploads(context.Background())
-	require.NoError(t, err)
-	require.True(t, mu.uploads[upload.ID].completed)
+			clock.Advance(1 * time.Hour)
+			err = uc.checkUploads(context.Background())
+			require.NoError(t, err)
+			require.True(t, mu.uploads[upload.ID].completed)
+		})
+	}
 }
 
 // TestUploadCompleterEmitsSessionEnd verifies that the upload completer
@@ -138,6 +149,7 @@ func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 			clock := clockwork.NewFakeClock()
 			mu := NewMemoryUploader()
 			mu.Clock = clock
+			startTime := clock.Now().UTC()
 
 			log := &mockAuditLog{
 				sessionEvents: []apievents.AuditEvent{test.startEvent},
@@ -148,6 +160,7 @@ func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 				AuditLog:       log,
 				Clock:          clock,
 				SessionTracker: &mockSessionTrackerService{},
+				ClusterName:    "teleport-cluster",
 			})
 			require.NoError(t, err)
 
@@ -165,6 +178,7 @@ func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 			// advance the clock to force the asynchronous session end event emission
 			clock.BlockUntil(1)
 			clock.Advance(3 * time.Minute)
+			endTime := clock.Now().UTC()
 
 			// expect two events - a session end and a session upload
 			// the session end is done asynchronously, so wait for that
@@ -172,7 +186,9 @@ func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 				"should have emitted 2 events, but only got %d", len(log.emitter.Events()))
 
 			require.IsType(t, &apievents.SessionUpload{}, log.emitter.Events()[0])
+			require.Equal(t, startTime, log.emitter.Events()[0].GetTime())
 			require.Equal(t, test.endEventType, log.emitter.Events()[1].GetType())
+			require.Equal(t, endTime, log.emitter.Events()[1].GetTime())
 		})
 	}
 }
@@ -247,4 +263,30 @@ func (m *mockSessionTrackerService) RemoveSessionTracker(ctx context.Context, se
 
 func (m *mockSessionTrackerService) UpdatePresence(ctx context.Context, sessionID, user string) error {
 	return trace.NotImplemented("UpdatePresence is not implemented")
+}
+
+type mockSessionTrackerServiceAccessDenied struct{}
+
+func (m *mockSessionTrackerServiceAccessDenied) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
+	return nil, trace.AccessDenied("access denied")
+}
+
+func (m *mockSessionTrackerServiceAccessDenied) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
+	return nil, trace.AccessDenied("access denied")
+}
+
+func (m *mockSessionTrackerServiceAccessDenied) CreateSessionTracker(ctx context.Context, st types.SessionTracker) (types.SessionTracker, error) {
+	return nil, trace.AccessDenied("access denied")
+}
+
+func (m *mockSessionTrackerServiceAccessDenied) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
+	return trace.AccessDenied("access denied")
+}
+
+func (m *mockSessionTrackerServiceAccessDenied) RemoveSessionTracker(ctx context.Context, sessionID string) error {
+	return trace.AccessDenied("access denied")
+}
+
+func (m *mockSessionTrackerServiceAccessDenied) UpdatePresence(ctx context.Context, sessionID, user string) error {
+	return trace.AccessDenied("access denied")
 }

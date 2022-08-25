@@ -42,6 +42,8 @@ type BootstrapFlags struct {
 	ForceRedshiftPermissions bool
 	// ForceElastiCachePermissions forces the presence of ElastiCache permissions.
 	ForceElastiCachePermissions bool
+	// ForceMemoryDBPermissions forces the presence of MemoryDB permissions.
+	ForceMemoryDBPermissions bool
 }
 
 // Configurator responsible for generating a list of actions that needs to be

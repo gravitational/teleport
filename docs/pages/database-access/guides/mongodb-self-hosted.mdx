@@ -33,8 +33,6 @@ In this guide you will:
 
 (!docs/pages/includes/user-client-prereqs.mdx!)
 
-(!docs/pages/includes/tctl.mdx!)
-
 ## Step 1/3. Install and configure Teleport
 
 ### Set up the Teleport Auth and Proxy services
@@ -84,7 +82,7 @@ address of your Teleport Cloud tenant:
 ```code
 $ teleport db start \
   --token=/tmp/token \
-  --auth-server=mytenant.teleport.sh \
+  --auth-server=mytenant.teleport.sh:443 \
   --name=example-mongo \
   --protocol=mongodb \
   --uri=mongo.example.com:27017 \
@@ -256,28 +254,17 @@ $ tsh db ls
 
 </ScopedBlock>
 
-To connect to a particular database instance, first retrieve its certificate
-using the `tsh db login` command:
+To retrieve credentials for a database and connect to it:
 
 ```code
-$ tsh db login example-mongo
+$ tsh db connect example-mongo
 ```
-
-<Admonition type="tip">
-  You can be logged in to multiple databases simultaneously.
-</Admonition>
 
 You can optionally specify the database name and the user to use by default
 when connecting to the database instance:
 
 ```code
-$ tsh db login --db-user=alice example-mongo
-```
-
-Once logged in, connect to the database:
-
-```code
-$ tsh db connect example-mongo
+$ tsh db connect --db-user=alice example-mongo
 ```
 
 <Admonition type="note" title="Supported MongoDB clients">

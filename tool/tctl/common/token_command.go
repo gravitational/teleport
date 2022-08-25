@@ -28,6 +28,7 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -126,14 +127,14 @@ func (c *TokensCommand) Initialize(app *kingpin.Application, config *service.Con
 }
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
-func (c *TokensCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
+func (c *TokensCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case c.tokenAdd.FullCommand():
-		err = c.Add(client)
+		err = c.Add(ctx, client)
 	case c.tokenDel.FullCommand():
-		err = c.Del(client)
+		err = c.Del(ctx, client)
 	case c.tokenList.FullCommand():
-		err = c.List(client)
+		err = c.List(ctx, client)
 	default:
 		return false, nil
 	}
@@ -141,7 +142,7 @@ func (c *TokensCommand) TryRun(cmd string, client auth.ClientI) (match bool, err
 }
 
 // Add is called to execute "tokens add ..." command.
-func (c *TokensCommand) Add(client auth.ClientI) error {
+func (c *TokensCommand) Add(ctx context.Context, client auth.ClientI) error {
 	// Parse string to see if it's a type of role that Teleport supports.
 	roles, err := types.ParseTeleportRoles(c.tokenType)
 	if err != nil {
@@ -157,9 +158,9 @@ func (c *TokensCommand) Add(client auth.ClientI) error {
 	}
 
 	// Generate token.
-	token, err := client.GenerateToken(context.TODO(), auth.GenerateTokenRequest{
+	token, err := client.GenerateToken(ctx, &proto.GenerateTokenRequest{
 		Roles:  roles,
-		TTL:    c.ttl,
+		TTL:    proto.Duration(c.ttl),
 		Token:  c.value,
 		Labels: labels,
 	})
@@ -199,7 +200,7 @@ func (c *TokensCommand) Add(client auth.ClientI) error {
 
 	// Calculate the CA pins for this cluster. The CA pins are used by the
 	// client to verify the identity of the Auth Server.
-	localCAResponse, err := client.GetClusterCACert()
+	localCAResponse, err := client.GetClusterCACert(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -264,7 +265,7 @@ func (c *TokensCommand) Add(client auth.ClientI) error {
 	default:
 		authServer := authServers[0].GetAddr()
 
-		pingResponse, err := client.Ping(context.TODO())
+		pingResponse, err := client.Ping(ctx)
 		if err != nil {
 			log.Debugf("unnable to ping auth client: %s.", err.Error())
 		}
@@ -293,8 +294,7 @@ func (c *TokensCommand) Add(client auth.ClientI) error {
 }
 
 // Del is called to execute "tokens del ..." command.
-func (c *TokensCommand) Del(client auth.ClientI) error {
-	ctx := context.TODO()
+func (c *TokensCommand) Del(ctx context.Context, client auth.ClientI) error {
 	if c.value == "" {
 		return trace.Errorf("Need an argument: token")
 	}
@@ -306,8 +306,7 @@ func (c *TokensCommand) Del(client auth.ClientI) error {
 }
 
 // List is called to execute "tokens ls" command.
-func (c *TokensCommand) List(client auth.ClientI) error {
-	ctx := context.TODO()
+func (c *TokensCommand) List(ctx context.Context, client auth.ClientI) error {
 	tokens, err := client.GetTokens(ctx)
 	if err != nil {
 		return trace.Wrap(err)

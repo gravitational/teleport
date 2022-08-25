@@ -75,7 +75,7 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	return listResourcesGetResponse{
-		Items:      ui.MakeDatabases(h.auth.clusterName, types.DeduplicateDatabases(databases)),
+		Items:      ui.MakeDatabases(h.auth.clusterName, databases),
 		StartKey:   resp.NextKey,
 		TotalCount: resp.TotalCount,
 	}, nil
@@ -97,7 +97,6 @@ func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p h
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	windowsDesktops = types.DeduplicateDesktops(windowsDesktops)
 
 	return listResourcesGetResponse{
 		Items:      ui.MakeDesktops(windowsDesktops),
@@ -127,4 +126,34 @@ func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p htt
 	// if multiple Windows Desktop Services are in use. We only need
 	// to see the desktop once in the UI, so just take the first one.
 	return ui.MakeDesktop(windowsDesktops[0]), nil
+}
+
+// getConnectionDiagnostic returns a connection diagnostic connection diagnostics.
+func (h *Handler) getConnectionDiagnostic(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	clt, err := ctx.GetUserClient(site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	connectionID := p.ByName("connectionid")
+	connectionDiagnostic, err := clt.GetConnectionDiagnostic(r.Context(), connectionID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resLabels := connectionDiagnostic.GetAllLabels()
+	uiLabels := make([]ui.Label, len(resLabels))
+	for labelName, labelValue := range resLabels {
+		uiLabels = append(uiLabels, ui.Label{
+			Name:  labelName,
+			Value: labelValue,
+		})
+	}
+
+	return ui.ConnectionDiagnostic{
+		ID:      connectionDiagnostic.GetName(),
+		Labels:  uiLabels,
+		Success: connectionDiagnostic.IsSuccess(),
+		Message: connectionDiagnostic.GetMessage(),
+	}, nil
 }

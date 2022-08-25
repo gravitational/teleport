@@ -37,9 +37,9 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-amd64
 environment:
-  BUILDBOX_VERSION: teleport10
+  BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.18.2
+  RUNTIME: go1.18.3
   UID: "1000"
 trigger:
   event:
@@ -90,7 +90,7 @@ steps:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
-  - make -C build.assets release-amd64
+  - make -C build.assets release-amd64-centos7
   environment:
     ARCH: amd64
     GID: "1000"
@@ -140,9 +140,9 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-386
 environment:
-  BUILDBOX_VERSION: teleport10
+  BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.18.2
+  RUNTIME: go1.18.3
   UID: "1000"
 trigger:
   event:
@@ -243,9 +243,9 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-amd64-fips
 environment:
-  BUILDBOX_VERSION: teleport10
+  BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.18.2
+  RUNTIME: go1.18.3
   UID: "1000"
 trigger:
   event:
@@ -299,7 +299,7 @@ steps:
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
-  - make -C build.assets release-amd64-fips
+  - make -C build.assets release-amd64-centos7-fips
   environment:
     ARCH: amd64
     FIPS: "yes"
@@ -350,9 +350,9 @@ kind: pipeline
 type: kubernetes
 name: push-build-windows-amd64
 environment:
-  BUILDBOX_VERSION: teleport10
+  BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.18.2
+  RUNTIME: go1.18.3
   UID: "1000"
 trigger:
   event:
@@ -446,7 +446,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/mac.go:32
+# Generated at dronegen/mac.go:39
 ################################################
 
 kind: pipeline
@@ -490,6 +490,11 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
   - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
     && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
   - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
@@ -507,37 +512,73 @@ steps:
 - name: Install Go Toolchain
   commands:
   - set -u
-  - mkdir -p ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - mkdir -p /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
   - curl --silent -O https://dl.google.com/go/$RUNTIME.darwin-amd64.tar.gz
-  - tar -C  ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
+  - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.18.2
+    RUNTIME: go1.18.3
 - name: Install Rust Toolchain
   commands:
   - set -u
-  - export PATH=/Users/build/.cargo/bin:$PATH
-  - mkdir -p ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - export PATH=/Users/$(whoami)/.cargo/bin:$PATH
+  - mkdir -p /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
   - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
     print-rust-version)
-  - export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - export CARGO_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/cargo
   - export RUST_HOME=$CARGO_HOME
+  - export RUSTUP_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/rustup
   - rustup toolchain install $RUST_VERSION
+  environment:
+    WORKSPACE_DIR: /tmp/push-build-darwin-amd64
+- name: Install Node Toolchain
+  commands:
+  - set -u
+  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
+    print-node-version)
+  - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
+  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
+  - mkdir -p $TOOLCHAIN_DIR
+  - curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-darwin-x64.tar.gz
+  - tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-darwin-x64.tar.gz
+  - rm -f node-v$NODE_VERSION-darwin-x64.tar.gz
+  - export PATH=$NODE_DIR/bin:$PATH
+  - corepack enable yarn
+  - echo Node reporting version $(node --version)
+  - echo Yarn reporting version $(yarn --version)
   environment:
     WORKSPACE_DIR: /tmp/push-build-darwin-amd64
 - name: Build Mac artifacts
   commands:
   - set -u
+  - echo HOME=$${HOME}
+  - export HOME=/Users/$(whoami)
+  - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
+  - export VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+    print-version)
+  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
+    print-node-version)
   - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
     print-rust-version)
-  - export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - export CARGO_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/cargo
   - export RUST_HOME=$CARGO_HOME
-  - export PATH=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$PATH
+  - export RUSTUP_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/rustup
+  - export NODE_HOME=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
+  - export PATH=$TOOLCHAIN_DIR/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$NODE_HOME/bin:$PATH
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+  - build.assets/build-fido2-macos.sh build
+  - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
   - rustup override set $RUST_VERSION
-  - make clean release OS=$OS ARCH=$ARCH
+  - export BUILD_NUMBER=$DRONE_BUILD_NUMBER
+  - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
+  - security find-identity -v
+  - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$VERSION
   environment:
     ARCH: amd64
+    BUILDBOX_PASSWORD:
+      from_secret: BUILDBOX_PASSWORD
     GOCACHE: /tmp/push-build-darwin-amd64/go/cache
     GOPATH: /tmp/push-build-darwin-amd64/go
     OS: darwin
@@ -545,15 +586,16 @@ steps:
 - name: Clean up toolchains (post)
   commands:
   - set -u
-  - export PATH=/Users/build/.cargo/bin:$PATH
-  - export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - export PATH=/Users/$(whoami)/.cargo/bin:$PATH
+  - export CARGO_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/cargo
   - export RUST_HOME=$CARGO_HOME
+  - export RUSTUP_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/rustup
   - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
     print-rust-version)
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - rustup override unset
   - rustup toolchain uninstall $RUST_VERSION
-  - rm -rf ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - rm -rf /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED
   environment:
     WORKSPACE_DIR: /tmp/push-build-darwin-amd64
   when:
@@ -595,9 +637,9 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-arm
 environment:
-  BUILDBOX_VERSION: teleport10
+  BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.18.2
+  RUNTIME: go1.18.3
   UID: "1000"
 trigger:
   event:
@@ -698,9 +740,9 @@ kind: pipeline
 type: kubernetes
 name: push-build-linux-arm64
 environment:
-  BUILDBOX_VERSION: teleport10
+  BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.18.2
+  RUNTIME: go1.18.3
   UID: "1000"
 trigger:
   event:
@@ -815,25 +857,27 @@ steps:
       # increment these variables when a new major/minor version is released to bump the automatic builds
       # this only needs to be done on the master branch, as that's the branch that the Drone cron is configured for
       # build major version images which are just teleport:x
-      CURRENT_VERSION_ROOT: v9
-      PREVIOUS_VERSION_ONE_ROOT: v8
-      PREVIOUS_VERSION_TWO_ROOT: v7
+      CURRENT_VERSION_ROOT: v10
+      PREVIOUS_VERSION_ONE_ROOT: v9
+      PREVIOUS_VERSION_TWO_ROOT: v8
     commands:
       - apk --update --no-cache add curl go
       - mkdir -p /go/build && cd /go/build
-      # CURRENT_VERSION (9)
+      # CURRENT_VERSION
       - (cd /go/build.assets/tooling && go run ./cmd/query-latest $CURRENT_VERSION_ROOT > /go/build/CURRENT_VERSION_TAG.txt)
       - echo "$(cat /go/build/CURRENT_VERSION_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/CURRENT_VERSION_TAG_GENERIC.txt
-      # PREVIOUS_VERSION_ONE (8)
+      # PREVIOUS_VERSION_ONE
       - (cd /go/build.assets/tooling && go run ./cmd/query-latest $PREVIOUS_VERSION_ONE_ROOT > /go/build/PREVIOUS_VERSION_ONE_TAG.txt)
       - echo "$(cat /go/build/PREVIOUS_VERSION_ONE_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt
-      # PREVIOUS_VERSION_TWO (7)
+      # PREVIOUS_VERSION_TWO
       - (cd /go/build.assets/tooling && go run ./cmd/query-latest $PREVIOUS_VERSION_TWO_ROOT > /go/build/PREVIOUS_VERSION_TWO_TAG.txt)
       - echo "$(cat /go/build/PREVIOUS_VERSION_TWO_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt
       # list versions
       - for FILE in /go/build/*.txt; do echo $FILE; cat $FILE; done
       # get Dockerfiles
       - curl -Ls -o /go/build/Dockerfile-cron https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron
+      - curl -Ls -o /go/build/Dockerfile-cron-v8 https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron-v8
+
       # wait for Docker to be ready
       - sleep 3
 
@@ -842,10 +886,9 @@ steps:
     environment:
       OS: linux
       ARCH: amd64
-    settings:
-      username:
+      QUAY_USERNAME:
         from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
-      password:
+      QUAY_PASSWORD:
         from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
     volumes:
       - name: dockersock
@@ -855,7 +898,7 @@ steps:
       - export OSS_IMAGE_NAME="quay.io/gravitational/teleport:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
       - export ENT_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
       - export ENT_FIPS_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)-fips"
-      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
+      - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" quay.io
       # OSS
       - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
       - docker push $OSS_IMAGE_NAME
@@ -871,10 +914,9 @@ steps:
     environment:
       OS: linux
       ARCH: amd64
-    settings:
-      username:
+      QUAY_USERNAME:
         from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
-      password:
+      QUAY_PASSWORD:
         from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
     volumes:
       - name: dockersock
@@ -884,7 +926,7 @@ steps:
       - export OSS_IMAGE_NAME="quay.io/gravitational/teleport:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)"
       - export ENT_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)"
       - export ENT_FIPS_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)-fips"
-      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
+      - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" quay.io
       # OSS
       - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
       - docker push $OSS_IMAGE_NAME
@@ -900,10 +942,9 @@ steps:
     environment:
       OS: linux
       ARCH: amd64
-    settings:
-      username:
+      QUAY_USERNAME:
         from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
-      password:
+      QUAY_PASSWORD:
         from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
     volumes:
       - name: dockersock
@@ -913,15 +954,18 @@ steps:
       - export OSS_IMAGE_NAME="quay.io/gravitational/teleport:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)"
       - export ENT_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)"
       - export ENT_FIPS_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)-fips"
-      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
+      - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" quay.io
       # OSS
-      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
+      # TODO(logand22): Remove v8 when Teleport 11 is released
+      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /go/build/Dockerfile-cron-v8 /go/build
       - docker push $OSS_IMAGE_NAME
       # Enterprise
-      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH  -t $ENT_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
+      # TODO(logand22): Remove v8 when Teleport 11 is released
+      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH  -t $ENT_IMAGE_NAME -f /go/build/Dockerfile-cron-v8 /go/build
       - docker push $ENT_IMAGE_NAME
       # Enterprise FIPS
-      - docker build --target teleport-fips --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
+      # TODO(logand22): Remove v8 when Teleport 11 is released
+      - docker build --target teleport-fips --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /go/build/Dockerfile-cron-v8 /go/build
       - docker push $ENT_FIPS_IMAGE_NAME
 
   - name: Build/push Teleport Lab Docker image
@@ -950,6 +994,231 @@ steps:
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       - docker build --build-arg TELEPORT_TAG=$TELEPORT_TAG -t $TELEPORT_LAB_IMAGE_NAME /go/src/github.com/gravitational/teleport/docker/sshd
       - docker push $TELEPORT_LAB_IMAGE_NAME
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    privileged: true
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
+name: teleport-docker-cron-ecr
+
+trigger:
+  cron:
+    - teleport-docker-cron-ecr
+  repo:
+    include:
+      - gravitational/teleport
+
+workspace:
+  path: /go
+
+clone:
+  disable: false
+
+steps:
+  - name: Set up variables and Dockerfile
+    image: docker:git
+    environment:
+      # increment these variables when a new major/minor version is released to bump the automatic builds
+      # this only needs to be done on the master branch, as that's the branch that the Drone cron is configured for
+      # build major version images which are just teleport:x
+      CURRENT_VERSION_ROOT: v10
+      PREVIOUS_VERSION_ONE_ROOT: v9
+      PREVIOUS_VERSION_TWO_ROOT: v8
+    commands:
+      - apk --update --no-cache add curl go
+      - mkdir -p /go/build && cd /go/build
+      # CURRENT_VERSION
+      - (cd /go/build.assets/tooling && go run ./cmd/query-latest $CURRENT_VERSION_ROOT > /go/build/CURRENT_VERSION_TAG.txt)
+      - echo "$(cat /go/build/CURRENT_VERSION_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/CURRENT_VERSION_TAG_GENERIC.txt
+      # PREVIOUS_VERSION_ONE
+      - (cd /go/build.assets/tooling && go run ./cmd/query-latest $PREVIOUS_VERSION_ONE_ROOT > /go/build/PREVIOUS_VERSION_ONE_TAG.txt)
+      - echo "$(cat /go/build/PREVIOUS_VERSION_ONE_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt
+      # PREVIOUS_VERSION_TWO
+      - (cd /go/build.assets/tooling && go run ./cmd/query-latest $PREVIOUS_VERSION_TWO_ROOT > /go/build/PREVIOUS_VERSION_TWO_TAG.txt)
+      - echo "$(cat /go/build/PREVIOUS_VERSION_TWO_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt
+      # list versions
+      - for FILE in /go/build/*.txt; do echo $FILE; cat $FILE; done
+      # get Dockerfiles
+      - curl -Ls -o /go/build/Dockerfile-cron https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron
+      - curl -Ls -o /go/build/Dockerfile-cron-v8 https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron-v8
+      # wait for Docker to be ready
+      - sleep 3
+
+  - name: Build and push Teleport containers (CURRENT_VERSION)
+    image: docker
+    environment:
+      OS: linux
+      ARCH: amd64
+      STAGING_AWS_ACCESS_KEY_ID:
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      STAGING_AWS_SECRET_ACCESS_KEY:
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      PROD_AWS_ACCESS_KEY_ID:
+        from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      PROD_AWS_SECRET_ACCESS_KEY:
+        from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache aws-cli
+      - export VERSION_TAG=$(cat /go/build/CURRENT_VERSION_TAG.txt)
+      - export CURRENT_DATE=$(date '+%Y%m%d%H%M')
+      # Staging image names
+      - export OSS_IMAGE_NAME_STAGE="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)-$CURRENT_DATE"
+      - export ENT_IMAGE_NAME_STAGE="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)-$CURRENT_DATE"
+      - export ENT_FIPS_IMAGE_NAME_STAGE="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)-fips-$CURRENT_DATE"
+      # Production image names
+      - export OSS_IMAGE_NAME_PROD="public.ecr.aws/gravitational/teleport:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
+      - export ENT_IMAGE_NAME_PROD="public.ecr.aws/gravitational/teleport-ent:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
+      - export ENT_FIPS_IMAGE_NAME_PROD="public.ecr.aws/gravitational/teleport-ent:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)-fips"
+      # Authenticate to staging registry
+      - export AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID"
+      - export AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY"
+      - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
+      # OSS
+      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME_STAGE -f /go/build/Dockerfile-cron /go/build
+      - docker push $OSS_IMAGE_NAME_STAGE
+      # Enterprise
+      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH  -t $ENT_IMAGE_NAME_STAGE -f /go/build/Dockerfile-cron /go/build
+      - docker push $ENT_IMAGE_NAME_STAGE
+      # Enterprise FIPS
+      - docker build --target teleport-fips --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME_STAGE -f /go/build/Dockerfile-cron /go/build
+      - docker push $ENT_FIPS_IMAGE_NAME_STAGE
+      # Authenticate to production registry
+      - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
+      - export AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID"
+      - export AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY"
+      - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin public.ecr.aws
+      # Retag images
+      - docker tag $OSS_IMAGE_NAME_STAGE $OSS_IMAGE_NAME_PROD
+      - docker tag $ENT_IMAGE_NAME_STAGE $ENT_IMAGE_NAME_PROD
+      - docker tag $ENT_FIPS_IMAGE_NAME_STAGE $ENT_FIPS_IMAGE_NAME_PROD
+      # Promote to production registry
+      - docker push $ENT_IMAGE_NAME_PROD
+      - docker push $OSS_IMAGE_NAME_PROD
+      - docker push $ENT_FIPS_IMAGE_NAME_PROD
+
+  - name: Build and push Teleport containers (PREVIOUS_VERSION_ONE)
+    image: docker
+    environment:
+      OS: linux
+      ARCH: amd64
+      STAGING_AWS_ACCESS_KEY_ID:
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      STAGING_AWS_SECRET_ACCESS_KEY:
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      PROD_AWS_ACCESS_KEY_ID:
+        from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      PROD_AWS_SECRET_ACCESS_KEY:
+        from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache aws-cli
+      - export VERSION_TAG=$(cat /go/build/PREVIOUS_VERSION_ONE_TAG.txt)
+      - export CURRENT_DATE=$(date '+%Y%m%d%H%M')
+      # Staging image names
+      - export OSS_IMAGE_NAME_STAGE="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)-$CURRENT_DATE"
+      - export ENT_IMAGE_NAME_STAGE="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)-$CURRENT_DATE"
+      - export ENT_FIPS_IMAGE_NAME_STAGE="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)-fips-$CURRENT_DATE"
+      # Production image names
+      - export OSS_IMAGE_NAME_PROD="public.ecr.aws/gravitational/teleport:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)"
+      - export ENT_IMAGE_NAME_PROD="public.ecr.aws/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)"
+      - export ENT_FIPS_IMAGE_NAME_PROD="public.ecr.aws/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)-fips"
+      # Authenticate to staging registry
+      - export AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID"
+      - export AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY"
+      - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
+      # OSS
+      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME_STAGE -f /go/build/Dockerfile-cron /go/build
+      - docker push $OSS_IMAGE_NAME_STAGE
+      # Enterprise
+      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH  -t $ENT_IMAGE_NAME_STAGE -f /go/build/Dockerfile-cron /go/build
+      - docker push $ENT_IMAGE_NAME_STAGE
+      # Enterprise FIPS
+      - docker build --target teleport-fips --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME_STAGE -f /go/build/Dockerfile-cron /go/build
+      - docker push $ENT_FIPS_IMAGE_NAME_STAGE
+      # Authenticate to production registry
+      - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
+      - export AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID"
+      - export AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY"
+      - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin public.ecr.aws
+      # Retag images
+      - docker tag $OSS_IMAGE_NAME_STAGE $OSS_IMAGE_NAME_PROD
+      - docker tag $ENT_IMAGE_NAME_STAGE $ENT_IMAGE_NAME_PROD
+      - docker tag $ENT_FIPS_IMAGE_NAME_STAGE $ENT_FIPS_IMAGE_NAME_PROD
+      # Promote to production registry
+      - docker push $ENT_IMAGE_NAME_PROD
+      - docker push $OSS_IMAGE_NAME_PROD
+      - docker push $ENT_FIPS_IMAGE_NAME_PROD
+
+  - name: Build and push Teleport containers (PREVIOUS_VERSION_TWO)
+    image: docker
+    environment:
+      OS: linux
+      ARCH: amd64
+      STAGING_AWS_ACCESS_KEY_ID:
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      STAGING_AWS_SECRET_ACCESS_KEY:
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      PROD_AWS_ACCESS_KEY_ID:
+        from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      PROD_AWS_SECRET_ACCESS_KEY:
+        from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache aws-cli
+      - export CURRENT_DATE=$(date '+%Y%m%d%H%M')
+      - export VERSION_TAG=$(cat /go/build/PREVIOUS_VERSION_TWO_TAG.txt)
+      # Staging image names
+      - export OSS_IMAGE_NAME_STAGE="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)-$CURRENT_DATE"
+      - export ENT_IMAGE_NAME_STAGE="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)-$CURRENT_DATE"
+      - export ENT_FIPS_IMAGE_NAME_STAGE="146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)-fips-$CURRENT_DATE"
+      # Production image names
+      - export OSS_IMAGE_NAME_PROD="public.ecr.aws/gravitational/teleport:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)"
+      - export ENT_IMAGE_NAME_PROD="public.ecr.aws/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)"
+      - export ENT_FIPS_IMAGE_NAME_PROD="public.ecr.aws/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)-fips"
+      # Authenticate to staging registry
+      - export AWS_ACCESS_KEY_ID="$STAGING_AWS_ACCESS_KEY_ID"
+      - export AWS_SECRET_ACCESS_KEY="$STAGING_AWS_SECRET_ACCESS_KEY"
+      - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
+      # OSS
+      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME_STAGE -f /go/build/Dockerfile-cron-v8 /go/build
+      - docker push $OSS_IMAGE_NAME_STAGE
+      # Enterprise
+      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH  -t $ENT_IMAGE_NAME_STAGE -f /go/build/Dockerfile-cron-v8 /go/build
+      - docker push $ENT_IMAGE_NAME_STAGE
+      # Enterprise FIPS
+      - docker build --target teleport-fips --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME_STAGE -f /go/build/Dockerfile-cron-v8 /go/build
+      - docker push $ENT_FIPS_IMAGE_NAME_STAGE
+      # Authenticate to production registry
+      - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
+      - export AWS_ACCESS_KEY_ID="$PROD_AWS_ACCESS_KEY_ID"
+      - export AWS_SECRET_ACCESS_KEY="$PROD_AWS_SECRET_ACCESS_KEY"
+      - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin public.ecr.aws
+      # Retag images
+      - docker tag $OSS_IMAGE_NAME_STAGE $OSS_IMAGE_NAME_PROD
+      - docker tag $ENT_IMAGE_NAME_STAGE $ENT_IMAGE_NAME_PROD
+      - docker tag $ENT_FIPS_IMAGE_NAME_STAGE $ENT_FIPS_IMAGE_NAME_PROD
+      # Promote to production registry
+      - docker push $ENT_IMAGE_NAME_PROD
+      - docker push $OSS_IMAGE_NAME_PROD
+      - docker push $ENT_FIPS_IMAGE_NAME_PROD
 
 services:
   - name: Start Docker
@@ -1052,15 +1321,15 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:240
+# Generated at dronegen/tag.go:250
 ################################################
 
 kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos7
 environment:
-  BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.18.2
+  BUILDBOX_VERSION: teleport11
+  RUNTIME: go1.18.3
 trigger:
   event:
     include:
@@ -1163,20 +1432,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux 64-bit (RHEL/CentOS 7.x compatible)"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit (RHEL/CentOS 7.x compatible)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -1185,7 +1457,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -1209,15 +1481,15 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:240
+# Generated at dronegen/tag.go:250
 ################################################
 
 kind: pipeline
 type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
-  BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.18.2
+  BUILDBOX_VERSION: teleport11
+  RUNTIME: go1.18.3
 trigger:
   event:
     include:
@@ -1319,20 +1591,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux 64-bit (RHEL/CentOS 7.x compatible, FedRAMP/FIPS)"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit (RHEL/CentOS 7.x compatible, FedRAMP/FIPS)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -1341,7 +1616,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -1365,15 +1640,15 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:240
+# Generated at dronegen/tag.go:250
 ################################################
 
 kind: pipeline
 type: kubernetes
 name: build-linux-amd64
 environment:
-  BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.18.2
+  BUILDBOX_VERSION: teleport11
+  RUNTIME: go1.18.3
 trigger:
   event:
     include:
@@ -1426,7 +1701,7 @@ steps:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
-  - make -C build.assets release-amd64
+  - make -C build.assets release-amd64-centos7
   environment:
     ARCH: amd64
     GID: "1000"
@@ -1473,20 +1748,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux 64-bit"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -1495,7 +1773,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -1519,15 +1797,15 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:240
+# Generated at dronegen/tag.go:250
 ################################################
 
 kind: pipeline
 type: kubernetes
 name: build-linux-amd64-fips
 environment:
-  BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.18.2
+  BUILDBOX_VERSION: teleport11
+  RUNTIME: go1.18.3
 trigger:
   event:
     include:
@@ -1581,7 +1859,7 @@ steps:
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
-  - make -C build.assets release-amd64-fips
+  - make -C build.assets release-amd64-centos7-fips
   environment:
     ARCH: amd64
     FIPS: "yes"
@@ -1627,20 +1905,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux 64-bit (FedRAMP/FIPS)"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit (FedRAMP/FIPS)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -1649,7 +1930,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -1673,7 +1954,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:451
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -1803,20 +2084,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux 64-bit RPM (RHEL/CentOS 7.x compatible)"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit RPM (RHEL/CentOS 7.x compatible)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -1825,7 +2109,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -1854,7 +2138,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:451
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -1981,20 +2265,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux 64-bit RPM (RHEL/CentOS 7.x compatible, FedRAMP/FIPS)"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit RPM (RHEL/CentOS 7.x compatible, FedRAMP/FIPS)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -2003,7 +2290,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -2032,7 +2319,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:451
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -2153,20 +2440,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux 64-bit DEB"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit DEB" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -2175,7 +2465,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -2199,7 +2489,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:451
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -2317,20 +2607,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux 64-bit DEB (FedRAMP/FIPS)"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 64-bit DEB (FedRAMP/FIPS)" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -2339,7 +2632,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -2363,15 +2656,15 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:240
+# Generated at dronegen/tag.go:250
 ################################################
 
 kind: pipeline
 type: kubernetes
 name: build-linux-386
 environment:
-  BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.18.2
+  BUILDBOX_VERSION: teleport11
+  RUNTIME: go1.18.3
 trigger:
   event:
     include:
@@ -2471,20 +2764,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux 32-bit"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 32-bit" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -2493,7 +2789,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -2517,7 +2813,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:451
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -2647,20 +2943,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux 32-bit RPM"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 32-bit RPM" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -2669,7 +2968,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -2698,7 +2997,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:451
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -2819,20 +3118,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux 32-bit DEB"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux 32-bit DEB" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -2841,7 +3143,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -2865,7 +3167,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/mac.go:32
+# Generated at dronegen/mac.go:39
 ################################################
 
 kind: pipeline
@@ -2906,6 +3208,11 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
   - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
     && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
   - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
@@ -2926,37 +3233,77 @@ steps:
 - name: Install Go Toolchain
   commands:
   - set -u
-  - mkdir -p ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - mkdir -p /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
   - curl --silent -O https://dl.google.com/go/$RUNTIME.darwin-amd64.tar.gz
-  - tar -C  ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
+  - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.18.2
+    RUNTIME: go1.18.3
 - name: Install Rust Toolchain
   commands:
   - set -u
-  - export PATH=/Users/build/.cargo/bin:$PATH
-  - mkdir -p ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - export PATH=/Users/$(whoami)/.cargo/bin:$PATH
+  - mkdir -p /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
   - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
     print-rust-version)
-  - export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - export CARGO_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/cargo
   - export RUST_HOME=$CARGO_HOME
+  - export RUSTUP_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/rustup
   - rustup toolchain install $RUST_VERSION
+  environment:
+    WORKSPACE_DIR: /tmp/build-darwin-amd64
+- name: Install Node Toolchain
+  commands:
+  - set -u
+  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
+    print-node-version)
+  - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
+  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
+  - mkdir -p $TOOLCHAIN_DIR
+  - curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-darwin-x64.tar.gz
+  - tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-darwin-x64.tar.gz
+  - rm -f node-v$NODE_VERSION-darwin-x64.tar.gz
+  - export PATH=$NODE_DIR/bin:$PATH
+  - corepack enable yarn
+  - echo Node reporting version $(node --version)
+  - echo Yarn reporting version $(yarn --version)
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64
 - name: Build Mac release artifacts
   commands:
   - set -u
+  - echo HOME=$${HOME}
+  - export HOME=/Users/$(whoami)
+  - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
+  - export VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+    print-version)
+  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
+    print-node-version)
   - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
     print-rust-version)
-  - export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - export CARGO_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/cargo
   - export RUST_HOME=$CARGO_HOME
-  - export PATH=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$PATH
+  - export RUSTUP_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/rustup
+  - export NODE_HOME=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
+  - export PATH=$TOOLCHAIN_DIR/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$NODE_HOME/bin:$PATH
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+  - build.assets/build-fido2-macos.sh build
+  - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
   - rustup override set $RUST_VERSION
-  - make clean release OS=$OS ARCH=$ARCH
+  - export BUILD_NUMBER=$DRONE_BUILD_NUMBER
+  - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
+  - security find-identity -v
+  - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$VERSION
   environment:
+    APPLE_PASSWORD:
+      from_secret: APPLE_PASSWORD
+    APPLE_USERNAME:
+      from_secret: APPLE_USERNAME
     ARCH: amd64
+    BUILDBOX_PASSWORD:
+      from_secret: BUILDBOX_PASSWORD
     GOCACHE: /tmp/build-darwin-amd64/go/cache
     GOPATH: /tmp/build-darwin-amd64/go
     OS: darwin
@@ -2967,8 +3314,12 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - cp teleport*.tar.gz $WORKSPACE_DIR/go/artifacts
   - cp e/teleport-ent*.tar.gz $WORKSPACE_DIR/go/artifacts
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps/packages/teleterm/build/release
+  - cp *.dmg $WORKSPACE_DIR/go/artifacts
   - cd $WORKSPACE_DIR/go/artifacts && for FILE in teleport*.tar.gz; do shasum -a 256
     $FILE > $FILE.sha256; done && ls -l
+  - cd $WORKSPACE_DIR/go/artifacts && for FILE in *.dmg; do shasum -a 256 "$FILE"
+    > "$FILE.sha256"; done && ls -l
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64
 - name: Upload to S3
@@ -2997,20 +3348,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="MacOS Intel"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="MacOS Intel" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -3019,7 +3373,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -3032,15 +3386,16 @@ steps:
 - name: Clean up toolchains (post)
   commands:
   - set -u
-  - export PATH=/Users/build/.cargo/bin:$PATH
-  - export CARGO_HOME=~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - export PATH=/Users/$(whoami)/.cargo/bin:$PATH
+  - export CARGO_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/cargo
   - export RUST_HOME=$CARGO_HOME
+  - export RUSTUP_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/rustup
   - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
     print-rust-version)
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - rustup override unset
   - rustup toolchain uninstall $RUST_VERSION
-  - rm -rf ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
+  - rm -rf /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64
   when:
@@ -3059,7 +3414,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/mac.go:32
+# Generated at dronegen/mac.go:39
 ################################################
 
 kind: pipeline
@@ -3102,6 +3457,11 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
   - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
     && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
   - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
@@ -3196,20 +3556,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="MacOS Intel .pkg installer"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="MacOS Intel .pkg installer" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -3218,7 +3581,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -3240,7 +3603,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/mac.go:32
+# Generated at dronegen/mac.go:39
 ################################################
 
 kind: pipeline
@@ -3283,6 +3646,11 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
   - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
     && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
   - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
@@ -3377,20 +3745,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="MacOS Intel .pkg installer (tsh client only)"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="MacOS Intel .pkg installer (tsh client only)" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -3399,7 +3770,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -3421,15 +3792,15 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:240
+# Generated at dronegen/tag.go:250
 ################################################
 
 kind: pipeline
 type: kubernetes
 name: build-linux-arm
 environment:
-  BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.18.2
+  BUILDBOX_VERSION: teleport11
+  RUNTIME: go1.18.3
 trigger:
   event:
     include:
@@ -3529,20 +3900,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux ARMv7 (32-bit)"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARMv7 (32-bit)" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -3551,7 +3925,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -3575,15 +3949,15 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:240
+# Generated at dronegen/tag.go:250
 ################################################
 
 kind: pipeline
 type: kubernetes
 name: build-linux-arm64
 environment:
-  BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.18.2
+  BUILDBOX_VERSION: teleport11
+  RUNTIME: go1.18.3
 trigger:
   event:
     include:
@@ -3683,20 +4057,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux ARM64/ARMv8 (64-bit)"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARM64/ARMv8 (64-bit)" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -3705,7 +4082,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -3729,7 +4106,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:451
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -3850,20 +4227,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux ARM64/ARMv8 (64-bit) DEB"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARM64/ARMv8 (64-bit) DEB" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -3872,7 +4252,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -3896,7 +4276,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:451
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -4017,20 +4397,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux ARMv7 (32-bit) DEB"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARMv7 (32-bit) DEB" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -4039,7 +4422,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -4063,7 +4446,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:451
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -4193,20 +4576,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux ARM64/ARMv8 (64-bit) RPM"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARM64/ARMv8 (64-bit) RPM" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -4215,7 +4601,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -4244,7 +4630,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:451
+# Generated at dronegen/tag.go:464
 ################################################
 
 kind: pipeline
@@ -4374,20 +4760,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Linux ARMv7 (32-bit) RPM"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Linux ARMv7 (32-bit) RPM" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -4396,7 +4785,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -4425,15 +4814,15 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:240
+# Generated at dronegen/tag.go:250
 ################################################
 
 kind: pipeline
 type: kubernetes
 name: build-windows-amd64
 environment:
-  BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.18.2
+  BUILDBOX_VERSION: teleport11
+  RUNTIME: go1.18.3
 trigger:
   event:
     include:
@@ -4487,7 +4876,7 @@ steps:
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
   - echo -n "$WINDOWS_SIGNING_CERT" | base64 -d > windows-signing-cert.pfx
-  - make -C build.assets release-amd64
+  - make -C build.assets release-windows
   - rm -f windows-signing-cert.pfx
   environment:
     ARCH: amd64
@@ -4536,20 +4925,23 @@ steps:
   - which curl || apk add --no-cache curl
   - |-
     cd "$WORKSPACE_DIR/go/artifacts"
-    for file in $(find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*'); do
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
       # Skip files that are not results of this build
       # (e.g. tarballs from which OS packages are made)
       [ -f "$file.sha256" ] || continue
 
       name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="Windows 64-bit (tsh client only)"
+      products="$name"
       if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent";
-      else
-        products="$name"
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-      curl $CREDENTIALS --fail -o /dev/null -F description="Windows 64-bit (tsh client only)" -F os="windows" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="windows" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
         status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -4558,7 +4950,7 @@ steps:
           cat $WORKSPACE_DIR/curl_out.txt
           exit 1
         fi
-        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename $file)"
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
       done
     done
   environment:
@@ -4584,8 +4976,8 @@ type: kubernetes
 name: build-docker-images
 
 environment:
-  BUILDBOX_VERSION: "teleport10"
-  RUNTIME: go1.18.2
+  BUILDBOX_VERSION: "teleport11"
+  RUNTIME: go1.17.9
 
 trigger:
   event:
@@ -4636,21 +5028,25 @@ steps:
       GOPATH: /go
       OS: linux
       ARCH: amd64
-    settings:
-      username:
+      QUAY_USERNAME:
         from_secret: QUAYIO_DOCKER_USERNAME
-      password:
+      QUAY_PASSWORD:
         from_secret: QUAYIO_DOCKER_PASSWORD
+      AWS_ACCESS_KEY_ID:
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     volumes:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache make
+      - apk add --no-cache make bash aws-cli
       - chown -R $UID:$GID /go
-      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
-      - docker pull quay.io/gravitational/teleport-buildbox:$BUILDBOX_VERSION || true
+      - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" quay.io
+      - aws ecr get-login-password --region us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
       - cd /go/src/github.com/gravitational/teleport
       - make image-ci publish-ci
+      - make publish-operator-ci
 
   - name: Build/push FIPS Docker image
     image: docker
@@ -4661,19 +5057,17 @@ steps:
       GOPATH: /go
       OS: linux
       ARCH: amd64
-    settings:
-      username:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      password:
-        from_secret: QUAYIO_DOCKER_PASSWORD
+      AWS_ACCESS_KEY_ID:
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
     volumes:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache make
+      - apk add --no-cache make aws-cli
       - chown -R $UID:$GID /go
-      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
-      - docker pull quay.io/gravitational/teleport-buildbox:BUILDBOX_VERSION || true
+      - aws ecr get-login-password --region us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
       - cd /go/src/github.com/gravitational/teleport
       # VERSION needs to be set manually when running in the e directory.
       # Normally, the version is set and exported by the root Makefile and then inherited,
@@ -4909,7 +5303,7 @@ kind: pipeline
 type: kubernetes
 name: build-buildboxes
 environment:
-  BUILDBOX_VERSION: teleport10
+  BUILDBOX_VERSION: teleport11
   GID: "1000"
   UID: "1000"
 trigger:
@@ -4985,6 +5379,459 @@ steps:
     QUAYIO_DOCKER_PASSWORD:
       from_secret: QUAYIO_DOCKER_PASSWORD
     QUAYIO_DOCKER_USERNAME:
+      from_secret: QUAYIO_DOCKER_USERNAME
+  volumes:
+  - name: dockersock
+    path: /var/run
+services:
+- name: Start Docker
+  image: docker:dind
+  privileged: true
+  volumes:
+  - name: dockersock
+    path: /var/run
+volumes:
+- name: dockersock
+  temp: {}
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/os_repos.go:270
+################################################
+
+kind: pipeline
+type: kubernetes
+name: migrate-apt-new-repos
+trigger:
+  event:
+    include:
+    - custom
+  repo:
+    include:
+    - non-existent-repository
+  branch:
+    include:
+    - non-existent-branch
+clone:
+  disable: true
+steps:
+- name: Placeholder
+  image: alpine:latest
+  commands:
+  - echo "This command, step, and pipeline never runs"
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/os_repos.go:294
+################################################
+
+kind: pipeline
+type: kubernetes
+name: publish-apt-new-repos
+trigger:
+  event:
+    include:
+    - promote
+  target:
+    include:
+    - production
+  repo:
+    include:
+    - gravitational/teleport
+workspace:
+  path: /go
+clone:
+  disable: true
+steps:
+- name: Verify build is tagged
+  image: alpine:latest
+  commands:
+  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+    && exit 1)'
+- name: Check out code
+  image: alpine/git:latest
+  commands:
+  - mkdir -p "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
+  - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
+  - git checkout "${DRONE_TAG}"
+- name: Check if tag is prerelease
+  image: golang:1.17-alpine
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
+    a prerelease, not publishing ${DRONE_TAG} packages to APT repos' && exit 78)
+- name: Download artifacts for "${DRONE_TAG}"
+  image: amazon/aws-cli
+  commands:
+  - mkdir -pv "$ARTIFACT_PATH"
+  - rm -rf "${ARTIFACT_PATH}/*"
+  - aws s3 sync --no-progress --delete --exclude "*" --include "*.deb*" s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/
+    "$ARTIFACT_PATH"
+  environment:
+    ARTIFACT_PATH: /go/artifacts
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  depends_on:
+  - Verify build is tagged
+  - Check out code
+  - Check if tag is prerelease
+- name: Publish debs to APT repos for "${DRONE_TAG}"
+  image: golang:1.18.4-bullseye
+  commands:
+  - apt update
+  - apt install -y aptly
+  - mkdir -pv -m0700 "$GNUPGHOME"
+  - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
+  - chown -R root:root "$GNUPGHOME"
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - export VERSION="${DRONE_TAG}"
+  - export RELEASE_CHANNEL="stable"
+  - go run ./cmd/build-os-package-repos apt -bucket "$REPO_S3_BUCKET" -local-bucket-path
+    "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
+    -artifact-path "$ARTIFACT_PATH" -log-level 4 -aptly-root-dir "$APTLY_ROOT_DIR"
+  environment:
+    APTLY_ROOT_DIR: /mnt/aptly
+    ARTIFACT_PATH: /go/artifacts
+    AWS_ACCESS_KEY_ID:
+      from_secret: APT_REPO_NEW_AWS_ACCESS_KEY_ID
+    AWS_REGION: us-west-2
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: APT_REPO_NEW_AWS_SECRET_ACCESS_KEY
+    BUCKET_CACHE_PATH: /tmp/bucket
+    DEBIAN_FRONTEND: noninteractive
+    GNUPGHOME: /tmpfs/gnupg
+    GPG_RPM_SIGNING_ARCHIVE:
+      from_secret: GPG_RPM_SIGNING_ARCHIVE
+    REPO_S3_BUCKET:
+      from_secret: APT_REPO_NEW_AWS_S3_BUCKET
+  volumes:
+  - name: apt-persistence
+    path: /mnt
+  - name: tmpfs
+    path: /tmpfs
+  depends_on:
+  - Download artifacts for "${DRONE_TAG}"
+  - Verify build is tagged
+  - Check out code
+  - Check if tag is prerelease
+volumes:
+- name: apt-persistence
+  claim:
+    name: drone-s3-aptrepo-pvc
+- name: tmpfs
+  temp:
+    medium: memory
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/os_repos.go:270
+################################################
+
+kind: pipeline
+type: kubernetes
+name: migrate-yum-new-repos
+trigger:
+  event:
+    include:
+    - custom
+  repo:
+    include:
+    - non-existent-repository
+  branch:
+    include:
+    - non-existent-branch
+clone:
+  disable: true
+steps:
+- name: Placeholder
+  image: alpine:latest
+  commands:
+  - echo "This command, step, and pipeline never runs"
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/os_repos.go:294
+################################################
+
+kind: pipeline
+type: kubernetes
+name: publish-yum-new-repos
+trigger:
+  event:
+    include:
+    - promote
+  target:
+    include:
+    - production
+  repo:
+    include:
+    - gravitational/teleport
+workspace:
+  path: /go
+clone:
+  disable: true
+steps:
+- name: Verify build is tagged
+  image: alpine:latest
+  commands:
+  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+    && exit 1)'
+- name: Check out code
+  image: alpine/git:latest
+  commands:
+  - mkdir -p "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
+  - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
+  - git checkout "${DRONE_TAG}"
+- name: Check if tag is prerelease
+  image: golang:1.17-alpine
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
+    a prerelease, not publishing ${DRONE_TAG} packages to APT repos' && exit 78)
+- name: Download artifacts for "${DRONE_TAG}"
+  image: amazon/aws-cli
+  commands:
+  - mkdir -pv "$ARTIFACT_PATH"
+  - rm -rf "${ARTIFACT_PATH}/*"
+  - aws s3 sync --no-progress --delete --exclude "*" --include "*.rpm*" s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/
+    "$ARTIFACT_PATH"
+  environment:
+    ARTIFACT_PATH: /go/artifacts
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  depends_on:
+  - Verify build is tagged
+  - Check out code
+  - Check if tag is prerelease
+- name: Publish rpms to YUM repos for "${DRONE_TAG}"
+  image: golang:1.18.4-bullseye
+  commands:
+  - apt update
+  - apt install -y createrepo-c
+  - mkdir -pv "$CACHE_DIR"
+  - mkdir -pv -m0700 "$GNUPGHOME"
+  - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
+  - chown -R root:root "$GNUPGHOME"
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - export VERSION="${DRONE_TAG}"
+  - export RELEASE_CHANNEL="stable"
+  - go run ./cmd/build-os-package-repos yum -bucket "$REPO_S3_BUCKET" -local-bucket-path
+    "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
+    -artifact-path "$ARTIFACT_PATH" -log-level 4 -cache-dir "$CACHE_DIR"
+  environment:
+    ARTIFACT_PATH: /go/artifacts
+    AWS_ACCESS_KEY_ID:
+      from_secret: YUM_REPO_NEW_AWS_ACCESS_KEY_ID
+    AWS_REGION: us-west-2
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: YUM_REPO_NEW_AWS_SECRET_ACCESS_KEY
+    BUCKET_CACHE_PATH: /mnt/bucket
+    CACHE_DIR: /mnt/createrepo_cache
+    DEBIAN_FRONTEND: noninteractive
+    GNUPGHOME: /tmpfs/gnupg
+    GPG_RPM_SIGNING_ARCHIVE:
+      from_secret: GPG_RPM_SIGNING_ARCHIVE
+    REPO_S3_BUCKET:
+      from_secret: YUM_REPO_NEW_AWS_S3_BUCKET
+  volumes:
+  - name: yum-persistence
+    path: /mnt
+  - name: tmpfs
+    path: /tmpfs
+  depends_on:
+  - Download artifacts for "${DRONE_TAG}"
+  - Verify build is tagged
+  - Check out code
+  - Check if tag is prerelease
+volumes:
+- name: yum-persistence
+  claim:
+    name: drone-s3-yumrepo-pvc
+- name: tmpfs
+  temp:
+    medium: memory
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/promote.go:28
+################################################
+
+kind: pipeline
+type: kubernetes
+name: promote-docker-ecr
+trigger:
+  event:
+    include:
+    - promote
+  target:
+    include:
+    - production
+    - promote-docker
+    - promote-docker-ecr
+  repo:
+    include:
+    - gravitational/*
+workspace:
+  path: /go
+clone:
+  disable: true
+steps:
+- name: Verify build is tagged
+  image: alpine:latest
+  commands:
+  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+    && exit 1)'
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
+- name: Pull/retag Docker images
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - export VERSION=${DRONE_TAG##v}
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - echo "---> Pulling images for $${VERSION}"
+  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
+  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}
+  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
+  - echo "---> Tagging images for $${VERSION}"
+  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
+    public.ecr.aws/gravitational/teleport:$${VERSION}
+  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}
+    public.ecr.aws/gravitational/teleport-ent:$${VERSION}
+  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
+    public.ecr.aws/gravitational/teleport-ent:$${VERSION}-fips
+  - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
+  - echo "---> Pushing images for $${VERSION}"
+  - docker push public.ecr.aws/gravitational/teleport:$${VERSION}
+  - docker push public.ecr.aws/gravitational/teleport-ent:$${VERSION}
+  - docker push public.ecr.aws/gravitational/teleport-ent:$${VERSION}-fips
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+  volumes:
+  - name: dockersock
+    path: /var/run
+services:
+- name: Start Docker
+  image: docker:dind
+  privileged: true
+  volumes:
+  - name: dockersock
+    path: /var/run
+volumes:
+- name: dockersock
+  temp: {}
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/promote.go:82
+################################################
+
+kind: pipeline
+type: kubernetes
+name: promote-docker-quay
+trigger:
+  event:
+    include:
+    - promote
+  target:
+    include:
+    - production
+    - promote-docker
+    - promote-docker-quay
+  repo:
+    include:
+    - gravitational/*
+workspace:
+  path: /go
+clone:
+  disable: true
+steps:
+- name: Verify build is tagged
+  image: alpine:latest
+  commands:
+  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+    && exit 1)'
+- name: Wait for docker
+  image: docker
+  commands:
+  - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  volumes:
+  - name: dockersock
+    path: /var/run
+- name: Pull/retag Docker images
+  image: docker
+  commands:
+  - apk add --no-cache aws-cli
+  - export VERSION=${DRONE_TAG##v}
+  - docker login -u="$STAGING_QUAY_USERNAME" -p="$STAGING_QUAY_PASSWORD" quay.io
+  - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
+    146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - echo "---> Pulling images for $${VERSION}"
+  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
+  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}
+  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
+  - docker pull quay.io/gravitational/teleport-operator-ci:$${VERSION}
+  - echo "---> Tagging images for $${VERSION}"
+  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
+    quay.io/gravitational/teleport:$${VERSION}
+  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}
+    quay.io/gravitational/teleport-ent:$${VERSION}
+  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
+    quay.io/gravitational/teleport-ent:$${VERSION}-fips
+  - docker tag quay.io/gravitational/teleport-operator-ci:$${VERSION} quay.io/gravitational/teleport-operator:$${VERSION}
+  - docker logout quay.io
+  - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
+  - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" quay.io
+  - echo "---> Pushing images for $${VERSION}"
+  - docker push quay.io/gravitational/teleport:$${VERSION}
+  - docker push quay.io/gravitational/teleport-ent:$${VERSION}
+  - docker push quay.io/gravitational/teleport-ent:$${VERSION}-fips
+  - docker push quay.io/gravitational/teleport-operator:$${VERSION}
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+    QUAY_PASSWORD:
+      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    QUAY_USERNAME:
+      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+    STAGING_QUAY_PASSWORD:
+      from_secret: QUAYIO_DOCKER_PASSWORD
+    STAGING_QUAY_USERNAME:
       from_secret: QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
@@ -5080,11 +5927,13 @@ steps:
       - docker pull quay.io/gravitational/teleport-ci:$${VERSION}
       - docker pull quay.io/gravitational/teleport-ent-ci:$${VERSION}
       - docker pull quay.io/gravitational/teleport-ent-ci:$${VERSION}-fips
+      - docker pull quay.io/gravitational/teleport-operator-ci:$${VERSION}
       # retag images to production naming
       - echo "---> Tagging images for $${VERSION}"
       - docker tag quay.io/gravitational/teleport-ci:$${VERSION} quay.io/gravitational/teleport:$${VERSION}
       - docker tag quay.io/gravitational/teleport-ent-ci:$${VERSION} quay.io/gravitational/teleport-ent:$${VERSION}
       - docker tag quay.io/gravitational/teleport-ent-ci:$${VERSION}-fips quay.io/gravitational/teleport-ent:$${VERSION}-fips
+      - docker tag quay.io/gravitational/teleport-operator-ci:$${VERSION} quay.io/gravitational/teleport-operator:$${VERSION}
       # reauthenticate with production credentials
       - docker logout quay.io
       - docker login -u="$PLUGIN_DOCKER_PRODUCTION_USERNAME" -p="$PLUGIN_DOCKER_PRODUCTION_PASSWORD" quay.io
@@ -5093,6 +5942,7 @@ steps:
       - docker push quay.io/gravitational/teleport:$${VERSION}
       - docker push quay.io/gravitational/teleport-ent:$${VERSION}
       - docker push quay.io/gravitational/teleport-ent:$${VERSION}-fips
+      - docker push quay.io/gravitational/teleport-operator:$${VERSION}
 
   - name: Check out code
     image: docker:git
@@ -5188,7 +6038,7 @@ steps:
       - if [ "${DRONE_REPO}" != "gravitational/teleport" ]; then echo "---> Not publishing ${DRONE_REPO} packages to RPM and DEB repos" && exit 78; fi
 
   - name: Check if tag is prerelease
-    image: golang:1.18-alpine
+    image: golang:1.17-alpine
     commands:
       - cd /go/src/github.com/gravitational/teleport/build.assets/tooling
       - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> Not publishing ${DRONE_TAG} packages to RPM and DEB repos' && exit 78)
@@ -5269,7 +6119,7 @@ steps:
   # that would cause apt users to downgrade. For more info see:
   #   https://github.com/gravitational/teleport/issues/8166
   - name: Check if tag is latest
-    image: golang:1.18-alpine
+    image: golang:1.17-alpine
     commands:
       - cd /go/src/github.com/gravitational/teleport/build.assets/tooling
       - go run ./cmd/check -tag ${DRONE_TAG} -check latest || (echo '---> Not publishing ${DRONE_REPO} packages to DEB repo' && exit 78)
@@ -5387,7 +6237,94 @@ volumes:
     claim:
       name: drone-s3-debrepo-pvc
 ---
+kind: pipeline
+type: kubernetes
+name: publish-rlz
+
+environment:
+  RELCLI_BASE_URL: https://releases-staging.platform.teleport.sh
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.65
+
+trigger:
+  event:
+    - promote
+  target:
+    - production
+  repo:
+    include:
+      - gravitational/*
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check if commit is tagged
+    image: alpine
+    commands:
+      - "[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)"
+
+  - name: Pull relcli
+    image: docker:git
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
+      AWS_DEFAULT_REGION: us-west-2
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache aws-cli
+      - aws ecr get-login-password | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
+      - docker pull $RELCLI_IMAGE
+
+  - name: Publish in Release API
+    image: docker:git
+    environment:
+      RELEASES_CERT:
+        from_secret: RELEASES_CERT_STAGING
+      RELEASES_KEY:
+        from_secret: RELEASES_KEY_STAGING
+      RELCLI_CERT: /tmpfs/creds/releases.crt
+      RELCLI_KEY: /tmpfs/creds/releases.key
+    volumes:
+      - name: dockersock
+        path: /var/run
+      - name: tmpfs
+        path: /tmpfs
+    commands:
+    - mkdir -p /tmpfs/creds
+    - echo "$RELEASES_CERT" | base64 -d > "$RELCLI_CERT"
+    - echo "$RELEASES_KEY" | base64 -d > "$RELCLI_KEY"
+    - trap "rm -rf /tmpfs/creds" EXIT
+    - |
+      docker run -i -v /tmpfs/creds:/tmpfs/creds \
+        -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
+        $RELCLI_IMAGE relcli auto_publish -f -v 6
+    failure: ignore
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    privileged: true
+    volumes:
+      - name: dockersock
+        path: /var/run
+      - name: tmpfs
+        path: /tmpfs
+
+volumes:
+  - name: dockersock
+    temp: {}
+  - name: tmpfs
+    temp:
+      medium: memory
+---
 kind: signature
-hmac: 911be33673b40e57c1d482bfcebeec7fef697e5cb52ceea9c4cddcd268bed4d1
+hmac: 9b99e314d268ee414f6d0a66ea5ef05813369d6c1d6247e6c0ec952e0146b01f
 
 ...

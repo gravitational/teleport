@@ -145,7 +145,6 @@ func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.
 			sessions = append(sessions, session)
 		case !after && item.Expires.IsZero():
 			// Clear item if expiry is not set on the backend.
-			// We currently don't set the expiry here but we will when #11551 is merged.
 			noExpiry = append(noExpiry, item)
 		default:
 			// If we take this branch, the expiry is set and the backend is responsible for cleaning up the item.

@@ -3,9 +3,23 @@ title: Database Access CLI Reference
 description: CLI reference for Teleport Database Access.
 ---
 
+This reference shows you how to run common commands for managing Teleport
+Database Access, including:
+
+- The `teleport` daemon command, which is executed on the host where you
+  will run the Teleport Database Service.
+
+- The `tctl` administration tool, which you use to manage `db` resources that
+  represent databases known to your Teleport cluster.
+
+  (!docs/pages/includes/tctl.mdx!)
+
+- The `tsh` client tool, which end-users run in order to access databases in
+  your cluster.
+
 ## teleport db start
 
-Starts Teleport Database Service agent.
+Starts Teleport Database Service.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
@@ -24,7 +38,7 @@ $ teleport db start \
 ```code
 $ teleport db start \
     --token=/path/to/token \
-    --auth-server=mytenant.teleport.sh:3080 \
+    --auth-server=mytenant.teleport.sh:443 \
     --name=example \
     --protocol=postgres \
     --uri=postgres.mytenant.teleport.sh:5432
@@ -89,18 +103,21 @@ $ teleport db configure create \
 | - | - |
 | `--proxy` | Teleport Proxy Service address to connect to. Default: `0.0.0.0:3080`. |
 | `--token` | Invitation token to register with the Auth Service. Default: none. |
-| `--rds-discovery` | List of AWS regions the agent will discover for RDS/Aurora instances. |
-| `--redshift-discovery` | List of AWS regions the agent will discover for Redshift instances. |
+| `--rds-discovery` | List of AWS regions in which the Database Service will discover RDS/Aurora instances. |
+| `--redshift-discovery` | List of AWS regions in which the Database Service will discover Redshift instances. |
+| `--elasticache-discovery` | List of AWS regions in which the Database Service will discover ElastiCache Redis clusters. |
+| `--memorydb-discovery` | List of AWS regions in which the Database Service will discover MemoryDB clusters. |
 | `--ca-pin` | CA pin to validate the Auth Service (can be repeated for multiple pins). |
 | `--name` | Name of the proxied database. |
-| `--protocol` | Proxied database protocol. Supported are: `[postgres mysql mongodb cockroachdb redis sqlserver]`. |
+| `--protocol` | Proxied database protocol. Supported are: `[postgres mysql mongodb cockroachdb redis sqlserver snowflake]`. |
 | `--uri` | Address the proxied database is reachable at. |
 | `--labels` | Comma-separated list of labels for the database, for example env=dev,dept=it |
 | `-o/--output` | Write to stdout with `-o=stdout`, the default config file with `-o=file`, or a custom path with `-o=file:///path` |
 
 ## teleport db configure bootstrap
 
-Bootstrap the necessary configuration for the database agent. It reads the provided agent configuration to determine what will be bootstrapped.
+Bootstrap the necessary configuration for the Database Service. It reads the
+provided configuration to determine what will be bootstrapped.
 
 ```code
 $ teleport db configure bootstrap -c /etc/teleport.yaml --attach-to-user TeleportUser
@@ -122,6 +139,12 @@ $ teleport db configure bootstrap -c /etc/teleport.yaml --manual
 When invoked with a `--format=db` (or `--format=mongodb` for MongoDB) flag,
 produces a CA certificate, a client certificate and a private key file used for
 configuring Database Access with self-hosted database instances.
+
+<Admonition type="note" title="Note">
+  For database formats, `tctl` must be run on an Auth Service host or the remote
+  user must be be able to impersonate the built-in `Db` role and user. See the [impersonation guide](../../access-controls/guides/impersonation.mdx)
+  for details on how to allow impersonation.
+</Admonition>
 
 ```code
 $ tctl auth sign --format=db --host=db.example.com --out=db --ttl=2190h

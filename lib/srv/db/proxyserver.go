@@ -328,7 +328,7 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 		return s.PostgresProxyNoTLS().HandleConnection(s.closeCtx, tlsConn)
 	case defaults.ProtocolMySQL:
 		version := getMySQLVersionFromServer(proxyCtx.Servers)
-		// Set the version in the context to match a behaviour in other handlers.
+		// Set the version in the context to match a behavior in other handlers.
 		ctx := context.WithValue(s.closeCtx, dbutils.ContextMySQLServerVersion, version)
 		return s.MySQLProxyNoTLS().HandleConnection(ctx, tlsConn)
 	case defaults.ProtocolSQLServer:
@@ -429,6 +429,7 @@ func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext
 			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
 			ServerID: fmt.Sprintf("%v.%v", server.GetHostID(), proxyCtx.Cluster.GetName()),
 			ConnType: types.DatabaseTunnel,
+			ProxyIDs: server.GetProxyIDs(),
 		})
 		if err != nil {
 			// If an agent is down, we'll retry on the next one (if available).

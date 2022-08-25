@@ -25,7 +25,13 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -45,10 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // TestAuthServerConfig is auth server test config
@@ -69,6 +71,10 @@ type TestAuthServerConfig struct {
 	ClusterNetworkingConfig types.ClusterNetworkingConfig
 	// Streamer allows a test to set its own audit events streamer.
 	Streamer events.Streamer
+	// AuditLog allows a test to configure its own audit log.
+	AuditLog events.IAuditLog
+	// TraceClient allows a test to configure the trace client
+	TraceClient otlptrace.Client
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -90,17 +96,8 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 
 // CreateUploaderDir creates directory for file uploader service
 func CreateUploaderDir(dir string) error {
-	// DELETE IN(5.1.0)
-	// this folder is no longer used past 5.0 upgrade
-	err := os.MkdirAll(filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload,
-		events.SessionLogsDir, apidefaults.Namespace), teleport.SharedDirMode)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-
-	err = os.MkdirAll(filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingLogsDir, apidefaults.Namespace), teleport.SharedDirMode)
-	if err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload,
+		events.StreamingLogsDir, apidefaults.Namespace), teleport.SharedDirMode); err != nil {
 		return trace.ConvertSystemError(err)
 	}
 
@@ -167,6 +164,14 @@ func (a *TestServer) Shutdown(ctx context.Context) error {
 	)
 }
 
+// WithClock is a functional server option that sets the server's clock
+func WithClock(clock clockwork.Clock) ServerOption {
+	return func(s *Server) error {
+		s.clock = clock
+		return nil
+	}
+}
+
 // TestAuthServer is auth server using local filesystem backend
 // and test certificate authority key generation that speeds up
 // keygen by using the same private key
@@ -209,16 +214,20 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	// Wrap backend in sanitizer like in production.
 	srv.Backend = backend.NewSanitizer(b)
 
-	localLog, err := events.NewAuditLog(events.AuditLogConfig{
-		DataDir:       cfg.Dir,
-		ServerID:      cfg.ClusterName,
-		Clock:         cfg.Clock,
-		UploadHandler: events.NewMemoryUploader(),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if cfg.AuditLog != nil {
+		srv.AuditLog = cfg.AuditLog
+	} else {
+		localLog, err := events.NewAuditLog(events.AuditLogConfig{
+			DataDir:       cfg.Dir,
+			ServerID:      cfg.ClusterName,
+			Clock:         cfg.Clock,
+			UploadHandler: events.NewMemoryUploader(),
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		srv.AuditLog = localLog
 	}
-	srv.AuditLog = localLog
 
 	srv.SessionServer, err = session.New(srv.Backend)
 	if err != nil {
@@ -229,7 +238,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	identity := local.NewIdentityService(srv.Backend)
 
 	emitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
-		Inner: localLog,
+		Inner: srv.AuditLog,
 		Clock: cfg.Clock,
 	})
 	if err != nil {
@@ -245,6 +254,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		Streamer:               cfg.Streamer,
 		SkipPeriodicOperations: true,
 		Emitter:                emitter,
+		TraceClient:            cfg.TraceClient,
 	}, WithClock(cfg.Clock))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -359,7 +369,8 @@ func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(user.GetRoles(), a.AuthServer, user.GetTraits())
+	accessInfo := services.AccessInfoFromUser(user)
+	checker, err := services.NewAccessChecker(accessInfo, a.ClusterName, a.AuthServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -405,13 +416,19 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		return nil, nil, trace.Wrap(err)
 	}
 
+	clusterName, err := authServer.GetClusterName()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
 	switch id := identity.I.(type) {
 	case LocalUser:
 		user, err := authServer.GetUser(id.Username, false)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		checker, err := services.FetchRoles(user.GetRoles(), authServer, user.GetTraits())
+		accessInfo := services.AccessInfoFromUser(user)
+		checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), authServer)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -559,6 +576,7 @@ func (a *TestAuthServer) NewRemoteClient(identity TestIdentity, addr net.Addr, p
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 }
 
@@ -763,6 +781,7 @@ func (t *TestTLSServer) NewClientFromWebSession(sess types.WebSession) (*Client,
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 }
 
@@ -804,6 +823,7 @@ func (t *TestTLSServer) CloneClient(clt *Client) *Client {
 		Credentials: []client.Credentials{
 			client.LoadTLS(clt.Config()),
 		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 	if err != nil {
 		panic(err)
@@ -824,6 +844,7 @@ func (t *TestTLSServer) NewClientWithCert(clientCert tls.Certificate) *Client {
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 	if err != nil {
 		panic(err)
@@ -844,6 +865,7 @@ func (t *TestTLSServer) NewClient(identity TestIdentity) (*Client, error) {
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -931,7 +953,7 @@ type clt interface {
 
 // CreateRole creates a role without assigning any users. Used in tests.
 func CreateRole(ctx context.Context, clt clt, name string, spec types.RoleSpecV5) (types.Role, error) {
-	role, err := types.NewRoleV3(name, spec)
+	role, err := types.NewRole(name, spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

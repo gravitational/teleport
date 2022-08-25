@@ -36,6 +36,14 @@ import (
 
 const (
 	// FilePermissions defines file permissions for identity files.
+	//
+	// Specifically, for postgres, this must be 0600 or 0640 (choosing 0600 as it's more restrictive)
+	// https://www.postgresql.org/docs/current/libpq-ssl.html
+	// On Unix systems, the permissions on the private key file must disallow any access to world or group;
+	//  achieve this by a command such as chmod 0600 ~/.postgresql/postgresql.key.
+	// Alternatively, the file can be owned by root and have group read access (that is, 0640 permissions).
+	//
+	// Other services should accept 0600 as well, if not, we must change the Write function (in `lib/client/identityfile/identity.go`)
 	FilePermissions = 0600
 )
 

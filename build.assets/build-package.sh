@@ -1,8 +1,17 @@
 #!/bin/bash
 set -e
 
-usage() { echo "Usage: $(basename $0) [-t <oss/ent>] [-v <version>] [-p <package type>] <-a [amd64/x86_64]|[386/i386]|arm|arm64> <-r fips> <-s tarball source dir> <-m tsh>" 1>&2; exit 1; }
-while getopts ":t:v:p:a:r:s:m:" o; do
+usage() {
+  echo "Usage: $(basename $0) [-t <oss/ent>] [-v <version>] [-p <package type>] <-a [amd64/x86_64]|[386/i386]|arm|arm64> <-r fips> <-s tarball source dir>" 1>&2
+  exit 1
+}
+
+# Don't follow sourced script.
+#shellcheck disable=SC1090
+#shellcheck disable=SC1091
+. "$(dirname "$0")/build-common.sh"
+
+while getopts ":t:v:p:a:r:s:n" o; do
     case "${o}" in
         t)
             t=${OPTARG}
@@ -26,9 +35,10 @@ while getopts ":t:v:p:a:r:s:m:" o; do
         s)
             s=${OPTARG}
             ;;
-        m)
-            m=${OPTARG}
-            if [[ ${m} != "tsh" ]]; then usage; fi
+        n)
+            # Dry-run mode.
+            # Only affects parts of the script, use at your own peril!
+            DRY_RUN_PREFIX='echo + '
             ;;
         *)
             usage
@@ -41,19 +51,13 @@ if [ -z "${t}" ] || [ -z "${v}" ] || [ -z "${p}" ]; then
     usage
 fi
 
-TELEPORT_TYPE=${t}
-TELEPORT_VERSION=${v}
-PACKAGE_TYPE=${p}
-ARCH=${a}
-RUNTIME=${r}
-BUILD_MODE=${m}
-TARBALL_DIRECTORY=/tmp/teleport-tarballs
-DOWNLOAD_IF_NEEDED=true
+TELEPORT_TYPE="$t"
+TELEPORT_VERSION="$v"
+PACKAGE_TYPE="$p"
+ARCH="$a"
+RUNTIME="$r"
+TARBALL_DIRECTORY="$s"
 GNUPG_DIR=${GNUPG_DIR:-/tmp/gnupg}
-if [[ "${s}" != "" ]]; then
-    DOWNLOAD_IF_NEEDED=false
-    TARBALL_DIRECTORY=${s}
-fi
 
 # linux package configuration
 LINUX_BINARY_DIR=/usr/local/bin
@@ -67,13 +71,6 @@ LICENSE="Apache-2.0"
 VENDOR="Gravitational"
 DESCRIPTION="Teleport is a gateway for managing access to clusters of Linux servers via SSH or the Kubernetes API"
 DOCS_URL="https://goteleport.com/docs"
-
-# SHA1 fingerprints of certificates used for signing mac artifacts (certificates must be pre-loaded into the keychain on the build box)
-DEVELOPER_ID_APPLICATION="0FFD3E3413AB4C599C53FBB1D8CA690915E33D83" # used for signing binaries
-DEVELOPER_ID_INSTALLER="82B625AD327C241B378A54B4B254BB08CE71B5DF" # used for signing packages
-
-# download root for packages
-DOWNLOAD_ROOT="https://get.gravitational.com"
 
 # check that curl is installed
 if [[ ! $(type curl) ]]; then
@@ -116,36 +113,6 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
         echo "Run: xcode-select --install"
         exit 5
     fi
-
-    if [[ "${BUILD_MODE}" == "tsh" ]]; then
-        if [[ ! $(type codesign) ]]; then
-            echo "You need to install codesign"
-            echo "Run: xcode-select --install or sudo xcode-select --reset"
-            exit 6
-        fi
-
-        if [[ ! $(type productsign) ]]; then
-            echo "You need to install productsign"
-            echo "Run: xcode-select --install or sudo xcode-select --reset"
-            exit 7
-        fi
-
-        if [[ ! $(type gon) ]]; then
-            echo "You need to install gon"
-            echo "Install a binary from https://github.com/mitchellh/gon and make sure it's present in the system PATH"
-            exit 8
-        fi
-
-        if [[ "${APPLE_USERNAME}" == "" ]]; then
-            echo "The APPLE_USERNAME environment variable needs to be set to the email address of the Apple user which will submit the notarization request"
-            exit 9
-        fi
-
-        if [[ "${APPLE_PASSWORD}" == "" ]]; then
-            echo "The APPLE_PASSWORD environment variable needs to be set to the password matching the email address of the Apple user which will submit the notarization request"
-            exit 10
-        fi
-    fi
 else
     PLATFORM="linux"
     # if arch isn't set for other package types, throw an error
@@ -158,12 +125,6 @@ else
         DOCKER_IMAGE="quay.io/gravitational/fpm-debian:8"
     elif [[ "${PACKAGE_TYPE}" == "rpm" ]]; then
         DOCKER_IMAGE="quay.io/gravitational/fpm-centos:8"
-    fi
-
-    # if client-only build is requested for a non-Mac platform, unset it
-    if [[ "${BUILD_MODE}" == "tsh" ]]; then
-        echo "Client-only builds are only offered for Mac"
-        unset BUILD_MODE
     fi
 fi
 
@@ -212,7 +173,6 @@ fi
 # set variables appropriately depending on type of package being built
 if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
     TARBALL_FILENAME="teleport-ent-v${TELEPORT_VERSION}-${PLATFORM}-${TARBALL_ARCH}${OPTIONAL_TARBALL_SECTION}${OPTIONAL_RUNTIME_SECTION}-bin.tar.gz"
-    URL="${DOWNLOAD_ROOT}/${TARBALL_FILENAME}"
     TAR_PATH="teleport-ent"
     RPM_NAME="teleport-ent"
     if [[ "${RUNTIME}" == "fips" ]]; then
@@ -223,7 +183,6 @@ if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
     fi
 else
     TARBALL_FILENAME="teleport-v${TELEPORT_VERSION}-${PLATFORM}-${TARBALL_ARCH}${OPTIONAL_TARBALL_SECTION}${OPTIONAL_RUNTIME_SECTION}-bin.tar.gz"
-    URL="${DOWNLOAD_ROOT}/${TARBALL_FILENAME}"
     TAR_PATH="teleport"
     RPM_NAME="teleport"
     if [[ "${RUNTIME}" == "fips" ]]; then
@@ -237,20 +196,12 @@ fi
 # set file list
 if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
     SIGN_PKG="true"
-    NOTARIZE_PKG="true"
-    # handle mac client-only builds
-    if [[ "${BUILD_MODE}" == "tsh" ]]; then
-        FILE_LIST="${TAR_PATH}/tsh"
-        BUNDLE_ID="com.gravitational.teleport.tsh"
-        PKG_FILENAME="tsh-${TELEPORT_VERSION}.${PACKAGE_TYPE}"
+    FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport ${TAR_PATH}/tbot"
+    BUNDLE_ID="com.gravitational.teleport"
+    if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
+        PKG_FILENAME="teleport-ent-${TELEPORT_VERSION}.${PACKAGE_TYPE}"
     else
-        FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport ${TAR_PATH}/tbot"
-        BUNDLE_ID="com.gravitational.teleport"
-        if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
-            PKG_FILENAME="teleport-ent-${TELEPORT_VERSION}.${PACKAGE_TYPE}"
-        else
-            PKG_FILENAME="teleport-${TELEPORT_VERSION}.${PACKAGE_TYPE}"
-        fi
+        PKG_FILENAME="teleport-${TELEPORT_VERSION}.${PACKAGE_TYPE}"
     fi
 else
     FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport ${TAR_PATH}/tbot ${TAR_PATH}/examples/systemd/teleport.service"
@@ -290,20 +241,14 @@ PACKAGE_TEMPDIR=$(pwd)
 trap 'rm -rf ${PACKAGE_TEMPDIR}' EXIT
 mkdir -p ${PACKAGE_TEMPDIR}/buildroot
 
-# implement a rudimentary download cache for repeat builds on the same host
-mkdir -p ${TARBALL_DIRECTORY}
-if [ ! -f ${TARBALL_DIRECTORY}/${TARBALL_FILENAME} ]; then
-    if [[ "${DOWNLOAD_IF_NEEDED}" == "true" ]]; then
-        echo "Downloading ${URL} to ${TARBALL_DIRECTORY}"
-        curl -sL ${URL} -o ${TARBALL_DIRECTORY}/${TARBALL_FILENAME}
-    else
-        echo "Can't find ${TARBALL_DIRECTORY}/${TARBALL_FILENAME}"
-        echo "Downloading from ${DOWNLOAD_ROOT} is disabled when a path is provided with -s"
-        exit 6
-    fi
-else
-    echo "Found ${TARBALL_DIRECTORY}/${TARBALL_FILENAME} - using it"
-fi
+# Find or download tarball to the local file cache.
+tarname="$TARBALL_FILENAME"
+[[ -n "$TARBALL_DIRECTORY" ]] && tarname="$TARBALL_DIRECTORY/$TARBALL_FILENAME"
+tarout='' # find_or_fetch_tarball writes to this
+find_or_fetch_tarball "$tarname" tarout
+TARBALL_DIRECTORY="$(dirname "$tarout")"
+TARBALL_FILENAME="$(basename "$tarout")" # for consistency, shouldn't change
+echo "Found ${TARBALL_DIRECTORY}/${TARBALL_FILENAME} - using it"
 
 # extract necessary files from tarball
 tar -C "$(pwd)" -xvzf ${TARBALL_DIRECTORY}/${TARBALL_FILENAME} ${FILE_LIST}
@@ -336,7 +281,7 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
     if [[ "${SIGN_PKG}" == "true" ]]; then
         # run codesign to sign binaries
         for FILE in ${FILE_LIST}; do
-            codesign -s "${DEVELOPER_ID_APPLICATION}" \
+            $DRY_RUN_PREFIX codesign -s "${DEVELOPER_ID_APPLICATION}" \
                 -f \
                 -v \
                 --timestamp \
@@ -358,32 +303,17 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
         mv ${PKG_FILENAME} ${PKG_FILENAME}.unsigned
 
         # run productsign to sign package
-        productsign \
+        $DRY_RUN_PREFIX productsign \
             --sign "${DEVELOPER_ID_INSTALLER}" \
             --timestamp \
             ${PKG_FILENAME}.unsigned \
             ${PKG_FILENAME}
+        [[ -n "$DRY_RUN_PREFIX" ]] && cp "$PKG_FILENAME.unsigned" "$PKG_FILENAME"
 
         # remove unsigned package after successful signing
         rm -f ${PKG_FILENAME}.unsigned
-    fi
 
-    # write gon config file
-    if [[ "${NOTARIZE_PKG}" == "true" ]]; then
-        echo "    {
-            \"notarize\": [{
-                \"path\": \"${PKG_FILENAME}\",
-                \"bundle_id\": \"${BUNDLE_ID}\",
-                \"staple\": true
-            }],
-            \"apple_id\": {
-                \"username\": \"${APPLE_USERNAME}\",
-                \"password\": \"${APPLE_PASSWORD}\"
-            }
-        }" > ${PACKAGE_TEMPDIR}/gon-config.json
-
-        # notarise built package using gon
-        gon ${PACKAGE_TEMPDIR}/gon-config.json
+        notarize "$PKG_FILENAME" "$TEAMID" "$BUNDLE_ID"
     fi
 
     # checksum created packages

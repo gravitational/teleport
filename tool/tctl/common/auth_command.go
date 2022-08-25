@@ -16,9 +16,9 @@ package common
 
 import (
 	"context"
-	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"os"
@@ -33,13 +33,13 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/kingpin"
@@ -137,8 +137,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
 // or returns match=false if 'cmd' does not belong to it
-func (a *AuthCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
-	ctx := context.Background()
+func (a *AuthCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case a.authGenerate.FullCommand():
 		err = a.GenerateKeys(ctx)
@@ -177,9 +176,9 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, client auth.ClientI
 		return a.exportTLSAuthority(ctx, client, types.UserCA, true)
 	}
 
-	// if no --type flag is given, export all types
+	// if no --type flag is given, export HostCA and UserCA.
 	if a.authType == "" {
-		typesToExport = []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA}
+		typesToExport = []types.CertAuthType{types.HostCA, types.UserCA}
 	} else {
 		authType := types.CertAuthType(a.authType)
 		if err := authType.Check(); err != nil {
@@ -187,7 +186,7 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, client auth.ClientI
 		}
 		typesToExport = []types.CertAuthType{authType}
 	}
-	localAuthName, err := client.GetDomainName()
+	localAuthName, err := client.GetDomainName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -266,7 +265,7 @@ func (a *AuthCommand) ExportAuthorities(ctx context.Context, client auth.ClientI
 }
 
 func (a *AuthCommand) exportTLSAuthority(ctx context.Context, client auth.ClientI, typ types.CertAuthType, unpackPEM bool) error {
-	clusterName, err := client.GetDomainName()
+	clusterName, err := client.GetDomainName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -311,12 +310,12 @@ func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = os.WriteFile(a.genPubPath, pubBytes, 0600)
+	err = os.WriteFile(a.genPubPath, pubBytes, 0o600)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = os.WriteFile(a.genPrivPath, privBytes, 0600)
+	err = os.WriteFile(a.genPrivPath, privBytes, 0o600)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -328,8 +327,11 @@ func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
 // GenerateAndSignKeys generates a new keypair and signs it for role
 func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI auth.ClientI) error {
 	switch a.outputFormat {
-	case identityfile.FormatDatabase, identityfile.FormatMongo, identityfile.FormatCockroach, identityfile.FormatRedis:
+	case identityfile.FormatDatabase, identityfile.FormatMongo, identityfile.FormatCockroach,
+		identityfile.FormatRedis:
 		return a.generateDatabaseKeys(ctx, clusterAPI)
+	case identityfile.FormatSnowflake:
+		return a.generateSnowflakeKey(ctx, clusterAPI)
 	}
 	switch {
 	case a.genUser != "" && a.genHost == "":
@@ -339,6 +341,40 @@ func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI auth.C
 	default:
 		return trace.BadParameter("--user or --host must be specified")
 	}
+}
+
+// generateSnowflakeKey exports DatabaseCA public key in the format required by Snowflake
+// Ref: https://docs.snowflake.com/en/user-guide/key-pair-auth.html#step-2-generate-a-public-key
+func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI auth.ClientI) error {
+	key, err := client.NewKey()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	databaseCA, err := clusterAPI.GetCertAuthorities(ctx, types.DatabaseCA, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(databaseCA) != 1 {
+		return trace.Errorf("expected database CA to have only one entry, found %d", len(databaseCA))
+	}
+
+	key.TrustedCA = []auth.TrustedCerts{{TLSCertificates: services.GetTLSCerts(databaseCA[0])}}
+
+	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
+		OutputPath:           a.output,
+		Key:                  key,
+		Format:               a.outputFormat,
+		OverwriteDestination: a.signOverwrite,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(
+		writeHelperMessageDBmTLS(os.Stdout, filesWritten, "", a.outputFormat),
+	)
 }
 
 // RotateCertAuthority starts or restarts certificate authority rotation process
@@ -431,88 +467,50 @@ func (a *AuthCommand) generateDatabaseKeys(ctx context.Context, clusterAPI auth.
 // for database access.
 func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI auth.ClientI, key *client.Key) error {
 	principals := strings.Split(a.genHost, ",")
-	if len(principals) == 1 && principals[0] == "" {
-		return trace.BadParameter("at least one hostname must be specified via --host flag")
+
+	dbCertReq := db.GenerateDatabaseCertificatesRequest{
+		ClusterAPI:         clusterAPI,
+		Principals:         principals,
+		OutputFormat:       a.outputFormat,
+		OutputCanOverwrite: a.signOverwrite,
+		OutputLocation:     a.output,
+		TTL:                a.genTTL,
+		Key:                key,
 	}
-	// For CockroachDB node certificates, CommonName must be "node":
-	//
-	// https://www.cockroachlabs.com/docs/v21.1/cockroach-cert#node-key-and-certificates
-	if a.outputFormat == identityfile.FormatCockroach {
-		principals = append([]string{"node"}, principals...)
-	}
-	subject := pkix.Name{CommonName: principals[0]}
-	if a.outputFormat == identityfile.FormatMongo {
-		// Include Organization attribute in MongoDB certificates as well.
-		//
-		// When using X.509 member authentication, MongoDB requires O or OU to
-		// be non-empty so this will make the certs we generate compatible:
-		//
-		// https://docs.mongodb.com/manual/core/security-internal-authentication/#x.509
-		//
-		// The actual O value doesn't matter as long as it matches on all
-		// MongoDB cluster members so set it to the Teleport cluster name
-		// to avoid hardcoding anything.
-		clusterName, err := clusterAPI.GetClusterName()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		subject.Organization = []string{
-			clusterName.GetClusterName(),
-		}
-	}
-	csr, err := tlsca.GenerateCertificateRequestPEM(subject, key.Priv)
+	filesWritten, err := db.GenerateDatabaseCertificates(ctx, dbCertReq)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	resp, err := clusterAPI.GenerateDatabaseCert(ctx,
-		&proto.DatabaseCertRequest{
-			CSR: csr,
-			// Important to include SANs since CommonName has been deprecated
-			// since Go 1.15:
-			//   https://golang.org/doc/go1.15#commonname
-			ServerNames: principals,
-			// Include legacy ServerName for compatibility.
-			ServerName:    principals[0],
-			TTL:           proto.Duration(a.genTTL),
-			RequesterName: proto.DatabaseCertRequest_TCTL,
-		})
-	if err != nil {
-		return trace.Wrap(err)
+
+	return trace.Wrap(writeHelperMessageDBmTLS(os.Stdout, filesWritten, a.output, a.outputFormat))
+}
+
+var mapIdentityFileFormatHelperTemplate = map[identityfile.Format]*template.Template{
+	identityfile.FormatDatabase:  dbAuthSignTpl,
+	identityfile.FormatMongo:     mongoAuthSignTpl,
+	identityfile.FormatCockroach: cockroachAuthSignTpl,
+	identityfile.FormatRedis:     redisAuthSignTpl,
+	identityfile.FormatSnowflake: snowflakeAuthSignTpl,
+}
+
+func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output string, outputFormat identityfile.Format) error {
+	if writer == nil {
+		return nil
 	}
-	key.TLSCert = resp.Cert
-	key.TrustedCA = []auth.TrustedCerts{{TLSCertificates: resp.CACerts}}
-	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
-		OutputPath:           a.output,
-		Key:                  key,
-		Format:               a.outputFormat,
-		OverwriteDestination: a.signOverwrite,
-	})
-	if err != nil {
-		return trace.Wrap(err)
+
+	tpl, found := mapIdentityFileFormatHelperTemplate[outputFormat]
+	if !found {
+		// This format doesn't have a recommended configuration.
+		// Consider adding one to ease the installation for the end-user
+		return nil
 	}
-	switch a.outputFormat {
-	case identityfile.FormatDatabase:
-		dbAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
-			"files":  strings.Join(filesWritten, ", "),
-			"output": a.output,
-		})
-	case identityfile.FormatMongo:
-		mongoAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
-			"files":  strings.Join(filesWritten, ", "),
-			"output": a.output,
-		})
-	case identityfile.FormatCockroach:
-		cockroachAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
-			"files":  strings.Join(filesWritten, ", "),
-			"output": a.output,
-		})
-	case identityfile.FormatRedis:
-		redisAuthSignTpl.Execute(os.Stdout, map[string]interface{}{
-			"files":  strings.Join(filesWritten, ", "),
-			"output": a.output,
-		})
+
+	tplVars := map[string]interface{}{
+		"files":  strings.Join(filesWritten, ", "),
+		"output": output,
 	}
-	return nil
+
+	return trace.Wrap(tpl.Execute(writer, tplVars))
 }
 
 var (
@@ -566,6 +564,12 @@ tls-ca-cert-file /path/to/{{.output}}.cas
 tls-cert-file /path/to/{{.output}}.crt
 tls-key-file /path/to/{{.output}}.key
 tls-protocols "TLSv1.2 TLSv1.3"
+`))
+
+	snowflakeAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
+
+Please add the generated key to the Snowflake users as described here:
+https://docs.snowflake.com/en/user-guide/key-pair-auth.html#step-4-assign-the-public-key-to-a-snowflake-user
 `))
 )
 
@@ -638,7 +642,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 		}
 		certUsage = proto.UserCertsRequest_App
 	case a.dbService != "":
-		server, err := getDatabaseServer(context.TODO(), clusterAPI, a.dbService)
+		server, err := getDatabaseServer(ctx, clusterAPI, a.dbService)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -729,7 +733,6 @@ func (a *AuthCommand) checkLeafCluster(clusterAPI auth.ClientI) error {
 	}
 
 	return trace.BadParameter("couldn't find leaf cluster named %q", a.leafCluster)
-
 }
 
 func (a *AuthCommand) checkKubeCluster(ctx context.Context, clusterAPI auth.ClientI) error {
@@ -847,7 +850,7 @@ func hostCAFormat(ca types.CertAuthority, keyBytes []byte, client auth.ClientI) 
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	allowedLogins, _ := roles.GetLoginsForTTL(defaults.MinCertDuration + time.Second)
+	allowedLogins, _ := roles.GetLoginsForTTL(apidefaults.MinCertDuration + time.Second)
 	return sshutils.MarshalAuthorizedHostsFormat(ca.GetClusterName(), keyBytes, allowedLogins)
 }
 
