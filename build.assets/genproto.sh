@@ -3,11 +3,6 @@
 # Builds, formats, lints and generates protos for teleport and teleport/api.
 set -eu
 
-echoed() {
-  echo "$*" >&2
-  "$@"
-}
-
 main() {
   cd "$(dirname "$0")"  # ./build-assets/
   cd ../                # teleport root
