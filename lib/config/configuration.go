@@ -23,7 +23,6 @@ package config
 import (
 	"bufio"
 	"crypto/x509"
-	"encoding/pem"
 	"io"
 	stdlog "log"
 	"net"
@@ -56,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	log "github.com/sirupsen/logrus"
@@ -1443,7 +1443,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 		return trace.Wrap(err)
 	}
 	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" && fc.WindowsDesktop.LDAP.PEMEncodedCACert != "" {
-		return trace.BadParameter("WindowsDesktopService can not use both der_ca_file and pem_ca_cert")
+		return trace.BadParameter("WindowsDesktopService can not use both der_ca_file and ldap_ca_cert")
 	}
 
 	var cert *x509.Certificate
@@ -1460,17 +1460,10 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	if fc.WindowsDesktop.LDAP.PEMEncodedCACert != "" {
-		block, _ := pem.Decode([]byte(fc.WindowsDesktop.LDAP.PEMEncodedCACert))
-
-		if block == nil || block.Type != "CERTIFICATE" {
-			log.Fatal("failed to decode PEM block containing x509 certificate")
-		}
-
-		cert, err = x509.ParseCertificate(block.Bytes)
+		cert, err = tlsca.ParseCertificatePEM([]byte(fc.WindowsDesktop.LDAP.PEMEncodedCACert))
 		if err != nil {
 			return trace.WrapWithMessage(err, "parsing the LDAP root CA PEM cert")
 		}
-
 	}
 
 	cfg.WindowsDesktop.LDAP = service.LDAPConfig{
@@ -1478,6 +1471,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 		Username:           fc.WindowsDesktop.LDAP.Username,
 		Domain:             fc.WindowsDesktop.LDAP.Domain,
 		InsecureSkipVerify: fc.WindowsDesktop.LDAP.InsecureSkipVerify,
+		ServerName:         fc.WindowsDesktop.LDAP.ServerName,
 		CA:                 cert,
 	}
 
