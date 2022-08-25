@@ -1,0 +1,140 @@
+---
+title: Configure Teleport to Automatically Discover EC2 instances
+description: How to configure Teleport to install itself EC2 instances.
+---
+
+Teleport's SSH Service can be configured to automatically discover, and install
+Teleport on newly provisioned EC2 nodes.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- AWS account with EC2 instances and permissions to create and attach IAM policies as well as permission to create System Manager documents.
+- A running Teleport Node. See the [Server Access Getting Started Guide](../getting-started.mdx) for how to add a Node to your Teleport cluster.
+
+## Step 1/4. Create an EC2 invite token
+
+When discovering EC2 nodes Teleport makes use of EC2 invite tokens for
+authenticating joining Nodes.
+
+Create the file `token.yaml`:
+```yaml
+# token.yaml
+---
+kind: token
+version: v2
+metadata:
+  # the token name is not a secret because instances must prove that they are
+  # running in your AWS account to use this token
+  name: iam-invite-token
+  # set a long expiry time, the default for tokens is only 30 minutes
+  expires: "3000-01-01T00:00:00Z"
+spec:
+  # use the minimal set of roles required
+  roles: [Node]
+
+  # set the join method allowed for this token
+  join_method: iam
+
+  allow:
+  # specify the AWS account which nodes may join from
+  - aws_account: "123456789"
+```
+
+Add the token to the Teleport cluster with:
+```
+tctl create -f token.yaml
+```
+
+More documentation on EC2 invite tokens can be found [here](../../management/guides/joining-nodes-aws-iam.mdx)
+
+## Step 2/4. Create an AWS Systems Manager Document
+
+Teleport makes use of AWS Systems Manager documents to execute commands necessary to
+install and start Teleport on discovered EC2 instances.
+
+A document with the following content should be created, named `TeleportDiscoveryInstaller`:
+
+```yaml
+---
+schemaVersion: '2.2'
+description: aws:runShellScript
+parameters:
+  token:
+    type: String
+    description: "(Required) The Teleport invite token to use when joining the cluster."
+  scriptName:
+    type: String
+    description: "(Required) The Teleport instalelr script to use when joining the cluster."
+mainSteps:
+- action: aws:downloadContent
+  name: downloadContent
+  inputs:
+    sourceType: "HTTP"
+    destinationPath: "/tmp/installTeleport.sh"
+    sourceInfo:
+      url: "https://teleport.example.com/webapi/scripts/{{ scriptName }}"
+- action: aws:runShellScript
+  name: runShellScript
+  inputs:
+    timeoutSeconds: '300'
+    runCommand:
+      - /bin/sh /tmp/installTeleport.sh "{{ token }}"
+```
+
+Here, `teleport.example.com` should be substituted with the public proxy URL of the
+Teleport cluster.
+
+When Teleport executes the System Manager document it will provide the `token`
+and `scriptName` parameters with defaults.
+
+- `{{ scriptName }}` will by default evaluate to `default-installer`
+- `{{ token }}` will by default evauluate to `aws-discovery-iam-token`
+
+
+## Step 3/4. Set up AWS IAM credentials
+
+The Teleport Discovery Node requires an IAM policy with permissions to
+send System Manager commands and retrieve EC2 instances:
+```js
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Action": [
+                "ssm:SendCommand",
+                "ec2:DescribeInstances",
+                "ssm:GetCommandInvocation"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+All EC2 instances that are to be added to the Teleport cluster by the
+Discovery Node must include the `AmazonSSMManagedInstanceCore` IAM policy
+in order to receive commands from the Discovery Node. More information
+for IAM best practices on EC2 instances managed by Systems Manager can be found [here](https://aws.amazon.com/blogs/mt/applying-managed-instance-policy-best-practices/)
+
+## Step 4/4. Configure Teleport to discover EC2 instances
+
+In order to enable EC2 instance discovery the `discovery_service` must
+include an AWS section configured with at least one entry:
+
+```yaml
+discovery_service:
+  enabled: "yes"
+  aws:
+   - types: ["ec2"]
+     regions: ["eu-central-1"]
+     tags:
+       "env": "prod" # Match EC2 instances where tag:env=prod
+```
+
+Full documentation on EC2 discovery configuration can be found [here](../../reference/config.mdx)
+
+Once Teleport is configured for discovery, it can be started and EC2
+instances matching the tags specified in the AWS section will begin to
+be added to the Teleport cluster automatically.
