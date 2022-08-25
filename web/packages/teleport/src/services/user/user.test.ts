@@ -165,7 +165,7 @@ test('undefined values in context response gives proper default values', async (
         remove: false,
       },
       desktopSessionRecordingEnabled: true,
-      directorySharingEnabled: false,
+      directorySharingEnabled: true,
     },
     cluster: {
       clusterId: 'aws',
