@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -182,6 +183,8 @@ type AccessChecker interface {
 	// MFAParams returns MFA params for the given use given their roles, the cluster
 	// auth preference, and whether mfa has been verified.
 	MFAParams(authPrefMFARequirement types.RequireMFAType) AccessMFAParams
+	// PrivateKeyPolicy returns the enforced private key policy for this role set.
+	PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) keys.PrivateKeyPolicy
 }
 
 // AccessInfo hold information about an identity necessary to check whether that

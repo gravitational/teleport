@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api"
+	attestation "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
@@ -59,12 +60,12 @@ func GetOrGenerateYubiKeyPrivateKey(ctx context.Context, touchRequired bool) (*P
 	}
 
 	// Get the correct PIV slot and Touch policy for the given touch requirement:
-	//  - No Touch = 9a + TouchPolicyNever
-	//  - Touch    = 9c + TouchPolicyCached
-	pivSlot := pivSlotNoTouch
+	//  - Slot 9a = no touch
+	//  - Slot 9c = touch
+	pivSlot := piv.SlotAuthentication
 	touchPolicy := piv.TouchPolicyNever
 	if touchRequired {
-		pivSlot = pivSlotWithTouch
+		pivSlot = piv.SlotSignature
 		touchPolicy = piv.TouchPolicyCached
 	}
 
@@ -154,7 +155,7 @@ func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.Sign
 	}
 	defer yk.Close()
 
-	privateKey, err := yk.PrivateKey(pivSlotNoTouch, y.pub, piv.KeyAuth{})
+	privateKey, err := yk.PrivateKey(y.pivSlot, y.pub, piv.KeyAuth{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -176,6 +177,46 @@ func (y *YubiKeyPrivateKey) keyPEM() ([]byte, error) {
 		Headers: nil,
 		Bytes:   keyDataBytes,
 	}), nil
+}
+
+// GetAttestationRequest returns an AttestationRequest for this YubiKeyPrivateKey.
+func (y *YubiKeyPrivateKey) GetAttestationRequest() (*AttestationRequest, error) {
+	yk, err := y.open(y.ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer yk.Close()
+
+	slotCert, err := yk.Attest(y.pivSlot)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	attCert, err := yk.AttestationCertificate()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &AttestationRequest{
+		AttestationRequest: &attestation.AttestationRequest_YubikeyAttestationRequest{
+			YubikeyAttestationRequest: &attestation.YubiKeyAttestationRequest{
+				SlotCert:        slotCert.Raw,
+				AttestationCert: attCert.Raw,
+			},
+		},
+	}, nil
+}
+
+// GetPrivateKeyPolicy returns the PrivateKeyPolicy supported by this YubiKeyPrivateKey.
+func (k *YubiKeyPrivateKey) GetPrivateKeyPolicy() PrivateKeyPolicy {
+	switch k.pivSlot {
+	case pivSlotNoTouch:
+		return PrivateKeyPolicyHardwareKey
+	case pivSlotWithTouch:
+		return PrivateKeyPolicyHardwareKeyTouch
+	default:
+		return PrivateKeyPolicyNone
+	}
 }
 
 // yubiKey is a specific yubiKey PIV card.
