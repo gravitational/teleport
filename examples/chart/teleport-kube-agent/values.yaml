@@ -150,7 +150,7 @@ storage:
 
 # Container image for the agent. Since this runs without the auth_service, we
 # don't need the enterprise version.
-image: quay.io/gravitational/teleport
+image: public.ecr.aws/gravitational/teleport
 # Optional array of imagePullSecrets, to use when pulling from a private registry
 imagePullSecrets: []
 # - name: myRegistryKeySecretName

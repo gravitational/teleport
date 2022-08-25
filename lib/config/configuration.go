@@ -1057,13 +1057,19 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 		return trace.Wrap(err)
 	}
 
+	cfg.SSH.AllowFileCopying = fc.SSH.SSHFileCopy()
+
 	for _, matcher := range fc.SSH.AWSMatchers {
 		cfg.SSH.AWSMatchers = append(cfg.SSH.AWSMatchers,
 			services.AWSMatcher{
-				Types:       matcher.Types,
-				Regions:     matcher.Regions,
-				Tags:        matcher.Tags,
-				SSMDocument: matcher.SSMDocument,
+				Types:   matcher.Matcher.Types,
+				Regions: matcher.Matcher.Regions,
+				Tags:    matcher.Matcher.Tags,
+				Params: services.InstallerParams{
+					JoinMethod: matcher.InstallParams.JoinParams.Method,
+					JoinToken:  matcher.InstallParams.JoinParams.TokenName,
+				},
+				SSM: &services.AWSSSM{DocumentName: matcher.SSM.DocumentName},
 			})
 	}
 
@@ -1136,19 +1142,13 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 			})
 	}
 	for _, matcher := range fc.Databases.AzureMatchers {
-		if len(matcher.Subscriptions) == 0 || apiutils.SliceContainsStr(matcher.Subscriptions, types.Wildcard) {
-			matcher.Subscriptions = []string{types.Wildcard}
-		}
-		if len(matcher.ResourceGroups) == 0 || apiutils.SliceContainsStr(matcher.ResourceGroups, types.Wildcard) {
-			matcher.ResourceGroups = []string{types.Wildcard}
-		}
 		cfg.Databases.AzureMatchers = append(cfg.Databases.AzureMatchers,
 			services.AzureMatcher{
 				Subscriptions:  matcher.Subscriptions,
 				ResourceGroups: matcher.ResourceGroups,
 				Types:          matcher.Types,
 				Regions:        matcher.Regions,
-				Tags:           matcher.Tags,
+				ResourceTags:   matcher.ResourceTags,
 			})
 	}
 	for _, database := range fc.Databases.Databases {
