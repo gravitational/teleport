@@ -18,6 +18,7 @@ package types;
 
 import "gogoproto/gogo.proto";
 import "google/protobuf/timestamp.proto";
+import "teleport/legacy/types/keys/keys.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
 option go_package = "github.com/gravitational/teleport/api/types";
@@ -3202,6 +3203,9 @@ message OIDCAuthRequest {
   // the address. If there is no match, the default redirect
   // url will be used.
   string ProxyAddress = 16 [(gogoproto.jsontag) = "proxy_address,omitempty"];
+
+  // attestation_request is a request to attest the given public key.
+  keys.AttestationRequest attestation_request = 17;
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -3332,6 +3336,9 @@ message SAMLAuthRequest {
 
   // ConnectorSpec is embedded connector spec for use in test flow.
   SAMLConnectorSpecV2 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
+
+  // attestation_request is a request to attest the given public key.
+  keys.AttestationRequest attestation_request = 16;
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
@@ -3445,6 +3452,8 @@ message GithubAuthRequest {
   bool SSOTestFlow = 14 [(gogoproto.jsontag) = "sso_test_flow"];
   // ConnectorSpec is embedded connector spec for use in test flow.
   GithubConnectorSpecV3 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
+  // attestation_request is a request to attest the given public key.
+  keys.AttestationRequest attestation_request = 16;
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.
@@ -4255,4 +4264,22 @@ enum RequireMFAType {
   // rather than only session requests. This touch is different from MFA, so to prevent
   // requiring double touch on session requests, normal Session MFA is disabled.
   HARDWARE_KEY_TOUCH = 3;
+}
+
+// AttestationRequest is a request to attest an attestation request.
+message AttestationRequest {
+  oneof attestation_request {
+    // yubikey_attestation_request is a request to attest a specific YubiKey PIV slot.
+    YubiKeyAttestationRequest yubikey_attestation_request = 1;
+  }
+}
+
+// YubiKeyAttestationRequest is a request to attest a specific YubiKey PIV slot.
+message YubiKeyAttestationRequest {
+  // slot_cert is an attestation certificate generated from a YubiKey PIV
+  // slot's public key and signed by the YubiKey's attestation certificate.
+  bytes slot_cert = 1;
+
+  // attestation_cert is a YubiKey's unique attestation certificate signed by a Yubico CA.
+  bytes attestation_cert = 2;
 }

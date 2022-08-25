@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 
 	"github.com/gravitational/trace"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -217,6 +218,91 @@ func (sft *SecondFactorType) UnmarshalJSON(data []byte) error {
 		}
 	default:
 		return trace.BadParameter("SecondFactorType invalid type %T", v)
+	}
+	return nil
+}
+
+// RequireMFAType is the type of session MFA requirement.
+type RequireMFAType string
+
+const (
+	// RequireSessionMFAOff means MFA is *not* required to begin server sessions.
+	RequireSessionMFAOff = RequireMFAType("false")
+	// RequireSessionMFAOn means MFA is required to begin server sessions.
+	RequireSessionMFAOn = RequireMFAType("true")
+	// RequireSessionMFAHardwareKey means MFA is required to begin server sessions,
+	// and login sessions must use a private key backed by a hardware key.
+	RequireSessionMFAHardwareKey = RequireMFAType("hardware_key")
+	// RequireSessionMFAHardwareKeyTouch means login sessions must use a hardware private
+	// key that requires touch to be used. This touch requirement applies to all API requests
+	// rather than only session requests. This touch is different from MFA, so to prevent
+	// requiring double touch on session requests, normal Session MFA is disabled.
+	RequireSessionMFAHardwareKeyTouch = RequireMFAType("hardware_key_touch")
+)
+
+// MarshalYAML supports parsing RequireMFAType into bool.
+func (rmt *RequireMFAType) MarshalYAML() (interface{}, error) {
+	switch *rmt {
+	case RequireSessionMFAOff:
+		return yaml.Marshal(false)
+	case RequireSessionMFAOn:
+		return yaml.Marshal(true)
+	default:
+		return yaml.Marshal(string(*rmt))
+	}
+}
+
+// UnmarshalYAML supports parsing RequireMFAType from boolean.
+func (rmt *RequireMFAType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var tmp interface{}
+	if err := unmarshal(&tmp); err != nil {
+		return err
+	}
+
+	switch v := tmp.(type) {
+	case string:
+		*rmt = RequireMFAType(v)
+	case bool:
+		if v {
+			*rmt = RequireMFAType(RequireSessionMFAOn)
+		} else {
+			*rmt = RequireMFAType(RequireSessionMFAOff)
+		}
+	default:
+		return trace.BadParameter("SecondFactorType invalid type %T", v)
+	}
+	return nil
+}
+
+// MarshalJSON supports parsing RequireMFAType into bool.
+func (rmt *RequireMFAType) MarshalJSON() ([]byte, error) {
+	switch *rmt {
+	case RequireSessionMFAOff:
+		return json.Marshal(false)
+	case RequireSessionMFAOn:
+		return json.Marshal(true)
+	default:
+		return json.Marshal(string(*rmt))
+	}
+}
+
+// UnmarshalJSON supports parsing RequireMFAType from boolean.
+func (rmt *RequireMFAType) UnmarshalJSON(data []byte) error {
+	var tmp interface{}
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+	switch v := tmp.(type) {
+	case string:
+		*rmt = RequireMFAType(v)
+	case bool:
+		if v {
+			*rmt = RequireMFAType(RequireSessionMFAOn)
+		} else {
+			*rmt = RequireMFAType(RequireSessionMFAOff)
+		}
+	default:
+		return trace.BadParameter("RequireMFAType invalid type %T", v)
 	}
 	return nil
 }
