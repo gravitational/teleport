@@ -1566,13 +1566,25 @@ pub enum TdpErrCode {
 
 /// SharedDirectoryWriteRequest is sent by the TDP server to the client
 /// to write to a file.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct SharedDirectoryWriteRequest {
     completion_id: u32,
     directory_id: u32,
     offset: u64,
     path: UnixPath,
     write_data: Vec<u8>,
+}
+
+impl std::fmt::Debug for SharedDirectoryWriteRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SharedDirectoryWriteRequest")
+            .field("completion_id", &self.completion_id)
+            .field("directory_id", &self.directory_id)
+            .field("offset", &self.offset)
+            .field("path", &self.path)
+            .field("write_data", &util::vec_u8_debug(&self.write_data))
+            .finish()
+    }
 }
 
 #[derive(Debug)]
@@ -1610,12 +1622,21 @@ pub struct CGOSharedDirectoryReadRequest {
 
 /// SharedDirectoryReadResponse is sent by the TDP client to the server
 /// with the data as requested by a SharedDirectoryReadRequest.
-#[derive(Debug)]
 #[repr(C)]
 pub struct SharedDirectoryReadResponse {
     pub completion_id: u32,
     pub err_code: TdpErrCode,
     pub read_data: Vec<u8>,
+}
+
+impl std::fmt::Debug for SharedDirectoryReadResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SharedDirectoryReadResponse")
+            .field("completion_id", &self.completion_id)
+            .field("err_code", &self.err_code)
+            .field("read_data", &util::vec_u8_debug(&self.read_data))
+            .finish()
+    }
 }
 
 impl From<CGOSharedDirectoryReadResponse> for SharedDirectoryReadResponse {

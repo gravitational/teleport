@@ -487,6 +487,7 @@ func TestSSHSection(t *testing.T) {
 		expectError               require.ErrorAssertionFunc
 		expectEnabled             require.BoolAssertionFunc
 		expectAllowsTCPForwarding require.BoolAssertionFunc
+		expectFileCopying         require.BoolAssertionFunc
 		expectedAWSSection        []AWSEC2Matcher
 	}{
 		{
@@ -533,6 +534,28 @@ func TestSSHSection(t *testing.T) {
 				cfg["ssh_service"].(cfgMap)["port_forwarding"] = "banana"
 			},
 			expectError: require.Error,
+		}, {
+			desc: "File copying is enabled",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["ssh_file_copy"] = true
+			},
+			expectError:       require.NoError,
+			expectEnabled:     require.True,
+			expectFileCopying: require.True,
+		}, {
+			desc: "File copying is disabled",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["ssh_file_copy"] = false
+			},
+			expectError:       require.NoError,
+			expectEnabled:     require.True,
+			expectFileCopying: require.False,
+		}, {
+			desc:              "File copying is enabled by default",
+			mutate:            func(cfg cfgMap) {},
+			expectError:       require.NoError,
+			expectEnabled:     require.True,
+			expectFileCopying: require.True,
 		}, {
 			desc:        "AWS section is filled with defaults",
 			expectError: require.NoError,
@@ -670,6 +693,10 @@ func TestSSHSection(t *testing.T) {
 
 			if testCase.expectAllowsTCPForwarding != nil {
 				testCase.expectAllowsTCPForwarding(t, cfg.SSH.AllowTCPForwarding())
+			}
+
+			if testCase.expectFileCopying != nil {
+				testCase.expectFileCopying(t, cfg.SSH.SSHFileCopy())
 			}
 
 			if testCase.expectedAWSSection != nil {
