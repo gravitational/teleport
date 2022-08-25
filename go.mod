@@ -27,7 +27,7 @@ require (
 	github.com/cloudflare/cfssl v0.0.0-20190726000631-633726f6bcb7
 	github.com/coreos/go-oidc v2.1.0+incompatible
 	github.com/coreos/go-semver v0.3.0
-	github.com/creack/pty v1.1.11
+	github.com/creack/pty v1.1.18
 	github.com/denisenkom/go-mssqldb v0.11.0
 	github.com/duo-labs/webauthn v0.0.0-20210727191636-9f1b88ef44cc
 	github.com/dustin/go-humanize v1.0.0
