@@ -28,9 +28,9 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -44,7 +44,7 @@ type IAMConfig struct {
 	// AccessPoint is a caching client connected to the Auth Server.
 	AccessPoint auth.DatabaseAccessPoint
 	// Clients is an interface for retrieving cloud clients.
-	Clients common.CloudClients
+	Clients cloud.Clients
 	// HostID is the host identified where this agent is running.
 	// DELETE IN 11.0.
 	HostID string
@@ -61,7 +61,7 @@ func (c *IAMConfig) Check() error {
 		return trace.BadParameter("missing AccessPoint")
 	}
 	if c.Clients == nil {
-		c.Clients = common.NewCloudClients()
+		c.Clients = cloud.NewClients()
 	}
 	if c.HostID == "" {
 		return trace.BadParameter("missing HostID")
