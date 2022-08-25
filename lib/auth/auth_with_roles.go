@@ -1056,26 +1056,6 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 	return a.authServer.NewWatcher(ctx, watch)
 }
 
-// filterNodes filters nodes based off the role of the logged in user.
-func (a *ServerWithRoles) filterNodes(checker *nodeChecker, nodes []types.Server) ([]types.Server, error) {
-	// Loop over all nodes and check if the caller has access.
-	var filteredNodes []types.Server
-	for _, node := range nodes {
-		err := checker.CanAccess(node)
-		if err != nil {
-			if trace.IsAccessDenied(err) {
-				continue
-			}
-
-			return nil, trace.Wrap(err)
-		}
-
-		filteredNodes = append(filteredNodes, node)
-	}
-
-	return filteredNodes, nil
-}
-
 // DeleteAllNodes deletes all nodes in a given namespace
 func (a *ServerWithRoles) DeleteAllNodes(ctx context.Context, namespace string) error {
 	if err := a.action(namespace, types.KindNode, types.VerbDelete); err != nil {
@@ -1102,16 +1082,12 @@ func (a *ServerWithRoles) GetNode(ctx context.Context, namespace, name string) (
 		return nil, trace.Wrap(err)
 	}
 
-	checker, err := newNodeChecker(a.context, a.authServer)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	if err := a.checkAccessToNode(node); err != nil {
+		if trace.IsAccessDenied(err) {
+			return nil, trace.NotFound("not found")
+		}
 
-	// Run node through filter to check if it's for the connected identity.
-	if filteredNodes, err := a.filterNodes(checker, []types.Server{node}); err != nil {
 		return nil, trace.Wrap(err)
-	} else if len(filteredNodes) == 0 {
-		return nil, trace.NotFound("not found")
 	}
 
 	return node, nil
@@ -1130,16 +1106,19 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]typ
 	}
 	elapsedFetch := time.Since(startFetch)
 
-	checker, err := newNodeChecker(a.context, a.authServer)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Filter nodes to return the ones for the connected identity.
+	filteredNodes := make([]types.Server, 0)
 	startFilter := time.Now()
-	filteredNodes, err := a.filterNodes(checker, nodes)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	for _, node := range nodes {
+		if err := a.checkAccessToNode(node); err != nil {
+			if trace.IsAccessDenied(err) {
+				continue
+			}
+
+			return nil, trace.Wrap(err)
+		}
+
+		filteredNodes = append(filteredNodes, node)
 	}
 	elapsedFilter := time.Since(startFilter)
 
@@ -1301,57 +1280,11 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 		return r.CheckAccess(rr, mfaParams)
 	case types.WindowsDesktop:
 		return r.CheckAccess(rr, mfaParams)
+	case types.Server:
+		return r.CheckAccess(rr, mfaParams)
 	default:
 		return trace.BadParameter("could not check access to resource type %T", r)
 	}
-}
-
-// nodeChecker is a resourceAccessChecker that checks for access to nodes
-type nodeChecker struct {
-	accessChecker services.AccessChecker
-	builtinRole   bool
-}
-
-// newNodeChecker returns a new nodeChecker that checks access to nodes with the
-// the provided user if necessary. This prevents the need to load the role set each time
-// a node is checked.
-func newNodeChecker(authContext Context, authServer *Server) (*nodeChecker, error) {
-	// For certain built-in roles, continue to allow full access and return
-	// the full set of nodes to not break existing clusters during migration.
-	//
-	// In addition, allow proxy (and remote proxy) to access all nodes for its
-	// smart resolution address resolution. Once the smart resolution logic is
-	// moved to the auth server, this logic can be removed.
-	builtinRole := HasBuiltinRole(authContext, string(types.RoleAdmin)) ||
-		HasBuiltinRole(authContext, string(types.RoleProxy)) ||
-		HasRemoteBuiltinRole(authContext, string(types.RoleRemoteProxy))
-
-	return &nodeChecker{
-		accessChecker: authContext.Checker,
-		builtinRole:   builtinRole,
-	}, nil
-}
-
-// CanAccess checks if the user has access to the node
-func (n *nodeChecker) CanAccess(resource types.Resource) error {
-	server, ok := resource.(types.Server)
-	if !ok {
-		return trace.BadParameter("unexpected resource type %T", resource)
-	}
-
-	if n.builtinRole {
-		return nil
-	}
-
-	// Check if we can access the node with any of our possible logins.
-	for _, login := range n.accessChecker.GetAllLogins() {
-		err := n.accessChecker.CheckAccess(server, services.AccessMFAParams{Verified: true}, services.NewLoginMatcher(login))
-		if err == nil {
-			return nil
-		}
-	}
-
-	return trace.AccessDenied("access to node %q denied", server.GetHostname())
 }
 
 // kubeChecker is a resourceAccessChecker that checks for access to kubernetes services
@@ -1423,10 +1356,8 @@ func (k *kubeChecker) CanAccess(resource types.Resource) error {
 // newResourceAccessChecker creates a resourceAccessChecker for the provided resource type
 func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAccessChecker, error) {
 	switch resource {
-	case types.KindAppServer, types.KindDatabaseServer, types.KindWindowsDesktop:
+	case types.KindAppServer, types.KindDatabaseServer, types.KindWindowsDesktop, types.KindNode:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
-	case types.KindNode:
-		return newNodeChecker(a.context, a.authServer)
 	case types.KindKubeService:
 		return newKubeChecker(a.context), nil
 	default:
@@ -4519,6 +4450,27 @@ func (a *ServerWithRoles) DeleteAllApps(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func (a *ServerWithRoles) checkAccessToNode(node types.Server) error {
+	// For certain built-in roles, continue to allow full access and return
+	// the full set of nodes to not break existing clusters during migration.
+	//
+	// In addition, allow proxy (and remote proxy) to access all nodes for its
+	// smart resolution address resolution. Once the smart resolution logic is
+	// moved to the auth server, this logic can be removed.
+	builtinRole := HasBuiltinRole(a.context, string(types.RoleAdmin)) ||
+		HasBuiltinRole(a.context, string(types.RoleProxy)) ||
+		HasRemoteBuiltinRole(a.context, string(types.RoleRemoteProxy))
+
+	if builtinRole {
+		return nil
+	}
+
+	return a.context.Checker.CheckAccess(node,
+		// MFA is not required for operations on node resources but
+		// will be enforced at the connection time.
+		services.AccessMFAParams{Verified: true})
 }
 
 func (a *ServerWithRoles) checkAccessToDatabase(database types.Database) error {
