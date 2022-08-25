@@ -128,9 +128,6 @@ const (
 	// sessionIDDocProperty is used internally to query for records and matches the key in the event struct tag
 	sessionIDDocProperty = "sessionID"
 
-	// eventIndexDocProperty is used internally to query for records and matches the key in the event struct tag
-	eventIndexDocProperty = "eventIndex"
-
 	// createdAtDocProperty is used internally to query for records and matches the key in the event struct tag
 	createdAtDocProperty = "createdAt"
 
