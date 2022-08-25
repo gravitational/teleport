@@ -41,6 +41,7 @@ RUNTIME_ARCH := $(RUNTIME_ARCH_$(HOST_ARCH))
 # Newer version of protoc have removed JS support that breaks our Teleterm build.
 # Related issue: https://github.com/protocolbuffers/protobuf-javascript/issues/105
 PROTOC_VER ?= 3.20.1
+# Keep in sync with api/proto/buf.yaml (and buf.lock).
 GOGO_PROTO_TAG ?= v1.3.2
 
 BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:$(BUILDBOX_VERSION)
