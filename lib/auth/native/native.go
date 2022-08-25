@@ -20,6 +20,8 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"strings"
 	"sync"
@@ -55,11 +57,24 @@ var startPrecomputeOnce sync.Once
 
 // GenerateKeyPair generates a new RSA key pair.
 func GenerateKeyPair() ([]byte, []byte, error) {
-	priv, err := GeneratePrivateKey()
+	priv, err := getOrGenerateRSAPrivateKey()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	return priv.PrivateKeyPEM(), priv.MarshalSSHPublicKey(), nil
+
+	privPEM := pem.EncodeToMemory(&pem.Block{
+		Type:    "RSA PRIVATE KEY",
+		Headers: nil,
+		Bytes:   x509.MarshalPKCS1PrivateKey(priv),
+	})
+
+	pub, err := ssh.NewPublicKey(&priv.PublicKey)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	pubPEM := ssh.MarshalAuthorizedKey(pub)
+
+	return privPEM, pubPEM, nil
 }
 
 // GeneratePrivateKey generates a new RSA private key.
