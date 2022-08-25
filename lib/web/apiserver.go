@@ -534,6 +534,7 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	h.GET("/scripts/:token/install-app.sh", httplib.MakeHandler(h.getAppJoinScriptHandle))
 	// web context
 	h.GET("/webapi/sites/:site/context", h.WithClusterAuth(h.getUserContext))
+	h.GET("/webapi/sites/:site/resources/check", h.WithClusterAuth(h.checkAccessToRegisteredResource))
 
 	// Database access handlers.
 	h.GET("/webapi/sites/:site/databases", h.WithClusterAuth(h.clusterDatabasesGet))
@@ -2444,6 +2445,22 @@ func queryLimit(query url.Values, name string, def int) (int, error) {
 		return 0, trace.BadParameter("failed to parse %v as limit: %v", name, str)
 	}
 	return limit, nil
+}
+
+// queryLimitAsInt32 returns the limit parameter with the specified name from the
+// query string. Similar to function 'queryLimit' except it returns as type int32.
+//
+// If there's no such parameter, specified default limit is returned.
+func queryLimitAsInt32(query url.Values, name string, def int32) (int32, error) {
+	str := query.Get(name)
+	if str == "" {
+		return def, nil
+	}
+	limit, err := strconv.ParseInt(str, 10, 32)
+	if err != nil {
+		return 0, trace.BadParameter("failed to parse %v as limit: %v", name, str)
+	}
+	return int32(limit), nil
 }
 
 // queryOrder returns the order parameter with the specified name from the

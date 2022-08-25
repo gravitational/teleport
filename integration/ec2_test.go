@@ -457,19 +457,5 @@ func TestEC2Hostname(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, proc.Start())
 	t.Cleanup(func() { require.NoError(t, proc.Close()) })
-
-	ctx := context.Background()
-	authServer := proc.GetAuthServer()
-	var node types.Server
-	require.Eventually(t, func() bool {
-		nodes, err := authServer.GetNodes(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
-		if len(nodes) == 1 {
-			node = nodes[0]
-			return true
-		}
-		return false
-	}, 10*time.Second, time.Second)
-
-	require.Equal(t, teleportHostname, node.GetHostname())
+	require.Equal(t, teleportHostname, proc.Config.Hostname)
 }
