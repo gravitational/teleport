@@ -1115,12 +1115,16 @@ func TestUsersCRUD(t *testing.T) {
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
 
+	usr, err := types.NewUser("user1")
+	require.NoError(t, err)
+	require.NoError(t, clt.CreateUser(ctx, usr))
+
 	users, err := clt.GetUsers(false)
 	require.NoError(t, err)
 	require.Equal(t, len(users), 1)
 	require.Equal(t, users[0].GetName(), "user1")
 
-	require.NoError(t, clt.DeleteUser(context.TODO(), "user1"))
+	require.NoError(t, clt.DeleteUser(ctx, "user1"))
 
 	users, err = clt.GetUsers(false)
 	require.NoError(t, err)
