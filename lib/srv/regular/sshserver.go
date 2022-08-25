@@ -1054,11 +1054,13 @@ func (s *Server) getServerResource() (types.Resource, error) {
 	return s.getServerInfo(), nil
 }
 
-func (s *Server) filterExistingNodes(instances *server.EC2Instances) (*server.EC2Instances, error) {
-	nodes, err := s.authService.GetNodes(s.ctx, s.GetNamespace())
-	if err != nil {
-		log.WithError(err).Error("Error creating instances cache")
-	}
+func (s *Server) filterExistingNodes(instances *server.EC2Instances) {
+	nodes := s.nodeWatcher.GetNodes(func(n services.Node) bool {
+		labels := n.GetAllLabels()
+		_, accountOK := labels[types.AWSAccountIDLabel]
+		_, instanceOK := labels[types.AWSInstanceIDLabel]
+		return accountOK && instanceOK
+	})
 
 	var filtered []*ec2.Instance
 outer:
@@ -1075,7 +1077,6 @@ outer:
 		filtered = append(filtered, inst)
 	}
 	instances.Instances = filtered
-	return instances, nil
 }
 
 func (s *Server) handleInstances(instances *server.EC2Instances) error {
@@ -1083,11 +1084,8 @@ func (s *Server) handleInstances(instances *server.EC2Instances) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	filteredInstances, err := s.filterExistingNodes(instances)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if len(filteredInstances.Instances) == 0 {
+	s.filterExistingNodes(instances)
+	if len(instances.Instances) == 0 {
 		log.Debugf("All fetched nodes already enrolled.")
 		return nil
 	}
@@ -1095,10 +1093,10 @@ func (s *Server) handleInstances(instances *server.EC2Instances) error {
 	req := server.SSMRunRequest{
 		DocumentName: instances.DocumentName,
 		SSM:          client,
-		Instances:    filteredInstances.Instances,
-		Params:       filteredInstances.Parameters,
-		Region:       filteredInstances.Region,
-		AccountID:    filteredInstances.AccountID,
+		Instances:    instances.Instances,
+		Params:       instances.Parameters,
+		Region:       instances.Region,
+		AccountID:    instances.AccountID,
 	}
 	return trace.Wrap(s.ec2Installer.Run(s.ctx, req))
 }
@@ -1116,6 +1114,7 @@ func (s *Server) handleEC2Discovery() {
 				}
 			}
 		case <-s.ctx.Done():
+			s.cloudWatcher.Stop()
 		}
 	}
 }
