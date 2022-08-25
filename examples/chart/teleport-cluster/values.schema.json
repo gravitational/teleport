@@ -232,7 +232,7 @@
                 "image": {
                     "$id": "#/properties/operator/properties/image",
                     "type": "string",
-                    "default": "quay.io/gravitational/teleport-operator"
+                    "default": "public.ecr.aws/gravitational/teleport-operator"
                 },
                 "resources": {
                     "$id": "#/properties/operator/properties/resources",
@@ -560,12 +560,12 @@
         "image": {
             "$id": "#/properties/image",
             "type": "string",
-            "default": "quay.io/gravitational/teleport"
+            "default": "public.ecr.aws/gravitational/teleport"
         },
         "enterpriseImage": {
             "$id": "#/properties/enterpriseImage",
             "type": "string",
-            "default": "quay.io/gravitational/teleport-ent"
+            "default": "public.ecr.aws/gravitational/teleport-ent"
         },
         "logLevel": {
             "$id": "#/properties/logLevel",

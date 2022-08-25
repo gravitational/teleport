@@ -8,6 +8,11 @@ HOSTNAME=buildbox
 SRCDIR=/go/src/github.com/gravitational/teleport
 GOMODCACHE ?= /tmp/gomodcache
 DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e GOMODCACHE=$(GOMODCACHE)
+
+# delete after webapps migration to teleport
+WEBAPPSSRCDIR=/go/src/github.com/gravitational/webapps
+WEBAPPSDOCKERFLAGS := $(DOCKERFLAGS) -v "$$(pwd)/../../webapps":$(WEBAPPSSRCDIR)
+
 ADDFLAGS ?=
 BATSFLAGS :=
 NOROOT=-u $$(id -u):$$(id -g)
@@ -236,6 +241,24 @@ buildbox-teleterm: buildbox
 		--cache-from $(BUILDBOX_TELETERM) \
 		--tag $(BUILDBOX_TELETERM) -f Dockerfile-teleterm .
 
+
+CONNECT_VERSION ?= $(VERSION)
+ifeq ($(CONNECT_VERSION),)
+CONNECT_VERSION := $(BUILDBOX_VERSION)-dev
+endif
+
+#
+# Builds Teleport Connect inside the buildbox-teleterm container.
+#
+#   Note: this assumes that gravitational/webapps already exists on the filesystem
+#         and is a sibling directory to Teleport. This is temporary and will be
+#         resolved when the webapps code is moved into this repository.
+#
+.PHONY:teleterm
+teleterm: buildbox-teleterm
+	docker run $(WEBAPPSDOCKERFLAGS) $(NOROOT) $(BUILDBOX_TELETERM) \
+		bash -c "cd ../webapps && export CONNECT_TSH_BIN_PATH=\$$PWD/../teleport/build/tsh && yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$(CONNECT_VERSION)"
+
 # grpc generates GRPC stubs from inside the buildbox
 .PHONY: grpc
 grpc: buildbox
@@ -353,6 +376,15 @@ enter-root: buildbox
 enter/centos7: buildbox
 	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_CENTOS7) /bin/bash
+
+#
+# Starts shell inside the teleterm container
+#
+.PHONY:enter/teleterm
+enter/teleterm: buildbox-teleterm
+	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
+		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_TELETERM) /bin/bash
+
 #
 # Create a Teleport package using the build container.
 # Don't use this target directly; call named Makefile targets like release-amd64.
