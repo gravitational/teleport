@@ -195,6 +195,7 @@ function Convert-Base64 {
     )
     begin {
         $bytes = [Convert]::FromBase64String($Data)
-        Set-Content -Path $FilePath -Value $bytes -AsByteStream
+        [io.file]::WriteAllBytes($FilePath, $bytes)
+        Get-Item $FilePath
     }
 }
