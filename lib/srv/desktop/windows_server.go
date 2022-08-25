@@ -185,6 +185,8 @@ type LDAPConfig struct {
 	Username string
 	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool
+	// ServerName is the name of the LDAP server for TLS.
+	ServerName string
 	// CA is an optional CA cert to be used for verification if InsecureSkipVerify is set to false.
 	CA *x509.Certificate
 }
@@ -320,7 +322,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	// authenticate with LDAP when the LDAP server name is not correct
 	// in the certificate).
 	if cfg.LDAPConfig.CA != nil && cfg.LDAPConfig.InsecureSkipVerify {
-		cfg.Log.Warn("LDAP configuration specifies both der_ca_file or pem_ca_cert and insecure_skip_verify." +
+		cfg.Log.Warn("LDAP configuration specifies both a CA certificate and insecure_skip_verify." +
 			"TLS connections to the LDAP server will not be verified. If this is intentional, disregard this warning.")
 	}
 
@@ -482,6 +484,7 @@ func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 			},
 		},
 		InsecureSkipVerify: s.cfg.InsecureSkipVerify,
+		ServerName:         s.cfg.ServerName,
 	}
 
 	if s.cfg.CA != nil {
