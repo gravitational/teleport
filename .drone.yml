@@ -2132,9 +2132,12 @@ steps:
 - name: Build artifacts
   image: docker
   commands:
-  - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache bash curl gzip make tar go
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
+  - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - mkdir -m0700 $GNUPG_DIR
   - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPG_DIR
   - chown -R root:root $GNUPG_DIR
@@ -2144,6 +2147,10 @@ steps:
   - rm -rf $GNUPG_DIR
   environment:
     ARCH: amd64
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     GNUPG_DIR: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
@@ -2319,9 +2326,12 @@ steps:
 - name: Build artifacts
   image: docker
   commands:
-  - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache bash curl gzip make tar go
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
+  - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - mkdir -m0700 $GNUPG_DIR
   - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPG_DIR
   - chown -R root:root $GNUPG_DIR
@@ -2331,6 +2341,10 @@ steps:
   - rm -rf $GNUPG_DIR
   environment:
     ARCH: amd64
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     FIPS: "yes"
     GNUPG_DIR: /tmpfs/gnupg
@@ -2505,11 +2519,18 @@ steps:
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
+  - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - make deb
   environment:
     ARCH: amd64
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     OSS_TARBALL_PATH: /go/artifacts
     TMPDIR: /go
@@ -2673,11 +2694,18 @@ steps:
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
+  - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - make -C e deb
   environment:
     ARCH: amd64
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     FIPS: "yes"
     RUNTIME: fips
@@ -2997,9 +3025,12 @@ steps:
 - name: Build artifacts
   image: docker
   commands:
-  - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache bash curl gzip make tar go
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
+  - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - mkdir -m0700 $GNUPG_DIR
   - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPG_DIR
   - chown -R root:root $GNUPG_DIR
@@ -3007,6 +3038,10 @@ steps:
   - rm -rf $GNUPG_DIR
   environment:
     ARCH: "386"
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     GNUPG_DIR: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
@@ -3182,11 +3217,18 @@ steps:
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
+  - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - make deb
   environment:
     ARCH: "386"
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     OSS_TARBALL_PATH: /go/artifacts
     TMPDIR: /go
@@ -4229,11 +4271,18 @@ steps:
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
+  - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - make deb
   environment:
     ARCH: arm64
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     OSS_TARBALL_PATH: /go/artifacts
     TMPDIR: /go
@@ -4399,11 +4448,18 @@ steps:
   image: docker
   commands:
   - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
+  - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - make deb
   environment:
     ARCH: arm
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     OSS_TARBALL_PATH: /go/artifacts
     TMPDIR: /go
@@ -4568,9 +4624,12 @@ steps:
 - name: Build artifacts
   image: docker
   commands:
-  - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache bash curl gzip make tar go
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
+  - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - mkdir -m0700 $GNUPG_DIR
   - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPG_DIR
   - chown -R root:root $GNUPG_DIR
@@ -4578,6 +4637,10 @@ steps:
   - rm -rf $GNUPG_DIR
   environment:
     ARCH: arm64
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     GNUPG_DIR: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
@@ -4752,9 +4815,12 @@ steps:
 - name: Build artifacts
   image: docker
   commands:
-  - apk add --no-cache bash curl gzip make tar
+  - apk add --no-cache bash curl gzip make tar go
+  - apk add --no-cache aws-cli
   - cd /go/src/github.com/gravitational/teleport
   - export VERSION=$(cat /go/.version.txt)
+  - aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin
+    public.ecr.aws
   - mkdir -m0700 $GNUPG_DIR
   - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPG_DIR
   - chown -R root:root $GNUPG_DIR
@@ -4762,6 +4828,10 @@ steps:
   - rm -rf $GNUPG_DIR
   environment:
     ARCH: arm
+    AWS_ACCESS_KEY_ID:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
     ENT_TARBALL_PATH: /go/artifacts
     GNUPG_DIR: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
@@ -5560,7 +5630,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:270
+# Generated at dronegen/os_repos.go:254
 ################################################
 
 kind: pipeline
@@ -5588,7 +5658,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:294
+# Generated at dronegen/os_repos.go:278
 ################################################
 
 kind: pipeline
@@ -5617,16 +5687,21 @@ steps:
 - name: Check out code
   image: alpine/git:latest
   commands:
-  - mkdir -p "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
-  - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
-  - git checkout "${DRONE_TAG}"
+  - git init && git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin
+  - git checkout -qf "${DRONE_TAG}"
+  depends_on:
+  - Verify build is tagged
 - name: Check if tag is prerelease
-  image: golang:1.17-alpine
+  image: golang:1.18-alpine
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not publishing ${DRONE_TAG} packages to APT repos' && exit 78)
+    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
+  depends_on:
+  - Check out code
 - name: Download artifacts for "${DRONE_TAG}"
   image: amazon/aws-cli
   commands:
@@ -5697,7 +5772,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:270
+# Generated at dronegen/os_repos.go:254
 ################################################
 
 kind: pipeline
@@ -5725,7 +5800,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go:294
+# Generated at dronegen/os_repos.go:278
 ################################################
 
 kind: pipeline
@@ -5754,16 +5829,21 @@ steps:
 - name: Check out code
   image: alpine/git:latest
   commands:
-  - mkdir -p "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
-  - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
-  - git checkout "${DRONE_TAG}"
+  - git init && git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin
+  - git checkout -qf "${DRONE_TAG}"
+  depends_on:
+  - Verify build is tagged
 - name: Check if tag is prerelease
-  image: golang:1.17-alpine
+  image: golang:1.18-alpine
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not publishing ${DRONE_TAG} packages to APT repos' && exit 78)
+    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
+  depends_on:
+  - Check out code
 - name: Download artifacts for "${DRONE_TAG}"
   image: amazon/aws-cli
   commands:
@@ -6346,6 +6426,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: bcffb921c144571b920a7df5db495b22572f63dc4d22b18d98851af5e4f1a844
+hmac: 59f167d9b1f788b25d73251034a1090ce777094cd34bf20687cad8d4f949520d
 
 ...
