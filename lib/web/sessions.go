@@ -611,11 +611,12 @@ func (s *sessionCache) GetCertificateWithoutOTP(
 			},
 			ClientMetadata: clientMeta,
 		},
-		PublicKey:         c.PubKey,
-		CompatibilityMode: c.Compatibility,
-		TTL:               c.TTL,
-		RouteToCluster:    c.RouteToCluster,
-		KubernetesCluster: c.KubernetesCluster,
+		PublicKey:          c.PubKey,
+		CompatibilityMode:  c.Compatibility,
+		TTL:                c.TTL,
+		RouteToCluster:     c.RouteToCluster,
+		KubernetesCluster:  c.KubernetesCluster,
+		AttestationRequest: c.AttestationRequest,
 	})
 }
 
@@ -633,11 +634,12 @@ func (s *sessionCache) GetCertificateWithOTP(
 			},
 			ClientMetadata: clientMeta,
 		},
-		PublicKey:         c.PubKey,
-		CompatibilityMode: c.Compatibility,
-		TTL:               c.TTL,
-		RouteToCluster:    c.RouteToCluster,
-		KubernetesCluster: c.KubernetesCluster,
+		PublicKey:          c.PubKey,
+		CompatibilityMode:  c.Compatibility,
+		TTL:                c.TTL,
+		RouteToCluster:     c.RouteToCluster,
+		KubernetesCluster:  c.KubernetesCluster,
+		AttestationRequest: c.AttestationRequest,
 	})
 }
 
@@ -667,6 +669,7 @@ func (s *sessionCache) AuthenticateSSHUser(
 		TTL:                     c.TTL,
 		RouteToCluster:          c.RouteToCluster,
 		KubernetesCluster:       c.KubernetesCluster,
+		AttestationRequest:      c.AttestationRequest,
 	})
 }
 

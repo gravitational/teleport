@@ -21,6 +21,7 @@ import (
 	"crypto"
 	"errors"
 
+	attestation "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
 	"github.com/gravitational/trace"
 )
 
@@ -31,5 +32,9 @@ func GetOrGenerateYubiKeyPrivateKey(ctx context.Context, touchRequired bool) (*P
 }
 
 func parseYubiKeyPrivateKeyData(keyDataBytes []byte) (crypto.Signer, error) {
+	return nil, trace.Wrap(errPIVUnavailable)
+}
+
+func attestYubikey(req *attestation.YubiKeyAttestationRequest) (*AttestationResponse, error) {
 	return nil, trace.Wrap(errPIVUnavailable)
 }
