@@ -30,7 +30,7 @@ type Signer interface {
 	crypto.Signer
 
 	// PrivateKeyPEM returns PEM encoded private key data. This may be data necessary
-	// to retrieve the key, such as a Yubikey serial number and slot, or it can be a
+	// to retrieve the key, such as a YubiKey serial number and slot, or it can be a
 	// PKCS marshaled private key.
 	//
 	// The resulting PEM encoded data should only be decoded with ParsePrivateKey to
