@@ -439,7 +439,6 @@ impl Client {
                                     return cli.tdp_sd_create(
                                         rdp_req,
                                         FileType::Directory,
-                                        res.fso,
                                     );
                                 } else {
                                     // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L258
@@ -459,9 +458,9 @@ impl Client {
                         flags::CreateDisposition::FILE_SUPERSEDE => {
                             // If the file already exists, replace it with the given file. If it does not, create the given file.
                             if res.err_code == TdpErrCode::Nil {
-                                return cli.tdp_sd_overwrite(rdp_req, res.fso);
+                                return cli.tdp_sd_overwrite(rdp_req);
                             } else if res.err_code == TdpErrCode::DoesNotExist {
-                                return cli.tdp_sd_create(rdp_req, FileType::File, res.fso);
+                                return cli.tdp_sd_create(rdp_req, FileType::File);
                             }
                         }
                         flags::CreateDisposition::FILE_OPEN => {
@@ -494,7 +493,7 @@ impl Client {
                                     0,
                                 );
                             } else if res.err_code == TdpErrCode::DoesNotExist {
-                                return cli.tdp_sd_create(rdp_req, FileType::File, res.fso);
+                                return cli.tdp_sd_create(rdp_req, FileType::File);
                             }
                         }
                         flags::CreateDisposition::FILE_OPEN_IF => {
@@ -511,13 +510,13 @@ impl Client {
                                     file_id,
                                 );
                             } else if res.err_code == TdpErrCode::DoesNotExist {
-                                return cli.tdp_sd_create(rdp_req, FileType::File, res.fso);
+                                return cli.tdp_sd_create(rdp_req, FileType::File);
                             }
                         }
                         flags::CreateDisposition::FILE_OVERWRITE => {
                             // If the file already exists, open it and overwrite it. If it does not, fail the request.
                             if res.err_code == TdpErrCode::Nil {
-                                return cli.tdp_sd_overwrite(rdp_req, res.fso);
+                                return cli.tdp_sd_overwrite(rdp_req);
                             } else if res.err_code == TdpErrCode::DoesNotExist {
                                 return cli.prep_device_create_response(
                                     &rdp_req,
@@ -529,9 +528,9 @@ impl Client {
                         flags::CreateDisposition::FILE_OVERWRITE_IF => {
                             // If the file already exists, open it and overwrite it. If it does not, create the given file.
                             if res.err_code == TdpErrCode::Nil {
-                                return cli.tdp_sd_overwrite(rdp_req, res.fso);
+                                return cli.tdp_sd_overwrite(rdp_req);
                             } else if res.err_code == TdpErrCode::DoesNotExist {
-                                return cli.tdp_sd_create(rdp_req, FileType::File, res.fso);
+                                return cli.tdp_sd_create(rdp_req, FileType::File);
                             }
                         }
                         _ => {
@@ -776,6 +775,7 @@ impl Client {
         payload: &mut Payload,
     ) -> RdpResult<Vec<Vec<u8>>> {
         let rdp_req = ServerDriveSetInformationRequest::decode(device_io_request, payload)?;
+        debug!("received RDP: {:?}", rdp_req);
 
         match rdp_req.file_information_class_level {
             FileInformationClassLevel::FileRenameInformation => match rdp_req.set_buffer {
@@ -786,6 +786,21 @@ impl Client {
                     "FileInformationClass does not match FileInformationClassLevel",
                 )),
             },
+            FileInformationClassLevel::FileDispositionInformation => match rdp_req.set_buffer {
+                FileInformationClass::FileDispositionInformation(ref info) => {
+                    if let Some(file) = self.file_cache.get_mut(rdp_req.device_io_request.file_id) {
+                        file.delete_pending = info.delete_pending == 1;
+                        return self.prep_set_info_response(&rdp_req, NTSTATUS::STATUS_SUCCESS);
+                    }
+
+                    // File not found in cache
+                    self.prep_set_info_response(&rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL)
+                }
+                _ => Err(invalid_data_error(
+                    "FileInformationClass does not match FileInformationClassLevel",
+                )),
+
+            },
             FileInformationClassLevel::FileBasicInformation
             | FileInformationClassLevel::FileEndOfFileInformation
             | FileInformationClassLevel::FileAllocationInformation => {
@@ -795,9 +810,7 @@ impl Client {
                 self.prep_set_info_response(&rdp_req, NTSTATUS::STATUS_SUCCESS)
             }
 
-            // TODO(isaiah) or TODO(lkozlowski): implement FileDispositionInformation as is the case in FreeRDP.
-            // Remove the #[allow(clippy::wildcard_in_or_patterns)] macro above this function once completed.
-            FileInformationClassLevel::FileDispositionInformation | _ => {
+            _ => {
                 Err(not_implemented_error(&format!(
                     "support for ServerDriveSetInformationRequest with fs_info_class_lvl = {:?} is not implemented",
                     rdp_req.file_information_class_level
@@ -1189,7 +1202,6 @@ impl Client {
         &mut self,
         rdp_req: DeviceCreateRequest,
         file_type: FileType,
-        fso: FileSystemObject,
     ) -> RdpResult<Vec<Vec<u8>>> {
         let tdp_req = SharedDirectoryCreateRequest {
             completion_id: rdp_req.device_io_request.completion_id,
@@ -1216,7 +1228,7 @@ impl Client {
                     let file_id = cli.generate_file_id();
                     cli.file_cache.insert(
                         file_id,
-                        FileCacheObject::new(UnixPath::from(&rdp_req.path), fso),
+                        FileCacheObject::new(UnixPath::from(&rdp_req.path), res.fso),
                     );
                     cli.prep_device_create_response(&rdp_req, NTSTATUS::STATUS_SUCCESS, file_id)
                 },
@@ -1228,11 +1240,7 @@ impl Client {
     /// Helper function for combining a TDP SharedDirectoryDeleteRequest
     /// with a TDP SharedDirectoryCreateRequest to overwrite a file, based
     /// on an RDP DeviceCreateRequest.
-    fn tdp_sd_overwrite(
-        &mut self,
-        rdp_req: DeviceCreateRequest,
-        fso: FileSystemObject,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+    fn tdp_sd_overwrite(&mut self, rdp_req: DeviceCreateRequest) -> RdpResult<Vec<Vec<u8>>> {
         let tdp_req = SharedDirectoryDeleteRequest {
             completion_id: rdp_req.device_io_request.completion_id,
             directory_id: rdp_req.device_io_request.device_id,
@@ -1244,7 +1252,7 @@ impl Client {
             Box::new(
                 |cli: &mut Self, res: SharedDirectoryDeleteResponse| -> RdpResult<Vec<Vec<u8>>> {
                     match res.err_code {
-                        TdpErrCode::Nil => cli.tdp_sd_create(rdp_req, FileType::File, fso),
+                        TdpErrCode::Nil => cli.tdp_sd_create(rdp_req, FileType::File),
                         _ => cli.prep_device_create_response(
                             &rdp_req,
                             NTSTATUS::STATUS_UNSUCCESSFUL,
@@ -2427,6 +2435,7 @@ impl FileInformationClass {
 
     fn decode(
         file_information_class_level: &FileInformationClassLevel,
+        length: u32,
         payload: &mut Payload,
     ) -> RdpResult<Self> {
         match file_information_class_level {
@@ -2440,7 +2449,7 @@ impl FileInformationClass {
             }
             FileInformationClassLevel::FileDispositionInformation => {
                 Ok(FileInformationClass::FileDispositionInformation(
-                    FileDispositionInformation::decode(payload)?,
+                    FileDispositionInformation::decode(payload, length)?,
                 ))
             }
             FileInformationClassLevel::FileRenameInformation => {
@@ -2849,8 +2858,9 @@ impl FileDispositionInformation {
         Ok(w)
     }
 
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
-        let delete_pending = payload.read_u8()?;
+    fn decode(payload: &mut Payload, length: u32) -> RdpResult<Self> {
+        // https://github.com/FreeRDP/FreeRDP/blob/dfa231c0a55b005af775b833f92f6bcd30363d77/channels/drive/client/drive_file.c#L684-L692
+        let delete_pending = if length != 0 { payload.read_u8()? } else { 1 };
         Ok(Self { delete_pending })
     }
 
@@ -3397,7 +3407,6 @@ impl DeviceReadRequest {
 
 /// 2.2.1.5.3 Device Read Response (DR_READ_RSP)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/d35d3f91-fc5b-492b-80be-47f483ad1dc9
-#[derive(Debug)]
 struct DeviceReadResponse {
     /// The CompletionId field of this header MUST match a Device I/O Request (section 2.2.1.4) message that had the MajorFunction field set to IRP_MJ_READ.
     device_io_reply: DeviceIoResponse,
@@ -3405,6 +3414,16 @@ struct DeviceReadResponse {
     length: u32,
     /// A variable-length array of bytes that specifies the output data from the read request.
     read_data: Vec<u8>,
+}
+
+impl std::fmt::Debug for DeviceReadResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DeviceReadResponse")
+            .field("device_io_reply", &self.device_io_reply)
+            .field("length", &self.length)
+            .field("read_data", &util::vec_u8_debug(&self.read_data))
+            .finish()
+    }
 }
 
 impl DeviceReadResponse {
@@ -3436,7 +3455,7 @@ impl DeviceReadResponse {
 
 /// 2.2.1.4.4 Device Write Request (DR_WRITE_REQ)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/2e25f0aa-a4ce-4ff3-ad62-ab6098280a3a
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct DeviceWriteRequest {
     /// The MajorFunction field in this header MUST be set to IRP_MJ_WRITE.
     pub device_io_request: DeviceIoRequest,
@@ -3446,6 +3465,17 @@ pub struct DeviceWriteRequest {
     pub offset: u64,
     /// Data to be written on the target device.
     pub write_data: Vec<u8>,
+}
+
+impl std::fmt::Debug for DeviceWriteRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DeviceWriteRequest")
+            .field("device_io_request", &self.device_io_request)
+            .field("length", &self.length)
+            .field("offset", &self.offset)
+            .field("write_data", &util::vec_u8_debug(&self.write_data))
+            .finish()
+    }
 }
 
 impl DeviceWriteRequest {
@@ -3560,14 +3590,14 @@ impl ServerDriveSetInformationRequest {
             }
         };
 
-        // length, u32
-        payload.seek(SeekFrom::Current(4))?;
+        let length = payload.read_u32::<LittleEndian>()?;
 
         // There is a padding of 24 bytes between offset and write data so we
         // must ignore it
         payload.seek(SeekFrom::Current(24))?;
 
-        let set_buffer = FileInformationClass::decode(&file_information_class_level, payload)?;
+        let set_buffer =
+            FileInformationClass::decode(&file_information_class_level, length, payload)?;
 
         Ok(Self {
             device_io_request,

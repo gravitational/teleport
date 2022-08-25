@@ -462,6 +462,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 			Addr:        Host,
 		},
 	}
+	tconf.SSH.AllowFileCopying = true
 	tconf.Auth.ListenAddr.Addr = i.Auth
 	tconf.Auth.PublicAddrs = []utils.NetAddr{
 		{
