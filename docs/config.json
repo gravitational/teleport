@@ -603,6 +603,10 @@
             {
               "title": "Host User Creation",
               "slug": "/server-access/guides/host-user-creation/"
+            },
+            {
+              "title": "EC2 Instance Discovery",
+              "slug": "/server-access/guides/ec2-discovery/"
             }
           ]
         }

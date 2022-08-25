@@ -768,6 +768,31 @@ kubernetes_service:
       command: ['curl', 'http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name', '-H', 'Metadata-Flavor: Google']
       period: 1m0s
 
+## This section configures the 'discovery service'
+discovery_service:
+    enabled: yes
+    aws:
+       # AWS resource types. Valid options are:
+       # 'ec2 - discovers and registers AWS EC2 instances
+     - types: ["ec2"]
+       # AWS regions to register EC2 instances from
+       regions: ["eu-central-1"]
+       # AWS resource tags to match when registering EC2 instances
+       tags:
+         "*": "*"
+       # install is used to provide parameters to the AWS SSM Document
+       install:
+         join_params:
+           # token_name is the name of the Teleport invite token to use.
+           token_name:  "aws-discovery-iam-token"
+         # script_name is the name of the Teleport install script to use.
+         script_name: "default-installer"
+       # ssm is used to configure which AWS SSM document to use
+       ssm:
+         # document_name is the name of the SSM document that should be
+         # executed when installing teleport on matching nodes
+         document_name: "TeleportDiscoveryInstaller"
+
 # This section configures the 'database service'.
 (!docs/pages/includes/database-access/database-config.yaml!)
 
