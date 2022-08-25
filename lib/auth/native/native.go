@@ -20,8 +20,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"strings"
 	"sync"
@@ -57,29 +55,16 @@ var startPrecomputeOnce sync.Once
 
 // GenerateKeyPair generates a new RSA key pair.
 func GenerateKeyPair() ([]byte, []byte, error) {
-	priv, err := generateRSAPrivateKey()
+	priv, err := GeneratePrivateKey()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-
-	privPEM := pem.EncodeToMemory(&pem.Block{
-		Type:    "RSA PRIVATE KEY",
-		Headers: nil,
-		Bytes:   x509.MarshalPKCS1PrivateKey(priv),
-	})
-
-	pub, err := ssh.NewPublicKey(&priv.PublicKey)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	pubPEM := ssh.MarshalAuthorizedKey(pub)
-
-	return privPEM, pubPEM, nil
+	return priv.PrivateKeyPEM(), priv.MarshalSSHPublicKey(), nil
 }
 
 // GeneratePrivateKey generates a new RSA private key.
 func GeneratePrivateKey() (*keys.PrivateKey, error) {
-	rsaKey, err := generateRSAPrivateKey()
+	rsaKey, err := getOrGenerateRSAPrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -90,7 +75,7 @@ func GeneratePrivateKey() (*keys.PrivateKey, error) {
 	return keys.NewPrivateKey(rsaSigner)
 }
 
-func generateRSAPrivateKey() (*rsa.PrivateKey, error) {
+func getOrGenerateRSAPrivateKey() (*rsa.PrivateKey, error) {
 	select {
 	case k := <-precomputedKeys:
 		return k, nil
@@ -101,6 +86,10 @@ func generateRSAPrivateKey() (*rsa.PrivateKey, error) {
 		}
 		return rsaKeyPair, nil
 	}
+}
+
+func generateRSAPrivateKey() (*rsa.PrivateKey, error) {
+	return rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 }
 
 func precomputeKeys() {
