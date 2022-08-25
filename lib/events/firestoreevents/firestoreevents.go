@@ -123,9 +123,6 @@ const (
 	// sessionIDDocProperty is used internally to query for records and matches the key in the event struct tag
 	sessionIDDocProperty = "sessionID"
 
-	// eventIndexDocProperty is used internally to query for records and matches the key in the event struct tag
-	eventIndexDocProperty = "eventIndex"
-
 	// createdAtDocProperty is used internally to query for records and matches the key in the event struct tag
 	createdAtDocProperty = "createdAt"
 
@@ -624,36 +621,30 @@ func (l *Log) getIndexParent() string {
 }
 
 func (l *Log) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
-	tuples := make([]*firestorebk.IndexTuple, 0)
-	tuples = append(tuples, &firestorebk.IndexTuple{
-		FirstField:       eventNamespaceDocProperty,
-		SecondField:      createdAtDocProperty,
-		SecondFieldOrder: admin.Index_IndexField_ASCENDING,
-		ThirdField:       firestore.DocumentID,
-		ThirdFieldOrder:  admin.Index_IndexField_ASCENDING,
-	})
-	tuples = append(tuples, &firestorebk.IndexTuple{
-		FirstField:       eventNamespaceDocProperty,
-		SecondField:      createdAtDocProperty,
-		SecondFieldOrder: admin.Index_IndexField_DESCENDING,
-		ThirdField:       firestore.DocumentID,
-		ThirdFieldOrder:  admin.Index_IndexField_ASCENDING,
-	})
-	tuples = append(tuples, &firestorebk.IndexTuple{
-		FirstField:       eventTypeDocProperty,
-		SecondField:      createdAtDocProperty,
-		SecondFieldOrder: admin.Index_IndexField_ASCENDING,
-	})
-	tuples = append(tuples, &firestorebk.IndexTuple{
-		FirstField:       eventTypeDocProperty,
-		SecondField:      createdAtDocProperty,
-		SecondFieldOrder: admin.Index_IndexField_DESCENDING,
-	})
-	tuples = append(tuples, &firestorebk.IndexTuple{
-		FirstField:       sessionIDDocProperty,
-		SecondField:      eventIndexDocProperty,
-		SecondFieldOrder: admin.Index_IndexField_ASCENDING,
-	})
+	tuples := firestorebk.IndexList{}
+	tuples.Index(
+		firestorebk.Field(eventNamespaceDocProperty, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(createdAtDocProperty, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(firestore.DocumentID, admin.Index_IndexField_ASCENDING),
+	)
+	tuples.Index(
+		firestorebk.Field(eventNamespaceDocProperty, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(createdAtDocProperty, admin.Index_IndexField_DESCENDING),
+		firestorebk.Field(firestore.DocumentID, admin.Index_IndexField_ASCENDING),
+	)
+	tuples.Index(
+		firestorebk.Field(eventNamespaceDocProperty, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(eventTypeDocProperty, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(createdAtDocProperty, admin.Index_IndexField_DESCENDING),
+		firestorebk.Field(firestore.DocumentID, admin.Index_IndexField_ASCENDING),
+	)
+	tuples.Index(
+		firestorebk.Field(eventNamespaceDocProperty, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(eventTypeDocProperty, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(sessionIDDocProperty, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(createdAtDocProperty, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(firestore.DocumentID, admin.Index_IndexField_ASCENDING),
+	)
 	err := firestorebk.EnsureIndexes(l.svcContext, adminSvc, tuples, l.getIndexParent())
 	return trace.Wrap(err)
 }
