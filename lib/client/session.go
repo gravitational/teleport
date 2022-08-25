@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client/escape"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -104,7 +105,9 @@ type NodeSession struct {
 // newSession creates a new Teleport session with the given remote node
 // if 'joinSession' is given, the session will join the existing session
 // of another user
-func newSession(ctx context.Context,
+func newSession(
+	ctx context.Context,
+	clt auth.ClientI,
 	client *NodeClient,
 	joinSession types.SessionTracker,
 	env map[string]string,
@@ -167,7 +170,7 @@ func newSession(ctx context.Context,
 	// Determine if terminal should clear on exit.
 	ns.shouldClearOnExit = isFIPS()
 	if client.Proxy != nil {
-		boring, err := client.Proxy.isAuthBoring(ctx)
+		boring, err := client.Proxy.isAuthBoring(ctx, clt)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

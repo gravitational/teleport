@@ -298,16 +298,35 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 	} else {
 		var key *client.Key
 		if err = client.RetryWithRelogin(cf.Context, tc, func() error {
-			key, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
-				RouteToCluster: tc.SiteName,
-				RouteToDatabase: proto.RouteToDatabase{
-					ServiceName: db.ServiceName,
-					Protocol:    db.Protocol,
-					Username:    db.Username,
-					Database:    db.Database,
+			proxyClient, err := tc.ConnectToProxy(cf.Context)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer proxyClient.Close()
+
+			clt, err := proxyClient.ConnectToCurrentCluster(cf.Context)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer clt.Close()
+
+			key, err = proxyClient.IssueUserCertsWithMFA(
+				cf.Context,
+				clt,
+				client.ReissueParams{
+					RouteToCluster: tc.SiteName,
+					RouteToDatabase: proto.RouteToDatabase{
+						ServiceName: db.ServiceName,
+						Protocol:    db.Protocol,
+						Username:    db.Username,
+						Database:    db.Database,
+					},
+					AccessRequests: profile.ActiveRequests.AccessRequests,
 				},
-				AccessRequests: profile.ActiveRequests.AccessRequests,
-			})
+				func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+					return tc.PromptMFAChallenge(ctx, proxyAddr, c, nil /* applyOpts */)
+				},
+			)
 			return trace.Wrap(err)
 		}); err != nil {
 			return trace.Wrap(err)

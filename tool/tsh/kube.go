@@ -156,12 +156,29 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 			log.Debugf("Re-using existing TLS cert for kubernetes cluster %q", kubeCluster)
 		} else {
 			err = client.RetryWithRelogin(cf.Context, tc, func() error {
-				var err error
-				k, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
-					RouteToCluster:    cluster,
-					KubernetesCluster: kubeCluster,
-				})
+				proxyClient, err := tc.ConnectToProxy(cf.Context)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				defer proxyClient.Close()
 
+				clt, err := proxyClient.ConnectToCurrentCluster(cf.Context)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				defer clt.Close()
+
+				k, err = proxyClient.IssueUserCertsWithMFA(
+					cf.Context,
+					clt,
+					client.ReissueParams{
+						RouteToCluster:    cluster,
+						KubernetesCluster: kubeCluster,
+					},
+					func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+						return tc.PromptMFAChallenge(ctx, proxyAddr, c, nil /* applyOpts */)
+					},
+				)
 				return trace.Wrap(err)
 			})
 
@@ -603,12 +620,30 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 
 	log.Debugf("Requesting TLS cert for kubernetes cluster %q", c.kubeCluster)
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		var err error
-		k, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
-			RouteToCluster:    c.teleportCluster,
-			KubernetesCluster: c.kubeCluster,
-		})
-		return err
+		proxyClient, err := tc.ConnectToProxy(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		clt, err := proxyClient.ConnectToCurrentCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clt.Close()
+
+		k, err = proxyClient.IssueUserCertsWithMFA(
+			cf.Context,
+			clt,
+			client.ReissueParams{
+				RouteToCluster:    c.teleportCluster,
+				KubernetesCluster: c.kubeCluster,
+			},
+			func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+				return tc.PromptMFAChallenge(ctx, proxyAddr, c, nil /* applyOpts */)
+			},
+		)
+		return trace.Wrap(err)
 	})
 	if err != nil {
 		return trace.Wrap(err)

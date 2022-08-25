@@ -375,16 +375,25 @@ func (t *TerminalHandler) issueSessionMFACerts(tc *client.TeleportClient, ws *we
 		return trace.Wrap(err)
 	}
 
-	key, err := pc.IssueUserCertsWithMFA(t.terminalContext, client.ReissueParams{
-		RouteToCluster: t.params.Cluster,
-		NodeName:       t.params.Server,
-		ExistingCreds: &client.Key{
-			Pub:     ssh.MarshalAuthorizedKey(priv.PublicKey()),
-			Priv:    t.ctx.session.GetPriv(),
-			Cert:    t.ctx.session.GetPub(),
-			TLSCert: t.ctx.session.GetTLSCert(),
-		},
-	}, promptMFAChallenge(ws, t.wsLock, protobufMFACodec{}))
+	clt, err := pc.ConnectToCurrentCluster(t.terminalContext)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer clt.Close()
+
+	key, err := pc.IssueUserCertsWithMFA(
+		t.terminalContext,
+		clt,
+		client.ReissueParams{
+			RouteToCluster: t.params.Cluster,
+			NodeName:       t.params.Server,
+			ExistingCreds: &client.Key{
+				Pub:     ssh.MarshalAuthorizedKey(priv.PublicKey()),
+				Priv:    t.ctx.session.GetPriv(),
+				Cert:    t.ctx.session.GetPub(),
+				TLSCert: t.ctx.session.GetTLSCert(),
+			},
+		}, promptMFAChallenge(ws, t.wsLock, protobufMFACodec{}))
 	if err != nil {
 		return trace.Wrap(err)
 	}
