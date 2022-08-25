@@ -224,6 +224,23 @@ spec:
 A list of available optional prompt parameters are available from the
 [OpenID website](https://openid.net/specs/openid-connect-core-1\_0.html#AuthRequest).
 
+### Optional: Disable Email Verification
+
+By default, Teleport will reject OIDC claims/users that do not have a verified email address.
+This information is given to Teleport via the `email_verified` OIDC claim.
+
+For testing and other purposes, this may be disabled as shown below. Note that this may harm
+security and extreme care should be taken outside of testing environments.
+
+```yaml
+kind: oidc
+version: v2
+metadata:
+  name: connector
+spec:
+  allow_unverified_email: true
+```
+
 ## Testing
 
 For the Web UI, if the above configuration were real, you would see a button
