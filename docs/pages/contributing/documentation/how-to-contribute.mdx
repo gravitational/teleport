@@ -18,13 +18,19 @@ Different versions of the documentation are organized into the `content` directo
 Navigate to the root of your local clone of the `gravitational/docs` repository and run the following command to populate the `content` directory:
 
 ```code
-$ git submodule update --init --recursive
+$ git submodule update --init --remote
 ```
 
 Next, navigate to the directory under `content` that corresponds to the latest version of Teleport.
 
 ```code
 $ cd content/(=version=)
+```
+
+Switch to the master branch (or versioned branch for updates specific to previous versions):
+
+```code
+git checkout master
 ```
 
 Check out a new branch of `gravitational/teleport`.
