@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -3239,6 +3240,10 @@ func (tc *TeleportClient) GetWebConfig(ctx context.Context) (*webclient.WebConfi
 //
 // The returned Key should typically be passed to ActivateKey in order to
 // update local agent state.
+//
+// If the initial login fails due to a private key policy not being met, Login
+// will automatically retry login with a private key that meets the required policy.
+// This will initiate the same login flow again, aka prompt for password/otp/sso/mfa.
 func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
@@ -3247,83 +3252,48 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	)
 	defer span.End()
 
-	// Get a new (or old) key to be signed via proxy on valid login.
-	var key *Key
-	var err error
-
-	// TODO (Joerger): Remove this env var check once we can pull server settings to decide whether
-	// or not to initiate PIV login - https://github.com/gravitational/teleport/pull/15336
-	if os.Getenv("PIV_LOGIN") != "" {
-		priv, err := keys.GetOrGenerateYubiKeyPrivateKey(false)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		key = NewKey(priv)
-	} else {
-		// If we find a valid key in the localAgent, reuse it instead of generating a new key.
-		// This is especially useful if the key is a hardware key, since they need to be reused
-		// between multiple login sessions and shouldn't be regenerated.
-		if key, err = tc.localAgent.GetCoreKey(); trace.IsNotFound(err) {
-			// No core key found, this is the first login for the proxy. Generate a new RSA key.
-			if key, err = GenerateRSAKey(); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		} else if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	// Ping the endpoint to see if it's up and find the type of authentication
-	// supported, also show the message of the day if available.
-	pr, err := tc.PingAndShowMOTD(ctx)
+	// Get a login function which matches the server's viewable auth settings.
+	login, err := tc.getLoginFunc(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var response *auth.SSHLoginResponse
-	var username string
-	switch authType := pr.Auth.Type; {
-	case authType == constants.Local && pr.Auth.Local != nil && pr.Auth.Local.Name == constants.PasswordlessConnector:
-		// Sanity check settings.
-		if !pr.Auth.AllowPasswordless {
-			return nil, trace.BadParameter("passwordless disallowed by cluster settings")
-		}
-		response, err = tc.pwdlessLogin(ctx, key.MarshalSSHPublicKey())
+	// If a private key isn't provided, reuse the proxy's core private key (~/.tsh/keys/proxy/user),
+	// or generate a new private key if it isn't found.
+	var priv *keys.PrivateKey
+	if key, err := tc.LocalAgent().GetCoreKey(); err == nil {
+		priv = key.PrivateKey
+	} else if trace.IsNotFound(err) {
+		// No core key found, this is the first login for the proxy. Generate a new RSA key.
+		priv, err = native.GeneratePrivateKey()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		username = response.Username
-	case authType == constants.Local:
-		response, err = tc.localLogin(ctx, pr.Auth.SecondFactor, key.MarshalSSHPublicKey())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	case authType == constants.OIDC:
-		response, err = tc.ssoLogin(ctx, pr.Auth.OIDC.Name, key.MarshalSSHPublicKey(), constants.OIDC)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		username = response.Username
-	case authType == constants.SAML:
-		response, err = tc.ssoLogin(ctx, pr.Auth.SAML.Name, key.MarshalSSHPublicKey(), constants.SAML)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		username = response.Username
-	case authType == constants.Github:
-		response, err = tc.ssoLogin(ctx, pr.Auth.Github.Name, key.MarshalSSHPublicKey(), constants.Github)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		username = response.Username
-	default:
-		return nil, trace.BadParameter("unsupported authentication type: %q", pr.Auth.Type)
+	} else if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	// Use proxy identity?
-	if username != "" {
-		tc.Username = username
+
+	response, err := login(priv)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO: check err, if private key policy error, bootstrap/retrieve PIV key and relogin.
+	// fmt.Fprint(os.Stderr, "\nHardware key login is required, please re-enter your login credentials\n")
+	// yubiPriv, err := keys.GetOrGenerateYubiKeyPrivateKey(privateKeyPolicy == constants.PrivateKeyPolicyHardwareKeyTouch)
+	// if err != nil {
+	// 	return nil, trace.Wrap(err)
+	// }
+	// response, err = login(yubiPriv)
+	// if err != nil {
+	// 	return nil, trace.Wrap(err)
+	// }
+
+	// Use proxy identity if set in response. localLogin discards resp.Username before returning.
+	if response.Username != "" {
+		tc.Username = response.Username
 		if tc.localAgent != nil {
-			tc.localAgent.username = username
+			tc.localAgent.username = response.Username
 		}
 	}
 
@@ -3332,7 +3302,8 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		return nil, trace.BadParameter("bad response from the server: expected at least one certificate, got 0")
 	}
 
-	// extract the new certificate out of the response
+	// extract the new certificate out of the response and into a client key.
+	key := NewKey(priv)
 	key.Cert = response.Cert
 	key.TLSCert = response.TLSCert
 	if tc.KubernetesCluster != "" {
@@ -3352,6 +3323,46 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	}
 
 	return key, nil
+}
+
+type loginFunc func(*keys.PrivateKey) (*auth.SSHLoginResponse, error)
+
+func (tc *TeleportClient) getLoginFunc(ctx context.Context) (loginFunc, error) {
+	// Ping the endpoint to see if it's up and find the type of authentication
+	// supported, also show the message of the day if available.
+	pr, err := tc.PingAndShowMOTD(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch authType := pr.Auth.Type; {
+	case authType == constants.Local && pr.Auth.Local != nil && pr.Auth.Local.Name == constants.PasswordlessConnector:
+		// Sanity check settings.
+		if !pr.Auth.AllowPasswordless {
+			return nil, trace.BadParameter("passwordless disallowed by cluster settings")
+		}
+		return func(priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+			return tc.pwdlessLogin(ctx, priv.MarshalSSHPublicKey())
+		}, nil
+	case authType == constants.Local:
+		return func(priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+			return tc.localLogin(ctx, pr.Auth.SecondFactor, priv.MarshalSSHPublicKey())
+		}, nil
+	case authType == constants.OIDC:
+		return func(priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+			return tc.ssoLogin(ctx, pr.Auth.OIDC.Name, priv.MarshalSSHPublicKey(), constants.OIDC)
+		}, nil
+	case authType == constants.SAML:
+		return func(priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+			return tc.ssoLogin(ctx, pr.Auth.SAML.Name, priv.MarshalSSHPublicKey(), constants.SAML)
+		}, nil
+	case authType == constants.Github:
+		return func(priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+			return tc.ssoLogin(ctx, pr.Auth.Github.Name, priv.MarshalSSHPublicKey(), constants.Github)
+		}, nil
+	default:
+		return nil, trace.BadParameter("unsupported authentication type: %q", pr.Auth.Type)
+	}
 }
 
 func (tc *TeleportClient) pwdlessLogin(ctx context.Context, pubKey []byte) (*auth.SSHLoginResponse, error) {
@@ -3403,6 +3414,8 @@ func (tc *TeleportClient) localLogin(ctx context.Context, secondFactor constants
 		return nil, trace.BadParameter("unsupported second factor type: %q", secondFactor)
 	}
 
+	// Ignore username returned from proxy
+	response.Username = ""
 	return response, nil
 }
 
