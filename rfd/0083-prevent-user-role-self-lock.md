@@ -102,10 +102,10 @@ The first thing user should see is some indicator that there are recommended act
 
 ```text
 Users                                   [Create new user]
-┌-------------------------------------------------------┐
+┌---------------------------------------------------------┐
 │   <Info why it is necessary to add a second user with   │
-│   `editor` role>                                      │
-└-------------------------------------------------------┘
+│   `editor` role>                                        │
+└---------------------------------------------------------┘
 ... (Table of users)
 ```
 
