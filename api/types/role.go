@@ -176,6 +176,9 @@ type Role interface {
 	GetHostSudoers(RoleConditionType) []string
 	// SetHostSudoers sets the list of sudoers entries for the role
 	SetHostSudoers(RoleConditionType, []string)
+
+	// GetPrivateKeyPolicy returns the private key policy enforced for this role.
+	GetPrivateKeyPolicy() constants.PrivateKeyPolicy
 }
 
 // NewRole constructs new standard V5 role.
@@ -656,6 +659,14 @@ func (r *RoleV5) SetHostSudoers(rct RoleConditionType, sudoers []string) {
 	} else {
 		r.Spec.Deny.HostSudoers = ncopy
 	}
+}
+
+// GetPrivateKeyPolicy returns the private key policy enforced for this role.
+func (r *RoleV5) GetPrivateKeyPolicy() constants.PrivateKeyPolicy {
+	if r.Spec.Options.PrivateKeyPolicy == "" {
+		return constants.PrivateKeyPolicyNone
+	}
+	return r.Spec.Options.PrivateKeyPolicy
 }
 
 // setStaticFields sets static resource header and metadata fields.

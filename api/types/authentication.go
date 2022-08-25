@@ -24,9 +24,10 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
-	"github.com/gravitational/trace"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -89,6 +90,9 @@ type AuthPreference interface {
 	// GetRequireSessionMFA returns true when all sessions in this cluster
 	// require an MFA check.
 	GetRequireSessionMFA() bool
+
+	// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
+	GetPrivateKeyPolicy() constants.PrivateKeyPolicy
 
 	// GetDisconnectExpiredCert returns disconnect expired certificate setting
 	GetDisconnectExpiredCert() bool
@@ -341,6 +345,14 @@ func (c *AuthPreferenceV2) SetAllowPasswordless(b bool) {
 // an MFA check.
 func (c *AuthPreferenceV2) GetRequireSessionMFA() bool {
 	return c.Spec.RequireSessionMFA
+}
+
+// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
+func (c *AuthPreferenceV2) GetPrivateKeyPolicy() constants.PrivateKeyPolicy {
+	if c.Spec.PrivateKeyPolicy == "" {
+		return constants.PrivateKeyPolicyNone
+	}
+	return c.Spec.PrivateKeyPolicy
 }
 
 // GetDisconnectExpiredCert returns disconnect expired certificate setting

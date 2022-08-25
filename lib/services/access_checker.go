@@ -19,13 +19,14 @@ package services
 import (
 	"time"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
 // AccessChecker interface checks access to resources based on roles, traits,
@@ -177,6 +178,9 @@ type AccessChecker interface {
 
 	// PinSourceIP forces the same client IP for certificate generation and SSH usage
 	PinSourceIP() bool
+
+	// PrivateKeyPolicy returns the enforced private key policy for this role set.
+	PrivateKeyPolicy(defaultPolicy constants.PrivateKeyPolicy) constants.PrivateKeyPolicy
 }
 
 // AccessInfo hold information about an identity necessary to check whether that

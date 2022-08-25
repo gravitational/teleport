@@ -1094,6 +1094,27 @@ func (set RoleSet) PinSourceIP() bool {
 	return false
 }
 
+// PrivateKeyPolicy returns the enforced private key policy for this role set.
+func (set RoleSet) PrivateKeyPolicy(defaultPolicy constants.PrivateKeyPolicy) constants.PrivateKeyPolicy {
+	if defaultPolicy == constants.PrivateKeyPolicyHardwareKeyTouch {
+		// This is the strictest option so we can return now
+		return defaultPolicy
+	}
+
+	policy := defaultPolicy
+	for _, role := range set {
+		switch rolePolicy := role.GetPrivateKeyPolicy(); rolePolicy {
+		case constants.PrivateKeyPolicyHardwareKey:
+			policy = rolePolicy
+		case constants.PrivateKeyPolicyHardwareKeyTouch:
+			// This is the strictest option so we can return now
+			return constants.PrivateKeyPolicyHardwareKeyTouch
+		}
+	}
+
+	return policy
+}
+
 // AdjustSessionTTL will reduce the requested ttl to the lowest max allowed TTL
 // for this role set, otherwise it returns ttl unchanged
 func (set RoleSet) AdjustSessionTTL(ttl time.Duration) time.Duration {
@@ -1106,8 +1127,7 @@ func (set RoleSet) AdjustSessionTTL(ttl time.Duration) time.Duration {
 	return ttl
 }
 
-// MaxConnections returns the maximum number of concurrent ssh connections
-// allowed.  If MaxConnections is zero then no maximum was defined
+// MaxConnections returns the maximum number of concurrent ssh connections110// allowed.  If MaxConnections is zero then no maximum was defined
 // and the number of concurrent connections is unconstrained.
 func (set RoleSet) MaxConnections() int64 {
 	var mcs int64
