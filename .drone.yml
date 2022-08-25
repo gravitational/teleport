@@ -750,7 +750,7 @@ steps:
   - cd $WebappsSrc
   - yarn install --frozen-lockfile
   - yarn build-term
-  - yarn package-term -c.extraMetadata.version=$TeleportVersion
+  - yarn package-term "-c.extraMetadata.version=$TeleportVersion"
   environment:
     CSC_LINK:
       from_secret: WINDOWS_SIGNING_CERT
@@ -879,7 +879,7 @@ steps:
   - cd $WebappsSrc
   - yarn install --frozen-lockfile
   - yarn build-term
-  - yarn package-term -c.extraMetadata.version=$TeleportVersion
+  - yarn package-term "-c.extraMetadata.version=$TeleportVersion"
   environment:
     CSC_LINK:
       from_secret: WINDOWS_SIGNING_CERT
@@ -7020,6 +7020,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 8a56375ced0b12f9f9ad2de214b1b8a05f45cfe42f0bfc77834b3a3109e1ae17
+hmac: 090702a80e487669da6814c3ce81bed24f449bfdafd8c0a0272c91070a07f4c9
 
 ...
