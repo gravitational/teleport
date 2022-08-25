@@ -13,10 +13,11 @@
 #   Master/dev branch: "1.0.0-dev"
 VERSION=11.0.0-dev
 
-DOCKER_IMAGE_OPERATOR_CI ?= quay.io/gravitational/teleport-operator-ci
 DOCKER_IMAGE_QUAY ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_ECR ?= public.ecr.aws/gravitational/teleport
 DOCKER_IMAGE_STAGING ?= 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport
+DOCKER_IMAGE_OPERATOR_STAGING ?= 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator
+
 
 GOPATH ?= $(shell go env GOPATH)
 
@@ -880,6 +881,12 @@ enter-root:
 enter/centos7:
 	make -C build.assets enter/centos7
 
+# Interactively enters a Docker container (which you can build and run Teleport Connect inside of).
+# Similar to `enter`, but uses the teleterm container.
+.PHONY:enter/teleterm
+enter/teleterm:
+	make -C build.assets enter/teleterm
+
 # grpc generates GRPC stubs from service definitions.
 # This target runs in the buildbox container.
 .PHONY: grpc
@@ -1012,23 +1019,38 @@ image-ci: clean docker-binaries
 	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_STAGING):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e image-ci; fi
 
+
+# DOCKER_CLI_EXPERIMENTAL=enabled is set to allow inspecting the manifest for present images.
+# https://docs.docker.com/engine/reference/commandline/cli/#experimental-features
+# The internal staging images use amazon ECR's immutable repository settings. This makes overwrites impossible currently.
+# This can cause issues when drone tagging pipelines must be re-run due to failures.
+# Currently the work around for this is to not attempt to push to the image when it already exists.
 .PHONY: publish-ci
 publish-ci: image-ci
-	@if DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect $(DOCKER_IMAGE_STAGING):$(VERSION) 2>&1 >/dev/null; then\
+	@if DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect "$(DOCKER_IMAGE_STAGING):$(VERSION)" >/dev/null 2>&1; then\
 		echo "$(DOCKER_IMAGE_STAGING):$(VERSION) already exists. ";     \
 	else                                                                \
-		docker push $(DOCKER_IMAGE_STAGING):$(VERSION);                 \
+		docker push "$(DOCKER_IMAGE_STAGING):$(VERSION)";                 \
 	fi
 	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ci; fi
 
 # Docker image build for Teleport Operator
 .PHONY: image-operator-ci
 image-operator-ci:
-	make -C operator docker-build IMG=$(DOCKER_IMAGE_OPERATOR_CI):$(VERSION)
+	make -C operator docker-build IMG="$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION)"
 
+# DOCKER_CLI_EXPERIMENTAL=enabled is set to allow inspecting the manifest for present images.
+# https://docs.docker.com/engine/reference/commandline/cli/#experimental-features
+# The internal staging images use amazon ECR's immutable repository settings. This makes overwrites impossible currently.
+# This can cause issues when drone tagging pipelines must be re-run due to failures.
+# Currently the work around for this is to not attempt to push to the image when it already exists.
 .PHONY: publish-operator-ci
 publish-operator-ci: image-operator-ci
-	docker push $(DOCKER_IMAGE_OPERATOR_CI):$(VERSION)
+	@if DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect "$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION)" >/dev/null 2>&1; then \
+		echo "$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION) already exists. ";                                                         \
+	else                                                                                                                             \
+		docker push "$(DOCKER_IMAGE_OPERATOR_STAGING):$(VERSION)";                                                                   \
+	fi
 
 .PHONY: print-version
 print-version:
@@ -1131,6 +1153,13 @@ update-webassets:
 	build.assets/webapps/update-teleport-webassets.sh -w $(WEBASSETS_BRANCH) -t $(TELEPORT_BRANCH)
 
 # dronegen generates .drone.yml config
+#
+#    Usage:
+#    - install github.com/gravitational/tdr
+#    - set $DRONE_TOKEN and $DRONE_SERVER (https://drone.platform.teleport.sh)
+#    - tsh login --proxy=platform.teleport.sh
+#    - tsh app login drone
+#    - make dronegen
 .PHONY: dronegen
 dronegen:
 	go run ./dronegen

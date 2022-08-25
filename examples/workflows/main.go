@@ -95,6 +95,9 @@ func run(ctx context.Context, cfg *config) error {
 			Filter: filter.IntoMap(),
 		}},
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	defer watcher.Close()
 
 	for {

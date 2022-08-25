@@ -12,6 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! This crate contains an RDP Client with the minimum functionality required
+//! for Teleport's Desktop Access feature.
+//!
+//! Along with core RDP functionality, it contains code for:
+//! - Calling functions defined in Go (these are declared in an `extern "C"` block)
+//! - Functions to be called from Go (any function prefixed with the `#[no_mangle]`
+//!   macro and a `pub unsafe extern "C"`).
+//! - Structs for passing between the two (those prefixed with the `#[repr(C)]` macro
+//!   and whose name begins with `CGO`)
+//!
+//! Memory management at this interface can be tricky, given the long list of rules
+//! required by CGO (https://pkg.go.dev/cmd/cgo). We can simplify our job in this
+//! regard by sticking to the following design principles:
+//!
+//! 1) Whichever side of the Rust-Go interface allocates some memory on the heap is
+//!    responsible for freeing it.
+//! 2) And therefore whenever one side of the Rust-Go interface is passed some memory
+//!    it didn't allocate but needs to hold on to, is responsible for copying it to its
+//!    own respective heap.
+//!
+//! In practice, this means that all the functions called from Go (those prefixed with
+//! `pub unsafe extern "C"`) MUST NOT hang on to any of the pointers passed in to them after
+//! they return. All pointer data that needs to persist MUST be copied into Rust-owned memory.
+
 mod cliprdr;
 mod errors;
 mod piv;
@@ -37,9 +61,10 @@ use rdp::core::tpkt;
 use rdp::core::x224;
 use rdp::model::error::{Error as RdpError, RdpError as RdpProtocolError, RdpErrorKind, RdpResult};
 use rdp::model::link::{Link, Stream};
+use rdpdr::path::UnixPath;
 use rdpdr::ServerCreateDriveRequest;
 use std::convert::TryFrom;
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 use std::io::Error as IoError;
 use std::io::ErrorKind;
 use std::io::{Cursor, Read, Write};
@@ -306,7 +331,7 @@ fn connect_rdp_inner(
     let tdp_sd_info_request = Box::new(move |req: SharedDirectoryInfoRequest| -> RdpResult<()> {
         debug!("sending TDP SharedDirectoryInfoRequest: {:?}", req);
         // Create C compatible string from req.path
-        match CString::new(req.path.clone()) {
+        match req.path.to_cstring() {
             Ok(c_string) => {
                 unsafe {
                     let err = tdp_sd_info_request(
@@ -328,7 +353,7 @@ fn connect_rdp_inner(
             Err(_) => {
                 // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
                 return Err(RdpError::TryError(format!(
-                    "path contained characters that couldn't be converted to a C string: {}",
+                    "path contained characters that couldn't be converted to a C string: {:?}",
                     req.path
                 )));
             }
@@ -339,7 +364,7 @@ fn connect_rdp_inner(
         Box::new(move |req: SharedDirectoryCreateRequest| -> RdpResult<()> {
             debug!("sending TDP SharedDirectoryCreateRequest: {:?}", req);
             // Create C compatible string from req.path
-            match CString::new(req.path.clone()) {
+            match req.path.to_cstring() {
                 Ok(c_string) => {
                     unsafe {
                         let err = tdp_sd_create_request(
@@ -362,7 +387,7 @@ fn connect_rdp_inner(
                 Err(_) => {
                     // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
                     return Err(RdpError::TryError(format!(
-                        "path contained characters that couldn't be converted to a C string: {}",
+                        "path contained characters that couldn't be converted to a C string: {:?}",
                         req.path
                     )));
                 }
@@ -373,7 +398,7 @@ fn connect_rdp_inner(
         Box::new(move |req: SharedDirectoryDeleteRequest| -> RdpResult<()> {
             debug!("sending TDP SharedDirectoryDeleteRequest: {:?}", req);
             // Create C compatible string from req.path
-            match CString::new(req.path.clone()) {
+            match req.path.to_cstring() {
                 Ok(c_string) => {
                     unsafe {
                         let err = tdp_sd_delete_request(
@@ -395,7 +420,7 @@ fn connect_rdp_inner(
                 Err(_) => {
                     // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
                     return Err(RdpError::TryError(format!(
-                        "path contained characters that couldn't be converted to a C string: {}",
+                        "path contained characters that couldn't be converted to a C string: {:?}",
                         req.path
                     )));
                 }
@@ -405,7 +430,7 @@ fn connect_rdp_inner(
     let tdp_sd_list_request = Box::new(move |req: SharedDirectoryListRequest| -> RdpResult<()> {
         debug!("sending TDP SharedDirectoryListRequest: {:?}", req);
         // Create C compatible string from req.path
-        match CString::new(req.path.clone()) {
+        match req.path.to_cstring() {
             Ok(c_string) => {
                 unsafe {
                     let err = tdp_sd_list_request(
@@ -427,7 +452,7 @@ fn connect_rdp_inner(
             Err(_) => {
                 // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
                 return Err(RdpError::TryError(format!(
-                    "path contained characters that couldn't be converted to a C string: {}",
+                    "path contained characters that couldn't be converted to a C string: {:?}",
                     req.path
                 )));
             }
@@ -435,8 +460,8 @@ fn connect_rdp_inner(
     });
 
     let tdp_sd_read_request = Box::new(move |req: SharedDirectoryReadRequest| -> RdpResult<()> {
-        debug!("sending: {:?}", req);
-        match CString::new(req.path.clone()) {
+        debug!("sending TDP SharedDirectoryReadRequest: {:?}", req);
+        match req.path.to_cstring() {
             Ok(c_string) => {
                 unsafe {
                     let err = tdp_sd_read_request(
@@ -445,7 +470,7 @@ fn connect_rdp_inner(
                             completion_id: req.completion_id,
                             directory_id: req.directory_id,
                             path: c_string.as_ptr(),
-                            path_length: req.path.len() as u32,
+                            path_length: req.path.len(),
                             offset: req.offset,
                             length: req.length,
                         },
@@ -461,7 +486,7 @@ fn connect_rdp_inner(
             }
             Err(_) => {
                 return Err(RdpError::TryError(format!(
-                    "path contained characters that couldn't be converted to a C string: {}",
+                    "path contained characters that couldn't be converted to a C string: {:?}",
                     req.path
                 )));
             }
@@ -469,8 +494,8 @@ fn connect_rdp_inner(
     });
 
     let tdp_sd_write_request = Box::new(move |req: SharedDirectoryWriteRequest| -> RdpResult<()> {
-        debug!("sending: {:?}", req);
-        match CString::new(req.path.clone()) {
+        debug!("sending TDP SharedDirectoryWriteRequest: {:?}", req);
+        match req.path.to_cstring() {
             Ok(c_string) => {
                 unsafe {
                     let err = tdp_sd_write_request(
@@ -480,7 +505,7 @@ fn connect_rdp_inner(
                             directory_id: req.directory_id,
                             offset: req.offset,
                             path: c_string.as_ptr(),
-                            path_length: req.path.len() as u32,
+                            path_length: req.path.len(),
                             write_data_length: req.write_data.len() as u32,
                             write_data: req.write_data.as_ptr() as *mut u8,
                         },
@@ -496,8 +521,48 @@ fn connect_rdp_inner(
             }
             Err(_) => {
                 return Err(RdpError::TryError(format!(
-                    "path contained characters that couldn't be converted to a C string: {}",
+                    "path contained characters that couldn't be converted to a C string: {:?}",
                     req.path
+                )));
+            }
+        }
+    });
+
+    let tdp_sd_move_request = Box::new(move |req: SharedDirectoryMoveRequest| -> RdpResult<()> {
+        debug!("sending TDP SharedDirectoryMoveRequest: {:?}", req);
+        match req.original_path.to_cstring() {
+            Ok(original_path) => match req.new_path.to_cstring() {
+                Ok(new_path) => {
+                    unsafe {
+                        let err = tdp_sd_move_request(
+                            go_ref,
+                            &mut CGOSharedDirectoryMoveRequest {
+                                completion_id: req.completion_id,
+                                directory_id: req.directory_id,
+                                original_path: original_path.as_ptr(),
+                                new_path: new_path.as_ptr(),
+                            },
+                        );
+
+                        if err != CGOErrCode::ErrCodeSuccess {
+                            return Err(RdpError::TryError(String::from(
+                                "call to tdp_sd_Move_failed",
+                            )));
+                        }
+                    }
+                    Ok(())
+                }
+                Err(_) => {
+                    return Err(RdpError::TryError(format!(
+                            "new_path contained characters that couldn't be converted to a C string: {:?}",
+                            req.new_path
+                        )));
+                }
+            },
+            Err(_) => {
+                return Err(RdpError::TryError(format!(
+                    "original_path contained characters that couldn't be converted to a C string: {:?}",
+                    req.original_path
                 )));
             }
         }
@@ -516,6 +581,7 @@ fn connect_rdp_inner(
         tdp_sd_list_request,
         tdp_sd_read_request,
         tdp_sd_write_request,
+        tdp_sd_move_request,
     });
 
     // Client for the "cliprdr" channel - clipboard sharing.
@@ -650,6 +716,13 @@ impl<S: Read + Write> RdpClient<S> {
         res: SharedDirectoryWriteResponse,
     ) -> RdpResult<()> {
         self.rdpdr.handle_tdp_sd_write_response(res, &mut self.mcs)
+    }
+
+    pub fn handle_tdp_sd_move_response(
+        &mut self,
+        res: SharedDirectoryMoveResponse,
+    ) -> RdpResult<()> {
+        self.rdpdr.handle_tdp_sd_move_response(res, &mut self.mcs)
     }
 
     pub fn shutdown(&mut self) -> RdpResult<()> {
@@ -793,12 +866,6 @@ pub unsafe extern "C" fn handle_tdp_sd_announce(
     client_ptr: *mut Client,
     sd_announce: CGOSharedDirectoryAnnounce,
 ) -> CGOErrCode {
-    // # Safety
-    //
-    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-    // In other words, all pointer data that needs to persist after this function returns MUST
-    // be copied into Rust-owned memory.
-
     let sd_announce = SharedDirectoryAnnounce::from(sd_announce);
 
     let client = match Client::from_ptr(client_ptr) {
@@ -835,12 +902,6 @@ pub unsafe extern "C" fn handle_tdp_sd_info_response(
     client_ptr: *mut Client,
     res: CGOSharedDirectoryInfoResponse,
 ) -> CGOErrCode {
-    // # Safety
-    //
-    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-    // In other words, all pointer data that needs to persist after this function returns MUST
-    // be copied into Rust-owned memory.
-
     let res = SharedDirectoryInfoResponse::from(res);
 
     let client = match Client::from_ptr(client_ptr) {
@@ -872,13 +933,7 @@ pub unsafe extern "C" fn handle_tdp_sd_create_response(
     client_ptr: *mut Client,
     res: CGOSharedDirectoryCreateResponse,
 ) -> CGOErrCode {
-    // # Safety
-    //
-    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-    // In other words, all pointer data that needs to persist after this function returns MUST
-    // be copied into Rust-owned memory.
-
-    let res: SharedDirectoryCreateResponse = res;
+    let res = SharedDirectoryCreateResponse::from(res);
 
     let client = match Client::from_ptr(client_ptr) {
         Ok(client) => client,
@@ -909,12 +964,6 @@ pub unsafe extern "C" fn handle_tdp_sd_delete_response(
     client_ptr: *mut Client,
     res: CGOSharedDirectoryDeleteResponse,
 ) -> CGOErrCode {
-    // # Safety
-    //
-    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-    // In other words, all pointer data that needs to persist after this function returns MUST
-    // be copied into Rust-owned memory.
-
     let res: SharedDirectoryDeleteResponse = res;
 
     let client = match Client::from_ptr(client_ptr) {
@@ -950,12 +999,6 @@ pub unsafe extern "C" fn handle_tdp_sd_list_response(
     client_ptr: *mut Client,
     res: CGOSharedDirectoryListResponse,
 ) -> CGOErrCode {
-    // # Safety
-    //
-    // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-    // In other words, all pointer data that needs to persist after this function returns MUST
-    // be copied into Rust-owned memory.
-
     let res = SharedDirectoryListResponse::from(res);
 
     let client = match Client::from_ptr(client_ptr) {
@@ -986,6 +1029,8 @@ pub unsafe extern "C" fn handle_tdp_sd_read_response(
     client_ptr: *mut Client,
     res: CGOSharedDirectoryReadResponse,
 ) -> CGOErrCode {
+    let res = SharedDirectoryReadResponse::from(res);
+
     let client = match Client::from_ptr(client_ptr) {
         Ok(client) => client,
         Err(cgo_error) => {
@@ -994,7 +1039,7 @@ pub unsafe extern "C" fn handle_tdp_sd_read_response(
     };
 
     let mut rdp_client = client.rdp_client.lock().unwrap();
-    match rdp_client.handle_tdp_sd_read_response(SharedDirectoryReadResponse::from(res)) {
+    match rdp_client.handle_tdp_sd_read_response(res) {
         Ok(()) => CGOErrCode::ErrCodeSuccess,
         Err(e) => {
             error!("failed to handle Shared Directory Read Response: {:?}", e);
@@ -1014,6 +1059,8 @@ pub unsafe extern "C" fn handle_tdp_sd_write_response(
     client_ptr: *mut Client,
     res: CGOSharedDirectoryWriteResponse,
 ) -> CGOErrCode {
+    let res: SharedDirectoryWriteResponse = res;
+
     let client = match Client::from_ptr(client_ptr) {
         Ok(client) => client,
         Err(cgo_error) => {
@@ -1027,6 +1074,37 @@ pub unsafe extern "C" fn handle_tdp_sd_write_response(
         Ok(()) => CGOErrCode::ErrCodeSuccess,
         Err(e) => {
             error!("failed to handle Shared Directory Write Response: {:?}", e);
+            CGOErrCode::ErrCodeFailure
+        }
+    }
+}
+
+/// handle_tdp_sd_move_response handles a TDP Shared Directory Move Response
+/// message
+///
+/// # Safety
+///
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+#[no_mangle]
+pub unsafe extern "C" fn handle_tdp_sd_move_response(
+    client_ptr: *mut Client,
+    res: CGOSharedDirectoryMoveResponse,
+) -> CGOErrCode {
+    let res: SharedDirectoryMoveResponse = res;
+
+    let client = match Client::from_ptr(client_ptr) {
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return cgo_error;
+        }
+    };
+
+    let mut rdp_client = client.rdp_client.lock().unwrap();
+    match rdp_client.handle_tdp_sd_move_response(res) {
+        Ok(()) => CGOErrCode::ErrCodeSuccess,
+        Err(e) => {
+            error!("failed to handle Shared Directory Move Response: {:?}", e);
             CGOErrCode::ErrCodeFailure
         }
     }
@@ -1365,7 +1443,7 @@ pub type CGOSharedDirectoryAcknowledge = SharedDirectoryAcknowledge;
 pub struct SharedDirectoryInfoRequest {
     completion_id: u32,
     directory_id: u32,
-    path: String,
+    path: UnixPath,
 }
 
 #[repr(C)]
@@ -1380,7 +1458,7 @@ impl From<ServerCreateDriveRequest> for SharedDirectoryInfoRequest {
         SharedDirectoryInfoRequest {
             completion_id: req.device_io_request.completion_id,
             directory_id: req.device_io_request.device_id,
-            path: req.path,
+            path: UnixPath::from(&req.path),
         }
     }
 }
@@ -1423,12 +1501,12 @@ pub struct FileSystemObject {
     last_modified: u64,
     size: u64,
     file_type: FileType,
-    path: String,
+    path: UnixPath,
 }
 
 impl FileSystemObject {
     fn name(&self) -> RdpResult<String> {
-        if let Some(name) = self.path.split('/').last() {
+        if let Some(name) = self.path.last() {
             Ok(name.to_string())
         } else {
             Err(try_error(&format!(
@@ -1460,7 +1538,7 @@ impl From<CGOFileSystemObject> for FileSystemObject {
                 last_modified: cgo_fso.last_modified,
                 size: cgo_fso.size,
                 file_type: cgo_fso.file_type,
-                path: from_go_string(cgo_fso.path),
+                path: UnixPath::from(from_go_string(cgo_fso.path)),
             }
         }
     }
@@ -1488,13 +1566,25 @@ pub enum TdpErrCode {
 
 /// SharedDirectoryWriteRequest is sent by the TDP server to the client
 /// to write to a file.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct SharedDirectoryWriteRequest {
     completion_id: u32,
     directory_id: u32,
     offset: u64,
-    path: String,
+    path: UnixPath,
     write_data: Vec<u8>,
+}
+
+impl std::fmt::Debug for SharedDirectoryWriteRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SharedDirectoryWriteRequest")
+            .field("completion_id", &self.completion_id)
+            .field("directory_id", &self.directory_id)
+            .field("offset", &self.offset)
+            .field("path", &self.path)
+            .field("write_data", &util::vec_u8_debug(&self.write_data))
+            .finish()
+    }
 }
 
 #[derive(Debug)]
@@ -1515,7 +1605,7 @@ pub struct CGOSharedDirectoryWriteRequest {
 pub struct SharedDirectoryReadRequest {
     completion_id: u32,
     directory_id: u32,
-    path: String,
+    path: UnixPath,
     offset: u64,
     length: u32,
 }
@@ -1532,12 +1622,21 @@ pub struct CGOSharedDirectoryReadRequest {
 
 /// SharedDirectoryReadResponse is sent by the TDP client to the server
 /// with the data as requested by a SharedDirectoryReadRequest.
-#[derive(Debug)]
 #[repr(C)]
 pub struct SharedDirectoryReadResponse {
     pub completion_id: u32,
     pub err_code: TdpErrCode,
     pub read_data: Vec<u8>,
+}
+
+impl std::fmt::Debug for SharedDirectoryReadResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SharedDirectoryReadResponse")
+            .field("completion_id", &self.completion_id)
+            .field("err_code", &self.err_code)
+            .field("read_data", &util::vec_u8_debug(&self.read_data))
+            .finish()
+    }
 }
 
 impl From<CGOSharedDirectoryReadResponse> for SharedDirectoryReadResponse {
@@ -1580,7 +1679,7 @@ pub struct SharedDirectoryCreateRequest {
     completion_id: u32,
     directory_id: u32,
     file_type: FileType,
-    path: String,
+    path: UnixPath,
 }
 
 #[repr(C)]
@@ -1589,15 +1688,6 @@ pub struct CGOSharedDirectoryCreateRequest {
     pub directory_id: u32,
     pub file_type: FileType,
     pub path: *const c_char,
-}
-
-/// SharedDirectoryCreateResponse is sent by the TDP client to the server
-/// to acknowledge a SharedDirectoryCreateRequest was received and executed.
-#[derive(Debug, Clone)]
-#[repr(C)]
-pub struct SharedDirectoryCreateResponse {
-    pub completion_id: u32,
-    pub err_code: TdpErrCode,
 }
 
 /// SharedDirectoryListResponse is sent by the TDP client to the server
@@ -1640,19 +1730,108 @@ pub struct CGOSharedDirectoryListResponse {
     fso_list: *mut CGOFileSystemObject,
 }
 
-pub type CGOSharedDirectoryCreateResponse = SharedDirectoryCreateResponse;
+/// SharedDirectoryMoveRequest is sent from the TDP server to the client
+/// to request a file at original_path be moved to new_path.
+#[derive(Debug)]
+pub struct SharedDirectoryMoveRequest {
+    completion_id: u32,
+    directory_id: u32,
+    original_path: UnixPath,
+    new_path: UnixPath,
+}
+
+#[repr(C)]
+pub struct CGOSharedDirectoryMoveRequest {
+    pub completion_id: u32,
+    pub directory_id: u32,
+    pub original_path: *const c_char,
+    pub new_path: *const c_char,
+}
+
+/// SharedDirectoryCreateResponse is sent by the TDP client to the server
+/// to acknowledge a SharedDirectoryCreateRequest was received and executed.
+#[derive(Debug)]
+pub struct SharedDirectoryCreateResponse {
+    completion_id: u32,
+    err_code: TdpErrCode,
+    fso: FileSystemObject,
+}
+
+#[repr(C)]
+pub struct CGOSharedDirectoryCreateResponse {
+    pub completion_id: u32,
+    pub err_code: TdpErrCode,
+    pub fso: CGOFileSystemObject,
+}
+
+impl From<CGOSharedDirectoryCreateResponse> for SharedDirectoryCreateResponse {
+    fn from(cgo_res: CGOSharedDirectoryCreateResponse) -> SharedDirectoryCreateResponse {
+        // # Safety
+        //
+        // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+        // In other words, all pointer data that needs to persist after this function returns MUST
+        // be copied into Rust-owned memory.
+        SharedDirectoryCreateResponse {
+            completion_id: cgo_res.completion_id,
+            err_code: cgo_res.err_code,
+            fso: FileSystemObject::from(cgo_res.fso),
+        }
+    }
+}
+
 /// SharedDirectoryDeleteRequest is sent by the TDP server to the client
 /// to request the deletion of a file or directory at path.
-pub type SharedDirectoryDeleteRequest = SharedDirectoryInfoRequest;
-pub type CGOSharedDirectoryDeleteRequest = CGOSharedDirectoryInfoRequest;
+#[derive(Debug)]
+pub struct SharedDirectoryDeleteRequest {
+    completion_id: u32,
+    directory_id: u32,
+    path: UnixPath,
+}
+
+#[repr(C)]
+pub struct CGOSharedDirectoryDeleteRequest {
+    pub completion_id: u32,
+    pub directory_id: u32,
+    pub path: *const c_char,
+}
+
 /// SharedDirectoryDeleteResponse is sent by the TDP client to the server
 /// to acknowledge a SharedDirectoryDeleteRequest was received and executed.
-pub type SharedDirectoryDeleteResponse = SharedDirectoryCreateResponse;
-pub type CGOSharedDirectoryDeleteResponse = SharedDirectoryCreateResponse;
+#[derive(Debug)]
+#[repr(C)]
+pub struct SharedDirectoryDeleteResponse {
+    completion_id: u32,
+    err_code: TdpErrCode,
+}
+
+pub type CGOSharedDirectoryDeleteResponse = SharedDirectoryDeleteResponse;
+
+/// SharedDirectoryMoveResponse is sent by the TDP client to the server
+/// to acknowledge a SharedDirectoryMoveRequest was received and expected.
+#[derive(Debug)]
+#[repr(C)]
+pub struct SharedDirectoryMoveResponse {
+    completion_id: u32,
+    err_code: TdpErrCode,
+}
+
+pub type CGOSharedDirectoryMoveResponse = SharedDirectoryMoveResponse;
+
 /// SharedDirectoryListRequest is sent by the TDP server to the client
 /// to request the contents of a directory.
-pub type SharedDirectoryListRequest = SharedDirectoryInfoRequest;
-pub type CGOSharedDirectoryListRequest = CGOSharedDirectoryInfoRequest;
+#[derive(Debug)]
+pub struct SharedDirectoryListRequest {
+    completion_id: u32,
+    directory_id: u32,
+    path: UnixPath,
+}
+
+#[repr(C)]
+pub struct CGOSharedDirectoryListRequest {
+    pub completion_id: u32,
+    pub directory_id: u32,
+    pub path: *const c_char,
+}
 
 // These functions are defined on the Go side. Look for functions with '//export funcname'
 // comments.
@@ -1685,6 +1864,10 @@ extern "C" {
     fn tdp_sd_write_request(
         client_ref: usize,
         req: *mut CGOSharedDirectoryWriteRequest,
+    ) -> CGOErrCode;
+    fn tdp_sd_move_request(
+        client_ref: usize,
+        req: *mut CGOSharedDirectoryMoveRequest,
     ) -> CGOErrCode;
 }
 

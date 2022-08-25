@@ -4,7 +4,9 @@
 # needs renewal, and renews the cert after that
 
 set -e
-set -x
+if [[ "${DEBUG}" == "true" ]]; then
+    set -x
+fi
 
 # Source variables from user-data
 . /etc/teleport.d/conf

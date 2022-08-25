@@ -54,9 +54,19 @@ type mockProxyAccessPoint struct {
 	auth.ProxyAccessPoint
 }
 
-type mockProxyService struct{}
+type mockProxyService struct {
+	mockDialNode func(stream clientapi.ProxyService_DialNodeServer) error
+}
 
 func (s *mockProxyService) DialNode(stream clientapi.ProxyService_DialNodeServer) error {
+	if s.mockDialNode != nil {
+		return s.mockDialNode(stream)
+	}
+
+	return s.defaultDialNode(stream)
+}
+
+func (s *mockProxyService) defaultDialNode(stream clientapi.ProxyService_DialNodeServer) error {
 	sendErr := make(chan error)
 	recvErr := make(chan error)
 
@@ -187,6 +197,7 @@ func setupClient(t *testing.T, clientCA, serverCA *tlsca.CertAuthority, role typ
 		GracefulShutdownTimeout: time.Second,
 		getConfigForServer:      getConfigForServer,
 		sync:                    func() {},
+		connShuffler:            noopConnShuffler(),
 	})
 	require.NoError(t, err)
 
@@ -197,8 +208,10 @@ func setupClient(t *testing.T, clientCA, serverCA *tlsca.CertAuthority, role typ
 	return client
 }
 
+type serverTestOption func(*ServerConfig)
+
 // setupServer return a Server object.
-func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthority, role types.SystemRole) (*Server, types.Server) {
+func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthority, role types.SystemRole, options ...serverTestOption) (*Server, types.Server) {
 	tlsConf := certFromIdentity(t, serverCA, tlsca.Identity{
 		Groups: []string{string(role)},
 	})
@@ -215,14 +228,19 @@ func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthor
 	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 
-	server, err := NewServer(ServerConfig{
+	config := ServerConfig{
 		AccessCache:        &mockAccessCache{},
 		Listener:           listener,
 		TLSConfig:          tlsConf,
 		ClusterDialer:      &mockClusterDialer{},
 		getConfigForClient: getConfigForClient,
 		service:            &mockProxyService{},
-	})
+	}
+	for _, option := range options {
+		option(&config)
+	}
+
+	server, err := NewServer(config)
 	require.NoError(t, err)
 
 	ts, err := types.NewServer(
@@ -237,19 +255,6 @@ func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthor
 	})
 
 	return server, ts
-}
-
-func sendDialRequest(t *testing.T, stream clientapi.ProxyService_DialNodeClient) {
-	err := stream.Send(&clientapi.Frame{
-		Message: &clientapi.Frame_DialRequest{
-			DialRequest: &clientapi.DialRequest{},
-		},
-	})
-	require.NoError(t, err)
-
-	frame, err := stream.Recv()
-	require.NoError(t, err)
-	require.NotNil(t, frame.GetConnectionEstablished())
 }
 
 func sendMsg(t *testing.T, stream clientapi.ProxyService_DialNodeClient) {

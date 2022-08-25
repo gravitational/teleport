@@ -22,12 +22,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -70,6 +71,10 @@ type EC2 struct {
 	labels map[string]string
 
 	closeCh chan struct{}
+
+	// instanceTagsNotFoundOnce is used to ensure that the error message for
+	// incorrectly configured instance metadata is only logged once.
+	instanceTagsNotFoundOnce sync.Once
 }
 
 func New(ctx context.Context, c *Config) (*EC2, error) {
@@ -110,7 +115,10 @@ func (l *EC2) Sync(ctx context.Context) error {
 	tags, err := l.c.Client.GetTagKeys(ctx)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			l.c.Log.Warningf("could not fetch tags, please ensure 'allow instance tags in metadata' is enabled on the instance")
+			// Only show the error the first time around.
+			l.instanceTagsNotFoundOnce.Do(func() {
+				l.c.Log.Warning("Could not fetch EC2 instance's tags, please ensure 'allow instance tags in metadata' is enabled on the instance.")
+			})
 			return nil
 		}
 		return trace.Wrap(err)
