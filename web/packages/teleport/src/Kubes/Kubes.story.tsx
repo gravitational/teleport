@@ -95,4 +95,5 @@ export const props: State = {
   replaceHistory: () => null,
   isSearchEmpty: false,
   onLabelClick: () => null,
+  accessRequestId: null,
 };

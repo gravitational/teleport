@@ -23,6 +23,7 @@ export default function makeUserContext(json: any): UserContext {
   json = json || {};
   const username = json.userName;
   const authType = json.authType;
+  const accessRequestId = json.accessRequestId;
 
   const cluster = makeCluster(json.cluster);
   const acl = makeAcl(json.userAcl);
@@ -36,6 +37,7 @@ export default function makeUserContext(json: any): UserContext {
     cluster,
     accessStrategy,
     accessCapabilities,
+    accessRequestId,
   };
 }
 

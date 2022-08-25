@@ -37,6 +37,7 @@ export default function useDatabases(ctx: Ctx) {
   const username = ctx.storeUser.state.username;
   const canCreate = ctx.storeUser.getTokenAccess().create;
   const authType = ctx.storeUser.state.authType;
+  const accessRequestId = ctx.storeUser.getAccessRequestId();
   const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
   const [params, setParams] = useState<ResourceUrlQueryParams>({
     sort: { fieldName: 'name', dir: 'ASC' },
@@ -161,6 +162,7 @@ export default function useDatabases(ctx: Ctx) {
     fetchStatus,
     isSearchEmpty,
     onLabelClick,
+    accessRequestId,
   };
 }
 

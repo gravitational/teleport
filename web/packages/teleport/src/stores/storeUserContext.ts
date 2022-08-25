@@ -110,6 +110,10 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.nodes;
   }
 
+  getAccessRequestId() {
+    return this.state.accessRequestId;
+  }
+
   // hasPrereqAccessToAddAgents checks if user meets the prerequisite
   // access to add an agent:
   //  - user should be able to edit themselves to update user traits
