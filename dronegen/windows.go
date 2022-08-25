@@ -227,7 +227,7 @@ func buildWindowsTeleportConnectStep(workspace string) step {
 			`$TeleportSrc = "` + perBuildTeleportSrc + `"`,
 			`$WebappsSrc = "` + perBuildWebappsSrc + `"`,
 			`$NodeVersion = "` + windowsNodeVersion + `"`,
-			`$Env:DRONE_TAG="v10.1.2`,
+			`$Env:DRONE_TAG="v10.1.2"`,
 			`$TeleportVersion=$Env:DRONE_TAG.TrimStart('v')`,
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 			`Enable-Node -NodeVersion $NodeVersion -ToolchainDir "` + windowsToolchainDir + `"`,

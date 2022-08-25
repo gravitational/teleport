@@ -743,7 +743,7 @@ steps:
   - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
   - $WebappsSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/webapps"
   - $NodeVersion = "16.13.2"
-  - $Env:DRONE_TAG="v10.1.2
+  - $Env:DRONE_TAG="v10.1.2"
   - $TeleportVersion=$Env:DRONE_TAG.TrimStart('v')
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Enable-Node -NodeVersion $NodeVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
@@ -872,7 +872,7 @@ steps:
   - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
   - $WebappsSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/webapps"
   - $NodeVersion = "16.13.2"
-  - $Env:DRONE_TAG="v10.1.2
+  - $Env:DRONE_TAG="v10.1.2"
   - $TeleportVersion=$Env:DRONE_TAG.TrimStart('v')
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Enable-Node -NodeVersion $NodeVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
@@ -7020,6 +7020,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: f755709329c8ff2f2aae17f8b2841b4769e3ae7abb09afbe53526b7ac6097cfa
+hmac: 8a56375ced0b12f9f9ad2de214b1b8a05f45cfe42f0bfc77834b3a3109e1ae17
 
 ...
