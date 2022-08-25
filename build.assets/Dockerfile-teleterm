@@ -5,6 +5,7 @@ FROM quay.io/gravitational/teleport-buildbox:$BUILDBOX_VERSION as base
 
 ARG BUILDARCH
 
+# TODO(codingllama): Have teleterm use Buf from the base image.
 # Install buf
 RUN BIN="/usr/local/bin" && \
     VERSION="1.0.0-rc1" && \

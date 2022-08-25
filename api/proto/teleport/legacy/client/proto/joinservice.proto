@@ -13,11 +13,13 @@
 // limitations under the License.
 
 syntax = "proto3";
+
 package proto;
 
-import "certs.proto";
+import "teleport/legacy/client/proto/certs.proto";
+import "teleport/legacy/types/types.proto";
 
-import "github.com/gravitational/teleport/api/types/types.proto";
+option go_package = "github.com/gravitational/teleport/api/client/proto";
 
 message RegisterUsingIAMMethodRequest {
     // RegisterUsingTokenRequest holds registration parameters common to all

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 syntax = "proto3";
+
 package events;
 
 import "gogoproto/gogo.proto";
@@ -20,7 +21,9 @@ import "google/protobuf/timestamp.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/wrappers.proto";
 
-import "github.com/gravitational/teleport/api/types/wrappers/wrappers.proto";
+import "teleport/legacy/types/wrappers/wrappers.proto";
+
+option go_package = "github.com/gravitational/teleport/api/types/events";
 
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
