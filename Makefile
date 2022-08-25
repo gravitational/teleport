@@ -876,6 +876,12 @@ enter-root:
 enter/centos7:
 	make -C build.assets enter/centos7
 
+# Interactively enters a Docker container (which you can build and run Teleport Connect inside of).
+# Similar to `enter`, but uses the teleterm container.
+.PHONY:enter/teleterm
+enter/teleterm:
+	make -C build.assets enter/teleterm
+
 # grpc generates GRPC stubs from service definitions.
 # This target runs in the buildbox container.
 .PHONY: grpc
@@ -1138,6 +1144,13 @@ update-webassets:
 	build.assets/webapps/update-teleport-webassets.sh -w $(WEBAPPS_BRANCH) -t $(TELEPORT_BRANCH)
 
 # dronegen generates .drone.yml config
+#
+#    Usage:
+#    - install github.com/gravitational/tdr
+#    - set $DRONE_TOKEN and $DRONE_SERVER (https://drone.platform.teleport.sh)
+#    - tsh login --proxy=platform.teleport.sh
+#    - tsh app login drone
+#    - make dronegen
 .PHONY: dronegen
 dronegen:
 	go run ./dronegen
