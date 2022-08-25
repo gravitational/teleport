@@ -2244,9 +2244,7 @@ func TestSerializeDatabases(t *testing.T) {
       },
       "mysql": {},
       "gcp": {},
-      "azure": {
-        "resource_id": {}
-      },
+      "azure": {},
       "tls": {
         "mode": 0
       },
@@ -2267,9 +2265,7 @@ func TestSerializeDatabases(t *testing.T) {
         "secret_store": {},
         "memorydb": {}
       },
-      "azure": {
-        "resource_id": {}
-      }
+      "azure": {}
     }
   }]
 	`
