@@ -217,21 +217,30 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 		return nil, trace.Wrap(err)
 	}
 
+	clt, err := pc.ConnectToCurrentCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer clt.Close()
+
 	var wsLock sync.Mutex
-	key, err := pc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
-		RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
-			WindowsDesktop: desktopName,
-			Login:          username,
-		},
-		RouteToCluster: siteName,
-		ExistingCreds: &client.Key{
-			Pub:                 ssh.MarshalAuthorizedKey(priv.PublicKey()),
-			Priv:                sessCtx.session.GetPriv(),
-			Cert:                sessCtx.session.GetPub(),
-			TLSCert:             sessCtx.session.GetTLSCert(),
-			WindowsDesktopCerts: make(map[string][]byte),
-		},
-	}, promptMFAChallenge(ws, &wsLock, tdpMFACodec{}))
+	key, err := pc.IssueUserCertsWithMFA(
+		ctx,
+		clt,
+		client.ReissueParams{
+			RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
+				WindowsDesktop: desktopName,
+				Login:          username,
+			},
+			RouteToCluster: siteName,
+			ExistingCreds: &client.Key{
+				Pub:                 ssh.MarshalAuthorizedKey(priv.PublicKey()),
+				Priv:                sessCtx.session.GetPriv(),
+				Cert:                sessCtx.session.GetPub(),
+				TLSCert:             sessCtx.session.GetTLSCert(),
+				WindowsDesktopCerts: make(map[string][]byte),
+			},
+		}, promptMFAChallenge(ws, &wsLock, tdpMFACodec{}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
