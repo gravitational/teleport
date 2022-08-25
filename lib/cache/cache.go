@@ -232,13 +232,17 @@ func ForNode(cfg Config) Config {
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
 		{Kind: types.KindRole},
-		{Kind: types.KindNode},
 		// Node only needs to "know" about default
 		// namespace events to avoid matching too much
 		// data about other namespaces or node events
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindNetworkRestrictions},
 	}
+
+	if cfg.DiscoveryAgent {
+		cfg.Watches = append(cfg.Watches, types.WatchKind{Kind: types.KindNode})
+	}
+
 	cfg.QueueSize = defaults.NodeQueueSize
 	return cfg
 }
@@ -607,6 +611,9 @@ type Config struct {
 	// Unstarted indicates that the cache should not be started during New. The
 	// cache is usable before it's started, but it will always hit the backend.
 	Unstarted bool
+	// DiscoveryAgent indicates that the node is a SSH discovery node
+	// and needs to keep a cache of nodes in the cluster.
+	DiscoveryAgent bool
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
