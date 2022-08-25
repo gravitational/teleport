@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -393,6 +394,8 @@ type AuthenticationSettings struct {
 	SAML *SAMLSettings `json:"saml,omitempty"`
 	// Github contains Github connector settings needed for authentication.
 	Github *GithubSettings `json:"github,omitempty"`
+	// PrivateKeyPolicy contains the cluster-wide private key policy.
+	PrivateKeyPolicy keys.PrivateKeyPolicy `json:"private_key_policy"`
 
 	// HasMessageOfTheDay is a flag indicating that the cluster has MOTD
 	// banner text that must be retrieved, displayed and acknowledged by

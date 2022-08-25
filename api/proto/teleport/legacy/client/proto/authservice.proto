@@ -523,6 +523,8 @@ message Features {
   bool MachineID = 12 [(gogoproto.jsontag) = "machine_id"];
   // ResourceAccessRequests enables resource access requests product
   bool ResourceAccessRequests = 13 [(gogoproto.jsontag) = "resource_access_requests"];
+  // HardwareKey enables HardwareKey support
+  bool HardwareKey = 14 [(gogoproto.jsontag) = "hardware_key"];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.

@@ -755,6 +755,7 @@ func localSettings(cap types.AuthPreference) (webclient.AuthenticationSettings, 
 		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
 		AllowPasswordless: cap.GetAllowPasswordless(),
 		Local:             &webclient.LocalSettings{},
+		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
 	}
 
 	// Only copy the connector name if it's truly local and not a local fallback.
@@ -1252,13 +1253,14 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 	}
 
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
-		ConnectorID:       req.ConnectorID,
-		PublicKey:         req.PublicKey,
-		CertTTL:           req.CertTTL,
-		ClientRedirectURL: req.RedirectURL,
-		Compatibility:     req.Compatibility,
-		RouteToCluster:    req.RouteToCluster,
-		KubernetesCluster: req.KubernetesCluster,
+		ConnectorID:        req.ConnectorID,
+		PublicKey:          req.PublicKey,
+		CertTTL:            req.CertTTL,
+		ClientRedirectURL:  req.RedirectURL,
+		Compatibility:      req.Compatibility,
+		RouteToCluster:     req.RouteToCluster,
+		KubernetesCluster:  req.KubernetesCluster,
+		AttestationRequest: req.AttestationRequest.ToProto(),
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create Github auth request.")
@@ -1355,15 +1357,16 @@ func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 	}
 
 	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(r.Context(), types.OIDCAuthRequest{
-		ConnectorID:       req.ConnectorID,
-		ClientRedirectURL: req.RedirectURL,
-		PublicKey:         req.PublicKey,
-		CertTTL:           req.CertTTL,
-		CheckUser:         true,
-		Compatibility:     req.Compatibility,
-		RouteToCluster:    req.RouteToCluster,
-		KubernetesCluster: req.KubernetesCluster,
-		ProxyAddress:      r.Host,
+		ConnectorID:        req.ConnectorID,
+		ClientRedirectURL:  req.RedirectURL,
+		PublicKey:          req.PublicKey,
+		CertTTL:            req.CertTTL,
+		CheckUser:          true,
+		Compatibility:      req.Compatibility,
+		RouteToCluster:     req.RouteToCluster,
+		KubernetesCluster:  req.KubernetesCluster,
+		ProxyAddress:       r.Host,
+		AttestationRequest: req.AttestationRequest.ToProto(),
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create OIDC auth request.")
@@ -2708,7 +2711,7 @@ func (h *Handler) hostCredentials(w http.ResponseWriter, r *http.Request, p http
 //
 // { "cert": "base64 encoded signed cert", "host_signers": [{"domain_name": "example.com", "checking_keys": ["base64 encoded public signing key"]}] }
 func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *client.CreateSSHCertReq
+	var req client.CreateSSHCertReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2725,9 +2728,9 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 
 	switch cap.GetSecondFactor() {
 	case constants.SecondFactorOff:
-		cert, err = h.auth.GetCertificateWithoutOTP(r.Context(), *req, clientMeta)
+		cert, err = h.auth.GetCertificateWithoutOTP(r.Context(), req, clientMeta)
 	case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
-		cert, err = h.auth.GetCertificateWithOTP(r.Context(), *req, clientMeta)
+		cert, err = h.auth.GetCertificateWithOTP(r.Context(), req, clientMeta)
 	default:
 		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
 	}

@@ -63,6 +63,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -936,6 +937,8 @@ type certRequest struct {
 	// connectionDiagnosticID contains the ID of the ConnectionDiagnostic.
 	// The Node/Agent will append connection traces to this instance.
 	connectionDiagnosticID string
+	// attestationRequest is an attestation request associated with the given public key.
+	attestationRequest *keys.AttestationRequest
 }
 
 // check verifies the cert request is valid.
@@ -1188,6 +1191,12 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		}
 	}
 
+	requiredKeyPolicy := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	privateKeyPolicy, err := modules.GetModules().AttestHardwareKey(ctx, a, requiredKeyPolicy, req.attestationRequest, cryptoPubKey, sessionTTL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clusterName, err := a.GetDomainName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1254,6 +1263,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		AllowedResourceIDs:     requestedResourcesStr,
 		SourceIP:               req.sourceIP,
 		ConnectionDiagnosticID: req.connectionDiagnosticID,
+		PrivateKeyPolicy:       privateKeyPolicy,
 	}
 	sshCert, err := a.Authority.GenerateUserCert(params)
 	if err != nil {
@@ -1335,6 +1345,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		Renewable:          req.renewable,
 		Generation:         req.generation,
 		AllowedResourceIDs: req.checker.GetAllowedResourceIDs(),
+		PrivateKeyPolicy:   privateKeyPolicy,
 	}
 	subject, err := identity.Subject()
 	if err != nil {

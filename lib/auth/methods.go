@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -356,6 +357,8 @@ type AuthenticateSSHRequest struct {
 	// KubernetesCluster sets the target kubernetes cluster for the TLS
 	// certificate. This can be empty on older clients.
 	KubernetesCluster string `json:"kubernetes_cluster"`
+	// AttestationRequest is an attestation request associated with the given public key.
+	AttestationRequest *keys.AttestationRequest `json:"attestation_request,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets default certificate values
@@ -490,15 +493,16 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 		sourceIP = host
 	}
 	certs, err := s.generateUserCert(certRequest{
-		user:              user,
-		ttl:               req.TTL,
-		publicKey:         req.PublicKey,
-		compatibility:     req.CompatibilityMode,
-		checker:           checker,
-		traits:            user.GetTraits(),
-		routeToCluster:    req.RouteToCluster,
-		kubernetesCluster: req.KubernetesCluster,
-		sourceIP:          sourceIP,
+		user:               user,
+		ttl:                req.TTL,
+		publicKey:          req.PublicKey,
+		compatibility:      req.CompatibilityMode,
+		checker:            checker,
+		traits:             user.GetTraits(),
+		routeToCluster:     req.RouteToCluster,
+		kubernetesCluster:  req.KubernetesCluster,
+		sourceIP:           sourceIP,
+		attestationRequest: req.AttestationRequest,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

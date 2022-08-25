@@ -19,16 +19,20 @@ limitations under the License.
 package modules
 
 import (
+	"context"
+	"crypto"
 	"crypto/sha256"
 	"fmt"
 	"reflect"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 
 	"github.com/gravitational/trace"
 )
@@ -61,6 +65,8 @@ type Features struct {
 	MachineID bool
 	// ResourceAccessRequests turns on resource access requests
 	ResourceAccessRequests bool
+	// HardwarePrivateKey enables HardwarePrivateKey support
+	HardwareKey bool
 }
 
 // ToProto converts Features into proto.Features
@@ -79,6 +85,7 @@ func (f Features) ToProto() *proto.Features {
 		ModeratedSessions:       f.ModeratedSessions,
 		MachineID:               f.MachineID,
 		ResourceAccessRequests:  f.ResourceAccessRequests,
+		HardwareKey:             f.HardwareKey,
 	}
 }
 
@@ -93,6 +100,8 @@ type Modules interface {
 	Features() Features
 	// BuildType returns build type (OSS or Enterprise)
 	BuildType() string
+	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
+	AttestHardwareKey(context.Context, interface{}, keys.PrivateKeyPolicy, *keys.AttestationRequest, crypto.PublicKey, time.Duration) (keys.PrivateKeyPolicy, error)
 }
 
 const (
@@ -171,6 +180,12 @@ func (p *defaultModules) IsBoringBinary() bool {
 	// dev.boringcrypto branch of Go.
 	hash := sha256.New()
 	return reflect.TypeOf(hash).Elem().PkgPath() == "crypto/internal/boring"
+}
+
+// AttestHardwareKey attests a hardware key.
+func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ keys.PrivateKeyPolicy, _ *keys.AttestationRequest, _ crypto.PublicKey, _ time.Duration) (keys.PrivateKeyPolicy, error) {
+	// Default modules do not support attesting hardware keys.
+	return keys.PrivateKeyPolicyNone, nil
 }
 
 var (

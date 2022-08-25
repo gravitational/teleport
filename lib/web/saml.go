@@ -71,13 +71,14 @@ func (h *Handler) samlSSOConsole(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	response, err := h.cfg.ProxyClient.CreateSAMLAuthRequest(r.Context(), types.SAMLAuthRequest{
-		ConnectorID:       req.ConnectorID,
-		ClientRedirectURL: req.RedirectURL,
-		PublicKey:         req.PublicKey,
-		CertTTL:           req.CertTTL,
-		Compatibility:     req.Compatibility,
-		RouteToCluster:    req.RouteToCluster,
-		KubernetesCluster: req.KubernetesCluster,
+		ConnectorID:        req.ConnectorID,
+		ClientRedirectURL:  req.RedirectURL,
+		PublicKey:          req.PublicKey,
+		CertTTL:            req.CertTTL,
+		Compatibility:      req.Compatibility,
+		RouteToCluster:     req.RouteToCluster,
+		KubernetesCluster:  req.KubernetesCluster,
+		AttestationRequest: req.AttestationRequest.ToProto(),
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create SAML auth request.")

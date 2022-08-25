@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
+	"github.com/gravitational/teleport/api/utils/keys"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -4586,6 +4587,10 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 		} else if trace.IsAccessDenied(err) {
 			// don't print stack trace, just log the warning
 			log.Warn(err)
+		} else if keys.IsPrivateKeyPolicyError(err) {
+			// private key policy errors should be returned to the client
+			// unaltered so that they know to reauthenticate with a valid key.
+			return nil, trace.Wrap(err)
 		} else {
 			log.Warn(trace.DebugReport(err))
 		}

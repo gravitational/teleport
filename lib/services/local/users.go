@@ -19,6 +19,8 @@ package local
 import (
 	"bytes"
 	"context"
+	"crypto"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"sort"
@@ -26,6 +28,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
+	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -36,8 +40,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
-
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	"golang.org/x/crypto/ssh"
 )
 
 // GlobalSessionDataMaxEntries represents the maximum number of in-flight
@@ -1435,6 +1438,63 @@ func (s recoveryAttemptsChronologically) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
+// UpsertKeyAttestationResponse upserts a verified public key attestation response.
+func (s *IdentityService) UpsertKeyAttestationResponse(ctx context.Context, attestationResponse *keys.AttestationResponse, ttl time.Duration) error {
+	value, err := json.Marshal(attestationResponse)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	pub, err := x509.ParsePKIXPublicKey(attestationResponse.PublicKeyDER)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sshPub, err := ssh.NewPublicKey(pub)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	key := ssh.FingerprintSHA256(sshPub)
+	item := backend.Item{
+		Key:     backend.Key(attestationsPrefix, key),
+		Value:   value,
+		Expires: s.Clock().Now().UTC().Add(ttl),
+	}
+	_, err = s.Put(ctx, item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetKeyAttestationResponse gets a verified public key attestation response.
+func (s *IdentityService) GetKeyAttestationResponse(ctx context.Context, publicKey crypto.PublicKey) (*keys.AttestationResponse, error) {
+	if publicKey == nil {
+		return nil, trace.BadParameter("missing parameter publicKey")
+	}
+
+	sshPub, err := ssh.NewPublicKey(publicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	key := ssh.FingerprintSHA256(sshPub)
+	item, err := s.Get(ctx, backend.Key(attestationsPrefix, key))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("hardware key attestation not found")
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	var resp keys.AttestationResponse
+	if err := json.Unmarshal(item.Value, &resp); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &resp, nil
+}
+
 const (
 	webPrefix                 = "web"
 	usersPrefix               = "users"
@@ -1456,4 +1516,5 @@ const (
 	webauthnSessionData       = "webauthnsessiondata"
 	recoveryCodesPrefix       = "recoverycodes"
 	recoveryAttemptsPrefix    = "recoveryattempts"
+	attestationsPrefix        = "key_attestations"
 )

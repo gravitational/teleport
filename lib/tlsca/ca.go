@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -170,6 +171,8 @@ type Identity struct {
 	// AllowedResourceIDs lists the resources the identity should be allowed to
 	// access.
 	AllowedResourceIDs []types.ResourceID
+	// PrivateKeyPolicy is the private key policy supported by this identity.
+	PrivateKeyPolicy keys.PrivateKeyPolicy
 }
 
 // RouteToApp holds routing information for applications.
@@ -353,6 +356,10 @@ var (
 	// GenerationASN1ExtensionOID is an extension OID used to count the number
 	// of times this certificate has been renewed.
 	GenerationASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 14}
+
+	// PrivateKeyPolicyASN1ExtensionOID is an extension ID used to determine the
+	// private key policy supported by the certificate.
+	PrivateKeyPolicyASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 15}
 
 	// DatabaseServiceNameASN1ExtensionOID is an extension ID used when encoding/decoding
 	// database service name into certificates.
@@ -622,6 +629,15 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		)
 	}
 
+	if id.PrivateKeyPolicy != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  PrivateKeyPolicyASN1ExtensionOID,
+				Value: id.PrivateKeyPolicy,
+			},
+		)
+	}
+
 	return subject, nil
 }
 
@@ -780,6 +796,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 					return nil, trace.Wrap(err)
 				}
 				id.AllowedResourceIDs = allowedResourceIDs
+			}
+		case attr.Type.Equal(PrivateKeyPolicyASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.PrivateKeyPolicy = keys.PrivateKeyPolicy(val)
 			}
 		}
 	}

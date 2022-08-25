@@ -29,6 +29,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -213,6 +214,10 @@ func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 			} else if trace.IsAccessDenied(err) {
 				// don't print stack trace, just log the warning
 				log.Warn(err)
+			} else if keys.IsPrivateKeyPolicyError(err) {
+				// private key policy errors should be returned to the client
+				// unaltered so that they know to reauthenticate with a valid key.
+				return nil, trace.Wrap(err)
 			} else {
 				log.Warn(trace.DebugReport(err))
 			}

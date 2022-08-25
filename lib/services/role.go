@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
@@ -1136,6 +1137,27 @@ func (set RoleSet) MFAParams(authPrefRequirement types.RequireMFAType) (params A
 	return AccessMFAParams{Required: MFARequiredNever}
 }
 
+// PrivateKeyPolicy returns the enforced private key policy for this role set.
+func (set RoleSet) PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) keys.PrivateKeyPolicy {
+	if defaultPolicy == keys.PrivateKeyPolicyHardwareKeyTouch {
+		// This is the strictest option so we can return now
+		return defaultPolicy
+	}
+
+	policy := defaultPolicy
+	for _, role := range set {
+		switch rolePolicy := role.GetPrivateKeyPolicy(); rolePolicy {
+		case keys.PrivateKeyPolicyHardwareKey:
+			policy = rolePolicy
+		case keys.PrivateKeyPolicyHardwareKeyTouch:
+			// This is the strictest option so we can return now
+			return keys.PrivateKeyPolicyHardwareKeyTouch
+		}
+	}
+
+	return policy
+}
+
 // AdjustSessionTTL will reduce the requested ttl to the lowest max allowed TTL
 // for this role set, otherwise it returns ttl unchanged
 func (set RoleSet) AdjustSessionTTL(ttl time.Duration) time.Duration {
@@ -1150,7 +1172,6 @@ func (set RoleSet) AdjustSessionTTL(ttl time.Duration) time.Duration {
 
 // MaxConnections returns the maximum number of concurrent ssh connections
 // allowed.  If MaxConnections is zero then no maximum was defined
-// and the number of concurrent connections is unconstrained.
 func (set RoleSet) MaxConnections() int64 {
 	var mcs int64
 	for _, role := range set {

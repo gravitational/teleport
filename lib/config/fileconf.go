@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/service"
@@ -917,6 +918,10 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		}
 	}
 
+	if err := a.checkRequireMFAType(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:              a.Type,
 		SecondFactor:      a.SecondFactor,
@@ -1013,6 +1018,17 @@ func getAttestationPEM(certOrPath string) (string, error) {
 	}
 
 	return string(data), nil // OK, valid PEM file
+}
+
+// checkRequireMFAType checks that the given RequireMFAType is supported in this build.
+func (a *AuthenticationConfig) checkRequireMFAType() error {
+	switch a.RequireMFAType {
+	case types.RequireMFAType_SESSION_AND_HARDWARE_KEY, types.RequireMFAType_HARDWARE_KEY_TOUCH:
+		if !modules.GetModules().Features().HardwareKey {
+			return trace.AccessDenied("Hardware Key support is only available with an enterprise license")
+		}
+	}
+	return nil
 }
 
 // SSH is 'ssh_service' section of the config file
