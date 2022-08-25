@@ -733,10 +733,6 @@ steps:
   - cd $TeleportSrc
   - $Env:GCO_ENABLED=1
   - go build -o build/tsh.exe ./tool/tsh
-  - Convert-Base64 -Data $Env:WINDOWS_SIGNING_CERT -FilePath "windows-signing-cert.pfx"
-  - osslsigncode sign -pkcs12 windows-signing-cert.pfx -n "Teleport" -i https://goteleport.com
-    -t http://timestamp.digicert.com -h sha2 -in build/tsh.exe -out build/tsh.signed.exe
-  - Rename-Item -Force -Path build/tsh.signed.exe -NewName build/tsh.exe
   environment:
     WINDOWS_SIGNING_CERT:
       from_secret: WINDOWS_SIGNING_CERT
@@ -866,10 +862,6 @@ steps:
   - cd $TeleportSrc
   - $Env:GCO_ENABLED=1
   - go build -o build/tsh.exe ./tool/tsh
-  - Convert-Base64 -Data $Env:WINDOWS_SIGNING_CERT -FilePath "windows-signing-cert.pfx"
-  - osslsigncode sign -pkcs12 windows-signing-cert.pfx -n "Teleport" -i https://goteleport.com
-    -t http://timestamp.digicert.com -h sha2 -in build/tsh.exe -out build/tsh.signed.exe
-  - Rename-Item -Force -Path build/tsh.signed.exe -NewName build/tsh.exe
   environment:
     WINDOWS_SIGNING_CERT:
       from_secret: WINDOWS_SIGNING_CERT
@@ -7028,6 +7020,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: c6fa78da57c2bf3c57e311f8cba9f0f64564db4120623cdf8be23ee78853f806
+hmac: f755709329c8ff2f2aae17f8b2841b4769e3ae7abb09afbe53526b7ac6097cfa
 
 ...
