@@ -1162,7 +1162,7 @@ func TestPasswordCRUD(t *testing.T) {
 	err = clt.CheckPassword("user1", pass, "123456")
 	require.Error(t, err)
 
-	err = s.server.Auth().UpsertPassword("user1", pass)
+	err = tt.server.Auth().UpsertPassword("user1", pass)
 	require.NoError(t, err)
 
 	dev, err := services.NewTOTPDevice("otp", otpSecret, tt.clock.Now())
@@ -1207,14 +1207,13 @@ func TestOTPCRUD(t *testing.T) {
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
 	// upsert a password and totp secret
-	err = s.server.Auth().UpsertPassword("user1", pass)
+	err = tt.server.Auth().UpsertPassword("user1", pass)
 	require.NoError(t, err)
 	dev, err := services.NewTOTPDevice("otp", otpSecret, tt.clock.Now())
 	require.NoError(t, err)
 
 	err = tt.server.Auth().UpsertMFADevice(ctx, user, dev)
 	require.NoError(t, err)
-
 
 	// a completely invalid token should return access denied
 	err = clt.CheckPassword("user1", pass, "123456")
@@ -1275,7 +1274,7 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	_, err = proxy.AuthenticateWebUser(ctx, req)
 	require.True(t, trace.IsAccessDenied(err))
 
-	err = s.server.Auth().UpsertPassword(user, pass)
+	err = tt.server.Auth().UpsertPassword(user, pass)
 	require.NoError(t, err)
 
 	// success with password set up
@@ -1355,7 +1354,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	requestableRoleName := "requestable"
 	user, err := CreateUserRoleAndRequestable(clt, username, requestableRoleName)
 	require.NoError(t, err)
-	err = clt.UpsertPassword(username, password)
+	err = tt.server.Auth().UpsertPassword(username, password)
 	require.NoError(t, err)
 
 	// Set search_as_roles, user can request this role only with a resource
@@ -1555,7 +1554,7 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 		},
 	}
 
-	err = s.server.Auth().UpsertPassword(user, pass)
+	err = tt.server.Auth().UpsertPassword(user, pass)
 	require.NoError(t, err)
 
 	ws, err := proxy.AuthenticateWebUser(ctx, req)
@@ -2468,7 +2467,7 @@ func TestLoginAttempts(t *testing.T) {
 	proxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 
-	err = s.server.Auth().UpsertPassword(user, pass)
+	err = tt.server.Auth().UpsertPassword(user, pass)
 	require.NoError(t, err)
 
 	req := AuthenticateUserRequest{
@@ -2569,7 +2568,7 @@ func TestLoginNoLocalAuth(t *testing.T) {
 	require.NoError(t, err)
 	_, _, err = CreateUserAndRole(clt, user, []string{user})
 	require.NoError(t, err)
-	err = s.server.Auth().UpsertPassword(user, pass)
+	err = tt.server.Auth().UpsertPassword(user, pass)
 	require.NoError(t, err)
 
 	// Set auth preference to disallow local auth.
