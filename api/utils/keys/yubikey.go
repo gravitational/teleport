@@ -115,12 +115,12 @@ func parseYubiKeyPrivateKeyData(keyDataBytes []byte) (*YubiKeyPrivateKey, error)
 		return nil, trace.Wrap(err)
 	}
 
-	y, err := findYubiKey(keyData.SerialNumber)
+	pivSlot, err := parsePIVSlot(keyData.SlotKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	pivSlot, err := parsePIVSlot(keyData.SlotKey)
+	y, err := findYubiKey(keyData.SerialNumber)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -224,7 +224,7 @@ func (y *yubiKey) generatePrivateKey(slot piv.Slot, touchPolicy piv.TouchPolicy)
 		return nil, trace.Wrap(err)
 	}
 
-	// Store an unsigned certificate to mark this slot as used by tsh.
+	// Store a self-signed certificate to mark this slot as used by tsh.
 	if err = yk.SetCertificate(piv.DefaultManagementKey, slot, cert); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -306,6 +306,10 @@ func findYubiKey(serialNumber uint32) (*yubiKey, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if len(yubiKeyCards) == 0 {
+		return nil, trace.NotFound("no yubiKey devices found")
+	}
+
 	for _, card := range yubiKeyCards {
 		y, err := newYubiKey(card)
 		if err != nil {
@@ -332,10 +336,6 @@ func findYubiKeyCards() ([]string, error) {
 		if strings.Contains(strings.ToLower(card), PIVCardTypeYubiKey) {
 			yubiKeyCards = append(yubiKeyCards, card)
 		}
-	}
-
-	if len(yubiKeyCards) == 0 {
-		return nil, trace.NotFound("no yubiKey devices found")
 	}
 
 	return yubiKeyCards, nil
