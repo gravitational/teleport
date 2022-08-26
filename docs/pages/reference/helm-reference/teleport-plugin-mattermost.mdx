@@ -119,7 +119,10 @@ Base URL of the MatterMost instance
 | - | - | - |
 | `string` | `""` | No |
 
-MatterMost token of the bot user to impersonate when sending the messages. Ignored when `mattermost.tokenFromSecret` is set.
+MatterMost token of the bot user to impersonate when sending the messages.
+Ignored when `mattermost.tokenFromSecret` is set.
+It's only recommended for testing purposes. Please use
+[`mattermost.tokenFromSecret`](#mattermosttokenfromsecret) instead.
 
 <Tabs>
   <TabItem label="values.yaml">
