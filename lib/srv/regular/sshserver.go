@@ -1591,15 +1591,24 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 			}
 			span.End()
 		case result := <-scx.ExecResultCh:
+			ctx, span := s.tracerProvider.Tracer("ssh").Start(
+				oteltrace.ContextWithRemoteSpanContext(ctx, oteltrace.SpanContextFromContext(result.Context)),
+				"ssh.Regular.ExecResultCh",
+				oteltrace.WithSpanKind(oteltrace.SpanKindServer),
+			)
+
 			scx.Debugf("Exec request (%q) complete: %v", result.Command, result.Code)
+
+			tch := tracessh.NewTraceChannel(ch, tracing.WithTracerProvider(s.tracerProvider))
 
 			// The exec process has finished and delivered the execution result, send
 			// the result back to the client, and close the session and channel.
-			_, err := ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: uint32(result.Code)}))
+			_, err := tch.SendRequest(ctx, "exit-status", false, ssh.Marshal(struct{ C uint32 }{C: uint32(result.Code)}))
 			if err != nil {
 				scx.Infof("Failed to send exit status for %v: %v", result.Command, err)
 			}
 
+			span.End()
 			return
 		case <-ctx.Done():
 			s.Logger.Debugf("Closing session due to cancellation.")

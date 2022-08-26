@@ -32,6 +32,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -59,6 +60,8 @@ type ExecResult struct {
 
 	// Code is return code that execution of the command resulted in.
 	Code int
+
+	Context context.Context
 }
 
 // Exec executes an "exec" request.
@@ -73,7 +76,7 @@ type Exec interface {
 	Start(ctx context.Context, channel ssh.Channel) (*ExecResult, error)
 
 	// Wait will block while the command executes.
-	Wait() *ExecResult
+	Wait(ctx context.Context) *ExecResult
 
 	// Continue will resume execution of the process after it completes its
 	// pre-processing routine (placed in a cgroup).
@@ -138,6 +141,9 @@ func (e *localExec) SetCommand(command string) {
 // Start launches the given command returns (nil, nil) if successful.
 // ExecResult is only used to communicate an error while launching.
 func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult, error) {
+	ctx, span := tracing.DefaultProvider().Tracer("localExec").Start(ctx, "localExec/Start")
+	defer span.End()
+
 	// Parse the command to see if it is scp.
 	err := e.transformSecureCopy()
 	if err != nil {
@@ -187,21 +193,28 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 }
 
 // Wait will block while the command executes.
-func (e *localExec) Wait() *ExecResult {
+func (e *localExec) Wait(ctx context.Context) *ExecResult {
+	ctx, span := tracing.DefaultProvider().Tracer("localExec").Start(ctx, "localExec/Wait")
+	defer span.End()
+
 	if e.Cmd.Process == nil {
 		e.Ctx.Error("No process.")
 	}
 
 	// Block until the command is finished executing.
 	err := e.Cmd.Wait()
+	span.AddEvent("command completed")
+
 	if err != nil {
 		e.Ctx.Debugf("Local command failed: %v.", err)
 	} else {
 		e.Ctx.Debugf("Local command successfully executed.")
 	}
 
+	span.AddEvent("emitting exec event")
 	// Emit the result of execution to the Audit Log.
 	emitExecAuditEvent(e.Ctx, e.GetCommand(), err)
+	span.AddEvent("emitted exec event")
 
 	execResult := &ExecResult{
 		Command: e.GetCommand(),
@@ -339,7 +352,7 @@ func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, er
 }
 
 // Wait will block while the command executes.
-func (e *remoteExec) Wait() *ExecResult {
+func (e *remoteExec) Wait(ctx context.Context) *ExecResult {
 	// Block until the command is finished executing.
 	err := e.session.Wait()
 	if err != nil {

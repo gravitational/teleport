@@ -60,19 +60,19 @@ import (
 //
 // To create a forwarding server and serve a single SSH connection on it:
 //
-//   serverConfig := forward.ServerConfig{
-//      ...
-//   }
-//   remoteServer, err := forward.New(serverConfig)
-//   if err != nil {
-//   	return nil, trace.Wrap(err)
-//   }
-//   go remoteServer.Serve()
+//	serverConfig := forward.ServerConfig{
+//	   ...
+//	}
+//	remoteServer, err := forward.New(serverConfig)
+//	if err != nil {
+//		return nil, trace.Wrap(err)
+//	}
+//	go remoteServer.Serve()
 //
-//   conn, err := remoteServer.Dial()
-//   if err != nil {
-//   	return nil, trace.Wrap(err)
-//   }
+//	conn, err := remoteServer.Dial()
+//	if err != nil {
+//		return nil, trace.Wrap(err)
+//	}
 type Server struct {
 	log *logrus.Entry
 
@@ -984,15 +984,23 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 			}
 			span.End()
 		case result := <-scx.ExecResultCh:
+			ctx, span := s.tracerProvider.Tracer("ssh").Start(
+				oteltrace.ContextWithRemoteSpanContext(ctx, oteltrace.SpanContextFromContext(result.Context)),
+				"ssh.Regular.ExecResultCh",
+				oteltrace.WithSpanKind(oteltrace.SpanKindServer),
+			)
+
 			scx.Debugf("Exec request (%q) complete: %v", result.Command, result.Code)
 
+			tch := tracessh.NewTraceChannel(ch, tracing.WithTracerProvider(s.tracerProvider))
 			// The exec process has finished and delivered the execution result, send
 			// the result back to the client, and close the session and channel.
-			_, err := ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: uint32(result.Code)}))
+			_, err := tch.SendRequest(ctx, "exit-status", false, ssh.Marshal(struct{ C uint32 }{C: uint32(result.Code)}))
 			if err != nil {
 				scx.Infof("Failed to send exit status for %v: %v", result.Command, err)
 			}
 
+			span.End()
 			return
 		case <-ctx.Done():
 			return
