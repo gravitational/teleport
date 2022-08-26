@@ -921,10 +921,7 @@ grpc-teleterm:
 # Unlike grpc-teleterm, this target runs locally.
 .PHONY: grpc-teleterm/host
 grpc-teleterm/host:
-	$(CLANG_FORMAT) -i -style=$(CLANG_FORMAT_STYLE) \
-		lib/teleterm/api/proto/**/*.proto
-
-	cd lib/teleterm && buf generate
+	cd lib/teleterm && buf build && buf lint && buf generate
 
 .PHONY: goinstall
 goinstall:
