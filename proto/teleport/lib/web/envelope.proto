@@ -21,13 +21,13 @@ option go_package = "github.com/gravitational/teleport/lib/web";
 // Envelope is used to wrap and transend and receive messages between the
 // web client and proxy.
 message Envelope {
-    // Version is the version of the protocol.
-    string Version = 1;
+  // Version is the version of the protocol.
+  string Version = 1;
 
-    // Type is the type of message. For version 1 of the protocol this must
-    // not be longer than 1 character.
-    string Type = 2;
+  // Type is the type of message. For version 1 of the protocol this must
+  // not be longer than 1 character.
+  string Type = 2;
 
-    // Payload is the actual data to send.
-    string Payload = 3;
+  // Payload is the actual data to send.
+  string Payload = 3;
 }
