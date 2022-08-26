@@ -61,6 +61,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -800,6 +801,8 @@ type certRequest struct {
 	// generation indicates the number of times this certificate has been
 	// renewed.
 	generation uint64
+	// attestationRequest is an attestation request associated with the given public key.
+	attestationRequest *keys.AttestationRequest
 }
 
 // check verifies the cert request is valid.
@@ -1007,6 +1010,23 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// Get the private key policy met by the given public key. If attestation request
+	// is not given, then no private key policy will be met.
+	privateKeyPolicy := keys.PrivateKeyPolicyNone
+	if req.attestationRequest != nil {
+		resp, err := keys.AttestHardwareKey(req.attestationRequest)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		privateKeyPolicy = resp.PrivateKeyPolicy
+	}
+
+	// Check that the attested private key policy is sufficient for the required private key policy.
+	requiredKeyPolicy := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	if !keys.VerifyPrivateKeyPolicy(privateKeyPolicy, requiredKeyPolicy) {
+		return nil, trace.AccessDenied("expected private key policy %q but got %q", requiredKeyPolicy, privateKeyPolicy)
+	}
+
 	// reuse the same RSA keys for SSH and TLS keys
 	cryptoPubKey, err := sshutils.CryptoPublicKey(req.publicKey)
 	if err != nil {
@@ -1117,6 +1137,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		CertificateExtensions: req.checker.CertificateExtensions(),
 		AllowedResourceIDs:    requestedResourcesStr,
 		SourceIP:              req.sourceIP,
+		PrivateKeyPolicy:      privateKeyPolicy,
 	}
 	sshCert, err := a.Authority.GenerateUserCert(params)
 	if err != nil {

@@ -1233,13 +1233,14 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 	}
 
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
-		ConnectorID:       req.ConnectorID,
-		PublicKey:         req.PublicKey,
-		CertTTL:           req.CertTTL,
-		ClientRedirectURL: req.RedirectURL,
-		Compatibility:     req.Compatibility,
-		RouteToCluster:    req.RouteToCluster,
-		KubernetesCluster: req.KubernetesCluster,
+		ConnectorID:        req.ConnectorID,
+		PublicKey:          req.PublicKey,
+		CertTTL:            req.CertTTL,
+		ClientRedirectURL:  req.RedirectURL,
+		Compatibility:      req.Compatibility,
+		RouteToCluster:     req.RouteToCluster,
+		KubernetesCluster:  req.KubernetesCluster,
+		AttestationRequest: req.AttestationRequest,
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create Github auth request.")
@@ -1336,15 +1337,16 @@ func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 	}
 
 	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(r.Context(), types.OIDCAuthRequest{
-		ConnectorID:       req.ConnectorID,
-		ClientRedirectURL: req.RedirectURL,
-		PublicKey:         req.PublicKey,
-		CertTTL:           req.CertTTL,
-		CheckUser:         true,
-		Compatibility:     req.Compatibility,
-		RouteToCluster:    req.RouteToCluster,
-		KubernetesCluster: req.KubernetesCluster,
-		ProxyAddress:      r.Host,
+		ConnectorID:        req.ConnectorID,
+		ClientRedirectURL:  req.RedirectURL,
+		PublicKey:          req.PublicKey,
+		CertTTL:            req.CertTTL,
+		CheckUser:          true,
+		Compatibility:      req.Compatibility,
+		RouteToCluster:     req.RouteToCluster,
+		KubernetesCluster:  req.KubernetesCluster,
+		ProxyAddress:       r.Host,
+		AttestationRequest: req.AttestationRequest,
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create OIDC auth request.")

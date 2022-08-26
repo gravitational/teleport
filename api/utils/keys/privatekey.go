@@ -107,6 +107,29 @@ func (k *PrivateKey) AsAgentKey(sshCert *ssh.Certificate) (agent.AddedKey, error
 	}, nil
 }
 
+// GetAttestationRequest returns an AttestationRequest for the given private key.
+// If the given private key is not a YubiKeyPrivateKey, then a nil request will be returned.
+func (k *PrivateKey) GetAttestationRequest() (*AttestationRequest, error) {
+	switch signer := k.Signer.(type) {
+	case *YubiKeyPrivateKey:
+		slotCert, attCert, err := signer.GetAttestationCerts()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &AttestationRequest{
+			AttestationRequest: &AttestationRequest_YubikeyAttestationRequest{
+				YubikeyAttestationRequest: &YubiKeyAttestationRequest{
+					SlotCert:        slotCert.Raw,
+					AttestationCert: attCert.Raw,
+				},
+			},
+		}, nil
+	default:
+		// Just return a nil attestation request and let this key fail any attestation checks.
+		return nil, nil
+	}
+}
+
 // PPKFile returns a PuTTY PPK-formatted keypair
 func (k *PrivateKey) PPKFile() ([]byte, error) {
 	signer, ok := k.Signer.(*StandardSigner)

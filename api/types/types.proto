@@ -18,6 +18,7 @@ package types;
 import "gogoproto/gogo.proto";
 import "google/protobuf/timestamp.proto";
 import "github.com/gravitational/teleport/api/types/wrappers/wrappers.proto";
+import "github.com/gravitational/teleport/api/utils/keys/keys.proto";
 
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
@@ -1168,7 +1169,7 @@ message AuthPreferenceSpecV2 {
     // store a user's private keys.
     string private_key_policy = 12 [
         (gogoproto.jsontag) = "private_key_policy,omitempty",
-        (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.PrivateKeyPolicy"
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/utils/keys.PrivateKeyPolicy"
     ];
 }
 
@@ -1772,7 +1773,7 @@ message RoleOptions {
     // store a user's private keys.
     string private_key_policy = 23 [
         (gogoproto.jsontag) = "private_key_policy,omitempty",
-        (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.PrivateKeyPolicy"
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/utils/keys.PrivateKeyPolicy"
     ];
 }
 
@@ -2834,6 +2835,9 @@ message OIDCAuthRequest {
     // the address. If there is no match, the default redirect
     // url will be used.
     string ProxyAddress = 16 [ (gogoproto.jsontag) = "proxy_address,omitempty" ];
+
+    // attestation_request is a request to attest the given public key.
+    keys.AttestationRequest attestation_request = 17;
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -2947,6 +2951,9 @@ message SAMLAuthRequest {
 
     // ConnectorSpec is embedded connector spec for use in test flow.
     SAMLConnectorSpecV2 ConnectorSpec = 15 [ (gogoproto.jsontag) = "connector_spec,omitempty" ];
+
+    // attestation_request is a request to attest the given public key.
+    keys.AttestationRequest attestation_request = 16;
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
@@ -3047,6 +3054,8 @@ message GithubAuthRequest {
     bool SSOTestFlow = 14 [ (gogoproto.jsontag) = "sso_test_flow" ];
     // ConnectorSpec is embedded connector spec for use in test flow.
     GithubConnectorSpecV3 ConnectorSpec = 15 [ (gogoproto.jsontag) = "connector_spec,omitempty" ];
+    // attestation_request is a request to attest the given public key.
+    keys.AttestationRequest attestation_request = 16;
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.

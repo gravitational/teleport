@@ -29,11 +29,11 @@ import (
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -303,7 +303,7 @@ type UserCertParams struct {
 	// AllowedResourceIDs lists the resources the user should be able to access.
 	AllowedResourceIDs string
 	// PrivateKeyPolicy is the private key policy supported by this certificate.
-	PrivateKeyPolicy constants.PrivateKeyPolicy
+	PrivateKeyPolicy keys.PrivateKeyPolicy
 }
 
 // CheckAndSetDefaults checks the user certificate parameters

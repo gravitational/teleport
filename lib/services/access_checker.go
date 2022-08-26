@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -180,7 +181,7 @@ type AccessChecker interface {
 	PinSourceIP() bool
 
 	// PrivateKeyPolicy returns the enforced private key policy for this role set.
-	PrivateKeyPolicy(defaultPolicy constants.PrivateKeyPolicy) constants.PrivateKeyPolicy
+	PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) keys.PrivateKeyPolicy
 }
 
 // AccessInfo hold information about an identity necessary to check whether that

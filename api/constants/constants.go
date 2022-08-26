@@ -214,22 +214,6 @@ func (sft *SecondFactorType) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// PrivateKeyPolicy is the mode required for client private key storage.
-type PrivateKeyPolicy string
-
-const (
-	// PrivateKeyPolicyNone means that the client can store their private keys
-	// anywhere (usually on disk).
-	PrivateKeyPolicyNone PrivateKeyPolicy = "none"
-	// PrivateKeyPolicyHardwareKey means that the client must use a valid
-	// hardware key to generate and store their private keys securely.
-	PrivateKeyPolicyHardwareKey PrivateKeyPolicy = "hardware_key"
-	// PrivateKeyPolicyHardwareKeyTouch means that the client must use a valid
-	// hardware key to generate and store their private keys securely, and
-	// this key must require touch to be accessed and used.
-	PrivateKeyPolicyHardwareKeyTouch PrivateKeyPolicy = "hardware_key_touch"
-)
-
 // LockingMode determines how a (possibly stale) set of locks should be applied
 // to an interaction.
 type LockingMode string

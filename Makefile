@@ -920,6 +920,7 @@ buildbox-grpc:
 		api/types/types.proto \
 		api/types/webauthn/webauthn.proto \
 		api/types/wrappers/wrappers.proto \
+		api/utils/keys/keys.proto \
 		lib/multiplexer/test/ping.proto \
 		lib/web/envelope.proto
 
@@ -930,6 +931,10 @@ buildbox-grpc:
 	cd api/types/events && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
 		events.proto
+
+	cd api/utils/keys && protoc -I=.:$$PROTO_INCLUDE \
+		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
+		keys.proto
 
 	cd api/types && protoc -I=.:$$PROTO_INCLUDE \
 		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \

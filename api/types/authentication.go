@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 
 	log "github.com/sirupsen/logrus"
@@ -92,7 +93,7 @@ type AuthPreference interface {
 	GetRequireSessionMFA() bool
 
 	// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
-	GetPrivateKeyPolicy() constants.PrivateKeyPolicy
+	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
 
 	// GetDisconnectExpiredCert returns disconnect expired certificate setting
 	GetDisconnectExpiredCert() bool
@@ -348,9 +349,9 @@ func (c *AuthPreferenceV2) GetRequireSessionMFA() bool {
 }
 
 // GetPrivateKeyPolicy returns the configured private key policy for the cluster.
-func (c *AuthPreferenceV2) GetPrivateKeyPolicy() constants.PrivateKeyPolicy {
+func (c *AuthPreferenceV2) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 	if c.Spec.PrivateKeyPolicy == "" {
-		return constants.PrivateKeyPolicyNone
+		return keys.PrivateKeyPolicyNone
 	}
 	return c.Spec.PrivateKeyPolicy
 }
