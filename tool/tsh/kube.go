@@ -960,18 +960,6 @@ func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleport
 			Labels:              tc.Labels,
 		})
 		if err != nil {
-			// ListResources for kube service not available, provide fallback.
-			// Fallback does not support filters, so if users
-			// provide them, it does nothing.
-			//
-			// DELETE IN 11.0.0
-			if trace.IsNotImplemented(err) {
-				kubeClusters, err = kubeutils.KubeClusters(ctx, ac)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				return nil
-			}
 			return trace.Wrap(err)
 		}
 

@@ -225,15 +225,6 @@ func (c *NodeCommand) ListActive(ctx context.Context, clt auth.ClientI) error {
 		SearchKeywords:      libclient.ParseSearchKeywords(c.searchKeywords, ','),
 	})
 	switch {
-	// Underlying ListResources for nodes not available, use fallback.
-	// Using filter flags with older auth will silently do nothing.
-	//
-	// DELETE IN 11.0.0
-	case trace.IsNotImplemented(err):
-		nodes, err = clt.GetNodes(ctx, c.namespace)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 	case err != nil:
 		if utils.IsPredicateError(err) {
 			return trace.Wrap(utils.PredicateError{Err: err})

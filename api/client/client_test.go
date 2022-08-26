@@ -682,56 +682,6 @@ func (m *mockOIDCConnectorServer) UpsertOIDCConnector(ctx context.Context, oidcC
 	return &empty.Empty{}, nil
 }
 
-// Test that client will perform properly with an old server
-// DELETE IN 11.0.0
-func TestSetOIDCRedirectURLBackwardsCompatibility(t *testing.T) {
-	ctx := context.Background()
-	addr := startMockOIDCConnectorServer(t)
-
-	// Create client
-	clt, err := New(ctx, Config{
-		Addrs: []string{addr},
-		Credentials: []Credentials{
-			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
-		},
-		DialOpts: []grpc.DialOption{
-			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
-		},
-	})
-	require.NoError(t, err)
-
-	conn := &types.OIDCConnectorV3{
-		Metadata: types.Metadata{
-			Name: "one",
-		},
-	}
-
-	// Upsert should set "RedirectURL" on the provided connector if empty
-	conn.Spec.RedirectURLs = []string{"one.example.com"}
-	conn.Spec.RedirectURL = ""
-	err = clt.UpsertOIDCConnector(ctx, conn)
-	require.NoError(t, err)
-	require.Equal(t, 1, len(conn.GetRedirectURLs()))
-	require.Equal(t, conn.GetRedirectURLs()[0], conn.Spec.RedirectURL)
-
-	// GetOIDCConnector should set "RedirectURLs" on the received connector if empty
-	conn.Spec.RedirectURLs = []string{}
-	conn.Spec.RedirectURL = "one.example.com"
-	connResp, err := clt.GetOIDCConnector(ctx, conn.GetName(), false)
-	require.NoError(t, err)
-	require.Equal(t, 1, len(connResp.GetRedirectURLs()))
-	require.Equal(t, connResp.GetRedirectURLs()[0], "one.example.com")
-
-	// GetOIDCConnectors should set "RedirectURLs" on the received connectors if empty
-	conn.Spec.RedirectURLs = []string{}
-	conn.Spec.RedirectURL = "one.example.com"
-	connectorsResp, err := clt.GetOIDCConnectors(ctx, false)
-	require.NoError(t, err)
-	require.Equal(t, 1, len(connectorsResp))
-	require.Equal(t, 1, len(connectorsResp[0].GetRedirectURLs()))
-	require.Equal(t, "one.example.com", connectorsResp[0].GetRedirectURLs()[0])
-}
-
 type mockAccessRequestServer struct {
 	*mockServer
 }

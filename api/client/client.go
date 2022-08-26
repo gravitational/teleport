@@ -1112,36 +1112,12 @@ func (c *Client) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 		ResourceType: types.KindKubeService,
 	})
 	if err != nil {
-		// Underlying ListResources for kube service was not available, use fallback.
-		//
-		// DELETE IN 11.0.0
-		if trace.IsNotImplemented(err) {
-			return c.getKubeServicesFallback(ctx)
-		}
-
 		return nil, trace.Wrap(err)
 	}
 
 	servers, err := types.ResourcesWithLabels(resources).AsServers()
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	return servers, nil
-}
-
-// getKubeServicesFallback previous implementation of `GetKubeServices` function
-// using `GetKubeServices` RPC call.
-// DELETE IN 10.0
-func (c *Client) getKubeServicesFallback(ctx context.Context) ([]types.Server, error) {
-	resp, err := c.grpc.GetKubeServices(ctx, &proto.GetKubeServicesRequest{}, c.callOpts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	servers := make([]types.Server, len(resp.GetServers()))
-	for i, server := range resp.GetServers() {
-		servers[i] = server
 	}
 
 	return servers, nil
@@ -1154,18 +1130,6 @@ func (c *Client) GetApplicationServers(ctx context.Context, namespace string) ([
 		ResourceType: types.KindAppServer,
 	})
 	if err != nil {
-		// Underlying ListResources for app server was not available, use fallback.
-		//
-		// DELETE IN 11.0.0
-		if trace.IsNotImplemented(err) {
-			servers, err := c.getApplicationServersFallback(ctx, namespace)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return servers, nil
-		}
-
 		return nil, trace.Wrap(err)
 	}
 
@@ -1183,32 +1147,6 @@ func (c *Client) GetApplicationServers(ctx context.Context, namespace string) ([
 	}
 
 	return append(servers, legacyServers...), nil
-}
-
-// getAppServersFallback fetches app servers using deprecated API call
-// `GetApplicationServers`.
-//
-// DELETE IN 10.0
-func (c *Client) getApplicationServersFallback(ctx context.Context, namespace string) ([]types.AppServer, error) {
-	resp, err := c.grpc.GetApplicationServers(ctx, &proto.GetApplicationServersRequest{
-		Namespace: namespace,
-	}, c.callOpts...)
-	if err != nil {
-		if trace.IsNotImplemented(trail.FromGRPC(err)) {
-			servers, err := c.getAppServersFallback(ctx, namespace)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return servers, nil
-		}
-		return nil, trail.FromGRPC(err)
-	}
-	var servers []types.AppServer
-	for _, server := range resp.GetServers() {
-		servers = append(servers, server)
-	}
-
-	return servers, nil
 }
 
 // getAppServersFallback fetches app servers using legacy API call
@@ -1489,43 +1427,12 @@ func (c *Client) GetDatabaseServers(ctx context.Context, namespace string) ([]ty
 		ResourceType: types.KindDatabaseServer,
 	})
 	if err != nil {
-		// Underlying ListResources for db server was not available, use fallback.
-		//
-		// DELETE IN 11.0.0
-		if trace.IsNotImplemented(err) {
-			servers, err := c.getDatabaseServersFallback(ctx, namespace)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return servers, nil
-		}
-
 		return nil, trace.Wrap(err)
 	}
 
 	servers, err := types.ResourcesWithLabels(resources).AsDatabaseServers()
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	return servers, nil
-}
-
-// getDatabaseServersFallback fetches database servers using legacy API call
-// `GetDatabaseServers`.
-//
-// DELETE IN 10.0.
-func (c *Client) getDatabaseServersFallback(ctx context.Context, namespace string) ([]types.DatabaseServer, error) {
-	resp, err := c.grpc.GetDatabaseServers(ctx, &proto.GetDatabaseServersRequest{
-		Namespace: namespace,
-	}, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	servers := make([]types.DatabaseServer, 0, len(resp.GetServers()))
-	for _, server := range resp.GetServers() {
-		servers = append(servers, server)
 	}
 
 	return servers, nil
@@ -1696,9 +1603,6 @@ func (c *Client) GetOIDCConnector(ctx context.Context, name string, withSecrets 
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
-	// An old server would send RedirectURL instead of RedirectURLs
-	// DELETE IN 11.0.0
-	resp.CheckSetRedirectURL()
 	return resp, nil
 }
 
@@ -1711,9 +1615,6 @@ func (c *Client) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]typ
 	}
 	oidcConnectors := make([]types.OIDCConnector, len(resp.OIDCConnectors))
 	for i, oidcConnector := range resp.OIDCConnectors {
-		// An old server would send RedirectURL instead of RedirectURLs
-		// DELETE IN 11.0.0
-		oidcConnector.CheckSetRedirectURL()
 		oidcConnectors[i] = oidcConnector
 	}
 	return oidcConnectors, nil
@@ -1725,9 +1626,6 @@ func (c *Client) UpsertOIDCConnector(ctx context.Context, oidcConnector types.OI
 	if !ok {
 		return trace.BadParameter("invalid type %T", oidcConnector)
 	}
-	// An old server would expect RedirectURL instead of RedirectURLs
-	// DELETE IN 11.0.0
-	connector.CheckSetRedirectURL()
 	_, err := c.grpc.UpsertOIDCConnector(ctx, connector, c.callOpts...)
 	return trail.FromGRPC(err)
 }

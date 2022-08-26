@@ -105,8 +105,9 @@ func newWebClient(cfg *Config) (*http.Client, error) {
 
 // doWithFallback attempts to execute an HTTP request using https, and then
 // fall back to plain HTTP under certain, very specific circumstances.
-//  * The caller must specifically allow it via the allowPlainHTTP parameter, and
-//  * The target host must resolve to the loopback address.
+//   - The caller must specifically allow it via the allowPlainHTTP parameter, and
+//   - The target host must resolve to the loopback address.
+//
 // If these conditions are not met, then the plain-HTTP fallback is not allowed,
 // and a the HTTPS failure will be considered final.
 func doWithFallback(clt *http.Client, allowPlainHTTP bool, extraHeaders map[string]string, req *http.Request) (*http.Response, error) {
@@ -230,12 +231,7 @@ func GetTunnelAddr(cfg *Config) (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	// DELETE IN 11.0.0
-	// newer proxies should return WebListenAddr so
-	// we don't need to rely on the dialed proxyAddr
-	if pr.Proxy.SSH.WebListenAddr == "" {
-		pr.Proxy.SSH.WebListenAddr = cfg.ProxyAddr
-	}
+
 	return pr.Proxy.tunnelProxyAddr()
 }
 
