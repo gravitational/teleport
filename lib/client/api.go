@@ -3275,19 +3275,25 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 
 	response, err := login(priv)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+		expectedPolicy, parseError := keys.ParsePrivateKeyPolicyError(err)
+		if parseError != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	// TODO: check err, if private key policy error, bootstrap/retrieve PIV key and relogin.
-	// fmt.Fprint(os.Stderr, "\nHardware key login is required, please re-enter your login credentials\n")
-	// yubiPriv, err := keys.GetOrGenerateYubiKeyPrivateKey(privateKeyPolicy == keys.PrivateKeyPolicyHardwareKeyTouch)
-	// if err != nil {
-	// 	return nil, trace.Wrap(err)
-	// }
-	// response, err = login(yubiPriv)
-	// if err != nil {
-	// 	return nil, trace.Wrap(err)
-	// }
+		// The private key provided in initial login was rejected due to an unmet key policy requirement.
+		// Prepare a new private key which fulfills the expected key policy and re-login.
+		fmt.Fprintf(tc.Stderr, "Login failed, private key policy %q not met. Retrying with YubiKey generated private key...\n", expectedPolicy)
+
+		priv, err = keys.GetOrGenerateYubiKeyPrivateKey(expectedPolicy == keys.PrivateKeyPolicyHardwareKeyTouch)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		response, err = login(priv)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	// Use proxy identity if set in response. localLogin discards resp.Username before returning.
 	if response.Username != "" {

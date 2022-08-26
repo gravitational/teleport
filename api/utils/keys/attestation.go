@@ -14,27 +14,14 @@ limitations under the License.
 package keys
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/x509"
+	"strings"
 
 	"github.com/go-piv/piv-go/piv"
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
-)
-
-// PrivateKeyPolicy is the mode required for client private key storage.
-type PrivateKeyPolicy string
-
-const (
-	// PrivateKeyPolicyNone means that the client can store their private keys
-	// anywhere (usually on disk).
-	PrivateKeyPolicyNone PrivateKeyPolicy = "none"
-	// PrivateKeyPolicyHardwareKey means that the client must use a valid
-	// hardware key to generate and store their private keys securely.
-	PrivateKeyPolicyHardwareKey PrivateKeyPolicy = "hardware_key"
-	// PrivateKeyPolicyHardwareKeyTouch means that the client must use a valid
-	// hardware key to generate and store their private keys securely, and
-	// this key must require touch to be accessed and used.
-	PrivateKeyPolicyHardwareKeyTouch PrivateKeyPolicy = "hardware_key_touch"
 )
 
 // HardwareKeyAttestation holds data necessary to attest a hardware key of the given type.
@@ -82,18 +69,69 @@ func AttestYubikey(req *YubiKeyAttestationRequest) (*HardwareKeyAttestationRespo
 	}, nil
 }
 
-// VerifyPrivateKeyPolicy verfies that the provided private key policy passes
-// the required private key policy.
-func VerifyPrivateKeyPolicy(providedPolicy, requiredPolicy PrivateKeyPolicy) bool {
-	switch requiredPolicy {
+// PrivateKeyPolicy is the mode required for client private key storage.
+type PrivateKeyPolicy string
+
+const (
+	// PrivateKeyPolicyNone means that the client can store their private keys
+	// anywhere (usually on disk).
+	PrivateKeyPolicyNone PrivateKeyPolicy = "none"
+	// PrivateKeyPolicyHardwareKey means that the client must use a valid
+	// hardware key to generate and store their private keys securely.
+	PrivateKeyPolicyHardwareKey PrivateKeyPolicy = "hardware_key"
+	// PrivateKeyPolicyHardwareKeyTouch means that the client must use a valid
+	// hardware key to generate and store their private keys securely, and
+	// this key must require touch to be accessed and used.
+	PrivateKeyPolicyHardwareKeyTouch PrivateKeyPolicy = "hardware_key_touch"
+)
+
+var privateKeyPolicyErrMsg = "private key policy not met: "
+
+// VerifyPolicy verifies that the given policy meets the requirements of this policy.
+func (p PrivateKeyPolicy) VerifyPolicy(policy PrivateKeyPolicy) error {
+	switch p {
 	case PrivateKeyPolicyNone:
-		// No policy enforced, so any policy is valid
-		return true
+		return nil
 	case PrivateKeyPolicyHardwareKey:
-		return providedPolicy == PrivateKeyPolicyHardwareKey || providedPolicy == PrivateKeyPolicyHardwareKeyTouch
+		if policy == PrivateKeyPolicyHardwareKey || policy == PrivateKeyPolicyHardwareKeyTouch {
+			return nil
+		}
 	case PrivateKeyPolicyHardwareKeyTouch:
-		return providedPolicy == PrivateKeyPolicyHardwareKeyTouch
-	default:
-		return false
+		if policy == PrivateKeyPolicyHardwareKeyTouch {
+			return nil
+		}
 	}
+	return trace.BadParameter(privateKeyPolicyErrMsg + string(p))
+}
+
+// ParsePrivateKeyPolicyError checks if the given error matches one from VerifyPolicy,
+// and returns the contained PrivateKeyPolicy.
+func ParsePrivateKeyPolicyError(err error) (PrivateKeyPolicy, error) {
+	if trace.IsBadParameter(err) {
+		policyStr := strings.ReplaceAll(err.Error(), privateKeyPolicyErrMsg, "")
+		policy := PrivateKeyPolicy(policyStr)
+		if err := policy.validate(); err != nil {
+			return "", trace.Wrap(err)
+		}
+		return policy, nil
+	}
+	return "", trace.BadParameter("provided error is not a key policy error")
+}
+
+func (p PrivateKeyPolicy) validate() error {
+	switch p {
+	case PrivateKeyPolicyNone, PrivateKeyPolicyHardwareKey, PrivateKeyPolicyHardwareKeyTouch:
+		return nil
+	}
+	return trace.BadParameter("%q is not a valid key policy", p)
+}
+
+func (ar *AttestationRequest) MarshalJSON() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	err := (&jsonpb.Marshaler{}).Marshal(buf, ar)
+	return buf.Bytes(), trace.Wrap(err)
+}
+
+func (ar *AttestationRequest) UnmarshalJSON(buf []byte) error {
+	return jsonpb.Unmarshal(bytes.NewReader(buf), ar)
 }

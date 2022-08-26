@@ -1023,8 +1023,8 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 
 	// Check that the attested private key policy is sufficient for the required private key policy.
 	requiredKeyPolicy := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
-	if !keys.VerifyPrivateKeyPolicy(privateKeyPolicy, requiredKeyPolicy) {
-		return nil, trace.AccessDenied("expected private key policy %q but got %q", requiredKeyPolicy, privateKeyPolicy)
+	if err := requiredKeyPolicy.VerifyPolicy(privateKeyPolicy); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// reuse the same RSA keys for SSH and TLS keys
@@ -1219,6 +1219,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		Renewable:          req.renewable,
 		Generation:         req.generation,
 		AllowedResourceIDs: req.checker.GetAllowedResourceIDs(),
+		PrivateKeyPolicy:   privateKeyPolicy,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
