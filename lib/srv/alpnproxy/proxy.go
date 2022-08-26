@@ -100,7 +100,7 @@ func MatchByProtocol(protocols ...common.Protocol) MatchFunc {
 // MatchByProtocolWithPing creates match function based on client TLS APLN
 // protocol matching also their ping protocol variations.
 func MatchByProtocolWithPing(protocols ...common.Protocol) MatchFunc {
-	return MatchByProtocol(common.ProtocolsWithPing(protocols...)...)
+	return MatchByProtocol(append(protocols, common.ProtocolsWithPing(protocols...)...)...)
 }
 
 // MatchByALPNPrefix creates match function based on client TLS ALPN protocol prefix.
@@ -117,7 +117,9 @@ func ExtractMySQLEngineVersion(fn func(ctx context.Context, conn net.Conn) error
 		const mysqlVerStart = len(common.ProtocolMySQLWithVerPrefix)
 
 		for _, alpn := range info.ALPN {
-			if !strings.HasPrefix(alpn, string(common.ProtocolMySQLWithVerPrefix)) || len(alpn) == mysqlVerStart {
+			if strings.HasSuffix(alpn, string(common.ProtocolPingSuffix)) ||
+				!strings.HasPrefix(alpn, string(common.ProtocolMySQLWithVerPrefix)) ||
+				len(alpn) == mysqlVerStart {
 				continue
 			}
 			// The version should never be longer than 255 characters including
