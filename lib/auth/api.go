@@ -145,9 +145,6 @@ type ReadNodeAccessPoint interface {
 
 	// GetNetworkRestrictions returns networking restrictions for restricted shell to enforce
 	GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error)
-
-	// GetNodes returns a list of registered servers for this cluster.
-	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 }
 
 // NodeAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -679,6 +676,67 @@ type WindowsDesktopAccessPoint interface {
 	accessPoint
 }
 
+// ReadDiscoveryAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
+// used by a teleport.ComponentDiscovery.
+//
+// NOTE: This interface must match the resources replicated in cache.ForDiscovery.
+type ReadDiscoveryAccessPoint interface {
+	// Closer closes all the resources
+	io.Closer
+
+	// NewWatcher returns a new event watcher.
+	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
+
+	// GetCertAuthority returns cert authority by id
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+
+	// GetCertAuthorities returns a list of cert authorities
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+
+	// GetClusterName gets the name of the cluster from the backend.
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+
+	// GetClusterAuditConfig returns cluster audit configuration.
+	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
+
+	// GetClusterNetworkingConfig returns cluster networking configuration.
+	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
+
+	// GetAuthPreference returns the cluster authentication configuration.
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+
+	// GetSessionRecordingConfig returns session recording configuration.
+	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
+
+	// GetUser returns a services.User for this cluster.
+	GetUser(name string, withSecrets bool) (types.User, error)
+
+	// GetRole returns role by name
+	GetRole(ctx context.Context, name string) (types.Role, error)
+
+	// GetRoles returns a list of roles
+	GetRoles(ctx context.Context) ([]types.Role, error)
+
+	// GetProxies returns a list of proxy servers registered in the cluster
+	GetProxies() ([]types.Server, error)
+
+	// GetNamespaces returns a list of namespaces
+	GetNamespaces() ([]types.Namespace, error)
+
+	// GetNamespace returns namespace by name
+	GetNamespace(name string) (*types.Namespace, error)
+}
+
+// DiscoveryAccessPoint is an API interface implemented by a certificate authority (CA) to be
+// used by a teleport.ComponentApp.
+type DiscoveryAccessPoint interface {
+	// ReadDiscoveryAccessPoint provides methods to read data
+	ReadDiscoveryAccessPoint
+
+	// accessPoint provides common access point functionality
+	accessPoint
+}
+
 // AccessCache is a subset of the interface working on the certificate authorities
 type AccessCache interface {
 	// GetCertAuthority returns cert authority by id
@@ -1012,6 +1070,27 @@ func NewWindowsDesktopWrapper(base WindowsDesktopAccessPoint, cache ReadWindowsD
 func (w *WindowsDesktopWrapper) Close() error {
 	err := w.NoCache.Close()
 	err2 := w.ReadWindowsDesktopAccessPoint.Close()
+	return trace.NewAggregate(err, err2)
+}
+
+type DiscoveryWrapper struct {
+	ReadDiscoveryAccessPoint
+	accessPoint
+	NoCache DiscoveryAccessPoint
+}
+
+func NewDiscoveryWrapper(base DiscoveryAccessPoint, cache ReadDiscoveryAccessPoint) DiscoveryAccessPoint {
+	return &DiscoveryWrapper{
+		NoCache:                  base,
+		accessPoint:              base,
+		ReadDiscoveryAccessPoint: cache,
+	}
+}
+
+// Close closes all associated resources
+func (w *DiscoveryWrapper) Close() error {
+	err := w.NoCache.Close()
+	err2 := w.ReadDiscoveryAccessPoint.Close()
 	return trace.NewAggregate(err, err2)
 }
 

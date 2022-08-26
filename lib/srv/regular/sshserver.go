@@ -30,8 +30,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -41,7 +39,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -54,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/srv/server"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
@@ -223,17 +219,6 @@ type Server struct {
 	// users is used to start the automatic user deletion loop
 	users srv.HostUsers
 
-	// cloudWatcher periodically retrieves cloud resources, currently
-	// only EC2
-	cloudWatcher *server.Watcher
-	// awsMatchers are used to match EC2 instances
-	awsMatchers []services.AWSMatcher
-	// clients is used to retrieve clients used for AWS EC2 discovery
-	clients      cloud.Clients
-	ec2Installer *server.SSMInstaller
-
-	auth auth.ClientI
-
 	// tracerProvider is used to create tracers capable
 	// of starting spans.
 	tracerProvider oteltrace.TracerProvider
@@ -341,9 +326,6 @@ func (s *Server) close() {
 		s.users.Shutdown()
 	}
 
-	if s.cloudWatcher != nil {
-		s.cloudWatcher.Stop()
-	}
 }
 
 // Close closes listening socket and stops accepting connections
@@ -400,9 +382,6 @@ func (s *Server) startPeriodicOperations() {
 	}
 	if s.heartbeat != nil {
 		go s.heartbeat.Run()
-	}
-	if s.cloudWatcher != nil {
-		go s.handleEC2Discovery()
 	}
 }
 
@@ -675,26 +654,10 @@ func SetInventoryControlHandle(handle inventory.DownstreamHandle) ServerOption {
 	}
 }
 
-// SetAWSMatchers sets the matchers used for matching EC2 instances
-func SetAWSMatchers(matchers []services.AWSMatcher) ServerOption {
-	return func(s *Server) error {
-		s.awsMatchers = matchers
-		return nil
-	}
-}
-
 // SetTracerProvider sets the tracer provider.
 func SetTracerProvider(provider oteltrace.TracerProvider) ServerOption {
 	return func(s *Server) error {
 		s.tracerProvider = provider
-		return nil
-	}
-}
-
-// SetCloudClients returns a server option that sets cloud API clients
-func SetCloudClients(clients cloud.Clients) ServerOption {
-	return func(s *Server) error {
-		s.clients = clients
 		return nil
 	}
 }
@@ -779,8 +742,6 @@ func New(addr utils.NetAddr,
 		component = teleport.ComponentNode
 	}
 
-	s.auth = auth
-
 	s.Entry = logrus.WithFields(logrus.Fields{
 		trace.Component:       component,
 		trace.ComponentFields: logrus.Fields{},
@@ -820,20 +781,6 @@ func New(addr utils.NetAddr,
 	// common term handlers
 	s.termHandlers = &srv.TermHandlers{
 		SessionRegistry: s.reg,
-	}
-
-	if len(s.awsMatchers) != 0 {
-		if s.clients == nil {
-			s.clients = cloud.NewClients()
-		}
-
-		s.cloudWatcher, err = server.NewCloudWatcher(s.ctx, s.awsMatchers, s.clients)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		s.ec2Installer = server.NewSSMInstaller(server.SSMInstallerConfig{
-			Emitter: s,
-		})
 	}
 
 	server, err := sshutils.NewServer(
@@ -1052,71 +999,6 @@ func (s *Server) getServerInfo() *types.ServerV2 {
 
 func (s *Server) getServerResource() (types.Resource, error) {
 	return s.getServerInfo(), nil
-}
-
-func (s *Server) filterExistingNodes(instances *server.EC2Instances) {
-	nodes := s.nodeWatcher.GetNodes(func(n services.Node) bool {
-		labels := n.GetAllLabels()
-		_, accountOK := labels[types.AWSAccountIDLabel]
-		_, instanceOK := labels[types.AWSInstanceIDLabel]
-		return accountOK && instanceOK
-	})
-
-	var filtered []*ec2.Instance
-outer:
-	for _, inst := range instances.Instances {
-		for _, node := range nodes {
-			match := types.MatchLabels(node, map[string]string{
-				types.AWSAccountIDLabel:  instances.AccountID,
-				types.AWSInstanceIDLabel: aws.StringValue(inst.InstanceId),
-			})
-			if match {
-				continue outer
-			}
-		}
-		filtered = append(filtered, inst)
-	}
-	instances.Instances = filtered
-}
-
-func (s *Server) handleInstances(instances *server.EC2Instances) error {
-	client, err := s.clients.GetAWSSSMClient(instances.Region)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	s.filterExistingNodes(instances)
-	if len(instances.Instances) == 0 {
-		log.Debugf("All fetched nodes already enrolled.")
-		return nil
-	}
-
-	req := server.SSMRunRequest{
-		DocumentName: instances.DocumentName,
-		SSM:          client,
-		Instances:    instances.Instances,
-		Params:       instances.Parameters,
-		Region:       instances.Region,
-		AccountID:    instances.AccountID,
-	}
-	return trace.Wrap(s.ec2Installer.Run(s.ctx, req))
-}
-
-func (s *Server) handleEC2Discovery() {
-	go s.cloudWatcher.Run()
-	for {
-		select {
-		case instances := <-s.cloudWatcher.InstancesC:
-			if err := s.handleInstances(&instances); err != nil {
-				if trace.IsNotFound(err) {
-					log.Debug("All discovered EC2 instances are already part of the cluster.")
-				} else {
-					log.WithError(err).Error("Failed to enroll discovered EC2 instances.")
-				}
-			}
-		case <-s.ctx.Done():
-			s.cloudWatcher.Stop()
-		}
-	}
 }
 
 // serveAgent will build the a sock path for this user and serve an SSH agent on unix socket.

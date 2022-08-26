@@ -239,10 +239,6 @@ func ForNode(cfg Config) Config {
 		{Kind: types.KindNetworkRestrictions},
 	}
 
-	if cfg.DiscoveryAgent {
-		cfg.Watches = append(cfg.Watches, types.WatchKind{Kind: types.KindNode})
-	}
-
 	cfg.QueueSize = defaults.NodeQueueSize
 	return cfg
 }
@@ -329,6 +325,26 @@ func ForWindowsDesktop(cfg Config) Config {
 		{Kind: types.KindWindowsDesktop},
 	}
 	cfg.QueueSize = defaults.WindowsDesktopQueueSize
+	return cfg
+}
+
+// ForDiscovery sets up watch configuration for discovery servers.
+func ForDiscovery(cfg Config) Config {
+	cfg.target = "discovery"
+	cfg.Watches = []types.WatchKind{
+		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{Kind: types.KindClusterName},
+		{Kind: types.KindClusterAuditConfig},
+		{Kind: types.KindClusterNetworkingConfig},
+		{Kind: types.KindClusterAuthPreference},
+		{Kind: types.KindSessionRecordingConfig},
+		{Kind: types.KindUser},
+		{Kind: types.KindRole},
+		{Kind: types.KindProxy},
+		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
+		//		{Kind: types.KindNode},
+	}
+	cfg.QueueSize = defaults.DiscoveryQueueSize
 	return cfg
 }
 
@@ -611,9 +627,6 @@ type Config struct {
 	// Unstarted indicates that the cache should not be started during New. The
 	// cache is usable before it's started, but it will always hit the backend.
 	Unstarted bool
-	// DiscoveryAgent indicates that the node is a SSH discovery node
-	// and needs to keep a cache of nodes in the cluster.
-	DiscoveryAgent bool
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
