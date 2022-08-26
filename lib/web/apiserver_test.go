@@ -679,12 +679,13 @@ func TestSAML(t *testing.T) {
 			})
 
 			require.NoError(t, err)
-			require.Equal(t, http.StatusFound, authRe.Code(), "Response: %v", string(authRe.Bytes()))
+			// This route uses a meta redirect, so expect redirect URL in body instead of location header.
+			require.Equal(t, http.StatusOK, authRe.Code(), "Response: %v", string(authRe.Bytes()))
 			if tc.validSession {
 				// we have got valid session
 				require.NotEmpty(t, authRe.Headers().Get("Set-Cookie"))
 			}
-			require.Equal(t, tc.expectedRedirectURL, authRe.Headers().Get("Location"))
+			require.Contains(t, string(authRe.Bytes()), tc.expectedRedirectURL)
 		})
 	}
 }
