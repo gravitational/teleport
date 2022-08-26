@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/trace"
 )
 
@@ -206,7 +205,7 @@ func makeAzureFetchers(ctx context.Context, clients cloud.Clients, matchers []se
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				allSubIDs, err = subscriptionClient.ListSubscriptionIDs(ctx, common.MaxPages)
+				allSubIDs, err = subscriptionClient.ListSubscriptionIDs(ctx)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}

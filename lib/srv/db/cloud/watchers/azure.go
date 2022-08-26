@@ -26,7 +26,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
@@ -115,9 +114,9 @@ func (f *azureFetcher) Get(ctx context.Context) (types.Databases, error) {
 
 func (f *azureFetcher) getDBServers(ctx context.Context) ([]*azure.DBServer, error) {
 	if f.cfg.ResourceGroup == types.Wildcard {
-		return f.cfg.Client.ListAll(ctx, common.MaxPages)
+		return f.cfg.Client.ListAll(ctx)
 	}
-	return f.cfg.Client.ListWithinGroup(ctx, f.cfg.ResourceGroup, common.MaxPages)
+	return f.cfg.Client.ListWithinGroup(ctx, f.cfg.ResourceGroup)
 }
 
 // getDatabases returns a list of database resources representing Azure database servers.
