@@ -126,15 +126,12 @@ If you have multiple roles, the longest time period takes precedence.
 
 Existing web api endpoint ‘/ping’ already returns a license warning. Due to this endpoint being unauthenticated and the proposed functionality requires the ability to differentiate based on identity/role this cannot be used as is.
 Instead this RFD proposes a new authenticated endpoint ‘/license’ be exposed to provide the required functionality. This would consist of
-An auth api method under the hood.
-A webapi endpoint that calls it.
-Its request body would be empty and the the response would be of the form
-
-```
-message LicenseWarning { 
-    WarningMessage String
-}
-```
+- An auth api method under the hood that checks the license expiration and determines the warning to give.
+- A webapi endpoint that calls it.
+  - Method: GET
+  - Path: `/webapi/check-license`
+  - Request body: empty
+  - Response: `{"warningMessages": ["Your Teleport Enterprise Edition license will expire in 10 days ..."]}`
 
 ## Security considerations
 Admins cannot fully disable warnings, because there will be a minimum threshold of 10 days.
