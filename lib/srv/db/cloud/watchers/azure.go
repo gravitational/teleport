@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -44,6 +45,7 @@ func newAzureFetcher(config azureFetcherConfig) (*azureFetcher, error) {
 			"regions":       config.Regions,
 			"group":         config.ResourceGroup,
 			"subscription":  config.Subscription,
+			"type":          config.Type,
 		}),
 	}
 	return fetcher, nil
@@ -51,9 +53,12 @@ func newAzureFetcher(config azureFetcherConfig) (*azureFetcher, error) {
 
 // azureFetcherConfig is the Azure database servers fetcher configuration.
 type azureFetcherConfig struct {
-	// Client is the Azure API client.
-	Client azure.DBServersClient
-	// Subscription is the Azure subscription being fetched from by the fetcher.
+	// AzureClients are the Azure API clients.
+	AzureClients cloud.AzureClients
+	// Type is the type of DB matcher, such as "mysql" or "postgres"
+	Type string
+	// Subscription is the Azure subscription selector.
+	// When the subscription is "*", this fetcher will query the Azure subscription API to list all subscriptions.
 	Subscription string
 	// ResourceGroup is a selector to match cloud resource group.
 	ResourceGroup string
@@ -77,8 +82,16 @@ func (f *azureFetcher) regionMatches(region string) bool {
 
 // CheckAndSetDefaults validates the config and sets defaults.
 func (c *azureFetcherConfig) CheckAndSetDefaults() error {
-	if c.Client == nil {
-		return trace.BadParameter("missing parameter Client")
+	if c.AzureClients == nil {
+		return trace.BadParameter("missing parameter AzureClients")
+	}
+	if len(c.Type) == 0 {
+		return trace.BadParameter("missing parameter Type")
+	}
+	switch c.Type {
+	case services.AzureMatcherMySQL, services.AzureMatcherPostgres:
+	default:
+		return trace.BadParameter("unknown matcher type %q", c.Type)
 	}
 	if len(c.Subscription) == 0 {
 		return trace.BadParameter("missing parameter Subscription")
@@ -112,16 +125,70 @@ func (f *azureFetcher) Get(ctx context.Context) (types.Databases, error) {
 	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log), nil
 }
 
-func (f *azureFetcher) getDBServers(ctx context.Context) ([]*azure.DBServer, error) {
-	if f.cfg.ResourceGroup == types.Wildcard {
-		return f.cfg.Client.ListAll(ctx)
+// getDBServersClient returns the appropriate Azure DBServersClient for this fetcher's configured Type.
+func (f *azureFetcher) getDBServersClient(subID string) (azure.DBServersClient, error) {
+	switch f.cfg.Type {
+	case services.AzureMatcherMySQL:
+		client, err := f.cfg.AzureClients.GetAzureMySQLClient(subID)
+		return client, trace.Wrap(err)
+	case services.AzureMatcherPostgres:
+		client, err := f.cfg.AzureClients.GetAzurePostgresClient(subID)
+		return client, trace.Wrap(err)
+	default:
+		return nil, trace.BadParameter("unknown matcher type %q", f.cfg.Type)
 	}
-	return f.cfg.Client.ListWithinGroup(ctx, f.cfg.ResourceGroup)
+}
+
+// getSubscriptions returns the subscriptions that this fetcher is configured to query.
+// This will make an API call to list subscription IDs when the fetcher is configured to match "*" subscription,
+// in order to discover and query new subscriptions.
+// Otherwise, a list containing the fetcher's non-wildcard subscription is returned.
+func (f *azureFetcher) getSubscriptions(ctx context.Context) ([]string, error) {
+	if f.cfg.Subscription != types.Wildcard {
+		return []string{f.cfg.Subscription}, nil
+	}
+	client, err := f.cfg.AzureClients.GetAzureSubscriptionClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	subIDs, err := client.ListSubscriptionIDs(ctx)
+	return subIDs, trace.Wrap(err)
+}
+
+// getDBServersInSubscription fetches Azure DB servers within a given subscription.
+func (f *azureFetcher) getDBServersInSubscription(ctx context.Context, subID string) ([]*azure.DBServer, error) {
+	client, err := f.getDBServersClient(subID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if f.cfg.ResourceGroup == types.Wildcard {
+		servers, err := client.ListAll(ctx)
+		return servers, trace.Wrap(err)
+	}
+	servers, err := client.ListWithinGroup(ctx, f.cfg.ResourceGroup)
+	return servers, trace.Wrap(err)
+}
+
+// getAllDBServers fetches Azure DB servers from all subscriptions that this fetcher is configured to query.
+func (f *azureFetcher) getAllDBServers(ctx context.Context) ([]*azure.DBServer, error) {
+	var result []*azure.DBServer
+	subIDs, err := f.getSubscriptions(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, subID := range subIDs {
+		servers, err := f.getDBServersInSubscription(ctx, subID)
+		if err != nil {
+			continue
+		}
+		result = append(result, servers...)
+	}
+	return result, nil
 }
 
 // getDatabases returns a list of database resources representing Azure database servers.
 func (f *azureFetcher) getDatabases(ctx context.Context) (types.Databases, error) {
-	servers, err := f.getDBServers(ctx)
+	servers, err := f.getAllDBServers(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -164,8 +231,8 @@ func (f *azureFetcher) getDatabases(ctx context.Context) (types.Databases, error
 
 // String returns the fetcher's string description.
 func (f *azureFetcher) String() string {
-	return fmt.Sprintf("azureFetcher(Subscription=%v, ResourceGroup=%v, Regions=%v, Labels=%v)",
-		f.cfg.Subscription, f.cfg.ResourceGroup, f.cfg.Regions, f.cfg.Labels)
+	return fmt.Sprintf("azureFetcher(Type=%v, Subscription=%v, ResourceGroup=%v, Regions=%v, Labels=%v)",
+		f.cfg.Type, f.cfg.Subscription, f.cfg.ResourceGroup, f.cfg.Regions, f.cfg.Labels)
 }
 
 // reduceAzureMatcher simplifies a Azure Matcher.
