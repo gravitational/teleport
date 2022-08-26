@@ -3,7 +3,7 @@ authors: Ryan Clark (ryan.clark@goteleport.com)
 state: draft
 ---
 
-# RFD 85 - Improving the Webapps codebase
+# RFD 85 - Better React testing, remove default exports
 
 ## What
 
@@ -11,7 +11,7 @@ Improve the webapps codebase by changing the way we test our components and writ
 
 ## Why
 
-The current convention is to use Storybook to render our large, full components in their different states.  This has a 
+The current convention is to use Storybook to render our large, full components in their different states.  This has a
 couple of knock-on effects.
 
 ### Component Architecture
@@ -32,7 +32,7 @@ export function DesktopSession(props: State) {
     setTdpConnection,
   } = props;
   // etc
-  
+
   return (
     <Flex flexDirection="column">
       // etc
@@ -41,9 +41,9 @@ export function DesktopSession(props: State) {
 }
 ```
 
-This component takes all of its state and business logic from the props passed in. 
+This component takes all of its state and business logic from the props passed in.
 
-For use in the actual application, we wrap the component above in a default export which populates the props the 
+For use in the actual application, we wrap the component above in a default export which populates the props the
 component needs by using a hook.
 
 ```typescript jsx
@@ -57,7 +57,7 @@ export default function Container() {
 ### Testing
 
 As a result of the above, we end up testing the `DesktopSession` component instead of the actual component (`Container`) that is
-rendered in the UI. 
+rendered in the UI.
 
 A story may look like this:
 
@@ -92,26 +92,30 @@ ended up only testing our UI and nothing else.
 
 ### Changing how we write stories
 
-Experience tells us that Stories in Storybook are used most effectively for documenting how to use reusable components. We should therefore restrict usage of Storybook mostly to
-our shared component library, and test our fullscreen components another way.
+Experience tells us that Stories in Storybook are used most effectively for documenting how to use reusable components. We should therefore
+restrict usage of Storybook mostly to our shared component library, and test our fullscreen components another way.
+
+It's still okay to create our larger components in Storybook (if the developer wants to) but we should not be using these stories in our Jest tests.
+
+It might be worthwhile looking into something like [Chromatic](https://www.chromatic.com/) for visual UI testing.
 
 ### Changing how we write tests
 
-We should be testing all the different state possibilities in Jest and React Testing Library, mocking any data or 
+We should be testing all the different state possibilities in Jest and React Testing Library, mocking any data or
 network requests to cause the component to render into the state we want. This ensures that the internal logic
 of our components (generally the most critical and difficult-to-get-right aspect of frontend code) gets tested,
 as well as the final UI state.
 
-Tests should check for elements that exist for the specific state being tested, i.e. an error message when the data has 
+Tests should check for elements that exist for the specific state being tested, i.e. an error message when the data has
 failed to load. Elements should be clicked on or events triggered in order to change the state of the component.
 
 By writing tests as described above, snapshot tests typically become redundant and therefore unnecessary. Besides the problem of skipping the business logic, snapshots consistently break for non-bugs, such as when styles are updated, and
-generally don't provide much if any security around behaviour or appearance. Further reading - 
+generally don't provide much if any security around behaviour or appearance. Further reading -
 https://medium.com/@sapegin/whats-wrong-with-snapshot-tests-37fbe20dfe8e.
 
 ### Changing how we export components
 
-Default exports should be avoided except when absolutely necessary (for example, with 
+Default exports should be avoided except when absolutely necessary (for example, with
 `React.Lazy`), as they degrade the developer experience
 for no discernible benefit. For more fully fleshed out reasoning, refer to the articles below:
 - https://blog.neufund.org/why-we-have-banned-default-exports-and-you-should-do-the-same-d51fdc2cf2ad
@@ -148,16 +152,13 @@ Lines        : 36.31% ( 3759/10350 )
 ================================================================================
 ```
 
-We should add code coverage to CI in order to track progress. One tool we can use for this is 
+We should add code coverage to CI in order to track progress. One tool we can use for this is
 [Codecov](https://about.codecov.io/), which provide a free plan for open source tools. This would provide a useful UI
-for inspecting coverage issues. It can also annotate pull requests with coverage issues.
-
-We should then implement Codecov's status check on pull requests. This check should fail if a certain % of the code 
-touched by the pull request has not got coverage. This means that developers won't be punished for the lack of coverage
-in the existing codebase, as it'll only check the coverage percentage of the changes in the pull request.
+for inspecting coverage issues, and tracking our progress.
 
 ### How to implement these changes
 
-From this RFD, all new code to the webapps repo should follow this convention. It would take a while to go back through
-the existing codebase and make these changes, as it would involve rewriting the tests that already exist. An effort to
-improve code coverage would be beneficial, but not a priority.
+From this RFD, all new code to the webapps repo should follow this convention. An effort to go back and improve coverage
+for untested parts of the codebase in between project work would help to fix existing tests and improve our codebase.
+
+Having a robust test suite would ensure that future tests are written well, as there will be plenty of examples to use.
