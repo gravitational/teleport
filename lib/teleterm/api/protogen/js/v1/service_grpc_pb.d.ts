@@ -35,6 +35,7 @@ interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedSer
     login: ITerminalServiceService_ILogin;
     loginPasswordless: ITerminalServiceService_ILoginPasswordless;
     logout: ITerminalServiceService_ILogout;
+    clusterEvents: ITerminalServiceService_IClusterEvents;
 }
 
 interface ITerminalServiceService_IListRootClusters extends grpc.MethodDefinition<v1_service_pb.ListClustersRequest, v1_service_pb.ListClustersResponse> {
@@ -217,6 +218,15 @@ interface ITerminalServiceService_ILogout extends grpc.MethodDefinition<v1_servi
     responseSerialize: grpc.serialize<v1_service_pb.EmptyResponse>;
     responseDeserialize: grpc.deserialize<v1_service_pb.EmptyResponse>;
 }
+interface ITerminalServiceService_IClusterEvents extends grpc.MethodDefinition<v1_service_pb.ClusterEventsRequest, v1_service_pb.ClusterEvent> {
+    path: "/teleport.terminal.v1.TerminalService/ClusterEvents";
+    requestStream: false;
+    responseStream: true;
+    requestSerialize: grpc.serialize<v1_service_pb.ClusterEventsRequest>;
+    requestDeserialize: grpc.deserialize<v1_service_pb.ClusterEventsRequest>;
+    responseSerialize: grpc.serialize<v1_service_pb.ClusterEvent>;
+    responseDeserialize: grpc.deserialize<v1_service_pb.ClusterEvent>;
+}
 
 export const TerminalServiceService: ITerminalServiceService;
 
@@ -241,6 +251,7 @@ export interface ITerminalServiceServer {
     login: grpc.handleUnaryCall<v1_service_pb.LoginRequest, v1_service_pb.EmptyResponse>;
     loginPasswordless: grpc.handleBidiStreamingCall<v1_service_pb.LoginPasswordlessRequest, v1_service_pb.LoginPasswordlessResponse>;
     logout: grpc.handleUnaryCall<v1_service_pb.LogoutRequest, v1_service_pb.EmptyResponse>;
+    clusterEvents: grpc.handleServerStreamingCall<v1_service_pb.ClusterEventsRequest, v1_service_pb.ClusterEvent>;
 }
 
 export interface ITerminalServiceClient {
@@ -304,6 +315,8 @@ export interface ITerminalServiceClient {
     logout(request: v1_service_pb.LogoutRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     logout(request: v1_service_pb.LogoutRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     logout(request: v1_service_pb.LogoutRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    clusterEvents(request: v1_service_pb.ClusterEventsRequest, options?: Partial<grpc.CallOptions>): grpc.ClientReadableStream<v1_service_pb.ClusterEvent>;
+    clusterEvents(request: v1_service_pb.ClusterEventsRequest, metadata?: grpc.Metadata, options?: Partial<grpc.CallOptions>): grpc.ClientReadableStream<v1_service_pb.ClusterEvent>;
 }
 
 export class TerminalServiceClient extends grpc.Client implements ITerminalServiceClient {
@@ -367,4 +380,6 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
     public logout(request: v1_service_pb.LogoutRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     public logout(request: v1_service_pb.LogoutRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     public logout(request: v1_service_pb.LogoutRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    public clusterEvents(request: v1_service_pb.ClusterEventsRequest, options?: Partial<grpc.CallOptions>): grpc.ClientReadableStream<v1_service_pb.ClusterEvent>;
+    public clusterEvents(request: v1_service_pb.ClusterEventsRequest, metadata?: grpc.Metadata, options?: Partial<grpc.CallOptions>): grpc.ClientReadableStream<v1_service_pb.ClusterEvent>;
 }

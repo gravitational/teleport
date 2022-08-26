@@ -838,6 +838,112 @@ export namespace GetAuthSettingsRequest {
     }
 }
 
+export class ClusterEventsRequest extends jspb.Message { 
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): ClusterEventsRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: ClusterEventsRequest): ClusterEventsRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: ClusterEventsRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ClusterEventsRequest;
+    static deserializeBinaryFromReader(message: ClusterEventsRequest, reader: jspb.BinaryReader): ClusterEventsRequest;
+}
+
+export namespace ClusterEventsRequest {
+    export type AsObject = {
+    }
+}
+
+export class ClusterEvent extends jspb.Message { 
+    getClusterUri(): string;
+    setClusterUri(value: string): ClusterEvent;
+
+
+    hasCertExpired(): boolean;
+    clearCertExpired(): void;
+    getCertExpired(): CertExpired | undefined;
+    setCertExpired(value?: CertExpired): ClusterEvent;
+
+
+    hasNewGatewayConnectionAccepted(): boolean;
+    clearNewGatewayConnectionAccepted(): void;
+    getNewGatewayConnectionAccepted(): NewGatewayConnectionAccepted | undefined;
+    setNewGatewayConnectionAccepted(value?: NewGatewayConnectionAccepted): ClusterEvent;
+
+
+    getEventCase(): ClusterEvent.EventCase;
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): ClusterEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: ClusterEvent): ClusterEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: ClusterEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ClusterEvent;
+    static deserializeBinaryFromReader(message: ClusterEvent, reader: jspb.BinaryReader): ClusterEvent;
+}
+
+export namespace ClusterEvent {
+    export type AsObject = {
+        clusterUri: string,
+        certExpired?: CertExpired.AsObject,
+        newGatewayConnectionAccepted?: NewGatewayConnectionAccepted.AsObject,
+    }
+
+    export enum EventCase {
+        EVENT_NOT_SET = 0,
+    
+    CERT_EXPIRED = 2,
+
+    NEW_GATEWAY_CONNECTION_ACCEPTED = 3,
+
+    }
+
+}
+
+export class CertExpired extends jspb.Message { 
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): CertExpired.AsObject;
+    static toObject(includeInstance: boolean, msg: CertExpired): CertExpired.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: CertExpired, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): CertExpired;
+    static deserializeBinaryFromReader(message: CertExpired, reader: jspb.BinaryReader): CertExpired;
+}
+
+export namespace CertExpired {
+    export type AsObject = {
+    }
+}
+
+export class NewGatewayConnectionAccepted extends jspb.Message { 
+    getGatewayUri(): string;
+    setGatewayUri(value: string): NewGatewayConnectionAccepted;
+
+    getTargetUri(): string;
+    setTargetUri(value: string): NewGatewayConnectionAccepted;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): NewGatewayConnectionAccepted.AsObject;
+    static toObject(includeInstance: boolean, msg: NewGatewayConnectionAccepted): NewGatewayConnectionAccepted.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: NewGatewayConnectionAccepted, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): NewGatewayConnectionAccepted;
+    static deserializeBinaryFromReader(message: NewGatewayConnectionAccepted, reader: jspb.BinaryReader): NewGatewayConnectionAccepted;
+}
+
+export namespace NewGatewayConnectionAccepted {
+    export type AsObject = {
+        gatewayUri: string,
+        targetUri: string,
+    }
+}
+
 export class EmptyResponse extends jspb.Message { 
 
     serializeBinary(): Uint8Array;
