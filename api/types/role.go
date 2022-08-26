@@ -178,6 +178,9 @@ type Role interface {
 	// SetHostSudoers sets the list of sudoers entries for the role
 	SetHostSudoers(RoleConditionType, []string)
 
+	// GetRequireSessionMFA returns true when all sessions in this cluster
+	// require an MFA check.
+	GetRequireSessionMFA() bool
 	// GetPrivateKeyPolicy returns the private key policy enforced for this role.
 	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
 }
@@ -662,12 +665,31 @@ func (r *RoleV5) SetHostSudoers(rct RoleConditionType, sudoers []string) {
 	}
 }
 
+// GetRequireSessionMFA returns true when all sessions in this cluster require
+// an MFA check.
+func (r *RoleV5) GetRequireSessionMFA() bool {
+	switch r.Spec.Options.RequireSessionMFA {
+	case constants.RequireSessionMFAOn, constants.RequireSessionMFAHardwareKey:
+		return true
+	default:
+		return false
+	}
+}
+
 // GetPrivateKeyPolicy returns the private key policy enforced for this role.
 func (r *RoleV5) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
-	if r.Spec.Options.PrivateKeyPolicy == "" {
+	if r.Spec.Options.PrivateKeyPolicy != "" {
 		return keys.PrivateKeyPolicyNone
 	}
-	return r.Spec.Options.PrivateKeyPolicy
+
+	switch r.Spec.Options.RequireSessionMFA {
+	case constants.RequireSessionMFAHardwareKey:
+		return keys.PrivateKeyPolicyHardwareKey
+	case constants.RequireSessionMFAHardwareKeyTouch:
+		return keys.PrivateKeyPolicyHardwareKeyTouch
+	default:
+		return keys.PrivateKeyPolicyNone
+	}
 }
 
 // setStaticFields sets static resource header and metadata fields.

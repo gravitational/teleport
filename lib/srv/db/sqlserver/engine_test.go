@@ -218,7 +218,7 @@ func (m *mockAuth) GetAuthPreference(ctx context.Context) (types.AuthPreference,
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
-		RequireSessionMFA: true,
+		RequireSessionMFA: constants.RequireSessionMFAOn,
 	})
 }
 

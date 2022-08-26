@@ -1329,9 +1329,11 @@ message AuthPreferenceSpecV2 {
     (gogoproto.jsontag) = "u2f,omitempty"
   ];
 
-  // RequireSessionMFA causes all sessions in this cluster to require MFA
-  // checks.
-  bool RequireSessionMFA = 5 [(gogoproto.jsontag) = "require_session_mfa,omitempty"];
+  // RequireSessionMFA is the type of session MFA requirement.
+  string RequireSessionMFA = 5 [
+    (gogoproto.jsontag) = "require_session_mfa,omitempty",
+    (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.RequireMFAType"
+  ];
 
   // DisconnectExpiredCert provides disconnect expired certificate setting -
   // if true, connections with expired client certificates will get disconnected
@@ -1967,9 +1969,11 @@ message RoleOptions {
   // RequestPrompt is an optional message which tells users what they aught to
   string RequestPrompt = 12 [(gogoproto.jsontag) = "request_prompt,omitempty"];
 
-  // RequireSessionMFA specifies whether a user is required to do an MFA
-  // check for every session.
-  bool RequireSessionMFA = 13 [(gogoproto.jsontag) = "require_session_mfa,omitempty"];
+  // RequireSessionMFA is the type of session MFA requirement.
+  string RequireSessionMFA = 13 [
+    (gogoproto.jsontag) = "require_session_mfa,omitempty",
+    (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.RequireMFAType"
+  ];
 
   // Lock specifies the locking mode (strict|best_effort) to be applied with
   // the role.
