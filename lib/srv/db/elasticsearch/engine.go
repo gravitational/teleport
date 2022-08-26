@@ -143,7 +143,7 @@ func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *h
 		return trace.Wrap(err)
 	}
 
-	// Force HTTPS usage even and update the host url.
+	// force HTTPS, set host URL.
 	reqCopy.URL.Scheme = "https"
 	reqCopy.URL.Host = sessionCtx.Database.GetURI()
 
