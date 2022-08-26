@@ -124,8 +124,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	}
 }
 
-func copyRequest(ctx context.Context, req *http.Request, body io.Reader) (*http.Request, error) {
-	reqCopy, err := http.NewRequestWithContext(ctx, req.Method, req.URL.String(), body)
+func copyRequest(ctx context.Context, req *http.Request) (*http.Request, error) {
+	reqCopy, err := http.NewRequestWithContext(ctx, req.Method, req.URL.String(), req.Body)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -138,7 +138,7 @@ func copyRequest(ctx context.Context, req *http.Request, body io.Reader) (*http.
 // process reads request from connected elasticsearch client, processes the requests/responses and send data back
 // to the client.
 func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *http.Request) error {
-	reqCopy, err := copyRequest(ctx, req, req.Body)
+	reqCopy, err := copyRequest(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
