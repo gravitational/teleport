@@ -357,7 +357,8 @@ func onProxyCommandDB(cf *CLIConf) error {
 
 	onNewConnection := func(dbCert *x509.Certificate, lp *alpnproxy.LocalProxy, conn net.Conn) {
 		if time.Now().After(dbCert.NotAfter) {
-			fmt.Printf("\nYour database session is expired. Please restart the local proxy.\n\n")
+			fmt.Fprintln(cf.Stdout())
+			fmt.Fprintln(cf.Stdout(), "Your database session is expired. Please restart the local proxy.")
 			lp.Close()
 			return
 		}

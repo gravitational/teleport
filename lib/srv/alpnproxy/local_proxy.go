@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/aws"
 )
 
-// OnNewConnectionFunc is a callback called when a new downstream connection is
+// OnNewConnectionFunc is a callback triggered when a new downstream connection is
 // accepted by the local proxy.
 type OnNewConnectionFunc func(lp *LocalProxy, conn net.Conn)
 

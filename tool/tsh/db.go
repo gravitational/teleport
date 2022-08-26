@@ -857,14 +857,14 @@ func dbInfoHasChanged(cf *CLIConf, certPath string) (bool, error) {
 	return false, nil
 }
 
-// certFromPath parses the PEM-encoded certificate from provided the path. Note
+// certFromPath parses the PEM-encoded certificate from the provided path. Note
 // that this function expects only one certificate in the file.
 func certFromPath(path string) (*x509.Certificate, error) {
-	bytes, err := utils.ReadPath(path)
+	buff, err := os.ReadFile(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert, err := tlsca.ParseCertificatePEM(bytes)
+	cert, err := tlsca.ParseCertificatePEM(buff)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
