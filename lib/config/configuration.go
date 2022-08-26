@@ -613,6 +613,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		ProxyListenerMode:        fc.Auth.ProxyListenerMode,
 		RoutingStrategy:          fc.Auth.RoutingStrategy,
 		TunnelStrategy:           fc.Auth.TunnelStrategy,
+		ProxyPingInterval:        fc.Auth.ProxyPingInterval,
 	})
 	if err != nil {
 		return trace.Wrap(err)
