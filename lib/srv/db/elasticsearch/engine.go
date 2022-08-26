@@ -27,7 +27,6 @@ import (
 	"net"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/gravitational/trace"
 
@@ -108,7 +107,6 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	}
 
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
-	time.Sleep(time.Millisecond)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
 
 	clientConnReader := bufio.NewReader(e.clientConn)
