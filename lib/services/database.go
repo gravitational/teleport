@@ -155,7 +155,8 @@ func NewDatabaseFromAzureServer(server *azure.DBServer) (types.Database, error) 
 			Protocol: server.Protocol,
 			URI:      fmt.Sprintf("%v:%v", fqdn, server.Port),
 			Azure: types.Azure{
-				Name: server.Name,
+				Name:       server.Name,
+				ResourceID: server.ID,
 			},
 		})
 }

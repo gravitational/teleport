@@ -147,7 +147,8 @@ func TestDatabaseFromAzureDBServer(t *testing.T) {
 		Protocol: defaults.ProtocolMySQL,
 		URI:      "testdb.mysql.database.azure.com:3306",
 		Azure: types.Azure{
-			Name: "testdb",
+			Name:       "testdb",
+			ResourceID: id,
 		},
 	})
 	require.NoError(t, err)
