@@ -152,9 +152,8 @@ Lines        : 36.31% ( 3759/10350 )
 ================================================================================
 ```
 
-We should add code coverage to CI in order to track progress. One tool we can use for this is
-[Codecov](https://about.codecov.io/), which provide a free plan for open source tools. This would provide a useful UI
-for inspecting coverage issues, and tracking our progress.
+We should add code coverage to CI in order to track progress. There's a [GitHub Action](https://github.com/marketplace/actions/code-coverage-report)
+that will comment on a PR with the coverage results, and a coverage UI of all files can be generated locally via `jest`.
 
 ### How to implement these changes
 
