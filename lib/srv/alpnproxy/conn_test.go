@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"testing"
 	"time"
@@ -120,8 +121,14 @@ func TestPingConnection(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
+		// Number of writes performed.
 		nWrites := 10
+		// Data that is going to be written/read on the connection.
 		dataWritten := []byte("message")
+		// Size of each read call.
+		readSize := 2
+		// Number of reads necessary to read the full message
+		readNum := int(math.Ceil(float64(len(dataWritten))/float64(readSize)))
 
 		r, w := makePingConn(t)
 		defer r.Close()
@@ -142,7 +149,7 @@ func TestPingConnection(t *testing.T) {
 		// Read routines.
 		for i := 0; i < nWrites/2; i++ {
 			go func() {
-				buf := make([]byte, len(dataWritten)/2)
+				buf := make([]byte, readSize)
 				for {
 					n, err := r.Read(buf)
 					if err != nil && !errors.Is(err, io.EOF) {
@@ -158,7 +165,7 @@ func TestPingConnection(t *testing.T) {
 
 		for i := 0; i < nWrites; i++ {
 			var aggregator []byte
-			for j := 0; j < 3; j++ {
+			for j := 0; j < readNum; j++ {
 				select {
 				case <-ctx.Done():
 					require.Fail(t, "Failed to read message (context timeout)")
