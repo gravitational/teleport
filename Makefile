@@ -645,7 +645,7 @@ integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-sh lint-helm lint-api lint-go lint-license lint-rust lint-tools
+lint: lint-sh lint-helm lint-api lint-go lint-license lint-rust lint-tools lint-protos
 
 .PHONY: lint-tools
 lint-tools: lint-build-tooling lint-bot lint-ci-scripts lint-backport
@@ -889,6 +889,42 @@ enter/centos7:
 enter/teleterm:
 	make -C build.assets enter/teleterm
 
+
+BUF := buf
+
+# protos/all runs build, lint and format on all protos.
+# Use `make grpc` to regenerate protos inside buildbox.
+.PHONY: protos/all
+protos/all: protos/build protos/lint protos/format
+
+.PHONY: protos/build
+protos/build: buf/installed
+	$(BUF) build
+	cd lib/teleterm && $(BUF) build
+
+# TODO(codingllama): Uncomment lib/teleterm lines.
+.PHONY: protos/format
+protos/format: buf/installed
+	$(BUF) format -w
+	#cd lib/teleterm && $(BUF) format -w
+
+# TODO(codingllama): Uncomment lib/teleterm lines.
+.PHONY: protos/lint
+protos/lint: buf/installed
+	$(BUF) lint
+	cd api/proto && $(BUF) lint --config=buf-legacy.yaml
+	#cd lib/teleterm && buf lint
+
+.PHONY: lint-protos
+lint-protos: protos/lint
+
+.PHONY: buf/installed
+buf/installed:
+	@if ! type -p $(BUF) >/dev/null; then \
+		echo 'Buf is required to build/format/lint protos. Follow https://docs.buf.build/installation.'; \
+		exit 1; \
+	fi
+
 # grpc generates GRPC stubs from service definitions.
 # This target runs in the buildbox container.
 .PHONY: grpc
@@ -898,7 +934,7 @@ grpc:
 # grpc/host generates GRPC stubs.
 # Unlike grpc, this target runs locally.
 .PHONY: grpc/host
-grpc/host:
+grpc/host: protos/all
 	@build.assets/genproto.sh
 
 print/env:
@@ -920,6 +956,7 @@ grpc-teleterm:
 # grpc-teleterm/host generates GRPC stubs.
 # Unlike grpc-teleterm, this target runs locally.
 .PHONY: grpc-teleterm/host
+# TODO(codingllama): Depend on protos/all here too.
 grpc-teleterm/host:
 	cd lib/teleterm && buf build && buf lint && buf format -w && buf generate
 
