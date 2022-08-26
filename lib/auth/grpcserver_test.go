@@ -802,7 +802,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	require.NoError(t, err)
 	// Make sure MFA is required for this user.
 	roleOpt := role.GetOptions()
-	roleOpt.RequireSessionMFA = true
+	roleOpt.RequireSessionMFA = constants.RequireSessionMFAOn
 	role.SetOptions(roleOpt)
 	err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
@@ -1053,10 +1053,27 @@ func TestIsMFARequired(t *testing.T) {
 	user, role, err := CreateUserAndRole(srv.Auth(), "no-mfa-user", []string{"no-mfa-user"})
 	require.NoError(t, err)
 
-	for _, required := range []bool{true, false} {
-		t.Run(fmt.Sprintf("required=%v", required), func(t *testing.T) {
+	for _, tt := range []struct {
+		requireSessionMFA constants.RequireMFAType
+		isMFARequired     bool
+	}{
+		{
+			requireSessionMFA: constants.RequireSessionMFAOff,
+			isMFARequired:     false,
+		}, {
+			requireSessionMFA: constants.RequireSessionMFAOn,
+			isMFARequired:     true,
+		}, {
+			requireSessionMFA: constants.RequireSessionMFAHardwareKey,
+			isMFARequired:     true,
+		}, {
+			requireSessionMFA: constants.RequireSessionMFAHardwareKeyTouch,
+			isMFARequired:     false,
+		},
+	} {
+		t.Run(fmt.Sprintf("requireSessionMFA=%v", tt.requireSessionMFA), func(t *testing.T) {
 			roleOpt := role.GetOptions()
-			roleOpt.RequireSessionMFA = required
+			roleOpt.RequireSessionMFA = tt.requireSessionMFA
 			role.SetOptions(roleOpt)
 			err = srv.Auth().UpsertRole(ctx, role)
 			require.NoError(t, err)
@@ -1071,7 +1088,7 @@ func TestIsMFARequired(t *testing.T) {
 				}},
 			})
 			require.NoError(t, err)
-			require.Equal(t, resp.Required, required)
+			require.Equal(t, resp.Required, tt.isMFARequired)
 		})
 	}
 }
@@ -1131,7 +1148,7 @@ func TestIsMFARequiredUnauthorized(t *testing.T) {
 
 	// Require MFA.
 	roleOpt := role.GetOptions()
-	roleOpt.RequireSessionMFA = true
+	roleOpt.RequireSessionMFA = constants.RequireSessionMFAOn
 	role.SetOptions(roleOpt)
 	role.SetNodeLabels(types.Allow, map[string]apiutils.Strings{"a": []string{"c"}})
 	err = srv.Auth().UpsertRole(ctx, role)

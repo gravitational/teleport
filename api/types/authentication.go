@@ -91,7 +91,6 @@ type AuthPreference interface {
 	// GetRequireSessionMFA returns true when all sessions in this cluster
 	// require an MFA check.
 	GetRequireSessionMFA() bool
-
 	// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
 	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
 
@@ -345,15 +344,28 @@ func (c *AuthPreferenceV2) SetAllowPasswordless(b bool) {
 // GetRequireSessionMFA returns true when all sessions in this cluster require
 // an MFA check.
 func (c *AuthPreferenceV2) GetRequireSessionMFA() bool {
-	return c.Spec.RequireSessionMFA
+	switch c.Spec.RequireSessionMFA {
+	case constants.RequireSessionMFAOn, constants.RequireSessionMFAHardwareKey:
+		return true
+	default:
+		return false
+	}
 }
 
 // GetPrivateKeyPolicy returns the configured private key policy for the cluster.
 func (c *AuthPreferenceV2) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
-	if c.Spec.PrivateKeyPolicy == "" {
+	if c.Spec.PrivateKeyPolicy != "" {
+		return c.Spec.PrivateKeyPolicy
+	}
+
+	switch c.Spec.RequireSessionMFA {
+	case constants.RequireSessionMFAHardwareKey:
+		return keys.PrivateKeyPolicyHardwareKey
+	case constants.RequireSessionMFAHardwareKeyTouch:
+		return keys.PrivateKeyPolicyHardwareKeyTouch
+	default:
 		return keys.PrivateKeyPolicyNone
 	}
-	return c.Spec.PrivateKeyPolicy
 }
 
 // GetDisconnectExpiredCert returns disconnect expired certificate setting

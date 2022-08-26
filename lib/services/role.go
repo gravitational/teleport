@@ -2049,7 +2049,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 			return nil
 		}
 		// if MFA is not verified and we require session MFA, deny access
-		if role.GetOptions().RequireSessionMFA {
+		if role.GetRequireSessionMFA() {
 			debugf("Access to %v %q denied, role %q requires per-session MFA",
 				r.GetKind(), r.GetName(), role.GetName())
 			return ErrSessionMFARequired

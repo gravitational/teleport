@@ -886,11 +886,11 @@ func TestCheckAccessToServer(t *testing.T) {
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"root"}
 					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker"}}
-					r.Spec.Options.RequireSessionMFA = true
+					r.Spec.Options.RequireSessionMFA = constants.RequireSessionMFAOn
 				}),
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"root"}
-					r.Spec.Options.RequireSessionMFA = false
+					r.Spec.Options.RequireSessionMFA = constants.RequireSessionMFAOff
 				}),
 			},
 			mfaParams: AccessMFAParams{Verified: false},
@@ -906,11 +906,11 @@ func TestCheckAccessToServer(t *testing.T) {
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"root"}
 					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker"}}
-					r.Spec.Options.RequireSessionMFA = true
+					r.Spec.Options.RequireSessionMFA = constants.RequireSessionMFAOn
 				}),
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"root"}
-					r.Spec.Options.RequireSessionMFA = false
+					r.Spec.Options.RequireSessionMFA = constants.RequireSessionMFAOff
 				}),
 			},
 			mfaParams: AccessMFAParams{Verified: true},
@@ -2573,7 +2573,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 		Version:  types.V3,
 		Spec: types.RoleSpecV5{
 			Options: types.RoleOptions{
-				RequireSessionMFA: true,
+				RequireSessionMFA: constants.RequireSessionMFAOn,
 			},
 			Allow: types.RoleConditions{
 				Namespaces:     []string{apidefaults.Namespace},
@@ -3543,7 +3543,7 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 		},
 		Spec: types.RoleSpecV5{
 			Options: types.RoleOptions{
-				RequireSessionMFA: true,
+				RequireSessionMFA: constants.RequireSessionMFAOn,
 			},
 			Allow: types.RoleConditions{
 				Namespaces: []string{apidefaults.Namespace},
