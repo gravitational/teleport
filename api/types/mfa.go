@@ -12,28 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package types
 
 import (
-	"testing"
-
-	"github.com/stretchr/testify/require"
+	proto "github.com/gogo/protobuf/proto"
+	"github.com/gravitational/trace"
 )
 
-func TestWebappsVersion(t *testing.T) {
-	for _, test := range []struct {
-		desc         string
-		droneTag     string
-		targetBranch string
-		want         string
-	}{
-		{desc: "prefer tag", droneTag: "v9.2.0", want: "v9.2.0"},
-		{desc: "maps branches", targetBranch: "branch/v9", want: "teleport-v9"},
-		{desc: "fallback master", targetBranch: "foobar", want: "master"},
-	} {
-		t.Run(test.desc, func(t *testing.T) {
-			require.Equal(t, test.want,
-				webappsVersion(test.droneTag, test.targetBranch))
-		})
+func (d *MFADevice) WithoutSensitiveData() (*MFADevice, error) {
+	if d == nil {
+		return nil, trace.BadParameter("cannot hide sensitive data on empty object")
 	}
+	out := proto.Clone(d).(*MFADevice)
+
+	switch mfad := out.Device.(type) {
+	case *MFADevice_Totp:
+		mfad.Totp.Key = ""
+	case *MFADevice_U2F:
+		// OK, no sensitive secrets.
+	case *MFADevice_Webauthn:
+		// OK, no sensitive secrets.
+	default:
+		return nil, trace.BadParameter("unsupported MFADevice type %T", d.Device)
+	}
+
+	return out, nil
 }

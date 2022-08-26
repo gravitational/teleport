@@ -95,6 +95,11 @@ spec:
           readOnly: true
         - mountPath: /var/lib/teleport
           name: "{{ .Release.Name }}-teleport-data"
+          {{- if .Values.tls.existingCASecretName }}
+        - mountPath: /etc/teleport-tls-ca
+          name: "teleport-tls-ca"
+          readOnly: true
+          {{- end }}
   {{- if .Values.extraVolumeMounts }}
     {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
   {{- end }}
@@ -113,9 +118,15 @@ spec:
         {{- if .Values.imagePullPolicy }}
         imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}
         {{- end }}
-        {{- if .Values.extraEnv }}
+        {{- if or .Values.extraEnv .Values.tls.existingCASecretName }}
         env:
-          {{- toYaml .Values.extraEnv | nindent 10 }}
+        {{- if (gt (len .Values.extraEnv) 0) }}
+          {{- toYaml .Values.extraEnv | nindent 8 }}
+        {{- end }}
+        {{- if .Values.tls.existingCASecretName }}
+        - name: SSL_CERT_FILE
+          value: /etc/teleport-tls-ca/ca.pem
+        {{- end }}
         {{- end }}
         args:
         - "--diag-addr=0.0.0.0:3000"
@@ -166,6 +177,11 @@ spec:
           readOnly: true
         - mountPath: /var/lib/teleport
           name: "{{ .Release.Name }}-teleport-data"
+          {{- if .Values.tls.existingCASecretName }}
+        - mountPath: /etc/teleport-tls-ca
+          name: "teleport-tls-ca"
+          readOnly: true
+          {{- end }}
 {{- if .Values.extraVolumeMounts }}
   {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
 {{- end }}
@@ -176,7 +192,12 @@ spec:
       - name: "auth-token"
         secret:
           secretName: {{ .Values.secretName }}
-{{- if .Values.extraVolumes }}
+      {{- if .Values.tls.existingCASecretName }}
+      - name: "teleport-tls-ca"
+        secret:
+          secretName: {{ .Values.tls.existingCASecretName }}
+      {{- end }}
+  {{- if .Values.extraVolumes }}
   {{- toYaml .Values.extraVolumes | nindent 6 }}
 {{- end }}
   volumeClaimTemplates:

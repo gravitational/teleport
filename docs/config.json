@@ -342,7 +342,7 @@
               "slug": "/application-access/guides/api-access/"
             },
             {
-              "title": "AWS Console Access",
+              "title": "AWS Access",
               "slug": "/application-access/guides/aws-console/"
             },
             {
@@ -683,16 +683,24 @@
           "slug": "/machine-id/guides/",
           "entries": [
             {
-              "title": "Machine ID with Ansible",
+              "title": "Ansible",
               "slug": "/machine-id/guides/ansible/"
             },
             {
-              "title": "Machine ID with Jenkins",
+              "title": "Jenkins",
               "slug": "/machine-id/guides/jenkins/"
             },
             {
-              "title": "Machine ID with Databases",
+              "title": "Databases",
               "slug": "/machine-id/guides/databases/"
+            },
+            {
+              "title": "Kubernetes",
+              "slug": "/machine-id/guides/kubernetes/"
+            },
+            {
+              "title": "Applications",
+              "slug": "/machine-id/guides/applications/"
             }
           ]
         }
@@ -787,6 +795,10 @@
 		{
 		    "title": "Slack",
 		    "slug":"/access-controls/access-request-plugins/ssh-approval-slack/"
+		},
+		{
+		    "title": "Email",
+		    "slug": "/access-controls/access-request-plugins/ssh-approval-email/"
 		}
 	    ]
 	},
@@ -1019,7 +1031,8 @@
       "last_report": "August 9th, 2022"
     },
     "cloud": {
-      "version": "10.1.2",
+      "version": "10.1.4",
+      "major_version": "10",
       "sla": {
         "monthly_percentage": "99.5%",
         "monthly_downtime": "3 hours 40 minutes"
@@ -1049,14 +1062,14 @@
     },
     "teleport": {
       "major_version": "10",
-      "version": "10.1.2",
+      "version": "10.1.4",
       "golang": "1.18",
       "plugin": {
-        "version": "10.1.2"
+        "version": "10.1.4"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "quay.io/gravitational/teleport:10.1.2",
-      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:10.1.2"
+      "latest_oss_docker_image": "quay.io/gravitational/teleport:10.1.4",
+      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:10.1.4"
     }
   },
   "redirects": [

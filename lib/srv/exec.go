@@ -243,6 +243,10 @@ func (e *localExec) transformSecureCopy() error {
 		return nil
 	}
 
+	if err := e.Ctx.CheckFileCopyingAllowed(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// for scp requests update the command to execute to launch teleport with
 	// scp parameters just like openssh does.
 	teleportBin, err := os.Executable()

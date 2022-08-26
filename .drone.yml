@@ -30,7 +30,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:104
+# Generated at dronegen/push.go (main.pushPipeline)
 ################################################
 
 kind: pipeline
@@ -62,6 +62,7 @@ steps:
 - name: Check out code
   image: docker:git
   commands:
+  - mkdir -p /go/src/github.com/gravitational/webapps
   - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
   - cd /go/src/github.com/gravitational/teleport
   - git init && git remote add origin ${DRONE_REMOTE_URL}
@@ -73,6 +74,11 @@ steps:
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
   - git submodule update --init --recursive webassets || true
+  - cd /go/src/github.com/gravitational/webapps
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout "$(/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)"
+  - git submodule update --init packages/webapps.e
+  - cd -
   - rm -f /root/.ssh/id_rsa
   environment:
     GITHUB_PRIVATE_KEY:
@@ -90,7 +96,9 @@ steps:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
+  - export VERSION=$(cat /go/.version.txt)
   - make -C build.assets release-amd64-centos7
+  - make -C build.assets teleterm
   environment:
     ARCH: amd64
     GID: "1000"
@@ -133,7 +141,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:104
+# Generated at dronegen/push.go (main.pushPipeline)
 ################################################
 
 kind: pipeline
@@ -236,7 +244,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:104
+# Generated at dronegen/push.go (main.pushPipeline)
 ################################################
 
 kind: pipeline
@@ -343,7 +351,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:104
+# Generated at dronegen/push.go (main.pushPipeline)
 ################################################
 
 kind: pipeline
@@ -446,7 +454,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/mac.go:39
+# Generated at dronegen/mac.go (main.newDarwinPipeline)
 ################################################
 
 kind: pipeline
@@ -493,7 +501,7 @@ steps:
   - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - git clone https://github.com/gravitational/webapps.git .
-  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
+  - git checkout $($WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
     && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
@@ -548,34 +556,36 @@ steps:
   - echo Yarn reporting version $(yarn --version)
   environment:
     WORKSPACE_DIR: /tmp/push-build-darwin-amd64
-- name: Build Mac artifacts
+- name: Build Mac artifacts (binaries and Teleport Connect)
   commands:
   - set -u
-  - echo HOME=$${HOME}
   - export HOME=/Users/$(whoami)
   - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - export VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-    print-version)
   - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
     print-node-version)
+  - export NODE_HOME=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
+  - export PATH=$NODE_HOME/bin:$PATH
   - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
     print-rust-version)
   - export CARGO_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/cargo
   - export RUST_HOME=$CARGO_HOME
   - export RUSTUP_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/rustup
-  - export NODE_HOME=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
-  - export PATH=$TOOLCHAIN_DIR/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$NODE_HOME/bin:$PATH
+  - export PATH=$CARGO_HOME/bin:/Users/build/.cargo/bin:$PATH
+  - rustup override set $RUST_VERSION
+  - export PATH=$TOOLCHAIN_DIR/go/bin:$PATH
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - build.assets/build-fido2-macos.sh build
   - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
-  - rustup override set $RUST_VERSION
+  - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
+  - export VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+    print-version)
   - export BUILD_NUMBER=$DRONE_BUILD_NUMBER
-  - export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83
   - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
   - security find-identity -v
-  - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
+  - export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83
+  - export CONNECT_TSH_BIN_PATH=$WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build/tsh
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$VERSION
+  - yarn install && yarn build-term && yarn package-term -c.extraMetadata.version=$VERSION
   environment:
     ARCH: amd64
     BUILDBOX_PASSWORD:
@@ -631,7 +641,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:104
+# Generated at dronegen/push.go (main.pushPipeline)
 ################################################
 
 kind: pipeline
@@ -734,7 +744,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/push.go:104
+# Generated at dronegen/push.go (main.pushPipeline)
 ################################################
 
 kind: pipeline
@@ -1317,7 +1327,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go (main.tagPipeline)
 ################################################
 
 kind: pipeline
@@ -1477,7 +1487,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go (main.tagPipeline)
 ################################################
 
 kind: pipeline
@@ -1636,7 +1646,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go (main.tagPipeline)
 ################################################
 
 kind: pipeline
@@ -1663,6 +1673,7 @@ steps:
 - name: Check out code
   image: docker:git
   commands:
+  - mkdir -p /go/src/github.com/gravitational/webapps
   - mkdir -p /go/src/github.com/gravitational/teleport
   - cd /go/src/github.com/gravitational/teleport
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
@@ -1672,6 +1683,11 @@ steps:
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
   - git submodule update --init --recursive webassets || true
+  - cd /go/src/github.com/gravitational/webapps
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout "$(/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)"
+  - git submodule update --init packages/webapps.e
+  - cd -
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
   - |-
@@ -1697,7 +1713,9 @@ steps:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
+  - export VERSION=$(cat /go/.version.txt)
   - make -C build.assets release-amd64-centos7
+  - make -C build.assets teleterm
   environment:
     ARCH: amd64
     GID: "1000"
@@ -1716,6 +1734,9 @@ steps:
     \;
   - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts
     \;
+  - find /go/src/github.com/gravitational/webapps/packages/teleterm/build/release
+    -maxdepth 1 \( -iname "teleport-connect*.tar.gz" -o -iname "teleport-connect*.rpm"
+    -o -iname "teleport-connect*.deb" \) -print -exec cp {} /go/artifacts/ \;
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
 - name: Upload to S3
@@ -1793,7 +1814,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go (main.tagPipeline)
 ################################################
 
 kind: pipeline
@@ -1950,7 +1971,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go (main.tagPackagePipeline)
 ################################################
 
 kind: pipeline
@@ -2134,7 +2155,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go (main.tagPackagePipeline)
 ################################################
 
 kind: pipeline
@@ -2315,7 +2336,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go (main.tagPackagePipeline)
 ################################################
 
 kind: pipeline
@@ -2341,6 +2362,7 @@ steps:
 - name: Check out code
   image: docker:git
   commands:
+  - mkdir -p /go/src/github.com/gravitational/webapps
   - mkdir -p /go/src/github.com/gravitational/teleport
   - cd /go/src/github.com/gravitational/teleport
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
@@ -2350,6 +2372,11 @@ steps:
   - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
   - git submodule update --init e
   - git submodule update --init --recursive webassets || true
+  - cd /go/src/github.com/gravitational/webapps
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout "$(/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)"
+  - git submodule update --init packages/webapps.e
+  - cd -
   - rm -f /root/.ssh/id_rsa
   - mkdir -p /go/cache /go/artifacts
   - |-
@@ -2485,7 +2512,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go (main.tagPackagePipeline)
 ################################################
 
 kind: pipeline
@@ -2652,7 +2679,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go (main.tagPipeline)
 ################################################
 
 kind: pipeline
@@ -2809,7 +2836,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go (main.tagPackagePipeline)
 ################################################
 
 kind: pipeline
@@ -2993,7 +3020,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go (main.tagPackagePipeline)
 ################################################
 
 kind: pipeline
@@ -3163,7 +3190,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/mac.go:39
+# Generated at dronegen/mac.go (main.newDarwinPipeline)
 ################################################
 
 kind: pipeline
@@ -3204,11 +3231,6 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
   - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - git clone https://github.com/gravitational/webapps.git .
-  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
     && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
   - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
@@ -3248,56 +3270,24 @@ steps:
   - rustup toolchain install $RUST_VERSION
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64
-- name: Install Node Toolchain
+- name: Build Mac artifacts (binaries)
   commands:
   - set -u
-  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
-    print-node-version)
-  - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
-  - mkdir -p $TOOLCHAIN_DIR
-  - curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-darwin-x64.tar.gz
-  - tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-darwin-x64.tar.gz
-  - rm -f node-v$NODE_VERSION-darwin-x64.tar.gz
-  - export PATH=$NODE_DIR/bin:$PATH
-  - corepack enable yarn
-  - echo Node reporting version $(node --version)
-  - echo Yarn reporting version $(yarn --version)
-  environment:
-    WORKSPACE_DIR: /tmp/build-darwin-amd64
-- name: Build Mac release artifacts
-  commands:
-  - set -u
-  - echo HOME=$${HOME}
   - export HOME=/Users/$(whoami)
   - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - export VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-    print-version)
-  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
-    print-node-version)
   - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
     print-rust-version)
   - export CARGO_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/cargo
   - export RUST_HOME=$CARGO_HOME
   - export RUSTUP_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/rustup
-  - export NODE_HOME=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
-  - export PATH=$TOOLCHAIN_DIR/go/bin:$CARGO_HOME/bin:/Users/build/.cargo/bin:$NODE_HOME/bin:$PATH
+  - export PATH=$CARGO_HOME/bin:/Users/build/.cargo/bin:$PATH
+  - rustup override set $RUST_VERSION
+  - export PATH=$TOOLCHAIN_DIR/go/bin:$PATH
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - build.assets/build-fido2-macos.sh build
   - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
-  - rustup override set $RUST_VERSION
-  - export BUILD_NUMBER=$DRONE_BUILD_NUMBER
-  - export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83
-  - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
-  - security find-identity -v
   - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$VERSION
   environment:
-    APPLE_PASSWORD:
-      from_secret: APPLE_PASSWORD
-    APPLE_USERNAME:
-      from_secret: APPLE_USERNAME
     ARCH: amd64
     BUILDBOX_PASSWORD:
       from_secret: BUILDBOX_PASSWORD
@@ -3311,12 +3301,8 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - cp teleport*.tar.gz $WORKSPACE_DIR/go/artifacts
   - cp e/teleport-ent*.tar.gz $WORKSPACE_DIR/go/artifacts
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps/packages/teleterm/build/release
-  - cp *.dmg $WORKSPACE_DIR/go/artifacts
   - cd $WORKSPACE_DIR/go/artifacts && for FILE in teleport*.tar.gz; do shasum -a 256
     $FILE > $FILE.sha256; done && ls -l
-  - cd $WORKSPACE_DIR/go/artifacts && for FILE in *.dmg; do shasum -a 256 "$FILE"
-    > "$FILE.sha256"; done && ls -l
   environment:
     WORKSPACE_DIR: /tmp/build-darwin-amd64
 - name: Upload to S3
@@ -3411,7 +3397,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/mac.go:39
+# Generated at dronegen/mac.go (main.newDarwinPipeline)
 ################################################
 
 kind: pipeline
@@ -3454,11 +3440,6 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
   - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - git clone https://github.com/gravitational/webapps.git .
-  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
     && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
   - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
@@ -3600,7 +3581,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/mac.go:39
+# Generated at dronegen/mac.go (main.newDarwinPipeline)
 ################################################
 
 kind: pipeline
@@ -3643,11 +3624,6 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
   - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - git clone https://github.com/gravitational/webapps.git .
-  - git checkout $(go run $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/tooling/cmd/get-webapps-version/main.go)
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
     && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
   - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
@@ -3789,7 +3765,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go (main.tagPipeline)
 ################################################
 
 kind: pipeline
@@ -3946,7 +3922,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go (main.tagPipeline)
 ################################################
 
 kind: pipeline
@@ -4103,7 +4079,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go (main.tagPackagePipeline)
 ################################################
 
 kind: pipeline
@@ -4273,7 +4249,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go (main.tagPackagePipeline)
 ################################################
 
 kind: pipeline
@@ -4443,7 +4419,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go (main.tagPackagePipeline)
 ################################################
 
 kind: pipeline
@@ -4627,7 +4603,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:464
+# Generated at dronegen/tag.go (main.tagPackagePipeline)
 ################################################
 
 kind: pipeline
@@ -4811,7 +4787,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/tag.go:250
+# Generated at dronegen/tag.go (main.tagPipeline)
 ################################################
 
 kind: pipeline
@@ -5025,10 +5001,6 @@ steps:
       GOPATH: /go
       OS: linux
       ARCH: amd64
-      QUAY_USERNAME:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      QUAY_PASSWORD:
-        from_secret: QUAYIO_DOCKER_PASSWORD
       AWS_ACCESS_KEY_ID:
         from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
       AWS_SECRET_ACCESS_KEY:
@@ -5039,7 +5011,6 @@ steps:
     commands:
       - apk add --no-cache make bash aws-cli
       - chown -R $UID:$GID /go
-      - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" quay.io
       - aws ecr get-login-password --region us-west-2 | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
       - cd /go/src/github.com/gravitational/teleport
       - make image-ci publish-ci
@@ -5293,7 +5264,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/buildbox.go:67
+# Generated at dronegen/buildbox.go (main.buildboxPipeline)
 ################################################
 
 kind: pipeline
@@ -5395,7 +5366,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/misc.go:134
+# Generated at dronegen/os_repos.go (main.buildNeverTriggerPipeline)
 ################################################
 
 kind: pipeline
@@ -5423,7 +5394,7 @@ steps:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/misc.go:158
+# Generated at dronegen/os_repos.go (main.(*OsPackageToolPipelineBuilder).buildBaseOsPackagePipeline)
 ################################################
 
 kind: pipeline
@@ -5452,20 +5423,26 @@ steps:
 - name: Check out code
   image: alpine/git:latest
   commands:
-  - mkdir -p "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
-  - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
-  - git checkout "${DRONE_TAG}"
+  - git init && git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin
+  - git checkout -qf "${DRONE_TAG}"
+  depends_on:
+  - Verify build is tagged
 - name: Check if tag is prerelease
-  image: golang:1.17-alpine
+  image: golang:1.18-alpine
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not publishing ${DRONE_TAG} packages to APT repos' && exit 78)
+    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
+  depends_on:
+  - Check out code
 - name: Download artifacts for "${DRONE_TAG}"
   image: amazon/aws-cli
   commands:
   - mkdir -pv "$ARTIFACT_PATH"
+  - rm -rf "${ARTIFACT_PATH}/*"
   - aws s3 sync --no-progress --delete --exclude "*" --include "*.deb*" s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/
     "$ARTIFACT_PATH"
   environment:
@@ -5476,25 +5453,25 @@ steps:
       from_secret: AWS_S3_BUCKET
     AWS_SECRET_ACCESS_KEY:
       from_secret: AWS_SECRET_ACCESS_KEY
+  depends_on:
+  - Verify build is tagged
+  - Check out code
+  - Check if tag is prerelease
 - name: Publish debs to APT repos for "${DRONE_TAG}"
-  image: golang:1.18.1-bullseye
+  image: golang:1.18.4-bullseye
   commands:
-  - mkdir -pv -m0700 $GNUPGHOME
-  - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
-  - chown -R root:root $GNUPGHOME
   - apt update
-  - apt install aptly tree -y
+  - apt install -y aptly
+  - mkdir -pv -m0700 "$GNUPGHOME"
+  - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
+  - chown -R root:root "$GNUPGHOME"
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - export VERSION="${DRONE_TAG}"
   - export RELEASE_CHANNEL="stable"
-  - go run ./cmd/build-apt-repos -bucket "$APT_S3_BUCKET" -local-bucket-path "$BUCKET_CACHE_PATH"
-    -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL" -aptly-root-dir
-    "$APTLY_ROOT_DIR" -artifact-path "$ARTIFACT_PATH" -log-level 4
-  - rm -rf "$BUCKET_CACHE_PATH"
-  - df -h "$APTLY_ROOT_DIR"
+  - go run ./cmd/build-os-package-repos apt -bucket "$REPO_S3_BUCKET" -local-bucket-path
+    "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
+    -artifact-path "$ARTIFACT_PATH" -log-level 4 -aptly-root-dir "$APTLY_ROOT_DIR"
   environment:
-    APT_S3_BUCKET:
-      from_secret: APT_REPO_NEW_AWS_S3_BUCKET
     APTLY_ROOT_DIR: /mnt/aptly
     ARTIFACT_PATH: /go/artifacts
     AWS_ACCESS_KEY_ID:
@@ -5503,16 +5480,24 @@ steps:
     AWS_SECRET_ACCESS_KEY:
       from_secret: APT_REPO_NEW_AWS_SECRET_ACCESS_KEY
     BUCKET_CACHE_PATH: /tmp/bucket
+    DEBIAN_FRONTEND: noninteractive
     GNUPGHOME: /tmpfs/gnupg
     GPG_RPM_SIGNING_ARCHIVE:
       from_secret: GPG_RPM_SIGNING_ARCHIVE
+    REPO_S3_BUCKET:
+      from_secret: APT_REPO_NEW_AWS_S3_BUCKET
   volumes:
-  - name: aptrepo
+  - name: apt-persistence
     path: /mnt
   - name: tmpfs
     path: /tmpfs
+  depends_on:
+  - Download artifacts for "${DRONE_TAG}"
+  - Verify build is tagged
+  - Check out code
+  - Check if tag is prerelease
 volumes:
-- name: aptrepo
+- name: apt-persistence
   claim:
     name: drone-s3-aptrepo-pvc
 - name: tmpfs
@@ -5523,7 +5508,150 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/promote.go:81
+# Generated at dronegen/os_repos.go (main.buildNeverTriggerPipeline)
+################################################
+
+kind: pipeline
+type: kubernetes
+name: migrate-yum-new-repos
+trigger:
+  event:
+    include:
+    - custom
+  repo:
+    include:
+    - non-existent-repository
+  branch:
+    include:
+    - non-existent-branch
+clone:
+  disable: true
+steps:
+- name: Placeholder
+  image: alpine:latest
+  commands:
+  - echo "This command, step, and pipeline never runs"
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/os_repos.go (main.(*OsPackageToolPipelineBuilder).buildBaseOsPackagePipeline)
+################################################
+
+kind: pipeline
+type: kubernetes
+name: publish-yum-new-repos
+trigger:
+  event:
+    include:
+    - promote
+  target:
+    include:
+    - production
+  repo:
+    include:
+    - gravitational/teleport
+workspace:
+  path: /go
+clone:
+  disable: true
+steps:
+- name: Verify build is tagged
+  image: alpine:latest
+  commands:
+  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
+    && exit 1)'
+- name: Check out code
+  image: alpine/git:latest
+  commands:
+  - mkdir -pv "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
+  - git init && git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin
+  - git checkout -qf "${DRONE_TAG}"
+  depends_on:
+  - Verify build is tagged
+- name: Check if tag is prerelease
+  image: golang:1.18-alpine
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
+    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
+  depends_on:
+  - Check out code
+- name: Download artifacts for "${DRONE_TAG}"
+  image: amazon/aws-cli
+  commands:
+  - mkdir -pv "$ARTIFACT_PATH"
+  - rm -rf "${ARTIFACT_PATH}/*"
+  - aws s3 sync --no-progress --delete --exclude "*" --include "*.rpm*" s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/
+    "$ARTIFACT_PATH"
+  environment:
+    ARTIFACT_PATH: /go/artifacts
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+  depends_on:
+  - Verify build is tagged
+  - Check out code
+  - Check if tag is prerelease
+- name: Publish rpms to YUM repos for "${DRONE_TAG}"
+  image: golang:1.18.4-bullseye
+  commands:
+  - apt update
+  - apt install -y createrepo-c
+  - mkdir -pv "$CACHE_DIR"
+  - mkdir -pv -m0700 "$GNUPGHOME"
+  - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
+  - chown -R root:root "$GNUPGHOME"
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - export VERSION="${DRONE_TAG}"
+  - export RELEASE_CHANNEL="stable"
+  - go run ./cmd/build-os-package-repos yum -bucket "$REPO_S3_BUCKET" -local-bucket-path
+    "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
+    -artifact-path "$ARTIFACT_PATH" -log-level 4 -cache-dir "$CACHE_DIR"
+  environment:
+    ARTIFACT_PATH: /go/artifacts
+    AWS_ACCESS_KEY_ID:
+      from_secret: YUM_REPO_NEW_AWS_ACCESS_KEY_ID
+    AWS_REGION: us-west-2
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: YUM_REPO_NEW_AWS_SECRET_ACCESS_KEY
+    BUCKET_CACHE_PATH: /mnt/bucket
+    CACHE_DIR: /mnt/createrepo_cache
+    DEBIAN_FRONTEND: noninteractive
+    GNUPGHOME: /tmpfs/gnupg
+    GPG_RPM_SIGNING_ARCHIVE:
+      from_secret: GPG_RPM_SIGNING_ARCHIVE
+    REPO_S3_BUCKET:
+      from_secret: YUM_REPO_NEW_AWS_S3_BUCKET
+  volumes:
+  - name: yum-persistence
+    path: /mnt
+  - name: tmpfs
+    path: /tmpfs
+  depends_on:
+  - Download artifacts for "${DRONE_TAG}"
+  - Verify build is tagged
+  - Check out code
+  - Check if tag is prerelease
+volumes:
+- name: yum-persistence
+  claim:
+    name: drone-s3-yumrepo-pvc
+- name: tmpfs
+  temp:
+    medium: memory
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/promote.go (main.buildDockerPromotionPipelineQuay)
 ################################################
 
 kind: pipeline
@@ -5563,14 +5691,13 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - export VERSION=${DRONE_TAG##v}
-  - docker login -u="$STAGING_QUAY_USERNAME" -p="$STAGING_QUAY_PASSWORD" quay.io
   - aws ecr get-login-password --region=us-west-2 | docker login -u="AWS" --password-stdin
     146628656107.dkr.ecr.us-west-2.amazonaws.com
   - echo "---> Pulling images for $${VERSION}"
   - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
   - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}
   - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
-  - docker pull quay.io/gravitational/teleport-operator-ci:$${VERSION}
+  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$${VERSION}
   - echo "---> Tagging images for $${VERSION}"
   - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
     quay.io/gravitational/teleport:$${VERSION}
@@ -5578,8 +5705,8 @@ steps:
     quay.io/gravitational/teleport-ent:$${VERSION}
   - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
     quay.io/gravitational/teleport-ent:$${VERSION}-fips
-  - docker tag quay.io/gravitational/teleport-operator-ci:$${VERSION} quay.io/gravitational/teleport-operator:$${VERSION}
-  - docker logout quay.io
+  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$${VERSION}
+    quay.io/gravitational/teleport-operator:$${VERSION}
   - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" quay.io
   - echo "---> Pushing images for $${VERSION}"
@@ -5596,10 +5723,6 @@ steps:
       from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
       from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
-    STAGING_QUAY_PASSWORD:
-      from_secret: QUAYIO_DOCKER_PASSWORD
-    STAGING_QUAY_USERNAME:
-      from_secret: QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -5618,7 +5741,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/promote.go:27
+# Generated at dronegen/promote.go (main.buildDockerPromotionPipelineECR)
 ################################################
 
 kind: pipeline
@@ -5664,6 +5787,7 @@ steps:
   - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
   - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}
   - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
+  - docker pull 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$${VERSION}
   - echo "---> Tagging images for $${VERSION}"
   - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:$${VERSION}
     public.ecr.aws/gravitational/teleport:$${VERSION}
@@ -5671,6 +5795,8 @@ steps:
     public.ecr.aws/gravitational/teleport-ent:$${VERSION}
   - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:$${VERSION}-fips
     public.ecr.aws/gravitational/teleport-ent:$${VERSION}-fips
+  - docker tag 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:$${VERSION}
+    public.ecr.aws/gravitational/teleport-operator:$${VERSION}
   - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
@@ -5678,6 +5804,7 @@ steps:
   - docker push public.ecr.aws/gravitational/teleport:$${VERSION}
   - docker push public.ecr.aws/gravitational/teleport-ent:$${VERSION}
   - docker push public.ecr.aws/gravitational/teleport-ent:$${VERSION}-fips
+  - docker push public.ecr.aws/gravitational/teleport-operator:$${VERSION}
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
@@ -6045,7 +6172,316 @@ volumes:
     claim:
       name: drone-s3-debrepo-pvc
 ---
+kind: pipeline
+type: kubernetes
+name: publish-rlz
+
+environment:
+  RELCLI_BASE_URL: https://releases-staging.platform.teleport.sh
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.65
+
+trigger:
+  event:
+    - promote
+  target:
+    - production
+  repo:
+    include:
+      - gravitational/*
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check if commit is tagged
+    image: alpine
+    commands:
+      - "[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)"
+
+  - name: Pull relcli
+    image: docker:git
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: TELEPORT_BUILD_USER_READ_ONLY_KEY
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: TELEPORT_BUILD_USER_READ_ONLY_SECRET
+      AWS_DEFAULT_REGION: us-west-2
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache aws-cli
+      - aws ecr get-login-password | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
+      - docker pull $RELCLI_IMAGE
+
+  - name: Publish in Release API
+    image: docker:git
+    environment:
+      RELEASES_CERT:
+        from_secret: RELEASES_CERT_STAGING
+      RELEASES_KEY:
+        from_secret: RELEASES_KEY_STAGING
+      RELCLI_CERT: /tmpfs/creds/releases.crt
+      RELCLI_KEY: /tmpfs/creds/releases.key
+    volumes:
+      - name: dockersock
+        path: /var/run
+      - name: tmpfs
+        path: /tmpfs
+    commands:
+    - mkdir -p /tmpfs/creds
+    - echo "$RELEASES_CERT" | base64 -d > "$RELCLI_CERT"
+    - echo "$RELEASES_KEY" | base64 -d > "$RELCLI_KEY"
+    - trap "rm -rf /tmpfs/creds" EXIT
+    - |
+      docker run -i -v /tmpfs/creds:/tmpfs/creds \
+        -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
+        $RELCLI_IMAGE relcli auto_publish -f -v 6
+    failure: ignore
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    privileged: true
+    volumes:
+      - name: dockersock
+        path: /var/run
+      - name: tmpfs
+        path: /tmpfs
+
+volumes:
+  - name: dockersock
+    temp: {}
+  - name: tmpfs
+    temp:
+      medium: memory
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/mac.go (main.newDarwinPipeline)
+################################################
+
+kind: pipeline
+type: exec
+name: build-darwin-amd64-connect
+trigger:
+  event:
+    include:
+    - tag
+  ref:
+    include:
+    - refs/tags/v*
+  repo:
+    include:
+    - gravitational/*
+workspace:
+  path: /tmp/build-darwin-amd64-connect
+platform:
+  os: darwin
+  arch: amd64
+clone:
+  disable: true
+depends_on:
+- build-darwin-amd64-pkg-tsh
+concurrency:
+  limit: 1
+steps:
+- name: Set up exec runner storage
+  commands:
+  - set -u
+  - mkdir -p $WORKSPACE_DIR
+  - chmod -R u+rw $WORKSPACE_DIR
+  - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
+  environment:
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
+- name: Check out code
+  commands:
+  - set -u
+  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+  - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
+  - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout $($WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+  - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
+    && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
+  - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
+  - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
+  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
+    -F /dev/null' git submodule update --init e
+  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
+    -F /dev/null' git submodule update --init --recursive webassets || true
+  - rm -rf $WORKSPACE_DIR/.ssh
+  - mkdir -p $WORKSPACE_DIR/go/cache
+  - mkdir -p $WORKSPACE_DIR/go/artifacts
+  - echo "${DRONE_TAG##v}" > $WORKSPACE_DIR/go/.version.txt
+  - cat $WORKSPACE_DIR/go/.version.txt
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
+- name: Install Node Toolchain
+  commands:
+  - set -u
+  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
+    print-node-version)
+  - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
+  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
+  - mkdir -p $TOOLCHAIN_DIR
+  - curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-darwin-x64.tar.gz
+  - tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-darwin-x64.tar.gz
+  - rm -f node-v$NODE_VERSION-darwin-x64.tar.gz
+  - export PATH=$NODE_DIR/bin:$PATH
+  - corepack enable yarn
+  - echo Node reporting version $(node --version)
+  - echo Yarn reporting version $(yarn --version)
+  environment:
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
+- name: Download tsh.pkg artifact from S3
+  commands:
+  - set -u
+  - export VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
+  - export S3_PATH="tag/$${DRONE_TAG##v}/"
+  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}tsh-$${VERSION}.pkg $WORKSPACE_DIR/go/src/github.com/gravitational/
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
+- name: Build Mac artifacts (Teleport Connect)
+  commands:
+  - set -u
+  - export HOME=/Users/$(whoami)
+  - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
+  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
+    print-node-version)
+  - export NODE_HOME=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
+  - export PATH=$NODE_HOME/bin:$PATH
+  - export VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
+    print-version)
+  - export BUILD_NUMBER=$DRONE_BUILD_NUMBER
+  - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
+  - security find-identity -v
+  - export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational
+  - pkgutil --expand-full tsh-$${VERSION}.pkg tsh
+  - export CONNECT_TSH_APP_PATH=$WORKSPACE_DIR/go/src/github.com/gravitational/tsh/Payload/tsh.app
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
+  - yarn install && yarn build-term && yarn package-term -c.extraMetadata.version=$VERSION
+  environment:
+    APPLE_PASSWORD:
+      from_secret: APPLE_PASSWORD
+    APPLE_USERNAME:
+      from_secret: APPLE_USERNAME
+    ARCH: amd64
+    BUILDBOX_PASSWORD:
+      from_secret: BUILDBOX_PASSWORD
+    GOCACHE: /tmp/build-darwin-amd64-connect/go/cache
+    GOPATH: /tmp/build-darwin-amd64-connect/go
+    OS: darwin
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
+- name: Copy dmg artifact
+  commands:
+  - set -u
+  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps/packages/teleterm/build/release
+  - cp *.dmg $WORKSPACE_DIR/go/artifacts
+  - cd $WORKSPACE_DIR/go/artifacts && for FILE in *.dmg; do shasum -a 256 "$FILE"
+    > "$FILE.sha256"; done && ls -l
+  environment:
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
+- name: Upload to S3
+  commands:
+  - set -u
+  - cd $WORKSPACE_DIR/go/artifacts
+  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: AWS_ACCESS_KEY_ID
+    AWS_REGION: us-west-2
+    AWS_S3_BUCKET:
+      from_secret: AWS_S3_BUCKET
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: AWS_SECRET_ACCESS_KEY
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
+- name: Register artifact
+  commands:
+  - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
+  - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
+  - RELEASES_HOST='https://releases-staging.platform.teleport.sh'
+  - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
+  - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
+  - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
+  - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
+  - which curl || apk add --no-cache curl
+  - |-
+    cd "$WORKSPACE_DIR/go/artifacts"
+    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
+      # Skip files that are not results of this build
+      # (e.g. tarballs from which OS packages are made)
+      [ -f "$file.sha256" ] || continue
+
+      name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+      description="MacOS Intel"
+      products="$name"
+      if [ "$name" = "tsh" ]; then
+        products="teleport teleport-ent"
+      elif [ "$name" = "Teleport Connect" ]; then
+        description="Teleport Connect"
+        products="teleport teleport-ent"
+      fi
+      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+
+      for product in $products; do
+        status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
+        if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
+          echo "curl HTTP status: $status_code"
+          cat $WORKSPACE_DIR/curl_out.txt
+          exit 1
+        fi
+        curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%20/g')"
+      done
+    done
+  environment:
+    RELEASES_CERT:
+      from_secret: RELEASES_CERT_STAGING
+    RELEASES_KEY:
+      from_secret: RELEASES_KEY_STAGING
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
+  failure: ignore
+- name: Clean up toolchains (post)
+  commands:
+  - set -u
+  - rm -rf /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED
+  environment:
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
+  when:
+    status:
+    - success
+    - failure
+- name: Clean up exec runner storage (post)
+  commands:
+  - set -u
+  - chmod -R u+rw $WORKSPACE_DIR
+  - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
+  environment:
+    WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
+---
 kind: signature
-hmac: 42f1680681b64982227795d38c826603179c24645d7214f52903515add8ef583
+hmac: c4601cc95876e4ce9c05ae78c9f4697fe714c8f88ee5fb0ce9702eaf6f2c7d3f
 
 ...
