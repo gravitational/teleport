@@ -196,7 +196,7 @@ func ParsePrivateKey(keyPEM []byte) (*PrivateKey, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return NewPrivateKey(newStandardSigner(priv, keyPEM))
+		return NewPrivateKey(priv)
 	default:
 		return nil, trace.BadParameter("unexpected private key PEM type %q", block.Type)
 	}
