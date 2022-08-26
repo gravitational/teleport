@@ -542,7 +542,7 @@ func darwinBuildCommands(toolchainConfig toolchainConfig, artifactConfig darwinA
 			// https://www.electron.build/code-signing
 			`export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83`,
 
-			`export DEBUG=electron-*`,
+			`export DEBUG="electron-*"`,
 		)
 
 		if artifactConfig == binariesWithConnect {
