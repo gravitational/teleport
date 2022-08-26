@@ -138,7 +138,7 @@ plugin to use these credentials and post messages in the right channels for your
 workspace.
 
 <Tabs dropdownCaption="Environment type" dropdownSelected="Executable">
-<TabItem label="Teleport Enterprise" options="Executable">
+<TabItem label="Command line" options="Executable">
 The Mattermost plugin uses a config file in TOML format. On the host where you
 will run the Mattermost plugin, generate a boilerplate config by running the
 following commands:
@@ -150,8 +150,8 @@ $ sudo mv teleport-mattermost.toml /etc
 </TabItem>
 <TabItem label="Self-Hosted" options="Helm Chart">
 The Mattermost Helm Chart uses a YAML values file to configure the plugin. On
-the host where you will run the Mattermost plugin, generate a boilerplate
-config by running the following commands:
+the host where you will run the Mattermost plugin, create a file called
+`teleport-mattermost-helm.yaml` based on the following example:
 
 ```yaml
 (!examples/resources/plugins/teleport-mattermost-helm-self.yaml!)
@@ -159,8 +159,8 @@ config by running the following commands:
 </TabItem>
 <TabItem label="Teleport Cloud" options="Helm Chart">
 The Mattermost Helm Chart uses a YAML values file to configure the plugin. On
-the host where you will run the Mattermost plugin, generate a boilerplate
-config by running the following commands:
+the host where you will run the Mattermost plugin, create a file called
+`teleport-mattermost-helm.yaml` based on the following example:
 
 ```yaml
 (!examples/resources/plugins/teleport-mattermost-helm-cloud.yaml!)
@@ -209,8 +209,6 @@ comment out the other fields.
 
 **`identitySecretName`**: Fill in the `identitySecretName` field with the name
 of the Kubernetes secret you created earlier.
-If you exported an identity file earlier, fill in the `identity` field with the
-path to the file and comment out the other fields.
 
 </TabItem>
 <TabItem label="Teleport Cloud " scope="cloud" options="Helm Chart">
@@ -227,8 +225,8 @@ of the Kubernetes secret you created earlier.
 
 ### `[mattermost]`
 
-<Tabs dropdownCaption="Environment type" dropdownSelected="Executable">
-<TabItem label="Teleport Enterprise or Cloud" scope={["oss", "enterprise"]} options="Executable">
+<Tabs>
+<TabItem label="Executable" scope={["oss", "enterprise"]}>
 
 **`url`**: Include the scheme (`https://`) and fully qualified domain name of
 your Mattermost deployment.
@@ -259,7 +257,7 @@ recipients = [
 ```
 
 </TabItem>
-<TabItem label="Teleport Enterprise or Cloud " scope={["oss", "enterprise"]} options="Helm Chart">
+<TabItem label="Helm Chart" scope={["oss", "enterprise"]}>
 
 **`url`**: Include the scheme (`https://`) and fully qualified domain name of
 your Mattermost deployment.
@@ -378,8 +376,8 @@ severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN"
 ## Step 7/8. Test your Mattermost bot
 
 
-<Tabs dropdownCaption="Environment type" dropdownSelected="Executable">
-<TabItem label="Teleport Enterprise" scope={["oss", "enterprise"]} options="Executable">
+<Tabs>
+<TabItem label="Executable" scope={["oss", "enterprise"]}>
 After modifying your configuration, run the bot with the following command:
 
 ```code
@@ -398,11 +396,25 @@ DEBU   Watcher connected mattermost/main.go:260
 DEBU   Mattermost API health check finished ok mattermost/main.go:19
 ```
 </TabItem>
-<TabItem label="Teleport Enterprise" scope={["oss", "enterprise"]} options="Helm Chart">
+<TabItem label="Helm Chart" scope={["oss", "enterprise"]}>
 After modifying your configuration, run the bot with the following command:
 
 ```code
-$ helm install teleport-plugin-mattermost teleport/teleport-plugin-mattermost --values teleport-mattermost-helm.yaml
+$ helm upgrade --install teleport-plugin-mattermost teleport/teleport-plugin-mattermost --values teleport-mattermost-helm.yaml
+```
+
+To inspect the plugin's logs, use the following command:
+
+```code
+$ kubectl logs deploy/teleport-plugin-mattermost
+```
+
+Debug logs can be enabled by setting `log.severity` to `DEBUG` in
+`teleport-mattermost-helm.yaml` and execute the `helm upgrade ...` command
+above again. Then you can restart the plugin with the following command:
+
+```code
+$ kubectl rollout restart deployment teleport-plugin-mattermost
 ```
 
 </TabItem>
