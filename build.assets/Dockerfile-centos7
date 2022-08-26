@@ -205,6 +205,5 @@ RUN cd / && curl -L https://s3.amazonaws.com/clientbuilds.gravitational.io/go/ce
 # Copy libbpf into the final image.
 COPY --from=libbpf /opt/libbpf/usr /usr
 
-USER ci
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380

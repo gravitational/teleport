@@ -613,6 +613,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		ProxyListenerMode:        fc.Auth.ProxyListenerMode,
 		RoutingStrategy:          fc.Auth.RoutingStrategy,
 		TunnelStrategy:           fc.Auth.TunnelStrategy,
+		ProxyPingInterval:        fc.Auth.ProxyPingInterval,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1052,6 +1053,8 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	cfg.SSH.AllowFileCopying = fc.SSH.SSHFileCopy()
 
 	for _, matcher := range fc.SSH.AWSMatchers {
 		cfg.SSH.AWSMatchers = append(cfg.SSH.AWSMatchers,

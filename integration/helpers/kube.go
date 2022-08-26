@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -99,18 +98,14 @@ func genUserKey() (*client.Key, error) {
 	}
 
 	keygen := testauthority.New()
-	priv, pub, err := keygen.GenerateKeyPair()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cryptoPub, err := sshutils.CryptoPublicKey(pub)
+	priv, err := keygen.GeneratePrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	clock := clockwork.NewRealClock()
 	tlsCert, err := ca.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     clock,
-		PublicKey: cryptoPub,
+		PublicKey: priv.Public(),
 		Subject: pkix.Name{
 			CommonName: "teleport-user",
 		},
@@ -121,9 +116,8 @@ func genUserKey() (*client.Key, error) {
 	}
 
 	return &client.Key{
-		Priv:    priv,
-		Pub:     pub,
-		TLSCert: tlsCert,
+		PrivateKey: priv,
+		TLSCert:    tlsCert,
 		TrustedCA: []auth.TrustedCerts{{
 			TLSCertificates: [][]byte{caCert},
 		}},
