@@ -19,14 +19,8 @@ import "path"
 const (
 	perBuildWorkspace   = `$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER`
 	windowsToolchainDir = perBuildWorkspace + `/toolchains`
-	perBuildTeleportSrc = perBuildWorkspace + "/go/src/github.com/gravitational/teleport"
-	perBuildWebappsSrc  = perBuildWorkspace + "/go/src/github.com/gravitational/webapps"
-
-	// Hardcoded tool versions that we would normally pull from the makefile,
-	// but unfortunately our Makefiles use too many POSIX-isms for us to use on
-	// Windows, so for now we will just say the versions we want here.
-	windowsGoVersion   = "1.18.3"
-	windowsNodeVersion = "16.13.2"
+	teleportSrc         = "/go/src/github.com/gravitational/teleport"
+	webappsSrc          = "/go/src/github.com/gravitational/webapps"
 )
 
 func newWindowsPipeline(name string) pipeline {
@@ -73,8 +67,8 @@ func windowsTagPipeline() pipeline {
 			},
 			Commands: []string{
 				`$Workspace = "` + perBuildWorkspace + `"`,
-				`$TeleportSrc = "` + perBuildTeleportSrc + `"`,
-				`$WebappsSrc = "` + perBuildWebappsSrc + `"`,
+				`$TeleportSrc = $Workspace"` + teleportSrc + `"`,
+				`$WebappsSrc = $Workspace"` + webappsSrc + `"`,
 				`$Env:DRONE_TAG="v10.1.2"`, // TODO(tcsc): aid during dev, remove before merge
 				`$TeleportVersion=$Env:DRONE_TAG.TrimStart('v')`,
 				`$OutputsDir="$Workspace/outputs"`,
@@ -120,14 +114,15 @@ func cloneWindowsRepositoriesStep(workspace string) step {
 		},
 		Commands: []string{
 			`$ErrorActionPreference = 'Stop'`,
-			`$Env:GOCACHE = "` + perBuildWorkspace + `/gocache"`,
-			`$TeleportSrc = "` + perBuildTeleportSrc + `"`,
+			`$Workspace = "` + perBuildWorkspace + `"`,
+			`$Env:GOCACHE = "$Workspace/gocache"`,
+			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
+			`$WebappsSrc = "$Workspace` + webappsSrc + `"`,
 			`$TeleportRev = if ($Env:DRONE_TAG -ne $null) { $Env:DRONE_TAG } else { $Env:DRONE_COMMIT }`,
 			`New-Item -Path $TeleportSrc -ItemType Directory | Out-Null`,
 			`cd $TeleportSrc`,
 			`git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .`,
 			`git checkout $TeleportRev`,
-			`$WebappsSrc = "` + perBuildWebappsSrc + `"`,
 			`New-Item -Path $WebappsSrc -ItemType Directory | Out-Null`,
 			`cd $WebappsSrc`,
 			`git clone https://github.com/gravitational/webapps.git .`,
@@ -144,8 +139,9 @@ func updateWindowsSubreposStep(workspace string) step {
 			"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 		},
 		Commands: []string{
+			`$ErrorActionPreference = 'Stop'`,
 			`$Workspace = "` + perBuildWorkspace + `"`,
-			`$TeleportSrc = "` + perBuildTeleportSrc + `"`,
+			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 			`Enable-Git -Workspace $Workspace -PrivateKey $Env:GITHUB_PRIVATE_KEY`,
 			`cd $TeleportSrc`,
@@ -163,12 +159,12 @@ func installWindowsNodeToolchainStep(workspacePath string) step {
 		Commands: []string{
 			`$ProgressPreference = 'SilentlyContinue'`,
 			`$ErrorActionPreference = 'Stop'`,
-			`$TeleportSrc = "` + perBuildTeleportSrc + `"`,
+			`$Workspace = "` + perBuildWorkspace + `"`,
+			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
-			// We can't use make, as there are too many posix dependencies in our makefile
-			// to abstract away right now, so instead of `$(make -C $TeleportSrc/build.assets print-node-version)`,
-			// we will just hardcode it for now
-			`$NodeVersion = "` + windowsNodeVersion + `"`,
+			`Push-Location "$TeleportSrc/build.assets"`,
+			`$NodeVersion = $(make print-node-version).Trim()`,
+			`Pop-Location`,
 			`Install-Node -NodeVersion $NodeVersion -ToolchainDir "` + windowsToolchainDir + `"`,
 		},
 	}
@@ -181,12 +177,12 @@ func installWindowsGoToolchainStep(workspacePath string) step {
 		Commands: []string{
 			`$ProgressPreference = 'SilentlyContinue'`,
 			`$ErrorActionPreference = 'Stop'`,
-			`$TeleportSrc = "` + perBuildTeleportSrc + `"`,
+			`$Workspace = "` + perBuildWorkspace + `"`,
+			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
-			// We can't use make, as there are too many posix dependencies to
-			// abstract away right now, so instead of `$(make -C $TeleportSrc/build.assets print-go-version)`,
-			// we will just hardcode it for now
-			`$GoVersion = "` + windowsGoVersion + `"`,
+			`Push-Location "$TeleportSrc/build.assets"`,
+			`$GoVersion = $(make print-go-version).TrimStart("go")`,
+			`Pop-Location`,
 			`Install-Go -GoVersion $GoVersion -ToolchainDir "` + windowsToolchainDir + `"`,
 		},
 	}
@@ -200,9 +196,10 @@ func buildWindowsTshStep(workspace string) step {
 			"WINDOWS_SIGNING_CERT": {fromSecret: "WINDOWS_SIGNING_CERT"},
 		},
 		Commands: []string{
+			`$ErrorActionPreference = 'Stop'`,
 			`$Workspace = "` + perBuildWorkspace + `"`,
 			`$Env:GOCACHE = "$Workspace/gocache"`,
-			`$TeleportSrc = "` + perBuildTeleportSrc + `"`,
+			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 			`Enable-Go -ToolchainDir "` + windowsToolchainDir + `"`,
 			`cd $TeleportSrc`,
@@ -223,16 +220,17 @@ func buildWindowsTeleportConnectStep(workspace string) step {
 			"CSC_LINK":      {fromSecret: "WINDOWS_SIGNING_CERT"},
 		},
 		Commands: []string{
+			`$ErrorActionPreference = 'Stop'`,
 			`$Workspace = "` + perBuildWorkspace + `"`,
-			`$TeleportSrc = "` + perBuildTeleportSrc + `"`,
-			`$WebappsSrc = "` + perBuildWebappsSrc + `"`,
-			`$NodeVersion = "` + windowsNodeVersion + `"`,
-			`$Env:CONNECT_TSH_BIN_PATH="$TeleportSrc\build\tsh.exe"`,
-			`$Env:DRONE_TAG="v10.1.2"`, // TODO(tcsc) remove before merge
-			`$TeleportVersion=$Env:DRONE_TAG.TrimStart('v')`,
+			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
+			`$WebappsSrc = "$Workspace` + webappsSrc + `"`,
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
-			`Enable-Node -NodeVersion $NodeVersion -ToolchainDir "` + windowsToolchainDir + `"`,
+			`Enable-Node -ToolchainDir "` + windowsToolchainDir + `"`,
+			`Push-Location $TeleportSrc`,
+			`$TeleportVersion=$(make peint-version).Trim()`,
+			`Pop-Location`,
 			`cd $WebappsSrc`,
+			`$Env:CONNECT_TSH_BIN_PATH="$TeleportSrc\build\tsh.exe"`,
 			`yarn install --frozen-lockfile`,
 			`yarn build-term`,
 			`yarn package-term "-c.extraMetadata.version=$TeleportVersion"`,

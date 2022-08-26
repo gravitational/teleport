@@ -674,15 +674,16 @@ steps:
 - name: Check out Teleport
   commands:
   - $ErrorActionPreference = 'Stop'
-  - $Env:GOCACHE = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/gocache"
-  - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $Env:GOCACHE = "$Workspace/gocache"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - $WebappsSrc = "$Workspace/go/src/github.com/gravitational/webapps"
   - $TeleportRev = if ($Env:DRONE_TAG -ne $null) { $Env:DRONE_TAG } else { $Env:DRONE_COMMIT
     }
   - New-Item -Path $TeleportSrc -ItemType Directory | Out-Null
   - cd $TeleportSrc
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
   - git checkout $TeleportRev
-  - $WebappsSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/webapps"
   - New-Item -Path $WebappsSrc -ItemType Directory | Out-Null
   - cd $WebappsSrc
   - git clone https://github.com/gravitational/webapps.git .
@@ -691,8 +692,9 @@ steps:
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
 - name: Checkout Submodules
   commands:
+  - $ErrorActionPreference = 'Stop'
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
-  - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Enable-Git -Workspace $Workspace -PrivateKey $Env:GITHUB_PRIVATE_KEY
   - cd $TeleportSrc
@@ -707,9 +709,12 @@ steps:
   commands:
   - $ProgressPreference = 'SilentlyContinue'
   - $ErrorActionPreference = 'Stop'
-  - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
-  - $NodeVersion = "16.13.2"
+  - Push-Location "$TeleportSrc/build.assets"
+  - $NodeVersion = $(make print-node-version).Trim()
+  - Pop-Location
   - Install-Node -NodeVersion $NodeVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
@@ -717,17 +722,21 @@ steps:
   commands:
   - $ProgressPreference = 'SilentlyContinue'
   - $ErrorActionPreference = 'Stop'
-  - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
-  - $GoVersion = "1.18.3"
+  - Push-Location "$TeleportSrc/build.assets"
+  - $GoVersion = $(make print-go-version).TrimStart("go")
+  - Pop-Location
   - Install-Go -GoVersion $GoVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
 - name: Build tsh
   commands:
+  - $ErrorActionPreference = 'Stop'
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $Env:GOCACHE = "$Workspace/gocache"
-  - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Enable-Go -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
   - cd $TeleportSrc
@@ -739,16 +748,17 @@ steps:
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
 - name: Build Teleport Connect
   commands:
+  - $ErrorActionPreference = 'Stop'
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
-  - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
-  - $WebappsSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/webapps"
-  - $NodeVersion = "16.13.2"
-  - $Env:CONNECT_TSH_BIN_PATH="$TeleportSrc\build\tsh.exe"
-  - $Env:DRONE_TAG="v10.1.2"
-  - $TeleportVersion=$Env:DRONE_TAG.TrimStart('v')
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - $WebappsSrc = "$Workspace/go/src/github.com/gravitational/webapps"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
-  - Enable-Node -NodeVersion $NodeVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
+  - Enable-Node -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
+  - Push-Location $TeleportSrc
+  - $TeleportVersion=$(make peint-version).Trim()
+  - Pop-Location
   - cd $WebappsSrc
+  - $Env:CONNECT_TSH_BIN_PATH="$TeleportSrc\build\tsh.exe"
   - yarn install --frozen-lockfile
   - yarn build-term
   - yarn package-term "-c.extraMetadata.version=$TeleportVersion"
@@ -804,15 +814,16 @@ steps:
 - name: Check out Teleport
   commands:
   - $ErrorActionPreference = 'Stop'
-  - $Env:GOCACHE = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/gocache"
-  - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $Env:GOCACHE = "$Workspace/gocache"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - $WebappsSrc = "$Workspace/go/src/github.com/gravitational/webapps"
   - $TeleportRev = if ($Env:DRONE_TAG -ne $null) { $Env:DRONE_TAG } else { $Env:DRONE_COMMIT
     }
   - New-Item -Path $TeleportSrc -ItemType Directory | Out-Null
   - cd $TeleportSrc
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
   - git checkout $TeleportRev
-  - $WebappsSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/webapps"
   - New-Item -Path $WebappsSrc -ItemType Directory | Out-Null
   - cd $WebappsSrc
   - git clone https://github.com/gravitational/webapps.git .
@@ -821,8 +832,9 @@ steps:
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Checkout Submodules
   commands:
+  - $ErrorActionPreference = 'Stop'
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
-  - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Enable-Git -Workspace $Workspace -PrivateKey $Env:GITHUB_PRIVATE_KEY
   - cd $TeleportSrc
@@ -837,9 +849,12 @@ steps:
   commands:
   - $ProgressPreference = 'SilentlyContinue'
   - $ErrorActionPreference = 'Stop'
-  - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
-  - $NodeVersion = "16.13.2"
+  - Push-Location "$TeleportSrc/build.assets"
+  - $NodeVersion = $(make print-node-version).Trim()
+  - Pop-Location
   - Install-Node -NodeVersion $NodeVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
@@ -847,17 +862,21 @@ steps:
   commands:
   - $ProgressPreference = 'SilentlyContinue'
   - $ErrorActionPreference = 'Stop'
-  - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
-  - $GoVersion = "1.18.3"
+  - Push-Location "$TeleportSrc/build.assets"
+  - $GoVersion = $(make print-go-version).TrimStart("go")
+  - Pop-Location
   - Install-Go -GoVersion $GoVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Build tsh
   commands:
+  - $ErrorActionPreference = 'Stop'
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $Env:GOCACHE = "$Workspace/gocache"
-  - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Enable-Go -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
   - cd $TeleportSrc
@@ -869,16 +888,17 @@ steps:
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Build Teleport Connect
   commands:
+  - $ErrorActionPreference = 'Stop'
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
-  - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
-  - $WebappsSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/webapps"
-  - $NodeVersion = "16.13.2"
-  - $Env:CONNECT_TSH_BIN_PATH="$TeleportSrc\build\tsh.exe"
-  - $Env:DRONE_TAG="v10.1.2"
-  - $TeleportVersion=$Env:DRONE_TAG.TrimStart('v')
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - $WebappsSrc = "$Workspace/go/src/github.com/gravitational/webapps"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
-  - Enable-Node -NodeVersion $NodeVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
+  - Enable-Node -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
+  - Push-Location $TeleportSrc
+  - $TeleportVersion=$(make peint-version).Trim()
+  - Pop-Location
   - cd $WebappsSrc
+  - $Env:CONNECT_TSH_BIN_PATH="$TeleportSrc\build\tsh.exe"
   - yarn install --frozen-lockfile
   - yarn build-term
   - yarn package-term "-c.extraMetadata.version=$TeleportVersion"
@@ -889,8 +909,8 @@ steps:
 - name: Upload Artifacts
   commands:
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
-  - $TeleportSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/teleport"
-  - $WebappsSrc = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/go/src/github.com/gravitational/webapps"
+  - $TeleportSrc = $Workspace"/go/src/github.com/gravitational/teleport"
+  - $WebappsSrc = $Workspace"/go/src/github.com/gravitational/webapps"
   - $Env:DRONE_TAG="v10.1.2"
   - $TeleportVersion=$Env:DRONE_TAG.TrimStart('v')
   - $OutputsDir="$Workspace/outputs"
@@ -7022,6 +7042,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: e412e3fdd63eeece7406bff576f4110cc404ba99c9add8e27fff79c7f107ae8d
+hmac: c26d58cb660cd5d440b334a5e1dbc26295f120bbc4d1d7486a64173993086251
 
 ...

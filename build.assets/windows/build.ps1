@@ -125,7 +125,8 @@ function Install-Node {
         $NodeZipfile = "node-$NodeVersion-win-x64.zip"
         Invoke-WebRequest -Uri https://nodejs.org/download/release/v$NodeVersion/node-v$NodeVersion-win-x64.zip -OutFile $NodeZipfile
         Expand-Archive -Path $NodeZipfile -DestinationPath $ToolchainDir
-        Enable-Node -ToolchainDir $ToolchainDir -NodeVersion $NodeVersion
+        Rename-Item -Path "$ToolchainDir/node-v$NodeVersion-win-x64" -NewName "$ToolchainDir/node"
+        Enable-Node -ToolchainDir $ToolchainDir
         npm config set msvs_version 2017
         corepack enable yarn
     }
@@ -138,11 +139,10 @@ function Enable-Node {
     #>
     [CmdletBinding()]
     param(
-        [string] $ToolchainDir,
-        [string] $NodeVersion
+        [string] $ToolchainDir
     )
     begin {
-        $Env:Path = "$Env:Path;$ToolchainDir/node-v$NodeVersion-win-x64"
+        $Env:Path = "$Env:Path;$ToolchainDir/node"
     }
 }
 
