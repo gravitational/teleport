@@ -80,12 +80,12 @@ func validateSTSHost(stsHost string) error {
 	return trace.AccessDenied("IAM join request uses unknown STS host %q. "+
 		"This could mean that the Teleport Node attempting to join the cluster is "+
 		"running in a new AWS region which is unknown to this Teleport auth server. "+
-		"If this is the case, please check if the endpoint is included in the newest "+
-		"list of known valid endpoints at https://github.com/gravitational/teleport/blob/master/lib/auth/valid_sts_endpoints.go "+
-		"and consider upgrading your Teleport binary to the latest version. "+
-		"If it is not included there, please submit a GitHub issue and we will add it. "+
 		"Alternatively, if this URL looks suspicious, an attacker may be attempting to "+
-		"join your Teleport cluster.", stsHost)
+		"join your Teleport cluster. "+
+		"Following is the list of valid STS endpoints known to this auth server. "+
+		"If a legitimate STS endpoint is not included, please file an issue at "+
+		"https://github.com/gravitational/teleport. %v",
+		stsHost, validSTSEndpoints)
 }
 
 // validateSTSIdentityRequest checks that a received sts:GetCallerIdentity
