@@ -49,7 +49,7 @@ AWS applies [per-instance throttling to instance metadata requests](https://docs
 
 ### Azure
 
-Azure instance metadata (including tags) is always enabled and requires no additional setup from the user.
+Azure instance metadata (including tags) is always enabled and requires no additional setup from the user. Azure VMs do not require a restart for tag updates to apply.
 
 Namespace prefix: `azure`
 
