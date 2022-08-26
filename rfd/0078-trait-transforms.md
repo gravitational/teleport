@@ -51,9 +51,8 @@ metadata:
   name: example
 spec:
   # priority can be used to order the evaluation of multiple trait transforms in
-  # a cluster. Lower priorities will be evaluated first. Duplicate
-  # trait_transforms with the same priority will not be allowed (blocked during
-  # tctl create.)
+  # a cluster. Lower priorities will be evaluated first. Trait transforms with
+  # the same priority will be ordered by a lexicographical sort by their names. 
   priority: 0
 
   # filter is a predicate expression which will be applied to each incoming
@@ -187,7 +186,7 @@ The parsed expression will be evaluated during login with the context of the
 unique user's traits.
 
 During login, the auth server will load all `trait_transform` resources in the
-cluster, sort them by `priority`, and apply all of them in order.
+cluster, sort them by `priority` and `name`, and apply all of them in order.
 
 ### Trusted clusters
 
