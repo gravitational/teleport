@@ -354,6 +354,13 @@ const (
 // CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.
 const CloudHostnameTag = "TeleportHostname"
 
+type InstanceMetadataType string
+
+const (
+	InstanceMetadataTypeEC2   InstanceMetadataType = "EC2"
+	InstanceMetadataTypeAzure InstanceMetadataType = "Azure"
+)
+
 // OriginValues lists all possible origin values.
 var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic, OriginCloud, OriginKubernetes}
 

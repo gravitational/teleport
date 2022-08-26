@@ -35,6 +35,10 @@ func (m *mockIMDSClient) IsAvailable(ctx context.Context) bool {
 	return true
 }
 
+func (m *mockIMDSClient) GetType() types.InstanceMetadataType {
+	return "mock"
+}
+
 func (m *mockIMDSClient) GetTags(ctx context.Context) (map[string]string, error) {
 	if m.tagsDisabled {
 		return nil, trace.NotFound("")
@@ -57,7 +61,7 @@ func TestCloudLabelsSync(t *testing.T) {
 	imdsClient := &mockIMDSClient{
 		tags: tags,
 	}
-	ec2Labels, err := New(&CloudConfig{
+	ec2Labels, err := NewCloudImporter(ctx, &CloudConfig{
 		Client:    imdsClient,
 		namespace: "aws",
 	})
@@ -70,7 +74,7 @@ func TestCloudLabelsAsync(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	imdsClient := &mockIMDSClient{}
 	clock := clockwork.NewFakeClock()
-	ec2Labels, err := New(&CloudConfig{
+	ec2Labels, err := NewCloudImporter(ctx, &CloudConfig{
 		Client:    imdsClient,
 		namespace: "aws",
 		Clock:     clock,
@@ -118,7 +122,7 @@ func TestCloudLabelsValidKey(t *testing.T) {
 	imdsClient := &mockIMDSClient{
 		tags: tags,
 	}
-	ec2Labels, err := New(&CloudConfig{
+	ec2Labels, err := NewCloudImporter(ctx, &CloudConfig{
 		Client:    imdsClient,
 		namespace: "aws",
 	})
@@ -132,7 +136,7 @@ func TestCloudLabelsDisabled(t *testing.T) {
 	imdsClient := &mockIMDSClient{
 		tagsDisabled: true,
 	}
-	ec2Labels, err := New(&CloudConfig{
+	ec2Labels, err := NewCloudImporter(ctx, &CloudConfig{
 		Client:    imdsClient,
 		namespace: "aws",
 	})

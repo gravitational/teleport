@@ -25,12 +25,20 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
 
 // metadataReadLimit is the largest number of bytes that will be read from imds responses.
 const metadataReadLimit = 1_000_000
+
+func init() {
+	cloud.RegisterIMDSProvider("EC2", func(ctx context.Context) (cloud.InstanceMetadata, error) {
+		client, err := NewInstanceMetadataClient(ctx)
+		return client, trace.Wrap(err)
+	})
+}
 
 // InstanceMetadataClient is a wrapper for an imds.Client.
 type InstanceMetadataClient struct {
@@ -66,6 +74,10 @@ func NewInstanceMetadataClient(ctx context.Context, opts ...InstanceMetadataClie
 	}
 
 	return clt, nil
+}
+
+func (client *InstanceMetadataClient) GetType() types.InstanceMetadataType {
+	return types.InstanceMetadataTypeEC2
 }
 
 // EC2 resource ID is i-{8 or 17 hex digits}, see

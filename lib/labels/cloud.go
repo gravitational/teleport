@@ -27,8 +27,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/cloud/azure"
 )
 
 const (
@@ -83,42 +81,32 @@ type CloudImporter struct {
 	instanceTagsNotFoundOnce sync.Once
 }
 
-// New creates a new cloud importer.
-func New(c *CloudConfig) (*CloudImporter, error) {
+func NewCloudImporter(ctx context.Context, c *CloudConfig) (*CloudImporter, error) {
 	if err := c.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &CloudImporter{
+	cloudImporter := &CloudImporter{
 		CloudConfig: c,
 		labels:      make(map[string]string),
 		closeCh:     make(chan struct{}),
-	}, nil
+	}
+	switch c.Client.GetType() {
+	case types.InstanceMetadataTypeEC2:
+		cloudImporter.initEC2()
+	case types.InstanceMetadataTypeAzure:
+		cloudImporter.initAzure()
+	}
+	return cloudImporter, nil
 }
 
-// NewEC2 creates a new cloud importer configured for EC2.
-func NewEC2(ctx context.Context, c *CloudConfig) (*CloudImporter, error) {
-	c.namespace = AWSNamespace
-	c.instanceMetadataHint = awsErrorMessage
-	if c.Client == nil {
-		client, err := aws.NewInstanceMetadataClient(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		c.Client = client
-	}
-	cloudImporter, err := New(c)
-	return cloudImporter, trace.Wrap(err)
+func (l *CloudImporter) initEC2() {
+	l.namespace = AWSNamespace
+	l.instanceMetadataHint = awsErrorMessage
 }
 
-// NewAzure creates a new cloud importer configured for Azure.
-func NewAzure(c *CloudConfig) (*CloudImporter, error) {
-	c.namespace = AzureNamespace
-	c.instanceMetadataHint = azureErrorMessage
-	if c.Client == nil {
-		c.Client = azure.NewInstanceMetadataClient()
-	}
-	cloudImporter, err := New(c)
-	return cloudImporter, trace.Wrap(err)
+func (l *CloudImporter) initAzure() {
+	l.namespace = AzureNamespace
+	l.instanceMetadataHint = azureErrorMessage
 }
 
 // Get returns the list of updated cloud labels.

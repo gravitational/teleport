@@ -313,6 +313,10 @@ func (m *mockIMDSClient) GetHostname(ctx context.Context) (string, error) {
 	return value, nil
 }
 
+func (m *mockIMDSClient) GetType() types.InstanceMetadataType {
+	return "mock"
+}
+
 // TestEC2Labels is an integration test which asserts that Teleport correctly picks up
 // EC2 tags when running on an EC2 instance.
 func TestEC2Labels(t *testing.T) {

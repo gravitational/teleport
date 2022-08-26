@@ -74,7 +74,6 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/dynamoevents"
@@ -885,32 +884,31 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 
 	var cloudLabels labels.Importer
 
-	// Check if we're on an EC2 instance, and if we should override the node's hostname.
+	// Check if we're on a cloud instance, and if we should override the node's hostname.
 	imClient := newTeleportConf.imdsClient
 	if imClient == nil {
-		imClient, err = aws.NewInstanceMetadataClient(supervisor.ExitContext())
-		if err != nil {
+		imClient, err = cloud.DiscoverInstanceMetadata(supervisor.ExitContext())
+		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	if imClient.IsAvailable(supervisor.ExitContext()) {
-		ec2Hostname, err := imClient.GetHostname(supervisor.ExitContext())
+	if imClient != nil {
+		cloudHostname, err := imClient.GetHostname(supervisor.ExitContext())
 		if err == nil {
-			cfg.Log.Infof("Found %q tag in cloud instance. Using %q as hostname.", types.CloudHostnameTag, ec2Hostname)
-			cfg.Hostname = ec2Hostname
+			cfg.Log.Infof("Found %q tag in cloud instance. Using %q as hostname.", types.CloudHostnameTag, cloudHostname)
+			cfg.Hostname = cloudHostname
 		} else if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
 
-		ec2Labels, err := labels.NewEC2(supervisor.ExitContext(), &labels.CloudConfig{
+		cloudLabels, err = labels.NewCloudImporter(supervisor.ExitContext(), &labels.CloudConfig{
 			Client: imClient,
 			Clock:  cfg.Clock,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cloudLabels = ec2Labels
 	}
 
 	if cloudLabels != nil {
