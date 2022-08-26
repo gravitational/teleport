@@ -1010,23 +1010,6 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Get the private key policy met by the given public key. If attestation request
-	// is not given, then no private key policy will be met.
-	privateKeyPolicy := keys.PrivateKeyPolicyNone
-	if req.attestationRequest != nil {
-		resp, err := keys.AttestHardwareKey(req.attestationRequest)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		privateKeyPolicy = resp.PrivateKeyPolicy
-	}
-
-	// Check that the attested private key policy is sufficient for the required private key policy.
-	requiredKeyPolicy := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
-	if err := requiredKeyPolicy.VerifyPolicy(privateKeyPolicy); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// reuse the same RSA keys for SSH and TLS keys
 	cryptoPubKey, err := sshutils.CryptoPublicKey(req.publicKey)
 	if err != nil {
@@ -1070,6 +1053,35 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+
+	// Get the private key policy met by the given public key. If attestation request
+	// is not given, then no private key policy will be met.
+	privateKeyPolicy := keys.PrivateKeyPolicyNone
+	if req.attestationRequest != nil {
+		resp, err := keys.AttestHardwareKey(req.attestationRequest)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		privateKeyPolicy = resp.PrivateKeyPolicy
+		if err := a.UpsertKeyAttestationResponse(ctx, resp, sessionTTL); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		resp, err := a.GetKeyAttestationResponse(ctx, cryptoPubKey)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			}
+		} else {
+			privateKeyPolicy = resp.PrivateKeyPolicy
+		}
+	}
+
+	// Check that the attested private key policy is sufficient for the required private key policy.
+	requiredKeyPolicy := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	if err := requiredKeyPolicy.VerifyPolicy(privateKeyPolicy); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	clusterName, err := a.GetDomainName()
