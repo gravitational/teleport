@@ -43,7 +43,7 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
 # Depends on libcbor, libssl-dev, zlib1g-dev and libudev.
 RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.11.0 && \
     cd libfido2 && \
-    [ "$(git rev-parse HEAD)" = "e61379ff0a27277fbe0aca29ccc34ff93c57b359" ] && \    
+    [ "$(git rev-parse HEAD)" = "e61379ff0a27277fbe0aca29ccc34ff93c57b359" ] && \
     CFLAGS=-pthread cmake \
         -DBUILD_EXAMPLES=OFF \
         -DBUILD_MANPAGES=OFF \
@@ -199,6 +199,14 @@ RUN (git clone https://github.com/gogo/protobuf.git --branch ${GOGO_PROTO_TAG} -
      cd ${GOPATH}/src/github.com/gogo/protobuf && \
      make install && \
      make clean)
+
+# Install buf
+RUN BIN="/usr/local/bin" && \
+    VERSION="1.7.0" && \
+      curl -sSL \
+        "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
+        -o "${BIN}/buf" && \
+      chmod +x "${BIN}/buf"
 
 ENV PROTO_INCLUDE "/usr/local/include":"/go/src":"/go/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf"
 
