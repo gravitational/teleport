@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
@@ -178,7 +179,7 @@ type Role interface {
 	SetHostSudoers(RoleConditionType, []string)
 
 	// GetPrivateKeyPolicy returns the private key policy enforced for this role.
-	GetPrivateKeyPolicy() constants.PrivateKeyPolicy
+	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
 }
 
 // NewRole constructs new standard V5 role.
@@ -662,9 +663,9 @@ func (r *RoleV5) SetHostSudoers(rct RoleConditionType, sudoers []string) {
 }
 
 // GetPrivateKeyPolicy returns the private key policy enforced for this role.
-func (r *RoleV5) GetPrivateKeyPolicy() constants.PrivateKeyPolicy {
+func (r *RoleV5) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 	if r.Spec.Options.PrivateKeyPolicy == "" {
-		return constants.PrivateKeyPolicyNone
+		return keys.PrivateKeyPolicyNone
 	}
 	return r.Spec.Options.PrivateKeyPolicy
 }

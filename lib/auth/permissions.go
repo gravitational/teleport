@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 
@@ -206,7 +207,7 @@ func (a *authorizer) enforcePrivateKeyPolicy(ctx context.Context, authContext *C
 
 	identityPolicy := authContext.Identity.GetIdentity().PrivateKeyPolicy
 	requiredPolicy := authContext.Checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
-	if !services.VerifyPrivateKeyPolicy(identityPolicy, requiredPolicy) {
+	if !keys.VerifyPrivateKeyPolicy(identityPolicy, requiredPolicy) {
 		return trace.AccessDenied("required private key policy %q not met by %q", requiredPolicy, identityPolicy)
 	}
 

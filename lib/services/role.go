@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
@@ -1095,8 +1096,8 @@ func (set RoleSet) PinSourceIP() bool {
 }
 
 // PrivateKeyPolicy returns the enforced private key policy for this role set.
-func (set RoleSet) PrivateKeyPolicy(defaultPolicy constants.PrivateKeyPolicy) constants.PrivateKeyPolicy {
-	if defaultPolicy == constants.PrivateKeyPolicyHardwareKeyTouch {
+func (set RoleSet) PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) keys.PrivateKeyPolicy {
+	if defaultPolicy == keys.PrivateKeyPolicyHardwareKeyTouch {
 		// This is the strictest option so we can return now
 		return defaultPolicy
 	}
@@ -1104,11 +1105,11 @@ func (set RoleSet) PrivateKeyPolicy(defaultPolicy constants.PrivateKeyPolicy) co
 	policy := defaultPolicy
 	for _, role := range set {
 		switch rolePolicy := role.GetPrivateKeyPolicy(); rolePolicy {
-		case constants.PrivateKeyPolicyHardwareKey:
+		case keys.PrivateKeyPolicyHardwareKey:
 			policy = rolePolicy
-		case constants.PrivateKeyPolicyHardwareKeyTouch:
+		case keys.PrivateKeyPolicyHardwareKeyTouch:
 			// This is the strictest option so we can return now
-			return constants.PrivateKeyPolicyHardwareKeyTouch
+			return keys.PrivateKeyPolicyHardwareKeyTouch
 		}
 	}
 
