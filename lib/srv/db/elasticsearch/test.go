@@ -45,7 +45,7 @@ type TestServer struct {
 	log       logrus.FieldLogger
 }
 
-// NewTestServer returns a new instance of a test Snowflake server.
+// NewTestServer returns a new instance of a test Elasticsearch server.
 func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*TestServer, error) {
 	address := "localhost:0"
 	if config.Address != "" {
@@ -72,7 +72,7 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*T
 		port:      port,
 		tlsConfig: tlsConfig,
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: defaults.ProtocolSnowflake,
+			trace.Component: defaults.ProtocolElasticsearch,
 			"name":          config.Name,
 		}),
 	}
