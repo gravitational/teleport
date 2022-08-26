@@ -279,6 +279,8 @@ message DatabaseStatusV3 {
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "mysql,omitempty" ];
     // ManagedUsers is a list of database users that are managed by Teleport.
     repeated string ManagedUsers = 4 [ (gogoproto.jsontag) = "managed_users,omitempty" ];
+    // Azure is the auto-discovered Azure cloud database metadata.
+    Azure Azure = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "azure" ];
 }
 
 // AWS contains AWS metadata about the database.
@@ -366,6 +368,8 @@ message GCPCloudSQL {
 message Azure {
     // Name is the Azure database server name.
     string Name = 1 [ (gogoproto.jsontag) = "name,omitempty" ];
+    // ResourceID is the Azure fully qualified ID for the resource.
+    string ResourceID = 2 [ (gogoproto.jsontag) = "name,omitempty" ];
 }
 
 // AD contains Active Directory specific database configuration.
