@@ -44,20 +44,10 @@ const routeNewCodesWithApprovedToken =
   '/web/recovery/steps/approvedTokenId/codes';
 
 describe('all recovery flows should show correct screens', () => {
-  let mockHistory;
-  let renderRecovery;
-
-  beforeEach(() => {
-    mockHistory = createMemoryHistory({
+  const setup = () => {
+    const mockHistory = createMemoryHistory({
       initialEntries: ['/web/recovery/startTokenId'],
     });
-
-    renderRecovery = () =>
-      render(
-        <Router history={mockHistory}>
-          <Recovery />
-        </Router>
-      );
 
     jest.spyOn(history, 'push').mockImplementation();
 
@@ -89,13 +79,23 @@ describe('all recovery flows should show correct screens', () => {
           lastUsedDate: new Date(1623981452),
         },
       ]);
-  });
+
+    render(
+      <Router history={mockHistory}>
+        <Recovery />
+      </Router>
+    );
+
+    return { mockHistory };
+  };
 
   afterEach(() => {
     jest.clearAllMocks();
   });
 
   test('new password using otp', async () => {
+    const { mockHistory } = setup();
+
     jest.spyOn(cfg.oss, 'getAuth2faType').mockReturnValue('otp');
     jest
       .spyOn(RecoveryService.prototype, 'fetchRecoveryToken')
@@ -108,12 +108,11 @@ describe('all recovery flows should show correct screens', () => {
       isRecoverPassword: true,
     });
 
-    await waitFor(() => {
-      renderRecovery();
-      mockHistory.replace(route1VerifyWithStartToken);
-    });
+    mockHistory.replace(route1VerifyWithStartToken);
 
-    expect(history.replace).toHaveBeenCalledWith(route1VerifyWithStartToken);
+    await waitFor(() => {
+      expect(history.replace).toHaveBeenCalledWith(route1VerifyWithStartToken);
+    });
 
     jest
       .spyOn(RecoveryService.prototype, 'fetchRecoveryToken')
@@ -126,15 +125,14 @@ describe('all recovery flows should show correct screens', () => {
 
     fireEvent.change(tokenField, { target: { value: '321321' } });
 
+    fireEvent.click(screen.getByText('Continue'));
+    mockHistory.push(route2NewPasswordWithApprovedToken);
     await waitFor(() => {
-      fireEvent.click(screen.getByText('Continue'));
-      mockHistory.push(route2NewPasswordWithApprovedToken);
-    });
-
-    expect(RecoveryService.prototype.verifyUser).toHaveBeenCalledWith({
-      tokenId: startToken.id,
-      username: startToken.username,
-      secondFactorToken: '321321',
+      expect(RecoveryService.prototype.verifyUser).toHaveBeenCalledWith({
+        tokenId: startToken.id,
+        username: startToken.username,
+        secondFactorToken: '321321',
+      });
     });
 
     expect(history.push).toHaveBeenLastCalledWith(
@@ -150,16 +148,16 @@ describe('all recovery flows should show correct screens', () => {
       target: { value: 'password123' },
     });
 
-    await waitFor(() => {
-      fireEvent.click(screen.getByText('Continue'));
-      mockHistory.push(routeNewCodesWithApprovedToken);
-    });
+    fireEvent.click(screen.getByText('Continue'));
+    mockHistory.push(routeNewCodesWithApprovedToken);
 
-    expect(
-      RecoveryService.prototype.setNewTotpDeviceOrPassword
-    ).toHaveBeenCalledWith({
-      tokenId: approvedToken.id,
-      password: 'password123',
+    await waitFor(() => {
+      expect(
+        RecoveryService.prototype.setNewTotpDeviceOrPassword
+      ).toHaveBeenCalledWith({
+        tokenId: approvedToken.id,
+        password: 'password123',
+      });
     });
 
     expect(history.push).toHaveBeenLastCalledWith(
@@ -180,6 +178,8 @@ describe('all recovery flows should show correct screens', () => {
   });
 
   test('new otp device using password', async () => {
+    const { mockHistory } = setup();
+
     jest.spyOn(cfg.oss, 'getAuth2faType').mockReturnValue('otp');
     jest
       .spyOn(RecoveryService.prototype, 'fetchRecoveryToken')
@@ -192,12 +192,11 @@ describe('all recovery flows should show correct screens', () => {
       isRecoverPassword: false,
     });
 
-    await waitFor(() => {
-      renderRecovery();
-      mockHistory.replace(route1VerifyWithStartToken);
-    });
+    mockHistory.replace(route1VerifyWithStartToken);
 
-    expect(history.replace).toHaveBeenCalledWith(route1VerifyWithStartToken);
+    await waitFor(() => {
+      expect(history.replace).toHaveBeenCalledWith(route1VerifyWithStartToken);
+    });
 
     jest
       .spyOn(RecoveryService.prototype, 'fetchRecoveryToken')
@@ -210,10 +209,8 @@ describe('all recovery flows should show correct screens', () => {
 
     fireEvent.change(passwordField, { target: { value: 'password123' } });
 
-    await waitFor(() => {
-      fireEvent.click(screen.getByText('Continue'));
-      mockHistory.push(route2NewDeviceWithApprovedToken);
-    });
+    fireEvent.click(screen.getByText('Continue'));
+    mockHistory.push(route2NewDeviceWithApprovedToken);
 
     expect(RecoveryService.prototype.verifyUser).toHaveBeenCalledWith({
       tokenId: startToken.id,
@@ -221,9 +218,11 @@ describe('all recovery flows should show correct screens', () => {
       password: 'password123',
     });
 
-    expect(history.push).toHaveBeenLastCalledWith(
-      route2NewDeviceWithApprovedToken
-    );
+    await waitFor(() => {
+      expect(history.push).toHaveBeenLastCalledWith(
+        route2NewDeviceWithApprovedToken
+      );
+    });
 
     const newTokenField = screen.getByPlaceholderText('123 456');
     const deviceNameField = screen.getByPlaceholderText(/name/i);
@@ -231,10 +230,8 @@ describe('all recovery flows should show correct screens', () => {
     fireEvent.change(newTokenField, { target: { value: '321321' } });
     fireEvent.change(deviceNameField, { target: { value: 'backup' } });
 
-    await waitFor(() => {
-      fireEvent.click(screen.getByText('Continue'));
-      mockHistory.push(route3DevicesWithApprovedToken);
-    });
+    fireEvent.click(screen.getByText('Continue'));
+    mockHistory.push(route3DevicesWithApprovedToken);
 
     expect(
       RecoveryService.prototype.setNewTotpDeviceOrPassword
@@ -244,9 +241,11 @@ describe('all recovery flows should show correct screens', () => {
       deviceName: 'backup',
     });
 
-    expect(history.push).toHaveBeenLastCalledWith(
-      route3DevicesWithApprovedToken
-    );
+    await waitFor(() => {
+      expect(history.push).toHaveBeenLastCalledWith(
+        route3DevicesWithApprovedToken
+      );
+    });
 
     expect(MfaService.prototype.fetchDevicesWithToken).toHaveBeenCalledWith(
       approvedToken.id
@@ -258,18 +257,18 @@ describe('all recovery flows should show correct screens', () => {
     expect(screen.getByText(/iphone 12/i)).toBeInTheDocument();
     expect(screen.getByText(/solokey/i)).toBeInTheDocument();
 
-    await waitFor(() => {
-      fireEvent.click(screen.getByText('Continue'));
-      mockHistory.push(routeNewCodesWithApprovedToken);
-    });
+    fireEvent.click(screen.getByText('Continue'));
+    mockHistory.push(routeNewCodesWithApprovedToken);
 
     expect(history.push).toHaveBeenLastCalledWith(
       routeNewCodesWithApprovedToken
     );
 
-    expect(
-      RecoveryService.prototype.generateRecoveryCodes
-    ).toHaveBeenCalledWith(approvedToken.id);
+    await waitFor(() => {
+      expect(
+        RecoveryService.prototype.generateRecoveryCodes
+      ).toHaveBeenCalledWith(approvedToken.id);
+    });
 
     expect(screen.getByText('New Backup & Recovery Codes')).toBeInTheDocument();
     expect(screen.getByText(/tele-recovery-code-1/i)).toBeInTheDocument();

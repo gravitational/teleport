@@ -1,7 +1,8 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
-import { render, screen, fireEvent, act } from 'design/utils/testing';
+import { render, screen, fireEvent } from 'design/utils/testing';
 import { ContextProvider } from 'teleport';
+import { within } from '@testing-library/react';
 
 import makeUserContext from 'teleport/services/user/makeUserContext';
 
@@ -31,7 +32,7 @@ describe('new request behavior', () => {
   });
 
   test('add and remove a resource from table', async () => {
-    await act(async () => render(Component));
+    render(Component);
 
     // Initial render is a roles table.
     let rows = screen.getAllByText(/role-/i);
@@ -41,7 +42,7 @@ describe('new request behavior', () => {
 
     // No resources selected yet.
     let checkoutFooter = screen.getByTestId('checkout-footer');
-    expect(checkoutFooter.textContent).toContain('0');
+    expect(checkoutFooter).toHaveTextContent(/0/);
     expect(screen.queryByText(/clear selections/i)).not.toBeInTheDocument();
     expect(screen.getByText(/proceed to request/i)).toBeDisabled();
 
@@ -50,54 +51,50 @@ describe('new request behavior', () => {
     expect(rows).toHaveLength(3);
     fireEvent.click(rows[0]);
     checkoutFooter = screen.getByTestId('checkout-footer');
-    expect(checkoutFooter.textContent).toContain('1');
-    expect(screen.getByText(/proceed to request/i)).not.toBeDisabled();
+    expect(checkoutFooter).toHaveTextContent(/1/);
+    expect(screen.getByText(/proceed to request/i)).toBeEnabled();
 
     // Add another one.
     fireEvent.click(rows[1]);
     checkoutFooter = screen.getByTestId('checkout-footer');
-    expect(checkoutFooter.textContent).toContain('2');
+    expect(checkoutFooter).toHaveTextContent(/2/);
 
     // Remove a resource using remove button.
     rows = screen.getAllByText(/remove/i);
     expect(rows).toHaveLength(2);
     fireEvent.click(rows[0]);
     checkoutFooter = screen.getByTestId('checkout-footer');
-    expect(checkoutFooter.textContent).toContain('1');
+    expect(checkoutFooter).toHaveTextContent(/1/);
 
     // Remove resource by using clear button.
     fireEvent.click(screen.getByText(/clear selections/i));
     checkoutFooter = screen.getByTestId('checkout-footer');
-    expect(checkoutFooter.textContent).toContain('0');
+    expect(checkoutFooter).toHaveTextContent(/0/);
     expect(screen.queryByText(/clear selections/i)).not.toBeInTheDocument();
     expect(screen.getByText(/proceed to request/i)).toBeDisabled();
   });
 
   test('clicking on a resource label constructs predicate query', async () => {
-    await act(async () => render(Component));
+    render(Component);
 
     // We will use node to test predicate (it will be same for all other agents).
-    const inputEl = screen
-      .getByTestId('resource-selector')
-      .querySelector('input');
+    const inputEl = within(screen.getByTestId('resource-selector')).getByRole(
+      'textbox'
+    );
 
-    await act(async () =>
-      fireEvent.change(inputEl, { target: { value: 'node' } })
-    );
+    fireEvent.change(inputEl, { target: { value: 'node' } });
     fireEvent.focus(inputEl);
-    await act(async () =>
-      fireEvent.keyDown(inputEl, { key: 'Enter', keyCode: 13 })
-    );
+    fireEvent.keyDown(inputEl, { key: 'Enter', keyCode: 13 });
 
     // Click on a label.
-    await act(async () => fireEvent.click(screen.getByText(/test: node1/i)));
-    let input = screen.getByPlaceholderText(/search/i);
-    expect(input).toHaveValue('labels["test"] == "node1"');
+    fireEvent.click(await screen.findByText(/test: node1/i));
+    await expect(screen.findByPlaceholderText(/search/i)).resolves.toHaveValue(
+      'labels["test"] == "node1"'
+    );
 
     // Click on another label.
-    await act(async () => fireEvent.click(screen.getByText(/test: node2/i)));
-    input = screen.getByPlaceholderText(/search/i);
-    expect(input).toHaveValue(
+    fireEvent.click(await screen.findByText(/test: node2/i));
+    await expect(screen.findByPlaceholderText(/search/i)).resolves.toHaveValue(
       'labels["test"] == "node1" && labels["test"] == "node2"'
     );
   });

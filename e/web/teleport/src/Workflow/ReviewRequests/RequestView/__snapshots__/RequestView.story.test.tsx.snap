@@ -2098,6 +2098,7 @@ exports[`loaded pending role based request state 1`] = `
               <label
                 class="c29"
                 font-size="0"
+                for="select"
               >
                 Request Status
               </label>
@@ -2121,7 +2122,7 @@ exports[`loaded pending role based request state 1`] = `
                       <input
                         aria-autocomplete="list"
                         class="css-62g3xt-dummyInput"
-                        id="react-select-2-input"
+                        id="select"
                         readonly=""
                         tabindex="0"
                         value=""
@@ -3112,6 +3113,7 @@ exports[`loaded pending search based request state 1`] = `
               <label
                 class="c33"
                 font-size="0"
+                for="select"
               >
                 Request Status
               </label>
@@ -3135,7 +3137,7 @@ exports[`loaded pending search based request state 1`] = `
                       <input
                         aria-autocomplete="list"
                         class="css-62g3xt-dummyInput"
-                        id="react-select-3-input"
+                        id="select"
                         readonly=""
                         tabindex="0"
                         value=""

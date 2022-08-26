@@ -476,6 +476,7 @@ exports[`loaded state 1`] = `
             <span
               class="c9 c13 icon icon-chevrons-expand-vertical "
               color="light"
+              title="sort items"
             />
           </a>
         </th>
@@ -485,6 +486,7 @@ exports[`loaded state 1`] = `
             <span
               class="c9 c13 icon icon-chevrons-expand-vertical "
               color="light"
+              title="sort items"
             />
           </a>
         </th>
@@ -494,6 +496,7 @@ exports[`loaded state 1`] = `
             <span
               class="c9 c13 icon icon-chevrons-expand-vertical "
               color="light"
+              title="sort items"
             />
           </a>
         </th>
@@ -508,6 +511,7 @@ exports[`loaded state 1`] = `
             <span
               class="c9 c13 icon icon-chevrons-expand-vertical "
               color="light"
+              title="sort items"
             />
           </a>
         </th>
@@ -517,6 +521,7 @@ exports[`loaded state 1`] = `
             <span
               class="c9 c13 icon icon-chevron-down "
               color="light"
+              title="sort items desc"
             />
           </a>
         </th>

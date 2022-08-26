@@ -230,6 +230,7 @@ exports[`failed state 1`] = `
         <label
           class="c6"
           font-size="0"
+          for="select"
         >
           Request Status
         </label>
@@ -253,7 +254,7 @@ exports[`failed state 1`] = `
                 <input
                   aria-autocomplete="list"
                   class="css-62g3xt-dummyInput"
-                  id="react-select-3-input"
+                  id="select"
                   readonly=""
                   tabindex="0"
                   value=""
@@ -518,6 +519,7 @@ exports[`loaded state 1`] = `
         <label
           class="c5"
           font-size="0"
+          for="select"
         >
           Request Status
         </label>
@@ -541,7 +543,7 @@ exports[`loaded state 1`] = `
                 <input
                   aria-autocomplete="list"
                   class="css-62g3xt-dummyInput"
-                  id="react-select-2-input"
+                  id="select"
                   readonly=""
                   tabindex="0"
                   value=""

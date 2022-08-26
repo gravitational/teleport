@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { render, screen, waitFor, fireEvent } from 'design/utils/testing';
+import { render, screen, fireEvent, waitFor } from 'design/utils/testing';
 import { ContextProvider } from 'teleport';
 import history from 'teleport/services/history';
 import session from 'teleport/services/websession';
@@ -109,11 +109,13 @@ describe('banner behavioral testing', () => {
     expect(screen.getByText(/hello/i)).toBeInTheDocument();
 
     // Test clicking on switchback button, calls appropriate funcs.
-    await waitFor(() => fireEvent.click(screen.getByText(/switch back/i)));
+    fireEvent.click(screen.getByText(/switch back/i));
     expect(workflowSvc.applyPermission).toHaveBeenCalledWith({
       switchback: true,
     });
-    expect(store.clearAssumes).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(store.clearAssumes).toHaveBeenCalledTimes(1);
+    });
     expect(history.reload).toHaveBeenCalledTimes(1);
   });
 
@@ -127,7 +129,7 @@ describe('banner behavioral testing', () => {
     expect(screen.getByText(/hello/i)).toBeInTheDocument();
 
     // Test no banner is present.
-    expect(screen.queryByTestId('banner')).toBeNull();
+    expect(screen.queryByTestId('banner')).not.toBeInTheDocument();
   });
 
   test('on error, render error dialogue', async () => {
@@ -139,8 +141,8 @@ describe('banner behavioral testing', () => {
 
     render(<>{Component}</>);
 
-    await waitFor(() => fireEvent.click(screen.getByText(/switch back/i)));
-    expect(screen.getByTestId('Modal')).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/switch back/i));
+    await screen.findByTestId('Modal');
     expect(screen.getByText('some error')).toBeInTheDocument();
   });
 

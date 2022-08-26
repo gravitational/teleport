@@ -334,6 +334,7 @@ exports[`render correct form to add TOTP device 1`] = `
         <label
           class="c11"
           font-size="0"
+          for="select"
         >
           Two-factor type
         </label>
@@ -357,7 +358,7 @@ exports[`render correct form to add TOTP device 1`] = `
                 <input
                   aria-autocomplete="list"
                   class="css-62g3xt-dummyInput"
-                  id="react-select-3-input"
+                  id="select"
                   readonly=""
                   tabindex="0"
                   value=""
@@ -736,6 +737,7 @@ exports[`render correct form to add Webauthn device 1`] = `
         <label
           class="c9"
           font-size="0"
+          for="select"
         >
           Two-factor type
         </label>
@@ -759,7 +761,7 @@ exports[`render correct form to add Webauthn device 1`] = `
                 <input
                   aria-autocomplete="list"
                   class="css-62g3xt-dummyInput"
-                  id="react-select-4-input"
+                  id="select"
                   readonly=""
                   tabindex="0"
                   value=""
@@ -1118,6 +1120,7 @@ exports[`render correct form to add with multi option 1`] = `
         <label
           class="c9"
           font-size="0"
+          for="select"
         >
           Two-factor type
         </label>
@@ -1141,7 +1144,7 @@ exports[`render correct form to add with multi option 1`] = `
                 <input
                   aria-autocomplete="list"
                   class="css-62g3xt-dummyInput"
-                  id="react-select-2-input"
+                  id="select"
                   readonly=""
                   tabindex="0"
                   value=""
@@ -1529,6 +1532,7 @@ exports[`render failed state for form to add with multi option 1`] = `
         <label
           class="c10"
           font-size="0"
+          for="select"
         >
           Two-factor type
         </label>
@@ -1552,7 +1556,7 @@ exports[`render failed state for form to add with multi option 1`] = `
                 <input
                   aria-autocomplete="list"
                   class="css-62g3xt-dummyInput"
-                  id="react-select-5-input"
+                  id="select"
                   readonly=""
                   tabindex="0"
                   value=""

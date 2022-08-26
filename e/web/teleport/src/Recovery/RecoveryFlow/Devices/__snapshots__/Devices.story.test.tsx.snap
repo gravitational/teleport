@@ -287,6 +287,7 @@ exports[`render device list 1`] = `
                 <span
                   class="c8 c9 icon icon-chevron-down "
                   color="light"
+                  title="sort items desc"
                 />
               </a>
             </th>
@@ -296,6 +297,7 @@ exports[`render device list 1`] = `
                 <span
                   class="c8 c9 icon icon-chevrons-expand-vertical "
                   color="light"
+                  title="sort items"
                 />
               </a>
             </th>

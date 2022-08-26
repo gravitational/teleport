@@ -176,6 +176,7 @@ exports[`render Apps 1`] = `
               <span
                 class="c3 c4 icon icon-chevrons-expand-vertical "
                 color="light"
+                title="sort items"
               />
             </a>
           </th>
@@ -185,6 +186,7 @@ exports[`render Apps 1`] = `
               <span
                 class="c3 c4 icon icon-chevrons-expand-vertical "
                 color="light"
+                title="sort items"
               />
             </a>
           </th>
@@ -417,6 +419,7 @@ exports[`render Databases 1`] = `
               <span
                 class="c3 c4 icon icon-chevrons-expand-vertical "
                 color="light"
+                title="sort items"
               />
             </a>
           </th>
@@ -426,6 +429,7 @@ exports[`render Databases 1`] = `
               <span
                 class="c3 c4 icon icon-chevrons-expand-vertical "
                 color="light"
+                title="sort items"
               />
             </a>
           </th>
@@ -435,6 +439,7 @@ exports[`render Databases 1`] = `
               <span
                 class="c3 c4 icon icon-chevrons-expand-vertical "
                 color="light"
+                title="sort items"
               />
             </a>
           </th>
@@ -666,6 +671,7 @@ exports[`render Desktops 1`] = `
               <span
                 class="c3 c4 icon icon-chevrons-expand-vertical "
                 color="light"
+                title="sort items"
               />
             </a>
           </th>
@@ -889,6 +895,7 @@ exports[`render Kubes 1`] = `
               <span
                 class="c3 c4 icon icon-chevrons-expand-vertical "
                 color="light"
+                title="sort items"
               />
             </a>
           </th>
@@ -1109,6 +1116,7 @@ exports[`render Nodes 1`] = `
               <span
                 class="c3 c4 icon icon-chevrons-expand-vertical "
                 color="light"
+                title="sort items"
               />
             </a>
           </th>
@@ -1319,6 +1327,7 @@ exports[`render Roles 1`] = `
               <span
                 class="c3 c4 icon icon-chevron-up "
                 color="light"
+                title="sort items asc"
               />
             </a>
           </th>
