@@ -123,10 +123,10 @@ for no discernible benefit. For more fully fleshed out reasoning, refer to the a
 - https://blog.piotrnalepa.pl/2020/06/26/default-exports-vs-named-exports/
 - https://ilikekillnerds.com/2019/08/default-exports-bad/
 
-When needing to export something as default, we should export it like so:
+Instead, named exports should be used.
 
 ```typescript jsx
-function SomeComponent() {
+export function SomeComponent() {
   return (
     <div>
       hello!
@@ -134,10 +134,12 @@ function SomeComponent() {
   );
 }
 
-export { SomeComponent as default };
+export const SomeValue = 42;
 ```
 
-This provides a clearer, more explicit export.
+```typescript jsx
+import { SomeComponent, SomeValue } from './SomeComponent';
+```
 
 ### Code Coverage
 
