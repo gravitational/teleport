@@ -59,6 +59,8 @@ const (
 	mssqlBin = "mssql-cli"
 	// snowsqlBin is the Snowflake client program name.
 	snowsqlBin = "snowsql"
+	// curlBin is the path to `curl`, which is used as Elasticsearch client.
+	curlBin = "curl"
 )
 
 // Execer is an abstraction of Go's exec module, as this one doesn't specify any interfaces.
@@ -525,7 +527,7 @@ func (c *CLICommandBuilder) getElasticsearchCommand() *exec.Cmd {
 		}
 	}
 
-	return c.options.exe.Command("curl", args...)
+	return c.options.exe.Command(curlBin, args...)
 }
 
 type connectionCommandOpts struct {
