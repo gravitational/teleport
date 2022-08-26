@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package azure
 
 import (
@@ -24,16 +25,15 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
-
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestListServers(t *testing.T) {
+	t.Parallel()
 	myServer1, myDBServer1 := makeMySQLServer("mysql1", "group1")
 	myServer2, myDBServer2 := makeMySQLServer("mysql2", "group2")
 	pgServer1, pgDBServer1 := makePostgresServer("pgres1", "group1")
@@ -75,7 +75,6 @@ func TestListServers(t *testing.T) {
 			want:   []*DBServer{pgDBServer2},
 		},
 	}
-	maxPages := 10
 	ctx := context.Background()
 
 	for _, tt := range tests {
@@ -85,9 +84,9 @@ func TestListServers(t *testing.T) {
 				err     error
 			)
 			if tt.group == types.Wildcard {
-				servers, err = tt.client.ListAll(ctx, maxPages)
+				servers, err = tt.client.ListAll(ctx)
 			} else {
-				servers, err = tt.client.ListWithinGroup(ctx, tt.group, maxPages)
+				servers, err = tt.client.ListWithinGroup(ctx, tt.group)
 			}
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(tt.want, servers))
@@ -96,6 +95,7 @@ func TestListServers(t *testing.T) {
 }
 
 func TestGetServer(t *testing.T) {
+	t.Parallel()
 	myServer1, _ := makeMySQLServer("a", "group1")
 	myServer2, myDBServer2 := makeMySQLServer("a", "group2")
 	myServer3, _ := makeMySQLServer("b", "group1")
@@ -145,6 +145,7 @@ func TestGetServer(t *testing.T) {
 }
 
 func TestServerConversion(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		protocol      string

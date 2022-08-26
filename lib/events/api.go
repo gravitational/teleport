@@ -67,7 +67,7 @@ const (
 	EventNamespace = "namespace"
 
 	// SessionPrintEvent event happens every time a write occurs to
-	// temirnal I/O during a session
+	// terminal I/O during a session
 	SessionPrintEvent = "print"
 
 	// SessionPrintEventBytes says how many bytes have been written into the session

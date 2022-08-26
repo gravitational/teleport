@@ -21,6 +21,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/trace"
 )
 
 var _ DBServersClient = (*mySQLClient)(nil)
@@ -38,19 +40,19 @@ func NewMySQLServersClient(api ARMMySQL) DBServersClient {
 func (c *mySQLClient) Get(ctx context.Context, group, name string) (*DBServer, error) {
 	res, err := c.api.Get(ctx, group, name, nil)
 	if err != nil {
-		return nil, ConvertResponseError(err)
+		return nil, trace.Wrap(ConvertResponseError(err))
 	}
 	return ServerFromMySQLServer(&res.Server), nil
 }
 
-func (c *mySQLClient) ListAll(ctx context.Context, maxPages int) ([]*DBServer, error) {
+func (c *mySQLClient) ListAll(ctx context.Context) ([]*DBServer, error) {
 	var servers []*DBServer
 	options := &armmysql.ServersClientListOptions{}
 	pager := c.api.NewListPager(options)
-	for pageNum := 0; pageNum < maxPages && pager.More(); pageNum++ {
+	for pageNum := 0; pager.More(); pageNum++ {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, ConvertResponseError(err)
+			return nil, trace.Wrap(ConvertResponseError(err))
 		}
 		for _, s := range page.Value {
 			servers = append(servers, ServerFromMySQLServer(s))
@@ -59,14 +61,14 @@ func (c *mySQLClient) ListAll(ctx context.Context, maxPages int) ([]*DBServer, e
 	return servers, nil
 }
 
-func (c *mySQLClient) ListWithinGroup(ctx context.Context, group string, maxPages int) ([]*DBServer, error) {
+func (c *mySQLClient) ListWithinGroup(ctx context.Context, group string) ([]*DBServer, error) {
 	var servers []*DBServer
 	options := &armmysql.ServersClientListByResourceGroupOptions{}
 	pager := c.api.NewListByResourceGroupPager(group, options)
-	for pageNum := 0; pageNum < maxPages && pager.More(); pageNum++ {
+	for pageNum := 0; pager.More(); pageNum++ {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, ConvertResponseError(err)
+			return nil, trace.Wrap(ConvertResponseError(err))
 		}
 		for _, s := range page.Value {
 			servers = append(servers, ServerFromMySQLServer(s))

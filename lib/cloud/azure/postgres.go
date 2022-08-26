@@ -20,6 +20,8 @@ import (
 	"context"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
+
+	"github.com/gravitational/trace"
 )
 
 var _ DBServersClient = (*postgresClient)(nil)
@@ -37,19 +39,19 @@ func NewPostgresServerClient(api ARMPostgres) DBServersClient {
 func (c *postgresClient) Get(ctx context.Context, group, name string) (*DBServer, error) {
 	res, err := c.api.Get(ctx, group, name, nil)
 	if err != nil {
-		return nil, ConvertResponseError(err)
+		return nil, trace.Wrap(ConvertResponseError(err))
 	}
 	return ServerFromPostgresServer(&res.Server), nil
 }
 
-func (c *postgresClient) ListAll(ctx context.Context, maxPages int) ([]*DBServer, error) {
+func (c *postgresClient) ListAll(ctx context.Context) ([]*DBServer, error) {
 	var servers []*DBServer
 	options := &armpostgresql.ServersClientListOptions{}
 	pager := c.api.NewListPager(options)
-	for pageNum := 0; pageNum < maxPages && pager.More(); pageNum++ {
+	for pageNum := 0; pager.More(); pageNum++ {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, ConvertResponseError(err)
+			return nil, trace.Wrap(ConvertResponseError(err))
 		}
 		for _, s := range page.Value {
 			servers = append(servers, ServerFromPostgresServer(s))
@@ -58,14 +60,14 @@ func (c *postgresClient) ListAll(ctx context.Context, maxPages int) ([]*DBServer
 	return servers, nil
 }
 
-func (c *postgresClient) ListWithinGroup(ctx context.Context, group string, maxPages int) ([]*DBServer, error) {
+func (c *postgresClient) ListWithinGroup(ctx context.Context, group string) ([]*DBServer, error) {
 	var servers []*DBServer
 	options := &armpostgresql.ServersClientListByResourceGroupOptions{}
 	pager := c.api.NewListByResourceGroupPager(group, options)
-	for pageNum := 0; pageNum < maxPages && pager.More(); pageNum++ {
+	for pageNum := 0; pager.More(); pageNum++ {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, ConvertResponseError(err)
+			return nil, trace.Wrap(ConvertResponseError(err))
 		}
 		for _, s := range page.Value {
 			servers = append(servers, ServerFromPostgresServer(s))

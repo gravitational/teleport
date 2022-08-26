@@ -17,12 +17,11 @@ limitations under the License.
 package azure
 
 import (
-	"github.com/gravitational/teleport/lib/defaults"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
-
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // DBServer represents an Azure DB Server.
@@ -31,20 +30,30 @@ import (
 // TODO(gavin): Remove this in favor of generics when Go supports structural constraints
 // on generic types.
 type DBServer struct {
-	ID         string
-	Location   string
-	Name       string
-	Port       string
+	// ID is the fully qualified resource ID for this resource.
+	ID string
+	// Location is the geo-location where the resource lives.
+	Location string
+	// Name is the name of the resource.
+	Name string
+	// Port is the port used to connect to this resource.
+	Port string
+	// Properties contains properties for an DB Server.
 	Properties ServerProperties
-	Protocol   string
-	Tags       map[string]string
+	// Protocol is the DB protocol used for this DB Server.
+	Protocol string
+	// Tags are the resource tags associated with this resource.
+	Tags map[string]string
 }
 
-// ServerProperties contains properties for an Azure DB Server.
+// ServerProperties contains properties for an DB Server.
 type ServerProperties struct {
+	// FullyQualifiedDomainName is the fully qualified domain name which resolves to the DB Server address.
 	FullyQualifiedDomainName string
-	UserVisibleState         string
-	Version                  string
+	// UserVisibleState is the state of the DB Server that is visible to a user.
+	UserVisibleState string
+	// Version is the version of the Azure gateway which redirects traffic to the database servers.
+	Version string
 }
 
 // ServerFromMySQLServer converts an Azure armmysql.Server into DBServer.
@@ -97,7 +106,7 @@ func (s *DBServer) IsSupported() bool {
 	case defaults.ProtocolPostgres:
 		return isPostgresVersionSupported(s)
 	default:
-		panic("unreachable")
+		return false
 	}
 }
 

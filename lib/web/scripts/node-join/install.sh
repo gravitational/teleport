@@ -45,7 +45,7 @@ JOIN_METHOD_FLAG=""
 
 # inject labels into the configuration
 LABELS='{{.labels}}'
-LABELS_FLAG=""
+LABELS_FLAG=()
 [ -n "$LABELS" ] && LABELS_FLAG=(--labels "${LABELS}")
 
 # When all stanza generators have been updated to use the new

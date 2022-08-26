@@ -18,7 +18,9 @@ package azure
 
 const (
 	// MySQLPort is the Azure managed MySQL server port
+	// https://docs.microsoft.com/en-us/azure/mysql/single-server/concepts-connectivity-architecture
 	MySQLPort = "3306"
 	// PostgresPort is the Azure managed PostgreSQL server port
+	// https://docs.microsoft.com/en-us/azure/postgresql/single-server/concepts-connectivity-architecture
 	PostgresPort = "5432"
 )
