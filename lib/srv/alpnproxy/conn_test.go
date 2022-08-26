@@ -146,7 +146,7 @@ func TestPingConnection(t *testing.T) {
 				for {
 					n, err := r.Read(buf)
 					if err != nil && !errors.Is(err, io.EOF) {
-						require.Fail(t, "failed to read from connection")
+						require.Fail(t, "Failed to read from connection: %v", err)
 					}
 
 					chanBytes := make([]byte, n)
@@ -161,7 +161,7 @@ func TestPingConnection(t *testing.T) {
 			for j := 0; j < 3; j++ {
 				select {
 				case <-ctx.Done():
-					require.Fail(t, "failed to read message")
+					require.Fail(t, "Failed to read message (context timeout)")
 				case data := <-readChan:
 					aggregator = append(aggregator, data...)
 				}
