@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/gravitational/trace"
@@ -191,7 +190,7 @@ func TestUpdate(t *testing.T) {
 	}
 	wantConfig.AuthInfos[clusterName] = &clientcmdapi.AuthInfo{
 		ClientCertificateData: creds.TLSCert,
-		ClientKeyData:         creds.Priv,
+		ClientKeyData:         creds.PrivateKeyPEM(),
 		LocationOfOrigin:      kubeconfigPath,
 		Extensions:            map[string]runtime.Object{},
 	}
@@ -405,18 +404,15 @@ func genUserKey() (*client.Key, []byte, error) {
 	}
 
 	keygen := testauthority.New()
-	priv, pub, err := keygen.GenerateKeyPair()
+	priv, err := keygen.GeneratePrivateKey()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	cryptoPub, err := sshutils.CryptoPublicKey(pub)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
+
 	clock := clockwork.NewRealClock()
 	tlsCert, err := ca.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     clock,
-		PublicKey: cryptoPub,
+		PublicKey: priv.Public(),
 		Subject: pkix.Name{
 			CommonName: "teleport-user",
 		},
@@ -427,9 +423,8 @@ func genUserKey() (*client.Key, []byte, error) {
 	}
 
 	return &client.Key{
-		Priv:    priv,
-		Pub:     pub,
-		TLSCert: tlsCert,
+		PrivateKey: priv,
+		TLSCert:    tlsCert,
 		TrustedCA: []auth.TrustedCerts{{
 			TLSCertificates: [][]byte{caCert},
 		}},

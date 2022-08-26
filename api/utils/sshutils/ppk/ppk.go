@@ -22,12 +22,11 @@ package ppk
 import (
 	"bytes"
 	"crypto/hmac"
+	"crypto/rsa"
 	"crypto/sha256"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
-	"encoding/pem"
 	"fmt"
 	"math/big"
 
@@ -37,17 +36,7 @@ import (
 
 // ConvertToPPK takes a regular RSA-formatted keypair and converts it into the PPK file format used by the PuTTY SSH client.
 // The file format is described here: https://the.earth.li/~sgtatham/putty/0.76/htmldoc/AppendixC.html#ppk
-func ConvertToPPK(priv []byte, pub []byte) ([]byte, error) {
-	// decode the private key from PEM format and extract the exponents
-	privateKeyPemBlock, rest := pem.Decode(priv)
-	if len(rest) > 0 {
-		return nil, trace.Errorf("failed to decode private key, %v bytes left over", len(rest))
-	}
-	privateKey, err := x509.ParsePKCS1PrivateKey(privateKeyPemBlock.Bytes)
-	if err != nil {
-		return nil, trace.Errorf("failed to parse private key: %v", err)
-	}
-
+func ConvertToPPK(privateKey *rsa.PrivateKey, pub []byte) ([]byte, error) {
 	// https://the.earth.li/~sgtatham/putty/0.76/htmldoc/AppendixC.html#ppk
 	// RSA keys are stored using an algorithm-name of 'ssh-rsa'. (Keys stored like this are also used by the updated RSA signature schemes that use
 	// hashes other than SHA-1. The public key data has already provided the key modulus and the public encoding exponent. The private data stores:

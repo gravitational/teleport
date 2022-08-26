@@ -1467,73 +1467,61 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	// could lead to the connection hanging.
 	tc.eventsCh = make(chan events.EventFields, 1024)
 
+	localAgentCfg := LocalAgentConfig{
+		Agent:      c.Agent,
+		ProxyHost:  tc.WebProxyHost(),
+		Username:   c.Username,
+		KeysOption: c.AddKeysToAgent,
+		Insecure:   c.InsecureSkipVerify,
+		SiteName:   tc.SiteName,
+	}
+
 	// sometimes we need to use external auth without using local auth
-	// methods, e.g. in automation daemons
+	// methods, e.g. in automation daemons.
 	if c.SkipLocalAuth {
 		if len(c.AuthMethods) == 0 {
 			return nil, trace.BadParameter("SkipLocalAuth is true but no AuthMethods provided")
 		}
-		// if the client was passed an agent in the configuration and skip local auth, use
-		// the passed in agent.
-		if c.Agent != nil {
-			webProxyHost := tc.WebProxyHost()
-
-			username := ""
-			var keyStore LocalKeyStore = noLocalKeyStore{}
-			if c.PreloadKey != nil {
-				// If passed both an agent and an initial key, load it into a memory agent
-				keyStore, err = NewMemLocalKeyStore(c.HomePath)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				if err := keyStore.AddKey(c.PreloadKey); err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				// Extract the username from the key - it's needed for GetKey()
-				// to function properly.
-				username, err = c.PreloadKey.CertUsername()
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
+		localAgentCfg.Keystore = noLocalKeyStore{}
+		if c.PreloadKey != nil {
+			localAgentCfg.Keystore, err = NewMemLocalKeyStore(c.KeysDir)
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
-
-			tc.localAgent = &LocalKeyAgent{
-				Agent:     c.Agent,
-				keyStore:  keyStore,
-				siteName:  tc.SiteName,
-				username:  username,
-				proxyHost: webProxyHost,
-			}
+		}
+	} else if c.AddKeysToAgent == AddKeysToAgentOnly {
+		localAgentCfg.Keystore, err = NewMemLocalKeyStore(c.KeysDir)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 	} else {
-		// initialize the local agent (auth agent which uses local SSH keys signed by the CA):
-		webProxyHost, _ := tc.WebProxyHostPort()
-
-		var keystore LocalKeyStore
-		if c.AddKeysToAgent != AddKeysToAgentOnly {
-			keystore, err = NewFSLocalKeyStore(c.KeysDir)
-		} else {
-			keystore, err = NewMemLocalKeyStore(c.KeysDir)
+		localAgentCfg.Keystore, err = NewFSLocalKeyStore(c.KeysDir)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
+	}
+
+	// initialize the local agent (auth agent which uses local SSH keys signed by the CA):
+	tc.localAgent, err = NewLocalAgent(localAgentCfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if tc.HostKeyCallback == nil {
+		tc.HostKeyCallback = tc.localAgent.CheckHostSignature
+	}
+
+	if c.PreloadKey != nil {
+		// Extract the username from the key - it's needed for GetKey()
+		// to function properly.
+		tc.localAgent.username, err = c.PreloadKey.CertUsername()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		tc.localAgent, err = NewLocalAgent(LocalAgentConfig{
-			Keystore:   keystore,
-			ProxyHost:  webProxyHost,
-			Username:   c.Username,
-			KeysOption: c.AddKeysToAgent,
-			Insecure:   c.InsecureSkipVerify,
-			SiteName:   tc.SiteName,
-		})
-		if err != nil {
+		// Add the key to the agent and keystore.
+		if err := tc.AddKey(c.PreloadKey); err != nil {
 			return nil, trace.Wrap(err)
-		}
-		if tc.HostKeyCallback == nil {
-			tc.HostKeyCallback = tc.localAgent.CheckHostSignature
 		}
 	}
 
@@ -1546,8 +1534,7 @@ func (tc *TeleportClient) LoadKeyForCluster(clusterName string) error {
 	if tc.localAgent == nil {
 		return trace.BadParameter("TeleportClient.LoadKeyForCluster called on a client without localAgent")
 	}
-	_, err := tc.localAgent.LoadKeyForCluster(clusterName)
-	if err != nil {
+	if err := tc.localAgent.LoadKeyForCluster(clusterName); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -1577,6 +1564,39 @@ func (tc *TeleportClient) LoadKeyForClusterWithReissue(ctx context.Context, clus
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// SignersForClusterWithReissue fetches cluster-specific signers from stored certificates.
+// If the cluster certificates are not found, it is requested to be reissued.
+func (tc *TeleportClient) SignersForClusterWithReissue(ctx context.Context, clusterName string) ([]ssh.Signer, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/LoadKeyForClusterWithReissue",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(attribute.String("cluster", clusterName)),
+	)
+	defer span.End()
+
+	signers, err := tc.localAgent.signersForCluster(clusterName)
+	if err == nil {
+		return signers, nil
+	}
+	if !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := tc.WithoutJumpHosts(func(tc *TeleportClient) error {
+		return tc.ReissueUserCerts(ctx, CertCacheKeep, ReissueParams{RouteToCluster: clusterName})
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	signers, err = tc.localAgent.signersForCluster(clusterName)
+	if err != nil {
+		log.WithError(err).Warnf("Failed to load/reissue certificates for cluster %q.", clusterName)
+		return nil, trace.Wrap(err)
+	}
+	return signers, nil
 }
 
 // LocalAgent is a getter function for the client's local agent
@@ -2937,7 +2957,7 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 			// clusterGuesser will use the host key callback to guess the target
 			// cluster based on the host certificate. It will then use the auth
 			// callback to load the appropriate SSH certificate for that cluster.
-			clusterGuesser := newProxyClusterGuesser(hostKeyCallback, tc.signersForCluster)
+			clusterGuesser := newProxyClusterGuesser(hostKeyCallback, tc.SignersForClusterWithReissue)
 			hostKeyCallback = clusterGuesser.hostKeyCallback
 			authMethods = append(authMethods, clusterGuesser.authMethod(ctx))
 
@@ -2957,14 +2977,9 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 			}
 		}
 	} else if tc.localAgent != nil {
-		// tc.SiteName does not necessarily point to the cluster we're
-		// connecting to (or that we have certs for). For example tsh login
-		// leaf will set tc.SiteName as "leaf" even though we're connecting to
-		// root proxy to fetch leaf certs.
-		//
-		// Instead, load SSH certs for all clusters we have (by passing an
-		// empty string to certsForCluster).
-		signers, err := tc.localAgent.certsForCluster("")
+		// Load SSH certs for all clusters we have, in case we don't yet
+		// have a certificate for tc.SiteName (like during `tsh login leaf`).
+		signers, err := tc.localAgent.signers()
 		// errNoLocalKeyStore is returned when running in the proxy. The proxy
 		// should be passing auth methods via tc.Config.AuthMethods.
 		if err != nil && !errors.Is(err, errNoLocalKeyStore) && !trace.IsNotFound(err) {
@@ -3120,17 +3135,6 @@ func (g *proxyClusterGuesser) authMethod(ctx context.Context) ssh.AuthMethod {
 	})
 }
 
-func (tc *TeleportClient) signersForCluster(ctx context.Context, clusterName string) ([]ssh.Signer, error) {
-	err := tc.WithoutJumpHosts(func(tc *TeleportClient) error {
-		return tc.LoadKeyForClusterWithReissue(ctx, clusterName)
-	})
-	if err != nil {
-		log.WithError(err).Warnf("Failed to load/reissue keys for cluster %q.", clusterName)
-		return nil, trace.Wrap(err)
-	}
-	return tc.localAgent.certsForCluster(clusterName)
-}
-
 // WithoutJumpHosts executes the given function with a Teleport client that has
 // no JumpHosts set, i.e. presumably falling back to the proxy specified in the
 // profile.
@@ -3251,7 +3255,7 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 
 	// generate a new keypair. the public key will be signed via proxy if client's
 	// password+OTP are valid
-	key, err := NewKey()
+	key, err := GenerateRSAKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3264,30 +3268,30 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 		if !pr.Auth.AllowPasswordless {
 			return nil, trace.BadParameter("passwordless disallowed by cluster settings")
 		}
-		response, err = tc.pwdlessLogin(ctx, key.Pub)
+		response, err = tc.pwdlessLogin(ctx, key.MarshalSSHPublicKey())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		username = response.Username
 	case authType == constants.Local:
-		response, err = tc.localLogin(ctx, pr.Auth.SecondFactor, key.Pub)
+		response, err = tc.localLogin(ctx, pr.Auth.SecondFactor, key.MarshalSSHPublicKey())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case authType == constants.OIDC:
-		response, err = tc.ssoLogin(ctx, pr.Auth.OIDC.Name, key.Pub, constants.OIDC)
+		response, err = tc.ssoLogin(ctx, pr.Auth.OIDC.Name, key.MarshalSSHPublicKey(), constants.OIDC)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		username = response.Username
 	case authType == constants.SAML:
-		response, err = tc.ssoLogin(ctx, pr.Auth.SAML.Name, key.Pub, constants.SAML)
+		response, err = tc.ssoLogin(ctx, pr.Auth.SAML.Name, key.MarshalSSHPublicKey(), constants.SAML)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		username = response.Username
 	case authType == constants.Github:
-		response, err = tc.ssoLogin(ctx, pr.Auth.Github.Name, key.Pub, constants.Github)
+		response, err = tc.ssoLogin(ctx, pr.Auth.Github.Name, key.MarshalSSHPublicKey(), constants.Github)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3502,8 +3506,7 @@ func (tc *TeleportClient) ActivateKey(ctx context.Context, key *Key) error {
 	}
 
 	// save the cert to the local storage (~/.tsh usually):
-	_, err = tc.localAgent.AddKey(key)
-	if err != nil {
+	if err = tc.localAgent.AddKey(key); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -3893,9 +3896,9 @@ func (tc *TeleportClient) AddTrustedCA(ctx context.Context, ca types.CertAuthori
 }
 
 // AddKey adds a key to the client's local agent, used in tests.
-func (tc *TeleportClient) AddKey(key *Key) (*agent.AddedKey, error) {
+func (tc *TeleportClient) AddKey(key *Key) error {
 	if tc.localAgent == nil {
-		return nil, trace.BadParameter("TeleportClient.AddKey called on a client without localAgent")
+		return trace.BadParameter("TeleportClient.AddKey called on a client without localAgent")
 	}
 	if key.ClusterName == "" {
 		key.ClusterName = tc.SiteName
