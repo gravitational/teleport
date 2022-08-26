@@ -80,12 +80,12 @@ spec:
     # group if the user's current groups includes "splunk".
     groups: >
       match(contains(external.groups, "splunk"),
-        option(true, list(external.groups, "dbs")),
+        option(true, flatten(external.groups, "dbs")),
         option(false, external.groups))
 
     # logins will be a new trait added to the cert.
     logins: >
-      list(
+      flatten(
         "ubuntu",
 
         regexp.replace(external.username, "-", "_"),
@@ -113,9 +113,17 @@ avoided.
 
 #### `list(...items)`
 
-`list()` returns a flattened and deduplicated list of all of its arguments. `list("a", list("b",
-"c"), list(), list("a"))` will return ["a", "b", "c"]
+`list()` returns a list of all of its arguments.
+All items must be strings.
 
+#### `flatten(...items)`
+
+`flatten()` returns a flattened and deduplicated list of all of its arguments.
+`flatten("a", list("b", "c"), list(), list("a"))`
+will return
+`["a", "b", "c"]`
+
+All items must be strings or lists of strings.
 
 #### `contains(list, value)`
 
