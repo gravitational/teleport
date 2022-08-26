@@ -159,9 +159,9 @@ else
 
     # set docker image appropriately
     if [[ "${PACKAGE_TYPE}" == "deb" ]]; then
-        DOCKER_IMAGE="quay.io/gravitational/fpm-debian:8"
+        DOCKER_IMAGE="public.ecr.aws/gravitational/fpm:debian8"
     elif [[ "${PACKAGE_TYPE}" == "rpm" ]]; then
-        DOCKER_IMAGE="quay.io/gravitational/fpm-centos:8"
+        DOCKER_IMAGE="public.ecr.aws/gravitational/fpm:centos8"
     fi
 
     # if client-only build is requested for a non-Mac platform, unset it
