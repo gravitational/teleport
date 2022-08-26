@@ -17,6 +17,7 @@ limitations under the License.
 package review
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/gravitational/teleport/.github/workflows/robot/internal/github"
@@ -270,9 +271,33 @@ func TestGetCodeReviewers(t *testing.T) {
 			setA:   []string{"1", "2", "3"},
 			setB:   []string{"5"},
 		},
+		{
+			desc: "docs reviewers submitting code changes are treated as internal authors",
+			assignments: &Assignments{
+				c: &Config{
+					CodeReviewers: map[string]Reviewer{
+						"code-1": {Team: "Core", Owner: true},
+						"code-2": {Team: "Core", Owner: false},
+					},
+					DocsReviewers: map[string]Reviewer{
+						"docs-1": {Team: "Core", Owner: true},
+					},
+					Admins: []string{"code-1", "code-2"},
+				},
+			},
+			author: "docs-1",
+			setA:   []string{"code-1"},
+			setB:   []string{"code-2"},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
+			// We just want to validate that this test gets to the point where it's
+			// checking for approvals. This means the bot did not reject the PR
+			// as an external author.
+			require.ErrorContains(t, test.assignments.checkCodeReviews(test.author, nil),
+				"at least one approval required from each set")
+
 			setA, setB := test.assignments.getCodeReviewerSets(test.author)
 			require.ElementsMatch(t, setA, test.setA)
 			require.ElementsMatch(t, setB, test.setB)
@@ -750,6 +775,77 @@ func TestFromString(t *testing.T) {
 		"7",
 		"8",
 	})
+}
+
+type randStatic struct{}
+
+func (r *randStatic) Intn(n int) int {
+	return 0
+}
+
+func TestPreferredReviewers(t *testing.T) {
+	assignments := &Assignments{
+		c: &Config{
+			Rand: &randStatic{},
+			CodeReviewers: map[string]Reviewer{
+				"1": {Team: "Core", Owner: true, PreferredReviewerFor: []string{"lib/srv/db"}},
+				"2": {Team: "Core", Owner: true, PreferredReviewerFor: []string{"lib/srv/db", "lib/alpn"}},
+				"3": {Team: "Core", Owner: true},
+				"4": {Team: "Core", Owner: false, PreferredReviewerFor: []string{"lib/srv/app"}},
+				"5": {Team: "Core", Owner: false, PreferredReviewerFor: []string{"lib/srv/db"}},
+				"6": {Team: "Core", Owner: false},
+			},
+		},
+	}
+
+	tests := []struct {
+		description string
+		author      string
+		files       []github.PullRequestFile
+		expected    []string
+	}{
+		{
+			description: "both reviewers are preferred",
+			author:      "3",
+			files: []github.PullRequestFile{
+				{Name: "lib/srv/db/engine.go"},
+			},
+			expected: []string{"1", "5"},
+		},
+		{
+			description: "one of the reviewers is preferred",
+			author:      "3",
+			files: []github.PullRequestFile{
+				{Name: "lib/alpn/proxy.go"},
+			},
+			expected: []string{"2", "4"},
+		},
+		{
+			description: "preferred reviewers for different files",
+			author:      "3",
+			files: []github.PullRequestFile{
+				{Name: "lib/alpn/proxy.go"},
+				{Name: "lib/srv/db/engine.go"},
+			},
+			expected: []string{"1", "2", "5"},
+		},
+		{
+			description: "no preferred reviewers",
+			author:      "3",
+			files: []github.PullRequestFile{
+				{Name: "lib/service/service.go"},
+			},
+			expected: []string{"1", "4"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.description, func(t *testing.T) {
+			actual := assignments.getCodeReviewers(test.author, test.files)
+			sort.Strings(actual)
+			require.ElementsMatch(t, test.expected, actual)
+		})
+	}
 }
 
 const reviewers = `

@@ -462,6 +462,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 			Addr:        Host,
 		},
 	}
+	tconf.SSH.AllowFileCopying = true
 	tconf.Auth.ListenAddr.Addr = i.Auth
 	tconf.Auth.PublicAddrs = []utils.NetAddr{
 		{
@@ -596,7 +597,7 @@ func (i *TeleInstance) StartNode(tconf *service.Config) (*service.TeleportProces
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return i.startNode(tconf, port)
+	return i.StartNodeWithTargetPort(tconf, port)
 }
 
 // StartReverseTunnelNode starts a SSH node and connects it to the cluster via reverse tunnel.
@@ -605,11 +606,11 @@ func (i *TeleInstance) StartReverseTunnelNode(tconf *service.Config) (*service.T
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return i.startNode(tconf, port)
+	return i.StartNodeWithTargetPort(tconf, port)
 }
 
-// startNode starts a node and connects it to the cluster.
-func (i *TeleInstance) startNode(tconf *service.Config, authPort string) (*service.TeleportProcess, error) {
+// StartNodeWithTargetPort starts a node and connects it to the cluster via a specified port.
+func (i *TeleInstance) StartNodeWithTargetPort(tconf *service.Config, authPort string) (*service.TeleportProcess, error) {
 	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1286,7 +1287,7 @@ func (i *TeleInstance) NewClient(cfg ClientConfig) (*client.TeleportClient, erro
 
 	// Add key to client and update CAs that will be trusted (equivalent to
 	// updating "known hosts" with OpenSSH.
-	_, err = tc.AddKey(&creds.Key)
+	err = tc.AddKey(&creds.Key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -944,16 +944,11 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 			return nil, trace.Wrap(err)
 		}
 		if !withSecrets {
-			switch mfad := d.Device.(type) {
-			case *types.MFADevice_Totp:
-				mfad.Totp.Key = ""
-			case *types.MFADevice_U2F:
-				// OK, no sensitive secrets.
-			case *types.MFADevice_Webauthn:
-				// OK, no sensitive secrets.
-			default:
-				return nil, trace.BadParameter("unsupported MFADevice type %T", d.Device)
+			devWithoutSensitiveData, err := d.WithoutSensitiveData()
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
+			d = *devWithoutSensitiveData
 		}
 		devices = append(devices, &d)
 	}

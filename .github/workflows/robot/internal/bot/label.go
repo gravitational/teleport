@@ -103,7 +103,7 @@ var prefixes = map[string][]string{
 	"examples/chart":      {"helm"},
 	"lib/bpf/":            {"bpf"},
 	"lib/events":          {"audit-log"},
-	"lib/kube":            {"kubernetes"},
+	"lib/kube":            {"kubernetes-access"},
 	"lib/tbot/":           {"machine-id"},
 	"lib/srv/desktop":     {"desktop-access"},
 	"lib/srv/desktop/rdp": {"desktop-access", "rdp"},
