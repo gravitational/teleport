@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 )
@@ -194,42 +193,14 @@ func makeAWSFetchers(clients cloud.Clients, matchers []services.AWSMatcher) (res
 }
 
 func makeAzureFetchers(ctx context.Context, clients cloud.Clients, matchers []services.AzureMatcher) (result []Fetcher, err error) {
-	var allSubIDs []string
 	for _, matcher := range matchers {
 		reduceAzureMatcher(&matcher)
-		subIDs := matcher.Subscriptions
-		if utils.SliceContainsStr(subIDs, types.Wildcard) {
-			if allSubIDs == nil {
-				// hit the subscriptions API at most once
-				subscriptionClient, err := clients.GetAzureSubscriptionClient()
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				allSubIDs, err = subscriptionClient.ListSubscriptionIDs(ctx)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-			}
-			subIDs = allSubIDs
-		}
-		for _, sub := range subIDs {
-			for _, matcherType := range matcher.Types {
-				var client azure.DBServersClient
-				var err error
-				switch matcherType {
-				case services.AzureMatcherMySQL:
-					client, err = clients.GetAzureMySQLClient(sub)
-				case services.AzureMatcherPostgres:
-					client, err = clients.GetAzurePostgresClient(sub)
-				default:
-					continue
-				}
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
+		for _, matcherType := range matcher.Types {
+			for _, sub := range matcher.Subscriptions {
 				for _, group := range matcher.ResourceGroups {
 					fetcher, err := newAzureFetcher(azureFetcherConfig{
-						Client:        client,
+						AzureClients:  clients,
+						Type:          matcherType,
 						Subscription:  sub,
 						ResourceGroup: group,
 						Labels:        matcher.ResourceTags,
