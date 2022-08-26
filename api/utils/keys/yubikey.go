@@ -28,7 +28,6 @@ import (
 
 	"github.com/go-piv/piv-go/piv"
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api"
 )
@@ -112,7 +111,7 @@ func newYubiKeyPrivateKey(y *yubiKey, slot piv.Slot, pub crypto.PublicKey) (*Yub
 
 func parseYubiKeyPrivateKeyData(keyDataBytes []byte) (*YubiKeyPrivateKey, error) {
 	var keyData yubiKeyPrivateKeyData
-	if err := yaml.Unmarshal(keyDataBytes, &keyData); err != nil {
+	if err := json.Unmarshal(keyDataBytes, &keyData); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
