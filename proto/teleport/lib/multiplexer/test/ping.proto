@@ -13,7 +13,10 @@
 // limitations under the License.
 
 syntax = "proto3";
-package test;
+
+package teleport.lib.multiplexer.test;
+
+option go_package = "github.com/gravitational/teleport/lib/multiplexer/test";
 
 message Request { string Payload = 1; }
 
