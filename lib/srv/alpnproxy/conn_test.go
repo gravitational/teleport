@@ -18,7 +18,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"testing"
 	"time"
@@ -143,8 +145,8 @@ func TestPingConnection(t *testing.T) {
 				buf := make([]byte, len(dataWritten)/2)
 				for {
 					n, err := r.Read(buf)
-					if err != nil {
-						return
+					if err != nil && !errors.Is(err, io.EOF) {
+						require.Fail(t, "failed to read from connection")
 					}
 
 					chanBytes := make([]byte, n)
@@ -154,20 +156,18 @@ func TestPingConnection(t *testing.T) {
 			}()
 		}
 
-	readLoop:
 		for i := 0; i < nWrites; i++ {
 			var aggregator []byte
-			for {
+			for j := 0; j < 3; j++ {
 				select {
 				case <-ctx.Done():
-					require.Fail(t, "failed to read message, expected '%v' but received '%v'", dataWritten, aggregator)
+					require.Fail(t, "failed to read message")
 				case data := <-readChan:
 					aggregator = append(aggregator, data...)
-					if bytes.Equal(dataWritten, aggregator) {
-						continue readLoop
-					}
 				}
 			}
+
+			require.Len(t, aggregator, len(dataWritten))
 		}
 	})
 
