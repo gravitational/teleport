@@ -1236,8 +1236,9 @@ func TestGenerateDatabaseCert(t *testing.T) {
 	}
 
 	// Generate CSR once for speed sake.
-	priv, _, err := native.GenerateKeyPair()
+	priv, err := native.GeneratePrivateKey()
 	require.NoError(t, err)
+
 	csr, err := tlsca.GenerateCertificateRequestPEM(pkix.Name{CommonName: "test"}, priv)
 	require.NoError(t, err)
 
@@ -3479,7 +3480,6 @@ func TestListResources_WithRoles(t *testing.T) {
 	createRole := func(ctx context.Context, t *testing.T, srv *Server, name string, labels map[string]apiutils.Strings) {
 		role, err := types.NewRoleV3(name, types.RoleSpecV5{
 			Allow: types.RoleConditions{
-				Logins: []string{"root"},
 				NodeLabels: types.Labels{
 					"*": []string{types.Wildcard},
 				},
