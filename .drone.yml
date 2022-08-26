@@ -909,8 +909,8 @@ steps:
 - name: Upload Artifacts
   commands:
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
-  - $TeleportSrc = $Workspace"/go/src/github.com/gravitational/teleport"
-  - $WebappsSrc = $Workspace"/go/src/github.com/gravitational/webapps"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - $WebappsSrc = "$Workspace/go/src/github.com/gravitational/webapps"
   - $Env:DRONE_TAG="v10.1.2"
   - $TeleportVersion=$Env:DRONE_TAG.TrimStart('v')
   - $OutputsDir="$Workspace/outputs"
@@ -7042,6 +7042,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 210334221425dc2325e2fc57c7e35433168d85a6e1c420e5932014a9ca59827a
+hmac: b3476f4a5391400216142d51b198501e64df7ae69bf593e8f71656a77e1c60c2
 
 ...

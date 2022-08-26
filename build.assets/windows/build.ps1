@@ -107,7 +107,9 @@ function Enable-Go {
         [string] $ToolchainDir
     )
     begin {
-        $Env:Path = "$Env:Path;$ToolchainDir/go/bin"
+        # note we prepend the toolchain before the path, otherwise the build 
+        # will just use the system Go.
+        $Env:Path = "$ToolchainDir/go/bin;$Env:Path"
     }
 }
 
@@ -142,7 +144,7 @@ function Enable-Node {
         [string] $ToolchainDir
     )
     begin {
-        $Env:Path = "$Env:Path;$ToolchainDir/node"
+        $Env:Path = "$ToolchainDir/node;$Env:Path"
     }
 }
 

@@ -67,8 +67,8 @@ func windowsTagPipeline() pipeline {
 			},
 			Commands: []string{
 				`$Workspace = "` + perBuildWorkspace + `"`,
-				`$TeleportSrc = $Workspace"` + teleportSrc + `"`,
-				`$WebappsSrc = $Workspace"` + webappsSrc + `"`,
+				`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
+				`$WebappsSrc = "$Workspace` + webappsSrc + `"`,
 				`$Env:DRONE_TAG="v10.1.2"`, // TODO(tcsc): aid during dev, remove before merge
 				`$TeleportVersion=$Env:DRONE_TAG.TrimStart('v')`,
 				`$OutputsDir="$Workspace/outputs"`,
