@@ -893,13 +893,14 @@ enter/teleterm:
 grpc:
 	$(MAKE) -C build.assets grpc
 
+# grpc/host generates GRPC stubs.
+# Unlike grpc, this target runs locally.
+.PHONY: grpc/host
+grpc/host:
+	@build.assets/genproto.sh
+
 print/env:
 	env
-
-# buildbox-grpc generates GRPC stubs
-.PHONY: buildbox-grpc
-buildbox-grpc:
-	@build.assets/genproto.sh
 
 # grpc-teleterm generates Go, TypeScript and JavaScript gRPC stubs from definitions for Teleport
 # Terminal. This target runs in the buildbox-teleterm container.
@@ -914,9 +915,10 @@ buildbox-grpc:
 grpc-teleterm:
 	$(MAKE) -C build.assets grpc-teleterm
 
-# buildbox-grpc generates GRPC stubs
-.PHONY: buildbox-grpc-teleterm
-buildbox-grpc-teleterm:
+# grpc-teleterm/host generates GRPC stubs.
+# Unlike grpc-teleterm, this target runs locally.
+.PHONY: grpc-teleterm/host
+grpc-teleterm/host:
 	$(CLANG_FORMAT) -i -style=$(CLANG_FORMAT_STYLE) \
 		lib/teleterm/api/proto/**/*.proto
 
