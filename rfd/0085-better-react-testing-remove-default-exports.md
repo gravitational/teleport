@@ -91,8 +91,6 @@ but skipping all of the business logic.
 
 Experience tells us that Stories in Storybook are used most effectively for documenting how to use reusable components, and visually testing the UI. While using snapshot tests of stories is a rough approximation of a visual UI test, they come a lot of baggage: https://medium.com/@sapegin/whats-wrong-with-snapshot-tests-37fbe20dfe8e.
 
-It's still okay to create our larger components in Storybook (if the developer wants to) but we should not be using these stories in our Jest tests.
-
 It might be worthwhile looking into something like [Chromatic](https://www.chromatic.com/) for visual UI testing.
 
 ### Focusing on behavioral tests
