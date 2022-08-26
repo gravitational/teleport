@@ -229,7 +229,7 @@ func TestDBCertSigning(t *testing.T) {
 
 	ctx := context.Background()
 
-	privateKey, _, err := testauthority.New().GenerateKeyPair()
+	privateKey, err := testauthority.New().GeneratePrivateKey()
 	require.NoError(t, err)
 
 	csr, err := tlsca.GenerateCertificateRequestPEM(pkix.Name{

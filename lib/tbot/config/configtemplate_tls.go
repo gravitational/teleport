@@ -119,12 +119,17 @@ func (t *TemplateTLS) Render(ctx context.Context, bot Bot, currentIdentity *iden
 		return trace.Wrap(err)
 	}
 
+	key, err := newClientKey(currentIdentity, cas)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	cfg := identityfile.WriteConfig{
 		OutputPath: t.Prefix,
 		Writer: &BotConfigWriter{
 			dest: dest,
 		},
-		Key:    newClientKey(currentIdentity, cas),
+		Key:    key,
 		Format: identityfile.FormatTLS,
 
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.
