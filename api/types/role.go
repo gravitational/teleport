@@ -678,10 +678,6 @@ func (r *RoleV5) GetRequireSessionMFA() bool {
 
 // GetPrivateKeyPolicy returns the private key policy enforced for this role.
 func (r *RoleV5) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
-	if r.Spec.Options.PrivateKeyPolicy != "" {
-		return keys.PrivateKeyPolicyNone
-	}
-
 	switch r.Spec.Options.RequireSessionMFA {
 	case constants.RequireSessionMFAHardwareKey:
 		return keys.PrivateKeyPolicyHardwareKey
