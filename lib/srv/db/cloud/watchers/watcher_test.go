@@ -592,16 +592,70 @@ func TestWatcher(t *testing.T) {
 				})
 			require.NoError(t, err)
 
-			go watcher.fetchAndSend()
-			select {
-			case databases := <-watcher.DatabasesC():
-				// makeFetchers function uses a map for matcher types so
-				// databases can come in random orders.
-				require.ElementsMatch(t, test.expectedDatabases, databases)
-			case <-time.After(time.Second):
-				t.Fatal("didn't receive databases after 1 second")
-			}
+			checkFetchAndSend(t, watcher, test.expectedDatabases)
 		})
+	}
+
+	// Test that newly added Azure subscriptions are discovered by "*" subscription fetchers
+	t.Run("Test Azure subscription discovery", func(t *testing.T) {
+		mockSubscriptions := &azure.ARMSubscriptionsMock{
+			Subscriptions: []*armsubscription.Subscription{azureSub1},
+		}
+		watcher, err := NewWatcher(ctx,
+			WatcherConfig{
+				Clients: &clients.TestCloudClients{
+					AzureMySQLPerSub: map[string]azure.DBServersClient{
+						subscription1: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
+							DBServers: []*armmysql.Server{azMySQLServer1},
+						}),
+						subscription2: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
+							DBServers: []*armmysql.Server{azMySQLServer4},
+						}),
+					},
+					AzurePostgresPerSub: map[string]azure.DBServersClient{
+						subscription1: azure.NewPostgresServerClient(&azure.ARMPostgresMock{
+							DBServers: []*armpostgresql.Server{azPostgresServer1},
+						}),
+						subscription2: azure.NewPostgresServerClient(&azure.ARMPostgresMock{
+							DBServers: []*armpostgresql.Server{azPostgresServer4},
+						}),
+					},
+					AzureSubscriptionClient: azure.NewSubscriptionClient(mockSubscriptions),
+				},
+				AzureMatchers: []services.AzureMatcher{
+					{
+						Subscriptions:  []string{"*"},
+						ResourceGroups: []string{"*"},
+						Types:          []string{services.AzureMatcherMySQL, services.AzureMatcherPostgres},
+						Regions:        []string{"*"},
+						ResourceTags:   types.Labels{"*": []string{"*"}},
+					},
+				},
+			})
+		require.NoError(t, err)
+
+		// subscription API mock should return just databases in subscription1
+		expectedDatabases := types.Databases{azMySQLDB1, azPostgresDB1}
+		checkFetchAndSend(t, watcher, expectedDatabases)
+
+		// Mock adding a new subscription
+		mockSubscriptions.Subscriptions = []*armsubscription.Subscription{azureSub1, azureSub2}
+		// Update expectation to include databases from newly added subscription2
+		expectedDatabases = types.Databases{azMySQLDB1, azMySQLDB4, azPostgresDB1, azPostgresDB4}
+		checkFetchAndSend(t, watcher, expectedDatabases)
+	})
+}
+
+// checkFetchAndSend checks that the watcher fetches and sends the expected databases
+func checkFetchAndSend(t *testing.T, watcher *Watcher, expectedDatabases types.Databases) {
+	go watcher.fetchAndSend()
+	select {
+	case databases := <-watcher.DatabasesC():
+		// makeFetchers function uses a map for matcher types so
+		// databases can come in random orders.
+		require.ElementsMatch(t, expectedDatabases, databases)
+	case <-time.After(time.Second):
+		t.Fatal("didn't receive databases after 1 second")
 	}
 }
 
