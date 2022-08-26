@@ -3566,7 +3566,7 @@ func testExternalClient(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// Start (and defer close) a agent that runs during this integration test.
-			teleAgent, socketDirPath, socketPath, err := createAgent(suite.Me, creds.Key.Priv, creds.Key.Cert)
+			teleAgent, socketDirPath, socketPath, err := createAgent(suite.Me, &creds.Key)
 			require.NoError(t, err)
 			defer closeAgent(teleAgent, socketDirPath)
 
@@ -3662,7 +3662,7 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 		require.NoError(t, err)
 
 		// Start (and defer close) a agent that runs during this integration test.
-		teleAgent, socketDirPath, socketPath, err := createAgent(suite.Me, creds.Key.Priv, creds.Key.Cert)
+		teleAgent, socketDirPath, socketPath, err := createAgent(suite.Me, &creds.Key)
 		require.NoError(t, err)
 		defer closeAgent(teleAgent, socketDirPath)
 

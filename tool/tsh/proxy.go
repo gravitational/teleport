@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -472,7 +473,7 @@ func mkLocalProxyCerts(certFile, keyFile string) ([]tls.Certificate, error) {
 	if (certFile == "" && keyFile != "") || (certFile != "" && keyFile == "") {
 		return nil, trace.BadParameter("both --cert-file and --key-file are required")
 	}
-	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	cert, err := keys.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -597,16 +598,17 @@ func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certi
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
-	cc, ok := key.AppTLSCerts[appName]
+	cert, ok := key.AppTLSCerts[appName]
 	if !ok {
 		return tls.Certificate{}, trace.NotFound("please login into the application first. 'tsh app login'")
 	}
-	cert, err := tls.X509KeyPair(cc, key.Priv)
+
+	tlsCert, err := key.TLSCertificate(cert)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	expiresAt, err := getTLSCertExpireTime(cert)
+	expiresAt, err := getTLSCertExpireTime(tlsCert)
 	if err != nil {
 		return tls.Certificate{}, trace.WrapWithMessage(err, "invalid certificate - please login to the application again. 'tsh app login'")
 	}
@@ -615,7 +617,7 @@ func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certi
 			"application %s certificate has expired, please re-login to the app using 'tsh app login'",
 			appName)
 	}
-	return cert, nil
+	return tlsCert, nil
 }
 
 // getTLSCertExpireTime returns the certificate NotAfter time.

@@ -1180,7 +1180,7 @@ func TestIdentityRead(t *testing.T) {
 		require.Nil(t, cb)
 
 		// test creating an auth method from the key:
-		am, err := authFromIdentity(k)
+		am, err := k.AsAuthMethod()
 		require.NoError(t, err)
 		require.NotNil(t, am)
 	}
@@ -2264,7 +2264,8 @@ func TestSerializeDatabases(t *testing.T) {
         "elasticache": {},
         "secret_store": {},
         "memorydb": {}
-      }
+      },
+      "azure": {}
     }
   }]
 	`

@@ -1287,7 +1287,7 @@ func (i *TeleInstance) NewClient(cfg ClientConfig) (*client.TeleportClient, erro
 
 	// Add key to client and update CAs that will be trusted (equivalent to
 	// updating "known hosts" with OpenSSH.
-	_, err = tc.AddKey(&creds.Key)
+	err = tc.AddKey(&creds.Key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
