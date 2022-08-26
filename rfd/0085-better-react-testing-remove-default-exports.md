@@ -82,24 +82,20 @@ test('fetch error', () => {
 });
 ```
 
-This results in all the logic in `useDesktopSession` going untested. We're only testing the UI part of the application,
+This results in all the logic in `useDesktopSession` going untested. We're only testing the visual part of the UI,
 but skipping all of the business logic.
-
-Storybook isn't best suited for the way we are using it. As a result of testing our large components primarily via stories, we have
-ended up only testing our UI and nothing else.
 
 ## Details
 
-### Changing how we write stories
+### Changing how we test the visual UI
 
-Experience tells us that Stories in Storybook are used most effectively for documenting how to use reusable components. We should therefore
-restrict usage of Storybook mostly to our shared component library, and test our fullscreen components another way.
+Experience tells us that Stories in Storybook are used most effectively for documenting how to use reusable components, and visually testing the UI. While using snapshot tests of stories is a rough approximation of a visual UI test, they come a lot of baggage: https://medium.com/@sapegin/whats-wrong-with-snapshot-tests-37fbe20dfe8e.
 
 It's still okay to create our larger components in Storybook (if the developer wants to) but we should not be using these stories in our Jest tests.
 
 It might be worthwhile looking into something like [Chromatic](https://www.chromatic.com/) for visual UI testing.
 
-### Changing how we write tests
+### Focusing on behavioral tests
 
 We should be testing all the different state possibilities in Jest and React Testing Library, mocking any data or
 network requests to cause the component to render into the state we want. This ensures that the internal logic
@@ -108,10 +104,6 @@ as well as the final UI state.
 
 Tests should check for elements that exist for the specific state being tested, i.e. an error message when the data has
 failed to load. Elements should be clicked on or events triggered in order to change the state of the component.
-
-By writing tests as described above, snapshot tests typically become redundant and therefore unnecessary. Besides the problem of skipping the business logic, snapshots consistently break for non-bugs, such as when styles are updated, and
-generally don't provide much if any security around behaviour or appearance. Further reading -
-https://medium.com/@sapegin/whats-wrong-with-snapshot-tests-37fbe20dfe8e.
 
 ### Changing how we export components
 
