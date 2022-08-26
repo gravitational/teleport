@@ -10,11 +10,10 @@ main() {
   # Generated protos are written to
   # <teleport-root>/github.com/gravitational/teleport/..., so we copy them to
   # the correct relative path.
+  trap 'rm -fr github.com' EXIT   # don't leave github.com/ behind
+  rm -fr api/gen/proto gen/proto  # cleanup gen/proto folders
   buf generate
-  find github.com -name '*.pb.go' | while read -r f; do
-    mv "$f" "${f#github.com/gravitational/teleport/}"
-  done
-  rm -fr github.com/  # Remove empty generated root.
+  cp -r github.com/gravitational/teleport/* .
 }
 
 main "$@"
