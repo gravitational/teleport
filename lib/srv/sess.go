@@ -26,8 +26,11 @@ import (
 	"sync"
 	"time"
 
+	oteltrace "go.opentelemetry.io/otel/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
@@ -271,6 +274,9 @@ func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *
 
 // OpenExecSession opens an non-interactive exec session.
 func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Channel, scx *ServerContext) error {
+	ctx, span := tracing.DefaultProvider().Tracer("SessionRegistry").Start(ctx, "SessionRegistry/OpenExecSession")
+	defer span.End()
+
 	// Create a new session ID. These sessions can not be joined so no point in
 	// looking for an exisiting one.
 	sessionID := rsession.NewID()
@@ -283,10 +289,12 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 	}
 	scx.Infof("Creating (exec) session %v.", sessionID)
 
+	span.AddEvent("checking permissions to start session")
 	canStart, _, err := sess.checkIfStart()
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	span.AddEvent("starting session")
 
 	if !canStart {
 		return trace.AccessDenied("lacking privileges to start unattended session")
@@ -499,6 +507,9 @@ type session struct {
 
 // newSession creates a new session with a given ID within a given context.
 func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *ServerContext) (*session, error) {
+	ctx, span := tracing.DefaultProvider().Tracer("session").Start(ctx, "session/newSession")
+	defer span.End()
+
 	serverSessions.Inc()
 	startTime := time.Now().UTC()
 	rsess := rsession.Session{
@@ -588,7 +599,7 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 		}
 	}()
 
-	if err = sess.trackSession(scx.Identity.TeleportUser, policySets); err != nil {
+	if err = sess.trackSession(ctx, scx.Identity.TeleportUser, policySets); err != nil {
 		if trace.IsNotImplemented(err) {
 			return nil, trace.NotImplemented("Attempted to use Moderated Sessions with an Auth Server below the minimum version of 9.0.0.")
 		}
@@ -1165,13 +1176,16 @@ func newEventOnlyRecorder(s *session, ctx *ServerContext) (events.StreamWriter, 
 }
 
 func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *ServerContext, tempUser *user.User) error {
+	execCtx, span := tracing.DefaultProvider().Tracer("session").Start(ctx, "session/startExec")
+	defer span.End()
+
 	// Emit a session.start event for the exec session.
 	s.emitSessionStartEvent(scx)
 
 	// Start execution. If the program failed to start, send that result back.
 	// Note this is a partial start. Teleport will have re-exec'ed itself and
 	// wait until it's been placed in a cgroup and told to continue.
-	result, err := scx.ExecRequest.Start(ctx, channel)
+	result, err := scx.ExecRequest.Start(execCtx, channel)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1220,8 +1234,11 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	scx.ExecRequest.Continue()
 
 	// Process is running, wait for it to stop.
+	span.AddEvent("waiting for command to complete")
 	go func() {
-		result = scx.ExecRequest.Wait()
+		result = scx.ExecRequest.Wait(ctx)
+		result.Context = ctx
+		span.AddEvent("execution completed")
 		if result != nil {
 			scx.SendExecResult(*result)
 		}
@@ -1728,7 +1745,10 @@ func (p *party) closeUnderSessionLock() {
 // trackSession creates a new session tracker for the ssh session.
 // While ctx is open, the session tracker's expiration will be extended
 // on an interval until the session tracker is closed.
-func (s *session) trackSession(teleportUser string, policySet []*types.SessionTrackerPolicySet) error {
+func (s *session) trackSession(ctx context.Context, teleportUser string, policySet []*types.SessionTrackerPolicySet) error {
+	ctx, span := tracing.DefaultProvider().Tracer("session").Start(ctx, "session/trackSession")
+	defer span.End()
+
 	trackerSpec := types.SessionTrackerSpecV1{
 		SessionID:    s.id.String(),
 		Kind:         string(types.SSHSessionKind),
@@ -1751,13 +1771,13 @@ func (s *session) trackSession(teleportUser string, policySet []*types.SessionTr
 
 	s.log.Debug("Creating session tracker")
 	var err error
-	s.tracker, err = NewSessionTracker(s.serverCtx, trackerSpec, s.registry.SessionTrackerService)
+	s.tracker, err = NewSessionTracker(ctx, trackerSpec, s.registry.SessionTrackerService)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	go func() {
-		if err := s.tracker.UpdateExpirationLoop(s.serverCtx, s.registry.clock); err != nil {
+		if err := s.tracker.UpdateExpirationLoop(oteltrace.ContextWithSpan(s.serverCtx, oteltrace.SpanFromContext(ctx)), s.registry.clock); err != nil {
 			s.log.WithError(err).Debug("Failed to update session tracker expiration")
 		}
 	}()

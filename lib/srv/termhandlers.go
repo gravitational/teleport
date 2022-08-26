@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/observability/tracing"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 )
@@ -38,6 +39,9 @@ type TermHandlers struct {
 // without a TTY. Result of execution is propagated back on the ExecResult
 // channel of the context.
 func (t *TermHandlers) HandleExec(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *ServerContext) error {
+	ctx, span := tracing.DefaultProvider().Tracer("TermHandlers").Start(ctx, "TermHandlers/HandleExec")
+	defer span.End()
+
 	// Save the request within the context.
 	scx.request = req
 
