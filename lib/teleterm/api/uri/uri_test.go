@@ -55,3 +55,37 @@ func TestString(t *testing.T) {
 		})
 	}
 }
+
+func TestParseClusterURI(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		in  uri.ResourceURI
+		out string
+	}{{
+		uri.NewClusterURI("cluster.sh"),
+		"/clusters/cluster.sh",
+	}, {
+		uri.NewClusterURI("cluster.sh").AppendServer("server1"),
+		"/clusters/cluster.sh",
+	},
+		{
+			uri.NewClusterURI("cluster.sh").AppendLeafCluster("leaf.sh"),
+			"/clusters/cluster.sh/leaves/leaf.sh",
+		},
+		{
+			uri.NewClusterURI("cluster.sh").AppendLeafCluster("leaf.sh").AppendDB("postgres"),
+			"/clusters/cluster.sh/leaves/leaf.sh",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(fmt.Sprintf("%v", tt.in), func(t *testing.T) {
+			t.Parallel()
+
+			out, err := uri.ParseClusterURI(tt.in.String())
+			require.NoError(t, err)
+			require.Equal(t, tt.out, out.String())
+		})
+	}
+}
