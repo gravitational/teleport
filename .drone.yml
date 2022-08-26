@@ -715,7 +715,7 @@ steps:
   - Push-Location "$TeleportSrc/build.assets"
   - $NodeVersion = $(make print-node-version).Trim()
   - Pop-Location
-  - Install-Node -NodeVersion $NodeVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
+  - Install-Node -NodeVersion $NodeVersion -ToolchainDir "$Workspace/toolchains"
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
 - name: Install Go Toolchain
@@ -728,7 +728,7 @@ steps:
   - Push-Location "$TeleportSrc/build.assets"
   - $GoVersion = $(make print-go-version).TrimStart("go")
   - Pop-Location
-  - Install-Go -GoVersion $GoVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
+  - Install-Go -GoVersion $GoVersion -ToolchainDir "$Workspace/toolchains"
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
 - name: Build tsh
@@ -738,7 +738,7 @@ steps:
   - $Env:GOCACHE = "$Workspace/gocache"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
-  - Enable-Go -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
+  - Enable-Go -ToolchainDir "$Workspace/toolchains"
   - cd $TeleportSrc
   - $Env:GCO_ENABLED=1
   - go build -o build/tsh.exe ./tool/tsh
@@ -753,9 +753,9 @@ steps:
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - $WebappsSrc = "$Workspace/go/src/github.com/gravitational/webapps"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
-  - Enable-Node -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
+  - Enable-Node -ToolchainDir "$Workspace/toolchains"
   - Push-Location $TeleportSrc
-  - $TeleportVersion=$(make peint-version).Trim()
+  - $TeleportVersion=$(make print-version).Trim()
   - Pop-Location
   - cd $WebappsSrc
   - $Env:CONNECT_TSH_BIN_PATH="$TeleportSrc\build\tsh.exe"
@@ -855,7 +855,7 @@ steps:
   - Push-Location "$TeleportSrc/build.assets"
   - $NodeVersion = $(make print-node-version).Trim()
   - Pop-Location
-  - Install-Node -NodeVersion $NodeVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
+  - Install-Node -NodeVersion $NodeVersion -ToolchainDir "$Workspace/toolchains"
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Install Go Toolchain
@@ -868,7 +868,7 @@ steps:
   - Push-Location "$TeleportSrc/build.assets"
   - $GoVersion = $(make print-go-version).TrimStart("go")
   - Pop-Location
-  - Install-Go -GoVersion $GoVersion -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
+  - Install-Go -GoVersion $GoVersion -ToolchainDir "$Workspace/toolchains"
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Build tsh
@@ -878,7 +878,7 @@ steps:
   - $Env:GOCACHE = "$Workspace/gocache"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
-  - Enable-Go -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
+  - Enable-Go -ToolchainDir "$Workspace/toolchains"
   - cd $TeleportSrc
   - $Env:GCO_ENABLED=1
   - go build -o build/tsh.exe ./tool/tsh
@@ -893,9 +893,9 @@ steps:
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - $WebappsSrc = "$Workspace/go/src/github.com/gravitational/webapps"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
-  - Enable-Node -ToolchainDir "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER/toolchains"
+  - Enable-Node -ToolchainDir "$Workspace/toolchains"
   - Push-Location $TeleportSrc
-  - $TeleportVersion=$(make peint-version).Trim()
+  - $TeleportVersion=$(make print-version).Trim()
   - Pop-Location
   - cd $WebappsSrc
   - $Env:CONNECT_TSH_BIN_PATH="$TeleportSrc\build\tsh.exe"
@@ -7042,6 +7042,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: c26d58cb660cd5d440b334a5e1dbc26295f120bbc4d1d7486a64173993086251
+hmac: 210334221425dc2325e2fc57c7e35433168d85a6e1c420e5932014a9ca59827a
 
 ...

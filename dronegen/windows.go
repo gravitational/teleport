@@ -17,10 +17,10 @@ package main
 import "path"
 
 const (
-	perBuildWorkspace   = `$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER`
-	windowsToolchainDir = perBuildWorkspace + `/toolchains`
-	teleportSrc         = "/go/src/github.com/gravitational/teleport"
-	webappsSrc          = "/go/src/github.com/gravitational/webapps"
+	perBuildWorkspace = `$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER`
+	toolchainDir      = `/toolchains`
+	teleportSrc       = `/go/src/github.com/gravitational/teleport`
+	webappsSrc        = `/go/src/github.com/gravitational/webapps`
 )
 
 func newWindowsPipeline(name string) pipeline {
@@ -165,7 +165,7 @@ func installWindowsNodeToolchainStep(workspacePath string) step {
 			`Push-Location "$TeleportSrc/build.assets"`,
 			`$NodeVersion = $(make print-node-version).Trim()`,
 			`Pop-Location`,
-			`Install-Node -NodeVersion $NodeVersion -ToolchainDir "` + windowsToolchainDir + `"`,
+			`Install-Node -NodeVersion $NodeVersion -ToolchainDir "$Workspace` + toolchainDir + `"`,
 		},
 	}
 }
@@ -183,7 +183,7 @@ func installWindowsGoToolchainStep(workspacePath string) step {
 			`Push-Location "$TeleportSrc/build.assets"`,
 			`$GoVersion = $(make print-go-version).TrimStart("go")`,
 			`Pop-Location`,
-			`Install-Go -GoVersion $GoVersion -ToolchainDir "` + windowsToolchainDir + `"`,
+			`Install-Go -GoVersion $GoVersion -ToolchainDir "$Workspace` + toolchainDir + `"`,
 		},
 	}
 }
@@ -201,7 +201,7 @@ func buildWindowsTshStep(workspace string) step {
 			`$Env:GOCACHE = "$Workspace/gocache"`,
 			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
-			`Enable-Go -ToolchainDir "` + windowsToolchainDir + `"`,
+			`Enable-Go -ToolchainDir "$Workspace` + toolchainDir + `"`,
 			`cd $TeleportSrc`,
 			`$Env:GCO_ENABLED=1`,
 			`go build -o build/tsh.exe ./tool/tsh`,
@@ -225,9 +225,9 @@ func buildWindowsTeleportConnectStep(workspace string) step {
 			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
 			`$WebappsSrc = "$Workspace` + webappsSrc + `"`,
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
-			`Enable-Node -ToolchainDir "` + windowsToolchainDir + `"`,
+			`Enable-Node -ToolchainDir "$Workspace` + toolchainDir + `"`,
 			`Push-Location $TeleportSrc`,
-			`$TeleportVersion=$(make peint-version).Trim()`,
+			`$TeleportVersion=$(make print-version).Trim()`,
 			`Pop-Location`,
 			`cd $WebappsSrc`,
 			`$Env:CONNECT_TSH_BIN_PATH="$TeleportSrc\build\tsh.exe"`,
