@@ -231,8 +231,9 @@ type HandlerFunc func(ctx context.Context, conn net.Conn) error
 // Proxy server allows routing downstream connections based on
 // TLS SNI ALPN values to particular service.
 type Proxy struct {
-	cfg ProxyConfig
-	log logrus.FieldLogger
+	cfg                ProxyConfig
+	supportedProtocols []common.Protocol
+	log                logrus.FieldLogger
 
 	// mu guards cancel
 	mu     sync.Mutex
@@ -290,8 +291,9 @@ func New(cfg ProxyConfig) (*Proxy, error) {
 	}
 
 	return &Proxy{
-		cfg: cfg,
-		log: cfg.Log,
+		cfg:                cfg,
+		log:                cfg.Log,
+		supportedProtocols: common.SupportedProtocols,
 	}, nil
 }
 
@@ -308,6 +310,7 @@ func (p *Proxy) Serve(ctx context.Context) error {
 	p.cancel = cancel
 	p.mu.Unlock()
 
+	p.cfg.WebTLSConfig.NextProtos = common.ProtocolsToString(p.supportedProtocols)
 	for {
 		clientConn, err := p.cfg.Listener.Accept()
 		if err != nil {

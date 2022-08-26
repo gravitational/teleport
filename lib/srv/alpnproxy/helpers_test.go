@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -109,6 +110,7 @@ func (s *Suite) GetCertPool() *x509.CertPool {
 func (s *Suite) CreateProxyServer(t *testing.T) *Proxy {
 	serverCert := mustGenCertSignedWithCA(t, s.ca)
 	tlsConfig := &tls.Config{
+		NextProtos: common.ProtocolsToString(common.SupportedProtocols),
 		ClientAuth: tls.VerifyClientCertIfGiven,
 		ClientCAs:  s.GetCertPool(),
 		Certificates: []tls.Certificate{
