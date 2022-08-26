@@ -167,7 +167,7 @@ func TestPingConnection(t *testing.T) {
 				}
 			}
 
-			require.Len(t, aggregator, len(dataWritten))
+			require.Len(t, aggregator, len(dataWritten), "Wrong message read from connection")
 		}
 	})
 
