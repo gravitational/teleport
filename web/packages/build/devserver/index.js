@@ -64,8 +64,8 @@ function getTargetOptions() {
   };
 }
 
-const devServer = new WebpackDevServer(
-  {
+function getWebpackDevServerConfig() {
+  const config = {
     proxy: {
       // teleport APIs
       '/web/config.*': getTargetOptions(),
@@ -91,7 +91,30 @@ const devServer = new WebpackDevServer(
     headers: {
       'X-Custom-Header': 'yes',
     },
-  },
+  };
+
+  const cert = process.env.WEBPACK_HTTPS_CERT;
+  const key = process.env.WEBPACK_HTTPS_KEY;
+  const ca = process.env.WEBPACK_HTTPS_CA;
+  const pfx = process.env.WEBPACK_HTTPS_PFX;
+  const passphrase = process.env.WEBPACK_HTTPS_PASSPHRASE;
+
+  // we need either cert + key, or the pfx file
+  if ((cert && key) || pfx) {
+    config.server.options = {
+      cert,
+      key,
+      ca,
+      pfx,
+      passphrase,
+    };
+  }
+
+  return config;
+}
+
+const devServer = new WebpackDevServer(
+  getWebpackDevServerConfig(),
   compiler.webpackCompiler
 );
 
