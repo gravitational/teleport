@@ -34,7 +34,7 @@ group within Teleport so that they can access databases.
 Trait Transforms will allow the Teleport admins to modify existing traits and
 add new ones to solve these problems.
 
-If teleport admins cannot add or change the claims provided by their SSO
+If Teleport admins cannot add or change the claims provided by their SSO
 provider, making simple rules like this can be extremely cumbersome or
 impossible within teleport.
 There are currently teleport users with deployments which automatically generate
