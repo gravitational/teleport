@@ -1421,13 +1421,3 @@ func Test_setDBName(t *testing.T) {
 		})
 	}
 }
-
-// makeAzureTags is a test helper util function
-func makeAzureTags(m map[string]string) map[string]*string {
-	result := make(map[string]*string, len(m))
-	for k, v := range m {
-		v := v
-		result[k] = &v
-	}
-	return result
-}
