@@ -115,7 +115,6 @@ func cloneWindowsRepositoriesStep(workspace string) step {
 		Commands: []string{
 			`$ErrorActionPreference = 'Stop'`,
 			`$Workspace = "` + perBuildWorkspace + `"`,
-			`$Env:GOCACHE = "$Workspace/gocache"`,
 			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
 			`$WebappsSrc = "$Workspace` + webappsSrc + `"`,
 			`$TeleportRev = if ($Env:DRONE_TAG -ne $null) { $Env:DRONE_TAG } else { $Env:DRONE_COMMIT }`,
@@ -126,7 +125,7 @@ func cloneWindowsRepositoriesStep(workspace string) step {
 			`New-Item -Path $WebappsSrc -ItemType Directory | Out-Null`,
 			`cd $WebappsSrc`,
 			`git clone https://github.com/gravitational/webapps.git .`,
-			`git checkout $(go run $TeleportSrc/build.assets/tooling/cmd/get-webapps-version/main.go)`,
+			`git checkout $(& $TeleportSrc/build.assets/webapps/webapps-version.ps1)`,
 		},
 	}
 }

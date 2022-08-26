@@ -675,7 +675,6 @@ steps:
   commands:
   - $ErrorActionPreference = 'Stop'
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
-  - $Env:GOCACHE = "$Workspace/gocache"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - $WebappsSrc = "$Workspace/go/src/github.com/gravitational/webapps"
   - $TeleportRev = if ($Env:DRONE_TAG -ne $null) { $Env:DRONE_TAG } else { $Env:DRONE_COMMIT
@@ -687,7 +686,7 @@ steps:
   - New-Item -Path $WebappsSrc -ItemType Directory | Out-Null
   - cd $WebappsSrc
   - git clone https://github.com/gravitational/webapps.git .
-  - git checkout $(go run $TeleportSrc/build.assets/tooling/cmd/get-webapps-version/main.go)
+  - git checkout $(& $TeleportSrc/build.assets/webapps/webapps-version.ps1)
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
 - name: Checkout Submodules
@@ -815,7 +814,6 @@ steps:
   commands:
   - $ErrorActionPreference = 'Stop'
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
-  - $Env:GOCACHE = "$Workspace/gocache"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - $WebappsSrc = "$Workspace/go/src/github.com/gravitational/webapps"
   - $TeleportRev = if ($Env:DRONE_TAG -ne $null) { $Env:DRONE_TAG } else { $Env:DRONE_COMMIT
@@ -827,7 +825,7 @@ steps:
   - New-Item -Path $WebappsSrc -ItemType Directory | Out-Null
   - cd $WebappsSrc
   - git clone https://github.com/gravitational/webapps.git .
-  - git checkout $(go run $TeleportSrc/build.assets/tooling/cmd/get-webapps-version/main.go)
+  - git checkout $(& $TeleportSrc/build.assets/webapps/webapps-version.ps1)
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Checkout Submodules
@@ -7042,6 +7040,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: b3476f4a5391400216142d51b198501e64df7ae69bf593e8f71656a77e1c60c2
+hmac: 6029a373ea96ef75d74a30f6df87e461e8178c40f17a1eb17394d6b903d8aa8a
 
 ...
