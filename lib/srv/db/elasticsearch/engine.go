@@ -80,7 +80,7 @@ func (e *Engine) SendError(err error) {
 		Message: err.Error(),
 	})
 	if err != nil {
-		e.Log.WithError(err).Errorf("failed to marshal error response")
+		e.Log.WithError(err).Error("failed to marshal error response")
 		return
 	}
 
@@ -160,7 +160,6 @@ func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *h
 
 	// Send the request to elasticsearch API
 	resp, err := client.Do(reqCopy)
-
 	if err != nil {
 		return trace.Wrap(err)
 	}
