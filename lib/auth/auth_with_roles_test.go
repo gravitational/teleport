@@ -1236,8 +1236,9 @@ func TestGenerateDatabaseCert(t *testing.T) {
 	}
 
 	// Generate CSR once for speed sake.
-	priv, _, err := native.GenerateKeyPair()
+	priv, err := native.GeneratePrivateKey()
 	require.NoError(t, err)
+
 	csr, err := tlsca.GenerateCertificateRequestPEM(pkix.Name{CommonName: "test"}, priv)
 	require.NoError(t, err)
 
