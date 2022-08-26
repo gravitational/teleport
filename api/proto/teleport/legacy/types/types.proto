@@ -453,7 +453,7 @@ message Azure {
   // Name is the Azure database server name.
   string Name = 1 [(gogoproto.jsontag) = "name,omitempty"];
   // ResourceID is the Azure fully qualified ID for the resource.
-  string ResourceID = 2 [(gogoproto.jsontag) = "name,omitempty"];
+  string ResourceID = 2 [(gogoproto.jsontag) = "resource_id,omitempty"];
 }
 
 // AD contains Active Directory specific database configuration.
