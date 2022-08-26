@@ -101,7 +101,7 @@ func (client *InstanceMetadataClient) get(ctx context.Context, route string) ([]
 	query := req.URL.Query()
 	query.Add("format", "json")
 	if client.apiVersion != "" {
-		query.Add("version", client.apiVersion)
+		query.Add("api-version", client.apiVersion)
 	}
 	req.URL.RawQuery = query.Encode()
 
@@ -161,7 +161,7 @@ func (client *InstanceMetadataClient) GetTags(ctx context.Context) (map[string]s
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := utils.FastUnmarshal(body, rawTags); err != nil {
+	if err := utils.FastUnmarshal(body, &rawTags); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
