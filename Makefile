@@ -921,7 +921,7 @@ grpc-teleterm:
 # Unlike grpc-teleterm, this target runs locally.
 .PHONY: grpc-teleterm/host
 grpc-teleterm/host:
-	cd lib/teleterm && buf build && buf lint && buf generate
+	cd lib/teleterm && buf build && buf lint && buf format -w && buf generate
 
 .PHONY: goinstall
 goinstall:
