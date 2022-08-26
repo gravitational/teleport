@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"io"
+	"math"
 	"net"
 	"sync"
 	"time"
@@ -166,6 +167,13 @@ func (c *PingConn) discardPingReads() error {
 func (c *PingConn) Write(p []byte) (int, error) {
 	c.muWrite.Lock()
 	defer c.muWrite.Unlock()
+
+	// Avoid overflow when casting data length. It is only present to avoid
+	// panicking if the size cannot be cast. Callers should handle packet length
+	// limits, such as protocol implementations and audits.
+	if uint64(len(p)) > math.MaxUint32 {
+		return 0, trace.BadParameter("invalid content size, max size permitted is %d", uint64(math.MaxUint32))
+	}
 
 	size := uint32(len(p))
 	if size == 0 {
