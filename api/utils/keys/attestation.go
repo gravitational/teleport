@@ -15,7 +15,6 @@ package keys
 
 import (
 	"bytes"
-	"crypto"
 	"crypto/x509"
 	"strings"
 
@@ -24,17 +23,17 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// HardwareKeyAttestation holds data necessary to attest a hardware key of the given type.
-type HardwareKeyAttestationResponse struct {
-	// PublicKeyDER is the public key of the hardware private key attested in PKIX, ASN.1 DER form.
-	PublicKey crypto.PublicKey
+// AttestationResponse is veriried attestation data for a public key.
+type AttestationResponse struct {
+	// PublicKeyDER is the public key in PKIX, ASN.1 DER form.
+	PublicKeyDER []byte `json:"public_key"`
 	// PrivateKeyPolicy specifies the private key policy supported by the attested hardware key.
-	PrivateKeyPolicy PrivateKeyPolicy
+	PrivateKeyPolicy PrivateKeyPolicy `json:"private_key_policy"`
 }
 
 // AttestHardwareKey performs attestation using the given attestation object, and returns
 // a response containing the public key attested and any hardware key policies that it meets.
-func AttestHardwareKey(req *AttestationRequest) (*HardwareKeyAttestationResponse, error) {
+func AttestHardwareKey(req *AttestationRequest) (*AttestationResponse, error) {
 	switch req.GetAttestationRequest().(type) {
 	case *AttestationRequest_YubikeyAttestationRequest:
 		return AttestYubikey(req.GetYubikeyAttestationRequest())
@@ -45,7 +44,7 @@ func AttestHardwareKey(req *AttestationRequest) (*HardwareKeyAttestationResponse
 
 // AttestYubikey verifies that the given slot certificate chains to the attestation certificate,
 // which chains to a Yubico CA.
-func AttestYubikey(req *YubiKeyAttestationRequest) (*HardwareKeyAttestationResponse, error) {
+func AttestYubikey(req *YubiKeyAttestationRequest) (*AttestationResponse, error) {
 	slotCert, err := x509.ParseCertificate(req.SlotCert)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -63,8 +62,13 @@ func AttestYubikey(req *YubiKeyAttestationRequest) (*HardwareKeyAttestationRespo
 		policy = PrivateKeyPolicyHardwareKeyTouch
 	}
 
-	return &HardwareKeyAttestationResponse{
-		PublicKey:        slotCert.PublicKey,
+	pubDER, err := x509.MarshalPKIXPublicKey(slotCert.PublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &AttestationResponse{
+		PublicKeyDER:     pubDER,
 		PrivateKeyPolicy: policy,
 	}, nil
 }
