@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/julienschmidt/httprouter"
 	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
@@ -527,6 +528,21 @@ func TestValidRedirectURL(t *testing.T) {
 			require.Equal(t, tt.valid, isValidRedirectURL(tt.url))
 		})
 	}
+}
+
+func TestMetaRedirect(t *testing.T) {
+	t.Parallel()
+	h := &Handler{}
+	redirectHandler := h.WithMetaRedirect(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) string {
+		return "https://example.com"
+	})
+	req := httptest.NewRequest(http.MethodPost, "/some/route", nil)
+	resp := httptest.NewRecorder()
+	redirectHandler(resp, req, nil)
+	targetElement := `<meta http-equiv="refresh" content="0;URL='https://example.com'" />`
+	require.Equal(t, http.StatusOK, resp.Code)
+	body := resp.Body.String()
+	require.Contains(t, body, targetElement)
 }
 
 func Test_clientMetaFromReq(t *testing.T) {
