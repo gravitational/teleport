@@ -24,8 +24,10 @@ import (
 	"crypto/x509/pkix"
 	"encoding/json"
 	"encoding/pem"
+	fmt "fmt"
 	"io"
 	"math/big"
+	"os"
 	"strings"
 	"time"
 
@@ -46,6 +48,7 @@ var (
 	// We use slot 9a for Teleport Clients which require `private_key_policy: hardware_key`.
 	pivSlotNoTouch = piv.SlotAuthentication
 	// We use slot 9c for Teleport Clients which require `private_key_policy: hardware_key_touch`.
+	// Private keys generated on this slot will use TouchPolicy=Cached.
 	pivSlotWithTouch = piv.SlotSignature
 )
 
@@ -59,13 +62,11 @@ func GetOrGenerateYubiKeyPrivateKey(ctx context.Context, touchRequired bool) (*P
 		return nil, trace.Wrap(err)
 	}
 
-	// Get the correct PIV slot and Touch policy for the given touch requirement:
-	//  - Slot 9a = no touch
-	//  - Slot 9c = touch
-	pivSlot := piv.SlotAuthentication
+	// Get the correct PIV slot and Touch policy for the given touch requirement.
+	pivSlot := pivSlotNoTouch
 	touchPolicy := piv.TouchPolicyNever
 	if touchRequired {
-		pivSlot = piv.SlotSignature
+		pivSlot = pivSlotWithTouch
 		touchPolicy = piv.TouchPolicyCached
 	}
 
@@ -160,6 +161,11 @@ func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.Sign
 		return nil, trace.Wrap(err)
 	}
 
+	if y.pivSlot == pivSlotWithTouch {
+		cancelTouchPrompt := delayedTouchPrompt(y.ctx)
+		defer cancelTouchPrompt()
+	}
+
 	return privateKey.(crypto.Signer).Sign(rand, digest, opts)
 }
 
@@ -219,6 +225,22 @@ func (k *YubiKeyPrivateKey) GetPrivateKeyPolicy() PrivateKeyPolicy {
 	}
 }
 
+// delayedTouchPrompt prompts for touch after a short delay, to prevent prompting for
+// touch when touch is cached. Call the returned cancel func to cancel the prompt.
+func delayedTouchPrompt(ctx context.Context) (cancel func()) {
+	// Wait a split second before prompting the user for touch. If the user's touch
+	// is cached, then the Sign will complete before we prompt the user.
+	ctx, cancel = context.WithTimeout(ctx, time.Millisecond*100)
+	go func() {
+		<-ctx.Done()
+		if ctx.Err() == context.DeadlineExceeded {
+			fmt.Fprintln(os.Stderr, "Tap your YubiKey")
+		}
+	}()
+
+	return cancel
+}
+
 // yubiKey is a specific yubiKey PIV card.
 type yubiKey struct {
 	// card is a reader name used to find and connect to this yubiKey.
@@ -258,6 +280,12 @@ func (y *yubiKey) generatePrivateKey(ctx context.Context, slot piv.Slot, touchPo
 		PINPolicy:   piv.PINPolicyNever,
 		TouchPolicy: touchPolicy,
 	}
+
+	if touchPolicy == piv.TouchPolicyCached {
+		cancelTouchPrompt := delayedTouchPrompt(ctx)
+		defer cancelTouchPrompt()
+	}
+
 	pub, err := yk.GenerateKey(piv.DefaultManagementKey, slot, opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
