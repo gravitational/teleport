@@ -27,6 +27,9 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
+// NOTE: when making changes to this file, run tests with `TEST_FNCACHE_FUZZY=yes` to enable
+// additional fuzzy tests which aren't run during normal CI.
+
 var (
 	// ErrFnCacheClosed is returned from Get when the FnCache context is closed
 	ErrFnCacheClosed = errors.New("fncache permanently closed")
