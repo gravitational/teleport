@@ -179,7 +179,11 @@ func (f *azureFetcher) getAllDBServers(ctx context.Context) ([]*azure.DBServer, 
 	for _, subID := range subIDs {
 		servers, err := f.getDBServersInSubscription(ctx, subID)
 		if err != nil {
-			continue
+			if trace.IsAccessDenied(err) || trace.IsNotFound(err) {
+				f.log.WithError(err).Debugf("Skipping subscription %q", subID)
+				continue
+			}
+			return nil, trace.Wrap(err)
 		}
 		result = append(result, servers...)
 	}
