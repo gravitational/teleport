@@ -743,6 +743,10 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 	// check if the error is a private key policy error.
 	if privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(err); err == nil {
 		// The current private key was rejected due to an unmet key policy requirement.
+		fmt.Fprintf(tc.Stderr, "Unmet private key policy %q\n", privateKeyPolicy)
+		fmt.Fprintf(tc.Stderr, "Relogging in with YubiKey generated private key.\n")
+
+		// The current private key was rejected due to an unmet key policy requirement.
 		// Set the private key policy to the expected value and re-login.
 		tc.PrivateKeyPolicy = privateKeyPolicy
 	}
@@ -1060,13 +1064,14 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 		}
 	}
 
-	// Read in the target profile first. If readProfile returns trace.NotFound,
-	// that means the profile may have been corrupted (for example keys were
-	// deleted but profile exists), treat this as the user not being logged in.
+	// Read in the target profile first. If readProfile returns trace.NotFound
+	// or trace.CompareFailed, that means the profile may have been corrupted
+	// (for example keys were deleted or modified, but profile exists), treat
+	// this as the user not being logged in.
 	profileStatus, err = ReadProfileStatus(profileDir, profileName)
 	if err != nil {
 		log.Debug(err)
-		if !trace.IsNotFound(err) {
+		if !trace.IsNotFound(err) && !trace.IsCompareFailed(err) {
 			return nil, nil, trace.Wrap(err)
 		}
 		// Make sure the profile is nil, which tsh uses to detect that no
@@ -3389,11 +3394,15 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 		// check if the error is a private key policy error, and relogin if it is.
 		if privateKeyPolicy, parseErr := keys.ParsePrivateKeyPolicyError(err); parseErr == nil {
 			// The current private key was rejected due to an unmet key policy requirement.
+			fmt.Fprintf(tc.Stderr, "Unmet private key policy %q.\n", privateKeyPolicy)
+
 			// Set the private key policy to the expected value and re-login.
 			priv, err = tc.GetNewLoginKey(ctx, privateKeyPolicy)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+
+			fmt.Fprintf(tc.Stderr, "Re-initiaiting login with YubiKey generated private key.\n")
 			response, err = sshLoginFunc(ctx, priv)
 		}
 	}
@@ -3449,12 +3458,28 @@ func (tc *TeleportClient) GetNewLoginKey(ctx context.Context, keyPolicy keys.Pri
 
 	switch keyPolicy {
 	case keys.PrivateKeyPolicyHardwareKey, keys.PrivateKeyPolicyHardwareKeyTouch:
-		priv, err := keys.GetOrGenerateYubiKeyPrivateKey(ctx, keyPolicy == keys.PrivateKeyPolicyHardwareKeyTouch)
+		log.Debugf("Attempting to login with YubiKey generated private key.")
+
+		// Search for a connected YubiKey before attempting to generate a private key. This way,
+		// we can prompt the user to connect a YubiKey and wait for their action instead of requiring
+		// them to restart the request.
+		serialNumber, err := keys.FindYubiKey(ctx)
+		if trace.IsNotFound(err) {
+			fmt.Fprint(tc.Stderr, "A YubiKey generated private key is required to login, but there is no YubiKey connected. Please insert a YubiKey to re-initiate login...\n")
+			serialNumber, err = keys.FindYubiKeyWithRetry(ctx)
+		}
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		priv, err := keys.GetOrGenerateYubiKeyPrivateKey(ctx, serialNumber, keyPolicy == keys.PrivateKeyPolicyHardwareKeyTouch)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return priv, nil
 	default:
+		log.Debugf("Attempting to login with a new RSA private key.")
+
 		// Generate a new standard key.
 		priv, err := native.GeneratePrivateKey()
 		if err != nil {
