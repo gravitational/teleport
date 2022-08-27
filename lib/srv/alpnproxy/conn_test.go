@@ -128,7 +128,7 @@ func TestPingConnection(t *testing.T) {
 		// Size of each read call.
 		readSize := 2
 		// Number of reads necessary to read the full message
-		readNum := int(math.Ceil(float64(len(dataWritten))/float64(readSize)))
+		readNum := int(math.Ceil(float64(len(dataWritten)) / float64(readSize)))
 
 		r, w := makePingConn(t)
 		defer r.Close()
