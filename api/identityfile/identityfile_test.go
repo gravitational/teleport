@@ -22,8 +22,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/identityfile"
 )
 
 // TestIdentityFileBasics verifies basic profile operations such as
@@ -34,7 +36,7 @@ func TestIdentityFileBasics(t *testing.T) {
 	writeIDFile := &identityfile.IdentityFile{
 		PrivateKey: []byte("-----BEGIN RSA PRIVATE KEY-----\nkey\n-----END RSA PRIVATE KEY-----\n"),
 		Certs: identityfile.Certs{
-			SSH: []byte("ssh ssh-cert"),
+			SSH: []byte(ssh.CertAlgoRSAv01),
 			TLS: []byte("-----BEGIN CERTIFICATE-----\ntls-cert\n-----END CERTIFICATE-----\n"),
 		},
 		CACerts: identityfile.CACerts{

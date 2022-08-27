@@ -27,6 +27,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -261,7 +262,7 @@ func decodeIdentityFile(idFile io.Reader) (*IdentityFile, error) {
 	// are copied out of the scanner's buffer.  All others are ignored.
 	for scanln() {
 		switch {
-		case hasPrefix("ssh"):
+		case isSSHCert(line):
 			ident.Certs.SSH = cloneln()
 		case hasPrefix("@cert-authority"):
 			ident.CACerts.SSH = append(ident.CACerts.SSH, cloneln())
@@ -300,4 +301,26 @@ func decodeIdentityFile(idFile io.Reader) (*IdentityFile, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &ident, nil
+}
+
+// currently we only use "CertAlgoRSAv01" and "CertAlgoECDSA256v01",
+// but the full list has been created for completeness.
+var sshCertTypes = []string{
+	ssh.CertAlgoRSAv01,
+	ssh.CertAlgoDSAv01,
+	ssh.CertAlgoECDSA256v01,
+	ssh.CertAlgoECDSA384v01,
+	ssh.CertAlgoECDSA521v01,
+	ssh.CertAlgoSKECDSA256v01,
+	ssh.CertAlgoED25519v01,
+	ssh.CertAlgoSKED25519v01,
+	ssh.CertAlgoRSASHA256v01,
+	ssh.CertAlgoRSASHA512v01,
+}
+
+// Check if the given data has an ssh cert type prefix.
+func isSSHCert(data []byte) bool {
+	sshCertType := strings.Split(string(data), " ")[0]
+	fmt.Println(sshCertType)
+	return utils.SliceContainsStr(sshCertTypes, sshCertType)
 }
