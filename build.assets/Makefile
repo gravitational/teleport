@@ -50,6 +50,7 @@ RUNTIME_ARCH := $(RUNTIME_ARCH_$(HOST_ARCH))
 # Newer version of protoc have removed JS support that breaks our Teleterm build.
 # Related issue: https://github.com/protocolbuffers/protobuf-javascript/issues/105
 PROTOC_VER ?= 3.20.1
+# Keep in sync with api/proto/buf.yaml (and buf.lock).
 GOGO_PROTO_TAG ?= v1.3.2
 
 BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:$(BUILDBOX_VERSION)
@@ -264,14 +265,14 @@ teleterm: buildbox-teleterm
 grpc: buildbox
 	docker run \
 		$(DOCKERFLAGS) -e CLANG_FORMAT=/usr/bin/clang-format-10 -t $(BUILDBOX) \
-		make -C /go/src/github.com/gravitational/teleport buildbox-grpc
+		make -C /go/src/github.com/gravitational/teleport grpc/host
 
 # grpc-teleterm generates GRPC stubs for Teleterm from inside buildbox-teleterm
 .PHONY: grpc-teleterm
 grpc-teleterm: buildbox-teleterm
 	docker run \
 		$(DOCKERFLAGS) -e CLANG_FORMAT=/usr/bin/clang-format-10 -t $(BUILDBOX_TELETERM) \
-		make -C /go/src/github.com/gravitational/teleport buildbox-grpc-teleterm
+		make -C /go/src/github.com/gravitational/teleport grpc-teleterm/host
 
 #
 # Removes the docker image
