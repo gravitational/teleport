@@ -385,9 +385,11 @@ func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, erro
 		claims: claims,
 	}
 
-	log.Debugf("OIDC claims: %v.", re.claims)
-	if err := checkEmailVerifiedClaim(claims); err != nil {
-		return nil, trace.Wrap(err)
+	log.Debugf("OIDC claims: %v.", claims)
+	if !connector.GetAllowUnverifiedEmail() {
+		if err := checkEmailVerifiedClaim(claims); err != nil {
+			return nil, trace.Wrap(err, "OIDC provider did not verify email.")
+		}
 	}
 
 	// if we are sending acr values, make sure we also validate them
