@@ -25,9 +25,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strings"
 
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -303,24 +303,14 @@ func decodeIdentityFile(idFile io.Reader) (*IdentityFile, error) {
 	return &ident, nil
 }
 
-// currently we only use "CertAlgoRSAv01" and "CertAlgoECDSA256v01",
-// but the full list has been created for completeness.
-var sshCertTypes = []string{
-	ssh.CertAlgoRSAv01,
-	ssh.CertAlgoDSAv01,
-	ssh.CertAlgoECDSA256v01,
-	ssh.CertAlgoECDSA384v01,
-	ssh.CertAlgoECDSA521v01,
-	ssh.CertAlgoSKECDSA256v01,
-	ssh.CertAlgoED25519v01,
-	ssh.CertAlgoSKED25519v01,
-	ssh.CertAlgoRSASHA256v01,
-	ssh.CertAlgoRSASHA512v01,
-}
+// OpenSSH cert types look like "<key-type>-cert-v<version>@openssh.com".
+// Currently, we only use "ssh-rsa-cert-v01@openssh.com" & "ecdsa-sha2-nistp256-cert-v01@openssh.com".
+var sshCertTypeRegex = regexp.MustCompile(`^[a-z0-9\-]+-cert-v[0-9]{2}@openssh.com$`)
 
-// Check if the given data has an ssh cert type prefix.
+// Check if the given data has an ssh cert type prefix as it's first part.
 func isSSHCert(data []byte) bool {
-	sshCertType := strings.Split(string(data), " ")[0]
-	fmt.Println(sshCertType)
-	return utils.SliceContainsStr(sshCertTypes, sshCertType)
+	// ssh certs should look like "<ssh-cert-type> <cert-data>",
+	// so we check if the first element matches a known ssh cert type.
+	sshCertType := bytes.Split(data, []byte(" "))[0]
+	return sshCertTypeRegex.Match(sshCertType)
 }
