@@ -133,7 +133,7 @@ func TestDatabaseFromAzureDBServer(t *testing.T) {
 
 	expected, err := types.NewDatabaseV3(types.Metadata{
 		Name:        "testdb",
-		Description: "Azure mysql server in eastus",
+		Description: "Azure MySQL server in eastus",
 		Labels: map[string]string{
 			types.OriginLabel:   types.OriginCloud,
 			labelRegion:         "eastus",
