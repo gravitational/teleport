@@ -779,6 +779,15 @@ fix-license: $(ADDLICENSE)
 $(ADDLICENSE):
 	cd && go install github.com/google/addlicense@v1.0.0
 
+# lint-diff runs targets that potentially modify the workspace and fails if
+# changes are present.
+.PHONY: lint-diff
+lint-diff: lint-diff/gomod
+
+.PHONY: lint-diff/gomod
+lint-diff/gomod:
+	@build.assets/diff_gomod.sh
+
 # This rule triggers re-generation of version files if Makefile changes.
 .PHONY: version
 version: $(VERSRC)

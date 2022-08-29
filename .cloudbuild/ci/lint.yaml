@@ -1,6 +1,6 @@
 steps:
   - name: public.ecr.aws/gravitational/teleport-buildbox:teleport11
     id: lint
-    args: ['make', 'lint']
+    args: ['make', 'lint-diff', 'lint']
 options:
   machineType: 'E2_HIGHCPU_32'
