@@ -55,9 +55,9 @@ import (
 )
 
 var validCASigAlgos = []string{
-	ssh.SigAlgoRSA,
-	ssh.SigAlgoRSASHA2256,
-	ssh.SigAlgoRSASHA2512,
+	ssh.KeyAlgoRSA,
+	ssh.KeyAlgoRSASHA2256,
+	ssh.KeyAlgoRSASHA2512,
 }
 
 // FileConfig structre represents the teleport configuration stored in a config file
