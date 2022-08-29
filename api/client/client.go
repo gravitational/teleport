@@ -2808,3 +2808,20 @@ func (c *Client) UpdateConnectionDiagnostic(ctx context.Context, connectionDiagn
 	_, err := c.grpc.UpdateConnectionDiagnostic(ctx, connectionDiagnosticV1, c.callOpts...)
 	return trail.FromGRPC(err)
 }
+
+// GetClusterAlerts loads matching cluster alerts.
+func (c *Client) GetClusterAlerts(ctx context.Context, query types.GetClusterAlertsRequest) ([]types.ClusterAlert, error) {
+	rsp, err := c.grpc.GetClusterAlerts(ctx, &query, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return rsp.Alerts, nil
+}
+
+// UpsertClusterAlert creates a cluster alert.
+func (c *Client) UpsertClusterAlert(ctx context.Context, alert types.ClusterAlert) error {
+	_, err := c.grpc.UpsertClusterAlert(ctx, &proto.UpsertClusterAlertRequest{
+		Alert: alert,
+	}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
