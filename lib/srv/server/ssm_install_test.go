@@ -93,8 +93,7 @@ func TestSSMInstaller(t *testing.T) {
 				AccountID: "account-id",
 			},
 			conf: SSMInstallerConfig{
-				Emitter:        &mockEmitter{},
-				InstanceStates: &InstanceFilterCache{discoveredNodes: make(map[InstanceFilterKey]InstanceInstallationState)},
+				Emitter: &mockEmitter{},
 			},
 			expectedEvents: []events.AuditEvent{
 				&events.SSMRun{
@@ -134,8 +133,7 @@ func TestSSMInstaller(t *testing.T) {
 				AccountID: "account-id",
 			},
 			conf: SSMInstallerConfig{
-				Emitter:        &mockEmitter{},
-				InstanceStates: &InstanceFilterCache{discoveredNodes: make(map[InstanceFilterKey]InstanceInstallationState)},
+				Emitter: &mockEmitter{},
 			},
 			expectedEvents: []events.AuditEvent{
 				&events.SSMRun{

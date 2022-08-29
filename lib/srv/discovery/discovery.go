@@ -31,47 +31,48 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+type Config struct {
+	Clients     cloud.Clients
+	Matchers    []services.AWSMatcher
+	NodeWatcher *services.NodeWatcher
+	Emitter     events.StreamEmitter
+}
+
 // Server is a discovery server, It
 type Server struct {
+	*Config
 	events.StreamEmitter
+
 	ctx context.Context
+
 	// log is used for logging.
 	log *logrus.Entry
-
-	// nodeWatcher is the server's node watcher
-	nodeWatcher *services.NodeWatcher
 
 	// cloudWatcher periodically retrieves cloud resources, currently
 	// only EC2
 	cloudWatcher *server.Watcher
-	// clients is used to retrieve clients used for AWS EC2 discovery
-	clients cloud.Clients
 	// ec2Installer is used to start the installation process on discovered EC2 nodes
 	ec2Installer *server.SSMInstaller
 }
 
 func New(
 	ctx context.Context,
-	clients cloud.Clients,
-	matchers []services.AWSMatcher,
-	nodeWatcher *services.NodeWatcher,
-	emitter events.StreamEmitter) (*Server, error) {
+	cfg *Config) (*Server, error) {
 	s := &Server{
-		StreamEmitter: emitter,
+		Config:        cfg,
+		StreamEmitter: cfg.Emitter,
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component:       teleport.ComponentDiscovery,
 			trace.ComponentFields: logrus.Fields{},
 		}),
-		nodeWatcher: nodeWatcher,
-		clients:     clients,
-		ctx:         ctx,
+		ctx: ctx,
 	}
 	var err error
-	if len(matchers) == 0 {
+	if len(s.Matchers) == 0 {
 		return nil, trace.NotFound("no matchers present")
 	}
 
-	s.cloudWatcher, err = server.NewCloudWatcher(s.ctx, matchers, s.clients)
+	s.cloudWatcher, err = server.NewCloudWatcher(s.ctx, s.Matchers, s.Clients)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -83,7 +84,7 @@ func New(
 }
 
 func (s *Server) filterExistingNodes(instances *server.EC2Instances) {
-	nodes := s.nodeWatcher.GetNodes(func(n services.Node) bool {
+	nodes := s.NodeWatcher.GetNodes(func(n services.Node) bool {
 		labels := n.GetAllLabels()
 		_, accountOK := labels[types.AWSAccountIDLabel]
 		_, instanceOK := labels[types.AWSInstanceIDLabel]
@@ -108,7 +109,7 @@ outer:
 }
 
 func (s *Server) handleInstances(instances *server.EC2Instances) error {
-	client, err := s.clients.GetAWSSSMClient(instances.Region)
+	client, err := s.Clients.GetAWSSSMClient(instances.Region)
 	if err != nil {
 		return trace.Wrap(err)
 	}

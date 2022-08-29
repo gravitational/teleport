@@ -85,6 +85,10 @@ type FileConfig struct {
 
 	// Tracing is the "tracing_service" section in Teleport configuration file
 	Tracing TracingService `yaml:"tracing_service,omitempty"`
+
+	// Discoveryis the "discovery_service" section in the Teleport
+	// configuration file
+	Discovery Discovery `yaml:"discovery_service,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -438,9 +442,9 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 		}
 	}
 
-	matchers := make([]AWSEC2Matcher, 0, len(conf.SSH.AWSMatchers))
+	matchers := make([]AWSEC2Matcher, 0, len(conf.Discovery.AWSMatchers))
 
-	for _, matcher := range conf.SSH.AWSMatchers {
+	for _, matcher := range conf.Discovery.AWSMatchers {
 		if matcher.InstallParams == nil {
 			matcher.InstallParams = &InstallParams{
 				JoinParams: JoinParams{
@@ -470,7 +474,7 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 		matchers = append(matchers, matcher)
 	}
 
-	conf.SSH.AWSMatchers = matchers
+	conf.Discovery.AWSMatchers = matchers
 
 	return nil
 }
@@ -1042,9 +1046,6 @@ type SSH struct {
 	// DisableCreateHostUser disables automatic user provisioning on this
 	// SSH node.
 	DisableCreateHostUser bool `yaml:"disable_create_host_user,omitempty"`
-
-	// AWSMatchers are used to match EC2 instances
-	AWSMatchers []AWSEC2Matcher `yaml:"aws,omitempty"`
 }
 
 // AllowTCPForwarding checks whether the config file allows TCP forwarding or not.
@@ -1105,6 +1106,13 @@ func (ssh *SSH) X11ServerConfig() (*x11.ServerConfig, error) {
 	}
 
 	return cfg, nil
+}
+
+type Discovery struct {
+	Service `yaml:",inline"`
+
+	// AWSMatchers are used to match EC2 instances
+	AWSMatchers []AWSEC2Matcher `yaml:"aws,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file

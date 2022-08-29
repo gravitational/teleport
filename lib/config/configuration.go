@@ -443,6 +443,10 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
+	if fc.Discovery.Enabled() {
+		applyDiscoveryConfig(fc, cfg)
+	}
+
 	return nil
 }
 
@@ -1056,8 +1060,12 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 
 	cfg.SSH.AllowFileCopying = fc.SSH.SSHFileCopy()
 
-	for _, matcher := range fc.SSH.AWSMatchers {
-		cfg.SSH.AWSMatchers = append(cfg.SSH.AWSMatchers,
+	return nil
+}
+
+func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) {
+	for _, matcher := range fc.Discovery.AWSMatchers {
+		cfg.Discovery.AWSMatchers = append(cfg.Discovery.AWSMatchers,
 			services.AWSMatcher{
 				Types:   matcher.Matcher.Types,
 				Regions: matcher.Matcher.Regions,
@@ -1070,8 +1078,6 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 				SSM: &services.AWSSSM{DocumentName: matcher.SSM.DocumentName},
 			})
 	}
-
-	return nil
 }
 
 // applyKubeConfig applies file configuration for the "kubernetes_service" section.

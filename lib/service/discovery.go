@@ -28,7 +28,7 @@ import (
 
 func (process *TeleportProcess) shouldInitDiscovery() bool {
 	// todo(amk): add a Config.Discovery ?
-	return process.Config.SSH.Enabled && len(process.Config.SSH.AWSMatchers) != 0
+	return process.Config.SSH.Enabled && len(process.Config.Discovery.AWSMatchers) != 0
 }
 
 func (process *TeleportProcess) initDiscovery() {
@@ -84,12 +84,12 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		Streamer: streamer,
 	}
 
-	discoveryService, err := discovery.New(process.ExitContext(),
-		cloud.NewClients(),
-		process.Config.SSH.AWSMatchers,
-		nodeWatcher,
-		streamEmitter,
-	)
+	discoveryService, err := discovery.New(process.ExitContext(), &discovery.Config{
+		Clients:     cloud.NewClients(),
+		Matchers:    process.Config.Discovery.AWSMatchers,
+		NodeWatcher: nodeWatcher,
+		Emitter:     streamEmitter,
+	})
 
 	if err != nil {
 		return trace.Wrap(err)

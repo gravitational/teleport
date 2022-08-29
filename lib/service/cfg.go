@@ -129,6 +129,9 @@ type Config struct {
 	// WindowsDesktop defines the Windows desktop service configuration.
 	WindowsDesktop WindowsDesktopConfig
 
+	// Discovery defines the discovery service configuration.
+	Discovery DiscoveryConfig
+
 	// Tracing defines the tracing service configuration.
 	Tracing TracingConfig
 
@@ -656,9 +659,6 @@ type SSHConfig struct {
 	// DisableCreateHostUser disables automatic user provisioning on this
 	// SSH node.
 	DisableCreateHostUser bool
-
-	// AWSMatchers are used to match EC2 instances for auto enrollment.
-	AWSMatchers []services.AWSMatcher
 }
 
 // KubeConfig specifies configuration for kubernetes service
@@ -1242,6 +1242,12 @@ type Header struct {
 	Name string
 	// Value is the http header value.
 	Value string
+}
+
+type DiscoveryConfig struct {
+	Enabled bool
+	// AWSMatchers are used to match EC2 instances for auto enrollment.
+	AWSMatchers []services.AWSMatcher
 }
 
 // ParseHeader parses the provided string as a http header.
