@@ -77,65 +77,27 @@ On-prem customers could work around this "locked out" state by manually instrume
 
 The solution here could be to introduce a new rule:
 
-- There should be at least 1 local _admin_
+- There should be at least _admin_
 
 This will ensure that:
 
 - Users won't be able to delete _admin_ user if there is only one _admin_. They would have to add a second one and then they can delete it.
 - Users won't be able to unassign the user/role editing capabilities from _admin_ user if there are only is only one _admin_. They would have to add a second ond and then they can unassign.
-- locking will be impossible on SSO side since there will be _admin_
+- Locking will be impossible on SSO side since there will be always _admin_ on our side.
+
+Now we need to define what _admin_ mean in our system. W can take 2 approaches:
+
+1. User with immutable `editor` role is _admin_.
+2. User with role that grants user/role editing capabilities is _admin_.
+
+From the user perspective, the first approach is simpler. The error message saying: "You can't delete last user user with `editor` role." will be easier to understand than "You can't delete last user with: list of full user & role managment capabilities".
+
+Also implementation would be slighty easier. We wouldn't need to define validation for editing roles (since `editor` role would be immutable).
+
+The drowback here is that we force users to have `editor` role.
 
 ### UI and behavior changes
 
-To introduce this change we need to communicate it to prevent confusion.
+We need to change the UI to reflect the new policy. We need to add validation to all actions that can cause lock (in `WebUI` and `tctl`). The error messages should clearly inform user why this action is not allowed.
 
-The first thing user should see is some indicator that there are recommended actions to perform. It could be:
-
-#### WebUI
-
-##### Warning second user is missing
-
-- ⚠️ icon in navigation:
-
-```text
-👥  Team ⚠️       ⬎
-    👥 Users ⚠️
-    🔑 Roles
-    ...
-```
-
-- warning on `/users` page:
-
-```text
-Users                                   [Create new user]
-┌---------------------------------------------------------┐
-│   <Info why it is necessary to add a second user with   │
-│   `editor` role>                                        │
-└---------------------------------------------------------┘
-... (Table of users)
-```
-
-> This will be visible only for the first _admin_.
-
-##### Roles
-
-When changing roles we should check if user change is not breaking the rule.
-
-- disable `editor` chip when editing user roles
-- disable delete _admin_ user action
-
-In those cases, we should inform users why this action is not possible.
-
-#### tsh
-
-no changes required
-
-#### tctl
-
-##### Warning second user is missing
-
-when using `tctl users ...` we should warn the user that adding a second _admin_ is highly recommended. This could also print example command: `tctl users add --roles=editor <name-of-editor>`. The message should be visible for the first _admin_ in the cluster and disappear after the second _admin_ is added.
-
-##### Roles
-
-when there is an attempt to break the rule program should display an error with an explanation of why this is not allowed (deleting one of two existing _admins_, removing the role `admin` from one of two existing _admins_)
+No changes required in `tsh` code.
