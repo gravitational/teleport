@@ -27,8 +27,7 @@ import (
 )
 
 func (process *TeleportProcess) shouldInitDiscovery() bool {
-	// todo(amk): add a Config.Discovery ?
-	return process.Config.SSH.Enabled && len(process.Config.Discovery.AWSMatchers) != 0
+	return process.Config.Discovery.Enabled && len(process.Config.Discovery.AWSMatchers) != 0
 }
 
 func (process *TeleportProcess) initDiscovery() {
@@ -45,12 +44,11 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		return trace.Wrap(err)
 	}
 
-	// todo(amk): prefer node watcher or accessPoint for caching?
-	// accessPoint, err := process.newLocalCacheForDiscovery(conn.Client,
-	// 	[]string{teleport.ComponentDiscovery})
-	// if err != nil {
-	// 	return trace.Wrap(err)
-	// }
+	accessPoint, err := process.newLocalCacheForDiscovery(conn.Client,
+		[]string{teleport.ComponentDiscovery})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	nodeWatcher, err := services.NewNodeWatcher(process.ExitContext(), services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -89,6 +87,7 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		Matchers:    process.Config.Discovery.AWSMatchers,
 		NodeWatcher: nodeWatcher,
 		Emitter:     streamEmitter,
+		AccessPoint: accessPoint,
 	})
 
 	if err != nil {

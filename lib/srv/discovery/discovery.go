@@ -23,6 +23,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -36,6 +37,7 @@ type Config struct {
 	Matchers    []services.AWSMatcher
 	NodeWatcher *services.NodeWatcher
 	Emitter     events.StreamEmitter
+	AccessPoint auth.DiscoveryAccessPoint
 }
 
 // Server is a discovery server, It

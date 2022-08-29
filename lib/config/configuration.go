@@ -1064,6 +1064,7 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 }
 
 func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) {
+	cfg.Discovery.Enabled = fc.Discovery.Enabled()
 	for _, matcher := range fc.Discovery.AWSMatchers {
 		cfg.Discovery.AWSMatchers = append(cfg.Discovery.AWSMatchers,
 			services.AWSMatcher{
@@ -2144,7 +2145,8 @@ func validateRoles(roles string) error {
 			defaults.RoleProxy,
 			defaults.RoleApp,
 			defaults.RoleDatabase,
-			defaults.RoleWindowsDesktop:
+			defaults.RoleWindowsDesktop,
+			defaults.RoleDiscovery:
 		default:
 			return trace.Errorf("unknown role: '%s'", role)
 		}
