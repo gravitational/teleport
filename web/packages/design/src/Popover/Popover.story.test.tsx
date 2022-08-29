@@ -15,26 +15,27 @@
  */
 
 import React from 'react';
+import { screen } from '@testing-library/react';
 
 import { render, fireEvent } from 'design/utils/testing';
 
 import { Sample, Tooltip } from './Popover.story';
 
 test('onClick popovers renders', () => {
-  const { getByTestId, getByText, queryByTestId } = render(<Sample />);
+  render(<Sample />);
 
-  fireEvent.click(getByText('Left'));
-  expect(getByTestId('content')).toBeInTheDocument();
-  fireEvent.click(getByTestId('backdrop'));
-  expect(queryByTestId('content')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByText('Left'));
+  expect(screen.getByTestId('content')).toBeInTheDocument();
+  fireEvent.click(screen.getByTestId('backdrop'));
+  expect(screen.queryByTestId('content')).not.toBeInTheDocument();
 });
 
 test('onMouse tooltip render', () => {
-  const { getByTestId, queryByTestId } = render(<Tooltip />);
+  render(<Tooltip />);
 
-  fireEvent.mouseOver(getByTestId('text'));
-  expect(getByTestId('content')).toBeInTheDocument();
+  fireEvent.mouseOver(screen.getByTestId('text'));
+  expect(screen.getByTestId('content')).toBeInTheDocument();
 
-  fireEvent.mouseOut(getByTestId('text'));
-  expect(queryByTestId('content')).not.toBeInTheDocument();
+  fireEvent.mouseOut(screen.getByTestId('text'));
+  expect(screen.queryByTestId('content')).not.toBeInTheDocument();
 });

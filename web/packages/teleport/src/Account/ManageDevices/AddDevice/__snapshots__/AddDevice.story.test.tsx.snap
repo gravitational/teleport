@@ -395,6 +395,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
             <label
               class="c12"
               font-size="0"
+              for="select"
             >
               Two-factor type
             </label>
@@ -418,7 +419,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
                     <input
                       aria-autocomplete="list"
                       class="css-62g3xt-dummyInput"
-                      id="react-select-2-input"
+                      id="select"
                       readonly=""
                       tabindex="0"
                       value=""
@@ -459,6 +460,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
             <label
               class="c12"
               font-size="0"
+              for="select"
             >
               Allow Passwordless Login?
             </label>
@@ -482,7 +484,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
                     <input
                       aria-autocomplete="list"
                       class="css-62g3xt-dummyInput"
-                      id="react-select-3-input"
+                      id="select"
                       readonly=""
                       tabindex="0"
                       value=""
@@ -987,6 +989,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
             <label
               class="c13"
               font-size="0"
+              for="select"
             >
               Two-factor type
             </label>
@@ -1010,7 +1013,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
                     <input
                       aria-autocomplete="list"
                       class="css-62g3xt-dummyInput"
-                      id="react-select-4-input"
+                      id="select"
                       readonly=""
                       tabindex="0"
                       value=""
@@ -1051,6 +1054,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
             <label
               class="c13"
               font-size="0"
+              for="select"
             >
               Allow Passwordless Login?
             </label>
@@ -1074,7 +1078,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
                     <input
                       aria-autocomplete="list"
                       class="css-62g3xt-dummyInput"
-                      id="react-select-5-input"
+                      id="select"
                       readonly=""
                       tabindex="0"
                       value=""
@@ -1615,6 +1619,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
             <label
               class="c15"
               font-size="0"
+              for="select"
             >
               Two-factor type
             </label>
@@ -1638,7 +1643,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
                     <input
                       aria-autocomplete="list"
                       class="css-62g3xt-dummyInput"
-                      id="react-select-6-input"
+                      id="select"
                       readonly=""
                       tabindex="0"
                       value=""

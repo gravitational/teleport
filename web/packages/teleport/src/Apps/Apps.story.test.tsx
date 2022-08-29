@@ -1,5 +1,5 @@
 import React from 'react';
-import { render } from 'design/utils/testing';
+import { render, screen } from 'design/utils/testing';
 
 import { Loaded, Failed, Empty, EmptyReadOnly } from './Apps.story';
 
@@ -8,15 +8,15 @@ jest.mock('teleport/useStickyClusterId', () =>
 );
 
 test('loaded state', async () => {
-  const { container, findAllByText } = render(<Loaded />);
-  await findAllByText(/Applications/i);
+  const { container } = render(<Loaded />);
+  await screen.findAllByText(/Applications/i);
 
   expect(container).toMatchSnapshot();
 });
 
 test('failed state', async () => {
-  const { container, findAllByText } = render(<Failed />);
-  await findAllByText(/some error message/i);
+  const { container } = render(<Failed />);
+  await screen.findAllByText(/some error message/i);
 
   expect(container).toMatchSnapshot();
 });

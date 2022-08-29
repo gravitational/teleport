@@ -1,11 +1,11 @@
 import React from 'react';
-import { render, fireEvent, waitFor } from 'design/utils/testing';
+import { render, fireEvent, screen, waitFor } from 'design/utils/testing';
 
 import { MenuLogin } from './MenuLogin';
 
 test('does not accept an empty value when required is set to true', async () => {
   const onSelect = jest.fn();
-  const { findByText, findByPlaceholderText } = render(
+  render(
     <MenuLogin
       placeholder="MenuLogin input"
       required={true}
@@ -14,20 +14,18 @@ test('does not accept an empty value when required is set to true', async () => 
     />
   );
 
-  fireEvent.click(await findByText('CONNECT'));
-  await waitFor(async () =>
-    fireEvent.keyPress(await findByPlaceholderText('MenuLogin input'), {
-      key: 'Enter',
-      keyCode: 13,
-    })
-  );
+  fireEvent.click(await screen.findByText('CONNECT'));
+  fireEvent.keyPress(await screen.findByPlaceholderText('MenuLogin input'), {
+    key: 'Enter',
+    keyCode: 13,
+  });
 
   expect(onSelect).toHaveBeenCalledTimes(0);
 });
 
 test('accepts an empty value when required is set to false', async () => {
   const onSelect = jest.fn();
-  const { findByText, findByPlaceholderText } = render(
+  render(
     <MenuLogin
       placeholder="MenuLogin input"
       required={false}
@@ -36,13 +34,13 @@ test('accepts an empty value when required is set to false', async () => {
     />
   );
 
-  fireEvent.click(await findByText('CONNECT'));
-  await waitFor(async () =>
-    fireEvent.keyPress(await findByPlaceholderText('MenuLogin input'), {
-      key: 'Enter',
-      keyCode: 13,
-    })
-  );
+  fireEvent.click(await screen.findByText('CONNECT'));
+  fireEvent.keyPress(await screen.findByPlaceholderText('MenuLogin input'), {
+    key: 'Enter',
+    keyCode: 13,
+  });
 
-  expect(onSelect).toHaveBeenCalledTimes(1);
+  await waitFor(() => {
+    expect(onSelect).toHaveBeenCalledTimes(1);
+  });
 });

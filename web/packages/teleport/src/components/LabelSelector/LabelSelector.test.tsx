@@ -25,27 +25,23 @@ describe('teleport/LabelSelector', () => {
     render(<LabelSelector onChange={() => {}} />);
     expect(screen.queryByTestId('add-label-container')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('label-container'));
-    expect(screen.queryByTestId('add-label-container')).toBeInTheDocument();
+    expect(screen.getByTestId('add-label-container')).toBeInTheDocument();
   });
 
   it('shows a message when a label is valid', () => {
-    const { container } = render(<LabelSelector onChange={() => {}} />);
+    render(<LabelSelector onChange={() => {}} />);
     fireEvent.click(screen.getByTestId('label-container'));
-    const labelInput: HTMLInputElement = container.querySelector(
-      'input[name=addLabel]'
-    );
+    const labelInput: HTMLInputElement = screen.getByRole('textbox');
     fireEvent.change(labelInput, { target: { value: 'foo: bar' } });
-    expect(screen.queryByTestId('create-label-msg')).toBeInTheDocument();
+    expect(screen.getByTestId('create-label-msg')).toBeInTheDocument();
     expect(screen.queryByTestId('create-label-error')).not.toBeInTheDocument();
   });
 
   it('allows new labels to be added and sends them to the onchange handler', () => {
     const onChange = jest.fn();
-    const { container } = render(<LabelSelector onChange={onChange} />);
+    render(<LabelSelector onChange={onChange} />);
     fireEvent.click(screen.getByTestId('label-container'));
-    const labelInput: HTMLInputElement = container.querySelector(
-      'input[name=addLabel]'
-    );
+    const labelInput: HTMLInputElement = screen.getByRole('textbox');
     fireEvent.change(labelInput, { target: { value: 'foo: bar' } });
     fireEvent.keyPress(labelInput, { key: 'Enter', charCode: 13 });
     expect(onChange.mock.calls).toEqual([[[]], [['foo: bar']]]);
@@ -53,11 +49,9 @@ describe('teleport/LabelSelector', () => {
 
   it('prevents invalid labels to be submitted', () => {
     const onChange = jest.fn();
-    const { container } = render(<LabelSelector onChange={onChange} />);
+    render(<LabelSelector onChange={onChange} />);
     fireEvent.click(screen.getByTestId('label-container'));
-    const labelInput: HTMLInputElement = container.querySelector(
-      'input[name=addLabel]'
-    );
+    const labelInput: HTMLInputElement = screen.getByRole('textbox');
     fireEvent.change(labelInput, { target: { value: 'foo bar' } });
     fireEvent.keyPress(labelInput, { key: 'Enter', charCode: 13 });
     expect(onChange).toHaveBeenCalledTimes(1);
@@ -65,13 +59,11 @@ describe('teleport/LabelSelector', () => {
   });
 
   it('shows a message when a label is invalid', () => {
-    const { container } = render(<LabelSelector onChange={() => {}} />);
+    render(<LabelSelector onChange={() => {}} />);
     fireEvent.click(screen.getByTestId('label-container'));
-    const labelInput: HTMLInputElement = container.querySelector(
-      'input[name=addLabel]'
-    );
+    const labelInput: HTMLInputElement = screen.getByRole('textbox');
     fireEvent.change(labelInput, { target: { value: 'foo bar' } });
     expect(screen.queryByTestId('create-label-msg')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('create-label-error')).toBeInTheDocument();
+    expect(screen.getByTestId('create-label-error')).toBeInTheDocument();
   });
 });

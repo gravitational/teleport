@@ -410,6 +410,7 @@ exports[`list of all events 1`] = `
             <span
               class="c10 c13 icon icon-chevrons-expand-vertical "
               color="light"
+              title="sort items"
             />
           </a>
         </th>
@@ -424,6 +425,7 @@ exports[`list of all events 1`] = `
             <span
               class="c10 c13 icon icon-chevron-down "
               color="light"
+              title="sort items desc"
             />
           </a>
         </th>
@@ -4860,6 +4862,7 @@ exports[`loaded audit log screen 1`] = `
             <span
               class="c14 c17 icon icon-chevrons-expand-vertical "
               color="light"
+              title="sort items"
             />
           </a>
         </th>
@@ -4874,6 +4877,7 @@ exports[`loaded audit log screen 1`] = `
             <span
               class="c14 c17 icon icon-chevron-down "
               color="light"
+              title="sort items desc"
             />
           </a>
         </th>

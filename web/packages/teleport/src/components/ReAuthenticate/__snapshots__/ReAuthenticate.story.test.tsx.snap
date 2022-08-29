@@ -351,6 +351,7 @@ exports[`render failed state for re-authentication dialog 1`] = `
             <label
               class="c11"
               font-size="0"
+              for="select"
             >
               Two-factor type
             </label>
@@ -374,7 +375,7 @@ exports[`render failed state for re-authentication dialog 1`] = `
                     <input
                       aria-autocomplete="list"
                       class="css-62g3xt-dummyInput"
-                      id="react-select-3-input"
+                      id="select"
                       readonly=""
                       tabindex="0"
                       value=""
@@ -756,6 +757,7 @@ exports[`render re-authentication dialog 1`] = `
             <label
               class="c10"
               font-size="0"
+              for="select"
             >
               Two-factor type
             </label>
@@ -779,7 +781,7 @@ exports[`render re-authentication dialog 1`] = `
                     <input
                       aria-autocomplete="list"
                       class="css-62g3xt-dummyInput"
-                      id="react-select-2-input"
+                      id="select"
                       readonly=""
                       tabindex="0"
                       value=""

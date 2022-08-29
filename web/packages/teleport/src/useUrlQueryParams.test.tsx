@@ -27,22 +27,19 @@ test('apply filters and correct encoding of url', () => {
   const history = createMemoryHistory({ initialEntries: ['/test'] });
   jest.spyOn(history, 'replace');
 
-  let result;
-  act(() => {
-    result = renderHook(() => useUrlQueryParams(), {
-      wrapper: Wrapper,
-      wrapperProps: { history },
-    });
+  const utils = renderHook(() => useUrlQueryParams(), {
+    wrapper: Wrapper,
+    wrapperProps: { history },
   });
 
-  let hook: State = result.current;
+  let hook: State = utils.current;
 
   // Test initial values.
   expect(hook.filters).toHaveLength(0);
 
   // Test add a filter.
   act(() => hook.applyFilters([filter1]));
-  hook = result.current;
+  hook = utils.current;
   expect(hook.filters).toHaveLength(1);
   expect(hook.filters).toMatchObject([filter1]);
 
@@ -53,7 +50,7 @@ test('apply filters and correct encoding of url', () => {
 
   // Test applying multiple filters.
   act(() => hook.applyFilters([filter1, filter2]));
-  hook = result.current;
+  hook = utils.current;
   expect(hook.filters).toHaveLength(2);
   expect(hook.filters).toEqual(expect.arrayContaining([filter1, filter2]));
 
@@ -63,7 +60,7 @@ test('apply filters and correct encoding of url', () => {
 
   // Test empty array.
   act(() => hook.applyFilters([]));
-  hook = result.current;
+  hook = utils.current;
   expect(hook.filters).toHaveLength(0);
   expect(history.replace).toHaveBeenCalledWith(`/test`);
 });
@@ -73,15 +70,12 @@ test('toggle filter', () => {
   const history = createMemoryHistory({ initialEntries: [baseUrl] });
   jest.spyOn(history, 'replace');
 
-  let result;
-  act(() => {
-    result = renderHook(() => useUrlQueryParams(), {
-      wrapper: Wrapper,
-      wrapperProps: { history },
-    });
+  const utils = renderHook(() => useUrlQueryParams(), {
+    wrapper: Wrapper,
+    wrapperProps: { history },
   });
 
-  let hook: State = result.current;
+  let hook: State = utils.current;
 
   // Test initial values.
   expect(hook.filters).toHaveLength(2);
@@ -89,7 +83,7 @@ test('toggle filter', () => {
 
   // Test toggling existing label (delete).
   act(() => hook.toggleFilter(filter2));
-  hook = result.current;
+  hook = utils.current;
   expect(hook.filters).toHaveLength(1);
   expect(hook.filters).toEqual(expect.arrayContaining([filter1]));
 
@@ -99,7 +93,7 @@ test('toggle filter', () => {
 
   // Test toggling new label (add).
   act(() => hook.toggleFilter(filter2));
-  hook = result.current;
+  hook = utils.current;
   expect(hook.filters).toHaveLength(2);
   expect(hook.filters).toEqual(expect.arrayContaining([filter1, filter2]));
 
@@ -196,18 +190,14 @@ describe('test decoding of urls', () => {
   ];
 
   test.each(testCases)('$name', testCase => {
-    let result;
-    act(() => {
-      result = renderHook(() => useUrlQueryParams(), {
-        wrapper: Wrapper,
-        wrapperProps: {
-          history: createMemoryHistory({ initialEntries: [testCase.url] }),
-        },
-      });
+    const { current } = renderHook(() => useUrlQueryParams(), {
+      wrapper: Wrapper,
+      wrapperProps: {
+        history: createMemoryHistory({ initialEntries: [testCase.url] }),
+      },
     });
 
-    const hook: State = result.current;
-    expect(hook.filters).toMatchObject(testCase.expect);
+    expect(current.filters).toMatchObject(testCase.expect);
   });
 });
 

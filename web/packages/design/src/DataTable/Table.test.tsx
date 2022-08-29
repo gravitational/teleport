@@ -15,14 +15,13 @@
  */
 
 import React from 'react';
+import { within } from '@testing-library/react';
 
 import { render, fireEvent, screen } from 'design/utils/testing';
 
 import Table from './Table';
 import { SortIndicator } from './Cells';
 
-const colHeaderKeys = ['hostname', 'addr'] as 'hostname'[] | 'addr'[];
-const colHeaders = ['Hostname', 'Address'];
 const data = [
   {
     hostname: 'host-a',
@@ -46,108 +45,95 @@ const data = [
   },
 ];
 
-describe('design/Table Simple', () => {
-  let container = null;
+const getTableRows = () => {
+  const [header, ...rows] = screen.getAllByRole('row');
+  return { header, rows };
+};
 
-  beforeEach(() => {
-    ({ container } = render(
+describe('design/Table Simple', () => {
+  const setup = () =>
+    render(
       <Table
         data={data}
         columns={[
           {
-            key: colHeaderKeys[0],
-            headerText: colHeaders[0],
+            key: 'hostname',
+            headerText: 'Hostname',
           },
           {
-            key: colHeaderKeys[1],
-            headerText: colHeaders[1],
+            key: 'addr',
+            headerText: 'Address',
           },
         ]}
         emptyText="No Servers Found"
       />
-    ));
-  });
+    );
 
   test('there is one table element', () => {
-    expect(container.querySelectorAll('table')).toHaveLength(1);
-  });
-
-  test('there is one thead element', () => {
-    expect(container.querySelectorAll('thead')).toHaveLength(1);
-  });
-
-  test('there is one tbody element', () => {
-    expect(container.querySelectorAll('tbody')).toHaveLength(1);
-  });
-
-  test('number of th tags == number of headers', () => {
-    expect(container.querySelectorAll('th')).toHaveLength(colHeaderKeys.length);
+    setup();
+    expect(screen.getByRole('table')).toBeInTheDocument();
   });
 
   test('each th tag text == header data', () => {
-    container.querySelectorAll('th').forEach((thElement, index) => {
-      expect(thElement.textContent).toEqual(colHeaders[index]);
-    });
+    setup();
+
+    expect(screen.getByText('Hostname')).toBeInTheDocument();
+    expect(screen.getByText('Address')).toBeInTheDocument();
   });
 
   test('number of tr tags in body == data.length', () => {
-    expect(
-      container.querySelector('tbody').querySelectorAll('tr')
-    ).toHaveLength(data.length);
+    setup();
+
+    const { rows } = getTableRows();
+
+    expect(rows).toHaveLength(data.length);
   });
 
   test('each td tag text == data texts', () => {
-    container
-      .querySelector('tbody')
-      .querySelectorAll('tr')
-      .forEach((trElement, index) => {
-        expect(trElement.children[0].textContent).toEqual(
-          data[index][colHeaderKeys[0]]
-        );
-        expect(trElement.children[1].textContent).toEqual(
-          data[index][colHeaderKeys[1]]
-        );
-      });
+    setup();
+
+    const { rows } = getTableRows();
+
+    rows.forEach((row, index) => {
+      expect(within(row).getByText(data[index].addr)).toBeInTheDocument();
+      expect(within(row).getByText(data[index].hostname)).toBeInTheDocument();
+    });
   });
 });
 
 describe('design/Table SortIndicator', () => {
   test('sort indicator defaults to sort vertical (neither ASC or DESC)', () => {
-    const { container } = render(<SortIndicator />);
-    expect(
-      container
-        .querySelector('span')
-        .classList.contains('icon-chevrons-expand-vertical')
-    ).toBe(true);
+    render(<SortIndicator />);
+    expect(screen.getByTitle('sort items')).toHaveClass(
+      'icon-chevrons-expand-vertical'
+    );
   });
 
   test('sort indicator respects sortDir prop set to ASC', () => {
-    const { container } = render(<SortIndicator sortDir={'ASC'} />);
-    expect(
-      container.querySelector('span').classList.contains('icon-chevron-up')
-    ).toBe(true);
+    render(<SortIndicator sortDir={'ASC'} />);
+    expect(screen.getByTitle('sort items asc')).toHaveClass('icon-chevron-up');
   });
 
   test('sort indicator respects sortDir prop set to DESC', () => {
-    const { container } = render(<SortIndicator sortDir={'DESC'} />);
-    expect(
-      container.querySelector('span').classList.contains('icon-chevron-down')
-    ).toBe(true);
+    render(<SortIndicator sortDir={'DESC'} />);
+    expect(screen.getByTitle('sort items desc')).toHaveClass(
+      'icon-chevron-down'
+    );
   });
 
   test('clicking on col headers changes direction', () => {
-    const { container } = render(
+    render(
       <Table
         data={data}
         columns={[
           {
-            key: colHeaderKeys[0],
-            headerText: colHeaders[0],
+            key: 'hostname',
+            headerText: 'Hostname',
             isSortable: true,
           },
           {
-            key: colHeaderKeys[1],
-            headerText: colHeaders[1],
+            key: 'addr',
+            headerText: 'Address',
             isSortable: true,
           },
         ]}
@@ -155,27 +141,25 @@ describe('design/Table SortIndicator', () => {
       />
     );
 
-    const anchorTags = container.querySelectorAll('a');
-    const header1 = anchorTags[0];
-    const header2 = anchorTags[1];
-
     // Table initially sorts with "Hostname" ASC
     expect(
-      header1.querySelector('span').classList.contains('icon-chevron-up')
-    ).toBe(true);
+      within(screen.getByText('Hostname')).getByTitle('sort items asc')
+    ).toBeInTheDocument();
 
     // b/c Table is initially sorted by "Hostname"
     // "Address" header starts with sort vertical (neither ASC or DESC)
     // on sort vertical, DESC is default
-    fireEvent.click(screen.getByText(colHeaders[1]));
-    expect(
-      header2.querySelector('span').classList.contains('icon-chevron-down')
-    ).toBe(true);
+    fireEvent.click(screen.getByText('Hostname'));
 
-    fireEvent.click(screen.getByText(colHeaders[1]));
     expect(
-      header2.querySelector('span').classList.contains('icon-chevron-up')
-    ).toBe(true);
+      within(screen.getByText('Address')).getByTitle('sort items')
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Address'));
+
+    expect(
+      within(screen.getByText('Address')).getByTitle('sort items asc')
+    ).toBeInTheDocument();
   });
 });
 
@@ -187,8 +171,8 @@ test('"onSort" prop is respected', () => {
       data={data}
       columns={[
         {
-          key: colHeaderKeys[0],
-          headerText: colHeaders[0],
+          key: 'hostname',
+          headerText: 'Hostname',
           onSort: dummyFunc,
           isSortable: true,
         },
@@ -202,12 +186,10 @@ test('"onSort" prop is respected', () => {
 
 test('respects emptyText prop', () => {
   const targetText = 'No Servers Found';
-  const { getByText } = render(
-    <Table data={[]} columns={[]} emptyText={targetText} />
-  );
-  const target = getByText(targetText);
+  render(<Table data={[]} columns={[]} emptyText={targetText} />);
+  const target = screen.getByText(targetText);
 
-  expect(target.textContent).toEqual(targetText);
+  expect(target).toHaveTextContent(targetText);
 });
 
 describe('sorting by field defined in key and altSortKey', () => {
@@ -215,27 +197,22 @@ describe('sorting by field defined in key and altSortKey', () => {
     {
       hostname: 'host-a',
       created: new Date('2022-07-15T15:34:33.256697813Z'),
-      durationText: '1 hour',
+      durationText: '1',
     },
     {
       hostname: 'host-b',
       created: new Date('2022-07-05T15:34:33.256697813Z'),
-      durationText: '1 second',
+      durationText: '3',
     },
     {
       hostname: 'host-c',
       created: new Date('2022-07-10T15:34:33.256697813Z'),
-      durationText: '1 minute',
+      durationText: '2',
     },
   ];
 
-  // Sorted by string ASC.
-  const expectedSortedByKey = ['1 hour', '1 minute', '1 second'];
-  // Sorted by Date ASC.
-  const expectedSortedByAltKey = ['1 second', '1 minute', '1 hour'];
-
   test('sort by key', () => {
-    const { container } = render(
+    render(
       <Table
         data={sample}
         columns={[
@@ -249,16 +226,15 @@ describe('sorting by field defined in key and altSortKey', () => {
       />
     );
 
-    const cols = container.querySelectorAll('tbody > tr > td');
-    expect(cols).toHaveLength(sample.length);
+    const cells = screen.getAllByRole('cell');
 
-    const vals = [];
-    cols.forEach(c => vals.push(c.textContent));
-    expect(vals).toStrictEqual(expectedSortedByKey);
+    expect(cells[0]).toHaveTextContent('1');
+    expect(cells[1]).toHaveTextContent('2');
+    expect(cells[2]).toHaveTextContent('3');
   });
 
   test('sort by key with initialSort', () => {
-    const { container } = render(
+    render(
       <Table
         data={sample}
         columns={[
@@ -279,18 +255,16 @@ describe('sorting by field defined in key and altSortKey', () => {
         initialSort={{ key: 'durationText', dir: 'ASC' }}
       />
     );
+    const { rows } = getTableRows();
+    const cells = rows.map(row => within(row).getAllByRole('cell')[1]);
 
-    const cols = container.querySelectorAll('tbody > tr > td');
-    const vals = [];
-    // field durationText starts in the second column,
-    // which is every odd number per row.
-    cols.forEach((c, i) => i % 2 != 0 && vals.push(c.textContent));
-    expect(vals).toHaveLength(sample.length);
-    expect(vals).toStrictEqual(expectedSortedByKey);
+    expect(cells[0]).toHaveTextContent('1');
+    expect(cells[1]).toHaveTextContent('2');
+    expect(cells[2]).toHaveTextContent('3');
   });
 
   test('sort by altSortKey', () => {
-    const { container } = render(
+    render(
       <Table
         data={sample}
         columns={[
@@ -305,16 +279,15 @@ describe('sorting by field defined in key and altSortKey', () => {
       />
     );
 
-    const cols = container.querySelectorAll('tbody > tr > td');
-    expect(cols).toHaveLength(sample.length);
+    const cells = screen.getAllByRole('cell');
 
-    const vals = [];
-    cols.forEach(c => vals.push(c.textContent));
-    expect(vals).toStrictEqual(expectedSortedByAltKey);
+    expect(cells[0]).toHaveTextContent('3');
+    expect(cells[1]).toHaveTextContent('2');
+    expect(cells[2]).toHaveTextContent('1');
   });
 
   test('sort by altSortKey with initialSort', () => {
-    const { container } = render(
+    render(
       <Table
         data={sample}
         columns={[
@@ -337,12 +310,12 @@ describe('sorting by field defined in key and altSortKey', () => {
       />
     );
 
-    const cols = container.querySelectorAll('tbody > tr > td');
-    const vals = [];
-    // field durationText starts in the second column,
-    // which is every odd number per row.
-    cols.forEach((c, i) => i % 2 != 0 && vals.push(c.textContent));
-    expect(vals).toHaveLength(sample.length);
-    expect(vals).toStrictEqual(expectedSortedByAltKey);
+    const { rows } = getTableRows();
+
+    const cells = rows.map(row => within(row).getAllByRole('cell')[1]);
+
+    expect(cells[0]).toHaveTextContent('3');
+    expect(cells[1]).toHaveTextContent('2');
+    expect(cells[2]).toHaveTextContent('1');
   });
 });

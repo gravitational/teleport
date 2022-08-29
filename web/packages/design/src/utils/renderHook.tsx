@@ -15,7 +15,7 @@
  */
 
 import React from 'react';
-import { create, act } from 'react-test-renderer';
+import { act, render } from '@testing-library/react';
 
 export default function renderHook<T extends (...args: any) => any>(
   hooks: T,
@@ -30,7 +30,7 @@ export default function renderHook<T extends (...args: any) => any>(
 
     // passes hooksCb to component and expect this component to execute the hook
     // and assign the return values to results.current
-    create(
+    render(
       <Wrapper {...options?.wrapperProps}>
         <TestHook hooksCb={hooks} result={result} />{' '}
       </Wrapper>

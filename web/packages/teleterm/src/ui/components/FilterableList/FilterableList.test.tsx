@@ -1,4 +1,5 @@
 import React from 'react';
+import { screen, within } from '@testing-library/react';
 import { fireEvent, render } from 'design/utils/testing';
 
 import { FilterableList } from './FilterableList';
@@ -16,14 +17,14 @@ function Node({ item }: { item: TestItem }) {
 }
 
 test('render first 10 items by default', () => {
-  const { getAllByRole } = render(
+  render(
     <FilterableList<TestItem>
       items={mockedItems}
       filterBy="title"
       Node={Node}
     />
   );
-  const items = getAllByRole('listitem');
+  const items = screen.getAllByRole('listitem');
 
   expect(items).toHaveLength(10);
   items.forEach((item, index) => {
@@ -32,24 +33,24 @@ test('render first 10 items by default', () => {
 });
 
 test('render a item that matches the search', () => {
-  const { getAllByRole, getByRole } = render(
+  render(
     <FilterableList<TestItem>
       items={mockedItems}
       filterBy="title"
       Node={Node}
     />
   );
-  fireEvent.change(getByRole('searchbox'), {
+  fireEvent.change(screen.getByRole('searchbox'), {
     target: { value: mockedItems[0].title },
   });
-  const items = getAllByRole('listitem');
 
-  expect(items).toHaveLength(1);
-  expect(items[0]).toHaveTextContent(mockedItems[0].title);
+  const item = screen.getByRole('listitem');
+
+  expect(within(item).getByText(mockedItems[0].title)).toBeInTheDocument();
 });
 
 test('render empty list when search does not match any item', () => {
-  const { queryAllByRole, getByRole } = render(
+  render(
     <FilterableList<TestItem>
       items={mockedItems}
       filterBy="title"
@@ -57,17 +58,16 @@ test('render empty list when search does not match any item', () => {
     />
   );
 
-  fireEvent.change(getByRole('searchbox'), {
+  fireEvent.change(screen.getByRole('searchbox'), {
     target: { value: 'abc' },
   });
-  const items = queryAllByRole('listitem');
 
-  expect(items).toHaveLength(0);
+  expect(screen.queryByRole('listitem')).not.toBeInTheDocument();
 });
 
 test('render provided placeholder in the search box', () => {
   const placeholder = 'Search Connections';
-  const { getByPlaceholderText } = render(
+  render(
     <FilterableList<TestItem>
       items={[]}
       filterBy="title"
@@ -76,5 +76,5 @@ test('render provided placeholder in the search box', () => {
     />
   );
 
-  expect(getByPlaceholderText(placeholder)).toBeInTheDocument();
+  expect(screen.getByPlaceholderText(placeholder)).toBeInTheDocument();
 });

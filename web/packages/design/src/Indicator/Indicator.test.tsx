@@ -15,23 +15,19 @@
  */
 
 import React from 'react';
+import { screen } from '@testing-library/react';
 
 import { render } from 'design/utils/testing';
 
-import { IconExample } from './Menu.story';
+import Indicator from './Indicator';
 
-describe('design/Menu', () => {
-  it('renders parent and its children', () => {
-    const { getByRole, getByTestId, getAllByTestId } = render(<IconExample />);
+describe('design/Indicator', () => {
+  it('renders', async () => {
+    const { container } = render(
+      <Indicator data-testid="spinner" delay={'none'} />
+    );
+    expect(container).toBeEmptyDOMElement();
 
-    const parent = getByTestId('Modal');
-    const menu = getByRole('menu');
-    const item = getAllByTestId('item');
-    const icon = getAllByTestId('icon');
-
-    expect(parent).not.toBeNull();
-    expect(menu).not.toBeNull();
-    expect(item).toHaveLength(3);
-    expect(icon).toHaveLength(3);
+    await expect(screen.findByTestId('spinner')).resolves.toBeInTheDocument();
   });
 });

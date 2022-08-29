@@ -16,32 +16,30 @@
 
 import React from 'react';
 
-import { render, fireEvent, waitFor, screen } from 'design/utils/testing';
+import { render, fireEvent, screen } from 'design/utils/testing';
 
 import FormLogin, { Props } from './FormLogin';
 
 test('primary username and password with mfa off', () => {
   const onLogin = jest.fn();
 
-  const { getByText, getByPlaceholderText, queryByTestId } = render(
-    <FormLogin {...props} onLogin={onLogin} />
-  );
+  render(<FormLogin {...props} onLogin={onLogin} />);
 
   // Test only user/pwd form was rendered.
   expect(screen.queryByTestId('userpassword')).toBeVisible();
-  expect(queryByTestId('mfa-select')).toBeNull();
-  expect(screen.queryByTestId('sso-list')).toBeNull();
-  expect(screen.queryByTestId('passwordless')).toBeNull();
+  expect(screen.queryByTestId('mfa-select')).not.toBeInTheDocument();
+  expect(screen.queryByTestId('sso-list')).not.toBeInTheDocument();
+  expect(screen.queryByTestId('passwordless')).not.toBeInTheDocument();
 
   // Test correct fn was called.
-  fireEvent.change(getByPlaceholderText(/username/i), {
+  fireEvent.change(screen.getByPlaceholderText(/username/i), {
     target: { value: 'username' },
   });
-  fireEvent.change(getByPlaceholderText(/password/i), {
+  fireEvent.change(screen.getByPlaceholderText(/password/i), {
     target: { value: '123' },
   });
 
-  fireEvent.click(getByText(/sign in/i));
+  fireEvent.click(screen.getByText(/sign in/i));
 
   expect(onLogin).toHaveBeenCalledWith('username', '123', '');
 });
@@ -49,24 +47,22 @@ test('primary username and password with mfa off', () => {
 test('auth2faType: otp', () => {
   const onLogin = jest.fn();
 
-  const { getByText, getByPlaceholderText, getByTestId } = render(
-    <FormLogin {...props} auth2faType="otp" onLogin={onLogin} />
-  );
+  render(<FormLogin {...props} auth2faType="otp" onLogin={onLogin} />);
 
   // Rendering of mfa dropdown.
-  expect(getByTestId('mfa-select')).not.toBeEmptyDOMElement();
+  expect(screen.getByTestId('mfa-select')).not.toBeEmptyDOMElement();
 
   // fill form
-  fireEvent.change(getByPlaceholderText(/username/i), {
+  fireEvent.change(screen.getByPlaceholderText(/username/i), {
     target: { value: 'username' },
   });
-  fireEvent.change(getByPlaceholderText(/password/i), {
+  fireEvent.change(screen.getByPlaceholderText(/password/i), {
     target: { value: '123' },
   });
-  fireEvent.change(getByPlaceholderText(/123 456/i), {
+  fireEvent.change(screen.getByPlaceholderText(/123 456/i), {
     target: { value: '456' },
   });
-  fireEvent.click(getByText(/sign in/i));
+  fireEvent.click(screen.getByText(/sign in/i));
 
   expect(onLogin).toHaveBeenCalledWith('username', '123', '456');
 });
@@ -74,7 +70,7 @@ test('auth2faType: otp', () => {
 test('auth2faType: webauthn', async () => {
   const onLoginWithWebauthn = jest.fn();
 
-  const { getByText, getByPlaceholderText, getByTestId } = render(
+  render(
     <FormLogin
       {...props}
       auth2faType="webauthn"
@@ -83,17 +79,17 @@ test('auth2faType: webauthn', async () => {
   );
 
   // Rendering of mfa dropdown.
-  expect(getByTestId('mfa-select')).not.toBeEmptyDOMElement();
+  expect(screen.getByTestId('mfa-select')).not.toBeEmptyDOMElement();
 
   // fill form
-  fireEvent.change(getByPlaceholderText(/username/i), {
+  fireEvent.change(screen.getByPlaceholderText(/username/i), {
     target: { value: 'username' },
   });
-  fireEvent.change(getByPlaceholderText(/password/i), {
+  fireEvent.change(screen.getByPlaceholderText(/password/i), {
     target: { value: '123' },
   });
 
-  fireEvent.click(getByText(/sign in/i));
+  fireEvent.click(screen.getByText(/sign in/i));
   expect(onLoginWithWebauthn).toHaveBeenCalledWith({
     username: 'username',
     password: '123',
@@ -105,7 +101,7 @@ test('input validation error handling', async () => {
   const onLoginWithSso = jest.fn();
   const onLoginWithWebauthn = jest.fn();
 
-  const { getByText } = render(
+  render(
     <FormLogin
       {...props}
       auth2faType="otp"
@@ -115,21 +111,19 @@ test('input validation error handling', async () => {
     />
   );
 
-  await waitFor(() => {
-    fireEvent.click(getByText(/sign in/i));
-  });
+  fireEvent.click(screen.getByText(/sign in/i));
 
   expect(onLogin).not.toHaveBeenCalled();
   expect(onLoginWithSso).not.toHaveBeenCalled();
   expect(onLoginWithWebauthn).not.toHaveBeenCalled();
 
-  expect(getByText(/username is required/i)).toBeInTheDocument();
-  expect(getByText(/password is required/i)).toBeInTheDocument();
-  expect(getByText(/token is required/i)).toBeInTheDocument();
+  expect(screen.getByText(/username is required/i)).toBeInTheDocument();
+  expect(screen.getByText(/password is required/i)).toBeInTheDocument();
+  expect(screen.getByText(/token is required/i)).toBeInTheDocument();
 });
 
 test('error rendering', () => {
-  const { getByText } = render(
+  render(
     <FormLogin
       {...props}
       auth2faType="off"
@@ -142,7 +136,7 @@ test('error rendering', () => {
     />
   );
 
-  expect(getByText('errMsg')).toBeInTheDocument();
+  expect(screen.getByText('errMsg')).toBeInTheDocument();
 });
 
 test('primary sso', () => {
@@ -162,8 +156,8 @@ test('primary sso', () => {
 
   // Test only sso form was rendered.
   expect(screen.queryByTestId('sso-list')).toBeVisible();
-  expect(screen.queryByTestId('passwordless')).toBeNull();
-  expect(screen.queryByTestId('userpassword')).toBeNull();
+  expect(screen.queryByTestId('passwordless')).not.toBeInTheDocument();
+  expect(screen.queryByTestId('userpassword')).not.toBeInTheDocument();
 
   // Test clicking calls the right fn.
   fireEvent.click(screen.getByText(/github/i));
@@ -183,8 +177,8 @@ test('primary passwordless', () => {
 
   // Test only passwordless form was rendered.
   expect(screen.queryByTestId('passwordless')).toBeVisible();
-  expect(screen.queryByTestId('sso-list')).toBeNull();
-  expect(screen.queryByTestId('userpassword')).toBeNull();
+  expect(screen.queryByTestId('sso-list')).not.toBeInTheDocument();
+  expect(screen.queryByTestId('userpassword')).not.toBeInTheDocument();
 });
 
 const props: Props = {

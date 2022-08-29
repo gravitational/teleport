@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+import { screen } from '@testing-library/react';
 
 import { render } from 'design/utils/testing';
 
@@ -22,22 +23,22 @@ import Portal from './Portal';
 
 describe('design/Modal/Portal', () => {
   test('container to be attached to body element', () => {
-    const { getByTestId, container } = renderPortal();
-    const content = getByTestId('content');
+    const { container } = renderPortal({});
+    const content = screen.getByTestId('content');
     expect(container).not.toContainElement(content);
-    expect(content.parentNode.nodeName).toBe('BODY');
+    expect(document.body).toContainElement(screen.getByTestId('parent'));
   });
 
   test('container to be attached to custom element', () => {
     const customElement = document.createElement('div');
-    const { queryByTestId } = renderPortal({ container: customElement });
-    expect(queryByTestId('content')).not.toBeInTheDocument();
+    renderPortal({ container: customElement });
+    expect(screen.queryByTestId('content')).not.toBeInTheDocument();
     expect(customElement).toHaveTextContent('hello');
   });
 
   test('disable the portal behavior', () => {
-    const { getByTestId, container } = renderPortal({ disablePortal: true });
-    expect(container).toContainElement(getByTestId('content'));
+    const { container } = renderPortal({ disablePortal: true });
+    expect(container).toContainElement(screen.getByTestId('content'));
   });
 });
 

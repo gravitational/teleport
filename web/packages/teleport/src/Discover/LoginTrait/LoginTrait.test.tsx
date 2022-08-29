@@ -16,7 +16,7 @@
 
 import React from 'react';
 
-import { render, screen, act, fireEvent } from 'design/utils/testing';
+import { render, screen, fireEvent, waitFor } from 'design/utils/testing';
 
 import { MemoryRouter } from 'react-router';
 
@@ -26,48 +26,39 @@ import ContextProvider from 'teleport/TeleportContextProvider';
 import LoginTrait from './LoginTrait';
 
 import type { User } from 'teleport/services/user';
-import type { RenderResult } from '@testing-library/react';
 import type { NodeMeta } from '../useDiscover';
 
 describe('login trait comp behavior', () => {
   const ctx = new TeleportContext();
   const userSvc = ctx.userService;
 
-  let Component;
-
-  beforeEach(() => {
-    Component = (
-      <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <LoginTrait
-            // TODO we don't need all of this
-            attempt={null}
-            joinToken={null}
-            createJoinToken={null}
-            agentMeta={mockedNodeMeta}
-            updateAgentMeta={null}
-            nextStep={null}
-            prevStep={null}
-          />
-        </ContextProvider>
-      </MemoryRouter>
-    );
-  });
+  const Component = () => (
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <LoginTrait
+          // TODO we don't need all of this
+          attempt={null}
+          joinToken={null}
+          createJoinToken={null}
+          agentMeta={mockedNodeMeta}
+          updateAgentMeta={null}
+          nextStep={null}
+          prevStep={null}
+        />
+      </ContextProvider>
+    </MemoryRouter>
+  );
 
   test('add a new login with no existing logins', async () => {
     jest.spyOn(userSvc, 'fetchUser').mockResolvedValue(mockUser);
 
-    let r: RenderResult;
-    await act(async () => {
-      r = render(Component);
-    });
+    render(<Component />);
 
     // Expect no checkboxes to be rendered.
-    const checkboxes = r.container.querySelectorAll('input[type=checkbox]');
-    expect(checkboxes).toHaveLength(0);
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
 
     // Test adding a new login name.
-    fireEvent.click(screen.getByText(/add an/i));
+    fireEvent.click(await screen.findByText(/add an/i));
     const inputEl = screen.getByPlaceholderText('name');
     fireEvent.change(inputEl, { target: { value: 'banana' } });
     fireEvent.click(screen.getByText('Add'));
@@ -83,17 +74,14 @@ describe('login trait comp behavior', () => {
       },
     });
 
-    let r: RenderResult;
-    await act(async () => {
-      r = render(Component);
-    });
+    render(<Component />);
 
     // Test existing logins to be rendered.
-    let checkboxes: NodeListOf<HTMLInputElement> =
-      r.container.querySelectorAll('input:checked');
-    expect(checkboxes).toHaveLength(2);
-    expect(checkboxes[0].name).toBe('apple');
-    expect(checkboxes[1].name).toBe('banana');
+    await waitFor(() => {
+      expect(screen.getAllByRole('checkbox')).toHaveLength(2);
+    });
+    expect(screen.getByLabelText('apple')).toBeChecked();
+    expect(screen.getByLabelText('banana')).toBeChecked();
 
     // Test existing logins to be rendered with a new login name.
     fireEvent.click(screen.getByText(/add an OS/i));
@@ -101,11 +89,10 @@ describe('login trait comp behavior', () => {
     fireEvent.change(inputEl, { target: { value: 'carrot' } });
     fireEvent.click(screen.getByText('Add'));
 
-    checkboxes = r.container.querySelectorAll('input:checked');
-    expect(checkboxes).toHaveLength(3);
-    expect(checkboxes[0].name).toBe('apple');
-    expect(checkboxes[1].name).toBe('banana');
-    expect(checkboxes[2].name).toBe('carrot');
+    expect(screen.getAllByRole('checkbox')).toHaveLength(3);
+    expect(screen.getByLabelText('apple')).toBeChecked();
+    expect(screen.getByLabelText('banana')).toBeChecked();
+    expect(screen.getByLabelText('carrot')).toBeChecked();
   });
 });
 

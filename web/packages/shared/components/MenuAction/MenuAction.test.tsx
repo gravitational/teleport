@@ -15,13 +15,14 @@
  */
 
 import React from 'react';
+import { screen } from '@testing-library/react';
 
 import { render, fireEvent } from 'design/utils/testing';
 
 import { MenuIcon, MenuItem } from '.';
 
 test('basic functionality of clicking is respected', () => {
-  const { queryByTestId, getByTestId, getByText } = render(
+  render(
     <MenuIcon>
       <MenuItem>Edit</MenuItem>
       <MenuItem>Delete</MenuItem>
@@ -29,23 +30,23 @@ test('basic functionality of clicking is respected', () => {
   );
 
   // prop open is set to false as default
-  expect(queryByTestId('Modal')).not.toBeInTheDocument();
+  expect(screen.queryByTestId('Modal')).not.toBeInTheDocument();
 
   // clicking on button opens menu
-  fireEvent.click(getByTestId('button'));
-  expect(getByTestId('Modal')).toBeInTheDocument();
+  fireEvent.click(screen.getByTestId('button'));
+  expect(screen.getByTestId('Modal')).toBeInTheDocument();
 
   // clicking on menu item closes menu
-  fireEvent.click(getByText(/edit/i));
-  expect(queryByTestId('Modal')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByText(/edit/i));
+  expect(screen.queryByTestId('Modal')).not.toBeInTheDocument();
 
   // clicking on button opens menu again
-  fireEvent.click(getByTestId('button'));
-  expect(getByTestId('Modal')).toBeInTheDocument();
+  fireEvent.click(screen.getByTestId('button'));
+  expect(screen.getByTestId('Modal')).toBeInTheDocument();
 
   // clicking on backdrop closes menu
-  fireEvent.click(getByTestId('backdrop'));
-  expect(queryByTestId('Modal')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByTestId('backdrop'));
+  expect(screen.queryByTestId('Modal')).not.toBeInTheDocument();
 });
 
 const menuListCss = {
@@ -57,6 +58,6 @@ const menuListCss = {
 };
 
 test('menuActionProps is respected', () => {
-  const { getByTestId } = render(<MenuIcon buttonIconProps={menuListCss} />);
-  expect(getByTestId('button')).toHaveStyle(menuListCss.style);
+  render(<MenuIcon buttonIconProps={menuListCss} />);
+  expect(screen.getByTestId('button')).toHaveStyle(menuListCss.style);
 });

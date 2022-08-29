@@ -61,14 +61,14 @@ export function SortIndicator<T>({
   sortDir?: SortHeaderCellProps<T>['dir'];
 }) {
   if (sortDir === 'DESC') {
-    return <Icons.SortDesc />;
+    return <Icons.SortDesc title="sort items desc" />;
   }
 
   if (sortDir === 'ASC') {
-    return <Icons.SortAsc />;
+    return <Icons.SortAsc title="sort items asc" />;
   }
 
-  return <Icons.Sort />;
+  return <Icons.Sort title="sort items" />;
 }
 
 export const TextCell = ({ data }) => <Cell>{`${data || ''}`}</Cell>;

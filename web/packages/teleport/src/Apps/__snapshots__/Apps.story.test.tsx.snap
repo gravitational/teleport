@@ -919,6 +919,7 @@ exports[`failed state 1`] = `
               <span
                 class="c17 c18 icon icon-chevron-up "
                 color="light"
+                title="sort items asc"
               />
             </a>
           </th>
@@ -928,6 +929,7 @@ exports[`failed state 1`] = `
               <span
                 class="c17 c18 icon icon-chevrons-expand-vertical "
                 color="light"
+                title="sort items"
               />
             </a>
           </th>
@@ -1878,6 +1880,7 @@ exports[`loaded state 1`] = `
               <span
                 class="c17 c18 icon icon-chevron-up "
                 color="light"
+                title="sort items asc"
               />
             </a>
           </th>
@@ -1887,6 +1890,7 @@ exports[`loaded state 1`] = `
               <span
                 class="c17 c18 icon icon-chevrons-expand-vertical "
                 color="light"
+                title="sort items"
               />
             </a>
           </th>

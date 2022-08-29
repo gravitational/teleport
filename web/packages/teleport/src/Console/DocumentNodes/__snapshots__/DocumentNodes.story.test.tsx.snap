@@ -960,6 +960,7 @@ exports[`render DocumentNodes 1`] = `
                 <span
                   class="c24 c25 icon icon-chevron-up "
                   color="light"
+                  title="sort items asc"
                 />
               </a>
             </th>

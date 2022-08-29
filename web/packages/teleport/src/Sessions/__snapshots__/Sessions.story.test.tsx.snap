@@ -398,6 +398,7 @@ exports[`loaded 1`] = `
             <span
               class="c12 c16 icon icon-chevrons-expand-vertical "
               color="light"
+              title="sort items"
             />
           </a>
         </th>
@@ -407,6 +408,7 @@ exports[`loaded 1`] = `
             <span
               class="c12 c16 icon icon-chevrons-expand-vertical "
               color="light"
+              title="sort items"
             />
           </a>
         </th>
@@ -426,6 +428,7 @@ exports[`loaded 1`] = `
             <span
               class="c12 c16 icon icon-chevron-up "
               color="light"
+              title="sort items asc"
             />
           </a>
         </th>

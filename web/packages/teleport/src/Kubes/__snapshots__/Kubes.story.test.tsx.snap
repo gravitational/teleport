@@ -842,6 +842,7 @@ exports[`failed 1`] = `
             <span
               class="c17 c18 icon icon-chevron-up "
               color="light"
+              title="sort items asc"
             />
           </a>
         </th>
@@ -1560,6 +1561,7 @@ exports[`loaded 1`] = `
             <span
               class="c17 c18 icon icon-chevron-up "
               color="light"
+              title="sort items asc"
             />
           </a>
         </th>

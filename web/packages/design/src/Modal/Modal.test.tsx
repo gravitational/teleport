@@ -15,6 +15,7 @@
  */
 
 import React from 'react';
+import { screen } from '@testing-library/react';
 
 import { render, fireEvent } from 'design/utils/testing';
 
@@ -34,24 +35,24 @@ const escapeKey = {
 
 describe('design/Modal', () => {
   it('respects open prop set to false', () => {
-    const { queryByTestId } = render(
+    render(
       <Modal open={false}>
         <div>Hello</div>
       </Modal>
     );
 
-    expect(queryByTestId('Modal')).toBeNull();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('respects onBackdropClick prop', () => {
     const mockFn = jest.fn();
 
-    const { getByTestId } = renderModal({
+    renderModal({
       onBackdropClick: mockFn,
     });
 
     // handlebackdropClick
-    fireEvent.click(getByTestId('backdrop'));
+    fireEvent.click(screen.getByTestId('backdrop'));
     expect(mockFn).toHaveBeenCalled();
   });
 
@@ -70,12 +71,12 @@ describe('design/Modal', () => {
   it('respects onClose prop', () => {
     const mockFn = jest.fn();
 
-    const { container, getByTestId } = renderModal({
+    const { container } = renderModal({
       onClose: mockFn,
     });
 
     // handlebackdropClick
-    fireEvent.click(getByTestId('backdrop'));
+    fireEvent.click(screen.getByTestId('backdrop'));
     expect(mockFn).toHaveBeenCalled();
 
     // handleDocumentKeyDown
@@ -84,22 +85,22 @@ describe('design/Modal', () => {
   });
 
   it('respects hideBackDrop prop', () => {
-    const { queryByTestId } = renderModal({
+    renderModal({
       hideBackdrop: true,
     });
 
-    expect(queryByTestId('backdrop')).toBeNull();
+    expect(screen.queryByTestId('backdrop')).not.toBeInTheDocument();
   });
 
   it('respects disableBackdropClick prop', () => {
     const mockFn = jest.fn();
-    const { getByTestId } = renderModal({
+    renderModal({
       disableBackdropClick: true,
       onClose: mockFn,
     });
 
     // handleBackdropClick
-    fireEvent.click(getByTestId('backdrop'));
+    fireEvent.click(screen.getByTestId('backdrop'));
     expect(mockFn).not.toHaveBeenCalled();
   });
 
@@ -117,24 +118,24 @@ describe('design/Modal', () => {
 
   test('unmount cleans up event listeners and closes modal', () => {
     const mockFn = jest.fn();
-    const { container, queryByTestId, unmount } = renderModal({
+    const { container, unmount } = renderModal({
       onEscapeKeyDown: mockFn,
     });
 
     unmount();
 
-    expect(queryByTestId('Modal')).toBeNull();
+    expect(screen.queryByTestId('Modal')).not.toBeInTheDocument();
 
     fireEvent.keyDown(container, escapeKey);
     expect(mockFn).not.toHaveBeenCalled();
   });
 
   test('respects backdropProps prop invisible', () => {
-    const { getByTestId } = renderModal({
+    renderModal({
       BackdropProps: { invisible: true },
     });
 
-    expect(getByTestId('backdrop')).toHaveStyle({
+    expect(screen.getByTestId('backdrop')).toHaveStyle({
       'background-color': 'transparent',
     });
   });

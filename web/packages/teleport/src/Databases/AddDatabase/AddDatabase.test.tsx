@@ -42,7 +42,7 @@ describe('correct database add command generated with given input', () => {
       fireEvent.focus(dropDownInputEl);
       fireEvent.keyDown(dropDownInputEl, { key: 'Enter', keyCode: 13 });
 
-      expect(screen.queryByText(output)).not.toBeNull();
+      expect(screen.getByText(output)).toBeInTheDocument();
     }
   );
 });

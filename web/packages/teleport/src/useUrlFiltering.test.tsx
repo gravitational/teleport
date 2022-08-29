@@ -27,19 +27,14 @@ test('empty data list', () => {
   const history = createMemoryHistory({ initialEntries: ['/test'] });
   jest.spyOn(history, 'replace');
 
-  let result;
-  act(() => {
-    result = renderHook(() => useUrlFiltering([]), {
-      wrapper: Wrapper,
-      wrapperProps: { history },
-    });
+  const { current } = renderHook(() => useUrlFiltering([]), {
+    wrapper: Wrapper,
+    wrapperProps: { history },
   });
 
-  let hook: State = result.current;
-
   // Test initial values.
-  expect(hook.filters).toHaveLength(0);
-  expect(hook.result).toHaveLength(0);
+  expect(current.filters).toHaveLength(0);
+  expect(current.result).toHaveLength(0);
 });
 
 test('extracting unique labels and making sorted filters from data list', () => {
@@ -58,22 +53,17 @@ test('extracting unique labels and making sorted filters from data list', () => 
   ];
   const history = createMemoryHistory({ initialEntries: ['/test'] });
 
-  let result;
-  act(() => {
-    result = renderHook(() => useUrlFiltering(data), {
-      wrapper: Wrapper,
-      wrapperProps: { history },
-    });
+  const { current } = renderHook(() => useUrlFiltering(data), {
+    wrapper: Wrapper,
+    wrapperProps: { history },
   });
 
-  let hook: State = result.current;
-
-  expect(hook.appliedFilters).toHaveLength(0);
-  expect(hook.result).toEqual(data);
-  expect(hook.filters).toHaveLength(5);
+  expect(current.appliedFilters).toHaveLength(0);
+  expect(current.result).toEqual(data);
+  expect(current.filters).toHaveLength(5);
 
   // Test alphanum sorting.
-  expect(hook.filters.map(f => f.name)).toEqual([
+  expect(current.filters.map(f => f.name)).toEqual([
     'name1',
     'name9',
     'name10',
@@ -82,7 +72,7 @@ test('extracting unique labels and making sorted filters from data list', () => 
   ]);
 
   // Test correct filter format.
-  expect(hook.filters[0]).toMatchObject({
+  expect(current.filters[0]).toMatchObject({
     name: 'name1',
     value: 'value1',
     kind: 'label',
@@ -113,15 +103,12 @@ test('filtering data', () => {
 
   const history = createMemoryHistory({ initialEntries: ['/test'] });
 
-  let result;
-  act(() => {
-    result = renderHook(() => useUrlFiltering(data), {
-      wrapper: Wrapper,
-      wrapperProps: { history },
-    });
+  const utils = renderHook(() => useUrlFiltering(data), {
+    wrapper: Wrapper,
+    wrapperProps: { history },
   });
 
-  let hook: State = result.current;
+  let hook: State = utils.current;
 
   // Test initial values.
   expect(hook.appliedFilters).toHaveLength(0);
@@ -130,14 +117,14 @@ test('filtering data', () => {
 
   // Test data has been correctly filtered by applying a filter.
   act(() => hook.applyFilters([filter1]));
-  hook = result.current;
+  hook = utils.current;
   expect(hook.result).toHaveLength(2);
   expect(hook.result[0].labels).toContainEqual(label1);
   expect(hook.result[1].labels).toContainEqual(label1);
 
   // Test adding another filter by toggle.
   act(() => hook.toggleFilter(filter2));
-  hook = result.current;
+  hook = utils.current;
   expect(hook.result).toHaveLength(1);
   expect(hook.result[0].labels).toEqual(
     expect.arrayContaining([label1, label2])
@@ -145,7 +132,7 @@ test('filtering data', () => {
 
   // Test empty filters.
   act(() => hook.applyFilters([]));
-  hook = result.current;
+  hook = utils.current;
   expect(hook.result).toEqual(data);
 });
 

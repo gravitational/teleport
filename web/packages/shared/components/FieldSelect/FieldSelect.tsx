@@ -44,8 +44,13 @@ export default function FieldSelect({
   const labelText = hasError ? message : label;
   return (
     <Box mb="4" {...styles}>
-      {label && <LabelInput hasError={hasError}>{labelText}</LabelInput>}
+      {label && (
+        <LabelInput htmlFor={'select'} hasError={hasError}>
+          {labelText}
+        </LabelInput>
+      )}
       <Select
+        inputId="select"
         menuPosition={menuPosition}
         hasError={hasError}
         isSimpleValue={isSimpleValue}

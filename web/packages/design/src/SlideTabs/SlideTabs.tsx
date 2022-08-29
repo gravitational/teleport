@@ -32,13 +32,14 @@ function SlideTabs({
 
   return (
     <Wrapper>
-      <TabNav appearance={appearance} size={size}>
+      <TabNav role="tablist" appearance={appearance} size={size}>
         {tabs.map((tabData, tabIndex) => {
           const tabDataType = typeof tabData === 'string';
           const tabName = tabDataType ? tabData : tabData.name;
           const tabContent = tabDataType ? tabData : tabData.component;
           return (
             <TabLabel
+              role="tab"
               htmlFor={`${name}-${tabName}`}
               onClick={() => setActiveIndex(tabIndex)}
               itemCount={tabs.length}

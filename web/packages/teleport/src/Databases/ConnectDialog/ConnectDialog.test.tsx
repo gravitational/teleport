@@ -25,7 +25,7 @@ test('correct connect command generated for postgres db', () => {
   const expectedOutput =
     'tsh db connect [--db-user=<user>] [--db-name=<name>] aurora';
 
-  expect(screen.queryByText(expectedOutput)).not.toBeNull();
+  expect(screen.getByText(expectedOutput)).toBeInTheDocument();
 });
 
 test('correct connect command generated for mysql db', () => {
@@ -34,21 +34,21 @@ test('correct connect command generated for mysql db', () => {
   const expectedOutput =
     'tsh db connect [--db-user=<user>] [--db-name=<name>] aurora';
 
-  expect(screen.queryByText(expectedOutput)).not.toBeNull();
+  expect(screen.getByText(expectedOutput)).toBeInTheDocument();
 });
 
 test('correct tsh login command generated with local authType', () => {
   render(<ConnectDialog {...props} />);
   const output = 'tsh login --proxy=localhost:443 --auth=local --user=yassine';
 
-  expect(screen.queryByText(output)).not.toBeNull();
+  expect(screen.getByText(output)).toBeInTheDocument();
 });
 
 test('correct tsh login command generated with sso authType', () => {
   render(<ConnectDialog {...props} authType="sso" />);
   const output = 'tsh login --proxy=localhost:443';
 
-  expect(screen.queryByText(output)).not.toBeNull();
+  expect(screen.getByText(output)).toBeInTheDocument();
 });
 
 test('render dialog with instructions to connect to database', () => {

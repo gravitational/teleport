@@ -702,6 +702,7 @@ exports[`rendering of Session Recordings 1`] = `
               <span
                 class="c14 c17 icon icon-chevrons-expand-vertical "
                 color="light"
+                title="sort items"
               />
             </a>
           </th>
@@ -711,6 +712,7 @@ exports[`rendering of Session Recordings 1`] = `
               <span
                 class="c14 c17 icon icon-chevrons-expand-vertical "
                 color="light"
+                title="sort items"
               />
             </a>
           </th>
@@ -720,6 +722,7 @@ exports[`rendering of Session Recordings 1`] = `
               <span
                 class="c14 c17 icon icon-chevrons-expand-vertical "
                 color="light"
+                title="sort items"
               />
             </a>
           </th>
@@ -729,6 +732,7 @@ exports[`rendering of Session Recordings 1`] = `
               <span
                 class="c14 c17 icon icon-chevrons-expand-vertical "
                 color="light"
+                title="sort items"
               />
             </a>
           </th>
@@ -738,6 +742,7 @@ exports[`rendering of Session Recordings 1`] = `
               <span
                 class="c14 c17 icon icon-chevron-down "
                 color="light"
+                title="sort items desc"
               />
             </a>
           </th>

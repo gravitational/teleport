@@ -15,22 +15,24 @@
  */
 
 import React from 'react';
+import { screen } from '@testing-library/react';
 
-import { render, waitFor, getByTestId } from 'design/utils/testing';
+import { render } from 'design/utils/testing';
 
-import Indicator from './Indicator';
+import { IconExample } from './Menu.story';
 
-describe('design/Indicator', () => {
-  it('renders', async () => {
-    const { container } = render(
-      <Indicator data-testid="spinner" delay={'none'} />
-    );
-    expect(container.firstChild).toBeNull();
+describe('design/Menu', () => {
+  it('renders parent and its children', () => {
+    render(<IconExample />);
 
-    await waitFor(() => getByTestId(container, 'spinner'), {
-      container,
-    });
+    const parent = screen.getByTestId('Modal');
+    const menu = screen.getByRole('menu');
+    const item = screen.getAllByTestId('item');
+    const icon = screen.getAllByTestId('icon');
 
-    expect(container.firstChild.nodeName).toBe('SPAN');
+    expect(parent).toBeInTheDocument();
+    expect(menu).toBeInTheDocument();
+    expect(item).toHaveLength(3);
+    expect(icon).toHaveLength(3);
   });
 });

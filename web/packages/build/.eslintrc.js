@@ -47,7 +47,11 @@ module.exports = {
     {
       files: ['**/*.test.{ts,tsx,js,jsx}'],
       plugins: ['jest'],
-      extends: ['plugin:jest/all'],
+      extends: [
+        'plugin:jest/all',
+        'plugin:testing-library/react',
+        'plugin:jest-dom/recommended',
+      ],
       rules: {
         'jest/prefer-called-with': 0,
         'jest/prefer-expect-assertions': 0,

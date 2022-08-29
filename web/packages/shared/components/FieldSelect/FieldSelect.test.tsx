@@ -15,6 +15,7 @@
  */
 
 import React from 'react';
+import { screen } from '@testing-library/react';
 
 import { render, fireEvent } from 'design/utils/testing';
 
@@ -34,7 +35,7 @@ test('valid values and onChange prop', () => {
 
   jest.spyOn(useRule, 'default').mockReturnValue({ valid: true, message: '' });
 
-  const { getByText, container } = render(
+  render(
     <FieldSelect
       label="labelText"
       placeholder="placeholderText"
@@ -44,18 +45,14 @@ test('valid values and onChange prop', () => {
       value={null}
     />
   );
-
-  // test valid label is rendered
-  expect(getByText('labelText')).toBeInTheDocument();
-
   // test placeholder is rendered
-  expect(getByText('placeholderText')).toBeInTheDocument();
+  expect(screen.getByText('placeholderText')).toBeInTheDocument();
 
   // test onChange is respected
-  const selectEl = container.querySelector('input');
+  const selectEl = screen.getByLabelText('labelText');
   fireEvent.focus(selectEl);
   fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
-  fireEvent.click(getByText('B'));
+  fireEvent.click(screen.getByText('B'));
   expect(onChange).toHaveReturnedWith({ value: 'b', label: 'B' });
 });
 
@@ -67,7 +64,7 @@ test('select element validation error state', () => {
     .spyOn(useRule, 'default')
     .mockReturnValue({ valid: false, message: 'errorMsg' });
 
-  const { getByText, container } = render(
+  const { container } = render(
     <FieldSelect
       label="labelText"
       placeholder="placeholderText"
@@ -79,11 +76,12 @@ test('select element validation error state', () => {
   );
 
   // test !valid values renders with error message
-  const labelEl = getByText('errorMsg');
+  const labelEl = screen.getByText('errorMsg');
   expect(labelEl).toHaveStyle({ color: errorColor });
 
   // test !valid values renders error colors
   // "react-select__control" defined by react-select library
+  // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
   const selectEl = container.getElementsByClassName('react-select__control')[0];
   expect(selectEl).toHaveStyle({
     'border-color': errorColor,

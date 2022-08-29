@@ -1,4 +1,5 @@
 import React from 'react';
+import { screen } from '@testing-library/react';
 import { fireEvent, render } from 'design/utils/testing';
 
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
@@ -10,14 +11,14 @@ import { IAppContext } from 'teleterm/ui/types';
 import { ShareFeedback } from './ShareFeedback';
 
 function renderOpenedShareFeedback(appContext: IAppContext) {
-  const rendered = render(
+  const utils = render(
     <MockAppContextProvider appContext={appContext}>
       <ShareFeedback />
     </MockAppContextProvider>
   );
 
-  fireEvent.click(rendered.getByTitle('Share feedback'));
-  return rendered;
+  fireEvent.click(screen.getByTitle('Share feedback'));
+  return utils;
 }
 
 test('email field is not prefilled with the username if is not an email', () => {
@@ -35,12 +36,12 @@ test('email field is not prefilled with the username if is not an email', () => 
     .spyOn(appContext.workspacesService, 'getRootClusterUri')
     .mockReturnValue(clusterUri);
 
-  const { getByLabelText } = renderOpenedShareFeedback(appContext);
+  renderOpenedShareFeedback(appContext);
 
   expect(appContext.clustersService.findCluster).toHaveBeenCalledWith(
     clusterUri
   );
-  expect(getByLabelText('Email Address')).toHaveValue('');
+  expect(screen.getByLabelText('Email Address')).toHaveValue('');
 });
 
 test('email field is prefilled with the username if it looks like an email', () => {
@@ -60,20 +61,22 @@ test('email field is prefilled with the username if it looks like an email', () 
     .spyOn(appContext.workspacesService, 'getRootClusterUri')
     .mockReturnValue(clusterUri);
 
-  const { getByLabelText } = renderOpenedShareFeedback(appContext);
+  renderOpenedShareFeedback(appContext);
 
   expect(appContext.clustersService.findCluster).toHaveBeenCalledWith(
     clusterUri
   );
-  expect(getByLabelText('Email Address')).toHaveValue('bob@prod.com');
+  expect(screen.getByLabelText('Email Address')).toHaveValue('bob@prod.com');
 });
 
 test('element is hidden after clicking close button', () => {
   const appContext = new MockAppContext();
 
-  const { getByTitle, queryByTestId } = renderOpenedShareFeedback(appContext);
+  renderOpenedShareFeedback(appContext);
 
-  fireEvent.click(getByTitle('Close'));
+  fireEvent.click(screen.getByTitle('Close'));
 
-  expect(queryByTestId('share-feedback-container')).not.toBeInTheDocument();
+  expect(
+    screen.queryByTestId('share-feedback-container')
+  ).not.toBeInTheDocument();
 });

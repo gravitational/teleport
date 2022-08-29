@@ -514,6 +514,7 @@ exports[`empty state with static logins 1`] = `
       <input
         checked=""
         class="c5"
+        id="ubunutu"
         name="ubunutu"
         type="checkbox"
       />
@@ -530,6 +531,7 @@ exports[`empty state with static logins 1`] = `
       <input
         checked=""
         class="c5"
+        id="debian"
         name="debian"
         type="checkbox"
       />
@@ -870,6 +872,7 @@ exports[`loaded with static state 1`] = `
       <input
         checked=""
         class="c5"
+        id="ubunutu"
         name="ubunutu"
         type="checkbox"
       />
@@ -886,6 +889,7 @@ exports[`loaded with static state 1`] = `
       <input
         checked=""
         class="c5"
+        id="debian"
         name="debian"
         type="checkbox"
       />
@@ -902,6 +906,7 @@ exports[`loaded with static state 1`] = `
       <input
         checked=""
         class="c5"
+        id="root"
         name="root"
         type="checkbox"
       />
@@ -918,6 +923,7 @@ exports[`loaded with static state 1`] = `
       <input
         checked=""
         class="c5"
+        id="llama"
         name="llama"
         type="checkbox"
       />
@@ -934,6 +940,7 @@ exports[`loaded with static state 1`] = `
       <input
         checked=""
         class="c5"
+        id="george_washington_really_long_name_testing"
         name="george_washington_really_long_name_testing"
         type="checkbox"
       />

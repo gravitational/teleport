@@ -25,6 +25,7 @@ function Pill({ label, onDismiss }: Props) {
     <Wrapper dismissable={dismissable}>
       <Label>{label}</Label>
       <Dismiss
+        role="button"
         dismissable={dismissable}
         onClick={(e: MouseEvent) => {
           e.stopPropagation();

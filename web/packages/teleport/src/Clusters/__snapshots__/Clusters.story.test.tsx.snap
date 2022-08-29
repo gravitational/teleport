@@ -419,6 +419,7 @@ exports[`render clusters 1`] = `
             <span
               class="c12 c16 icon icon-chevron-up "
               color="light"
+              title="sort items asc"
             />
           </a>
         </th>

@@ -1,4 +1,4 @@
-import { fireEvent, render } from 'design/utils/testing';
+import { fireEvent, render, screen } from 'design/utils/testing';
 import React from 'react';
 
 import { TabHost } from 'teleterm/ui/TabHost/TabHost';
@@ -141,13 +141,13 @@ function getTestSetup({ documents }: { documents: Document[] }) {
 }
 
 test('render documents', () => {
-  const { queryByTitle, docsService } = getTestSetup({
+  const { docsService } = getTestSetup({
     documents: getMockDocuments(),
   });
   const documents = docsService.getDocuments();
 
-  expect(queryByTitle(documents[0].title)).toBeInTheDocument();
-  expect(queryByTitle(documents[1].title)).toBeInTheDocument();
+  expect(screen.getByTitle(documents[0].title)).toBeInTheDocument();
+  expect(screen.getByTitle(documents[1].title)).toBeInTheDocument();
 });
 
 test('open tab on click', () => {

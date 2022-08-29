@@ -15,6 +15,7 @@
  */
 
 import React from 'react';
+import { screen } from '@testing-library/react';
 
 import { render, fireEvent } from 'design/utils/testing';
 
@@ -22,23 +23,35 @@ import SlideTabs from './SlideTabs';
 
 describe('design/SlideTabs', () => {
   it('renders the supplied number of tabs(3)', () => {
-    const { container } = render(
+    render(
       <SlideTabs
         tabs={['aws', 'automatically', 'manually']}
         onChange={() => {}}
       />
     );
-    expect(container.getElementsByTagName('label')).toHaveLength(3);
+
+    expect(screen.getAllByRole('tab')).toHaveLength(3);
+
+    expect(screen.getByLabelText('aws')).toBeInTheDocument();
+    expect(screen.getByLabelText('automatically')).toBeInTheDocument();
+    expect(screen.getByLabelText('manually')).toBeInTheDocument();
   });
 
   it('renders the supplied number of tabs(5)', () => {
-    const { container } = render(
+    render(
       <SlideTabs
         tabs={['aws', 'automatically', 'manually', 'apple', 'purple']}
         onChange={() => {}}
       />
     );
-    expect(container.getElementsByTagName('label')).toHaveLength(5);
+
+    expect(screen.getAllByRole('tab')).toHaveLength(5);
+
+    expect(screen.getByLabelText('aws')).toBeInTheDocument();
+    expect(screen.getByLabelText('automatically')).toBeInTheDocument();
+    expect(screen.getByLabelText('manually')).toBeInTheDocument();
+    expect(screen.getByLabelText('apple')).toBeInTheDocument();
+    expect(screen.getByLabelText('purple')).toBeInTheDocument();
   });
 
   it('respects a custom form name', () => {
@@ -49,20 +62,23 @@ describe('design/SlideTabs', () => {
         onChange={() => {}}
       />
     );
+
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
     expect(container.querySelectorAll('input[name=pineapple]')).toHaveLength(3);
   });
 
   it('calls the onChange handler when the tab is changed', () => {
     const cb = jest.fn();
-    const { container } = render(
+    render(
       <SlideTabs onChange={cb} tabs={['aws', 'automatically', 'manually']} />
     );
-    fireEvent.click(container.querySelector('label[for=slide-tab-manually]'));
-    expect(cb.mock.calls).toHaveLength(2);
+    fireEvent.click(screen.getByText('manually'));
+
     // The reason there are two calls to the callback is because when the
     // component is initially rendered it selects the first tab which is in
     // index 0 and calls the callback as such.
-    expect(cb.mock.calls).toEqual([[0], [2]]);
+    expect(cb).toHaveBeenNthCalledWith(1, 0);
+    expect(cb).toHaveBeenNthCalledWith(2, 2);
   });
 
   it('supports a square xlarge appearance (default)', () => {
@@ -72,7 +88,7 @@ describe('design/SlideTabs', () => {
         onChange={() => {}}
       />
     );
-    expect(container.firstChild).toMatchSnapshot();
+    expect(container).toMatchSnapshot();
   });
 
   it('supports a round xlarge appearance', () => {
@@ -83,7 +99,7 @@ describe('design/SlideTabs', () => {
         onChange={() => {}}
       />
     );
-    expect(container.firstChild).toMatchSnapshot();
+    expect(container).toMatchSnapshot();
   });
 
   it('supports a square medium size', () => {
@@ -94,7 +110,7 @@ describe('design/SlideTabs', () => {
         onChange={() => {}}
       />
     );
-    expect(container.firstChild).toMatchSnapshot();
+    expect(container).toMatchSnapshot();
   });
 
   it('supports a round medium size', () => {
@@ -106,7 +122,7 @@ describe('design/SlideTabs', () => {
         onChange={() => {}}
       />
     );
-    expect(container.firstChild).toMatchSnapshot();
+    expect(container).toMatchSnapshot();
   });
 
   it('supports passing in a selected index', () => {
@@ -117,6 +133,6 @@ describe('design/SlideTabs', () => {
         onChange={() => {}}
       />
     );
-    expect(container.firstChild).toMatchSnapshot();
+    expect(container).toMatchSnapshot();
   });
 });

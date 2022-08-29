@@ -16,21 +16,21 @@
 
 import React from 'react';
 
-import { render } from 'design/utils/testing';
+import { render, screen } from 'design/utils/testing';
 
 import * as stories from './UserDelete.story';
 
 test('processing state', () => {
-  const { getByTestId } = render(<stories.Processing />);
-  expect(getByTestId('Modal')).toMatchSnapshot();
+  render(<stories.Processing />);
+  expect(screen.getByTestId('Modal')).toMatchSnapshot();
 });
 
 test('failed state', () => {
-  const { getByTestId } = render(<stories.Failed />);
-  expect(getByTestId('Modal')).toMatchSnapshot();
+  render(<stories.Failed />);
+  expect(screen.getByTestId('Modal')).toMatchSnapshot();
 });
 
 test('confirm state', () => {
-  const { getByTestId } = render(<stories.Confirm />);
-  expect(getByTestId('Modal')).toMatchSnapshot();
+  render(<stories.Confirm />);
+  expect(screen.getByTestId('Modal')).toMatchSnapshot();
 });

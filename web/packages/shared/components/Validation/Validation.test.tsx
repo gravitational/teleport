@@ -16,7 +16,7 @@
 
 import React from 'react';
 
-import { render, fireEvent } from 'design/utils/testing';
+import { render, fireEvent, screen } from 'design/utils/testing';
 
 import Logger from '../../libs/logger';
 
@@ -94,18 +94,19 @@ test('trigger validation via useValidation hook', () => {
     return <button role="button" onClick={() => validator.validate()} />;
   };
 
-  const { getByRole } = render(
+  render(
     <Validation>
       <Button />
     </Validation>
   );
-  fireEvent.click(getByRole('button'));
+  fireEvent.click(screen.getByRole('button'));
   expect(validator.validating).toBe(true);
 });
 
 test('trigger validation via render function', () => {
   let validator = null;
-  const Component = () => (
+
+  render(
     <Validation>
       {props => (
         <button
@@ -118,8 +119,6 @@ test('trigger validation via render function', () => {
       )}
     </Validation>
   );
-
-  const { getByRole } = render(<Component />);
-  fireEvent.click(getByRole('button'));
+  fireEvent.click(screen.getByRole('button'));
   expect(validator.validating).toBe(true);
 });

@@ -15,6 +15,7 @@
  */
 
 import React from 'react';
+import { screen } from '@testing-library/react';
 
 import { render, fireEvent } from 'design/utils/testing';
 
@@ -33,7 +34,7 @@ test('valid values, autofocus, onChange, onKeyPress', () => {
   // mock positive validation
   jest.spyOn(useRule, 'default').mockReturnValue({ valid: true, message: '' });
 
-  const { getByText, getByPlaceholderText } = render(
+  render(
     <FieldInput
       placeholder="placeholderText"
       autoFocus={true}
@@ -45,11 +46,11 @@ test('valid values, autofocus, onChange, onKeyPress', () => {
   );
 
   // test label is displayed
-  expect(getByText('labelText')).toBeInTheDocument();
+  expect(screen.getByText('labelText')).toBeInTheDocument();
 
   // test autofocus prop is respected
-  const inputEl = getByPlaceholderText('placeholderText');
-  expect(document.activeElement).toEqual(inputEl);
+  const inputEl = screen.getByPlaceholderText('placeholderText');
+  expect(inputEl).toHaveFocus();
 
   // test onChange prop is respected
   fireEvent.change(inputEl, { target: { value: 'test' } });
@@ -69,7 +70,7 @@ test('input validation error state', () => {
     .spyOn(useRule, 'default')
     .mockReturnValue({ valid: false, message: 'errorMsg' });
 
-  const { getByText, getByPlaceholderText } = render(
+  render(
     <FieldInput
       placeholder="placeholderText"
       label="labelText"
@@ -79,17 +80,17 @@ test('input validation error state', () => {
   );
 
   // test !valid values renders with error message
-  const labelEl = getByText('errorMsg');
+  const labelEl = screen.getByText('errorMsg');
   expect(labelEl).toHaveStyle({ color: errorColor });
 
   // test !valid values renders error colors
-  const inputEl = getByPlaceholderText('placeholderText');
+  const inputEl = screen.getByPlaceholderText('placeholderText');
   expect(inputEl).toHaveStyle({
     'border-color': errorColor,
   });
 });
 
 test('snapshot tests', () => {
-  const fields = render(<Fields />);
-  expect(fields).toMatchSnapshot();
+  const { container } = render(<Fields />);
+  expect(container).toMatchSnapshot();
 });

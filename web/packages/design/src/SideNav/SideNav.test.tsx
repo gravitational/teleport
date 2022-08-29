@@ -15,24 +15,25 @@
  */
 
 import React from 'react';
+import { screen } from '@testing-library/react';
 
 import { render } from 'design/utils/testing';
 
-import Dialog from './Dialog';
+import * as Icons from '../Icon';
 
-const testCss = {
-  'background-color': '#fff',
-  color: '#000',
-};
+import SideNav, { SideNavItem, SideNavItemIcon } from './index';
 
-describe('design/Dialog', () => {
-  it('respects dialogCss prop', () => {
-    const { getByTestId } = render(
-      <Dialog open={true} dialogCss={() => testCss}>
-        <div>hello</div>
-      </Dialog>
-    );
+test('renders: SideNav, SideNavItem, SideNavItemIcon', () => {
+  render(
+    <SideNav data-testid="parent">
+      <SideNavItem data-testid="item">
+        <SideNavItemIcon data-testid="icon" as={Icons.Apple} />
+        Item 1
+      </SideNavItem>
+    </SideNav>
+  );
 
-    expect(getByTestId('dialogbox')).toHaveStyle({ ...testCss });
-  });
+  expect(screen.getByTestId('parent')).toBeInTheDocument();
+  expect(screen.getByTestId('item')).toBeInTheDocument();
+  expect(screen.getByTestId('icon')).toBeInTheDocument();
 });

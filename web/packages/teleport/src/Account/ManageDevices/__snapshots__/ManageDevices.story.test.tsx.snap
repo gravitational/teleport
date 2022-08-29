@@ -346,6 +346,7 @@ exports[`render device dashboard 1`] = `
             <span
               class="c10 c11 icon icon-chevron-down "
               color="light"
+              title="sort items desc"
             />
           </a>
         </th>
@@ -355,6 +356,7 @@ exports[`render device dashboard 1`] = `
             <span
               class="c10 c11 icon icon-chevrons-expand-vertical "
               color="light"
+              title="sort items"
             />
           </a>
         </th>
@@ -871,6 +873,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
             <span
               class="c11 c12 icon icon-chevron-down "
               color="light"
+              title="sort items desc"
             />
           </a>
         </th>
@@ -880,6 +883,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
             <span
               class="c11 c12 icon icon-chevrons-expand-vertical "
               color="light"
+              title="sort items"
             />
           </a>
         </th>

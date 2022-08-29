@@ -15,7 +15,7 @@
  */
 
 import React from 'react';
-import { render, fireEvent, waitFor } from 'design/utils/testing';
+import { render, fireEvent, screen, waitFor } from 'design/utils/testing';
 
 import auth from 'teleport/services/auth/auth';
 import history from 'teleport/services/history';
@@ -30,27 +30,29 @@ beforeEach(() => {
 });
 
 test('basic rendering', () => {
-  const { container, getByText } = render(<Login />);
+  render(<Login />);
 
   // test rendering of logo and title
-  expect(container.querySelector('img')).toBeInTheDocument();
-  expect(getByText(/sign into teleport/i)).toBeInTheDocument();
+  expect(screen.getByRole('img')).toBeInTheDocument();
+  expect(screen.getByText(/sign into teleport/i)).toBeInTheDocument();
 });
 
 test('login with redirect', async () => {
   jest.spyOn(auth, 'login').mockResolvedValue(null);
 
-  const { getByPlaceholderText, getByText } = render(<Login />);
+  render(<Login />);
 
   // fill form
-  const username = getByPlaceholderText(/username/i);
-  const password = getByPlaceholderText(/password/i);
+  const username = screen.getByPlaceholderText(/username/i);
+  const password = screen.getByPlaceholderText(/password/i);
   fireEvent.change(username, { target: { value: 'username' } });
   fireEvent.change(password, { target: { value: '123' } });
 
   // test login and redirect
-  await waitFor(() => fireEvent.click(getByText('Sign In')));
-  expect(auth.login).toHaveBeenCalledWith('username', '123', '');
+  fireEvent.click(screen.getByText('Sign In'));
+  await waitFor(() => {
+    expect(auth.login).toHaveBeenCalledWith('username', '123', '');
+  });
   expect(history.push).toHaveBeenCalledWith('http://localhost/web', true);
 });
 
@@ -66,10 +68,10 @@ test('login with SSO', () => {
     },
   ]);
 
-  const { getByText } = render(<Login />);
+  render(<Login />);
 
   // test login pathways
-  fireEvent.click(getByText('With Github'));
+  fireEvent.click(screen.getByText('With Github'));
   expect(history.push).toHaveBeenCalledWith(
     'http://localhost/github/login/web?redirect_url=http:%2F%2Flocalhost%2Fwebconnector_id=github',
     true

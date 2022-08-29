@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import { MemoryRouter, Route, Router } from 'react-router';
 import { createMemoryHistory } from 'history';
-import { screen, fireEvent, act, render, waitFor } from 'design/utils/testing';
+import { screen, fireEvent, render, waitFor } from 'design/utils/testing';
 import { Logger } from 'shared/libs/logger';
 
 import cfg from 'teleport/config';
@@ -66,13 +66,13 @@ describe('teleport/components/Welcome', () => {
 
     expect(auth.fetchPasswordToken).not.toHaveBeenCalled();
 
-    await waitFor(() => {
-      fireEvent.click(screen.getByText(/get started/i));
-      mockHistory.push(inviteContinuePath);
-    });
+    fireEvent.click(screen.getByText(/get started/i));
+    mockHistory.push(inviteContinuePath);
 
     expect(history.push).toHaveBeenCalledWith(inviteContinuePath);
-    expect(auth.fetchPasswordToken).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(auth.fetchPasswordToken).toHaveBeenCalled();
+    });
 
     expect(screen.getByText(/confirm password/i)).toBeInTheDocument();
   });
@@ -100,12 +100,12 @@ describe('teleport/components/Welcome', () => {
 
     expect(auth.fetchPasswordToken).not.toHaveBeenCalled();
 
-    await waitFor(() => {
-      fireEvent.click(screen.getByText(/Continue/i));
-      mockHistory.push(resetContinuePath);
-    });
+    fireEvent.click(screen.getByText(/Continue/i));
+    mockHistory.push(resetContinuePath);
 
-    expect(history.push).toHaveBeenCalledWith(resetContinuePath);
+    await waitFor(() => {
+      expect(history.push).toHaveBeenCalledWith(resetContinuePath);
+    });
     expect(auth.fetchPasswordToken).toHaveBeenCalled();
 
     expect(screen.getByText(/submit/i)).toBeInTheDocument();
@@ -117,9 +117,9 @@ describe('teleport/components/Welcome', () => {
       .spyOn(auth, 'resetPassword')
       .mockImplementation(() => new Promise(() => null));
 
-    await act(async () => renderInvite());
+    renderInvite();
 
-    const pwdField = screen.getByPlaceholderText('Password');
+    const pwdField = await screen.findByPlaceholderText('Password');
     const pwdConfirmField = screen.getByPlaceholderText('Confirm Password');
 
     // fill out input boxes and trigger submit
@@ -141,10 +141,10 @@ describe('teleport/components/Welcome', () => {
       .spyOn(auth, 'resetPassword')
       .mockImplementation(() => new Promise(() => null));
 
-    await act(async () => renderInvite());
+    renderInvite();
 
     // Fill out password.
-    const pwdField = screen.getByPlaceholderText('Password');
+    const pwdField = await screen.findByPlaceholderText('Password');
     const pwdConfirmField = screen.getByPlaceholderText('Confirm Password');
     fireEvent.change(pwdField, { target: { value: 'pwd_value' } });
     fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value' } });
@@ -171,10 +171,10 @@ describe('teleport/components/Welcome', () => {
       .spyOn(auth, 'resetPasswordWithWebauthn')
       .mockImplementation(() => new Promise(() => null));
 
-    await act(async () => renderInvite());
+    renderInvite();
 
     // Fill out password.
-    const pwdField = screen.getByPlaceholderText('Password');
+    const pwdField = await screen.findByPlaceholderText('Password');
     const pwdConfirmField = screen.getByPlaceholderText('Confirm Password');
     fireEvent.change(pwdField, { target: { value: 'pwd_value' } });
     fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value' } });
@@ -200,10 +200,10 @@ describe('teleport/components/Welcome', () => {
       .spyOn(auth, 'resetPasswordWithWebauthn')
       .mockImplementation(() => new Promise(() => null));
 
-    await act(async () => renderInvite());
+    renderInvite();
 
     // Trigger submit.
-    fireEvent.click(screen.getByText(/submit/i));
+    fireEvent.click(await screen.findByText(/submit/i));
 
     expect(auth.resetPasswordWithWebauthn).toHaveBeenCalledWith({
       tokenId: '5182',
@@ -216,10 +216,10 @@ describe('teleport/components/Welcome', () => {
     jest.spyOn(cfg, 'getPrimaryAuthType').mockImplementation(() => 'local');
     jest.spyOn(cfg, 'isPasswordlessEnabled').mockImplementation(() => true);
 
-    await act(async () => renderInvite());
+    renderInvite();
 
     // Switch to passwordless.
-    fireEvent.click(screen.getByText(/go passwordless/i));
+    fireEvent.click(await screen.findByText(/go passwordless/i));
     expect(screen.getByTestId('passwordless')).toBeVisible();
 
     // Switch back to password.
@@ -232,10 +232,10 @@ describe('teleport/components/Welcome', () => {
       .spyOn(cfg, 'getPrimaryAuthType')
       .mockImplementation(() => 'passwordless');
 
-    await act(async () => renderInvite());
+    renderInvite();
 
     // Switch to password.
-    fireEvent.click(screen.getByText(/use password/i));
+    fireEvent.click(await screen.findByText(/use password/i));
     expect(screen.getByTestId('password')).toBeVisible();
 
     // Switch back to passwordless.
@@ -247,10 +247,10 @@ describe('teleport/components/Welcome', () => {
     jest.spyOn(cfg, 'getPrimaryAuthType').mockImplementation(() => 'local');
     jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'optional');
 
-    await act(async () => renderInvite());
+    renderInvite();
 
     // Fill out password to get to the next screen.
-    const pwdField = screen.getByPlaceholderText('Password');
+    const pwdField = await screen.findByPlaceholderText('Password');
     const pwdConfirmField = screen.getByPlaceholderText('Confirm Password');
     fireEvent.change(pwdField, { target: { value: 'pwd_value' } });
     fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value' } });

@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 export type Props = {
+  inputId?: string;
   hasError?: boolean;
   isClearable?: boolean;
   isSimpleValue?: boolean;

@@ -15,19 +15,20 @@
  */
 
 import React from 'react';
+import { screen } from '@testing-library/react';
 
 import { render } from 'design/utils/testing';
 
 import * as stories from './UserReset.story';
 
 test('processing state', () => {
-  const { getByTestId } = render(<stories.Processing />);
-  expect(getByTestId('Modal')).toMatchSnapshot();
+  render(<stories.Processing />);
+  expect(screen.getByTestId('Modal')).toMatchSnapshot();
 });
 
 test('failed state', () => {
-  const { getByTestId } = render(<stories.Failed />);
-  expect(getByTestId('Modal')).toMatchSnapshot();
+  render(<stories.Failed />);
+  expect(screen.getByTestId('Modal')).toMatchSnapshot();
 });
 
 test('success state', () => {
@@ -35,6 +36,6 @@ test('success state', () => {
     .spyOn(Date, 'now')
     .mockImplementation(() => Date.parse('2021-04-08T07:00:00Z'));
 
-  const { getByTestId } = render(<stories.Success />);
-  expect(getByTestId('Modal')).toMatchSnapshot();
+  render(<stories.Success />);
+  expect(screen.getByTestId('Modal')).toMatchSnapshot();
 });

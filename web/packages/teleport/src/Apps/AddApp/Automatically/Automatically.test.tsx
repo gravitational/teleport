@@ -16,7 +16,7 @@ test('render command only after form submit', async () => {
 
   // initially, should not show the command
   let cmd = createAppBashCommand(token.id, '', '');
-  expect(screen.queryByText(cmd)).toBeNull();
+  expect(screen.queryByText(cmd)).not.toBeInTheDocument();
 
   // set app name
   const appNameInput = screen.getByPlaceholderText('jenkins');
@@ -33,7 +33,7 @@ test('render command only after form submit', async () => {
 
   // after form submission should show the command
   cmd = createAppBashCommand(token.id, 'app-name', 'https://gravitational.com');
-  expect(screen.queryByText(cmd)).not.toBeNull();
+  expect(screen.getByText(cmd)).toBeInTheDocument();
 });
 
 test('app bash command encoding', () => {

@@ -109,7 +109,12 @@ export function LoginTrait({
             {staticLogins.map((login, index) => {
               return (
                 <CheckboxWrapper key={index} className="disabled">
-                  <CheckboxInput type="checkbox" name={login} defaultChecked />
+                  <CheckboxInput
+                    type="checkbox"
+                    name={login}
+                    id={login}
+                    defaultChecked
+                  />
                   <Label htmlFor={login}>{login}</Label>
                 </CheckboxWrapper>
               );
@@ -120,6 +125,7 @@ export function LoginTrait({
                   <CheckboxInput
                     type="checkbox"
                     name={login}
+                    id={login}
                     ref={el => (inputRefs.current[index] = el)}
                     defaultChecked
                   />
