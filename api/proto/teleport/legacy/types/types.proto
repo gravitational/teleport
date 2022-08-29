@@ -3196,6 +3196,12 @@ message SAMLConnectorSpecV2 {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "assertion_key_pair,omitempty"
   ];
+  // AllowIDPInitiated is a flag that indicates if the connector can be used for IdP-initiated
+  // logins.
+  bool AllowIDPInitiated = 14 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "allow_idp_initiated,omitempty"
+  ];
 }
 
 // SAMLAuthRequest is a request to authenticate with SAML

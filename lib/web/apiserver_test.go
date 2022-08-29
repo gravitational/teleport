@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/julienschmidt/httprouter"
 	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
@@ -532,6 +533,21 @@ func TestValidRedirectURL(t *testing.T) {
 	}
 }
 
+func TestMetaRedirect(t *testing.T) {
+	t.Parallel()
+	h := &Handler{}
+	redirectHandler := h.WithMetaRedirect(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) string {
+		return "https://example.com"
+	})
+	req := httptest.NewRequest(http.MethodPost, "/some/route", nil)
+	resp := httptest.NewRecorder()
+	redirectHandler(resp, req, nil)
+	targetElement := `<meta http-equiv="refresh" content="0;URL='https://example.com'" />`
+	require.Equal(t, http.StatusOK, resp.Code)
+	body := resp.Body.String()
+	require.Contains(t, body, targetElement)
+}
+
 func Test_clientMetaFromReq(t *testing.T) {
 	ua := "foobar"
 	r := httptest.NewRequest(
@@ -666,12 +682,13 @@ func TestSAML(t *testing.T) {
 			})
 
 			require.NoError(t, err)
-			require.Equal(t, http.StatusFound, authRe.Code(), "Response: %v", string(authRe.Bytes()))
+			// This route uses a meta redirect, so expect redirect URL in body instead of location header.
+			require.Equal(t, http.StatusOK, authRe.Code(), "Response: %v", string(authRe.Bytes()))
 			if tc.validSession {
 				// we have got valid session
 				require.NotEmpty(t, authRe.Headers().Get("Set-Cookie"))
 			}
-			require.Equal(t, tc.expectedRedirectURL, authRe.Headers().Get("Location"))
+			require.Contains(t, string(authRe.Bytes()), tc.expectedRedirectURL)
 		})
 	}
 }
