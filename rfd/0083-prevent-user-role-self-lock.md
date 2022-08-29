@@ -14,26 +14,47 @@ state: draft
 
 Users can change their permissions in a way that leaves them incapable of making further changes to the cluster - in effect they lock themselves out.
 
-Currently, there are multiple ways to trigger this scenario:
+Actions that can cause this state:
 
-| initial state                              | change                                                                                      |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| 1 _admin_ and _regular users_              | _admin_ removes himself from an `editor` role                                               |
-| 1 _admin_ and _regular users_              | _admin_ loses access to own account                                                         |
-| 1 _admin_, _SSO admin_ and _regular users_ | _SSO admin_ removes the `editor` role from _admin_ and SSO connector. _SSO admin_ logs out. |
-| _SSO admin_ and _regular users_            | Someone on the SSO side removes _SSO admin_ user or team/group containing _SSO admins_      |
+- user
+  - removal
+  - role removal
+- role
+  - edit
+- SSO
+  - connector removal
+  - user/group removal
+
+Those actions will cause lock when:
+
+| action                 | initial state                                 | change                                                                                 |
+| ---------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------- |
+| user removal           | _admin_, user with user deletion capabilities | user with user deletion capabilities deletes _admin_                                   |
+| user role removal      | _admin_                                       | _admin_ removes himself a role that grants him user/role editing capabilities          |
+| role edit              | _admin_                                       | _admin_ edits own role to remove user/role editing capabilities                        |
+| SSO connector removal  | _SSO admin_ (no _admin_)                      | _SSO admin_ removes SSO connector. _SSO admin_ logs out.                               |
+| SSO user/group removal | _SSO admin_ (no _admin_)                      | Someone on the SSO side removes _SSO admin_ user or team/group containing _SSO admins_ |
 
 Teleport already protects against a similar case in the following scenario:
 
-| initial state               | change                                                                             |
-| --------------------------- | ---------------------------------------------------------------------------------- |
-| _admin_ and _regular users_ | _admin_ tries to delete his account. Operation is not permitted, an error is shown |
+| action       | initial state | change                           |
+| ------------ | ------------- | -------------------------------- |
+| role removal | _admin_       | _admin_ tries to remove own role |
+
+Error message is diplayed: _failed to delete role that still in use by a user. Check system server logs for more details_.
+
+There is one more case when user can lock himself out:
+
+| initial state | change                                                                                  |
+| ------------- | --------------------------------------------------------------------------------------- |
+| _admin_       | admin looses acess to own account (eg. he stores credenials and recovery codes locally) |
+
+see #TODO for details.
 
 ## Terminology
 
-- _admin_: local user with `editor` role
-- _SSO admin_: user with `editor` role added via SSO connector (eg. GitHub)
-- _regular user_: user without `editor` role
+- _admin_: local user with user/role editing capabilities
+- _SSO admin_: user with user/role editing capabilities added via SSO connector (eg. GitHub)
 
 ## Why
 
@@ -52,32 +73,17 @@ On-prem customers could work around this "locked out" state by manually instrume
 > 1. Authorized teleport users can add SSO connector (eg. GitHub SSO https://goteleport.com/docs/setup/admin/github-sso)
 > 2. GitHub users that are members of a particular organization and the team can log in as teleport users with a defined role.
 > 3. Users will show up in the users' list in UI but they will disappear when their cert expires (even when we remove the SSO connector).
-> 4. SSO users can be `editors`.
+> 4. SSO users can have full access.
 
 The solution here could be to introduce a new rule:
 
-- There should be at least 2 local _admins_
+- There should be at least 1 local _admin_
 
 This will ensure that:
 
-- When one of the _admins_ loses access to the account the second one will operate.
-- Users won't be able to delete _admin_ user if there are only 2 _admins_. They would have to add a third one and then they can delete it.
-- Users won't be able to unassign the `editor` role from _admin_ user if there are only 2 _admins_. They would have to add a third and then they can unassign.
-- Role system lock will be independent of connector removal or SSO changes: team deletion/user deletion.
-
-Should we enforce this rule when a user is setting up its cluster? What about existing users? I think there are two approaches here:
-
-- they would have to create immediately a second _admin_ user (if they have only one currently). They cannot use a cluster if they don't.
-- would be to just warn them that adding a second _admin_ user is very important. If they do that warning will disappear and this will mean the rule is now fulfilled.
-
-Let's compare those two:
-
-|      | required on start                                                                              | optional on start                                                                                |
-| ---- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| pros | user is unable to self-lock from the start if an account is lost                               | better onboarding experience since there are fewer steps necessary to configure and use teleport |
-| cons | worse onboarding experience since there are more steps necessary to configure and use teleport | user can self-lock if an account is lost                                                         |
-
-In my opinion `optional on start` variant is better since `teleport` should be as easy as possible to set up and later on when the cluster will be used by more people having a second admin would make more sense.
+- Users won't be able to delete _admin_ user if there is only one _admin_. They would have to add a second one and then they can delete it.
+- Users won't be able to unassign the user/role editing capabilities from _admin_ user if there are only is only one _admin_. They would have to add a second ond and then they can unassign.
+- locking will be impossible on SSO side since there will be _admin_
 
 ### UI and behavior changes
 
