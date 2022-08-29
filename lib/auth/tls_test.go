@@ -2897,6 +2897,62 @@ func TestRegisterCAPath(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestClusterAlertAccessControls verifies expected behaviors of cluster alert
+// access controls.
+func TestClusterAlertAccessControls(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tt := setupAuthContext(ctx, t)
+
+	alert1, err := types.NewClusterAlert("alert-1", "some msg")
+	require.NoError(t, err)
+
+	alert2, err := types.NewClusterAlert("alert-2", "other msg")
+	require.NoError(t, err)
+
+	// set one of the two alerts to be viewable by all users
+	alert2.Metadata.Labels = map[string]string{
+		types.AlertPermitAll: "yes",
+	}
+
+	adminClt, err := tt.server.NewClient(TestBuiltin(types.RoleAdmin))
+	require.NoError(t, err)
+	defer adminClt.Close()
+
+	err = adminClt.UpsertClusterAlert(ctx, alert1)
+	require.NoError(t, err)
+
+	err = adminClt.UpsertClusterAlert(ctx, alert2)
+	require.NoError(t, err)
+
+	// verify that admin client can see all alerts
+	alerts, err := adminClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
+	require.NoError(t, err)
+	require.Len(t, alerts, 2)
+
+	// verify that some other client with no alert-specific permissions can
+	// see the "permit-all" subset of alerts (using role node here, but any
+	// role with no special provisions for alerts should be equivalent)
+	otherClt, err := tt.server.NewClient(TestBuiltin(types.RoleNode))
+	require.NoError(t, err)
+	defer otherClt.Close()
+
+	alerts, err = otherClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
+	require.NoError(t, err)
+	require.Len(t, alerts, 1)
+
+	// verify that we still reject unauthenticated clients
+	nopClt, err := tt.server.NewClient(TestBuiltin(types.RoleNop))
+	require.NoError(t, err)
+	defer nopClt.Close()
+
+	_, err = nopClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
+	require.True(t, trace.IsAccessDenied(err))
+}
+
 // TestEventsNodePresence tests streaming node presence API -
 // announcing node and keeping node alive
 func TestEventsNodePresence(t *testing.T) {

@@ -369,13 +369,21 @@ func (l *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 				return trace.Wrap(err)
 			}
 		}
-		stmt, err := tx.PrepareContext(ctx, "INSERT INTO kv(key, modified, expires, value) values(?, ?, ?, ?)")
+
+		rows, err := tx.QueryContext(ctx, "SELECT key, value, expires, modified FROM kv WHERE key = ? AND expires <= ? LIMIT 1", string(i.Key), created)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer stmt.Close()
+		defer rows.Close()
 
-		if _, err := stmt.ExecContext(ctx, string(i.Key), id(created), expires(i.Expires), i.Value); err != nil {
+		if rows.Next() {
+			err = l.deleteInTransaction(ctx, i.Key, tx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		if _, err := tx.ExecContext(ctx, "INSERT INTO kv(key, modified, expires, value) values(?, ?, ?, ?)", string(i.Key), id(created), expires(i.Expires), i.Value); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
