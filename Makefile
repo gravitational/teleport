@@ -902,18 +902,16 @@ protos/build: buf/installed
 	$(BUF) build
 	cd lib/teleterm && $(BUF) build
 
-# TODO(codingllama): Uncomment lib/teleterm lines.
 .PHONY: protos/format
 protos/format: buf/installed
 	$(BUF) format -w
-	#cd lib/teleterm && $(BUF) format -w
+	cd lib/teleterm && $(BUF) format -w
 
-# TODO(codingllama): Uncomment lib/teleterm lines.
 .PHONY: protos/lint
 protos/lint: buf/installed
 	$(BUF) lint
 	cd api/proto && $(BUF) lint --config=buf-legacy.yaml
-	#cd lib/teleterm && buf lint
+	cd lib/teleterm && $(BUF) lint
 
 .PHONY: lint-protos
 lint-protos: protos/lint
@@ -956,9 +954,8 @@ grpc-teleterm:
 # grpc-teleterm/host generates GRPC stubs.
 # Unlike grpc-teleterm, this target runs locally.
 .PHONY: grpc-teleterm/host
-# TODO(codingllama): Depend on protos/all here too.
-grpc-teleterm/host:
-	cd lib/teleterm && buf build && buf lint && buf format -w && buf generate
+grpc-teleterm/host: protos/all
+	cd lib/teleterm && $(BUF) generate
 
 .PHONY: goinstall
 goinstall:
