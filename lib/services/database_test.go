@@ -1364,6 +1364,14 @@ func TestGetLabelEngineVersion(t *testing.T) {
 			labels: map[string]string{},
 			want:   "",
 		},
+		{
+			name: "azure-mysql-8.0.0",
+			labels: map[string]string{
+				labelEngine:        AzureEngineMySQL,
+				labelEngineVersion: "8.0.0",
+			},
+			want: "8.0.0",
+		},
 	}
 
 	for _, tt := range tests {

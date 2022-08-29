@@ -866,7 +866,7 @@ func auroraMySQLVersion(cluster *rds.DBCluster) string {
 // GetMySQLEngineVersion returns MySQL engine version from provided metadata labels.
 // An empty string is returned if label doesn't exist.
 func GetMySQLEngineVersion(labels map[string]string) string {
-	if engine, ok := labels[labelEngine]; !ok || engine != RDSEngineMySQL {
+	if engine, ok := labels[labelEngine]; !ok || (engine != RDSEngineMySQL && engine != AzureEngineMySQL) {
 		return ""
 	}
 
@@ -935,6 +935,13 @@ const (
 	RDSEngineModeGlobal = "global"
 	// RDSEngineModeMultiMaster is the RDS engine mode for Multi-master clusters
 	RDSEngineModeMultiMaster = "multimaster"
+)
+
+const (
+	// AzureEngineMySQL is the Azure engine name for MySQL single-server instances
+	AzureEngineMySQL = "Microsoft.DBforMySQL/servers"
+	// AzureEnginePostgres is the Azure engine name for PostgreSQL single-server instances
+	AzureEnginePostgres = "Microsoft.DBforPostgreSQL/servers"
 )
 
 const (
