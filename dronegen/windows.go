@@ -14,13 +14,17 @@
 
 package main
 
-import "path"
+import (
+	"fmt"
+	"path"
+)
 
 const (
 	perBuildWorkspace = `$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER`
 	toolchainDir      = `/toolchains`
 	teleportSrc       = `/go/src/github.com/gravitational/teleport`
 	webappsSrc        = `/go/src/github.com/gravitational/webapps`
+	psNewLine         = "`n"
 )
 
 func newWindowsPipeline(name string) pipeline {
@@ -71,22 +75,48 @@ func windowsTagPipeline() pipeline {
 	return p
 }
 
+func psPreformatted(s string) string {
+	return fmt.Sprintf("``%s``", s)
+}
+
 func windowsPushPipeline() pipeline {
 	p := newWindowsPipeline("push-build-native-windows-amd64")
 	p.Trigger = trigger{
 		Event:  triggerRef{Include: []string{"push"}, Exclude: []string{"pull_request"}},
-		Branch: triggerRef{Include: []string{"master", "branch/*"}},
+		Branch: triggerRef{Include: []string{"master", "branch/*", "tcsc/slack-alert*"}},
 		Repo:   triggerRef{Include: []string{"gravitational/*"}},
 	}
 
 	p.Steps = []step{
-		cloneWindowsRepositoriesStep(p.Workspace.Path),
-		updateWindowsSubreposStep(p.Workspace.Path),
-		installWindowsNodeToolchainStep(p.Workspace.Path),
-		installWindowsGoToolchainStep(p.Workspace.Path),
-		buildWindowsTshStep(p.Workspace.Path),
-		buildWindowsTeleportConnectStep(p.Workspace.Path),
-		cleanUpWindowsWorkspaceStep(p.Workspace.Path),
+		// cloneWindowsRepositoriesStep(p.Workspace.Path),
+		// updateWindowsSubreposStep(p.Workspace.Path),
+		// installWindowsNodeToolchainStep(p.Workspace.Path),
+		// installWindowsGoToolchainStep(p.Workspace.Path),
+		// buildWindowsTshStep(p.Workspace.Path),
+		// buildWindowsTeleportConnectStep(p.Workspace.Path),
+		// cleanUpWindowsWorkspaceStep(p.Workspace.Path),
+		{
+			Name: "Send Slack notification (exec)",
+			Environment: map[string]value{
+				"SLACK_WEBHOOK_DEV_TELEPORT": {fromSecret: "SLACK_WEBHOOK_DEV_TELEPORT"},
+			},
+			Commands: []string{
+				`$BuildUrl = "$Env:DRONE_SYSTEM_PROTO://$Env:DRONE_SYSTEM_HOSTNAME/$Env:DRONE_REPO_OWNER/$Env:$Env:DRONE_REPO_NAME/$Env:DRONE_BUILD_NUMBER"`,
+				`$GoOS = $(go env GOOS)`,
+				`$GoArch = $(go env GOARCH)`,
+				fmt.Sprintf(
+					`$Msg = "THIS IS A TEST (by @trent): Warning: %s artifact build failed for [%s] - please investigate immediately!`+psNewLine+
+						`Branch: %s`+psNewLine+
+						`Commit: %s`+psNewLine+
+						`nLink: $BuildUrl`,
+					psPreformatted("$GoOS-$GoArch"),
+					psPreformatted("$Env:DRONE_REPO_NAME"),
+					psPreformatted("$Env:DRONE_BRANCH"),
+					psPreformatted("$Env:DRONE_COMMIT_SHA")),
+				`Invoke-RestMethod -Uri $Env:SLACK_WEBHOOK_DEV_TELEPORT -Body @{text: $msg}`,
+			},
+			//			When: &condition{Status: []string{"failure"}},
+		},
 	}
 
 	return p
