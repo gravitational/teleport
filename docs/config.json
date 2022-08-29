@@ -515,7 +515,7 @@
               "slug": "/application-access/guides/api-access/"
             },
             {
-              "title": "AWS Console Access",
+              "title": "AWS Access",
               "slug": "/application-access/guides/aws-console/"
             },
             {
@@ -962,10 +962,14 @@
               "title": "teleport-kube-agent",
               "slug": "/reference/helm-reference/teleport-kube-agent/"
             },
-	    {
-	    	"title": "teleport-plugin-event-handler",
-	    	"slug": "/reference/helm-reference/teleport-plugin-event-handler/"
-	    }
+            {
+              "title": "teleport-plugin-event-handler",
+              "slug": "/reference/helm-reference/teleport-plugin-event-handler/"
+            },
+            {
+              "title": "teleport-plugin-jira",
+              "slug": "/reference/helm-reference/teleport-plugin-jira/"
+            }
           ]
         }
       ]
@@ -1431,7 +1435,7 @@
       "permanent": true
     },
     {
-      "source": "/enterprise/workflow/ssh-approval-mattermost/",
+      "source": "/enterprise/workflow/ssh-approval-pagerduty/",
       "destination": "/access-controls/access-request-plugins/ssh-approval-pagerduty/",
       "permanent": true
     },

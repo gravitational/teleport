@@ -749,6 +749,11 @@ type Auth struct {
 
 	// TunnelStrategy configures the tunnel strategy used by the cluster.
 	TunnelStrategy *types.TunnelStrategyV1 `yaml:"tunnel_strategy,omitempty"`
+
+	// ProxyPingInterval defines in which interval the TLS routing ping message
+	// should be sent. This is applicable only when using ping-wrapped
+	// connections, regular TLS routing connections are not affected.
+	ProxyPingInterval types.Duration `yaml:"proxy_ping_interval,omitempty"`
 }
 
 // CAKeyParams configures how CA private keys will be created and stored.
@@ -1022,6 +1027,15 @@ type SSH struct {
 	// X11 is used to configure X11 forwarding settings
 	X11 *X11 `yaml:"x11,omitempty"`
 
+	// MaybeSSHFileCopy enables or disables remote file operations via SCP/SFTP.
+	// We're using a pointer-to-bool here because the system default is to allow
+	// SCP/SFTP, we need to distinguish between an unset value and a false
+	// value so we can an override unset value with `true`.
+	//
+	// Don't read this value directly: call the SSHFileCopy method
+	// instead.
+	MaybeSSHFileCopy *bool `yaml:"ssh_file_copy,omitempty"`
+
 	// DisableCreateHostUser disables automatic user provisioning on this
 	// SSH node.
 	DisableCreateHostUser bool `yaml:"disable_create_host_user,omitempty"`
@@ -1036,6 +1050,15 @@ func (ssh *SSH) AllowTCPForwarding() bool {
 		return true
 	}
 	return *ssh.MaybeAllowTCPForwarding
+}
+
+// SSHFileCopy checks whether the config file allows for file copying
+// via SCP/SFTP.
+func (ssh *SSH) SSHFileCopy() bool {
+	if ssh.MaybeSSHFileCopy == nil {
+		return true
+	}
+	return *ssh.MaybeSSHFileCopy
 }
 
 // X11ServerConfig returns the X11 forwarding server configuration.

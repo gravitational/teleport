@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 
 	"github.com/gravitational/trace"
@@ -105,7 +106,7 @@ func (p *Profile) Name() string {
 
 // TLSConfig returns the profile's associated TLSConfig.
 func (p *Profile) TLSConfig() (*tls.Config, error) {
-	cert, err := tls.LoadX509KeyPair(p.TLSCertPath(), p.UserKeyPath())
+	cert, err := keys.LoadX509KeyPair(p.TLSCertPath(), p.UserKeyPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -185,7 +186,7 @@ func (p *Profile) SSHClientConfig() (*ssh.ClientConfig, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	key, err := os.ReadFile(p.UserKeyPath())
+	sshCert, err := sshutils.ParseCertificate(cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -195,7 +196,12 @@ func (p *Profile) SSHClientConfig() (*ssh.ClientConfig, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	ssh, err := sshutils.ProxyClientSSHConfig(cert, key, [][]byte{caCerts})
+	priv, err := keys.LoadPrivateKey(p.UserKeyPath())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ssh, err := sshutils.ProxyClientSSHConfig(sshCert, priv, caCerts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

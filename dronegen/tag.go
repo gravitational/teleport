@@ -109,12 +109,6 @@ func tagBuildCommands(b buildType) []string {
 		switch b.os {
 		case "linux":
 			commands = append(commands, `make -C build.assets teleterm`)
-		case "mac":
-			commands = append(commands,
-				`cd /go/src/github.com/gravitational/webapps`,
-				`yarn install --frozen-lockfile && yarn build-term && yarn package-term`,
-				`cd -`,
-			)
 		}
 
 	}
@@ -241,7 +235,8 @@ func tagPipelines() []pipeline {
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos7: true}))
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos7: true, fips: true}))
 
-	ps = append(ps, darwinTagPipeline(), darwinTeleportPkgPipeline(), darwinTshPkgPipeline())
+	ps = append(ps, darwinTagPipeline(), darwinTeleportPkgPipeline(), darwinTshPkgPipeline(), darwinConnectDmgPipeline())
+	ps = append(ps, windowsTagPipeline())
 	return ps
 }
 
