@@ -173,6 +173,7 @@ type InitConfig struct {
 	// WindowsServices is a service that manages Windows desktop resources.
 	WindowsDesktops services.WindowsDesktops
 
+	// SessionTrackerService is a service that manages trackers for all active sessions.
 	SessionTrackerService services.SessionTrackerService
 
 	// ConnectionsDiagnostic is a service that manages Connection Diagnostics resources.
@@ -180,6 +181,9 @@ type InitConfig struct {
 
 	// TraceClient is used to forward spans to the upstream telemetry collector
 	TraceClient otlptrace.Client
+
+	// AssertionReplayService is a service that mitigatates SSO assertion replay.
+	*local.AssertionReplayService
 }
 
 // Init instantiates and configures an instance of AuthServer
