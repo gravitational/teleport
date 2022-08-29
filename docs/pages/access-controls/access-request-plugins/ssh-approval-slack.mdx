@@ -197,8 +197,10 @@ configure the Slack plugin to use these credentials. You will also configure the
 plugin to notify the right Slack channels when it receives an Access Request
 update.
 
-### Generate a config file
+### Create a config file
 
+<Tabs>
+<TabItem label="Executable">
 The Teleport Slack plugin uses a config file in TOML format. Generate a
 boilerplate config by running the following command (the plugin will not run
 unless the config file is in `/etc/teleport-slack.toml`):
@@ -212,6 +214,23 @@ This should result in a config file like the one below:
 ```toml
 (!examples/resources/plugins/teleport-slack.toml!)
 ```
+</TabItem>
+<TabItem label="Helm Chart">
+The Slack Helm Chart uses a YAML values file to configure the plugin.
+On the host where you've helm installed, create a file called
+`teleport-slack-helm.yaml` based on the following example:
+
+```code
+$ teleport-slack configure | sudo tee /etc/teleport-slack.toml > /dev/null
+```
+
+This should result in a config file like the one below:
+
+```toml
+(!examples/resources/plugins/teleport-slack-helm.yaml!)
+```
+</TabItem>
+</Tabs>
 
 ### Edit the config file
 
@@ -227,8 +246,8 @@ The Slack plugin uses this section to connect to the Teleport Auth Service.
 The address and credentials you configure depend on whether your plugin can
 access the Auth Service directly:
 
-<Tabs>
-  <TabItem label="Connect to the Auth Service">
+<Tabs dropdownCaption="Environment type" dropdownSelected="Executable">
+<TabItem label="Connect to the Auth Service" scope={["oss", "enterprise"]} options="Executable">
 
 Set `addr` to the address and port of your Auth Service. This address must be
 reachable from the Teleport Slack Plugin.
@@ -244,7 +263,7 @@ client_crt = "/var/lib/teleport/plugins/slack/auth.crt" # Teleport GRPC client c
 root_cas = "/var/lib/teleport/plugins/slack/auth.cas"   # Teleport cluster CA certs
 ```
 </TabItem>
-  <TabItem label="Connect to the Proxy Service">
+<TabItem label="Connect to the Proxy Service" options="Executable">
 
 Set `addr` to  your Proxy Service address with port `443`.
 
@@ -255,7 +274,16 @@ Set `identity` to the identity file generated earlier:
 addr = "mytenant.teleport.sh:443"
 identity = "/var/lib/teleport/plugins/slack/auth.pem"
 ```
-  </TabItem>
+</TabItem>
+<TabItem label="Connect to the Proxy or Auth Service" scope="cloud" options="Helm Chart">
+
+**`address`**: Include the hostname and HTTPS port of your Teleprot Enterprise
+or Teleport Cloud tenant (e.g., `mytenant.teleport.sh:443`).
+
+**`identitySecretName`**: Fill in the `identitySecretName` field with the name
+of the Kubernetes secret you created earlier.
+
+</TabItem>
 </Tabs>
 
 </ScopedBlock>
@@ -286,6 +314,8 @@ notify when a user requests access to a specific role. When the Slack plugin
 receives an Access Request from the Auth Service, it will look up the role being
 requested and identify the Slack channels to notify.
 
+<Tabs>
+<TabItem label="Executable">
 Here is an example of a `role_to_recipients` map:
 
 ```toml
@@ -294,6 +324,20 @@ Here is an example of a `role_to_recipients` map:
 "dev" = ["dev-slack-channel", "admin-slack-channel"]
 "dba" = "alex@gmail.com"
 ```
+</TabItem>
+<TabItem label="Helm Chart">
+The Helm Chart uses a bit different format for `role_to_recipients`:
+
+```yaml
+roleToRecipients:
+  "*": "admin-slack-channel"
+  "dev":
+    - "dev-slack-channel"
+    - "admin-slack-channel"
+  "dba": "alex@gmail.com"
+```
+</TabItem>
+</Tabs>
 
 In the `role_to_recipients` map, each key is the name of a Teleport role. Each
 value configures the Slack channel (or channels) to notify. The value can be a
@@ -327,11 +371,22 @@ by adding the following to your `role_to_recipients` config (replace
 `TELEPORT_USERNAME` with the user you assigned the `editor-reviewer` role
 earlier):
 
+<Tabs>
+<TabItem label="Executable">
 ```toml
 [role_to_recipients]
 "*" = "access-requests"
 "editor" = "TELEPORT_USERNAME"
 ```
+</TabItem>
+<TabItem label="Helm Chart">
+```yaml
+roleToRecipients:
+  "*": "access-requests"
+  "editor": "TELEPORT_USERNAME"
+```
+</TabItem>
+</Tabs>
 
 Either create an `access-requests` channel in your Slack workspace or rename the
 value of the `"*"` key to an existing channel.
@@ -352,6 +407,8 @@ to invite the plugin to that channel. Navigate to each channel and enter `/invit
 Once Teleport is running, you've created the Slack app, and the plugin is
 configured, you can now run the plugin and test the workflow.
 
+<Tabs>
+<TabItem label="Executable" scope={["oss", "enterprise"]}>
 Start the plugin:
 
 ```code
@@ -365,6 +422,29 @@ $ teleport-slack start
 INFO   Starting Teleport Access Slack Plugin 7.2.1: slack/app.go:80
 INFO   Plugin is ready slack/app.go:101
 ```
+</TabItem>
+<TabItem label="Helm Chart" scope={["oss", "enterprise"]}>
+Install the plugin:
+
+```code
+$ helm upgrade --install teleport-plugin-slack teleport/teleport-plugin-slack --values teleport-slack-helm.yaml
+```
+
+To inspect the plugin's logs, use the following command:
+
+```code
+$ kubectl logs deploy/teleport-plugin-slack
+```
+
+Debug logs can be enabled by setting `log.severity` to `DEBUG` in
+`teleport-slack-helm.yaml` and execute the `helm upgrade ...` command
+above again. Then you can restart the plugin with the following command:
+
+```code
+$ kubectl rollout restart deployment teleport-plugin-slack
+```
+</TabItem>
+</Tabs>
 
 Create an Access Request and check if the plugin works as expected with the
 following steps.
@@ -401,6 +481,9 @@ Auth Service host</ScopedBlock>.
 </Admonition>
 
 ## Step 8/8. Set up systemd
+
+This section is only relevant if you are running the Executable version of the
+Teleport Slack Plugin.
 
 In production, we recommend starting the Teleport plugin daemon via an init
 system like systemd.  Here's the recommended Teleport plugin service unit file
