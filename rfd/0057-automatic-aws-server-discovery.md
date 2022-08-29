@@ -23,11 +23,15 @@ issues with adding AWS servers to Teleport clusters automatically.
 
 ## Discovery
 
-Discovery can use a matcher similar to the `db_service/aws` matcher, however EC2
-instances will have an optional install command and set of join parameters:
+A new service will be introduced for general purpose cloud resource discovery:
+`discovery_service`. Initially, it will only support EC2 discovery.
+
+Discovery will use a matcher similar to the `db_service/aws` matcher, however EC2
+discovery will have an optional install command, set of join parameters and script to
+use when joining:
 
 ```yaml
-ssh_service:
+discovery_service:
   enabled: "yes"
   aws:
   aws:
@@ -37,7 +41,8 @@ ssh_service:
        "teleport": "yes"
      install:
        join_params:
-         token_name:  aws-discovery-iam-token # default value
+         token_name:  "aws-discovery-iam-token" # default value
+       script_name: "default-installer" # default value
      ssm:
        document: "TeleportDiscoveryInstaller" # default value
 ```
@@ -51,7 +56,7 @@ second timer, as new nodes are found they will be added to the teleport cluster.
 
 In order to avoid attempting to reinstall teleport on top of an instance where it is
 already present the generated teleport config will match against the node name using
-the aws account id and instance id.
+the AWS account id and instance id.
 
 Example:
 ```json
@@ -224,7 +229,7 @@ teleport:
     - "auth-server.example.com:3025"
   join_params:
     token_name: token
-ssh_service:
+discovery_service:
   enabled: yes
   labels:
     teleport.dev/origin: "cloud"
@@ -242,7 +247,7 @@ teleport:
   ...
 auth_service:
   enabled: "yes"
-ssh_service:
+discovery_service:
   enabled: "yes"
   aws:
    - types: ["ec2"]
@@ -360,7 +365,7 @@ endpoint.
 Example agentless config:
 
 ```yaml
-ssh_service:
+discovery_service:
   enabled: "yes"
   aws:
   - types: ["ec2"]
@@ -377,7 +382,7 @@ In the future the option to include a list of IAM roles to assume for
 different accounts may be included:
 
 ```yaml
-ssh_service:
+discovery_service:
   enabled: "yes"
   aws:
   - types: ["ec2"]
