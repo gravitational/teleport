@@ -97,7 +97,7 @@ func (h *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 		return client.LoginFailedRedirectURL
 	}
 
-	response, err := h.cfg.ProxyClient.ValidateSAMLResponse(r.Context(), samlResponse)
+	response, err := h.cfg.ProxyClient.ValidateSAMLResponse(r.Context(), samlResponse, p.ByName("connector"))
 
 	if err != nil {
 		logger.WithError(err).Error("Error while processing callback.")
@@ -125,14 +125,19 @@ func (h *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 	if response.Req.CreateWebSession {
 		logger.Debug("Redirecting to web browser.")
 
+		redirect := response.Req.ClientRedirectURL
+		if redirect == "" {
+			redirect = "/web/"
+		}
+
 		res := &ssoCallbackResponse{
 			csrfToken:         response.Req.CSRFToken,
 			username:          response.Username,
 			sessionName:       response.Session.GetName(),
-			clientRedirectURL: response.Req.ClientRedirectURL,
+			clientRedirectURL: redirect,
 		}
 
-		if err := ssoSetWebSessionAndRedirectURL(w, r, res); err != nil {
+		if err := ssoSetWebSessionAndRedirectURL(w, r, res, response.Req.CSRFToken != ""); err != nil {
 			logger.WithError(err).Error("Error setting web session.")
 			return client.LoginFailedRedirectURL
 		}
