@@ -1,3 +1,6 @@
+//go:build libpcsclite
+// +build libpcsclite
+
 /*
 Copyright 2022 Gravitational, Inc.
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -43,7 +46,7 @@ func TestGetOrGenerateYubiKeyPrivateKey(t *testing.T) {
 	_, err = selfSignedTeleportClientCertificate(priv, priv.Public())
 	require.NoError(t, err)
 
-	// Another call to GetOrGenerateYubiKeyPrivateKey should retrive the previously generated key.
+	// Another call to GetOrGenerateYubiKeyPrivateKey should retrieve the previously generated key.
 	retrievePriv, err := GetOrGenerateYubiKeyPrivateKey(false)
 	require.NoError(t, err)
 	require.Equal(t, priv, retrievePriv)

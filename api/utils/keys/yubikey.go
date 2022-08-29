@@ -1,3 +1,6 @@
+//go:build libpcsclite
+// +build libpcsclite
+
 /*
 Copyright 2022 Gravitational, Inc.
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -76,6 +79,34 @@ func GetOrGenerateYubiKeyPrivateKey(touchRequired bool) (*PrivateKey, error) {
 	return NewPrivateKey(priv)
 }
 
+func parseYubiKeyPrivateKeyData(keyDataBytes []byte) (*PrivateKey, error) {
+	var keyData yubiKeyPrivateKeyData
+	if err := json.Unmarshal(keyDataBytes, &keyData); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pivSlot, err := parsePIVSlot(keyData.SlotKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	y, err := findYubiKey(keyData.SerialNumber)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	yubiPriv, err := y.getPrivateKey(pivSlot)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	priv, err := NewPrivateKey(yubiPriv)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return priv, nil
+}
+
 // YubiKeyPrivateKey is a YubiKey PIV private key. Cryptographical operations open
 // a new temporary connection to the PIV card to perform the operation.
 type YubiKeyPrivateKey struct {
@@ -107,25 +138,6 @@ func newYubiKeyPrivateKey(y *yubiKey, slot piv.Slot, pub crypto.PublicKey) (*Yub
 		pub:          pub,
 		keyDataBytes: keyDataBytes,
 	}, nil
-}
-
-func parseYubiKeyPrivateKeyData(keyDataBytes []byte) (*YubiKeyPrivateKey, error) {
-	var keyData yubiKeyPrivateKeyData
-	if err := json.Unmarshal(keyDataBytes, &keyData); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	pivSlot, err := parsePIVSlot(keyData.SlotKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	y, err := findYubiKey(keyData.SerialNumber)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return y.getPrivateKey(pivSlot)
 }
 
 // Public returns the public key corresponding to this private key.
@@ -281,7 +293,7 @@ func (y *yubiKey) open() (yk *piv.YubiKey, err error) {
 		return strings.Contains(err.Error(), retryError)
 	}
 
-	var maxRetries int = 100
+	const maxRetries = 100
 	for i := 0; i < maxRetries; i++ {
 		yk, err = piv.Open(y.card)
 		if err == nil {
