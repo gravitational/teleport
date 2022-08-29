@@ -484,14 +484,16 @@ auth_service:
     # See "TLS Routing" in Architecture section for additional information.
     proxy_listener_mode: multiplex
 
-    # Determines the tunnel strategy used by the cluster.
+    # Determines the strategy that the cluster uses for connecting clients to
+    # agents in IoT mode.
     tunnel_strategy:
       # Possible tunnel strategy types are:
       #
       # "agent_mesh":    The default behavior, where agents will connect to every
-      #                  Teleport proxy instance.
-      # "proxy_peering": Agents will connect to a subset of proxies and clients
-      #                  will be routed between proxies for end to end connectivity
+      #                  Teleport Proxy Service instance.
+      # "proxy_peering": Agents will connect to a subset of Proxy Service instances
+      #                  and clients will be routed between Proxy Service instances
+      #                  for end-to-end connectivity.
       type: proxy_peering
 
       # The number of reverse tunnel connections agents will attempt to create.

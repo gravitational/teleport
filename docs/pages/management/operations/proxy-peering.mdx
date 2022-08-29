@@ -1,6 +1,6 @@
 ---
 title: Proxy Peering Migration
-description: How to upgrade an existing Teleport cluster to proxy peering mode.
+description: How to upgrade an existing Teleport cluster to Proxy Peering mode.
 ---
 
 <Details
@@ -13,17 +13,18 @@ description: How to upgrade an existing Teleport cluster to proxy peering mode.
   TLS routing is available starting from Teleport `10.0`.
 </Details>
 
-## Requirements
+## Prerequisites
 
-Teleport Proxy servers must be able to reach each other over the network. Ensure
-there are no firewall policies that would block proxy to proxy communication.
+Teleport Proxy instances must be able to reach each other over the network. Ensure
+there are no firewall policies that would block communication between instances.
 
 ## Step 1/4. Upgrade to teleport `10.0`
 Download Teleport `10.0` or later from the [downloads page](https://goteleport.com/teleport/download) or your enterprise portal
 and follow the standard [upgrade procedure](https://goteleport.com/docs/setup/operations/upgrading/).
 
-## Step 2/4. Enable proxy peering
-Update your cluster's auth server configuration to set the tunnel strategy type to `proxy_peering`
+## Step 2/4. Enable Proxy Peering
+Update your cluster's Auth Service configuration to set the tunnel strategy type
+to `proxy_peering`.
 
 ```yaml
 auth_service:
@@ -32,12 +33,14 @@ auth_service:
         agent_connection_count: 1
 ```
 
-This setting will indicate to agents that they are only required to connect to 1 proxy server as specified by the
-`agent_connection_count` field.
+This setting will indicate to agents that they are only required to connect to 1
+Teleport Proxy instance as specified by the `agent_connection_count` field.
 
-## Step 3/4. Restart auth services
-Restart all auth services running in the cluster to apply the new auth service configuration
+## Step 3/4. Restart the Auth Services
+Restart all Teleport Auth Services running in the cluster to apply the new auth service
+configuration.
 
-## Step 4/4. Restart proxy services
-Restart all proxy services running in the cluster in order for proxy peering specific services to start up.
+## Step 4/4. Restart the Proxy Services
+Restart all Teleport Proxy instances running in the cluster in order for Proxy Peering
+specific services to start up.
 
