@@ -35,7 +35,6 @@ func windowsTagPipeline() pipeline {
 	p := newWindowsPipeline("build-native-windows-amd64")
 
 	p.Trigger = triggerTag
-	p.DependsOn = []string{"build-windows-amd64"}
 
 	p.Steps = []step{
 		cloneWindowsRepositoriesStep(p.Workspace.Path),
