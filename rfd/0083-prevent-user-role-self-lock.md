@@ -32,8 +32,8 @@ Those actions will cause lock when:
 | user removal           | _admin_, user with user deletion capabilities | user with user deletion capabilities deletes _admin_                                   |
 | user role removal      | _admin_                                       | _admin_ removes himself a role that grants him user/role editing capabilities          |
 | role edit              | _admin_                                       | _admin_ edits own role to remove user/role editing capabilities                        |
-| SSO connector removal  | _SSO admin_ (no _admin_)                      | _SSO admin_ removes SSO connector. _SSO admin_ logs out.                               |
-| SSO user/group removal | _SSO admin_ (no _admin_)                      | Someone on the SSO side removes _SSO admin_ user or team/group containing _SSO admins_ |
+| SSO connector removal  | _SSO admin_                                   | _SSO admin_ removes SSO connector. _SSO admin_ logs out.                               |
+| SSO user/group removal | _SSO admin_                                   | Someone on the SSO side removes _SSO admin_ user or team/group containing _SSO admins_ |
 
 Teleport already protects against a similar case in the following scenario:
 
@@ -45,11 +45,11 @@ Error message is diplayed: _failed to delete role that still in use by a user. C
 
 There is one more case when user can lock himself out:
 
-| initial state | change                                                                                  |
-| ------------- | --------------------------------------------------------------------------------------- |
-| _admin_       | admin looses acess to own account (eg. he stores credenials and recovery codes locally) |
+| initial state | change                                                                                    |
+| ------------- | ----------------------------------------------------------------------------------------- |
+| _admin_       | _admin_ looses acess to own account (eg. he stores credenials and recovery codes locally) |
 
-see #TODO for details.
+However, requiring second admin to guard this situation is not a good for user experience. Existing and new clusters will have to add second _admin_.
 
 ## Terminology
 
