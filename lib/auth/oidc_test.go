@@ -782,3 +782,20 @@ func TestEmailVerifiedClaim(t *testing.T) {
 		}
 	}
 }
+
+// TestOIDCGoogle3LO checks that attempting to use a credential file that
+// requires 3-legged OAuth for Google Workspace credentials doesn't cause a
+// panic (https://github.com/golang/oauth2/issues/583)
+func TestOIDCGoogle3LO(t *testing.T) {
+	require.NotPanics(t, func() {
+		// this won't do any network request as the provided JSON doesn't
+		// specify any endpoint
+		creds, err := getGoogleWorkspaceCredentials(context.Background(), &types.OIDCConnectorV3{
+			Spec: types.OIDCConnectorSpecV3{
+				GoogleServiceAccount: `{"web":{"redirect_uris":[""]}}`,
+			},
+		})
+		require.NoError(t, err)
+		require.Nil(t, creds)
+	})
+}
