@@ -109,11 +109,7 @@ func (k *PrivateKey) AsAgentKey(sshCert *ssh.Certificate) (agent.AddedKey, error
 
 // PPKFile returns a PuTTY PPK-formatted keypair
 func (k *PrivateKey) PPKFile() ([]byte, error) {
-	signer, ok := k.Signer.(*StandardSigner)
-	if !ok {
-		return nil, trace.BadParameter("cannot use private key of type %T as rsa.PrivateKey", k)
-	}
-	rsaKey, ok := signer.Signer.(*rsa.PrivateKey)
+	rsaKey, ok := k.GetBaseSigner().(*rsa.PrivateKey)
 	if !ok {
 		return nil, trace.BadParameter("cannot use private key of type %T as rsa.PrivateKey", k)
 	}
