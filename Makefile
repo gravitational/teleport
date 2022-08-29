@@ -237,6 +237,8 @@ $(BUILDDIR)/tctl:
 $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
+# NOTE: Any changes to the `tsh` build here must be copied to `windows.go` in Dronegen until
+# 		we can use this Makefile for native Windows builds.
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
@@ -756,15 +758,15 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore '**/*.yml' \
 		-ignore '**/Dockerfile' \
 		-ignore 'api/version.go' \
+		-ignore 'docs/pages/includes/**/*.go' \
 		-ignore 'e/**' \
 		-ignore 'gitref.go' \
-		-ignore 'lib/web/build/**' \
+		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
 		-ignore 'lib/teleterm/api/protogen/**' \
+		-ignore 'lib/web/build/**' \
 		-ignore 'version.go' \
 		-ignore 'webassets/**' \
-		-ignore 'ignoreme' \
-		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
-		-ignore 'docs/pages/includes/**/*.go'
+		-ignore 'ignoreme'
 
 .PHONY: lint-license
 lint-license: $(ADDLICENSE)
@@ -893,63 +895,14 @@ enter/teleterm:
 grpc:
 	$(MAKE) -C build.assets grpc
 
+# grpc/host generates GRPC stubs.
+# Unlike grpc, this target runs locally.
+.PHONY: grpc/host
+grpc/host:
+	@build.assets/genproto.sh
+
 print/env:
 	env
-
-# buildbox-grpc generates GRPC stubs
-.PHONY: buildbox-grpc
-buildbox-grpc: API_IMPORT_PATH := $(shell head -1 api/go.mod | awk '{print $$2}')
-# Proto file dependencies within the api module must be passed with the 'M'
-# flag. This way protoc generated files will use the correct api module import
-# path in the case where the import path has a version suffix, e.g.
-# "github.com/gravitational/teleport/api/v8".
-buildbox-grpc: GOGOPROTO_IMPORTMAP := $\
-	Mgithub.com/gravitational/teleport/api/types/events/events.proto=$(API_IMPORT_PATH)/types/events,$\
-	Mgithub.com/gravitational/teleport/api/types/types.proto=$(API_IMPORT_PATH)/types,$\
-	Mgithub.com/gravitational/teleport/api/types/webauthn/webauthn.proto=$(API_IMPORT_PATH)/types/webauthn,$\
-	Mgithub.com/gravitational/teleport/api/types/wrappers/wrappers.proto=$(API_IMPORT_PATH)/types/wrappers,$\
-	Mignoreme=ignoreme
-buildbox-grpc:
-	@echo "PROTO_INCLUDE = $$PROTO_INCLUDE"
-	$(CLANG_FORMAT) -i -style=$(CLANG_FORMAT_STYLE) \
-		api/client/proto/authservice.proto \
-		api/client/proto/certs.proto \
-		api/client/proto/joinservice.proto \
-		api/client/proto/proxyservice.proto \
-		api/types/events/events.proto \
-		api/types/types.proto \
-		api/types/webauthn/webauthn.proto \
-		api/types/wrappers/wrappers.proto \
-		lib/multiplexer/test/ping.proto \
-		lib/web/envelope.proto
-
-	cd api/client/proto && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
-		authservice.proto certs.proto joinservice.proto proxyservice.proto
-
-	cd api/types/events && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
-		events.proto
-
-	cd api/types && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
-		types.proto
-
-	cd api/types/webauthn && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
-		webauthn.proto
-
-	cd api/types/wrappers && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
-		wrappers.proto
-
-	cd lib/multiplexer/test && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
-		ping.proto
-
-	cd lib/web && protoc -I=.:$$PROTO_INCLUDE \
-		--gogofast_out=plugins=grpc,$(GOGOPROTO_IMPORTMAP):. \
-		envelope.proto
 
 # grpc-teleterm generates Go, TypeScript and JavaScript gRPC stubs from definitions for Teleport
 # Terminal. This target runs in the buildbox-teleterm container.
@@ -964,9 +917,10 @@ buildbox-grpc:
 grpc-teleterm:
 	$(MAKE) -C build.assets grpc-teleterm
 
-# buildbox-grpc generates GRPC stubs
-.PHONY: buildbox-grpc-teleterm
-buildbox-grpc-teleterm:
+# grpc-teleterm/host generates GRPC stubs.
+# Unlike grpc-teleterm, this target runs locally.
+.PHONY: grpc-teleterm/host
+grpc-teleterm/host:
 	$(CLANG_FORMAT) -i -style=$(CLANG_FORMAT_STYLE) \
 		lib/teleterm/api/proto/**/*.proto
 
