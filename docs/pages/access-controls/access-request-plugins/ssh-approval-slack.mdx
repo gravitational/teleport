@@ -82,23 +82,10 @@ and will require access to both the public internet and the Teleport Auth Servic
 
 </TabItem>
 <TabItem label="Helm Chart">
-  To install from source you need `git` and `go` >= (=teleport.golang=)
-  installed.
-
   ```code
-  # Check out the teleport-plugins repository
-  $ git clone https://github.com/gravitational/teleport-plugins.git
-  $ cd teleport-plugins/access/slack
-  $ make
+  helm repo add teleport https://charts.releases.teleport.dev/
+  helm repo update
   ```
-
-  Place the `teleport-slack` binary into an appropriate location
-  within the sytem's `PATH`, e.g., `/usr/local/bin`:
-
-  ```code
-  $ mv ./build/teleport-slack /usr/local/bin
-  ```
-
 </TabItem>
 </Tabs>
 
