@@ -322,8 +322,23 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (*gateway.Ga
 	return newGateway, nil
 }
 
-// ListServers returns cluster servers
-func (s *Service) ListServers(ctx context.Context, clusterURI string) ([]clusters.Server, error) {
+// GetAllServers returns a full list of nodes without pagination or sorting.
+func (s *Service) GetAllServers(ctx context.Context, clusterURI string) ([]clusters.Server, error) {
+	cluster, err := s.ResolveCluster(clusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := cluster.GetAllServers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return servers, nil
+}
+
+// GetServers accepts parameterized input to enable searching, sorting, and pagination
+func (s *Service) GetServers(ctx context.Context, clusterURI string) ([]clusters.Server, error) {
 	cluster, err := s.ResolveCluster(clusterURI)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -35,7 +35,41 @@ type Server struct {
 	types.Server
 }
 
-// GetServers returns cluster servers
+// GetAllServers returns a full list of nodes without pagination or sorting.
+func (c *Cluster) GetAllServers(ctx context.Context) ([]Server, error) {
+	var clusterServers []types.Server
+	err := addMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		clusterServers, err = proxyClient.FindNodesByFilters(ctx, proto.ListResourcesRequest{
+			Namespace: defaults.Namespace,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	results := []Server{}
+	for _, server := range clusterServers {
+		results = append(results, Server{
+			URI:    c.URI.AppendServer(server.GetName()),
+			Server: server,
+		})
+	}
+
+	return results, nil
+}
+
+// GetServers accepts parameterized input to enable searching, sorting, and pagination
 func (c *Cluster) GetServers(ctx context.Context) ([]Server, error) {
 	var clusterServers []types.Server
 	err := addMetadataToRetryableError(ctx, func() error {

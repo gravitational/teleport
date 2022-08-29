@@ -24,9 +24,24 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// ListServers lists servers
-func (s *Handler) ListServers(ctx context.Context, req *api.ListServersRequest) (*api.ListServersResponse, error) {
-	servers, err := s.DaemonService.ListServers(ctx, req.ClusterUri)
+// GetAllServers returns a full list of nodes without pagination or sorting.
+func (s *Handler) GetAllServers(ctx context.Context, req *api.ListServersRequest) (*api.ListServersResponse, error) {
+	servers, err := s.DaemonService.GetAllServers(ctx, req.ClusterUri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response := &api.ListServersResponse{}
+	for _, srv := range servers {
+		response.Servers = append(response.Servers, newAPIServer(srv))
+	}
+
+	return response, nil
+}
+
+// GetServers accepts parameterized input to enable searching, sorting, and pagination
+func (s *Handler) GetServers(ctx context.Context, req *api.ListServersRequest) (*api.ListServersResponse, error) {
+	servers, err := s.DaemonService.GetServers(ctx, req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
