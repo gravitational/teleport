@@ -1,5 +1,5 @@
 #!/bin/bash
-if [[ "${DEBUG}" == "true" ]]; then
+if [[ "${DEBUG:-false}" == "true" ]]; then
     set -x
 fi
 
