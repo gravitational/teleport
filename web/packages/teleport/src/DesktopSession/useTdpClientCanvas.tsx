@@ -17,6 +17,8 @@ limitations under the License.
 import { useState, useEffect, useRef, Dispatch, SetStateAction } from 'react';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
+import { getPlatform } from 'design/theme/utils';
+
 import { TdpClient, ButtonState, ScrollAxis } from 'teleport/lib/tdp';
 import { ClipboardData, PngFrame } from 'teleport/lib/tdp/codec';
 import { getAccessToken, getHostName } from 'teleport/services/api';
@@ -24,6 +26,12 @@ import cfg from 'teleport/config';
 
 import { TopBarHeight } from './TopBar';
 import { ClipboardPermissionStatus } from './useClipboard';
+
+declare global {
+  interface Navigator {
+    userAgentData?: { platform: any };
+  }
+}
 
 export default function useTdpClientCanvas(props: Props) {
   const {
@@ -104,13 +112,36 @@ export default function useTdpClientCanvas(props: Props) {
     setWsConnection('open');
   };
 
+  const { isMac } = getPlatform();
+  /**
+   * On MacOS Edge/Chrome/Safari, each physical CapsLock DOWN-UP registers
+   * as either a single DOWN or single UP, with DOWN corresponding to
+   * "CapsLock on" and UP to "CapsLock off". On MacOS Firefox, it always
+   * registers as a DOWN.
+   *
+   * On Windows and Linux, all browsers treat CapsLock like a normal key.
+   *
+   * The remote Windows machine also treats CapsLock like a normal key, and
+   * expects a DOWN-UP whenever it's pressed.
+   */
+  const handleCapsLock = (cli: TdpClient, e: KeyboardEvent): boolean => {
+    if (e.code === 'CapsLock' && isMac) {
+      cli.sendKeyboardInput(e.code, ButtonState.DOWN);
+      cli.sendKeyboardInput(e.code, ButtonState.UP);
+      return true;
+    }
+    return false;
+  };
+
   const onKeyDown = (cli: TdpClient, e: KeyboardEvent) => {
     e.preventDefault();
+    if (handleCapsLock(cli, e)) return;
     cli.sendKeyboardInput(e.code, ButtonState.DOWN);
   };
 
   const onKeyUp = (cli: TdpClient, e: KeyboardEvent) => {
     e.preventDefault();
+    if (handleCapsLock(cli, e)) return;
     cli.sendKeyboardInput(e.code, ButtonState.UP);
   };
 
