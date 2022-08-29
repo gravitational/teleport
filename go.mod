@@ -6,8 +6,11 @@ require (
 	cloud.google.com/go/firestore v1.6.1
 	cloud.google.com/go/iam v0.3.0
 	cloud.google.com/go/storage v1.23.0
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v0.19.0
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v0.11.0
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.0.0
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.0.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql v1.0.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql v1.0.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription v1.0.0
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1
 	github.com/Clever/go-utils v0.0.0-20180917210021-2dac0ec6f2ac
 	github.com/HdrHistogram/hdrhistogram-go v1.0.1
@@ -27,6 +30,7 @@ require (
 	github.com/cloudflare/cfssl v0.0.0-20190726000631-633726f6bcb7
 	github.com/coreos/go-oidc v2.1.0+incompatible
 	github.com/coreos/go-semver v0.3.0
+	github.com/creack/pty v1.1.18
 	github.com/denisenkom/go-mssqldb v0.11.0
 	github.com/duo-labs/webauthn v0.0.0-20210727191636-9f1b88ef44cc
 	github.com/dustin/go-humanize v1.0.0
@@ -71,7 +75,6 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/keys-pub/go-libfido2 v1.5.3-0.20220306005615-8ab03fb1ec27
-	github.com/kr/pty v1.1.8
 	github.com/mailgun/lemma v0.0.0-20170619173223-4214099fb348
 	github.com/mailgun/timetools v0.0.0-20170619190023-f3a7b8ffff47
 	github.com/mailgun/ttlmap v0.0.0-20170619185759-c1c17f74874f
@@ -139,15 +142,10 @@ require (
 )
 
 require (
-	github.com/googleapis/enterprise-certificate-proxy v0.1.0 // indirect
-	github.com/googleapis/go-type-adapters v1.0.0 // indirect
-)
-
-require (
 	cloud.google.com/go v0.103.0 // indirect
 	cloud.google.com/go/compute v1.8.0 // indirect
 	github.com/Azure/azure-pipeline-go v0.2.3 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/internal v0.7.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/internal v1.0.0 // indirect
 	github.com/Azure/azure-storage-blob-go v0.14.0 // indirect
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
 	github.com/Azure/go-autorest/autorest v0.11.18 // indirect
@@ -156,6 +154,7 @@ require (
 	github.com/Azure/go-autorest/logger v0.2.1 // indirect
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/Azure/go-ntlmssp v0.0.0-20200615164410-66371956d46c // indirect
+	github.com/AzureAD/microsoft-authentication-library-for-go v0.4.0 // indirect
 	github.com/MakeNowJust/heredoc v0.0.0-20170808103936-bb23615498cd // indirect
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
@@ -182,7 +181,6 @@ require (
 	github.com/chai2010/gettext-go v0.0.0-20160711120539-c6fed771bfd5 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
-	github.com/creack/pty v1.1.11 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
@@ -211,7 +209,9 @@ require (
 	github.com/google/flatbuffers v2.0.0+incompatible // indirect
 	github.com/google/gnostic v0.5.7-v3refs // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.1.0 // indirect
 	github.com/googleapis/gax-go/v2 v2.5.1 // indirect
+	github.com/googleapis/go-type-adapters v1.0.0 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20190430165422-3e4dfb77656c // indirect
 	github.com/gorilla/handlers v1.5.1 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
@@ -254,7 +254,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/monochromegane/go-gitignore v0.0.0-20200626010858-205db1a8cc00 // indirect
-	github.com/montanaflynn/stats v0.0.0-20171201202039-1bf9dbcd8cbe // indirect
+	github.com/montanaflynn/stats v0.6.6 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/nsf/termbox-go v0.0.0-20210114135735-d04385b850e8 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
