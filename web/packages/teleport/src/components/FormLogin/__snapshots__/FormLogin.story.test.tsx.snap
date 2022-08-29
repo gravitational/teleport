@@ -7,7 +7,7 @@ exports[`auth2faType: off 1`] = `
 
 .c5 {
   box-sizing: border-box;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .c8 {
@@ -272,7 +272,7 @@ exports[`auth2faType: optional rendering 1`] = `
 
 .c5 {
   box-sizing: border-box;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .c8 {
@@ -705,7 +705,7 @@ exports[`auth2faType: otp rendering 1`] = `
 
 .c5 {
   box-sizing: border-box;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .c8 {
@@ -1164,7 +1164,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
 
 .c5 {
   box-sizing: border-box;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .c8 {
@@ -1597,12 +1597,12 @@ exports[`cloud auth2faType: on rendering 1`] = `
 
 .c5 {
   box-sizing: border-box;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .c8 {
   box-sizing: border-box;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .c9 {
@@ -1618,7 +1618,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 
 .c13 {
   box-sizing: border-box;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 }
 
 .c15 {
@@ -2230,7 +2230,7 @@ exports[`server error rendering 1`] = `
 
 .c6 {
   box-sizing: border-box;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .c9 {
@@ -2527,6 +2527,7 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
+  margin-bottom: 16px;
   margin-top: 16px;
   width: 100%;
 }
@@ -2545,6 +2546,53 @@ exports[`sso list still renders when local auth is disabled 1`] = `
 }
 
 .c3:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c8 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-bottom: 0px;
+  margin-top: 16px;
+  width: 100%;
+}
+
+.c8:active {
+  opacity: 0.56;
+}
+
+.c8:hover,
+.c8:focus {
+  background: #651FFF;
+}
+
+.c8:active {
+  background: #354AA4;
+}
+
+.c8:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -2584,6 +2632,7 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   background-color: #444444;
   display: block;
   width: 100%;
+  border: 1px solid transparent;
   height: 40px;
   position: relative;
   box-sizing: border-box;
@@ -2591,7 +2640,8 @@ exports[`sso list still renders when local auth is disabled 1`] = `
 
 .c4:hover,
 .c4:focus {
-  background: rgba(68,68,68,0.4);
+  background: rgb(61,61,61);
+  border: 1px solid rgb(142,142,142);
 }
 
 .c4 .c6 {
@@ -2599,21 +2649,23 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   opacity: 0.87;
 }
 
-.c8 {
+.c9 {
   background-color: #dd4b39;
   display: block;
   width: 100%;
+  border: 1px solid transparent;
   height: 40px;
   position: relative;
   box-sizing: border-box;
 }
 
-.c8:hover,
-.c8:focus {
-  background: rgba(221,75,57,0.4);
+.c9:hover,
+.c9:focus {
+  background: rgb(198,67,51);
+  border: 1px solid rgb(234,147,136);
 }
 
-.c8 .c6 {
+.c9 .c6 {
   font-size: 20px;
   opacity: 0.87;
 }
@@ -2663,7 +2715,7 @@ exports[`sso list still renders when local auth is disabled 1`] = `
       Login with github
     </button>
     <button
-      class="c3 c8"
+      class="c8 c9"
       color="#dd4b39"
       kind="primary"
     >
@@ -2695,7 +2747,7 @@ exports[`sso providers rendering 1`] = `
   padding-right: 40px;
 }
 
-.c14 {
+.c15 {
   box-sizing: border-box;
   margin-top: -4px;
   padding-top: 16px;
@@ -2726,6 +2778,7 @@ exports[`sso providers rendering 1`] = `
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
+  margin-bottom: 16px;
   margin-top: 16px;
   width: 100%;
 }
@@ -2748,7 +2801,54 @@ exports[`sso providers rendering 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c15 {
+.c13 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-bottom: 0px;
+  margin-top: 16px;
+  width: 100%;
+}
+
+.c13:active {
+  opacity: 0.56;
+}
+
+.c13:hover,
+.c13:focus {
+  background: #651FFF;
+}
+
+.c13:active {
+  background: #354AA4;
+}
+
+.c13:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c16 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -2775,17 +2875,17 @@ exports[`sso providers rendering 1`] = `
   padding: 0px 24px;
 }
 
-.c15:active {
+.c16:active {
   opacity: 0.56;
 }
 
-.c15:hover,
-.c15:focus {
+.c16:hover,
+.c16:focus {
   background: none;
   text-decoration: underline;
 }
 
-.c15:disabled {
+.c16:disabled {
   background: none;
   color: rgba(255,255,255,0.3);
 }
@@ -2869,6 +2969,7 @@ exports[`sso providers rendering 1`] = `
   background-color: #444444;
   display: block;
   width: 100%;
+  border: 1px solid transparent;
   height: 40px;
   position: relative;
   box-sizing: border-box;
@@ -2876,7 +2977,8 @@ exports[`sso providers rendering 1`] = `
 
 .c6:hover,
 .c6:focus {
-  background: rgba(68,68,68,0.4);
+  background: rgb(61,61,61);
+  border: 1px solid rgb(142,142,142);
 }
 
 .c6 .c8 {
@@ -2888,6 +2990,7 @@ exports[`sso providers rendering 1`] = `
   background-color: #dd4b39;
   display: block;
   width: 100%;
+  border: 1px solid transparent;
   height: 40px;
   position: relative;
   box-sizing: border-box;
@@ -2895,7 +2998,8 @@ exports[`sso providers rendering 1`] = `
 
 .c10:hover,
 .c10:focus {
-  background: rgba(221,75,57,0.4);
+  background: rgb(198,67,51);
+  border: 1px solid rgb(234,147,136);
 }
 
 .c10 .c8 {
@@ -2907,6 +3011,7 @@ exports[`sso providers rendering 1`] = `
   background-color: #205081;
   display: block;
   width: 100%;
+  border: 1px solid transparent;
   height: 40px;
   position: relative;
   box-sizing: border-box;
@@ -2914,7 +3019,8 @@ exports[`sso providers rendering 1`] = `
 
 .c11:hover,
 .c11:focus {
-  background: rgba(32,80,129,0.4);
+  background: rgb(28,72,116);
+  border: 1px solid rgb(121,150,179);
 }
 
 .c11 .c8 {
@@ -2926,6 +3032,7 @@ exports[`sso providers rendering 1`] = `
   background-color: #f7931e;
   display: block;
   width: 100%;
+  border: 1px solid transparent;
   height: 40px;
   position: relative;
   box-sizing: border-box;
@@ -2933,7 +3040,8 @@ exports[`sso providers rendering 1`] = `
 
 .c12:hover,
 .c12:focus {
-  background: rgba(247,147,30,0.4);
+  background: rgb(222,132,27);
+  border: 1px solid rgb(250,190,120);
 }
 
 .c12 .c8 {
@@ -2941,21 +3049,23 @@ exports[`sso providers rendering 1`] = `
   opacity: 0.87;
 }
 
-.c13 {
+.c14 {
   background-color: #2672ec;
   display: block;
   width: 100%;
+  border: 1px solid transparent;
   height: 40px;
   position: relative;
   box-sizing: border-box;
 }
 
-.c13:hover,
-.c13:focus {
-  background: rgba(38,114,236,0.4);
+.c14:hover,
+.c14:focus {
+  background: rgb(34,102,212);
+  border: 1px solid rgb(124,170,243);
 }
 
-.c13 .c8 {
+.c14 .c8 {
   font-size: 20px;
   opacity: 0.87;
 }
@@ -3063,7 +3173,7 @@ exports[`sso providers rendering 1`] = `
             Login with Mission Control
           </button>
           <button
-            class="c5 c13"
+            class="c13 c14"
             color="#2672ec"
             kind="primary"
           >
@@ -3080,10 +3190,10 @@ exports[`sso providers rendering 1`] = `
           </button>
         </div>
         <div
-          class="c14"
+          class="c15"
         >
           <button
-            class="c15"
+            class="c16"
             kind="text"
           >
             Other sign-in options

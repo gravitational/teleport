@@ -15,15 +15,22 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Box } from 'design';
+import { Box, Text } from 'design';
 import ButtonSso, { guessProviderType } from 'shared/components/ButtonSso';
 import { AuthProvider } from 'shared/services';
 
-const SSOBtnList = ({ providers, prefixText, isDisabled, onClick }: Props) => {
+const SSOBtnList = ({
+  providers,
+  prefixText,
+  isDisabled,
+  onClick,
+  autoFocus = false,
+}: Props) => {
   const $btns = providers.map((item, index) => {
     let { name, type, displayName } = item;
     const title = displayName || `${prefixText} ${name}`;
     const ssoType = guessProviderType(title, type);
+    const len = providers.length - 1;
     return (
       <ButtonSso
         key={index}
@@ -31,6 +38,8 @@ const SSOBtnList = ({ providers, prefixText, isDisabled, onClick }: Props) => {
         ssoType={ssoType}
         disabled={isDisabled}
         mt={3}
+        mb={index < len ? 3 : 0}
+        autoFocus={index === 0 && autoFocus}
         onClick={e => {
           e.preventDefault();
           onClick(item);
@@ -40,7 +49,11 @@ const SSOBtnList = ({ providers, prefixText, isDisabled, onClick }: Props) => {
   });
 
   if ($btns.length === 0) {
-    return <h4> You have no SSO providers configured </h4>;
+    return (
+      <Text textAlign="center" bold pt={3}>
+        You have no SSO providers configured
+      </Text>
+    );
   }
 
   return (
@@ -55,6 +68,8 @@ type Props = {
   isDisabled: boolean;
   onClick(provider: AuthProvider): void;
   providers: AuthProvider[];
+  // autoFocus focuses on the first button in list.
+  autoFocus?: boolean;
 };
 
 export default SSOBtnList;

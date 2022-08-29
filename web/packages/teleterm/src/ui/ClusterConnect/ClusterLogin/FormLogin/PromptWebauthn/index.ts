@@ -14,5 +14,4 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import PromptHardwareKey from './PromptHardwareKey';
-export default PromptHardwareKey;
+export { PromptWebauthn } from './PromptWebauthn';

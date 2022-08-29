@@ -1,4 +1,4 @@
-import { ChannelCredentials } from '@grpc/grpc-js';
+import { ChannelCredentials, ClientDuplexStream } from '@grpc/grpc-js';
 
 import { TerminalServiceClient } from 'teleterm/services/tshd/v1/service_grpc_pb';
 import * as api from 'teleterm/services/tshd/v1/service_pb';
@@ -164,30 +164,18 @@ export default function createClient(
       });
     },
 
-    async login(params: types.LoginParams, abortSignal?: types.TshAbortSignal) {
-      const ssoParams = params.sso
-        ? new api.LoginRequest.SsoParams()
-            .setProviderName(params.sso.providerName)
-            .setProviderType(params.sso.providerType)
-        : null;
-
-      const localParams = params.local
-        ? new api.LoginRequest.LocalParams()
-            .setToken(params.local.token)
-            .setUser(params.local.username)
-            .setPassword(params.local.password)
-        : null;
+    async loginLocal(
+      params: types.LoginLocalParams,
+      abortSignal?: types.TshAbortSignal
+    ) {
+      const localParams = new api.LoginRequest.LocalParams()
+        .setToken(params.token)
+        .setUser(params.username)
+        .setPassword(params.password);
 
       return withAbort(abortSignal, callRef => {
         const req = new api.LoginRequest().setClusterUri(params.clusterUri);
-
-        // LoginRequest has oneof on `Local` and `Sso`, which means that setting one of them clears
-        // the other.
-        if (ssoParams) {
-          req.setSso(ssoParams);
-        } else {
-          req.setLocal(localParams);
-        }
+        req.setLocal(localParams);
 
         return new Promise<void>((resolve, reject) => {
           callRef.current = tshd.login(req, err => {
@@ -196,6 +184,129 @@ export default function createClient(
             } else {
               resolve();
             }
+          });
+        });
+      });
+    },
+
+    async loginSso(
+      params: types.LoginSsoParams,
+      abortSignal?: types.TshAbortSignal
+    ) {
+      const ssoParams = new api.LoginRequest.SsoParams()
+        .setProviderName(params.providerName)
+        .setProviderType(params.providerType);
+
+      return withAbort(abortSignal, callRef => {
+        const req = new api.LoginRequest().setClusterUri(params.clusterUri);
+        req.setSso(ssoParams);
+
+        return new Promise<void>((resolve, reject) => {
+          callRef.current = tshd.login(req, err => {
+            if (err) {
+              reject(err);
+            } else {
+              resolve();
+            }
+          });
+        });
+      });
+    },
+
+    async loginPasswordless(
+      params: types.LoginPasswordlessParams,
+      abortSignal?: types.TshAbortSignal
+    ) {
+      return withAbort(abortSignal, callRef => {
+        const streamInitReq =
+          new api.LoginPasswordlessRequest.LoginPasswordlessRequestInit().setClusterUri(
+            params.clusterUri
+          );
+        const streamReq = new api.LoginPasswordlessRequest().setInit(
+          streamInitReq
+        );
+
+        return new Promise<void>((resolve, reject) => {
+          callRef.current = tshd.loginPasswordless();
+          const stream = callRef.current as ClientDuplexStream<
+            api.LoginPasswordlessRequest,
+            api.LoginPasswordlessResponse
+          >;
+
+          let hasDeviceBeenTapped = false;
+
+          // Init the stream.
+          stream.write(streamReq);
+
+          stream.on('data', function (response: api.LoginPasswordlessResponse) {
+            const req = response.toObject();
+
+            switch (req.prompt) {
+              case api.PasswordlessPrompt.PASSWORDLESS_PROMPT_PIN:
+                const pinResponse = pin => {
+                  const pinRes =
+                    new api.LoginPasswordlessRequest.LoginPasswordlessPINResponse().setPin(
+                      pin
+                    );
+                  stream.write(
+                    new api.LoginPasswordlessRequest().setPin(pinRes)
+                  );
+                };
+
+                params.onPromptCallback({
+                  type: 'pin',
+                  onUserResponse: pinResponse,
+                });
+                return;
+
+              case api.PasswordlessPrompt.PASSWORDLESS_PROMPT_CREDENTIAL:
+                const credResponse = index => {
+                  const credRes =
+                    new api.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse().setIndex(
+                      index
+                    );
+                  stream.write(
+                    new api.LoginPasswordlessRequest().setCredential(credRes)
+                  );
+                };
+
+                params.onPromptCallback({
+                  type: 'credential',
+                  onUserResponse: credResponse,
+                  data: { credentials: req.credentialsList || [] },
+                });
+                return;
+
+              case api.PasswordlessPrompt.PASSWORDLESS_PROMPT_TAP:
+                if (hasDeviceBeenTapped) {
+                  params.onPromptCallback({ type: 'retap' });
+                } else {
+                  hasDeviceBeenTapped = true;
+                  params.onPromptCallback({ type: 'tap' });
+                }
+                return;
+
+              // Following cases should never happen but just in case?
+              case api.PasswordlessPrompt.PASSWORDLESS_PROMPT_UNSPECIFIED:
+                stream.cancel();
+                return reject(
+                  new Error('no passwordless prompt was specified')
+                );
+
+              default:
+                stream.cancel();
+                return reject(
+                  new Error(`passwordless prompt '${req.prompt}' not supported`)
+                );
+            }
+          });
+
+          stream.on('end', function () {
+            resolve();
+          });
+
+          stream.on('error', function (err: Error) {
+            reject(err);
           });
         });
       });

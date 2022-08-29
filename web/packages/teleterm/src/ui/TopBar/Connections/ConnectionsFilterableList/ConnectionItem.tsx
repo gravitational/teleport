@@ -1,10 +1,14 @@
 import React from 'react';
 import { ButtonIcon, Flex, Text } from 'design';
 import { Trash, Unlink } from 'design/Icon';
+
 import { ExtendedTrackedConnection } from 'teleterm/ui/services/connectionTracker';
 import { ListItem } from 'teleterm/ui/components/ListItem';
-import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
+import { assertUnreachable } from 'teleterm/ui/utils';
+
 import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+
+import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
 
 interface ConnectionItemProps {
   index: number;
@@ -127,8 +131,4 @@ function getKindName(kind: ExtendedTrackedConnection['kind']): string {
     default:
       assertUnreachable(kind);
   }
-}
-
-function assertUnreachable(x: never): never {
-  throw new Error(`Unhandled case: ${x}`);
 }
