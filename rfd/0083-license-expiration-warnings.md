@@ -80,9 +80,7 @@ db CA    never updated
 jwt CA   never updated                                                           
 CA pin   sha256:3d72102f020146d09ff400810f59f70b8163ebfe6ec1ecfb0b3b2a0c151592
 
-Your Teleport Enterprise Edition license will expire in 10 days. Please reach out
-to   your Teleport Account Manager (or licenses@goteleport.com) to obtain a new
-license.
+Your Teleport Enterprise Edition license has expired. Please reach out to [licenses@goteleport.com](mailto:licenses@goteleport.com) to obtain a new license. Inaction may lead to unplanned outage or degraded performance and support."
 ```
 
 
