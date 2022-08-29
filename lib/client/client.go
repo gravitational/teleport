@@ -49,6 +49,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/propagation"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -82,7 +83,6 @@ type NodeClient struct {
 
 // GetSites returns list of the "sites" (AKA teleport clusters) connected to the proxy
 // Each site is returned as an instance of its auth server
-//
 func (proxy *ProxyClient) GetSites(ctx context.Context) ([]types.Site, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
@@ -674,6 +674,13 @@ func (proxy *ProxyClient) NewWatcher(ctx context.Context, watch types.Watch) (ty
 
 // isAuthBoring checks whether or not the auth server for the current cluster was compiled with BoringCrypto.
 func (proxy *ProxyClient) isAuthBoring(ctx context.Context) (bool, error) {
+	ctx, span := proxy.Tracer.Start(
+		ctx,
+		"proxyClient/isAuthBoring",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	site, err := proxy.ConnectToCurrentCluster(ctx)
 	if err != nil {
 		return false, trace.Wrap(err)
@@ -1682,7 +1689,7 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 		}
 	}
 
-	proxyConn, err := proxy.Client.Dial("tcp", nodeAddress.Addr)
+	proxyConn, err := proxy.Client.DialContext(ctx, "tcp", nodeAddress.Addr)
 	if err != nil {
 		return nil, trace.ConnectionProblem(err, "failed connecting to node %v. %s", nodeAddress, err)
 	}
@@ -1770,7 +1777,8 @@ func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan 
 }
 
 // newClientConn is a wrapper around ssh.NewClientConn
-func newClientConn(ctx context.Context,
+func newClientConn(
+	ctx context.Context,
 	conn net.Conn,
 	nodeAddress string,
 	config *ssh.ClientConfig,
@@ -1784,7 +1792,10 @@ func newClientConn(ctx context.Context,
 
 	respCh := make(chan response, 1)
 	go func() {
-		conn, chans, reqs, err := ssh.NewClientConn(conn, nodeAddress, config)
+		// Use a noop text map propagator so that the tracing context isn't included in
+		// the connection handshake. Since the provided conn will already include the tracing
+		// context we don't want to send it again.
+		conn, chans, reqs, err := tracessh.NewClientConn(ctx, conn, nodeAddress, config, tracing.WithTextMapPropagator(propagation.NewCompositeTextMapPropagator()))
 		respCh <- response{conn, chans, reqs, err}
 	}()
 
@@ -2082,6 +2093,13 @@ func (c *NodeClient) Close() error {
 
 // currentCluster returns the connection to the API of the current cluster
 func (proxy *ProxyClient) currentCluster(ctx context.Context) (*types.Site, error) {
+	ctx, span := proxy.Tracer.Start(
+		ctx,
+		"proxyClient/currentCluster",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	sites, err := proxy.GetSites(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
