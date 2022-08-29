@@ -2605,15 +2605,15 @@ service AuthService {
   rpc CreatePrivilegeToken(CreatePrivilegeTokenRequest) returns (types.UserTokenV3);
 
   // GetInstaller retrieves the installer script resource
-  rpc GetInstaller(google.protobuf.Empty) returns (types.InstallerV1);
+  rpc GetInstaller(types.ResourceRequest) returns (types.InstallerV1);
   // GetInstallers retrieves all of installer script resources.
   rpc GetInstallers(google.protobuf.Empty) returns (types.InstallerV1List);
 
   // SetInstaller sets the installer script resource
   rpc SetInstaller(types.InstallerV1) returns (google.protobuf.Empty);
 
-  // DeleteInstaller removes the installer script resource
-  rpc DeleteInstaller(google.protobuf.Empty) returns (google.protobuf.Empty);
+  // DeleteInstaller removes the specified installer script resource
+  rpc DeleteInstaller(types.ResourceRequest) returns (google.protobuf.Empty);
   // DeleteAllInstallers removes all installer script resources
   rpc DeleteAllInstallers(google.protobuf.Empty) returns (google.protobuf.Empty);
 

@@ -4090,8 +4090,8 @@ message InstallerSpecV1 {
 
 // InstallerV1List represents a list of installer resources.
 message InstallerV1List {
-    // Installers is a list of installer resources.
-    repeated InstallerV1 installers = 1;
+  // Installers is a list of installer resources.
+  repeated InstallerV1 installers = 1;
 }
 
 // SessionState represents the state of a session.
