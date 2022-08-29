@@ -524,6 +524,7 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	h.GET("/scripts/:token/install-app.sh", httplib.MakeHandler(h.getAppJoinScriptHandle))
 	// web context
 	h.GET("/webapi/sites/:site/context", h.WithClusterAuth(h.getUserContext))
+	h.GET("/webapi/sites/:site/resources/check", h.WithClusterAuth(h.checkAccessToRegisteredResource))
 
 	// Database access handlers.
 	h.GET("/webapi/sites/:site/databases", h.WithClusterAuth(h.clusterDatabasesGet))
@@ -538,6 +539,7 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 
 	// SAML 2.0 handlers
 	h.POST("/webapi/saml/acs", h.WithRedirect(h.samlACS))
+	h.POST("/webapi/saml/acs/:connector", h.WithRedirect(h.samlACS))
 	h.GET("/webapi/saml/sso", h.WithMetaRedirect(h.samlSSO))
 	h.POST("/webapi/saml/login/console", httplib.MakeHandler(h.samlSSOConsole))
 
@@ -1270,7 +1272,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 			clientRedirectURL: response.Req.ClientRedirectURL,
 		}
 
-		if err := ssoSetWebSessionAndRedirectURL(w, r, res); err != nil {
+		if err := ssoSetWebSessionAndRedirectURL(w, r, res, true); err != nil {
 			logger.WithError(err).Error("Error setting web session.")
 			return client.LoginFailedRedirectURL
 		}
@@ -1376,7 +1378,7 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 			clientRedirectURL: response.Req.ClientRedirectURL,
 		}
 
-		if err := ssoSetWebSessionAndRedirectURL(w, r, res); err != nil {
+		if err := ssoSetWebSessionAndRedirectURL(w, r, res, true); err != nil {
 			logger.WithError(err).Error("Error setting web session.")
 			return client.LoginFailedRedirectURL
 		}
@@ -2405,6 +2407,22 @@ func queryLimit(query url.Values, name string, def int) (int, error) {
 	return limit, nil
 }
 
+// queryLimitAsInt32 returns the limit parameter with the specified name from the
+// query string. Similar to function 'queryLimit' except it returns as type int32.
+//
+// If there's no such parameter, specified default limit is returned.
+func queryLimitAsInt32(query url.Values, name string, def int32) (int32, error) {
+	str := query.Get(name)
+	if str == "" {
+		return def, nil
+	}
+	limit, err := strconv.ParseInt(str, 10, 32)
+	if err != nil {
+		return 0, trace.BadParameter("failed to parse %v as limit: %v", name, str)
+	}
+	return int32(limit), nil
+}
+
 // queryOrder returns the order parameter with the specified name from the
 // query string or a default if the parameter is not provided.
 func queryOrder(query url.Values, name string, def types.EventOrder) (types.EventOrder, error) {
@@ -3021,9 +3039,11 @@ type ssoCallbackResponse struct {
 	clientRedirectURL string
 }
 
-func ssoSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, response *ssoCallbackResponse) error {
-	if err := csrf.VerifyToken(response.csrfToken, r); err != nil {
-		return trace.Wrap(err)
+func ssoSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, response *ssoCallbackResponse, verifyCSRF bool) error {
+	if verifyCSRF {
+		if err := csrf.VerifyToken(response.csrfToken, r); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	if err := SetSessionCookie(w, response.username, response.sessionName); err != nil {

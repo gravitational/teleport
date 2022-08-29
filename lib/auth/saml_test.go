@@ -388,7 +388,7 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 	a.SetClock(c)
 
 	// empty response gives error.
-	response, err := a.ValidateSAMLResponse(context.Background(), "")
+	response, err := a.ValidateSAMLResponse(context.Background(), "", "")
 	require.Nil(t, response)
 	require.Error(t, err)
 
@@ -509,13 +509,13 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 	require.NoError(t, err)
 
 	// check ValidateSAMLResponse
-	response, err = a.ValidateSAMLResponse(context.Background(), base64.StdEncoding.EncodeToString([]byte(respOkta)))
+	response, err = a.ValidateSAMLResponse(context.Background(), base64.StdEncoding.EncodeToString([]byte(respOkta)), "")
 	require.NoError(t, err)
 	require.NotNil(t, response)
 
 	// check internal method, validate diagnostic outputs.
 	diagCtx := a.newSSODiagContext(types.KindSAML)
-	auth, err := a.validateSAMLResponse(context.Background(), diagCtx, base64.StdEncoding.EncodeToString([]byte(respOkta)))
+	auth, err := a.validateSAMLResponse(context.Background(), diagCtx, base64.StdEncoding.EncodeToString([]byte(respOkta)), "")
 	require.NoError(t, err)
 
 	// ensure diag info got stored and is identical.

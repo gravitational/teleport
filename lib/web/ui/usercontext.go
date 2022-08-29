@@ -82,6 +82,8 @@ type userACL struct {
 	AccessRequests access `json:"accessRequests"`
 	// Billing defines access to billing information.
 	Billing access `json:"billing"`
+	// ConnectionDiagnostic defines access to connection diagnostics.
+	ConnectionDiagnostic access `json:"connectionDiagnostic"`
 	// Clipboard defines whether the user can use a shared clipboard during windows desktop sessions.
 	Clipboard bool `json:"clipboard"`
 	// DesktopSessionRecording defines whether the user's desktop sessions are being recorded.
@@ -195,6 +197,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	kubeServerAccess := newAccess(userRoles, ctx, types.KindKubeService)
 	requestAccess := newAccess(userRoles, ctx, types.KindAccessRequest)
 	desktopAccess := newAccess(userRoles, ctx, types.KindWindowsDesktop)
+	cnDiagnosticAccess := newAccess(userRoles, ctx, types.KindConnectionDiagnostic)
 
 	var billingAccess access
 	if features.Cloud {
@@ -224,6 +227,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		Tokens:                  tokenAccess,
 		Nodes:                   nodeAccess,
 		Billing:                 billingAccess,
+		ConnectionDiagnostic:    cnDiagnosticAccess,
 		Clipboard:               clipboard,
 		DesktopSessionRecording: desktopSessionRecording,
 		DirectorySharing:        directorySharing,
