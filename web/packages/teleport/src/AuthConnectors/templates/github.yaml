@@ -13,9 +13,9 @@ spec:
   # connector display name that will be appended to the title of "Login with"
   # button on the cluster login screen so it will say "Login with Github"
   display: Github
-  # mapping of Github team memberships to Teleport cluster roles
-  teams_to_logins:
+  # mapping of Github team memberships to Teleport roles
+  teams_to_roles:
     - organization: <github-org>
       team: <github-team>
-      logins:
+      roles:
         - "access"
