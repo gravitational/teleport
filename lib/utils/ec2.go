@@ -18,8 +18,14 @@ package utils
 
 import (
 	"context"
-	"io"
+	"fmt"
+	"fmt"
+	"io""
+	"strings"
+	"time
 	"regexp"
+	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
@@ -83,4 +89,94 @@ func IsEC2NodeID(id string) bool {
 // the given Instance Identity Document.
 func NodeIDFromIID(iid *imds.InstanceIdentityDocument) string {
 	return iid.AccountID + "-" + iid.InstanceID
+}
+
+// InstanceMetadataClient is a wrapper for an imds.Client.
+type InstanceMetadataClient struct {
+	c *imds.Client
+}
+
+// InstanceMetadataClientOption allows setting options as functional arguments to an InstanceMetadataClient.
+type InstanceMetadataClientOption func(client *InstanceMetadataClient) error
+
+// WithIMDSClient adds a custom internal imds.Client to an InstanceMetadataClient.
+func WithIMDSClient(client *imds.Client) InstanceMetadataClientOption {
+	return func(clt *InstanceMetadataClient) error {
+		clt.c = client
+		return nil
+	}
+}
+
+// NewInstanceMetadataClient creates a new instance metadata client.
+func NewInstanceMetadataClient(ctx context.Context, opts ...InstanceMetadataClientOption) (*InstanceMetadataClient, error) {
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt := &InstanceMetadataClient{
+		c: imds.NewFromConfig(cfg),
+	}
+
+	for _, opt := range opts {
+		if err := opt(clt); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return clt, nil
+}
+
+// EC2 resource ID is i-{8 or 17 hex digits}, see
+//   https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/resource-ids.html
+var ec2ResourceIDRE = regexp.MustCompile("^i-[0-9a-f]{8,}$")
+
+// IsAvailable checks if instance metadata is available.
+func (client *InstanceMetadataClient) IsAvailable(ctx context.Context) bool {
+	ctx, cancel := context.WithTimeout(ctx, 250*time.Millisecond)
+	defer cancel()
+
+	// try to retrieve the instance id of our EC2 instance
+	id, err := client.getMetadata(ctx, "instance-id")
+	return err == nil && ec2ResourceIDRE.MatchString(id)
+}
+
+// getMetadata gets the raw metadata from a specified path.
+func (client *InstanceMetadataClient) getMetadata(ctx context.Context, path string) (string, error) {
+	output, err := client.c.GetMetadata(ctx, &imds.GetMetadataInput{Path: path})
+	if err != nil {
+		return "", trace.Wrap(aws.ParseMetadataClientError(err))
+	}
+	defer output.Content.Close()
+	body, err := ReadAtMost(output.Content, metadataReadLimit)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return string(body), nil
+}
+
+// GetTagKeys gets all of the EC2 tag keys.
+func (client *InstanceMetadataClient) GetTagKeys(ctx context.Context) ([]string, error) {
+	body, err := client.getMetadata(ctx, "tags/instance")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return strings.Split(body, "\n"), nil
+}
+
+// GetTagValue gets the value for a specified tag key.
+func (client *InstanceMetadataClient) GetTagValue(ctx context.Context, key string) (string, error) {
+	body, err := client.getMetadata(ctx, fmt.Sprintf("tags/instance/%s", key))
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return body, nil
+}
+
+func (client *InstanceMetadataClient) GetRegion(ctx context.Context) (string, error) {
+	getRegionOutput, err := client.c.GetRegion(ctx, nil)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return getRegionOutput.Region, nil
 }
