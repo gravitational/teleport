@@ -23,9 +23,9 @@ import (
 	"net/http"
 	"net/url"
 
-	apiutils "github.com/gravitational/teleport/api/utils"
-
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/observability/tracing"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -42,12 +42,15 @@ func NewInsecureWebClient() *http.Client {
 	tlsConfig.InsecureSkipVerify = true
 
 	return &http.Client{
-		Transport: otelhttp.NewTransport(&http.Transport{
-			TLSClientConfig: tlsConfig,
-			Proxy: func(req *http.Request) (*url.URL, error) {
-				return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
+		Transport: otelhttp.NewTransport(
+			&http.Transport{
+				TLSClientConfig: tlsConfig,
+				Proxy: func(req *http.Request) (*url.URL, error) {
+					return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
+				},
 			},
-		}),
+			otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
+		),
 	}
 }
 
@@ -58,12 +61,15 @@ func newClientWithPool(pool *x509.CertPool) *http.Client {
 	tlsConfig.RootCAs = pool
 
 	return &http.Client{
-		Transport: otelhttp.NewTransport(&http.Transport{
-			TLSClientConfig: tlsConfig,
-			Proxy: func(req *http.Request) (*url.URL, error) {
-				return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
+		Transport: otelhttp.NewTransport(
+			&http.Transport{
+				TLSClientConfig: tlsConfig,
+				Proxy: func(req *http.Request) (*url.URL, error) {
+					return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
+				},
 			},
-		}),
+			otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
+		),
 	}
 }
 
@@ -84,11 +90,11 @@ type WebClient struct {
 
 // PostJSONWithFallback serializes an object to JSON and attempts to execute a POST
 // using HTTPS, and then fall back to plain HTTP under certain, very specific circumstances.
-//  * The caller must specifically allow it via the allowHTTPFallback parameter, and
-//  * The target host must resolve to the loopback address.
+//   - The caller must specifically allow it via the allowHTTPFallback parameter, and
+//   - The target host must resolve to the loopback address.
+//
 // If these conditions are not met, then the plain-HTTP fallback is not allowed,
 // and a the HTTPS failure will be considered final.
-//
 func (w *WebClient) PostJSONWithFallback(ctx context.Context, endpoint string, val interface{}, allowHTTPFallback bool) (*roundtrip.Response, error) {
 	// First try HTTPS and see how that goes
 	log.Debugf("Attempting %s", endpoint)
