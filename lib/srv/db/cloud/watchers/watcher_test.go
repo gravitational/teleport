@@ -597,7 +597,7 @@ func TestWatcher(t *testing.T) {
 	}
 
 	// Test that newly added Azure subscriptions are discovered by "*" subscription fetchers
-	t.Run("Test Azure subscription discovery", func(t *testing.T) {
+	t.Run("Azure subscription discovery", func(t *testing.T) {
 		mockSubscriptions := &azure.ARMSubscriptionsMock{
 			Subscriptions: []*armsubscription.Subscription{azureSub1},
 		}
