@@ -107,7 +107,7 @@ teleport:
     audit_events_uri: ['backend://']
 ```
 
-With the relevant `ClusterAuditConfigSpecV2` options such as `audit_retention_period` that affect all audit logs being specified in the usual way, and future tunables for the backend-adjacent audit log being added either as extra options for the audit-aware backend or in the URI.
+with the relevant `ClusterAuditConfigSpecV2` options such as `audit_retention_period` that affect all audit logs being specified in the usual way, and future tunables for the backend-adjacent audit log being added either as extra options for the audit-aware backend or in the URI. An `audit_events_uri` that contains a `backend://` will result in an error if the configured backend cannot act as storage for the audit log.
 
 If we decide to go for a setup in which the audit log is completely independent of the backend storage, we could just specify a URI with all the relevant options and open a whole new connection pool for it:
 
