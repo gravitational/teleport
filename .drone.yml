@@ -674,7 +674,7 @@ concurrency:
 steps:
 - name: Send Slack notification (exec)
   commands:
-  - $BuildUrl = "$Env:DRONE_SYSTEM_PROTO://$Env:DRONE_SYSTEM_HOSTNAME/$Env:DRONE_REPO_OWNER/$Env:$Env:DRONE_REPO_NAME/$Env:DRONE_BUILD_NUMBER"
+  - $BuildUrl = "$Env:DRONE_SYSTEM_PROTO://$Env:DRONE_SYSTEM_HOSTNAME/$Env:DRONE_REPO_OWNER/$Env:DRONE_REPO_NAME/$Env:DRONE_BUILD_NUMBER"
   - $GoOS = $(go env GOOS)
   - $GoArch = $(go env GOARCH)
   - '$Msg = "THIS IS A TEST (by @trent): Warning: ``$GoOS-$GoArch`` artifact build
@@ -6946,6 +6946,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 1f2dc0f82b31a7c002afc00d8feac2d9b7cc08fdb19b7e9642ec4bd4ca7a0507
+hmac: 5b3f5bc9d83aeffd886b6d42a8f5d5181034c8a84c00b4cb3c92acf3cc070393
 
 ...
