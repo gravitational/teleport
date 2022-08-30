@@ -511,20 +511,22 @@ func (c *CLICommandBuilder) getSnowflakeCommand() *exec.Cmd {
 }
 
 func (c *CLICommandBuilder) getElasticsearchCommand() *exec.Cmd {
-	args := []string{fmt.Sprintf("https://%v:%v/", c.host, c.port)}
+	if c.options.noTLS {
+		return c.options.exe.Command(curlBin, fmt.Sprintf("http://%v:%v/", c.host, c.port))
+	}
 
-	if !c.options.noTLS {
-		args = append(args,
-			"--key", c.profile.KeyPath(),
-			"--cert", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName))
+	args := []string{
+		fmt.Sprintf("https://%v:%v/", c.host, c.port),
+		"--key", c.profile.KeyPath(),
+		"--cert", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
+	}
 
-		if c.tc.InsecureSkipVerify {
-			args = append(args, "--insecure")
-		}
+	if c.tc.InsecureSkipVerify {
+		args = append(args, "--insecure")
+	}
 
-		if c.options.caPath != "" {
-			args = append(args, []string{"--cacert", c.options.caPath}...)
-		}
+	if c.options.caPath != "" {
+		args = append(args, []string{"--cacert", c.options.caPath}...)
 	}
 
 	return c.options.exe.Command(curlBin, args...)

@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"strconv"
 
+	elastic "github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -46,6 +47,8 @@ func newEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{EngineConfig: ec}
 }
 
+// Engine handles connections from Elasticsearch clients coming from Teleport
+// proxy over reverse tunnel.
 type Engine struct {
 	// EngineConfig is the common database engine configuration.
 	common.EngineConfig
@@ -61,24 +64,26 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 	return nil
 }
 
+// SendError sends an error to Elasticsearch client.
 func (e *Engine) SendError(err error) {
 	if e.clientConn == nil || err == nil || utils.IsOKNetworkError(err) {
 		return
+	}
+
+	cause := elastic.ErrorCause{
+		Reason: err.Error(),
+		Type:   "internal_server_error_exception",
 	}
 
 	// Assume internal server error HTTP 500 and override if possible.
 	statusCode := http.StatusInternalServerError
 	if trace.IsAccessDenied(err) {
 		statusCode = http.StatusUnauthorized
+		cause.Type = "access_denied_exception"
+
 	}
 
-	jsonBody, err := json.Marshal(struct {
-		Success bool   `json:"success"`
-		Message string `json:"message"`
-	}{
-		Success: false,
-		Message: err.Error(),
-	})
+	jsonBody, err := json.Marshal(cause)
 	if err != nil {
 		e.Log.WithError(err).Error("failed to marshal error response")
 		return
@@ -101,6 +106,8 @@ func (e *Engine) SendError(err error) {
 	}
 }
 
+// HandleConnection authorizes the incoming client connection, connects to the
+// target Elasticsearch server and starts proxying requests between client/server.
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
 	if err := e.authorizeConnection(ctx); err != nil {
 		return trace.Wrap(err)
@@ -111,13 +118,24 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 	clientConnReader := bufio.NewReader(e.clientConn)
 
+	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: tlsConfig,
+		},
+	}
+
 	for {
 		req, err := http.ReadRequest(clientConnReader)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		err = e.process(ctx, sessionCtx, req)
+		err = e.process(ctx, sessionCtx, req, client)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -137,7 +155,7 @@ func copyRequest(ctx context.Context, req *http.Request) (*http.Request, error) 
 
 // process reads request from connected elasticsearch client, processes the requests/responses and send data back
 // to the client.
-func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *http.Request) error {
+func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *http.Request, client *http.Client) error {
 	reqCopy, err := copyRequest(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
@@ -146,17 +164,6 @@ func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *h
 	// force HTTPS, set host URL.
 	reqCopy.URL.Scheme = "https"
 	reqCopy.URL.Host = sessionCtx.Database.GetURI()
-
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: tlsConfig,
-		},
-	}
 
 	// Send the request to elasticsearch API
 	resp, err := client.Do(reqCopy)
