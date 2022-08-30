@@ -155,7 +155,7 @@ func ExportLatencyProfile(path string, h *hdrhistogram.Histogram, ticks int32, v
 
 // Benchmark connects to remote server and executes requests in parallel according
 // to benchmark spec. It returns benchmark result when completed.
-// This is a blocking function that can be cancelled via context argument.
+// This is a blocking function that can be canceled via context argument.
 func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Result, error) {
 	tc.Stdout = io.Discard
 	tc.Stderr = io.Discard

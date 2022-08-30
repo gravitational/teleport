@@ -65,7 +65,10 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 
 	var apps types.Apps
 	for _, server := range appServers {
-		apps = append(apps, server.GetApp())
+		// Skip over TCP apps since they cannot be accessed through web UI.
+		if !server.GetApp().IsTCP() {
+			apps = append(apps, server.GetApp())
+		}
 	}
 
 	return listResourcesGetResponse{
@@ -74,7 +77,7 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 			LocalProxyDNSName: h.proxyDNSName(),
 			AppClusterName:    appClusterName,
 			Identity:          identity,
-			Apps:              types.DeduplicateApps(apps),
+			Apps:              apps,
 		}),
 		StartKey:   resp.NextKey,
 		TotalCount: resp.TotalCount,

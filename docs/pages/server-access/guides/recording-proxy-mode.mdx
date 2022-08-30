@@ -23,26 +23,7 @@ interested in setting up session recording, read our
 [Server Access Getting Started Guide](../getting-started.mdx) so you can start
 replacing your OpenSSH servers with Teleport Nodes.
 
-You can also view this guide as a user of another Teleport edition:
-
-<TileSet>
-<Tile
-href="./recording-proxy-mode.mdx/?scope=oss"
-icon="stack"
-title="Open Source Teleport"
->
-</Tile>
-<Tile
-href="./recording-proxy-mode.mdx/?scope=enterprise"
-icon="building"
-title="Teleport Enterprise"
->
-</Tile>
-</TileSet>
-
 </ScopedBlock>
-
-<ScopedBlock scope={["oss", "enterprise"]}>
 
 We consider Recording Proxy Mode to be less secure than recording at the Node
 level for two reasons:
@@ -58,7 +39,7 @@ The Teleport Proxy Service should be available to clients and set up with TLS.
 <TabItem scope={["oss"]} label="Self-Hosted">
 
 - A running Teleport cluster. For details on how to set this up, see [Getting
-  Started on a Linux Server](../../getting-started/linux-server.mdx).
+  Started on a Linux Server](../../deploy-a-cluster/open-source.mdx).
 
 - The `tctl` admin tool version >= (=teleport.version=).
 
@@ -76,7 +57,7 @@ The Teleport Proxy Service should be available to clients and set up with TLS.
   scope={["enterprise"]} label="Enterprise">
 
 - A running Teleport cluster. For details on setting this up, see our
-  [Enterprise getting started guide](../../enterprise/getting-started.mdx).
+  [Enterprise getting started guide](../../deploy-a-cluster/teleport-enterprise/getting-started.mdx).
 
 - The `tctl` admin tool version >= (=teleport.version=), which you can download
   by visiting the
@@ -271,4 +252,3 @@ dropped.
 To increase the concurrency level, increase the value to something like
 `MaxStartups 50:30:100`. This allows 50 concurrent connections and a max of 100.
 
-</ScopedBlock>

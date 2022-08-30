@@ -22,6 +22,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/constants"
 )
 
 // TestAppPublicAddrValidation tests PublicAddr field validation to make sure that
@@ -201,16 +203,52 @@ func TestAppIsAWSConsole(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			app, err := NewAppV3(Metadata{
-				Name: "TestApp",
+				Name: "aws",
 			}, AppSpecV3{
 				URI: test.uri,
 			})
 			require.NoError(t, err)
+
 			if test.isAWSConsole {
 				require.True(t, app.IsAWSConsole())
 			} else {
 				require.False(t, app.IsAWSConsole())
 			}
+		})
+	}
+}
+
+func TestApplicationGetAWSExternalID(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name               string
+		appAWS             *AppAWS
+		expectedExternalID string
+	}{
+		{
+			name: "not configured",
+		},
+		{
+			name: "configured",
+			appAWS: &AppAWS{
+				ExternalID: "default-external-id",
+			},
+			expectedExternalID: "default-external-id",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			app, err := NewAppV3(Metadata{
+				Name: "aws",
+			}, AppSpecV3{
+				URI: constants.AWSConsoleURL,
+				AWS: test.appAWS,
+			})
+			require.NoError(t, err)
+
+			require.Equal(t, test.expectedExternalID, app.GetAWSExternalID())
 		})
 	}
 }

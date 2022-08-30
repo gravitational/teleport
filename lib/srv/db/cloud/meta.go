@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 
@@ -27,6 +28,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
+	"github.com/aws/aws-sdk-go/service/memorydb"
+	"github.com/aws/aws-sdk-go/service/memorydb/memorydbiface"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
 	"github.com/aws/aws-sdk-go/service/redshift"
@@ -39,13 +42,13 @@ import (
 // MetadataConfig is the cloud metadata service config.
 type MetadataConfig struct {
 	// Clients is an interface for retrieving cloud clients.
-	Clients common.CloudClients
+	Clients cloud.Clients
 }
 
 // Check validates the metadata service config.
 func (c *MetadataConfig) Check() error {
 	if c.Clients == nil {
-		c.Clients = common.NewCloudClients()
+		c.Clients = cloud.NewClients()
 	}
 	return nil
 }
@@ -69,12 +72,15 @@ func NewMetadata(config MetadataConfig) (*Metadata, error) {
 
 // Update updates cloud metadata of the provided database.
 func (m *Metadata) Update(ctx context.Context, database types.Database) error {
-	if database.IsRDS() {
+	switch database.GetType() {
+	case types.DatabaseTypeRDS:
 		return m.updateAWS(ctx, database, m.fetchRDSMetadata)
-	} else if database.IsRedshift() {
+	case types.DatabaseTypeRedshift:
 		return m.updateAWS(ctx, database, m.fetchRedshiftMetadata)
-	} else if database.IsElastiCache() {
+	case types.DatabaseTypeElastiCache:
 		return m.updateAWS(ctx, database, m.fetchElastiCacheMetadata)
+	case types.DatabaseTypeMemoryDB:
+		return m.updateAWS(ctx, database, m.fetchMemoryDBMetadata)
 	}
 	return nil
 }
@@ -162,6 +168,22 @@ func (m *Metadata) fetchElastiCacheMetadata(ctx context.Context, database types.
 	return services.MetadataFromElastiCacheCluster(cluster, endpointType)
 }
 
+// fetchMemoryDBMetadata fetches metadata for the provided MemoryDB database.
+func (m *Metadata) fetchMemoryDBMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
+	memoryDBClient, err := m.cfg.Clients.GetAWSMemoryDBClient(database.GetAWS().Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cluster, err := describeMemoryDBCluster(ctx, memoryDBClient, database.GetAWS().MemoryDB.ClusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Endpoint type does not change.
+	endpointType := database.GetAWS().MemoryDB.EndpointType
+	return services.MetadataFromMemoryDBCluster(cluster, endpointType)
+}
+
 // fetchRDSInstanceMetadata fetches metadata about specified RDS instance.
 func fetchRDSInstanceMetadata(ctx context.Context, rdsClient rdsiface.RDSAPI, instanceID string) (*types.AWS, error) {
 	rdsInstance, err := describeRDSInstance(ctx, rdsClient, instanceID)
@@ -235,4 +257,18 @@ func describeElastiCacheCluster(ctx context.Context, elastiCacheClient elasticac
 		return nil, trace.BadParameter("expected 1 ElastiCache cluster for %v, got %+v", replicationGroupID, out.ReplicationGroups)
 	}
 	return out.ReplicationGroups[0], nil
+}
+
+// describeMemoryDBCluster returns AWS MemoryDB cluster for the specified ID.
+func describeMemoryDBCluster(ctx context.Context, client memorydbiface.MemoryDBAPI, clusterName string) (*memorydb.Cluster, error) {
+	out, err := client.DescribeClustersWithContext(ctx, &memorydb.DescribeClustersInput{
+		ClusterName: aws.String(clusterName),
+	})
+	if err != nil {
+		return nil, common.ConvertError(err)
+	}
+	if len(out.Clusters) != 1 {
+		return nil, trace.BadParameter("expected 1 MemoryDB cluster for %v, got %+v", clusterName, out.Clusters)
+	}
+	return out.Clusters[0], nil
 }

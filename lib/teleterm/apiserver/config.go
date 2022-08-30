@@ -30,12 +30,18 @@ type Config struct {
 	Daemon *daemon.Service
 	// Log is a component logger
 	Log logrus.FieldLogger
+	// Directory containing certs used to create secure gRPC connection with daemon service
+	CertsDir string
 }
 
 // CheckAndSetDefaults checks and sets default config values.
 func (c *Config) CheckAndSetDefaults() error {
 	if c.HostAddr == "" {
 		return trace.BadParameter("missing HostAddr")
+	}
+
+	if c.HostAddr == "" {
+		return trace.BadParameter("missing certs dir")
 	}
 
 	if c.Daemon == nil {

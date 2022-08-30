@@ -33,6 +33,7 @@ func TestEnvironment(t *testing.T) {
 		number       int
 		author       string
 		unsafeBranch string
+		isLarge      bool
 		err          bool
 	}{
 		{
@@ -55,12 +56,13 @@ func TestEnvironment(t *testing.T) {
 		},
 		{
 			desc:         "synchronize-event",
-			path:         "testdata/submitted.json",
-			organization: "Codertocat",
-			repository:   "Hello-World",
-			number:       2,
-			author:       "Codertocat",
-			unsafeBranch: "changes",
+			path:         "testdata/synchronize.json",
+			organization: "gravitational",
+			repository:   "gh-actions-poc",
+			number:       28,
+			author:       "quinqu",
+			unsafeBranch: "jane/ci",
+			isLarge:      true,
 		},
 		{
 			desc:         "schedule-event",

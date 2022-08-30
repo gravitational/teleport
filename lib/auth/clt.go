@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -133,7 +134,7 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 		if len(cfg.Addrs) == 0 {
 			return nil, trace.BadParameter("no addresses to dial")
 		}
-		contextDialer := client.NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
+		contextDialer := client.NewDialer(cfg.Context, cfg.KeepAlivePeriod, cfg.DialTimeout)
 		dialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
 				conn, err = contextDialer.DialContext(ctx, network, addr)
@@ -193,7 +194,13 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 
 	clientParams := append(
 		[]roundtrip.ClientParam{
-			roundtrip.HTTPClient(&http.Client{Transport: otelhttp.NewTransport(breaker.NewRoundTripper(cb, transport))}),
+			roundtrip.HTTPClient(&http.Client{
+				Timeout: defaults.HTTPRequestTimeout,
+				Transport: otelhttp.NewTransport(
+					breaker.NewRoundTripper(cb, transport),
+					otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
+				),
+			}),
 			roundtrip.SanitizerEnabled(true),
 		},
 		params...,
@@ -282,70 +289,6 @@ func (c *Client) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &re, nil
-}
-
-// GetSessions returns a list of active sessions in the cluster as reported by
-// the auth server.
-func (c *Client) GetSessions(namespace string) ([]session.Session, error) {
-	if namespace == "" {
-		return nil, trace.BadParameter(MissingNamespaceError)
-	}
-	out, err := c.Get(context.TODO(), c.Endpoint("namespaces", namespace, "sessions"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var sessions []session.Session
-	if err := json.Unmarshal(out.Bytes(), &sessions); err != nil {
-		return nil, err
-	}
-	return sessions, nil
-}
-
-// GetSession returns a session by ID
-func (c *Client) GetSession(namespace string, id session.ID) (*session.Session, error) {
-	if namespace == "" {
-		return nil, trace.BadParameter(MissingNamespaceError)
-	}
-	// saving extra round-trip
-	if err := id.Check(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out, err := c.Get(context.TODO(), c.Endpoint("namespaces", namespace, "sessions", string(id)), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var sess *session.Session
-	if err := json.Unmarshal(out.Bytes(), &sess); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sess, nil
-}
-
-// DeleteSession removes an active session from the backend.
-func (c *Client) DeleteSession(namespace string, id session.ID) error {
-	if namespace == "" {
-		return trace.BadParameter(MissingNamespaceError)
-	}
-	_, err := c.Delete(context.TODO(), c.Endpoint("namespaces", namespace, "sessions", string(id)))
-	return trace.Wrap(err)
-}
-
-// CreateSession creates new session
-func (c *Client) CreateSession(sess session.Session) error {
-	if sess.Namespace == "" {
-		return trace.BadParameter(MissingNamespaceError)
-	}
-	_, err := c.PostJSON(context.TODO(), c.Endpoint("namespaces", sess.Namespace, "sessions"), createSessionReq{Session: sess})
-	return trace.Wrap(err)
-}
-
-// UpdateSession updates existing session
-func (c *Client) UpdateSession(req session.UpdateRequest) error {
-	if err := req.Check(); err != nil {
-		return trace.Wrap(err)
-	}
-	_, err := c.PutJSON(context.TODO(), c.Endpoint("namespaces", req.Namespace, "sessions", string(req.ID)), updateSessionReq{Update: req})
-	return trace.Wrap(err)
 }
 
 func (c *Client) Close() error {
@@ -464,26 +407,6 @@ func (c *Client) DeactivateCertAuthority(id types.CertAuthID) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// GenerateToken creates a special provisioning token for a new SSH server
-// that is valid for ttl period seconds.
-//
-// This token is used by SSH server to authenticate with Auth server
-// and get signed certificate and private key from the auth server.
-//
-// If token is not supplied, it will be auto generated and returned.
-// If TTL is not supplied, token will be valid until removed.
-func (c *Client) GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error) {
-	out, err := c.PostJSON(ctx, c.Endpoint("tokens"), req)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	var token string
-	if err := json.Unmarshal(out.Bytes(), &token); err != nil {
-		return "", trace.Wrap(err)
-	}
-	return token, nil
-}
-
 // RegisterUsingToken calls the auth service API to register a new node using a registration token
 // which was previously issued via GenerateToken.
 func (c *Client) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
@@ -501,14 +424,6 @@ func (c *Client) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	}
 
 	return &certs, nil
-}
-
-// RegisterNewAuthServer is used to register new auth server with token
-func (c *Client) RegisterNewAuthServer(ctx context.Context, token string) error {
-	_, err := c.PostJSON(ctx, c.Endpoint("tokens", "register", "auth"), registerNewAuthServerReq{
-		Token: token,
-	})
-	return trace.Wrap(err)
 }
 
 // DELETE IN: 5.1.0
@@ -839,21 +754,6 @@ func (c *Client) DeleteProxy(name string) error {
 	return nil
 }
 
-// UpsertPassword updates web access password for the user
-func (c *Client) UpsertPassword(user string, password []byte) error {
-	_, err := c.PostJSON(
-		context.TODO(),
-		c.Endpoint("users", user, "web", "password"),
-		upsertPasswordReq{
-			Password: string(password),
-		})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 // UpsertUser user updates user entry.
 func (c *Client) UpsertUser(user types.User) error {
 	data, err := services.MarshalUser(user)
@@ -898,9 +798,9 @@ func (c *Client) ExtendWebSession(ctx context.Context, req WebSessionReq) (types
 }
 
 // CreateWebSession creates a new web session for a user
-func (c *Client) CreateWebSession(user string) (types.WebSession, error) {
+func (c *Client) CreateWebSession(ctx context.Context, user string) (types.WebSession, error) {
 	out, err := c.PostJSON(
-		context.TODO(),
+		ctx,
 		c.Endpoint("users", user, "web", "sessions"),
 		WebSessionReq{User: user},
 	)
@@ -912,9 +812,9 @@ func (c *Client) CreateWebSession(user string) (types.WebSession, error) {
 
 // AuthenticateWebUser authenticates web user, creates and  returns web session
 // in case if authentication is successful
-func (c *Client) AuthenticateWebUser(req AuthenticateUserRequest) (types.WebSession, error) {
+func (c *Client) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRequest) (types.WebSession, error) {
 	out, err := c.PostJSON(
-		context.TODO(),
+		ctx,
 		c.Endpoint("users", req.Username, "web", "authenticate"),
 		req,
 	)
@@ -926,9 +826,9 @@ func (c *Client) AuthenticateWebUser(req AuthenticateUserRequest) (types.WebSess
 
 // AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
 // short lived certificates as a result
-func (c *Client) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
+func (c *Client) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
 	out, err := c.PostJSON(
-		context.TODO(),
+		ctx,
 		c.Endpoint("users", req.Username, "ssh", "authenticate"),
 		req,
 	)
@@ -955,8 +855,8 @@ func (c *Client) GetWebSessionInfo(ctx context.Context, user, sessionID string) 
 }
 
 // DeleteWebSession deletes the web session specified with sid for the given user
-func (c *Client) DeleteWebSession(user string, sid string) error {
-	_, err := c.Delete(context.TODO(), c.Endpoint("users", user, "web", "sessions", sid))
+func (c *Client) DeleteWebSession(ctx context.Context, user string, sid string) error {
+	_, err := c.Delete(ctx, c.Endpoint("users", user, "web", "sessions", sid))
 	return trace.Wrap(err)
 }
 
@@ -1026,9 +926,10 @@ func (c *Client) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*O
 }
 
 // ValidateSAMLResponse validates response returned by SAML identity provider
-func (c *Client) ValidateSAMLResponse(ctx context.Context, re string) (*SAMLAuthResponse, error) {
+func (c *Client) ValidateSAMLResponse(ctx context.Context, re string, connectorID string) (*SAMLAuthResponse, error) {
 	out, err := c.PostJSON(ctx, c.Endpoint("saml", "requests", "validate"), validateSAMLResponseReq{
-		Response: re,
+		Response:    re,
+		ConnectorID: connectorID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1165,7 +1066,7 @@ func (c *Client) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventT
 }
 
 // SearchSessionEvents returns session related events to find completed sessions.
-func (c *Client) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr) ([]apievents.AuditEvent, string, error) {
+func (c *Client) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error) {
 	events, lastKey, err := c.APIClient.SearchSessionEvents(context.TODO(), fromUTC, toUTC, limit, order, startKey)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -1212,7 +1113,7 @@ func (c *Client) DeleteNamespace(name string) error {
 }
 
 // CreateRole not implemented: can only be called locally.
-func (c *Client) CreateRole(role types.Role) error {
+func (c *Client) CreateRole(ctx context.Context, role types.Role) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -1473,7 +1374,7 @@ type WebService interface {
 	// valid web session
 	ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error)
 	// CreateWebSession creates a new web session for a user
-	CreateWebSession(user string) (types.WebSession, error)
+	CreateWebSession(ctx context.Context, user string) (types.WebSession, error)
 
 	// AppSession defines application session features.
 	services.AppSession
@@ -1483,8 +1384,6 @@ type WebService interface {
 
 // IdentityService manages identities and users
 type IdentityService interface {
-	// UpsertPassword updates web access password for the user
-	UpsertPassword(user string, password []byte) error
 	// UpsertOIDCConnector updates or creates OIDC connector
 	UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error
 	// GetOIDCConnector returns OIDC connector information by id
@@ -1511,7 +1410,7 @@ type IdentityService interface {
 	// CreateSAMLAuthRequest creates SAML AuthnRequest
 	CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error)
 	// ValidateSAMLResponse validates SAML auth response
-	ValidateSAMLResponse(ctx context.Context, re string) (*SAMLAuthResponse, error)
+	ValidateSAMLResponse(ctx context.Context, re string, connectorID string) (*SAMLAuthResponse, error)
 	// GetSAMLAuthRequest returns SAML auth request if found
 	GetSAMLAuthRequest(ctx context.Context, authRequestID string) (*types.SAMLAuthRequest, error)
 
@@ -1539,6 +1438,9 @@ type IdentityService interface {
 	// GetCurrentUser returns current user as seen by the server.
 	// Useful especially in the context of remote clusters which perform role and trait mapping.
 	GetCurrentUser(ctx context.Context) (types.User, error)
+
+	// GetCurrentUserRoles returns current user's roles.
+	GetCurrentUserRoles(ctx context.Context) ([]types.Role, error)
 
 	// CreateUser inserts a new entry in a backend.
 	CreateUser(ctx context.Context, user types.User) error
@@ -1573,7 +1475,7 @@ type IdentityService interface {
 	//
 	// If token is not supplied, it will be auto generated and returned.
 	// If TTL is not supplied, token will be valid until removed.
-	GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error)
+	GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error)
 
 	// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
 	// plain text format, signs it using Host Certificate Authority private key and returns the
@@ -1677,12 +1579,12 @@ type ProvisioningService interface {
 	// UpsertToken adds provisioning tokens for the auth server
 	UpsertToken(ctx context.Context, token types.ProvisionToken) error
 
+	// CreateToken creates a new provision token for the auth server
+	CreateToken(ctx context.Context, token types.ProvisionToken) error
+
 	// RegisterUsingToken calls the auth service API to register a new node via registration token
 	// which has been previously issued via GenerateToken
 	RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error)
-
-	// RegisterNewAuthServer is used to register new auth server with token
-	RegisterNewAuthServer(ctx context.Context, token string) error
 }
 
 // ClientI is a client to Auth service
@@ -1702,9 +1604,10 @@ type ClientI interface {
 	services.Databases
 	services.WindowsDesktops
 	WebService
-	session.Service
+	services.Status
 	services.ClusterConfiguration
 	services.SessionTrackerService
+	services.ConnectionsDiagnostic
 	types.Events
 
 	types.WebSessionsGetter
@@ -1738,10 +1641,10 @@ type ClientI interface {
 	GenerateHostCerts(context.Context, *proto.HostCertsRequest) (*proto.Certs, error)
 	// AuthenticateWebUser authenticates web user, creates and  returns web session
 	// in case if authentication is successful
-	AuthenticateWebUser(req AuthenticateUserRequest) (types.WebSession, error)
+	AuthenticateWebUser(ctx context.Context, req AuthenticateUserRequest) (types.WebSession, error)
 	// AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
-	// short lived certificates as a result
-	AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error)
+	// short-lived certificates as a result
+	AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*SSHLoginResponse, error)
 
 	// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
 	// signed certificate if successful.
@@ -1784,4 +1687,10 @@ type ClientI interface {
 	GenerateWindowsDesktopCert(context.Context, *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error)
 	// GenerateCertAuthorityCRL generates an empty CRL for a CA.
 	GenerateCertAuthorityCRL(context.Context, types.CertAuthType) ([]byte, error)
+
+	// GetInventoryStatus gets basic status info about instance inventory.
+	GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error)
+
+	// PingInventory attempts to trigger a downstream ping against a connected instance.
+	PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error)
 }

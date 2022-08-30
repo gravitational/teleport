@@ -23,12 +23,13 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
+	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
 	"github.com/aws/aws-sdk-go/service/redshift"
@@ -77,10 +78,25 @@ func TestWatcher(t *testing.T) {
 		aws.StringValue(elasticacheUnsupported.ARN): elasticacheUnsupportedTags,
 	}
 
+	memorydbProd, memorydbDatabaseProd, memorydbProdTags := makeMemoryDBCluster(t, "memory1", "us-east-1", "prod")
+	memorydbTest, _, memorydbTestTags := makeMemoryDBCluster(t, "memory2", "us-east-1", "test")
+	memorydbUnavailable, _, memorydbUnavailableTags := makeMemoryDBCluster(t, "memory3", "us-east-1", "prod", func(cluster *memorydb.Cluster) {
+		cluster.Status = aws.String("deleting")
+	})
+	memorydbUnsupported, _, memorydbUnsupportedTags := makeMemoryDBCluster(t, "memory4", "us-east-1", "prod", func(cluster *memorydb.Cluster) {
+		cluster.TLSEnabled = aws.Bool(false)
+	})
+	memorydbTagsByARN := map[string][]*memorydb.Tag{
+		aws.StringValue(memorydbProd.ARN):        memorydbProdTags,
+		aws.StringValue(memorydbTest.ARN):        memorydbTestTags,
+		aws.StringValue(memorydbUnavailable.ARN): memorydbUnavailableTags,
+		aws.StringValue(memorydbUnsupported.ARN): memorydbUnsupportedTags,
+	}
+
 	tests := []struct {
 		name              string
 		awsMatchers       []services.AWSMatcher
-		clients           common.CloudClients
+		clients           clients.Clients
 		expectedDatabases types.Databases
 	}{
 		{
@@ -97,7 +113,7 @@ func TestWatcher(t *testing.T) {
 					Tags:    types.Labels{"env": []string{"dev"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				RDSPerRegion: map[string]rdsiface.RDSAPI{
 					"us-east-1": &cloud.RDSMock{
 						DBInstances: []*rds.DBInstance{rdsInstance1, rdsInstance3},
@@ -118,7 +134,7 @@ func TestWatcher(t *testing.T) {
 				Regions: []string{"us-east-1"},
 				Tags:    types.Labels{"*": []string{"*"}},
 			}},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				RDSPerRegion: map[string]rdsiface.RDSAPI{
 					"us-east-1": &cloud.RDSMock{
 						DBClusters: []*rds.DBCluster{auroraCluster1, auroraClusterUnsupported},
@@ -134,7 +150,7 @@ func TestWatcher(t *testing.T) {
 				Regions: []string{"us-east-1"},
 				Tags:    types.Labels{"*": []string{"*"}},
 			}},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				RDS: &cloud.RDSMock{
 					DBInstances: []*rds.DBInstance{rdsInstance1, rdsInstanceUnavailable, rdsInstanceUnknownStatus},
 					DBClusters:  []*rds.DBCluster{auroraCluster1, auroraClusterUnavailable, auroraClusterUnknownStatus},
@@ -149,7 +165,7 @@ func TestWatcher(t *testing.T) {
 				Regions: []string{"ca-central-1", "us-west-1", "us-east-1"},
 				Tags:    types.Labels{"*": []string{"*"}},
 			}},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				RDSPerRegion: map[string]rdsiface.RDSAPI{
 					"ca-central-1": &cloud.RDSMockUnauth{},
 					"us-west-1": &cloud.RDSMockByDBType{
@@ -173,7 +189,7 @@ func TestWatcher(t *testing.T) {
 					Tags:    types.Labels{"env": []string{"prod"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				Redshift: &cloud.RedshiftMock{
 					Clusters: []*redshift.Cluster{redshiftUse1Prod, redshiftUse1Dev},
 				},
@@ -189,7 +205,7 @@ func TestWatcher(t *testing.T) {
 					Tags:    types.Labels{"*": []string{"*"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				Redshift: &cloud.RedshiftMock{
 					Clusters: []*redshift.Cluster{redshiftUse1Prod, redshiftUse1Unavailable, redshiftUse1UnknownStatus},
 				},
@@ -205,7 +221,7 @@ func TestWatcher(t *testing.T) {
 					Tags:    types.Labels{"env": []string{"prod", "qa"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				ElastiCache: &cloud.ElastiCacheMock{
 					ReplicationGroups: []*elasticache.ReplicationGroup{
 						elasticacheProd, // labels match
@@ -220,15 +236,42 @@ func TestWatcher(t *testing.T) {
 			expectedDatabases: types.Databases{elasticacheDatabaseProd, elasticacheDatabaseQA},
 		},
 		{
-			name: "matcher with multiple types",
+			name: "MemoryDB",
 			awsMatchers: []services.AWSMatcher{
 				{
-					Types:   []string{services.AWSMatcherRedshift, services.AWSMatcherRDS, services.AWSMatcherElastiCache},
+					Types:   []string{services.AWSMatcherMemoryDB},
 					Regions: []string{"us-east-1"},
 					Tags:    types.Labels{"env": []string{"prod"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
+				MemoryDB: &cloud.MemoryDBMock{
+					Clusters: []*memorydb.Cluster{
+						memorydbProd, // labels match
+						memorydbTest, // labels do not match
+						memorydbUnavailable,
+						memorydbUnsupported,
+					},
+					TagsByARN: memorydbTagsByARN,
+				},
+			},
+			expectedDatabases: types.Databases{memorydbDatabaseProd},
+		},
+		{
+			name: "matcher with multiple types",
+			awsMatchers: []services.AWSMatcher{
+				{
+					Types: []string{
+						services.AWSMatcherRedshift,
+						services.AWSMatcherRDS,
+						services.AWSMatcherElastiCache,
+						services.AWSMatcherMemoryDB,
+					},
+					Regions: []string{"us-east-1"},
+					Tags:    types.Labels{"env": []string{"prod"}},
+				},
+			},
+			clients: &clients.TestCloudClients{
 				RDS: &cloud.RDSMock{
 					DBClusters: []*rds.DBCluster{auroraCluster1},
 				},
@@ -239,8 +282,17 @@ func TestWatcher(t *testing.T) {
 					ReplicationGroups: []*elasticache.ReplicationGroup{elasticacheProd},
 					TagsByARN:         elasticacheTagsByARN,
 				},
+				MemoryDB: &cloud.MemoryDBMock{
+					Clusters:  []*memorydb.Cluster{memorydbProd},
+					TagsByARN: memorydbTagsByARN,
+				},
 			},
-			expectedDatabases: types.Databases{auroraDatabase1, redshiftDatabaseUse1Prod, elasticacheDatabaseProd},
+			expectedDatabases: types.Databases{
+				auroraDatabase1,
+				redshiftDatabaseUse1Prod,
+				elasticacheDatabaseProd,
+				memorydbDatabaseProd,
+			},
 		},
 	}
 
@@ -252,7 +304,9 @@ func TestWatcher(t *testing.T) {
 			go watcher.fetchAndSend()
 			select {
 			case databases := <-watcher.DatabasesC():
-				require.Equal(t, test.expectedDatabases, databases)
+				// makeFetchers function uses a map for matcher types so
+				// databases can come in random orders.
+				require.ElementsMatch(t, test.expectedDatabases, databases)
 			case <-time.After(time.Second):
 				t.Fatal("didn't receive databases after 1 second")
 			}
@@ -393,6 +447,33 @@ func makeElastiCacheCluster(t *testing.T, name, region, env string, opts ...func
 	require.NoError(t, err)
 	require.Len(t, databases, 1)
 	return cluster, databases[0], tags
+}
+
+func makeMemoryDBCluster(t *testing.T, name, region, env string, opts ...func(*memorydb.Cluster)) (*memorydb.Cluster, types.Database, []*memorydb.Tag) {
+	cluster := &memorydb.Cluster{
+		ARN:        aws.String(fmt.Sprintf("arn:aws:memorydb:%s:123456789:cluster:%s", region, name)),
+		Name:       aws.String(name),
+		Status:     aws.String("available"),
+		TLSEnabled: aws.Bool(true),
+		ClusterEndpoint: &memorydb.Endpoint{
+			Address: aws.String("memorydb.localhost"),
+			Port:    aws.Int64(6379),
+		},
+	}
+
+	for _, opt := range opts {
+		opt(cluster)
+	}
+
+	tags := []*memorydb.Tag{{
+		Key:   aws.String("env"),
+		Value: aws.String(env),
+	}}
+	extraLabels := services.ExtraMemoryDBLabels(cluster, tags, nil)
+
+	database, err := services.NewDatabaseFromMemoryDBCluster(cluster, extraLabels)
+	require.NoError(t, err)
+	return cluster, database, tags
 }
 
 // withRDSInstanceStatus returns an option function for makeRDSInstance to overwrite status.

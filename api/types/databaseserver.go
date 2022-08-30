@@ -386,3 +386,12 @@ func (s DatabaseServers) GetFieldVals(field string) ([]string, error) {
 
 	return vals, nil
 }
+
+// ToDatabases converts database servers to a list of databases.
+func (s DatabaseServers) ToDatabases() []Database {
+	databases := make([]Database, 0, len(s))
+	for _, server := range s {
+		databases = append(databases, server.GetDatabase())
+	}
+	return databases
+}

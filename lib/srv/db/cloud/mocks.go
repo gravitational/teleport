@@ -27,13 +27,16 @@ import (
 	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
+	"github.com/aws/aws-sdk-go/service/memorydb"
+	"github.com/aws/aws-sdk-go/service/memorydb/memorydbiface"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/redshift/redshiftiface"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
-	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 )
@@ -315,24 +318,39 @@ func (m *RedshiftMockUnauth) DescribeClustersWithContext(ctx aws.Context, input 
 	return nil, trace.AccessDenied("unauthorized")
 }
 
-// IAMMockUnauth is a mock IAM client that returns access denied to each call.
-type IAMMockUnauth struct {
+// IAMErrorMock is a mock IAM client that returns the provided Error to all
+// APIs. If Error is not provided, all APIs returns trace.AccessDenied by
+// default.
+type IAMErrorMock struct {
 	iamiface.IAMAPI
+	Error error
 }
 
-func (m *IAMMockUnauth) GetRolePolicyWithContext(ctx aws.Context, input *iam.GetRolePolicyInput, options ...request.Option) (*iam.GetRolePolicyOutput, error) {
+func (m *IAMErrorMock) GetRolePolicyWithContext(ctx aws.Context, input *iam.GetRolePolicyInput, options ...request.Option) (*iam.GetRolePolicyOutput, error) {
+	if m.Error != nil {
+		return nil, m.Error
+	}
 	return nil, trace.AccessDenied("unauthorized")
 }
 
-func (m *IAMMockUnauth) PutRolePolicyWithContext(ctx aws.Context, input *iam.PutRolePolicyInput, options ...request.Option) (*iam.PutRolePolicyOutput, error) {
+func (m *IAMErrorMock) PutRolePolicyWithContext(ctx aws.Context, input *iam.PutRolePolicyInput, options ...request.Option) (*iam.PutRolePolicyOutput, error) {
+	if m.Error != nil {
+		return nil, m.Error
+	}
 	return nil, trace.AccessDenied("unauthorized")
 }
 
-func (m *IAMMockUnauth) GetUserPolicyWithContext(ctx aws.Context, input *iam.GetUserPolicyInput, options ...request.Option) (*iam.GetUserPolicyOutput, error) {
+func (m *IAMErrorMock) GetUserPolicyWithContext(ctx aws.Context, input *iam.GetUserPolicyInput, options ...request.Option) (*iam.GetUserPolicyOutput, error) {
+	if m.Error != nil {
+		return nil, m.Error
+	}
 	return nil, trace.AccessDenied("unauthorized")
 }
 
-func (m *IAMMockUnauth) PutUserPolicyWithContext(ctx aws.Context, input *iam.PutUserPolicyInput, options ...request.Option) (*iam.PutUserPolicyOutput, error) {
+func (m *IAMErrorMock) PutUserPolicyWithContext(ctx aws.Context, input *iam.PutUserPolicyInput, options ...request.Option) (*iam.PutUserPolicyOutput, error) {
+	if m.Error != nil {
+		return nil, m.Error
+	}
 	return nil, trace.AccessDenied("unauthorized")
 }
 
@@ -344,15 +362,15 @@ type GCPSQLAdminClientMock struct {
 	EphemeralCert *tls.Certificate
 }
 
-func (g *GCPSQLAdminClientMock) UpdateUser(ctx context.Context, sessionCtx *common.Session, user *sqladmin.User) error {
+func (g *GCPSQLAdminClientMock) UpdateUser(ctx context.Context, db types.Database, dbUser string, user *sqladmin.User) error {
 	return nil
 }
 
-func (g *GCPSQLAdminClientMock) GetDatabaseInstance(ctx context.Context, sessionCtx *common.Session) (*sqladmin.DatabaseInstance, error) {
+func (g *GCPSQLAdminClientMock) GetDatabaseInstance(ctx context.Context, db types.Database) (*sqladmin.DatabaseInstance, error) {
 	return g.DatabaseInstance, nil
 }
 
-func (g *GCPSQLAdminClientMock) GenerateEphemeralCert(ctx context.Context, sessionCtx *common.Session) (*tls.Certificate, error) {
+func (g *GCPSQLAdminClientMock) GenerateEphemeralCert(ctx context.Context, db types.Database, identity tlsca.Identity) (*tls.Certificate, error) {
 	return g.EphemeralCert, nil
 }
 
@@ -434,4 +452,79 @@ func (m *ElastiCacheMock) ModifyUserWithContext(_ aws.Context, input *elasticach
 		}
 	}
 	return nil, trace.NotFound("user %s not found", aws.StringValue(input.UserId))
+}
+
+// MemoryDBMock mocks AWS MemoryDB API.
+type MemoryDBMock struct {
+	memorydbiface.MemoryDBAPI
+
+	Clusters  []*memorydb.Cluster
+	Users     []*memorydb.User
+	TagsByARN map[string][]*memorydb.Tag
+}
+
+func (m *MemoryDBMock) AddMockUser(user *memorydb.User, tagsMap map[string]string) {
+	m.Users = append(m.Users, user)
+	m.addTags(aws.StringValue(user.ARN), tagsMap)
+}
+func (m *MemoryDBMock) addTags(arn string, tagsMap map[string]string) {
+	if m.TagsByARN == nil {
+		m.TagsByARN = make(map[string][]*memorydb.Tag)
+	}
+
+	var tags []*memorydb.Tag
+	for key, value := range tagsMap {
+		tags = append(tags, &memorydb.Tag{
+			Key:   aws.String(key),
+			Value: aws.String(value),
+		})
+	}
+	m.TagsByARN[arn] = tags
+}
+func (m *MemoryDBMock) DescribeSubnetGroupsWithContext(aws.Context, *memorydb.DescribeSubnetGroupsInput, ...request.Option) (*memorydb.DescribeSubnetGroupsOutput, error) {
+	return nil, trace.AccessDenied("unauthorized")
+}
+func (m *MemoryDBMock) DescribeClustersWithContext(_ aws.Context, input *memorydb.DescribeClustersInput, _ ...request.Option) (*memorydb.DescribeClustersOutput, error) {
+
+	if aws.StringValue(input.ClusterName) == "" {
+		return &memorydb.DescribeClustersOutput{
+			Clusters: m.Clusters,
+		}, nil
+	}
+
+	for _, cluster := range m.Clusters {
+		if aws.StringValue(input.ClusterName) == aws.StringValue(cluster.Name) {
+			return &memorydb.DescribeClustersOutput{
+				Clusters: []*memorydb.Cluster{cluster},
+			}, nil
+		}
+	}
+	return nil, trace.NotFound("cluster %v not found", aws.StringValue(input.ClusterName))
+}
+func (m *MemoryDBMock) ListTagsWithContext(_ aws.Context, input *memorydb.ListTagsInput, _ ...request.Option) (*memorydb.ListTagsOutput, error) {
+	if m.TagsByARN == nil {
+		return nil, trace.NotFound("no tags")
+	}
+
+	tags, ok := m.TagsByARN[aws.StringValue(input.ResourceArn)]
+	if !ok {
+		return nil, trace.NotFound("no tags")
+	}
+
+	return &memorydb.ListTagsOutput{
+		TagList: tags,
+	}, nil
+}
+func (m *MemoryDBMock) DescribeUsersWithContext(aws.Context, *memorydb.DescribeUsersInput, ...request.Option) (*memorydb.DescribeUsersOutput, error) {
+	return &memorydb.DescribeUsersOutput{
+		Users: m.Users,
+	}, nil
+}
+func (m *MemoryDBMock) UpdateUserWithContext(_ aws.Context, input *memorydb.UpdateUserInput, opts ...request.Option) (*memorydb.UpdateUserOutput, error) {
+	for _, user := range m.Users {
+		if aws.StringValue(user.Name) == aws.StringValue(input.UserName) {
+			return &memorydb.UpdateUserOutput{}, nil
+		}
+	}
+	return nil, trace.NotFound("user %s not found", aws.StringValue(input.UserName))
 }

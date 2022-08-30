@@ -141,6 +141,7 @@ spec:
     record_session:
       default: best_effort
       desktop: true
+    ssh_file_copy: true
 version: v3
 `
 	role, err := types.NewRoleV3("roleName", types.RoleSpecV5{
@@ -375,7 +376,6 @@ func TestListResources(t *testing.T) {
 			expected: proto.ListResourcesRequest{
 				ResourceType:        types.KindNode,
 				Limit:               defaults.MaxIterationLimit,
-				NeedTotalCount:      true,
 				PredicateExpression: "(labels[`\"test\"`] == \"+:',#*~%^\" && !exists(labels.tier)) || resource.spec.description != \"weird example https://foo.dev:3080?bar=a,b&baz=banana\"",
 			},
 		},
@@ -396,29 +396,26 @@ func TestListResources(t *testing.T) {
 			name: "all query param defined but empty",
 			url:  `https://dev:3080/login?query=&startKey=&search=&sort=&limit=&startKey=`,
 			expected: proto.ListResourcesRequest{
-				ResourceType:   types.KindNode,
-				Limit:          defaults.MaxIterationLimit,
-				NeedTotalCount: true,
+				ResourceType: types.KindNode,
+				Limit:        defaults.MaxIterationLimit,
 			},
 		},
 		{
 			name: "sort partially defined: fieldName",
 			url:  `https://dev:3080/login?sort=foo`,
 			expected: proto.ListResourcesRequest{
-				ResourceType:   types.KindNode,
-				Limit:          defaults.MaxIterationLimit,
-				SortBy:         types.SortBy{Field: "foo", IsDesc: false},
-				NeedTotalCount: true,
+				ResourceType: types.KindNode,
+				Limit:        defaults.MaxIterationLimit,
+				SortBy:       types.SortBy{Field: "foo", IsDesc: false},
 			},
 		},
 		{
 			name: "sort partially defined: fieldName with colon",
 			url:  `https://dev:3080/login?sort=foo:`,
 			expected: proto.ListResourcesRequest{
-				ResourceType:   types.KindNode,
-				Limit:          defaults.MaxIterationLimit,
-				SortBy:         types.SortBy{Field: "foo", IsDesc: false},
-				NeedTotalCount: true,
+				ResourceType: types.KindNode,
+				Limit:        defaults.MaxIterationLimit,
+				SortBy:       types.SortBy{Field: "foo", IsDesc: false},
 			},
 		},
 		{

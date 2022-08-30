@@ -69,7 +69,7 @@ Examples:
 
   > tctl sso configure github ... | tctl sso test
 
-  The pipeline may also utilise "tee" to capture the connector generated with "tctl sso configure".
+  The pipeline may also utilize "tee" to capture the connector generated with "tctl sso configure".
 
   > tctl sso configure github ... | tee connector.yaml | tctl sso test`)
 
@@ -160,7 +160,7 @@ type AuthRequestInfo struct {
 }
 
 func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, protocol string, c auth.ClientI, config *client.RedirectorConfig) (*auth.SSHLoginResponse, error) {
-	key, err := client.NewKey()
+	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -185,7 +185,7 @@ func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, protocol string,
 	return client.SSHAgentSSOLogin(ctx, client.SSHLoginSSO{
 		SSHLogin: client.SSHLogin{
 			ProxyAddr:         tc.WebProxyAddr,
-			PubKey:            key.Pub,
+			PubKey:            key.MarshalSSHPublicKey(),
 			TTL:               tc.KeyTTL,
 			Insecure:          tc.InsecureSkipVerify,
 			Pool:              nil,

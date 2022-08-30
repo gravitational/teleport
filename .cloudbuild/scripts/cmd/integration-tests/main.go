@@ -81,7 +81,7 @@ func innerMain() error {
 	moduleCacheDir := filepath.Join(os.TempDir(), gomodcacheDir)
 	gomodcache := fmt.Sprintf("GOMODCACHE=%s", moduleCacheDir)
 
-	log.Println("Analysing code changes")
+	log.Println("Analyzing code changes")
 	ch, err := changes.Analyze(args.workspace, args.targetBranch, args.commitSHA)
 	if err != nil {
 		return trace.Wrap(err, "Failed analyzing code")

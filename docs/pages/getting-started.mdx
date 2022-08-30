@@ -8,56 +8,39 @@ Follow these guides to get started using Teleport.
 
 ## Try a lab on your local machine
 
-<TileSet>
-  <Tile icon="bolt" title="Interactive Lab" href="https://play.instruqt.com/teleport/invite/rgvuva4gzkon">
-    Try Teleport using our guided interactive labs.
-  </Tile>
-  <Tile icon="bolt" title="Docker Compose Lab" href="./getting-started/docker-compose.mdx">
-    Try Teleport locally using Docker Compose.
-  </Tile>
-    <Tile icon="kubernetes" title="Kubernetes Lab" href="./kubernetes-access/getting-started/local.mdx">
-    See how Teleport runs on Kubernetes with this local lab.
-  </Tile>
-</TileSet>
+- [Browser Lab](https://goteleport.com/labs): Try Teleport using our guided interactive labs.
+- [Docker Compose Lab](./try-out-teleport/docker-compose.mdx): Try Teleport locally using Docker Compose.
+- [Kubernetes Lab](./try-out-teleport/local-kubernetes.mdx): See how Teleport runs on Kubernetes with this local lab.
 
-## Deploy to production
+## Try Teleport in your infrastructure
 
-<TileSet>
-  <Tile 
-  icon="stack"
-  title="Open Source Teleport"
-  href="./getting-started/linux-server/?scope=oss"
-  >
+Not sure which edition of Teleport is right for you? View our [comparison chart](./faq.mdx#how-is-open-source-different-from-enterprise).
 
-  Learn how to host your own open source Teleport deployment on a standalone
-  Linux server.
+<Tabs>
+<TabItem scope="oss" label="Open Source Teleport">
 
-  </Tile>
-  <Tile
-  icon="stack"
-  title="Teleport on DigitalOcean"
-  href="./getting-started/digitalocean/?scope=oss"
-  >
+Host your own Teleport deployment.
 
-  Use our DigitalOcean 1-Click App to quickly spin up Teleport on a droplet.
-    
-  </Tile>
-  <Tile
-  icon="building"
-  title="Teleport Enterprise"
-  href="./enterprise/introduction.mdx/?scope=enterprise"
-  >
+- [Linux Server](./deploy-a-cluster/open-source.mdx): Learn how to host your own open source Teleport deployment on a standalone Linux server.
+- [Kubernetes](./deploy-a-cluster/helm-deployments/kubernetes-cluster.mdx): Learn how to host your own open source Teleport deployment on Kubernetes.
+</TabItem>
+<TabItem scope="cloud" label="Teleport Cloud">
+
+Teleport Cloud is a deployment of the Auth Service and Proxy Service,
+managed by a dedicated team at Teleport.
+
+- [Learn More](./deploy-a-cluster/teleport-cloud/getting-started.mdx): Learn how to start using Teleport Cloud.
+- [Start your Free Trial](https://goteleport.com/signup): Try Teleport hosted by us in the cloud for free.
+</TabItem>
+<TabItem scope="enterprise" label="Teleport Enterprise">
 
   Get started with a self-hosted Teleport Enterprise deployment, which gives you
   more advanced features and full customization.
 
-  </Tile>
 
-  <Tile icon="cloud" title="Teleport Cloud" href="https://goteleport.com/signup">
-
-    Try Teleport hosted by us in the cloud for free.
-
-  </Tile>
-</TileSet>
+- [Getting Started](./deploy-a-cluster/teleport-enterprise/getting-started.mdx): Learn how to deploy Teleport Enterprise.
+- [Kubernetes](./deploy-a-cluster/helm-deployments/kubernetes-cluster.mdx): Learn how to host your Teleport Enterprise deployment on Kubernetes.
+</TabItem>
+</Tabs>
 
 

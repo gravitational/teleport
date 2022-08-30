@@ -46,6 +46,7 @@ type certificateCache struct {
 // newHostCertificateCache creates a shared host certificate cache that is
 // used by the forwarding server.
 func newHostCertificateCache(keygen sshca.Authority, authClient auth.ClientI) (*certificateCache, error) {
+	native.PrecomputeKeys() // ensure native package is set to precompute keys
 	cache, err := ttlmap.New(defaults.HostCertCacheSize)
 	if err != nil {
 		return nil, trace.Wrap(err)

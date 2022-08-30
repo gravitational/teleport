@@ -20,6 +20,7 @@ package app
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -134,6 +135,51 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 // ServeHTTP hands the request to the request router.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.router.ServeHTTP(w, r)
+}
+
+// HandleConnection handles connections from plain TCP applications.
+func (h *Handler) HandleConnection(ctx context.Context, clientConn net.Conn) error {
+	tlsConn, ok := clientConn.(*tls.Conn)
+	if !ok {
+		return trace.BadParameter("expected *tls.Conn, got: %T", clientConn)
+	}
+
+	certs := tlsConn.ConnectionState().PeerCertificates
+	if len(certs) != 1 {
+		return trace.BadParameter("expected 1 client certificate: %+v", tlsConn.ConnectionState())
+	}
+
+	identity, err := tlsca.FromSubject(certs[0].Subject, certs[0].NotAfter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	ws, err := h.c.AccessPoint.GetAppSession(ctx, types.GetAppSessionRequest{
+		SessionID: identity.RouteToApp.SessionID,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	session, err := h.getSession(ctx, ws)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	serverConn, err := session.tr.DialContext(ctx, "", "")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer serverConn.Close()
+
+	serverConn = tls.Client(serverConn, session.tr.clientTLSConfig)
+
+	err = utils.ProxyConn(ctx, clientConn, serverConn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // handleForward forwards the request to the application service.
@@ -335,9 +381,10 @@ func HasName(r *http.Request, proxyPublicAddrs []utils.NetAddr) (string, bool) {
 	// At this point, it is assumed the caller is requesting an application and
 	// not the proxy, redirect the caller to the application launcher.
 	u := url.URL{
-		Scheme: "https",
-		Host:   proxyPublicAddrs[0].String(),
-		Path:   fmt.Sprintf("/web/launch/%v", raddr.Host()),
+		Scheme:   "https",
+		Host:     proxyPublicAddrs[0].String(),
+		Path:     fmt.Sprintf("/web/launch/%s", raddr.Host()),
+		RawQuery: fmt.Sprintf("path=%s", url.QueryEscape(r.URL.Path)),
 	}
 	return u.String(), true
 }

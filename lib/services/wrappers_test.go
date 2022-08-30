@@ -20,31 +20,26 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"gopkg.in/check.v1"
-
 	"github.com/gravitational/teleport/api/types/wrappers"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 )
 
-type WrappersSuite struct{}
-
-var _ = check.Suite(&WrappersSuite{})
-
-func TestWrappers(t *testing.T) { check.TestingT(t) }
-
-func (w *WrappersSuite) TestUnmarshalBackwards(c *check.C) {
+func TestUnmarshalBackwards(t *testing.T) {
 	var traits wrappers.Traits
 
 	// Attempt to unmarshal protobuf encoded data.
 	protoBytes := "0a120a066c6f67696e7312080a06666f6f6261720a150a116b756265726e657465735f67726f7570731200"
 	data, err := hex.DecodeString(protoBytes)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	err = wrappers.UnmarshalTraits(data, &traits)
-	c.Assert(err, check.IsNil)
-	c.Assert(traits["logins"], check.DeepEquals, []string{"foobar"})
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(traits["logins"], []string{"foobar"}))
 
 	// Attempt to unmarshal JSON encoded data.
 	jsonBytes := `{"logins": ["foobar"]}`
 	err = wrappers.UnmarshalTraits([]byte(jsonBytes), &traits)
-	c.Assert(err, check.IsNil)
-	c.Assert(traits["logins"], check.DeepEquals, []string{"foobar"})
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(traits["logins"], []string{"foobar"}))
 }

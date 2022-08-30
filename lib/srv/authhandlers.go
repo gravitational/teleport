@@ -32,6 +32,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -61,6 +62,8 @@ var (
 
 	prometheusCollectors = []prometheus.Collector{failedLoginCount, certificateMismatchCount}
 )
+
+var errRoleFileCopyingNotPermitted = trace.AccessDenied("file copying via SCP or SFTP is not permitted")
 
 // AuthHandlerConfig is the configuration for an application handler.
 type AuthHandlerConfig struct {
@@ -96,7 +99,7 @@ type AuthHandlers struct {
 
 // NewAuthHandlers initializes authorization and authentication handlers
 func NewAuthHandlers(config *AuthHandlerConfig) (*AuthHandlers, error) {
-	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -146,7 +149,10 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		return IdentityContext{}, trace.Wrap(err)
 	}
 	identity.AllowedResourceIDs = accessInfo.AllowedResourceIDs
-	identity.AccessChecker = services.NewAccessChecker(accessInfo, clusterName.GetClusterName())
+	identity.AccessChecker, err = services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), h.c.AccessPoint)
+	if err != nil {
+		return IdentityContext{}, trace.Wrap(err)
+	}
 
 	identity.Impersonator = certificate.Extensions[teleport.CertExtensionImpersonator]
 	accessRequestIDs, err := parseAccessRequestIDs(certificate.Extensions[teleport.CertExtensionTeleportActiveRequests])
@@ -190,6 +196,13 @@ func (h *AuthHandlers) CheckAgentForward(ctx *ServerContext) error {
 func (h *AuthHandlers) CheckX11Forward(ctx *ServerContext) error {
 	if !ctx.Identity.AccessChecker.PermitX11Forwarding() {
 		return trace.AccessDenied("x11 forwarding not permitted")
+	}
+	return nil
+}
+
+func (h *AuthHandlers) CheckFileCopying(ctx *ServerContext) error {
+	if !ctx.Identity.AccessChecker.CanCopyFiles() {
+		return errRoleFileCopyingNotPermitted
 	}
 	return nil
 }
@@ -447,9 +460,13 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName, h.c.AccessPoint)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	// we don't need to check the RBAC for the node if they are only allowed to join sessions
-	if osUser == teleport.SSHSessionJoinPrincipal && auth.HasV5Role(accessInfo.RoleSet) {
+	if osUser == teleport.SSHSessionJoinPrincipal && auth.HasV5Role(accessChecker.Roles()) {
 		return nil
 	}
 
@@ -464,7 +481,6 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 	}
 
 	// check if roles allow access to server
-	accessChecker := services.NewAccessChecker(accessInfo, clusterName)
 	if err := accessChecker.CheckAccess(
 		h.c.Server.GetInfo(),
 		mfaParams,
@@ -484,9 +500,9 @@ func (h *AuthHandlers) fetchAccessInfo(cert *ssh.Certificate, ca types.CertAutho
 	var accessInfo *services.AccessInfo
 	var err error
 	if clusterName == ca.GetClusterName() {
-		accessInfo, err = services.AccessInfoFromLocalCertificate(cert, h.c.AccessPoint)
+		accessInfo, err = services.AccessInfoFromLocalCertificate(cert)
 	} else {
-		accessInfo, err = services.AccessInfoFromRemoteCertificate(cert, h.c.AccessPoint, ca.CombinedMapping())
+		accessInfo, err = services.AccessInfoFromRemoteCertificate(cert, ca.CombinedMapping())
 	}
 	return accessInfo, trace.Wrap(err)
 }

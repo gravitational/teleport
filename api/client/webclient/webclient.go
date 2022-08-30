@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
@@ -94,8 +95,11 @@ func newWebClient(cfg *Config) (*http.Client, error) {
 		},
 	}
 	return &http.Client{
-		Transport: otelhttp.NewTransport(proxy.NewHTTPFallbackRoundTripper(&transport, cfg.Insecure)),
-		Timeout:   cfg.Timeout,
+		Transport: otelhttp.NewTransport(
+			proxy.NewHTTPFallbackRoundTripper(&transport, cfg.Insecure),
+			otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
+		),
+		Timeout: cfg.Timeout,
 	}, nil
 }
 
@@ -205,7 +209,7 @@ func Ping(cfg *Config) (*PingResponse, error) {
 	}
 	pr := &PingResponse{}
 	if err := json.NewDecoder(resp.Body).Decode(pr); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "cannot parse server response; is %q a Teleport server?", "https://"+cfg.ProxyAddr)
 	}
 
 	return pr, nil
@@ -285,6 +289,8 @@ type PingResponse struct {
 	MinClientVersion string `json:"min_client_version"`
 	// ClusterName contains the name of the Teleport cluster.
 	ClusterName string `json:"cluster_name"`
+	// LicenseWarnings contains a list of license compliance warning messages
+	LicenseWarnings []string `json:"license_warnings,omitempty"`
 }
 
 // PingErrorResponse contains the error message if the requested connector

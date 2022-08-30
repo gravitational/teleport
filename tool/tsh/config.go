@@ -19,24 +19,23 @@ package main
 import (
 	"fmt"
 	"net"
-	"os/exec"
-	"runtime"
 	"strings"
 	"text/template"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 )
 
+// TODO: remove PubkeyAcceptedKeyTypes once we finish deprecating SHA1
 const sshConfigTemplate = `
 # Common flags for all {{ .ClusterName }} hosts
 Host *.{{ .ClusterName }} {{ .ProxyHost }}
     UserKnownHostsFile "{{ .KnownHostsPath }}"
     IdentityFile "{{ .IdentityFilePath }}"
     CertificateFile "{{ .CertificateFilePath }}"
+    PubkeyAcceptedKeyTypes +ssh-rsa-cert-v01@openssh.com
 
 # Flags for all {{ .ClusterName }} hosts except the proxy
 Host *.{{ .ClusterName }} !{{ .ProxyHost }}
@@ -51,15 +50,6 @@ type hostConfigParameters struct {
 	CertificateFilePath string
 	ProxyHost           string
 	TSHPath             string
-}
-
-// getSSHPath returns a sane `ssh` path for the current platform.
-func getSSHPath() (string, error) {
-	if runtime.GOOS == constants.WindowsOS {
-		return exec.LookPath("ssh.exe")
-	}
-
-	return exec.LookPath("ssh")
 }
 
 // writeSSHConfig generates an OpenSSH config block from the `sshConfigTemplate`

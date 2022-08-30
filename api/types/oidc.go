@@ -29,7 +29,7 @@ import (
 )
 
 // OIDCConnector specifies configuration for Open ID Connect compatible external
-// identity provider, e.g. google in some organisation
+// identity provider, e.g. google in some organization
 type OIDCConnector interface {
 	// ResourceWithSecrets provides common methods for objects
 	ResourceWithSecrets
@@ -89,6 +89,8 @@ type OIDCConnector interface {
 	// https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority
 	// "Note: Although you can use service accounts in applications that run from a Google Workspace (formerly G Suite) domain, service accounts are not members of your Google Workspace account and aren’t subject to domain policies set by  administrators. For example, a policy set in the Google Workspace admin console to restrict the ability of end users to share documents outside of the domain would not apply to service accounts."
 	GetGoogleAdminEmail() string
+	// GetAllowUnverifiedEmail returns true if unverified emails should be allowed in received users.
+	GetAllowUnverifiedEmail() bool
 }
 
 // NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV3.
@@ -424,6 +426,11 @@ func (o *OIDCConnectorV3) CheckSetRedirectURL() {
 	}
 }
 
+// GetAllowUnverifiedEmail returns true if unverified emails should be allowed in received users.
+func (o *OIDCConnectorV3) GetAllowUnverifiedEmail() bool {
+	return o.Spec.AllowUnverifiedEmail
+}
+
 // Check returns nil if all parameters are great, err otherwise
 func (i *OIDCAuthRequest) Check() error {
 	if i.ConnectorID == "" {
@@ -437,7 +444,7 @@ func (i *OIDCAuthRequest) Check() error {
 		if err != nil {
 			return trace.BadParameter("PublicKey: bad key: %v", err)
 		}
-		if (i.CertTTL.Duration() > defaults.MaxCertDuration) || (i.CertTTL.Duration() < defaults.MinCertDuration) {
+		if (i.CertTTL > defaults.MaxCertDuration) || (i.CertTTL < defaults.MinCertDuration) {
 			return trace.BadParameter("CertTTL: wrong certificate TTL")
 		}
 	}

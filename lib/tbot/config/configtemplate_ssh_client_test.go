@@ -25,6 +25,7 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -32,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils/golden"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -70,6 +72,11 @@ func (m *templateSSHClientAuthMock) GetCertAuthority(ctx context.Context, id typ
 		ClusterName: m.clusterName,
 		ActiveKeys: types.CAKeySet{
 			SSH: []*types.SSHKeyPair{
+				// Two of these to ensure that both are written to known hosts
+				{
+					PrivateKey: []byte(fixtures.SSHCAPrivateKey),
+					PublicKey:  []byte(fixtures.SSHCAPublicKey),
+				},
 				{
 					PrivateKey: []byte(fixtures.SSHCAPrivateKey),
 					PublicKey:  []byte(fixtures.SSHCAPublicKey),
@@ -81,11 +88,39 @@ func (m *templateSSHClientAuthMock) GetCertAuthority(ctx context.Context, id typ
 	return ca, nil
 }
 
+type templateSSHClientMockBot struct {
+	mockAuth *templateSSHClientAuthMock
+}
+
+func (t *templateSSHClientMockBot) Client() auth.ClientI {
+	return t.mockAuth
+}
+
+func (t *templateSSHClientMockBot) GetCertAuthorities(ctx context.Context, caType types.CertAuthType) ([]types.CertAuthority, error) {
+	return t.mockAuth.GetCertAuthorities(ctx, caType, false)
+}
+
+func (t *templateSSHClientMockBot) AuthPing(ctx context.Context) (*proto.PingResponse, error) {
+	ping, err := t.mockAuth.Ping(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ping, err
+}
+
+func (t *templateSSHClientMockBot) ProxyPing(ctx context.Context) (*webclient.PingResponse, error) {
+	return nil, trace.NotImplemented("not implemented")
+}
+
 func TestTemplateSSHClient_Render(t *testing.T) {
 	dir := t.TempDir()
 	mockAuth := &templateSSHClientAuthMock{
 		t:           t,
 		clusterName: "black-mesa",
+	}
+	mockBot := &templateSSHClientMockBot{
+		mockAuth: mockAuth,
 	}
 	template := TemplateSSHClient{
 		ProxyPort: 1337,
@@ -108,7 +143,7 @@ func TestTemplateSSHClient_Render(t *testing.T) {
 		},
 	}
 
-	err := template.Render(context.Background(), mockAuth, ident, dest)
+	err := template.Render(context.Background(), mockBot, ident, dest)
 	require.NoError(t, err)
 
 	replaceTestDir := func(b []byte) []byte {

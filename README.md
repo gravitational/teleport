@@ -94,7 +94,7 @@ unpack the .tar.gz and run `sudo ./install`. This will copy Teleport binaries in
 Then you can run Teleport as a single-node cluster:
 
 ```bash
-$ sudo teleport start
+sudo teleport start
 ```
 
 In a production environment, Teleport must run as `root`. For testing or non-production environments, run it as the `$USER`:
@@ -112,13 +112,15 @@ In a production environment, Teleport must run as `root`. For testing or non-pro
 If you wish to deploy Teleport inside a Docker container:
 ```
 # This command will pull the Teleport container image for version 8
-$ docker pull quay.io/gravitational/teleport:8
+docker pull public.ecr.aws/gravitational/teleport:8
 ```
-View latest tags on [Quay.io | gravitational/teleport](https://quay.io/repository/gravitational/teleport?tab=tags)
+View latest tags on [Amazon ECR Public | gravitational/teleport](https://gallery.ecr.aws/gravitational/teleport)
 
 ### For Local Testing and Development
 
 Follow the instructions in the [docker/README](docker/README.md) file.
+
+To run a full test suite locally, see [the test dependecies list](BUILD_macos.md#local-tests-dependencies) 
 
 ## Building Teleport
 
@@ -126,11 +128,11 @@ The `teleport` repository contains the Teleport daemon binary (written in Go)
 and a web UI written in Javascript (a git submodule located in the `webassets/`
 directory).
 
-If your intention is to build and deploy for use in a production infrastructure 
-a released tag should be used.  The default branch, `master`, is the current 
-development branch for an upcoming major version.  Get the latest release tags 
-listed at https://goteleport.com/download/ and then use that tag in the `git clone`. 
-For example `git clone https://github.com/gravitational/teleport.git -b v9.1.2` gets release v9.1.2. 
+If your intention is to build and deploy for use in a production infrastructure
+a released tag should be used.  The default branch, `master`, is the current
+development branch for an upcoming major version.  Get the latest release tags
+listed at https://goteleport.com/download/ and then use that tag in the `git clone`.
+For example `git clone https://github.com/gravitational/teleport.git -b v9.1.2` gets release v9.1.2.
 
 ### Dockerized Build
 
@@ -139,38 +141,84 @@ tooling is available for the build. To execute a dockerized build, ensure
 that docker is installed and running, and execute:
 
 ```
-$ make -C build.assets build-binaries
+make -C build.assets build-binaries
 ```
 
 ### Local Build
 
-To perform a build on your host, ensure you have installed Go. In order to
-include the Rust-powered features like Desktop Access and `roletester`, you'll
-also need `cargo` and `rustc`. The current versions of these tools can be found
-in `build.assets/Makefile`.
+#### Dependencies
 
-```bash
-# get the source & build:
-$ git clone https://github.com/gravitational/teleport.git
-$ cd teleport
-$ make full
+Ensure you have installed correct versions of necessary dependencies:
+* `Go` version from
+  [go.mod](https://github.com/gravitational/teleport/blob/master/go.mod#L3)
+* If you wish to build the Rust-powered features like Desktop Access, see the
+  `Rust` and `Cargo` version in
+  [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/Makefile#L21)
+  (search for `RUST_VERSION`)
+* For `tsh` version > `10.x` with FIDO support, you will need `libfido` and `openssl 1.1` installed locally
 
-# create the default data directory before starting:
-$ sudo mkdir -p -m0700 /var/lib/teleport
-$ sudo chown $USER /var/lib/teleport
+For an example of Dev Environment setup on a Mac, see [these instructions](BUILD_macos.md). 
+
+#### Perform a build
+
+>**Important**
+>
+>* The Go compiler is somewhat sensitive to the amount of memory: you will need
+   **at least** 1GB of virtual memory to compile Teleport. A 512MB instance
+   without swap will **not** work.
+>* This will build the latest version of Teleport, **regardless** of whether it
+   is stable. If you want to build the latest stable release, run `git checkout`
+   and `git submodule update --recursive` to the corresponding tag (for example, 
+>* run `git checkout v8.0.0`) **before** performing a build.
+
+Get the source
+
+```shell
+git clone https://github.com/gravitational/teleport.git
+cd teleport
 ```
+
+To perform a build 
+
+```shell
+make full
+```
+
+To build `tsh` with Apple TouchID support enabled:
+
+> **Important**
+> 
+>`tsh` binaries with Touch ID support are only functional using binaries signed
+with Teleport's Apple Developer ID and notarized by Apple. If you are a Teleport
+maintainer, ask the team for access.
+
+```shell
+make build/tsh TOUCHID=yes
+```
+
+To build `tsh` with `libfido`:
+
+  ```shell
+  make build/tsh FIDO2=dynamic
+  ```
+
+  * On a Mac, with `libfido` and `openssl 1.1` installed via `homebrew`
+
+    ```shell
+    export PKG_CONFIG_PATH="$(brew --prefix openssl@1.1)/lib/pkgconfig"
+    make build/tsh FIDO2=dynamic
+    ```
+
+#### Build output and running locally
 
 If the build succeeds, the installer will place the binaries in the `build` directory.
 
-**Important:**
+Before starting, create default data directories:
 
-* The Go compiler is somewhat sensitive to the amount of memory: you will need
-  **at least** 1GB of virtual memory to compile Teleport. A 512MB instance
-  without swap will **not** work.
-* This will build the latest version of Teleport, **regardless** of whether it
-  is stable. If you want to build the latest stable release, run `git checkout`
-  to the corresponding tag (for example, run `git checkout v8.0.0`) **before**
-  running `make full`.
+```shell
+sudo mkdir -p -m0700 /var/lib/teleport
+sudo chown $USER /var/lib/teleport
+```
 
 ### Web UI
 
@@ -181,9 +229,9 @@ The Teleport Web UI resides in the [Gravitational Webapps](https://github.com/gr
 To clone this repository and rebuild the Teleport UI package, run the following commands:
 
 ```bash
-$ git clone git@github.com:gravitational/webapps.git
-$ cd webapps
-$ make build-teleport
+git clone git@github.com:gravitational/webapps.git
+cd webapps
+make build-teleport
 ```
 
 Then you can replace Teleport Web UI files with the files from the newly-generated `/dist` folder.
@@ -196,11 +244,11 @@ To enable this behavior, set the environment variable `DEBUG=1` and rebuild with
 
 ```bash
 # Run Teleport as a single-node cluster in development mode:
-$ DEBUG=1 ./build/teleport start -d
+DEBUG=1 ./build/teleport start -d
 ```
 
 Keep the server running in this mode, and make your UI changes in `/dist` directory.
-For instructions about how to update the Web UI, read [the `webapps` README](https://github.com/gravitational/webapps/blob/master/README.md.) file.
+For instructions about how to update the Web UI, read [the `webapps` README](https://github.com/gravitational/webapps/blob/master/README.md) file.
 
 #### Updating Web UI assets
 

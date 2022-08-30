@@ -71,6 +71,8 @@ var (
 	)
 )
 
+var ErrNodeFileCopyingNotPermitted = trace.AccessDenied("node does not allow file copying via SCP or SFTP")
+
 func init() {
 	prometheus.MustRegister(serverTX)
 	prometheus.MustRegister(serverRX)
@@ -132,9 +134,6 @@ type Server interface {
 	// GetAccessPoint returns an AccessPoint for this cluster.
 	GetAccessPoint() AccessPoint
 
-	// GetSessionServer returns a session server.
-	GetSessionServer() rsession.Service
-
 	// GetDataDir returns data directory of the server
 	GetDataDir() string
 
@@ -173,6 +172,9 @@ type Server interface {
 	// GetHostUser returns the HostUsers instance being used to manage
 	// host user provisioning
 	GetHostUsers() HostUsers
+
+	// TargetMetadata returns metadata about the session target node.
+	TargetMetadata() apievents.ServerMetadata
 }
 
 // IdentityContext holds all identity information associated with the user
@@ -187,7 +189,7 @@ type IdentityContext struct {
 	// Login is the operating system user associated with the connection.
 	Login string
 
-	// Certificate is the SSH user certificate bytes marshalled in the OpenSSH
+	// Certificate is the SSH user certificate bytes marshaled in the OpenSSH
 	// authorized_keys format.
 	Certificate *ssh.Certificate
 
@@ -290,7 +292,7 @@ type ServerContext struct {
 
 	// RemoteSession holds a SSH session to a remote server. Only used by the
 	// recording proxy.
-	RemoteSession *ssh.Session
+	RemoteSession *tracessh.Session
 
 	// clientLastActive records the last time there was activity from the client
 	clientLastActive time.Time
@@ -340,6 +342,10 @@ type ServerContext struct {
 	// port to connect to in a "direct-tcpip" request. This value is only
 	// populated for port forwarding requests.
 	DstAddr string
+
+	// allowFileCopying controls if remote file operations via SCP/SFTP are allowed
+	// by the server.
+	AllowFileCopying bool
 
 	// x11rdy{r,w} is used to signal from the child process to the
 	// parent process when X11 forwarding is set up.
@@ -627,6 +633,25 @@ func (c *ServerContext) getSession() *session {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.session
+}
+
+func (c *ServerContext) SetAllowFileCopying(allow bool) {
+	c.AllowFileCopying = allow
+}
+
+// CheckFileCopyingAllowed returns an error if remote file operations via
+// SCP or SFTP are not allowed by the user's role or the node's config.
+func (c *ServerContext) CheckFileCopyingAllowed() error {
+	// Check if remote file operations are disabled for this node.
+	if !c.AllowFileCopying {
+		return ErrNodeFileCopyingNotPermitted
+	}
+	// Check if the user's RBAC role allows remote file operations.
+	if !c.Identity.AccessChecker.CanCopyFiles() {
+		return errRoleFileCopyingNotPermitted
+	}
+
+	return nil
 }
 
 // OpenXServerListener opens a new XServer unix listener.

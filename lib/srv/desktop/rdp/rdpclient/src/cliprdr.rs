@@ -564,7 +564,7 @@ fn encode_clipboard(mut data: String) -> (Vec<u8>, ClipboardFormat) {
 
         (data.into_bytes(), ClipboardFormat::CF_TEXT)
     } else {
-        let encoded = util::to_nul_terminated_utf16le(&data);
+        let encoded = util::to_unicode(&data, true);
         (encoded, ClipboardFormat::CF_UNICODETEXT)
     }
 }
@@ -676,7 +676,7 @@ impl FormatName for LongFormatName {
             // must be encoded as a single Unicode null character (two zero bytes)
             None => w.write_u16::<LittleEndian>(0)?,
             Some(name) => {
-                w.append(&mut util::to_nul_terminated_utf16le(name));
+                w.append(&mut util::to_unicode(name, true));
             }
         };
 
@@ -1037,7 +1037,7 @@ mod tests {
     #[test]
     fn responds_to_format_data_request_hasdata() {
         // a null-terminated utf-16 string, represented as a Vec<u8>
-        let test_data = util::to_nul_terminated_utf16le("test");
+        let test_data = util::to_unicode("test", true);
 
         let mut c: Client = Default::default();
         c.clipboard

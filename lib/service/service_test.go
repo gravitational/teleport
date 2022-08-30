@@ -98,7 +98,7 @@ func TestMonitor(t *testing.T) {
 	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}
 	cfg.Auth.Enabled = true
 	cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
-	cfg.Auth.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = false
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
@@ -211,7 +211,7 @@ func TestServiceCheckPrincipals(t *testing.T) {
 		ServerIdentity: tlsServer.Identity,
 	}
 
-	var tests = []struct {
+	tests := []struct {
 		inPrincipals  []string
 		inDNS         []string
 		outRegenerate bool
@@ -290,7 +290,6 @@ func TestServiceInitExternalLog(t *testing.T) {
 				AuditEventsURI: tt.events,
 			})
 			require.NoError(t, err)
-
 			loggers, err := initExternalLog(context.Background(), auditConfig, logrus.New(), backend)
 			if tt.isErr {
 				require.Error(t, err)
@@ -496,33 +495,47 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"h2",
 				"http/1.1",
 				"acme-tls/1",
+				"teleport-postgres-ping",
+				"teleport-mysql-ping",
+				"teleport-mongodb-ping",
+				"teleport-redis-ping",
+				"teleport-sqlserver-ping",
+				"teleport-snowflake-ping",
+				"teleport-proxy-ssh",
+				"teleport-reversetunnel",
+				"teleport-auth@",
+				"teleport-tcp",
 				"teleport-postgres",
 				"teleport-mysql",
 				"teleport-mongodb",
 				"teleport-redis",
 				"teleport-sqlserver",
 				"teleport-snowflake",
-				"teleport-proxy-ssh",
-				"teleport-reversetunnel",
-				"teleport-auth@",
 			},
 		},
 		{
 			name:        "ACME disabled",
 			acmeEnabled: false,
 			wantNextProtos: []string{
+				"teleport-postgres-ping",
+				"teleport-mysql-ping",
+				"teleport-mongodb-ping",
+				"teleport-redis-ping",
+				"teleport-sqlserver-ping",
+				"teleport-snowflake-ping",
 				// Ensure h2 has precedence over http/1.1.
 				"h2",
 				"http/1.1",
+				"teleport-proxy-ssh",
+				"teleport-reversetunnel",
+				"teleport-auth@",
+				"teleport-tcp",
 				"teleport-postgres",
 				"teleport-mysql",
 				"teleport-mongodb",
 				"teleport-redis",
 				"teleport-sqlserver",
 				"teleport-snowflake",
-				"teleport-proxy-ssh",
-				"teleport-reversetunnel",
-				"teleport-auth@",
 			},
 		},
 	}
@@ -626,7 +639,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 	nodeCfg := MakeDefaultConfig()
 	nodeCfg.AuthServers = []utils.NetAddr{listenAddr}
 	nodeCfg.DataDir = t.TempDir()
-	nodeCfg.Token = token
+	nodeCfg.SetToken(token)
 	nodeCfg.Auth.Enabled = false
 	nodeCfg.Proxy.Enabled = false
 	nodeCfg.SSH.Enabled = true
@@ -658,7 +671,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 	authCfg.Auth.StaticTokens = staticTokens
 	authCfg.Auth.StorageConfig.Type = lite.GetName()
 	authCfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(authCfg.DataDir, defaults.BackendDir)}
-	authCfg.Auth.SSHAddr = listenAddr
+	authCfg.Auth.ListenAddr = listenAddr
 	authCfg.Proxy.Enabled = false
 	authCfg.SSH.Enabled = false
 
