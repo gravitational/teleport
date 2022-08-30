@@ -359,7 +359,7 @@ func TestWatcher(t *testing.T) {
 					}),
 				},
 			},
-			// server2 tags dont match, server3 is in eastus2, server4 is in subscription2, server5 is in group2
+			// server2 tags don't match, server3 is in eastus2, server4 is in subscription2, server5 is in group2
 			expectedDatabases: types.Databases{azMySQLDB1, azPostgresDB1},
 		},
 		{
