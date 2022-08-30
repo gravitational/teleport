@@ -83,7 +83,19 @@ Authentication will happen according to the default behavior of [the Azure Go SD
 
 The current two cloud storage options (DynamoDB on AWS and Firestore on GCP) can store both the auth backend and the events in the audit log. For user convenience, we'll implement audit log storage for the `sqlbk`/Postgres backend - an alternative would be to store the audit log in Cosmos DB, but that would require that our users set up both a Postgres server and a Cosmos DB account. As a bonus, this storage option will also be usable outside of Azure.
 
-An `audit` table will be added to the current db schema, with indices on a `time` field and an optional `sid` field.
+An `audit` table will be added to the current database schema:
+```pgsql
+CREATE TABLE audit (
+    count BIGSERIAL PRIMARY KEY,
+    time TIMESTAMP NOT NULL,
+    event TEXT NOT NULL,
+    sid UUID,
+    ei BIGINT NOT NULL,
+    data JSONB,
+    UNIQUE (sid, ei)
+);
+CREATE INDEX ON audit (time, event, sid, ei);
+```
 
 Assuming it's fine to store the log in the same database as the backend, a minimal configuration could be as simple as:
 
