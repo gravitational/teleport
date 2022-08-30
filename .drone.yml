@@ -1,6 +1,6 @@
 ---
 kind: pipeline
-type: kubernetes
+type: docker
 name: update-docs-webhook
 
 trigger:
@@ -34,7 +34,7 @@ steps:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: push-build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport11
@@ -138,7 +138,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: push-build-linux-386
 environment:
   BUILDBOX_VERSION: teleport11
@@ -242,7 +242,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: push-build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport11
@@ -350,7 +350,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: push-build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport11
@@ -639,7 +639,7 @@ steps:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: push-build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport11
@@ -743,7 +743,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: push-build-linux-arm64
 environment:
   BUILDBOX_VERSION: teleport11
@@ -841,7 +841,7 @@ volumes:
 
 ---
 kind: pipeline
-type: kubernetes
+type: docker
 name: teleport-helm-cron
 
 trigger:
@@ -932,7 +932,7 @@ steps:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: build-linux-amd64-centos7
 environment:
   BUILDBOX_VERSION: teleport11
@@ -1092,7 +1092,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: build-linux-amd64-centos7-fips
 environment:
   BUILDBOX_VERSION: teleport11
@@ -1251,7 +1251,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport11
@@ -1408,7 +1408,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport11
@@ -1565,7 +1565,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: build-linux-amd64-centos7-rpm
 trigger:
   event:
@@ -1749,7 +1749,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: build-linux-amd64-centos7-fips-rpm
 trigger:
   event:
@@ -1930,7 +1930,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: build-linux-amd64-deb
 trigger:
   event:
@@ -2100,7 +2100,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: build-linux-amd64-fips-deb
 trigger:
   event:
@@ -2267,7 +2267,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: build-linux-386
 environment:
   BUILDBOX_VERSION: teleport11
@@ -2424,7 +2424,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: build-linux-386-rpm
 trigger:
   event:
@@ -2608,7 +2608,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: build-linux-386-deb
 trigger:
   event:
@@ -3404,7 +3404,7 @@ steps:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport11
@@ -3561,7 +3561,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: build-linux-arm64
 environment:
   BUILDBOX_VERSION: teleport11
@@ -3718,7 +3718,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: build-linux-arm64-deb
 trigger:
   event:
@@ -3888,7 +3888,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: build-linux-arm-deb
 trigger:
   event:
@@ -4058,7 +4058,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: build-linux-arm64-rpm
 trigger:
   event:
@@ -4242,7 +4242,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: build-linux-arm-rpm
 trigger:
   event:
@@ -4426,7 +4426,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport11
@@ -4580,7 +4580,7 @@ volumes:
 
 ---
 kind: pipeline
-type: kubernetes
+type: docker
 name: build-oss-amis
 
 trigger:
@@ -4681,7 +4681,7 @@ volumes:
 
 ---
 kind: pipeline
-type: kubernetes
+type: docker
 name: build-ent-amis
 
 trigger:
@@ -4791,7 +4791,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: build-buildboxes
 environment:
   BUILDBOX_VERSION: teleport11
@@ -4893,7 +4893,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: migrate-apt-new-repos
 trigger:
   event:
@@ -4921,7 +4921,7 @@ steps:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: publish-apt-new-repos
 trigger:
   event:
@@ -5035,7 +5035,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: migrate-yum-new-repos
 trigger:
   event:
@@ -5063,7 +5063,7 @@ steps:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: publish-yum-new-repos
 trigger:
   event:
@@ -5178,7 +5178,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: teleport-container-images-current-version-cron
 environment:
   DEBIAN_FRONTEND: noninteractive
@@ -5229,9 +5229,9 @@ steps:
   - update-ca-certificates
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
-  - MAJOR_VERSION=$(echo ${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/${ID?}
-    ${VERSION_CODENAME?} stable/${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
+  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
+  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
+    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
   - END_TIME=$(( $(date +%s) + 1800 ))
   - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
@@ -5559,9 +5559,9 @@ steps:
   - update-ca-certificates
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
-  - MAJOR_VERSION=$(echo ${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/${ID?}
-    ${VERSION_CODENAME?} stable/${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
+  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
+  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
+    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
   - END_TIME=$(( $(date +%s) + 1800 ))
   - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
@@ -5892,9 +5892,9 @@ steps:
   - update-ca-certificates
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
-  - MAJOR_VERSION=$(echo ${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/${ID?}
-    ${VERSION_CODENAME?} stable/${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
+  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
+  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
+    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
   - END_TIME=$(( $(date +%s) + 1800 ))
   - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
@@ -7095,7 +7095,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: teleport-container-images-previous-version-1-cron
 environment:
   DEBIAN_FRONTEND: noninteractive
@@ -7146,9 +7146,9 @@ steps:
   - update-ca-certificates
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
-  - MAJOR_VERSION=$(echo ${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/${ID?}
-    ${VERSION_CODENAME?} stable/${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
+  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
+  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
+    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
   - END_TIME=$(( $(date +%s) + 1800 ))
   - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
@@ -7476,9 +7476,9 @@ steps:
   - update-ca-certificates
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
-  - MAJOR_VERSION=$(echo ${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/${ID?}
-    ${VERSION_CODENAME?} stable/${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
+  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
+  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
+    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
   - END_TIME=$(( $(date +%s) + 1800 ))
   - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
@@ -7808,9 +7808,9 @@ steps:
   - update-ca-certificates
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
-  - MAJOR_VERSION=$(echo ${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/${ID?}
-    ${VERSION_CODENAME?} stable/${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
+  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
+  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
+    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
   - END_TIME=$(( $(date +%s) + 1800 ))
   - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
@@ -9007,7 +9007,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: teleport-container-images-previous-version-2-cron
 environment:
   DEBIAN_FRONTEND: noninteractive
@@ -9058,9 +9058,9 @@ steps:
   - update-ca-certificates
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
-  - MAJOR_VERSION=$(echo ${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/${ID?}
-    ${VERSION_CODENAME?} stable/${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
+  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
+  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
+    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
   - END_TIME=$(( $(date +%s) + 1800 ))
   - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
@@ -9388,9 +9388,9 @@ steps:
   - update-ca-certificates
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
-  - MAJOR_VERSION=$(echo ${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/${ID?}
-    ${VERSION_CODENAME?} stable/${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
+  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
+  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
+    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
   - END_TIME=$(( $(date +%s) + 1800 ))
   - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
@@ -9720,9 +9720,9 @@ steps:
   - update-ca-certificates
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
-  - MAJOR_VERSION=$(echo ${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/${ID?}
-    ${VERSION_CODENAME?} stable/${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
+  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
+  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
+    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
   - END_TIME=$(( $(date +%s) + 1800 ))
   - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
@@ -10919,7 +10919,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: kubernetes
+type: docker
 name: teleport-container-images-drone-tag-promote
 environment:
   DEBIAN_FRONTEND: noninteractive
@@ -10987,9 +10987,9 @@ steps:
   - update-ca-certificates
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
-  - MAJOR_VERSION=$(echo ${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/${ID?}
-    ${VERSION_CODENAME?} stable/${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
+  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
+  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
+    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
   - END_TIME=$(( $(date +%s) + 1800 ))
   - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
@@ -11325,9 +11325,9 @@ steps:
   - update-ca-certificates
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
-  - MAJOR_VERSION=$(echo ${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/${ID?}
-    ${VERSION_CODENAME?} stable/${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
+  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
+  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
+    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
   - END_TIME=$(( $(date +%s) + 1800 ))
   - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
@@ -11666,9 +11666,9 @@ steps:
   - update-ca-certificates
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
-  - MAJOR_VERSION=$(echo ${PACKAGE_VERSION?} | cut -d'.' -f 1)
-  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/${ID?}
-    ${VERSION_CODENAME?} stable/${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
+  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
+  - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
+    $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
   - END_TIME=$(( $(date +%s) + 1800 ))
   - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
@@ -12887,7 +12887,7 @@ volumes:
 
 ---
 kind: pipeline
-type: kubernetes
+type: docker
 name: promote-build
 
 trigger:
@@ -13276,7 +13276,7 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: pipeline
-type: kubernetes
+type: docker
 name: publish-rlz
 
 environment:
@@ -13363,6 +13363,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 7bad5a18130b841935b81e162a13e1921ff940349d70d2b60c4e7a0f83f3fa86
+hmac: 0aa2cc1cf0ec391d97676157b9fde94fa4ea573c314f1b58f0a96bf190a26c9a
 
 ...

@@ -333,8 +333,11 @@ func teleportSetupStep(shellVersion, packageName, dockerfilePath, downloadURL st
 			"update-ca-certificates",
 			fmt.Sprintf("curl https://apt.releases.teleport.dev/gpg -o %q", keyPath),
 			". /etc/os-release",
-			"MAJOR_VERSION=$(echo ${PACKAGE_VERSION?} | cut -d'.' -f 1)",
-			fmt.Sprintf("echo \"deb [signed-by=%s] https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/${MAJOR_VERSION?}\""+
+			// Per https://docs.drone.io/pipeline/environment/syntax/#common-problems I'm using '$$' here to ensure
+			// That the shell variable is not expanded until runtime, preventing drone from erroring on the
+			// drone-unsupported '?'
+			"MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)",
+			fmt.Sprintf("echo \"deb [signed-by=%s] https://apt.releases.teleport.dev/$${ID?} $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}\""+
 				" > /etc/apt/sources.list.d/teleport.list", keyPath),
 			fmt.Sprintf("END_TIME=$(( $(date +%%s) + %d ))", timeout),
 			"TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)",
