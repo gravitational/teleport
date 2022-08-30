@@ -1,4 +1,25 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package main
+
+// To run one of these pipelines locally:
+// # `drone exec` does not support `exec` or `kubernetes` pipelines
+// sed -i '' 's/type\: kubernetes/type\: docker/' .drone.yml && sed -i '' 's/type\: exec/type\: docker/' .drone.yml
+// # Drone requires certain variables to be set
+// export DRONE_REMOTE_URL="https://github.com/gravitational/teleport"
+// sudo drone exec --trusted --pipeline teleport-container-images-current-version-cron
 
 import (
 	"fmt"
@@ -102,6 +123,7 @@ func getLatestSemverStep(majorVersion string, majorVersionVarDirectory string) s
 		Image: "golang:1.18",
 		Commands: append(
 			cloneRepoCommands(cloneDirectory, fmt.Sprintf("branch/%s", majorVersion)),
+			fmt.Sprintf("mkdir -pv %q", majorVersionVarDirectory),
 			fmt.Sprintf("cd %q", path.Join(cloneDirectory, "build.assets", "tooling", "cmd", "query-latest")),
 			fmt.Sprintf("go run . %q > %q", majorVersion, path.Join(majorVersionVarDirectory, majorVersion)),
 		),
@@ -171,9 +193,7 @@ func (rv *releaseVersion) getSetupStepInformation(triggerSetupSteps []step) ([]s
 		nextStageSetupStepNames = versionSetupStepNames
 	}
 
-	setupSteps := make([]step, 0, len(triggerSetupSteps)+len(rv.SetupSteps))
-	setupSteps = append(setupSteps, triggerSetupSteps...)
-	setupSteps = append(setupSteps, rv.SetupSteps...)
+	setupSteps := append(triggerSetupSteps, rv.SetupSteps...)
 
 	return setupSteps, nextStageSetupStepNames
 }
@@ -187,6 +207,7 @@ func (rv *releaseVersion) buildSteps(setupStepNames []string) []step {
 		cloneRepoStep(clonedRepoPath, rv.ShellVersion),
 	}
 	for _, setupStep := range setupSteps {
+		setupStep.DependsOn = append(setupStep.DependsOn, setupStepNames...)
 		steps = append(steps, setupStep)
 		setupStepNames = append(setupStepNames, setupStep.Name)
 	}

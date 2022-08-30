@@ -5174,7 +5174,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:143
+# Generated at dronegen/container_images.go:165
 ################################################
 
 kind: pipeline
@@ -5202,6 +5202,7 @@ steps:
   - git init && git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin
   - git checkout -qf "branch/v10"
+  - mkdir -pv "/go/vars/full-version"
   - cd "/tmp/teleport/build.assets/tooling/cmd/query-latest"
   - go run . "v10" > "/go/vars/full-version/v10"
 - name: Wait for docker
@@ -5211,6 +5212,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  depends_on:
+  - Find the latest available semver for v10
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -5219,6 +5222,9 @@ steps:
   - git init && git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin
   - git checkout -qf "$(cat '/go/vars/full-version/v10')"
+  depends_on:
+  - Find the latest available semver for v10
+  - Wait for docker
 - name: Download "teleport" DEB artifact from APT
   image: ubuntu:20.04
   commands:
@@ -6660,7 +6666,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:143
+# Generated at dronegen/container_images.go:165
 ################################################
 
 kind: pipeline
@@ -6688,6 +6694,7 @@ steps:
   - git init && git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin
   - git checkout -qf "branch/v9"
+  - mkdir -pv "/go/vars/full-version"
   - cd "/tmp/teleport/build.assets/tooling/cmd/query-latest"
   - go run . "v9" > "/go/vars/full-version/v9"
 - name: Wait for docker
@@ -6697,6 +6704,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  depends_on:
+  - Find the latest available semver for v9
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -6705,6 +6714,9 @@ steps:
   - git init && git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin
   - git checkout -qf "$(cat '/go/vars/full-version/v9')"
+  depends_on:
+  - Find the latest available semver for v9
+  - Wait for docker
 - name: Download "teleport" DEB artifact from APT
   image: ubuntu:20.04
   commands:
@@ -8143,7 +8155,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:143
+# Generated at dronegen/container_images.go:165
 ################################################
 
 kind: pipeline
@@ -8171,6 +8183,7 @@ steps:
   - git init && git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin
   - git checkout -qf "branch/v8"
+  - mkdir -pv "/go/vars/full-version"
   - cd "/tmp/teleport/build.assets/tooling/cmd/query-latest"
   - go run . "v8" > "/go/vars/full-version/v8"
 - name: Wait for docker
@@ -8180,6 +8193,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  depends_on:
+  - Find the latest available semver for v8
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -8188,6 +8203,9 @@ steps:
   - git init && git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin
   - git checkout -qf "$(cat '/go/vars/full-version/v8')"
+  depends_on:
+  - Find the latest available semver for v8
+  - Wait for docker
 - name: Download "teleport" DEB artifact from APT
   image: ubuntu:20.04
   commands:
@@ -9626,7 +9644,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:143
+# Generated at dronegen/container_images.go:165
 ################################################
 
 kind: pipeline
@@ -9680,6 +9698,10 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  depends_on:
+  - Verify build is tagged
+  - Check out code
+  - Check if tag is prerelease
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -9688,6 +9710,11 @@ steps:
   - git init && git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin
   - git checkout -qf "$DRONE_TAG"
+  depends_on:
+  - Verify build is tagged
+  - Check out code
+  - Check if tag is prerelease
+  - Wait for docker
 - name: Download "teleport" DEB artifact from APT
   image: ubuntu:20.04
   commands:
@@ -11635,6 +11662,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: e2232d8f338c4c564d98dd4e1f946de7f5160aaaff0490160188f195428b67bf
+hmac: 326aa28f1e74282e94a573551da4229535d9240c2df9de5f3d0af0828454b5ee
 
 ...
