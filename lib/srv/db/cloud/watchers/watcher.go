@@ -49,6 +49,7 @@ func (c *WatcherConfig) CheckAndSetDefaults() error {
 	if c.Interval == 0 {
 		c.Interval = 5 * time.Minute
 	}
+	c.AzureMatchers = simplifyMatchers(c.AzureMatchers)
 	return nil
 }
 
@@ -194,7 +195,6 @@ func makeAWSFetchers(clients cloud.Clients, matchers []services.AWSMatcher) (res
 
 func makeAzureFetchers(ctx context.Context, clients cloud.Clients, matchers []services.AzureMatcher) (result []Fetcher, err error) {
 	for _, matcher := range matchers {
-		reduceAzureMatcher(&matcher)
 		for _, matcherType := range matcher.Types {
 			for _, sub := range matcher.Subscriptions {
 				for _, group := range matcher.ResourceGroups {

@@ -239,21 +239,32 @@ func (f *azureFetcher) String() string {
 		f.cfg.Type, f.cfg.Subscription, f.cfg.ResourceGroup, f.cfg.Regions, f.cfg.Labels)
 }
 
-// reduceAzureMatcher simplifies a Azure Matcher.
+// simplifyMatchers returns simplified Azure Matchers.
 // Selectors are deduplicated, wildcard in a selector reduces the selector
 // to just the wildcard, and defaults are applied.
-func reduceAzureMatcher(matcher *services.AzureMatcher) {
-	matcher.Subscriptions = apiutils.Deduplicate(matcher.Subscriptions)
-	matcher.ResourceGroups = apiutils.Deduplicate(matcher.ResourceGroups)
-	matcher.Regions = apiutils.Deduplicate(matcher.Regions)
-	matcher.Types = apiutils.Deduplicate(matcher.Types)
-	if len(matcher.Subscriptions) == 0 || apiutils.SliceContainsStr(matcher.Subscriptions, types.Wildcard) {
-		matcher.Subscriptions = []string{types.Wildcard}
+func simplifyMatchers(matchers []services.AzureMatcher) []services.AzureMatcher {
+	result := make([]services.AzureMatcher, 0, len(matchers))
+	for _, m := range matchers {
+		subs := apiutils.Deduplicate(m.Subscriptions)
+		groups := apiutils.Deduplicate(m.ResourceGroups)
+		regions := apiutils.Deduplicate(m.Regions)
+		ts := apiutils.Deduplicate(m.Types)
+		if len(subs) == 0 || apiutils.SliceContainsStr(subs, types.Wildcard) {
+			subs = []string{types.Wildcard}
+		}
+		if len(groups) == 0 || apiutils.SliceContainsStr(groups, types.Wildcard) {
+			groups = []string{types.Wildcard}
+		}
+		if len(regions) == 0 || apiutils.SliceContainsStr(regions, types.Wildcard) {
+			regions = []string{types.Wildcard}
+		}
+		result = append(result, services.AzureMatcher{
+			Subscriptions:  subs,
+			ResourceGroups: groups,
+			Regions:        regions,
+			Types:          ts,
+			ResourceTags:   m.ResourceTags,
+		})
 	}
-	if len(matcher.ResourceGroups) == 0 || apiutils.SliceContainsStr(matcher.ResourceGroups, types.Wildcard) {
-		matcher.ResourceGroups = []string{types.Wildcard}
-	}
-	if len(matcher.Regions) == 0 || apiutils.SliceContainsStr(matcher.Regions, types.Wildcard) {
-		matcher.Regions = []string{types.Wildcard}
-	}
+	return result
 }
