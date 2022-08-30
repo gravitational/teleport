@@ -46,10 +46,23 @@ permissions to impersonate the roles that the user has configured.
 
 `tbot` is the binary that acts as the agent for Machine ID.
 
-On initial load, `tbot` uses the [configured join method](#onboarding) to obtain
-a set of credentials for the bot user from the Teleport Auth Service. It can 
-then use these credentials to communicate with the Teleport Auth Service as the 
-bot.
+Before `tbot` can be started, at least two parts of configuration will need to
+be provided via the configuration file or as arguments provided to `tbot` when
+it is executed. This consists of:
+
+- [A join method](#onboarding) that the bot can use to prove that it should be
+  allowed to join the Teleport cluster.
+- A series of "destinations". A destination is a set of configuration that
+  specifies where a set of credentials should be output, and any options that
+  should be applied to those credentials (for example, what roles should be
+  impersonated).
+
+For more detail about the configuration options, see 
+[the reference.](./reference.mdx)
+
+On initial load, `tbot` uses the configured join method to obtain a set of 
+credentials for the bot user from the Teleport Auth Service. It can then use 
+these credentials to communicate with the Teleport Auth Service as the bot.
 
 On a configured regular period `tbot` begins its renewal process. It begins by
 refreshing the bot's own credentials, by renewing them or fetching a fresh set
