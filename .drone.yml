@@ -699,6 +699,7 @@ steps:
   environment:
     SLACK_WEBHOOK_DEV_TELEPORT:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
+    WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
 
 ---
 ################################################
@@ -6961,6 +6962,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 9a4b233cb77fc8346091f46aa2a58b7c513d9809eb4f019d336758385a793942
+hmac: 286b11598e64b507d2166ef3bae3451f644a638018e840591c6624dc623f43ba
 
 ...

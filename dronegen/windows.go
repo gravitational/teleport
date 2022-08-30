@@ -98,6 +98,7 @@ func windowsPushPipeline() pipeline {
 		{
 			Name: "Send Slack notification (exec)",
 			Environment: map[string]value{
+				"WORKSPACE_DIR":              {raw: p.Workspace.Path},
 				"SLACK_WEBHOOK_DEV_TELEPORT": {fromSecret: "SLACK_WEBHOOK_DEV_TELEPORT"},
 			},
 			Commands: []string{
