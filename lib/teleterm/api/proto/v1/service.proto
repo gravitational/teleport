@@ -16,16 +16,15 @@ syntax = "proto3";
 
 package teleport.terminal.v1;
 
-option go_package = "github.com/gravitational/teleport/lib/teleterm/v1";
-
-import "google/protobuf/empty.proto";
+import "v1/app.proto";
+import "v1/auth_settings.proto";
 import "v1/cluster.proto";
 import "v1/database.proto";
 import "v1/gateway.proto";
 import "v1/kube.proto";
-import "v1/app.proto";
 import "v1/server.proto";
-import "v1/auth_settings.proto";
+
+option go_package = "github.com/gravitational/teleport/lib/teleterm/v1";
 
 // TerminalService describes Teleterm service
 service TerminalService {
@@ -98,143 +97,177 @@ service TerminalService {
 }
 
 // RemoveClusterRequest describes RemoveClusterRequest
-message RemoveClusterRequest { string cluster_uri = 1; }
+message RemoveClusterRequest {
+  string cluster_uri = 1;
+}
 
 // GetClusterRequest describes GetClusterRequest
-message GetClusterRequest { string cluster_uri = 1; }
+message GetClusterRequest {
+  string cluster_uri = 1;
+}
 
 // LogoutRequest describes LogoutRequest
-message LogoutRequest { string cluster_uri = 1; }
+message LogoutRequest {
+  string cluster_uri = 1;
+}
 
 // PasswordlessPrompt describes different prompts we need from users
 // during the passwordless login flow.
 enum PasswordlessPrompt {
-    PASSWORDLESS_PROMPT_UNSPECIFIED = 0;
+  PASSWORDLESS_PROMPT_UNSPECIFIED = 0;
 
-    // PASSWORDLESS_PROMPT_PIN is used when we need a user's pin.
-    PASSWORDLESS_PROMPT_PIN = 1;
+  // PASSWORDLESS_PROMPT_PIN is used when we need a user's pin.
+  PASSWORDLESS_PROMPT_PIN = 1;
 
-    // PASSWORDLESS_PROMPT_TAP is used when we require a user to tap their device.
-    PASSWORDLESS_PROMPT_TAP = 2;
+  // PASSWORDLESS_PROMPT_TAP is used when we require a user to tap their device.
+  PASSWORDLESS_PROMPT_TAP = 2;
 
-    // PASSWORDLESS_PROMPT_CREDENTIAL is used when we require a user to select a username
-    // associated with their account.
-    PASSWORDLESS_PROMPT_CREDENTIAL = 3;
+  // PASSWORDLESS_PROMPT_CREDENTIAL is used when we require a user to select a username
+  // associated with their account.
+  PASSWORDLESS_PROMPT_CREDENTIAL = 3;
 }
 
 // CredentialInfo holds fields related to a user's WebAuthn credential.
-message CredentialInfo { string Username = 1; }
+message CredentialInfo {
+  string username = 1;
+}
 
 // LoginPasswordlessResponse is a message sent by the server during the
 // passwordless login flow.
 message LoginPasswordlessResponse {
-    PasswordlessPrompt prompt = 1;
-    repeated CredentialInfo credentials = 2;
+  PasswordlessPrompt prompt = 1;
+  repeated CredentialInfo credentials = 2;
 }
 
 // LoginPasswordlessRequest is a message sent by the client during the passwordless login flow.
 message LoginPasswordlessRequest {
-    oneof request {
-        LoginPasswordlessRequestInit init = 1;
-        LoginPasswordlessPINResponse pin = 2;
-        LoginPasswordlessCredentialResponse credential = 3;
-    }
+  oneof request {
+    LoginPasswordlessRequestInit init = 1;
+    LoginPasswordlessPINResponse pin = 2;
+    LoginPasswordlessCredentialResponse credential = 3;
+  }
 
-    // LoginPasswordlessRequestInit contains fields needed to init the stream request.
-    message LoginPasswordlessRequestInit {
-        // cluster_uri is needed to resolve cluster by its uri.
-        string cluster_uri = 1;
-    }
+  // LoginPasswordlessRequestInit contains fields needed to init the stream request.
+  message LoginPasswordlessRequestInit {
+    // cluster_uri is needed to resolve cluster by its uri.
+    string cluster_uri = 1;
+  }
 
-    // LoginPasswordlessPINResponse contains fields related to request from webauthncli.PromptPIN.
-    message LoginPasswordlessPINResponse {
-        // pin is the user's device's pin.
-        string pin = 1;
-    }
+  // LoginPasswordlessPINResponse contains fields related to request from webauthncli.PromptPIN.
+  message LoginPasswordlessPINResponse {
+    // pin is the user's device's pin.
+    string pin = 1;
+  }
 
-    // LoginPasswordlessPINResponse contains fields related to request from
-    // webauthncli.PromptCredential.
-    message LoginPasswordlessCredentialResponse {
-        // index is the associated number in the list of credentials that the user selected to log
-        // in as.
-        int64 index = 1;
-    }
+  // LoginPasswordlessPINResponse contains fields related to request from
+  // webauthncli.PromptCredential.
+  message LoginPasswordlessCredentialResponse {
+    // index is the associated number in the list of credentials that the user selected to log
+    // in as.
+    int64 index = 1;
+  }
 }
 
 // LoginRequest describes cluster login request
 message LoginRequest {
-    // cluster_uri is the cluster uri
-    string cluster_uri = 1;
+  // cluster_uri is the cluster uri
+  string cluster_uri = 1;
 
-    oneof params {
-        // local holds parameters for local logins
-        LocalParams local = 2;
-        // sso holds parameters for sso logins
-        SsoParams sso = 3;
-    }
+  oneof params {
+    // local holds parameters for local logins
+    LocalParams local = 2;
+    // sso holds parameters for sso logins
+    SsoParams sso = 3;
+  }
 
-    // LocalParams describes parameters for local user logins
-    message LocalParams {
-        // user is the user name
-        string user = 1;
-        // password is the user password
-        string password = 2;
-        // token is the 2FA token
-        string token = 3;
-    }
+  // LocalParams describes parameters for local user logins
+  message LocalParams {
+    // user is the user name
+    string user = 1;
+    // password is the user password
+    string password = 2;
+    // token is the 2FA token
+    string token = 3;
+  }
 
-    // SsoParams describes SSO parameters
-    message SsoParams {
-        // provider_type is the provider type
-        string provider_type = 1;
-        // provider_name is the provider name
-        string provider_name = 2;
-    }
+  // SsoParams describes SSO parameters
+  message SsoParams {
+    // provider_type is the provider type
+    string provider_type = 1;
+    // provider_name is the provider name
+    string provider_name = 2;
+  }
 }
 
-message AddClusterRequest { string name = 1; }
+message AddClusterRequest {
+  string name = 1;
+}
 
-message ListKubesRequest { string cluster_uri = 1; }
+message ListKubesRequest {
+  string cluster_uri = 1;
+}
 
-message ListAppsRequest { string cluster_uri = 1; }
+message ListAppsRequest {
+  string cluster_uri = 1;
+}
 
 message ListClustersRequest {}
 
-message ListClustersResponse { repeated Cluster clusters = 1; }
-
-message ListDatabasesRequest { string cluster_uri = 1; }
-
-message ListLeafClustersRequest { string cluster_uri = 1; }
-
-message ListDatabasesResponse { repeated Database databases = 1; }
-
-message ListDatabaseUsersRequest { string db_uri = 1; }
-
-message ListDatabaseUsersResponse { repeated string users = 1; }
-
-message CreateGatewayRequest {
-    string target_uri = 1;
-    string target_user = 2;
-    string local_port = 3;
-    string target_subresource_name = 4;
+message ListClustersResponse {
+  repeated Cluster clusters = 1;
 }
 
-message ListGatewaysRequest { repeated string cluster_ids = 1; }
+message ListDatabasesRequest {
+  string cluster_uri = 1;
+}
 
-message ListGatewaysResponse { repeated Gateway gateways = 1; }
+message ListLeafClustersRequest {
+  string cluster_uri = 1;
+}
 
-message RemoveGatewayRequest { string gateway_uri = 1; }
+message ListDatabasesResponse {
+  repeated Database databases = 1;
+}
 
-message RestartGatewayRequest { string gateway_uri = 1; }
+message ListDatabaseUsersRequest {
+  string db_uri = 1;
+}
+
+message ListDatabaseUsersResponse {
+  repeated string users = 1;
+}
+
+message CreateGatewayRequest {
+  string target_uri = 1;
+  string target_user = 2;
+  string local_port = 3;
+  string target_subresource_name = 4;
+}
+
+message ListGatewaysRequest {
+  repeated string cluster_ids = 1;
+}
+
+message ListGatewaysResponse {
+  repeated Gateway gateways = 1;
+}
+
+message RemoveGatewayRequest {
+  string gateway_uri = 1;
+}
+
+message RestartGatewayRequest {
+  string gateway_uri = 1;
+}
 
 message SetGatewayTargetSubresourceNameRequest {
-    string gateway_uri = 1;
-    string target_subresource_name = 2;
+  string gateway_uri = 1;
+  string target_subresource_name = 2;
 }
 
 message SetGatewayLocalPortRequest {
-    string gateway_uri = 1;
-    string local_port = 2;
+  string gateway_uri = 1;
+  string local_port = 2;
 }
 
 message GetAllServersRequest { string cluster_uri = 1; }
@@ -257,10 +290,16 @@ message GetServersResponse {
     string start_key = 3;
 }
 
-message ListKubesResponse { repeated Kube kubes = 1; }
+message ListKubesResponse {
+  repeated Kube kubes = 1;
+}
 
-message ListAppsResponse { repeated App apps = 1; }
+message ListAppsResponse {
+  repeated App apps = 1;
+}
 
-message GetAuthSettingsRequest { string cluster_uri = 1; }
+message GetAuthSettingsRequest {
+  string cluster_uri = 1;
+}
 
 message EmptyResponse {}
