@@ -1,0 +1,11 @@
+version: v1
+lint:
+  use:
+    - DEFAULT
+  ignore:
+    # "legacy" lib protos.
+    - teleport/lib/multiplexer/test/ping.proto
+    - teleport/lib/web/envelope.proto
+breaking:
+  use:
+    - FILE

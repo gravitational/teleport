@@ -18,7 +18,10 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
+	"io"
+	"math"
 	"net"
 	"testing"
 	"time"
@@ -118,8 +121,14 @@ func TestPingConnection(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
+		// Number of writes performed.
 		nWrites := 10
+		// Data that is going to be written/read on the connection.
 		dataWritten := []byte("message")
+		// Size of each read call.
+		readSize := 2
+		// Number of reads necessary to read the full message
+		readNum := int(math.Ceil(float64(len(dataWritten)) / float64(readSize)))
 
 		r, w := makePingConn(t)
 		defer r.Close()
@@ -140,11 +149,11 @@ func TestPingConnection(t *testing.T) {
 		// Read routines.
 		for i := 0; i < nWrites/2; i++ {
 			go func() {
-				buf := make([]byte, len(dataWritten)/2)
+				buf := make([]byte, readSize)
 				for {
 					n, err := r.Read(buf)
-					if err != nil {
-						return
+					if err != nil && !errors.Is(err, io.EOF) {
+						require.Fail(t, "Failed to read from connection: %v", err)
 					}
 
 					chanBytes := make([]byte, n)
@@ -154,20 +163,18 @@ func TestPingConnection(t *testing.T) {
 			}()
 		}
 
-	readLoop:
 		for i := 0; i < nWrites; i++ {
 			var aggregator []byte
-			for {
+			for j := 0; j < readNum; j++ {
 				select {
 				case <-ctx.Done():
-					require.Fail(t, "failed to read message, expected '%v' but received '%v'", dataWritten, aggregator)
+					require.Fail(t, "Failed to read message (context timeout)")
 				case data := <-readChan:
 					aggregator = append(aggregator, data...)
-					if bytes.Equal(dataWritten, aggregator) {
-						continue readLoop
-					}
 				}
 			}
+
+			require.Len(t, aggregator, len(dataWritten), "Wrong message read from connection")
 		}
 	})
 
