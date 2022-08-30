@@ -728,47 +728,123 @@ export namespace SetGatewayLocalPortRequest {
     }
 }
 
-export class ListServersRequest extends jspb.Message { 
+export class GetAllServersRequest extends jspb.Message { 
     getClusterUri(): string;
-    setClusterUri(value: string): ListServersRequest;
+    setClusterUri(value: string): GetAllServersRequest;
 
 
     serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): ListServersRequest.AsObject;
-    static toObject(includeInstance: boolean, msg: ListServersRequest): ListServersRequest.AsObject;
+    toObject(includeInstance?: boolean): GetAllServersRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: GetAllServersRequest): GetAllServersRequest.AsObject;
     static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
     static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: ListServersRequest, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): ListServersRequest;
-    static deserializeBinaryFromReader(message: ListServersRequest, reader: jspb.BinaryReader): ListServersRequest;
+    static serializeBinaryToWriter(message: GetAllServersRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetAllServersRequest;
+    static deserializeBinaryFromReader(message: GetAllServersRequest, reader: jspb.BinaryReader): GetAllServersRequest;
 }
 
-export namespace ListServersRequest {
+export namespace GetAllServersRequest {
     export type AsObject = {
         clusterUri: string,
     }
 }
 
-export class ListServersResponse extends jspb.Message { 
+export class GetAllServersResponse extends jspb.Message { 
     clearServersList(): void;
     getServersList(): Array<v1_server_pb.Server>;
-    setServersList(value: Array<v1_server_pb.Server>): ListServersResponse;
+    setServersList(value: Array<v1_server_pb.Server>): GetAllServersResponse;
     addServers(value?: v1_server_pb.Server, index?: number): v1_server_pb.Server;
 
 
     serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): ListServersResponse.AsObject;
-    static toObject(includeInstance: boolean, msg: ListServersResponse): ListServersResponse.AsObject;
+    toObject(includeInstance?: boolean): GetAllServersResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: GetAllServersResponse): GetAllServersResponse.AsObject;
     static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
     static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: ListServersResponse, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): ListServersResponse;
-    static deserializeBinaryFromReader(message: ListServersResponse, reader: jspb.BinaryReader): ListServersResponse;
+    static serializeBinaryToWriter(message: GetAllServersResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetAllServersResponse;
+    static deserializeBinaryFromReader(message: GetAllServersResponse, reader: jspb.BinaryReader): GetAllServersResponse;
 }
 
-export namespace ListServersResponse {
+export namespace GetAllServersResponse {
     export type AsObject = {
         serversList: Array<v1_server_pb.Server.AsObject>,
+    }
+}
+
+export class GetServersRequest extends jspb.Message { 
+    getClusterUri(): string;
+    setClusterUri(value: string): GetServersRequest;
+
+    getLimit(): number;
+    setLimit(value: number): GetServersRequest;
+
+    getStartKey(): string;
+    setStartKey(value: string): GetServersRequest;
+
+    getSearch(): string;
+    setSearch(value: string): GetServersRequest;
+
+    getQuery(): string;
+    setQuery(value: string): GetServersRequest;
+
+    getSortBy(): string;
+    setSortBy(value: string): GetServersRequest;
+
+    getSearchAsRoles(): string;
+    setSearchAsRoles(value: string): GetServersRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetServersRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: GetServersRequest): GetServersRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetServersRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetServersRequest;
+    static deserializeBinaryFromReader(message: GetServersRequest, reader: jspb.BinaryReader): GetServersRequest;
+}
+
+export namespace GetServersRequest {
+    export type AsObject = {
+        clusterUri: string,
+        limit: number,
+        startKey: string,
+        search: string,
+        query: string,
+        sortBy: string,
+        searchAsRoles: string,
+    }
+}
+
+export class GetServersResponse extends jspb.Message { 
+    clearServersList(): void;
+    getServersList(): Array<v1_server_pb.Server>;
+    setServersList(value: Array<v1_server_pb.Server>): GetServersResponse;
+    addServers(value?: v1_server_pb.Server, index?: number): v1_server_pb.Server;
+
+    getTotalCount(): number;
+    setTotalCount(value: number): GetServersResponse;
+
+    getStartKey(): string;
+    setStartKey(value: string): GetServersResponse;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetServersResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: GetServersResponse): GetServersResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetServersResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetServersResponse;
+    static deserializeBinaryFromReader(message: GetServersResponse, reader: jspb.BinaryReader): GetServersResponse;
+}
+
+export namespace GetServersResponse {
+    export type AsObject = {
+        serversList: Array<v1_server_pb.Server.AsObject>,
+        totalCount: number,
+        startKey: string,
     }
 }
 

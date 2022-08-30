@@ -20,7 +20,8 @@ interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedSer
     listLeafClusters: ITerminalServiceService_IListLeafClusters;
     listDatabases: ITerminalServiceService_IListDatabases;
     listDatabaseUsers: ITerminalServiceService_IListDatabaseUsers;
-    listServers: ITerminalServiceService_IListServers;
+    getAllServers: ITerminalServiceService_IGetAllServers;
+    getServers: ITerminalServiceService_IGetServers;
     listKubes: ITerminalServiceService_IListKubes;
     listApps: ITerminalServiceService_IListApps;
     addCluster: ITerminalServiceService_IAddCluster;
@@ -74,14 +75,23 @@ interface ITerminalServiceService_IListDatabaseUsers extends grpc.MethodDefiniti
     responseSerialize: grpc.serialize<v1_service_pb.ListDatabaseUsersResponse>;
     responseDeserialize: grpc.deserialize<v1_service_pb.ListDatabaseUsersResponse>;
 }
-interface ITerminalServiceService_IListServers extends grpc.MethodDefinition<v1_service_pb.ListServersRequest, v1_service_pb.ListServersResponse> {
-    path: "/teleport.terminal.v1.TerminalService/ListServers";
+interface ITerminalServiceService_IGetAllServers extends grpc.MethodDefinition<v1_service_pb.GetAllServersRequest, v1_service_pb.GetAllServersResponse> {
+    path: "/teleport.terminal.v1.TerminalService/GetAllServers";
     requestStream: false;
     responseStream: false;
-    requestSerialize: grpc.serialize<v1_service_pb.ListServersRequest>;
-    requestDeserialize: grpc.deserialize<v1_service_pb.ListServersRequest>;
-    responseSerialize: grpc.serialize<v1_service_pb.ListServersResponse>;
-    responseDeserialize: grpc.deserialize<v1_service_pb.ListServersResponse>;
+    requestSerialize: grpc.serialize<v1_service_pb.GetAllServersRequest>;
+    requestDeserialize: grpc.deserialize<v1_service_pb.GetAllServersRequest>;
+    responseSerialize: grpc.serialize<v1_service_pb.GetAllServersResponse>;
+    responseDeserialize: grpc.deserialize<v1_service_pb.GetAllServersResponse>;
+}
+interface ITerminalServiceService_IGetServers extends grpc.MethodDefinition<v1_service_pb.GetServersRequest, v1_service_pb.GetServersResponse> {
+    path: "/teleport.terminal.v1.TerminalService/GetServers";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<v1_service_pb.GetServersRequest>;
+    requestDeserialize: grpc.deserialize<v1_service_pb.GetServersRequest>;
+    responseSerialize: grpc.serialize<v1_service_pb.GetServersResponse>;
+    responseDeserialize: grpc.deserialize<v1_service_pb.GetServersResponse>;
 }
 interface ITerminalServiceService_IListKubes extends grpc.MethodDefinition<v1_service_pb.ListKubesRequest, v1_service_pb.ListKubesResponse> {
     path: "/teleport.terminal.v1.TerminalService/ListKubes";
@@ -226,7 +236,8 @@ export interface ITerminalServiceServer {
     listLeafClusters: grpc.handleUnaryCall<v1_service_pb.ListLeafClustersRequest, v1_service_pb.ListClustersResponse>;
     listDatabases: grpc.handleUnaryCall<v1_service_pb.ListDatabasesRequest, v1_service_pb.ListDatabasesResponse>;
     listDatabaseUsers: grpc.handleUnaryCall<v1_service_pb.ListDatabaseUsersRequest, v1_service_pb.ListDatabaseUsersResponse>;
-    listServers: grpc.handleUnaryCall<v1_service_pb.ListServersRequest, v1_service_pb.ListServersResponse>;
+    getAllServers: grpc.handleUnaryCall<v1_service_pb.GetAllServersRequest, v1_service_pb.GetAllServersResponse>;
+    getServers: grpc.handleUnaryCall<v1_service_pb.GetServersRequest, v1_service_pb.GetServersResponse>;
     listKubes: grpc.handleUnaryCall<v1_service_pb.ListKubesRequest, v1_service_pb.ListKubesResponse>;
     listApps: grpc.handleUnaryCall<v1_service_pb.ListAppsRequest, v1_service_pb.ListAppsResponse>;
     addCluster: grpc.handleUnaryCall<v1_service_pb.AddClusterRequest, v1_cluster_pb.Cluster>;
@@ -257,9 +268,12 @@ export interface ITerminalServiceClient {
     listDatabaseUsers(request: v1_service_pb.ListDatabaseUsersRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabaseUsersResponse) => void): grpc.ClientUnaryCall;
     listDatabaseUsers(request: v1_service_pb.ListDatabaseUsersRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabaseUsersResponse) => void): grpc.ClientUnaryCall;
     listDatabaseUsers(request: v1_service_pb.ListDatabaseUsersRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabaseUsersResponse) => void): grpc.ClientUnaryCall;
-    listServers(request: v1_service_pb.ListServersRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListServersResponse) => void): grpc.ClientUnaryCall;
-    listServers(request: v1_service_pb.ListServersRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListServersResponse) => void): grpc.ClientUnaryCall;
-    listServers(request: v1_service_pb.ListServersRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListServersResponse) => void): grpc.ClientUnaryCall;
+    getAllServers(request: v1_service_pb.GetAllServersRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllServersResponse) => void): grpc.ClientUnaryCall;
+    getAllServers(request: v1_service_pb.GetAllServersRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllServersResponse) => void): grpc.ClientUnaryCall;
+    getAllServers(request: v1_service_pb.GetAllServersRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllServersResponse) => void): grpc.ClientUnaryCall;
+    getServers(request: v1_service_pb.GetServersRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetServersResponse) => void): grpc.ClientUnaryCall;
+    getServers(request: v1_service_pb.GetServersRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetServersResponse) => void): grpc.ClientUnaryCall;
+    getServers(request: v1_service_pb.GetServersRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetServersResponse) => void): grpc.ClientUnaryCall;
     listKubes(request: v1_service_pb.ListKubesRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListKubesResponse) => void): grpc.ClientUnaryCall;
     listKubes(request: v1_service_pb.ListKubesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListKubesResponse) => void): grpc.ClientUnaryCall;
     listKubes(request: v1_service_pb.ListKubesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListKubesResponse) => void): grpc.ClientUnaryCall;
@@ -321,9 +335,12 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
     public listDatabaseUsers(request: v1_service_pb.ListDatabaseUsersRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabaseUsersResponse) => void): grpc.ClientUnaryCall;
     public listDatabaseUsers(request: v1_service_pb.ListDatabaseUsersRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabaseUsersResponse) => void): grpc.ClientUnaryCall;
     public listDatabaseUsers(request: v1_service_pb.ListDatabaseUsersRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListDatabaseUsersResponse) => void): grpc.ClientUnaryCall;
-    public listServers(request: v1_service_pb.ListServersRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListServersResponse) => void): grpc.ClientUnaryCall;
-    public listServers(request: v1_service_pb.ListServersRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListServersResponse) => void): grpc.ClientUnaryCall;
-    public listServers(request: v1_service_pb.ListServersRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListServersResponse) => void): grpc.ClientUnaryCall;
+    public getAllServers(request: v1_service_pb.GetAllServersRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllServersResponse) => void): grpc.ClientUnaryCall;
+    public getAllServers(request: v1_service_pb.GetAllServersRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllServersResponse) => void): grpc.ClientUnaryCall;
+    public getAllServers(request: v1_service_pb.GetAllServersRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetAllServersResponse) => void): grpc.ClientUnaryCall;
+    public getServers(request: v1_service_pb.GetServersRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetServersResponse) => void): grpc.ClientUnaryCall;
+    public getServers(request: v1_service_pb.GetServersRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetServersResponse) => void): grpc.ClientUnaryCall;
+    public getServers(request: v1_service_pb.GetServersRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.GetServersResponse) => void): grpc.ClientUnaryCall;
     public listKubes(request: v1_service_pb.ListKubesRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListKubesResponse) => void): grpc.ClientUnaryCall;
     public listKubes(request: v1_service_pb.ListKubesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListKubesResponse) => void): grpc.ClientUnaryCall;
     public listKubes(request: v1_service_pb.ListKubesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.ListKubesResponse) => void): grpc.ClientUnaryCall;

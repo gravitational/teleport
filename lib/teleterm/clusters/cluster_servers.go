@@ -18,10 +18,13 @@ package clusters
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/client"
+	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 
 	"github.com/gravitational/trace"
@@ -69,9 +72,13 @@ func (c *Cluster) GetAllServers(ctx context.Context) ([]Server, error) {
 	return results, nil
 }
 
-// GetServers accepts parameterized input to enable searching, sorting, and pagination
-func (c *Cluster) GetServers(ctx context.Context) ([]Server, error) {
-	var clusterServers []types.Server
+func (c *Cluster) GetServers(ctx context.Context, r *api.GetServersRequest) (*GetServersResponse, error) {
+	var (
+		clusterServers []types.Server
+		resp           *types.ListResourcesResponse
+		sortBy         types.SortBy
+	)
+
 	err := addMetadataToRetryableError(ctx, func() error {
 		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
@@ -79,9 +86,35 @@ func (c *Cluster) GetServers(ctx context.Context) ([]Server, error) {
 		}
 		defer proxyClient.Close()
 
-		clusterServers, err = proxyClient.FindNodesByFilters(ctx, proto.ListResourcesRequest{
-			Namespace: defaults.Namespace,
+		authClient, err := proxyClient.CurrentClusterAccessPoint(ctx)
+		// do we need to call authClient.Close() similar to proxyClient above?
+		// is there a better way to get the auth client instead of this?
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		sortParam := r.SortBy
+		if sortParam != "" {
+			vals := strings.Split(sortParam, ":")
+			if vals[0] != "" {
+				sortBy.Field = vals[0]
+				if len(vals) > 1 && vals[1] == "desc" {
+					sortBy.IsDesc = true
+				}
+			}
+		}
+
+		resp, err = authClient.ListResources(ctx, proto.ListResourcesRequest{
+			Namespace:           defaults.Namespace,
+			ResourceType:        types.KindNode,
+			Limit:               r.Limit,
+			SortBy:              sortBy,
+			PredicateExpression: r.Query,
+			SearchKeywords:      client.ParseSearchKeywords(r.Search, ' '),
+			UseSearchAsRoles:    r.SearchAsRoles == "yes",
 		})
+		clusterServers, err = types.ResourcesWithLabels(resp.Resources).AsServers()
+
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -100,5 +133,18 @@ func (c *Cluster) GetServers(ctx context.Context) ([]Server, error) {
 		})
 	}
 
-	return results, nil
+	return &GetServersResponse{
+		Servers:    results,
+		StartKey:   resp.NextKey,
+		TotalCount: resp.TotalCount,
+	}, nil
+}
+
+type GetServersResponse struct {
+	// Resources is a list of resource.
+	Servers []Server
+	// NextKey is the next key to use as a starting point.
+	StartKey string
+	// // TotalCount is the total number of resources available as a whole.
+	TotalCount int
 }

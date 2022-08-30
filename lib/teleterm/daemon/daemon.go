@@ -19,6 +19,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
+	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 
@@ -338,13 +339,16 @@ func (s *Service) GetAllServers(ctx context.Context, clusterURI string) ([]clust
 }
 
 // GetServers accepts parameterized input to enable searching, sorting, and pagination
-func (s *Service) GetServers(ctx context.Context, clusterURI string) ([]clusters.Server, error) {
-	cluster, err := s.ResolveCluster(clusterURI)
+func (s *Service) GetServers(ctx context.Context, req *api.GetServersRequest) ([]clusters.Server, error) {
+	var servers []clusters.Server
+	cluster, err := s.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	servers, err := cluster.GetServers(ctx)
+	// servers, err := cluster.GetAllServers(ctx)
+	response, err := cluster.GetServers(ctx, req)
+	servers = response.Servers
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
