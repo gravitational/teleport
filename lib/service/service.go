@@ -897,9 +897,13 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	if imClient.IsAvailable(supervisor.ExitContext()) {
 		ec2Hostname, err := imClient.GetTagValue(supervisor.ExitContext(), types.EC2HostnameTag)
 		if err == nil {
-			if ec2Hostname != "" {
+			if utils.IsValidHostname(ec2Hostname) {
 				cfg.Log.Infof("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2HostnameTag, ec2Hostname)
 				cfg.Hostname = ec2Hostname
+
+				// ec2Hostname exists but is not a valid hostname.
+			} else if ec2Hostname != "" {
+				cfg.Log.Infof("Found %q tag in EC2 instance, but %q is not a valid hostname.", types.EC2HostnameTag, ec2Hostname)
 			}
 		} else if !trace.IsNotFound(err) {
 			cfg.Log.Errorf("Unexpected error while looking for EC2 hostname: %v", err)
