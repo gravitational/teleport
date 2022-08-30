@@ -101,19 +101,10 @@ func windowsPushPipeline() pipeline {
 				"SLACK_WEBHOOK_DEV_TELEPORT": {fromSecret: "SLACK_WEBHOOK_DEV_TELEPORT"},
 			},
 			Commands: []string{
-				"$BuildUrl = \"$Env:DRONE_SYSTEM_PROTO`://$Env:DRONE_SYSTEM_HOSTNAME/$Env:DRONE_REPO_OWNER/$Env:DRONE_REPO_NAME/$Env:DRONE_BUILD_NUMBER\"",
-				`$GoOS = $(go env GOOS)`,
-				`$GoArch = $(go env GOARCH)`,
-				fmt.Sprintf(
-					`$Msg = "THIS IS A TEST (by @trent): Warning: %s artifact build failed for [%s] - please investigate immediately!`+psNewLine+
-						`Branch: %s`+psNewLine+
-						`Commit: %s`+psNewLine+
-						`nLink: $BuildUrl"`,
-					psPreformatted("$GoOS-$GoArch"),
-					psPreformatted("$Env:DRONE_REPO_NAME"),
-					psPreformatted("$Env:DRONE_BRANCH"),
-					psPreformatted("$Env:DRONE_COMMIT_SHA")),
-				`Invoke-RestMethod -Uri $Env:SLACK_WEBHOOK_DEV_TELEPORT -Body @{text=$msg}`,
+				`$Workspace = "` + perBuildWorkspace + `"`,
+				`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
+				`. "$TeleportSrc/build.assets/windows/build.ps1"`,
+				`Send-ErrorMessage`,
 			},
 			//			When: &condition{Status: []string{"failure"}},
 		},

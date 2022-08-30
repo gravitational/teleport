@@ -200,3 +200,25 @@ function Convert-Base64 {
         Set-Content -Encoding Byte -Path $FilePath -Value $bytes
     }
 }
+
+function Send-ErrorMessage {
+    <#
+    .SYNOPSIS
+    Formats and sends a buidl failure message to Slack
+    #>
+    [CmdletBinding()]
+    param ()
+
+    begin {
+        $BuildUrl = "$Env:DRONE_SYSTEM_PROTO`://$Env:DRONE_SYSTEM_HOSTNAME/$Env:DRONE_REPO_OWNER/$Env:DRONE_REPO_NAME/$Env:DRONE_BUILD_NUMBER"
+        $GoOS = $(go env GOOS)
+		$GoArch = $(go env GOARCH)
+        $Msg = @"
+THIS IS A TEST (by @trent): Warning: ``$GoOS-$GoArch`` artifact build failed for [``$Env:DRONE_REPO_NAME``] - please investigate immediately!
+Branch: ``$Env:DRONE_BRANCH``
+Commit: ``$Env:DRONE_COMMIT_SHA``
+Link: $BuildUrl
+"@
+       Invoke-RestMethod -Uri $Env:SLACK_WEBHOOK_DEV_TELEPORT -Body @{text=$Msg}
+    }
+}
