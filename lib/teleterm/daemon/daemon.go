@@ -340,20 +340,17 @@ func (s *Service) GetAllServers(ctx context.Context, clusterURI string) ([]clust
 
 // GetServers accepts parameterized input to enable searching, sorting, and pagination
 func (s *Service) GetServers(ctx context.Context, req *api.GetServersRequest) ([]clusters.Server, error) {
-	var servers []clusters.Server
 	cluster, err := s.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// servers, err := cluster.GetAllServers(ctx)
 	response, err := cluster.GetServers(ctx, req)
-	servers = response.Servers
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return servers, nil
+	return response.Servers, nil
 }
 
 // ListServers returns cluster servers
