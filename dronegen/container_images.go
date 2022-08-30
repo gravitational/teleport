@@ -127,7 +127,7 @@ func getLatestSemverStep(majorVersion string, majorVersionVarDirectory string) s
 			fmt.Sprintf("mkdir -pv %q", majorVersionVarDirectory),
 			fmt.Sprintf("cd %q", path.Join(cloneDirectory, "build.assets", "tooling", "cmd", "query-latest")),
 			fmt.Sprintf("go run . %q > %q", majorVersion, majorVersionVarPath),
-			fmt.Sprintf("Found full semver \"$(cat %q)\" for major version %q", majorVersionVarPath, majorVersion),
+			fmt.Sprintf("echo Found full semver \"$(cat %q)\" for major version %q", majorVersionVarPath, majorVersion),
 		),
 	}
 }

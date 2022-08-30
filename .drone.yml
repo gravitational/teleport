@@ -5205,7 +5205,8 @@ steps:
   - mkdir -pv "/go/vars/full-version"
   - cd "/tmp/teleport/build.assets/tooling/cmd/query-latest"
   - go run . "v10" > "/go/vars/full-version/v10"
-  - Found full semver "$(cat "/go/vars/full-version/v10")" for major version "v10"
+  - echo Found full semver "$(cat "/go/vars/full-version/v10")" for major version
+    "v10"
 - name: Wait for docker
   image: docker
   commands:
@@ -6698,7 +6699,7 @@ steps:
   - mkdir -pv "/go/vars/full-version"
   - cd "/tmp/teleport/build.assets/tooling/cmd/query-latest"
   - go run . "v9" > "/go/vars/full-version/v9"
-  - Found full semver "$(cat "/go/vars/full-version/v9")" for major version "v9"
+  - echo Found full semver "$(cat "/go/vars/full-version/v9")" for major version "v9"
 - name: Wait for docker
   image: docker
   commands:
@@ -8188,7 +8189,7 @@ steps:
   - mkdir -pv "/go/vars/full-version"
   - cd "/tmp/teleport/build.assets/tooling/cmd/query-latest"
   - go run . "v8" > "/go/vars/full-version/v8"
-  - Found full semver "$(cat "/go/vars/full-version/v8")" for major version "v8"
+  - echo Found full semver "$(cat "/go/vars/full-version/v8")" for major version "v8"
 - name: Wait for docker
   image: docker
   commands:
@@ -11665,6 +11666,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 5a10b474bae446d3f873eefed1138d8935755dec773e139432839afc9198c183
+hmac: c696e2153f00dcb8220e6ac8c3e477bae0f30d5d0593d3683c4f6d19bd58f01b
 
 ...
