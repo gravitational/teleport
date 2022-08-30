@@ -15,7 +15,6 @@
 package main
 
 import (
-	"fmt"
 	"path"
 )
 
@@ -73,10 +72,6 @@ func windowsTagPipeline() pipeline {
 		cleanUpWindowsWorkspaceStep(p.Workspace.Path),
 	}
 	return p
-}
-
-func psPreformatted(s string) string {
-	return fmt.Sprintf("``%s``", s)
 }
 
 func windowsPushPipeline() pipeline {
