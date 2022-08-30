@@ -23,7 +23,6 @@ const (
 	toolchainDir      = `/toolchains`
 	teleportSrc       = `/go/src/github.com/gravitational/teleport`
 	webappsSrc        = `/go/src/github.com/gravitational/webapps`
-	psNewLine         = "`n"
 )
 
 func newWindowsPipeline(name string) pipeline {
