@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -625,6 +627,12 @@ type localProxyConfig struct {
 	// it's always true for Snowflake database. Value is copied here to not modify
 	// cli arguments directly.
 	localProxyTunnel bool
+	// onNewConnection is a callback triggered when the ALPN local proxy
+	// accepts a new connection. Note that this callback always provides the
+	// database certificate in addition to the parameters in the original
+	// alpnproxy.OnNewConnectionFunc, regardless of whether the database
+	// certificate is provided to the ALPN local proxy or not.
+	onNewConnection func(dbCert *x509.Certificate, lp *alpnproxy.LocalProxy, conn net.Conn)
 }
 
 // prepareLocalProxyOptions created localProxyOpts needed to create local proxy from localProxyConfig.
@@ -645,6 +653,17 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
 		insecure:  arg.cliConf.InsecureSkipVerify,
 		certFile:  certFile,
 		keyFile:   keyFile,
+	}
+
+	if arg.onNewConnection != nil {
+		dbCert, err := certFromPath(arg.profile.DatabaseCertPathForCluster(arg.cliConf.SiteName, arg.routeToDatabase.ServiceName))
+		if err != nil {
+			return localProxyOpts{}, trace.Wrap(err)
+		}
+
+		opts.onNewConnection = func(lp *alpnproxy.LocalProxy, conn net.Conn) {
+			arg.onNewConnection(dbCert, lp, conn)
+		}
 	}
 
 	// For SQL Server connections, local proxy must be configured with the
@@ -845,11 +864,7 @@ func dbInfoHasChanged(cf *CLIConf, certPath string) (bool, error) {
 		return false, nil
 	}
 
-	buff, err := os.ReadFile(certPath)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	cert, err := tlsca.ParseCertificatePEM(buff)
+	cert, err := certFromPath(certPath)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -867,6 +882,20 @@ func dbInfoHasChanged(cf *CLIConf, certPath string) (bool, error) {
 		return true, nil
 	}
 	return false, nil
+}
+
+// certFromPath parses the PEM-encoded certificate from the provided path. Note
+// that this function expects only one certificate in the file.
+func certFromPath(path string) (*x509.Certificate, error) {
+	buff, err := os.ReadFile(path)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cert, err := tlsca.ParseCertificatePEM(buff)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return cert, nil
 }
 
 // isMFADatabaseAccessRequired calls the IsMFARequired endpoint in order to get from user roles if access to the database
