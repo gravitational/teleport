@@ -23,8 +23,8 @@ the Auth Service when `tctl bots add` is executed:
   [impersonate roles](#role-impersonation).
 - Token: for [onboarding](#onboarding), a token must exist that allows the
   Machine ID agent to initially authenticate as the bot user. If an existing
-  token is not specified, then a static single-use token will be created by the
-  Auth Server.
+  token is not specified, then a single-use token will be created by the Auth 
+  Server.
 
 ## Role Impersonation
 
@@ -76,7 +76,7 @@ associated with the token.
 Machine ID currently supports two methods of joining that have some key
 differences.
 
-### Static token:
+### Ephemeral token:
 
 - The name of the token is used as an opaque secret needed to join the Teleport 
   cluster. This means it must be stored and communicated securely.
@@ -96,14 +96,14 @@ differences.
 - The certificates exchanged for the token are not renewable. When the bot wants
   to renew its certificates, it simply repeats the original join steps.
 
-Where possible, you should prefer to use a dynamic join token over a static
+Where possible, you should prefer to use a dynamic join token over an emphemeral
 token as this eliminates the need to handle a secret.
 
 ## Renewable certificates
 
 Human Teleport users are not able to renew their credentials without
 re-authenticating. As Machine ID must work without manual human intervention,
-bots that have joined using static tokens are granted credentials that are
+bots that have joined using ephemeral tokens are granted credentials that are
 marked as renewable. This means that the bot can use these credentials to
 fetch a new set of credentials with an expiry date further in the future.
 
