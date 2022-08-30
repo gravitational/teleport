@@ -76,7 +76,7 @@ associated with the token.
 Machine ID currently supports two methods of joining that have some key
 differences.
 
-### Ephemeral token:
+### Ephemeral token
 
 - The name of the token is used as an opaque secret needed to join the Teleport 
   cluster. This means it must be stored and communicated securely.
@@ -86,13 +86,13 @@ differences.
   renewable, as we will explain in the next section.
 
 
-### Dynamic join tokens (e.g AWS IAM):
+### Dynamic join tokens (e.g AWS IAM)
 
 - These tokens rely on an external authority that allows the bot to prove it is 
   allowed to join the cluster. The name of the token identifies the Token
   resource in Teleport that contains the configuration.
 - The token can be used to join as many bots as you want, and do not self
-  destruct in the same way that static tokens do.
+  destruct in the same way that ephemeral tokens do.
 - The certificates exchanged for the token are not renewable. When the bot wants
   to renew its certificates, it simply repeats the original join steps.
 
