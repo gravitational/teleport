@@ -1076,38 +1076,21 @@ impl Client {
             // time will give us "..", and then we will iterate through any files/directories stored
             // within dir.
             if let Some(fso) = dir.next() {
-                match req.file_info_class_lvl {
-                    // TODO(isaiah): we should support all the file_info_class_lvl's that FreeRDP does:
-                    // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L794
+                let buffer = match req.file_info_class_lvl {
                     FileInformationClassLevel::FileBothDirectoryInformation => {
-                        let buffer = Some(FileInformationClass::FileBothDirectoryInformation(
+                        Some(FileInformationClass::FileBothDirectoryInformation(
                             FileBothDirectoryInformation::from(fso)?,
-                        ));
-                        return self.prep_drive_query_dir_response(
-                            &req.device_io_request,
-                            NTSTATUS::STATUS_SUCCESS,
-                            buffer,
-                        );
+                        ))
                     }
                     FileInformationClassLevel::FileFullDirectoryInformation => {
-                        let buffer = Some(FileInformationClass::FileFullDirectoryInformation(
+                        Some(FileInformationClass::FileFullDirectoryInformation(
                             FileFullDirectoryInformation::from(fso)?,
-                        ));
-                        return self.prep_drive_query_dir_response(
-                            &req.device_io_request,
-                            NTSTATUS::STATUS_SUCCESS,
-                            buffer,
-                        );
+                        ))
                     }
                     FileInformationClassLevel::FileNamesInformation => {
-                        let buffer = Some(FileInformationClass::FileNamesInformation(
+                        Some(FileInformationClass::FileNamesInformation(
                             FileNamesInformation::new(fso.name()?),
-                        ));
-                        return self.prep_drive_query_dir_response(
-                            &req.device_io_request,
-                            NTSTATUS::STATUS_SUCCESS,
-                            buffer,
-                        );
+                        ))
                     }
                     FileInformationClassLevel::FileDirectoryInformation => {
                         return Err(not_implemented_error(&format!(
@@ -1118,7 +1101,13 @@ impl Client {
                     _ => {
                         return Err(invalid_data_error("received invalid FileInformationClassLevel in ServerDriveQueryDirectoryRequest"));
                     }
-                }
+                };
+
+                return self.prep_drive_query_dir_response(
+                    &req.device_io_request,
+                    NTSTATUS::STATUS_SUCCESS,
+                    buffer,
+                );
             }
 
             // If we reach here it means our iterator is exhausted,
