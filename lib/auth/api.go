@@ -696,30 +696,6 @@ type ReadDiscoveryAccessPoint interface {
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
-	// GetClusterAuditConfig returns cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
-
-	// GetClusterNetworkingConfig returns cluster networking configuration.
-	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
-
-	// GetAuthPreference returns the cluster authentication configuration.
-	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
-
-	// GetSessionRecordingConfig returns session recording configuration.
-	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
-
-	// GetUser returns a services.User for this cluster.
-	GetUser(name string, withSecrets bool) (types.User, error)
-
-	// GetRole returns role by name
-	GetRole(ctx context.Context, name string) (types.Role, error)
-
-	// GetRoles returns a list of roles
-	GetRoles(ctx context.Context) ([]types.Role, error)
-
-	// GetProxies returns a list of proxy servers registered in the cluster
-	GetProxies() ([]types.Server, error)
-
 	// GetNamespaces returns a list of namespaces
 	GetNamespaces() ([]types.Namespace, error)
 

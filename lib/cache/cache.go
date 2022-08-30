@@ -334,15 +334,7 @@ func ForDiscovery(cfg Config) Config {
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindClusterName},
-		{Kind: types.KindClusterAuditConfig},
-		{Kind: types.KindClusterNetworkingConfig},
-		{Kind: types.KindClusterAuthPreference},
-		{Kind: types.KindSessionRecordingConfig},
-		{Kind: types.KindUser},
-		{Kind: types.KindRole},
-		{Kind: types.KindProxy},
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
-		//		{Kind: types.KindNode},
 	}
 	cfg.QueueSize = defaults.DiscoveryQueueSize
 	return cfg

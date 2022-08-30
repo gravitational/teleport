@@ -57,9 +57,7 @@ type Server struct {
 	ec2Installer *server.SSMInstaller
 }
 
-func New(
-	ctx context.Context,
-	cfg *Config) (*Server, error) {
+func New(ctx context.Context, cfg *Config) (*Server, error) {
 	s := &Server{
 		Config:        cfg,
 		StreamEmitter: cfg.Emitter,
@@ -120,7 +118,11 @@ func (s *Server) handleInstances(instances *server.EC2Instances) error {
 		s.log.Debugf("All fetched nodes already enrolled.")
 		return nil
 	}
-
+	instIDs := make([]string, len(instances.Instances))
+	for idx, inst := range instances.Instances {
+		instIDs[idx] = aws.StringValue(inst.InstanceId)
+	}
+	s.log.Debugf("Running Teleport installation on these instances: AccountID: %s, Instances: %v", instances.AccountID, instIDs)
 	req := server.SSMRunRequest{
 		DocumentName: instances.DocumentName,
 		SSM:          client,
@@ -137,7 +139,11 @@ func (s *Server) handleEC2Discovery() {
 	for {
 		select {
 		case instances := <-s.cloudWatcher.InstancesC:
-			s.log.Debugln("EC2 instances discovered, starting installation")
+			instIDs := make([]string, len(instances.Instances))
+			for idx, inst := range instances.Instances {
+				instIDs[idx] = aws.StringValue(inst.InstanceId)
+			}
+			s.log.Debugf("EC2 instances discovered (AccountID: %s, Instances: %v), starting installation", instances.AccountID, instIDs)
 			if err := s.handleInstances(&instances); err != nil {
 				if trace.IsNotFound(err) {
 					s.log.Debug("All discovered EC2 instances are already part of the cluster.")
