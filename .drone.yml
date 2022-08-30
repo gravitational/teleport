@@ -66,7 +66,7 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport"
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin "${DRONE_COMMIT_SHA}"
+  - git fetch origin
   - git checkout -qf "${DRONE_COMMIT_SHA}"
   - mkdir -p /go/cache
   - git submodule update --init webassets || true
@@ -171,7 +171,7 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport"
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin "${DRONE_COMMIT_SHA}"
+  - git fetch origin
   - git checkout -qf "${DRONE_COMMIT_SHA}"
   - mkdir -p /go/cache
   - git submodule update --init webassets || true
@@ -276,7 +276,7 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport"
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin "${DRONE_COMMIT_SHA}"
+  - git fetch origin
   - git checkout -qf "${DRONE_COMMIT_SHA}"
   - mkdir -p /go/cache
   - git submodule update --init webassets || true
@@ -385,7 +385,7 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport"
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin "${DRONE_COMMIT_SHA}"
+  - git fetch origin
   - git checkout -qf "${DRONE_COMMIT_SHA}"
   - mkdir -p /go/cache
   - git submodule update --init webassets || true
@@ -675,7 +675,7 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport"
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin "${DRONE_COMMIT_SHA}"
+  - git fetch origin
   - git checkout -qf "${DRONE_COMMIT_SHA}"
   - mkdir -p /go/cache
   - git submodule update --init webassets || true
@@ -780,7 +780,7 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport"
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin "${DRONE_COMMIT_SHA}"
+  - git fetch origin
   - git checkout -qf "${DRONE_COMMIT_SHA}"
   - mkdir -p /go/cache
   - git submodule update --init webassets || true
@@ -4956,7 +4956,7 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport"
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin "${DRONE_TAG}"
+  - git fetch origin
   - git checkout -qf "${DRONE_TAG}"
   depends_on:
   - Verify build is tagged
@@ -5099,7 +5099,7 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport"
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin "${DRONE_TAG}"
+  - git fetch origin
   - git checkout -qf "${DRONE_TAG}"
   depends_on:
   - Verify build is tagged
@@ -5209,7 +5209,7 @@ steps:
   - cd "/tmp/teleport"
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin "branch/v10"
+  - git fetch origin
   - git checkout -qf "branch/v10"
   - mkdir -pv "/go/vars/full-version"
   - cd "/tmp/teleport/build.assets/tooling/cmd/query-latest"
@@ -5232,7 +5232,7 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport"
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin "$(cat '/go/vars/full-version/v10')"
+  - git fetch origin
   - git checkout -qf "$(cat '/go/vars/full-version/v10')"
   depends_on:
   - Find the latest available semver for v10
@@ -6705,7 +6705,7 @@ steps:
   - cd "/tmp/teleport"
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin "branch/v9"
+  - git fetch origin
   - git checkout -qf "branch/v9"
   - mkdir -pv "/go/vars/full-version"
   - cd "/tmp/teleport/build.assets/tooling/cmd/query-latest"
@@ -6727,7 +6727,7 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport"
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin "$(cat '/go/vars/full-version/v9')"
+  - git fetch origin
   - git checkout -qf "$(cat '/go/vars/full-version/v9')"
   depends_on:
   - Find the latest available semver for v9
@@ -8197,7 +8197,7 @@ steps:
   - cd "/tmp/teleport"
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin "branch/v8"
+  - git fetch origin
   - git checkout -qf "branch/v8"
   - mkdir -pv "/go/vars/full-version"
   - cd "/tmp/teleport/build.assets/tooling/cmd/query-latest"
@@ -8219,7 +8219,7 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport"
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin "$(cat '/go/vars/full-version/v8')"
+  - git fetch origin
   - git checkout -qf "$(cat '/go/vars/full-version/v8')"
   depends_on:
   - Find the latest available semver for v8
@@ -9698,7 +9698,7 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport"
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin "$DRONE_TAG"
+  - git fetch origin
   - git checkout -qf "$DRONE_TAG"
   depends_on:
   - Verify build is tagged
@@ -9728,7 +9728,7 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport"
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin "$DRONE_TAG"
+  - git fetch origin
   - git checkout -qf "$DRONE_TAG"
   depends_on:
   - Verify build is tagged
@@ -11682,6 +11682,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: b98bb5a936a4b0956fe1a6bcb09c37b570da5b7e7934c4e01817be4e30e4e952
+hmac: 3e072c423c657937286b3934d6b03d4ddc59715fc95616fee45b97533d0f1620
 
 ...
