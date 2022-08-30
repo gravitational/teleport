@@ -1,6 +1,6 @@
 # Changelog
 
-## 10.1.7
+## 10.1.8
 
 This release of Teleport contains multiple improvements and bug fixes.
 
@@ -15,6 +15,8 @@ This release of Teleport contains multiple improvements and bug fixes.
 * Fixed issue with inability to add webauthn devices in Web UI when local auth is disabled. [#15776](https://github.com/gravitational/teleport/pull/15776)
 * Fixed issue with SAML login failing in some scenarios. [#15886](https://github.com/gravitational/teleport/pull/15886)
 * Fixed issue with Firestore backend pagination. [#13756](https://github.com/gravitational/teleport/pull/13756)
+* Fixed issue with unescaped path parameter causing failure on initial direct access to proxied application. [#15908](https://github.com/gravitational/teleport/pull/15908)
+* Fixed issue with Github connector's deprecated `teams_to_logins` field always being marshaled. [#15933](https://github.com/gravitational/teleport/pull/15933)
 * Added ability for reverse tunnel agents to join over reverse tunnel port without exposing web UI. [#13598](https://github.com/gravitational/teleport/pull/13598)
 * Added `ssh_file_copy` role option allowing to disable scp and SFTP file copying. [#15853](https://github.com/gravitational/teleport/pull/15853)
 * Added ability to disable local auth in teleport-cluster Helm chart. [#15595](https://github.com/gravitational/teleport/pull/15595)
