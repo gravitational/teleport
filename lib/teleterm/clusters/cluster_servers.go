@@ -92,6 +92,7 @@ func (c *Cluster) GetServers(ctx context.Context, r *api.GetServersRequest) (*Ge
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer authClient.Close()
 
 		sortParam := r.SortBy
 		if sortParam != "" {
@@ -113,8 +114,11 @@ func (c *Cluster) GetServers(ctx context.Context, r *api.GetServersRequest) (*Ge
 			SearchKeywords:      client.ParseSearchKeywords(r.Search, ' '),
 			UseSearchAsRoles:    r.SearchAsRoles == "yes",
 		})
-		clusterServers, err = types.ResourcesWithLabels(resp.Resources).AsServers()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
+		clusterServers, err = types.ResourcesWithLabels(resp.Resources).AsServers()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -143,7 +147,7 @@ func (c *Cluster) GetServers(ctx context.Context, r *api.GetServersRequest) (*Ge
 type GetServersResponse struct {
 	// Resources is a list of resource.
 	Servers []Server
-	// NextKey is the next key to use as a starting point.
+	// StartKey is the next key to use as a starting point.
 	StartKey string
 	// // TotalCount is the total number of resources available as a whole.
 	TotalCount int
