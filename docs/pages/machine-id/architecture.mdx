@@ -10,7 +10,11 @@ A more in-depth specification of the workings of Machine ID can be found in
 
 ## Bot creation
 
-When creating a bot via `tctl`, up to three resources are created:
+In order to use the Machine ID agent (`tbot`), a bot must first be created using
+the `tctl bots add`.
+
+A "bot" within Teleport is comprised of three resources, which are created by
+the Auth Service when `tctl bots add` is executed:
 
 - Bot user: this will be the user that the Machine ID agent authenticates as.
 - Bot role: the bot user is assigned the bot role, and the bot role contains
@@ -51,10 +55,9 @@ On a configured regular period `tbot` then:
 
 1. Renews these bot user credentials
 2. For each destination provided in `tbot`'s configuration:
-   1. Obtains [role impersonated](#role-impersonation) credentials for the roles
-      specified in the destination configuration from the Auth Service using the
-      bot user credentials.
-   2. Outputs these role impersonated credentials in various formats.
+   1. Uses impersonation to obtain credentials from the Auth Service for the
+      roles specified in the destination's configuration.
+   2. Outputs these credentials in various formats.
 
 Concurrently to this, `tbot` monitors the Teleport certificate authorities to
 detect certificate rotations. When this occurs, it triggers additional renewals
