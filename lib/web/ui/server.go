@@ -152,6 +152,18 @@ func MakeKubeClusters(clusters []types.KubeCluster) []KubeCluster {
 	return uiKubeClusters
 }
 
+// ConnectionDiagnostic describes a connection diagnostic.
+type ConnectionDiagnostic struct {
+	// ID is the identifier of the connection diagnostic.
+	ID string `json:"id"`
+	// Success is whether the connection was successful
+	Success bool `json:"success"`
+	// Message is the diagnostic summary
+	Message string `json:"message"`
+	// Traces contains multiple checkpoints results
+	Traces []*types.ConnectionDiagnosticTrace `json:"traces"`
+}
+
 // Database describes a database server.
 type Database struct {
 	// Name is the name of the database.

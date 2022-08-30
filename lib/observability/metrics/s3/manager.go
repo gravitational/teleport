@@ -24,7 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager/s3manageriface"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
 type UploadAPIMetrics struct {
@@ -32,7 +32,7 @@ type UploadAPIMetrics struct {
 }
 
 func NewUploadAPIMetrics(api s3manageriface.UploaderAPI) (*UploadAPIMetrics, error) {
-	if err := utils.RegisterPrometheusCollectors(s3Collectors...); err != nil {
+	if err := metrics.RegisterPrometheusCollectors(s3Collectors...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -53,7 +53,7 @@ type DownloadAPIMetrics struct {
 }
 
 func NewDownloadAPIMetrics(api s3manageriface.DownloaderAPI) (*DownloadAPIMetrics, error) {
-	if err := utils.RegisterPrometheusCollectors(s3Collectors...); err != nil {
+	if err := metrics.RegisterPrometheusCollectors(s3Collectors...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

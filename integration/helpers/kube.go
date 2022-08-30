@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -69,18 +68,18 @@ func EnableKube(t *testing.T, config *service.Config, clusterName string) error 
 }
 
 // GetKubeClusters gets all kubernetes clusters accessible from a given auth server.
-func GetKubeClusters(t *testing.T, as *auth.Server) []*types.KubernetesCluster {
+func GetKubeClusters(t *testing.T, as *auth.Server) []types.KubeCluster {
 	ctx := context.Background()
 	resources, err := apiclient.GetResourcesWithFilters(ctx, as, proto.ListResourcesRequest{
-		ResourceType: types.KindKubeService,
+		ResourceType: types.KindKubeServer,
 	})
 	require.NoError(t, err)
-	kss, err := types.ResourcesWithLabels(resources).AsServers()
+	kss, err := types.ResourcesWithLabels(resources).AsKubeServers()
 	require.NoError(t, err)
 
-	clusters := make([]*types.KubernetesCluster, 0)
+	clusters := make([]types.KubeCluster, 0)
 	for _, ks := range kss {
-		clusters = append(clusters, ks.GetKubernetesClusters()...)
+		clusters = append(clusters, ks.GetCluster())
 	}
 	return clusters
 }
@@ -99,18 +98,14 @@ func genUserKey() (*client.Key, error) {
 	}
 
 	keygen := testauthority.New()
-	priv, pub, err := keygen.GenerateKeyPair()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cryptoPub, err := sshutils.CryptoPublicKey(pub)
+	priv, err := keygen.GeneratePrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	clock := clockwork.NewRealClock()
 	tlsCert, err := ca.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     clock,
-		PublicKey: cryptoPub,
+		PublicKey: priv.Public(),
 		Subject: pkix.Name{
 			CommonName: "teleport-user",
 		},
@@ -121,9 +116,8 @@ func genUserKey() (*client.Key, error) {
 	}
 
 	return &client.Key{
-		Priv:    priv,
-		Pub:     pub,
-		TLSCert: tlsCert,
+		PrivateKey: priv,
+		TLSCert:    tlsCert,
 		TrustedCA: []auth.TrustedCerts{{
 			TLSCertificates: [][]byte{caCert},
 		}},

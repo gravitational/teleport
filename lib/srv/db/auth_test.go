@@ -75,7 +75,8 @@ func TestAuthTokens(t *testing.T) {
 			desc:     "incorrect Postgres RDS IAM auth token",
 			service:  "postgres-rds-incorrect-token",
 			protocol: defaults.ProtocolPostgres,
-			err:      "rds-db:connect", // Make sure we print example RDS IAM policy.
+			// Make sure we print example RDS IAM policy.
+			err: "arn:aws:rds-db:us-east-1:<account_id>:dbuser:<resource_id>",
 		},
 		{
 			desc:     "correct Postgres Redshift IAM auth token",
@@ -108,7 +109,8 @@ func TestAuthTokens(t *testing.T) {
 			desc:     "incorrect MySQL RDS IAM auth token",
 			service:  "mysql-rds-incorrect-token",
 			protocol: defaults.ProtocolMySQL,
-			err:      "rds-db:connect", // Make sure we print example RDS IAM policy.
+			// Make sure we print example RDS IAM policy.
+			err: "arn:aws:rds-db:us-east-1:<account_id>:dbuser:<resource_id>",
 		},
 		{
 			desc:     "correct MySQL Cloud SQL IAM auth token",
@@ -227,7 +229,7 @@ func TestDBCertSigning(t *testing.T) {
 
 	ctx := context.Background()
 
-	privateKey, _, err := testauthority.New().GenerateKeyPair()
+	privateKey, err := testauthority.New().GeneratePrivateKey()
 	require.NoError(t, err)
 
 	csr, err := tlsca.GenerateCertificateRequestPEM(pkix.Name{

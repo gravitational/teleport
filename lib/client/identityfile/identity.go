@@ -144,6 +144,8 @@ type WriteConfig struct {
 	// KubeProxyAddr is the public address of the proxy with its kubernetes
 	// port. KubeProxyAddr is only used when Format is FormatKubernetes.
 	KubeProxyAddr string
+	// KubeTLSServerName is the SNI host value passed to the server.
+	KubeTLSServerName string
 	// OverwriteDestination forces all existing destination files to be
 	// overwritten. When false, user will be prompted for confirmation of
 	// overwrite first.
@@ -174,7 +176,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		}
 
 		idFile := &identityfile.IdentityFile{
-			PrivateKey: cfg.Key.Priv,
+			PrivateKey: cfg.Key.PrivateKeyPEM(),
 			Certs: identityfile.Certs{
 				SSH: cfg.Key.Cert,
 				TLS: cfg.Key.TLSCert,
@@ -217,7 +219,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			return nil, trace.Wrap(err)
 		}
 
-		err = writer.WriteFile(keyPath, cfg.Key.Priv, identityfile.FilePermissions)
+		err = writer.WriteFile(keyPath, cfg.Key.PrivateKeyPEM(), identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -244,7 +246,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			return nil, trace.Wrap(err)
 		}
 
-		err = writer.WriteFile(keyPath, cfg.Key.Priv, identityfile.FilePermissions)
+		err = writer.WriteFile(keyPath, cfg.Key.PrivateKeyPEM(), identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -268,7 +270,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		if err := checkOverwrite(writer, cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		err = writer.WriteFile(certPath, append(cfg.Key.TLSCert, cfg.Key.Priv...), identityfile.FilePermissions)
+		err = writer.WriteFile(certPath, append(cfg.Key.TLSCert, cfg.Key.PrivateKeyPEM()...), identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -331,6 +333,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			TeleportClusterName: cfg.Key.ClusterName,
 			ClusterAddr:         cfg.KubeProxyAddr,
 			Credentials:         cfg.Key,
+			TLSServerName:       cfg.KubeTLSServerName,
 		}); err != nil {
 			return nil, trace.Wrap(err)
 		}

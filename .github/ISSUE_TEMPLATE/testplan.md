@@ -1186,7 +1186,9 @@ With a default Postgres DB instance, a Teleport instance configured with DB acce
     (`auth_service.authentication` in the cluster config):
     - [ ] `type: local`, `second_factor: "off"`
     - [ ] `type: local`, `second_factor: "otp"`
-    - [ ] `type: local`, `second_factor: "webauthn"`
+    - [ ] `type: local`, `second_factor: "webauthn"`,
+    - [ ] `type: local`, `second_factor: "webauthn"`, log in passwordlessly with hardware key
+    - [ ] `type: local`, `second_factor: "webauthn"`, log in passwordlessly with touch ID
     - [ ] `type: local`, `second_factor: "optional"`, log in without MFA
     - [ ] `type: local`, `second_factor: "optional"`, log in with OTP
     - [ ] `type: local`, `second_factor: "optional"`, log in with hardware key

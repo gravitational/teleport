@@ -832,7 +832,7 @@ const (
 	// labelVPCID is the label key containing the VPC ID.
 	labelVPCID = "vpc-id"
 	// labelTeleportDBName is the label key containing the database name override.
-	labelTeleportDBName = types.TeleportNamespace + "/database-name"
+	labelTeleportDBName = types.TeleportNamespace + "/database_name"
 )
 
 const (

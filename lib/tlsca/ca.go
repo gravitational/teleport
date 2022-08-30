@@ -803,6 +803,7 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 	return events.UserMetadata{
 		User:           id.Username,
 		Impersonator:   id.Impersonator,
+		AWSRoleARN:     id.RouteToApp.AWSRoleARN,
 		AccessRequests: id.ActiveRequests,
 	}
 }

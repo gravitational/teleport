@@ -1115,15 +1115,16 @@ func TestUsersCRUD(t *testing.T) {
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
 
-	err = clt.UpsertPassword("user1", []byte("some pass"))
+	usr, err := types.NewUser("user1")
 	require.NoError(t, err)
+	require.NoError(t, clt.CreateUser(ctx, usr))
 
 	users, err := clt.GetUsers(false)
 	require.NoError(t, err)
 	require.Equal(t, len(users), 1)
 	require.Equal(t, users[0].GetName(), "user1")
 
-	require.NoError(t, clt.DeleteUser(context.TODO(), "user1"))
+	require.NoError(t, clt.DeleteUser(ctx, "user1"))
 
 	users, err = clt.GetUsers(false)
 	require.NoError(t, err)
@@ -1165,7 +1166,7 @@ func TestPasswordCRUD(t *testing.T) {
 	err = clt.CheckPassword("user1", pass, "123456")
 	require.Error(t, err)
 
-	err = clt.UpsertPassword("user1", pass)
+	err = tt.server.Auth().UpsertPassword("user1", pass)
 	require.NoError(t, err)
 
 	dev, err := services.NewTOTPDevice("otp", otpSecret, tt.clock.Now())
@@ -1210,7 +1211,7 @@ func TestOTPCRUD(t *testing.T) {
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
 	// upsert a password and totp secret
-	err = clt.UpsertPassword("user1", pass)
+	err = tt.server.Auth().UpsertPassword("user1", pass)
 	require.NoError(t, err)
 	dev, err := services.NewTOTPDevice("otp", otpSecret, tt.clock.Now())
 	require.NoError(t, err)
@@ -1277,7 +1278,7 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	_, err = proxy.AuthenticateWebUser(ctx, req)
 	require.True(t, trace.IsAccessDenied(err))
 
-	err = clt.UpsertPassword(user, pass)
+	err = tt.server.Auth().UpsertPassword(user, pass)
 	require.NoError(t, err)
 
 	// success with password set up
@@ -1357,7 +1358,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	requestableRoleName := "requestable"
 	user, err := CreateUserRoleAndRequestable(clt, username, requestableRoleName)
 	require.NoError(t, err)
-	err = clt.UpsertPassword(username, password)
+	err = tt.server.Auth().UpsertPassword(username, password)
 	require.NoError(t, err)
 
 	// Set search_as_roles, user can request this role only with a resource
@@ -1557,7 +1558,7 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 		},
 	}
 
-	err = clt.UpsertPassword(user, pass)
+	err = tt.server.Auth().UpsertPassword(user, pass)
 	require.NoError(t, err)
 
 	ws, err := proxy.AuthenticateWebUser(ctx, req)
@@ -2470,7 +2471,7 @@ func TestLoginAttempts(t *testing.T) {
 	proxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 
-	err = clt.UpsertPassword(user, pass)
+	err = tt.server.Auth().UpsertPassword(user, pass)
 	require.NoError(t, err)
 
 	req := AuthenticateUserRequest{
@@ -2571,7 +2572,7 @@ func TestLoginNoLocalAuth(t *testing.T) {
 	require.NoError(t, err)
 	_, _, err = CreateUserAndRole(clt, user, []string{user})
 	require.NoError(t, err)
-	err = clt.UpsertPassword(user, pass)
+	err = tt.server.Auth().UpsertPassword(user, pass)
 	require.NoError(t, err)
 
 	// Set auth preference to disallow local auth.
@@ -2895,6 +2896,62 @@ func TestRegisterCAPath(t *testing.T) {
 		Clock:                tt.clock,
 	})
 	require.NoError(t, err)
+}
+
+// TestClusterAlertAccessControls verifies expected behaviors of cluster alert
+// access controls.
+func TestClusterAlertAccessControls(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tt := setupAuthContext(ctx, t)
+
+	alert1, err := types.NewClusterAlert("alert-1", "some msg")
+	require.NoError(t, err)
+
+	alert2, err := types.NewClusterAlert("alert-2", "other msg")
+	require.NoError(t, err)
+
+	// set one of the two alerts to be viewable by all users
+	alert2.Metadata.Labels = map[string]string{
+		types.AlertPermitAll: "yes",
+	}
+
+	adminClt, err := tt.server.NewClient(TestBuiltin(types.RoleAdmin))
+	require.NoError(t, err)
+	defer adminClt.Close()
+
+	err = adminClt.UpsertClusterAlert(ctx, alert1)
+	require.NoError(t, err)
+
+	err = adminClt.UpsertClusterAlert(ctx, alert2)
+	require.NoError(t, err)
+
+	// verify that admin client can see all alerts
+	alerts, err := adminClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
+	require.NoError(t, err)
+	require.Len(t, alerts, 2)
+
+	// verify that some other client with no alert-specific permissions can
+	// see the "permit-all" subset of alerts (using role node here, but any
+	// role with no special provisions for alerts should be equivalent)
+	otherClt, err := tt.server.NewClient(TestBuiltin(types.RoleNode))
+	require.NoError(t, err)
+	defer otherClt.Close()
+
+	alerts, err = otherClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
+	require.NoError(t, err)
+	require.Len(t, alerts, 1)
+
+	// verify that we still reject unauthenticated clients
+	nopClt, err := tt.server.NewClient(TestBuiltin(types.RoleNop))
+	require.NoError(t, err)
+	defer nopClt.Close()
+
+	_, err = nopClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
+	require.True(t, trace.IsAccessDenied(err))
 }
 
 // TestEventsNodePresence tests streaming node presence API -
@@ -3238,7 +3295,7 @@ func TestEventsClusterConfig(t *testing.T) {
 	err = tt.server.Auth().SetClusterName(clusterName)
 	require.NoError(t, err)
 
-	clusterNameResource, err = tt.server.Auth().ClusterConfiguration.GetClusterName()
+	clusterNameResource, err = tt.server.Auth().GetClusterName()
 	require.NoError(t, err)
 	suite.ExpectResource(t, w, 3*time.Second, clusterNameResource)
 }

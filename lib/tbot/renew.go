@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	libUtils "github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
@@ -443,12 +442,12 @@ func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
 	}
 	addr, err := utils.ParseAddr(b.cfg.AuthServer)
 	if err != nil {
-		return nil, trace.WrapWithMessage(err, "invalid auth server address %+v", b.cfg.AuthServer)
+		return nil, trace.Wrap(err, "invalid auth server address %+v", b.cfg.AuthServer)
 	}
 
 	tlsPrivateKey, sshPublicKey, tlsPublicKey, err := generateKeys()
 	if err != nil {
-		return nil, trace.WrapWithMessage(err, "unable to generate new keypairs")
+		return nil, trace.Wrap(err, "unable to generate new keypairs")
 	}
 
 	b.log.Info("Attempting to generate new identity from token")
@@ -677,7 +676,7 @@ func (b *Bot) renewLoop(ctx context.Context) error {
 	}
 
 	ticker := time.NewTicker(b.cfg.RenewalInterval)
-	jitter := libUtils.NewJitter()
+	jitter := utils.NewJitter()
 	defer ticker.Stop()
 	for {
 		var err error
