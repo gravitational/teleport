@@ -459,7 +459,7 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 
 	// Unauthenticated access to retrieving the script used to install
 	// Teleport
-	h.GET("/webapi/scripts/installer", httplib.MakeHandler(h.installer))
+	h.GET("/webapi/scripts/installer/:name", httplib.MakeHandler(h.installer))
 
 	// DELETE IN: 5.1.0
 	//
@@ -1429,7 +1429,9 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 
 func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	httplib.SetScriptHeaders(w.Header())
-	installer, err := h.auth.proxyClient.GetInstaller(r.Context())
+
+	installerName := p.ByName("name")
+	installer, err := h.auth.proxyClient.GetInstaller(r.Context(), installerName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
