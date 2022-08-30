@@ -19,7 +19,13 @@ package main
 // sed -i '' 's/type\: kubernetes/type\: docker/' .drone.yml && sed -i '' 's/type\: exec/type\: docker/' .drone.yml
 // # Drone requires certain variables to be set
 // export DRONE_REMOTE_URL="https://github.com/gravitational/teleport"
-// sudo drone exec --trusted --pipeline teleport-container-images-current-version-cron
+// # `drone exec` does not properly map the workspace path. This creates a volume to be shared between steps
+// #  at the correct path
+// DOCKER_VOLUME_NAME="go"
+// docker volume create "$DOCKER_VOLUME_NAME"
+// drone exec --trusted --pipeline teleport-container-images-current-version-cron --clone=false --volume "${DOCKER_VOLUME_NAME}:/go"
+// # Cleanup
+// docker volume rm "$DOCKER_VOLUME_NAME"
 
 import (
 	"fmt"
