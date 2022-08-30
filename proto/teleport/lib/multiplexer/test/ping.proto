@@ -13,11 +13,20 @@
 // limitations under the License.
 
 syntax = "proto3";
-package test;
 
-message Request { string Payload = 1; }
+package teleport.lib.multiplexer.test;
 
-message Response { string Payload = 1; }
+option go_package = "github.com/gravitational/teleport/lib/multiplexer/test";
+
+message Request {
+  string Payload = 1;
+}
+
+message Response {
+  string Payload = 1;
+}
 
 // Pinger is a service used in tests
-service Pinger { rpc Ping(Request) returns (Response); }
+service Pinger {
+  rpc Ping(Request) returns (Response);
+}
