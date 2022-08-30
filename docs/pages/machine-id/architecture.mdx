@@ -44,7 +44,13 @@ permissions to impersonate the roles that the user has configured.
 
 ## `tbot`
 
-`tbot` is the binary that acts as the agent for Machine ID.
+`tbot` is the binary that acts as the agent for Machine ID on your machines that
+need access to resources protected by Teleport. It is typically ran in one of
+two modes. By default, it is a daemon-like long-running process. This is
+suitable for situations where your machine is long running and will need
+continous access to resources. `tbot` can also run in "oneshot" mode where it
+will fetch credentials for your machine once before exiting. This is ideal for
+short-lived environments such as CI/CD workflows.
 
 Before `tbot` can be started, at least two parts of configuration will need to
 be provided via the configuration file or as arguments provided to `tbot` when
