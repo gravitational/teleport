@@ -117,6 +117,11 @@ func TestPingConnection(t *testing.T) {
 		}
 	})
 
+	// Given a connection, read from it concurrently, asserting all content
+	// written is read.
+	//
+	// Messages can be out of order due to concurrent reads. Other tests must
+	// guarantee message ordering.
 	t.Run("ConcurrentReads", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -163,8 +168,8 @@ func TestPingConnection(t *testing.T) {
 			}()
 		}
 
+		var aggregator []byte
 		for i := 0; i < nWrites; i++ {
-			var aggregator []byte
 			for j := 0; j < readNum; j++ {
 				select {
 				case <-ctx.Done():
@@ -173,9 +178,9 @@ func TestPingConnection(t *testing.T) {
 					aggregator = append(aggregator, data...)
 				}
 			}
-
-			require.Len(t, aggregator, len(dataWritten), "Wrong message read from connection")
 		}
+
+		require.Len(t, aggregator, len(dataWritten)*nWrites, "Wrong messages written")
 	})
 
 	t.Run("ConcurrentWrites", func(t *testing.T) {
