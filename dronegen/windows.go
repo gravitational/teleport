@@ -113,7 +113,7 @@ func windowsPushPipeline() pipeline {
 					psPreformatted("$Env:DRONE_REPO_NAME"),
 					psPreformatted("$Env:DRONE_BRANCH"),
 					psPreformatted("$Env:DRONE_COMMIT_SHA")),
-				`Invoke-RestMethod -Uri $Env:SLACK_WEBHOOK_DEV_TELEPORT -Body @{text: $msg}`,
+				`Invoke-RestMethod -Uri $Env:SLACK_WEBHOOK_DEV_TELEPORT -Body @{text=$msg}`,
 			},
 			//			When: &condition{Status: []string{"failure"}},
 		},
