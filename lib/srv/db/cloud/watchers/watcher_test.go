@@ -124,7 +124,7 @@ func TestWatcher(t *testing.T) {
 	azPostgresServer3, _ := makeAzurePostgresServer(t, "server-3", subscription1, group1, eastus2, map[string]string{"env": "prod"})
 	azPostgresServer4, azPostgresDB4 := makeAzurePostgresServer(t, "server-4", subscription2, group1, westus, map[string]string{"env": "prod"})
 	azPostgresServer5, _ := makeAzurePostgresServer(t, "server-5", subscription1, group2, eastus, map[string]string{"env": "prod"})
-	azPostgresServerUnknownVersion, azPostgresDBUUnknownVersion := makeAzurePostgresServer(t, "server-6", subscription1, group1, eastus, nil, withAzurePostgresVersion("unknown"))
+	azPostgresServerUnknownVersion, azPostgresDBUnknownVersion := makeAzurePostgresServer(t, "server-6", subscription1, group1, eastus, nil, withAzurePostgresVersion("unknown"))
 	azPostgresServerDisabledState, _ := makeAzurePostgresServer(t, "server-8", subscription1, group1, eastus, nil, withAzurePostgresState(string(armpostgresql.ServerStateDisabled)))
 	azPostgresServerUnknownState, azPostgresDBUnknownState := makeAzurePostgresServer(t, "server-9", subscription1, group1, eastus, nil, withAzurePostgresState("unknown"))
 
@@ -422,7 +422,7 @@ func TestWatcher(t *testing.T) {
 					},
 				}),
 			},
-			expectedDatabases: types.Databases{azMySQLDB1, azMySQLDBUnknownVersion, azPostgresDB1, azPosatgresDBUnknownVersion},
+			expectedDatabases: types.Databases{azMySQLDB1, azMySQLDBUnknownVersion, azPostgresDB1, azPostgresDBUnknownVersion},
 		},
 		{
 			name: "Azure unavailable databases are skipped",
