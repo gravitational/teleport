@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -817,7 +818,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if rc.ref.Name == defaults.InstallerScriptName {
+		if rc.ref.Name == installers.InstallerScriptName {
 			fmt.Printf("%s has been reset to a default value\n", rc.ref.Name)
 		} else {
 			fmt.Printf("%s has been deleted\n", rc.ref.Name)

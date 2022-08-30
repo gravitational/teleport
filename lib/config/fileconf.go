@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -446,7 +447,7 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 					TokenName: defaults.IAMInviteTokenName,
 					Method:    types.JoinMethodIAM,
 				},
-				ScriptName: defaults.InstallerScriptName,
+				ScriptName: installers.InstallerScriptName,
 			}
 		} else {
 			if method := matcher.InstallParams.JoinParams.Method; method == "" {
@@ -459,7 +460,7 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 			}
 
 			if installer := matcher.InstallParams.ScriptName; installer == "" {
-				matcher.InstallParams.ScriptName = defaults.InstallerScriptName
+				matcher.InstallParams.ScriptName = installers.InstallerScriptName
 			}
 		}
 

@@ -20,15 +20,18 @@ import (
 	_ "embed"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
 )
 
 //go:embed installer.sh.tmpl
 var defaultInstallScript string
 
+// InstallerScriptName is the name of the by default populated, EC2
+// installer script
+const InstallerScriptName = "default-installer"
+
 // DefaultInstaller represents a the default installer script provided
 // by teleport
-var DefaultInstaller = types.MustNewInstallerV1(defaults.InstallerScriptName, defaultInstallScript)
+var DefaultInstaller = types.MustNewInstallerV1(InstallerScriptName, defaultInstallScript)
 
 // Template is used to fill proxy address and version information into
 // the installer script
