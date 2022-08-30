@@ -235,7 +235,7 @@ exports[`polling error state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
+  background: #222C59;
   color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
@@ -250,11 +250,7 @@ exports[`polling error state 1`] = `
 
 .c17:hover,
 .c17:focus {
-  background: #651FFF;
-}
-
-.c17:active {
-  background: #354AA4;
+  background: #2C3A73;
 }
 
 .c17:disabled {
@@ -454,7 +450,7 @@ exports[`polling error state 1`] = `
     <a
       class="c17"
       href="/web"
-      kind="primary"
+      kind="secondary"
       mt="3"
       theme="[object Object]"
       width="165px"
@@ -589,7 +585,7 @@ exports[`polling state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
+  background: #222C59;
   color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
@@ -604,11 +600,7 @@ exports[`polling state 1`] = `
 
 .c13:hover,
 .c13:focus {
-  background: #651FFF;
-}
-
-.c13:active {
-  background: #354AA4;
+  background: #2C3A73;
 }
 
 .c13:disabled {
@@ -761,7 +753,7 @@ exports[`polling state 1`] = `
     <a
       class="c13"
       href="/web"
-      kind="primary"
+      kind="secondary"
       mt="3"
       theme="[object Object]"
       width="165px"
@@ -896,7 +888,7 @@ exports[`polling success state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
+  background: #222C59;
   color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
@@ -911,11 +903,7 @@ exports[`polling success state 1`] = `
 
 .c13:hover,
 .c13:focus {
-  background: #651FFF;
-}
-
-.c13:active {
-  background: #354AA4;
+  background: #2C3A73;
 }
 
 .c13:disabled {
@@ -1065,7 +1053,7 @@ exports[`polling success state 1`] = `
     <a
       class="c13"
       href="/web"
-      kind="primary"
+      kind="secondary"
       mt="3"
       theme="[object Object]"
       width="165px"

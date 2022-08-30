@@ -23,30 +23,55 @@ import AddDatabase from 'teleport/Databases/AddDatabase';
 import AddKube from 'teleport/Kubes/AddKube';
 import useTeleport from 'teleport/useTeleport';
 
-import { Header, HeaderSubtitle, ActionButtons } from '../Shared';
+import { Acl } from 'teleport/services/user';
+
+import { Header, HeaderSubtitle } from '../Shared';
 
 import applicationIcon from './assets/application.png';
 import databaseIcon from './assets/database.png';
 import serverIcon from './assets/server.png';
 import k8sIcon from './assets/kubernetes.png';
 
-import type { TabComponent } from 'design/SlideTabs/SlideTabs';
-import type { AgentStepProps } from '../types';
+import { ApplicationResource } from './ApplicationResource';
+import { DatabaseResource } from './DatabaseResource';
+import { DesktopResource } from './DesktopResource';
+import { KubernetesResource } from './KubernetesResource';
+import { ServerResource } from './ServerResource';
+
+import type { UserContext } from 'teleport/services/user';
 import type { State } from '../useDiscover';
-import type { AuthType } from 'teleport/services/user';
+import type { AgentStepProps } from '../types';
+import type { TabComponent } from 'design/SlideTabs/SlideTabs';
 
 export default function Container(props: AgentStepProps) {
   const ctx = useTeleport();
-  const ctxState = ctx.storeUser.state;
+  const userContext = ctx.storeUser.state;
+
   return (
     <SelectResource
-      authType={ctxState.authType}
+      userContext={userContext}
       isEnterprise={ctx.isEnterprise}
       nextStep={props.nextStep}
-      username={ctxState.username}
-      version={ctxState.cluster.authVersion}
     />
   );
+}
+
+function checkPermissions(acl: Acl, tab: Tab) {
+  const basePermissionsNeeded = [
+    acl.tokens.create,
+    acl.users.edit,
+    acl.connectionDiagnostic.create,
+    acl.connectionDiagnostic.read,
+    acl.connectionDiagnostic.edit,
+  ];
+
+  const permissionsNeeded = [
+    ...basePermissionsNeeded,
+    ...tab.permissionsNeeded,
+  ];
+
+  // if some (1+) are false, we do not have enough permissions
+  return permissionsNeeded.some(value => !value);
 }
 
 type ValidResourceTypes =
@@ -63,59 +88,66 @@ type Loc = {
 };
 
 type Props = {
-  authType: AuthType;
+  userContext: UserContext;
   isEnterprise: boolean;
   nextStep: State['nextStep'];
-  username: string;
-  version: string;
 };
 
-export function SelectResource({
-  authType,
-  isEnterprise,
-  nextStep,
-  username,
-  version,
-}: Props) {
+interface Tab extends TabComponent {
+  permissionsNeeded: boolean[];
+}
+
+export function SelectResource({ isEnterprise, nextStep, userContext }: Props) {
+  const { acl } = userContext;
+
   const location: Loc = useLocation();
 
   const [selectedResource, setSelectedResource] = useState<ValidResourceTypes>(
-    location?.state?.entity
+    location?.state?.entity || 'server'
   );
-  // const [selectedType, setSelectedType] = useState('');
+
   const [showAddApp, setShowAddApp] = useState(false);
   const [showAddKube, setShowAddKube] = useState(false);
   const [showAddDB, setShowAddDB] = useState(false);
 
-  const tabs: TabComponent[] = [
+  const tabs: Tab[] = [
     {
       name: 'server',
       component: <TabItem iconSrc={serverIcon} title="Server" />,
+      permissionsNeeded: [acl.nodes.list],
     },
+
     {
       name: 'database',
       component: <TabItem iconSrc={databaseIcon} title="Database" />,
+      permissionsNeeded: [acl.dbServers.read, acl.dbServers.list],
     },
 
     {
       name: 'kubernetes',
       component: <TabItem iconSrc={k8sIcon} title="Kubernetes" />,
+      permissionsNeeded: [acl.kubeServers.read, acl.kubeServers.list],
     },
 
     {
       name: 'application',
       component: <TabItem iconSrc={applicationIcon} title="Application" />,
+      permissionsNeeded: [acl.appServers.read, acl.appServers.list],
     },
 
     {
       name: 'desktop',
       component: <TabItem iconSrc={serverIcon} title="Desktop" />,
+      permissionsNeeded: [acl.desktops.read, acl.desktops.list],
     },
   ];
 
-  const initialSelected = tabs.findIndex(
-    component => component.name === location?.state?.entity
+  const index = tabs.findIndex(
+    component => component.name === selectedResource
   );
+  const selectedTabIndex = Math.max(0, index);
+
+  const disabled = checkPermissions(acl, tabs[selectedTabIndex]);
 
   return (
     <Box width="1020px">
@@ -126,65 +158,44 @@ export function SelectResource({
         Start by selecting the type of resource you want to add.
       </HeaderSubtitle>
       <SlideTabs
-        initialSelected={initialSelected > 0 ? initialSelected : 0}
+        initialSelected={selectedTabIndex}
         tabs={tabs}
         onChange={index =>
           setSelectedResource(tabs[index].name as ValidResourceTypes)
         }
       />
       {selectedResource === 'database' && (
-        // As we're focusing on the server flow uncomment this when we start
-        // implementing the database support.
-        // <SelectDBDeploymentType
-        //   selectedType={selectedType}
-        //   setSelectedType={setSelectedType}
-        //   resourceTypes={resourceTypes}
-        // />
-        <ActionButtons
-          onProceed={() => {
-            setShowAddDB(true);
-          }}
-          disableProceed={false}
+        <DatabaseResource
+          disabled={disabled}
+          onProceed={() => setShowAddDB(true)}
         />
       )}
       {selectedResource === 'application' && (
-        <ActionButtons
-          onProceed={() => {
-            setShowAddApp(true);
-          }}
-          disableProceed={false}
+        <ApplicationResource
+          disabled={disabled}
+          onProceed={() => setShowAddApp(true)}
         />
       )}
       {selectedResource === 'desktop' && (
-        <ActionButtons
-          proceedHref="https://goteleport.com/docs/desktop-access/getting-started/"
-          disableProceed={false}
-        />
+        <DesktopResource disabled={disabled} />
       )}
       {selectedResource === 'kubernetes' && (
-        <ActionButtons
-          onProceed={() => {
-            setShowAddKube(true);
-          }}
-          disableProceed={false}
+        <KubernetesResource
+          disabled={disabled}
+          onProceed={() => setShowAddKube(true)}
         />
       )}
       {selectedResource === 'server' && (
-        <ActionButtons
-          onProceed={() => {
-            nextStep();
-          }}
-          disableProceed={false}
-        />
+        <ServerResource disabled={disabled} onProceed={nextStep} />
       )}
       {showAddApp && <AddApp onClose={() => setShowAddApp(false)} />}
       {showAddKube && <AddKube onClose={() => setShowAddKube(false)} />}
       {showAddDB && (
         <AddDatabase
           isEnterprise={isEnterprise}
-          username={username}
-          version={version}
-          authType={authType}
+          username={userContext.username}
+          version={userContext.cluster.authVersion}
+          authType={userContext.authType}
           onClose={() => setShowAddDB(false)}
         />
       )}

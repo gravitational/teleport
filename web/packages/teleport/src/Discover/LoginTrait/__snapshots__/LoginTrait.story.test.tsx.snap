@@ -123,7 +123,7 @@ exports[`empty state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
+  background: #222C59;
   color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
@@ -138,11 +138,7 @@ exports[`empty state 1`] = `
 
 .c13:hover,
 .c13:focus {
-  background: #651FFF;
-}
-
-.c13:active {
-  background: #354AA4;
+  background: #2C3A73;
 }
 
 .c13:disabled {
@@ -276,7 +272,7 @@ exports[`empty state 1`] = `
     <a
       class="c13"
       href="/web"
-      kind="primary"
+      kind="secondary"
       mt="3"
       theme="[object Object]"
       width="165px"
@@ -410,7 +406,7 @@ exports[`empty state with static logins 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
+  background: #222C59;
   color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
@@ -425,11 +421,7 @@ exports[`empty state with static logins 1`] = `
 
 .c14:hover,
 .c14:focus {
-  background: #651FFF;
-}
-
-.c14:active {
-  background: #354AA4;
+  background: #2C3A73;
 }
 
 .c14:disabled {
@@ -594,7 +586,7 @@ exports[`empty state with static logins 1`] = `
     <a
       class="c14"
       href="/web"
-      kind="primary"
+      kind="secondary"
       mt="3"
       theme="[object Object]"
       width="165px"
@@ -794,7 +786,7 @@ exports[`loaded with static state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
+  background: #222C59;
   color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
@@ -809,11 +801,7 @@ exports[`loaded with static state 1`] = `
 
 .c14:hover,
 .c14:focus {
-  background: #651FFF;
-}
-
-.c14:active {
-  background: #354AA4;
+  background: #2C3A73;
 }
 
 .c14:disabled {
@@ -1029,7 +1017,7 @@ exports[`loaded with static state 1`] = `
     <a
       class="c14"
       href="/web"
-      kind="primary"
+      kind="secondary"
       mt="3"
       theme="[object Object]"
       width="165px"

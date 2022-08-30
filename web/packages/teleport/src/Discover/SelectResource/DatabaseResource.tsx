@@ -1,13 +1,54 @@
 import React, { useState } from 'react';
-import { Cloud } from 'design/Icon';
-import { Text, Box, Flex } from 'design';
 import styled from 'styled-components';
+
+import { Box, Flex, Text } from 'design';
+
+import { Cloud } from 'design/Icon';
 
 import SlideTabs from 'design/SlideTabs';
 
-import type { ResourceType, ResourceLocation } from '../resource-lists';
+import {
+  ResourceLocation,
+  ResourceType,
+} from 'teleport/Discover/resource-lists';
+import { ActionButtons } from 'teleport/Discover/Shared';
 
-export function SelectDBDeploymentType({
+import { PermissionsErrorMessage } from './PermissionsErrorMessage';
+
+export function DatabaseResource(props: DatabaseResourceProps) {
+  // As we're focusing on the server flow uncomment this when we start
+  // implementing the database support.
+  // let content = (
+  //   <SelectDBDeploymentType
+  //     selectedType={selectedType}
+  //     setSelectedType={setSelectedType}
+  //     resourceTypes={resourceTypes}
+  //   />
+  // );
+  let content;
+  if (props.disabled) {
+    content = (
+      <PermissionsErrorMessage
+        action="add new Databases"
+        productName="Database Access"
+      />
+    );
+  }
+
+  return (
+    <>
+      {content}
+
+      <ActionButtons
+        onProceed={() => props.onProceed()}
+        disableProceed={props.disabled}
+      />
+    </>
+  );
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function SelectDBDeploymentType({
   selectedType,
   setSelectedType,
   resourceTypes,
@@ -55,12 +96,6 @@ export function SelectDBDeploymentType({
   );
 }
 
-type SelectDBDeploymentTypeProps = {
-  selectedType: string;
-  setSelectedType: (string) => void;
-  resourceTypes: ResourceType[];
-};
-
 const ResourceTypeOption = styled.div`
   background: rgba(255, 255, 255, 0.05);
   border: ${props =>
@@ -91,6 +126,13 @@ const Tag = styled.div`
   max-width: 57px;
 `;
 
-export type SelectResourceProps = {
-  onSelect: (string) => void;
-};
+interface SelectDBDeploymentTypeProps {
+  selectedType: string;
+  setSelectedType: (string) => void;
+  resourceTypes: ResourceType[];
+}
+
+interface DatabaseResourceProps {
+  disabled: boolean;
+  onProceed: () => void;
+}
