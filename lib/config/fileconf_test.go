@@ -26,6 +26,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -80,22 +81,24 @@ func TestAuthSection(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		desc                 string
-		mutate               func(cfgMap)
-		expectError          require.ErrorAssertionFunc
-		expectEnabled        require.BoolAssertionFunc
-		expectIdleMsg        require.ValueAssertionFunc
-		expectMotd           require.ValueAssertionFunc
-		expectWebIdleTimeout require.ValueAssertionFunc
+		desc                    string
+		mutate                  func(cfgMap)
+		expectError             require.ErrorAssertionFunc
+		expectEnabled           require.BoolAssertionFunc
+		expectIdleMsg           require.ValueAssertionFunc
+		expectMotd              require.ValueAssertionFunc
+		expectWebIdleTimeout    require.ValueAssertionFunc
+		expectProxyPingInterval require.ValueAssertionFunc
 	}{
 		{
-			desc:                 "Default",
-			mutate:               func(cfg cfgMap) {},
-			expectError:          require.NoError,
-			expectEnabled:        require.True,
-			expectIdleMsg:        require.Empty,
-			expectMotd:           require.Empty,
-			expectWebIdleTimeout: require.Empty,
+			desc:                    "Default",
+			mutate:                  func(cfg cfgMap) {},
+			expectError:             require.NoError,
+			expectEnabled:           require.True,
+			expectIdleMsg:           require.Empty,
+			expectMotd:              require.Empty,
+			expectWebIdleTimeout:    require.Empty,
+			expectProxyPingInterval: require.Empty,
 		}, {
 			desc: "Enabled",
 			mutate: func(cfg cfgMap) {
@@ -137,6 +140,19 @@ func TestAuthSection(t *testing.T) {
 				cfg["auth_service"].(cfgMap)["web_idle_timeout"] = "potato"
 			},
 			expectError: require.Error,
+		}, {
+			desc: "Proxy ping interval",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["proxy_ping_interval"] = "10s"
+			},
+			expectError:             require.NoError,
+			expectProxyPingInterval: requireEqual(types.Duration(10 * time.Second)),
+		}, {
+			desc: "Proxy ping interval (invalid)",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["proxy_ping_interval"] = "potato"
+			},
+			expectError: require.Error,
 		},
 	}
 
@@ -161,6 +177,10 @@ func TestAuthSection(t *testing.T) {
 
 			if tt.expectWebIdleTimeout != nil {
 				tt.expectWebIdleTimeout(t, cfg.Auth.WebIdleTimeout)
+			}
+
+			if tt.expectProxyPingInterval != nil {
+				tt.expectProxyPingInterval(t, cfg.Auth.ProxyPingInterval)
 			}
 		})
 	}
@@ -566,6 +586,7 @@ func TestSSHSection(t *testing.T) {
 							TokenName: defaults.IAMInviteTokenName,
 							Method:    types.JoinMethodIAM,
 						},
+						ScriptName: installers.InstallerScriptName,
 					},
 					SSM: AWSSSM{DocumentName: defaults.AWSInstallerDocument},
 				},
@@ -587,6 +608,7 @@ func TestSSHSection(t *testing.T) {
 								"token_name": "hello-iam-a-token",
 								"method":     "iam",
 							},
+							"script_name": "installer-custom",
 						},
 						"ssm": cfgMap{
 							"document_name": "hello_document",
@@ -608,6 +630,7 @@ func TestSSHSection(t *testing.T) {
 							TokenName: "hello-iam-a-token",
 							Method:    types.JoinMethodIAM,
 						},
+						ScriptName: "installer-custom",
 					},
 					SSM: AWSSSM{DocumentName: "hello_document"},
 				},
@@ -655,6 +678,7 @@ func TestSSHSection(t *testing.T) {
 							TokenName: defaults.IAMInviteTokenName,
 							Method:    types.JoinMethodIAM,
 						},
+						ScriptName: installers.InstallerScriptName,
 					},
 				},
 			},

@@ -459,7 +459,7 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 
 	// Unauthenticated access to retrieving the script used to install
 	// Teleport
-	h.GET("/webapi/scripts/installer", httplib.MakeHandler(h.installer))
+	h.GET("/webapi/scripts/installer/:name", httplib.MakeHandler(h.installer))
 
 	// DELETE IN: 5.1.0
 	//
@@ -548,8 +548,8 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	h.POST("/webapi/oidc/login/console", httplib.MakeHandler(h.oidcLoginConsole))
 
 	// SAML 2.0 handlers
-	h.POST("/webapi/saml/acs", h.WithRedirect(h.samlACS))
-	h.POST("/webapi/saml/acs/:connector", h.WithRedirect(h.samlACS))
+	h.POST("/webapi/saml/acs", h.WithMetaRedirect(h.samlACS))
+	h.POST("/webapi/saml/acs/:connector", h.WithMetaRedirect(h.samlACS))
 	h.GET("/webapi/saml/sso", h.WithMetaRedirect(h.samlSSO))
 	h.POST("/webapi/saml/login/console", httplib.MakeHandler(h.samlSSOConsole))
 
@@ -725,6 +725,8 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	userContext.ConsumedAccessRequestID = c.session.GetConsumedAccessRequestID()
 
 	return userContext, nil
 }
@@ -1427,7 +1429,9 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 
 func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	httplib.SetScriptHeaders(w.Header())
-	installer, err := h.auth.proxyClient.GetInstaller(r.Context())
+
+	installerName := p.ByName("name")
+	installer, err := h.auth.proxyClient.GetInstaller(r.Context(), installerName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

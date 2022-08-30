@@ -1594,13 +1594,6 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 	return a.authServer.CreateToken(ctx, token)
 }
 
-func (a *ServerWithRoles) UpsertPassword(user string, password []byte) error {
-	if err := a.currentUserAction(user); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.UpsertPassword(user, password)
-}
-
 // ChangePassword updates users password based on the old password.
 func (a *ServerWithRoles) ChangePassword(req services.ChangePasswordReq) error {
 	if err := a.currentUserAction(req.User); err != nil {
@@ -3282,11 +3275,19 @@ func (a *ServerWithRoles) GetAuthPreference(ctx context.Context) (types.AuthPref
 }
 
 // GetInstaller retrieves an installer script resource
-func (a *ServerWithRoles) GetInstaller(ctx context.Context) (types.Installer, error) {
+func (a *ServerWithRoles) GetInstaller(ctx context.Context, name string) (types.Installer, error) {
 	if err := a.action(apidefaults.Namespace, types.KindInstaller, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetInstaller(ctx)
+	return a.authServer.GetInstaller(ctx, name)
+}
+
+// GetInstallers gets all the installer resources.
+func (a *ServerWithRoles) GetInstallers(ctx context.Context) ([]types.Installer, error) {
+	if err := a.action(apidefaults.Namespace, types.KindInstaller, types.VerbRead, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetInstallers(ctx)
 }
 
 // SetInstaller sets an Installer script resource
@@ -3298,11 +3299,19 @@ func (a *ServerWithRoles) SetInstaller(ctx context.Context, inst types.Installer
 }
 
 // DeleteInstaller removes an installer script resource
-func (a *ServerWithRoles) DeleteInstaller(ctx context.Context) error {
+func (a *ServerWithRoles) DeleteInstaller(ctx context.Context, name string) error {
 	if err := a.action(apidefaults.Namespace, types.KindInstaller, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(a.authServer.DeleteInstaller(ctx))
+	return trace.Wrap(a.authServer.DeleteInstaller(ctx, name))
+}
+
+// DeleteAllInstallers removes all installer script resources
+func (a *ServerWithRoles) DeleteAllInstallers(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindInstaller, types.VerbDelete, types.VerbList); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.authServer.DeleteAllInstallers(ctx))
 }
 
 // SetAuthPreference sets cluster auth preference.
