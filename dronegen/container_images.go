@@ -378,7 +378,7 @@ func teleportSetupStep(shellVersion, packageName, dockerfilePath, downloadURL st
 			"TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)",
 			"TIMED_OUT=true",
 			// Poll APT until the timeout is reached or the package becomes available
-			"while [ $(date +%s) -lt ${END_TIME?} ]; do",
+			"while [ $(date +%s) -lt $${END_TIME?} ]; do",
 			"echo 'Running apt update...'",
 			// This will error on new major versions where the "stable/$${MAJOR_VERSION}" component doesn't exist yet, so we ignore it here.
 			"apt update > /dev/null || true",

@@ -5251,7 +5251,7 @@ steps:
   - END_TIME=$(( $(date +%s) + 1800 ))
   - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
-  - while [ $(date +%s) -lt ${END_TIME?} ]; do
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - echo 'Running apt update...'
   - apt update > /dev/null || true
   - '[ $(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
@@ -5582,7 +5582,7 @@ steps:
   - END_TIME=$(( $(date +%s) + 1800 ))
   - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
-  - while [ $(date +%s) -lt ${END_TIME?} ]; do
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - echo 'Running apt update...'
   - apt update > /dev/null || true
   - '[ $(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
@@ -5916,7 +5916,7 @@ steps:
   - END_TIME=$(( $(date +%s) + 1800 ))
   - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
-  - while [ $(date +%s) -lt ${END_TIME?} ]; do
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - echo 'Running apt update...'
   - apt update > /dev/null || true
   - '[ $(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
@@ -6749,7 +6749,7 @@ steps:
   - END_TIME=$(( $(date +%s) + 1800 ))
   - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
-  - while [ $(date +%s) -lt ${END_TIME?} ]; do
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - echo 'Running apt update...'
   - apt update > /dev/null || true
   - '[ $(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
@@ -7080,7 +7080,7 @@ steps:
   - END_TIME=$(( $(date +%s) + 1800 ))
   - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
-  - while [ $(date +%s) -lt ${END_TIME?} ]; do
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - echo 'Running apt update...'
   - apt update > /dev/null || true
   - '[ $(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
@@ -7413,7 +7413,7 @@ steps:
   - END_TIME=$(( $(date +%s) + 1800 ))
   - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
-  - while [ $(date +%s) -lt ${END_TIME?} ]; do
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - echo 'Running apt update...'
   - apt update > /dev/null || true
   - '[ $(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
@@ -8244,7 +8244,7 @@ steps:
   - END_TIME=$(( $(date +%s) + 1800 ))
   - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
-  - while [ $(date +%s) -lt ${END_TIME?} ]; do
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - echo 'Running apt update...'
   - apt update > /dev/null || true
   - '[ $(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
@@ -8575,7 +8575,7 @@ steps:
   - END_TIME=$(( $(date +%s) + 1800 ))
   - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
-  - while [ $(date +%s) -lt ${END_TIME?} ]; do
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - echo 'Running apt update...'
   - apt update > /dev/null || true
   - '[ $(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
@@ -8908,7 +8908,7 @@ steps:
   - END_TIME=$(( $(date +%s) + 1800 ))
   - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
-  - while [ $(date +%s) -lt ${END_TIME?} ]; do
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - echo 'Running apt update...'
   - apt update > /dev/null || true
   - '[ $(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
@@ -9758,7 +9758,7 @@ steps:
   - END_TIME=$(( $(date +%s) + 1800 ))
   - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
-  - while [ $(date +%s) -lt ${END_TIME?} ]; do
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - echo 'Running apt update...'
   - apt update > /dev/null || true
   - '[ $(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
@@ -10097,7 +10097,7 @@ steps:
   - END_TIME=$(( $(date +%s) + 1800 ))
   - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
-  - while [ $(date +%s) -lt ${END_TIME?} ]; do
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - echo 'Running apt update...'
   - apt update > /dev/null || true
   - '[ $(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
@@ -10439,7 +10439,7 @@ steps:
   - END_TIME=$(( $(date +%s) + 1800 ))
   - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
-  - while [ $(date +%s) -lt ${END_TIME?} ]; do
+  - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - echo 'Running apt update...'
   - apt update > /dev/null || true
   - '[ $(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
@@ -11694,6 +11694,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: cbc522a9ccad960f6cf0da0477428bad7ae28d7c3287b1b988d7b2d4afa10eb7
+hmac: aa2ea72f607c81d1c7000d8bc1fa89acdd7d9d72eabb3d5d64038f8c09e88bd6
 
 ...
