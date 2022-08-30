@@ -779,6 +779,10 @@
           "title": "Access Controls",
           "slug": "/desktop-access/rbac/"
         },
+	{
+	    "title": "Directory Sharing",
+	    "slug": "/desktop-access/directory-sharing/"
+	},
         {
           "title": "Reference",
           "slug": "/desktop-access/reference/",
@@ -1435,7 +1439,7 @@
       "permanent": true
     },
     {
-      "source": "/enterprise/workflow/ssh-approval-mattermost/",
+      "source": "/enterprise/workflow/ssh-approval-pagerduty/",
       "destination": "/access-controls/access-request-plugins/ssh-approval-pagerduty/",
       "permanent": true
     },
