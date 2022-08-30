@@ -131,16 +131,24 @@ teleport:
 
 Additional security could be provided by only granting `INSERT` (and `SELECT`) privileges to the Postgres user on the table that stores audit events, but not `UPDATE` or `DELETE` privileges; such a setup couldn't be automatically managed by Teleport, and thus would require detailed documentation and some care.
 
-## Session storage (wip)
+## Session storage
 
 Azure Blob Storage offers similar functionality to S3, including all we need for `lib/events.MultipartUploader` in the strictest sense. In addition to that, it's possible to configure containers (the equivalent of a S3 bucket) to have a time-based immutability policy that prevents moving, renaming, overwriting or deleting a blob for a fixed amount of time after it's first written, which seems to be exactly what we're currently using versioning for.
 
-Similarly to other cloud-based session storage, it would be configured like this (details pending):
+Similarly to other cloud-based session storage, it would be configured like this, specifying a storage account URL, replacing the `https` schema with `azblob`; an (undocumented?) alternate `azblob-http` schema will be provided to use an endpoint without encryption, for local development.
 
 ```yaml
 teleport:
   storage:
     ...
 
-    audit_sessions_uri: "azblob://accountname.blob.core.windows.net/containername"
+    audit_sessions_uri: "azblob://accountname.blob.core.windows.net"
 ```
+
+Other configuration options, if required, will be passed in as query parameters in the URI, like the other session storage backends.
+
+Teleport will require access to two containers in the storage account, named `session`, which will store the completed session files, and `inprogress`, which will be used as temporary space to hold parts.
+
+To signify the creation of an upload, a random UUID is generated, and an empty blob is created in `inprogress` with name `upload/<session id>/<upload id>`; this will be used when listing unfinished uploads, by listing blobs whose name begins with `upload/`. Parts are uploaded in `inprogress` with name `part/<session id>/<upload id>/<part number>`, which will allow listing the parts for a specific upload. To complete an upload, parts will be used as blocks to compose the final session recording in the `session` container (in a blob that has the session ID as its name); this can be done efficiently with the "Put Block By URL" call.
+
+Using a separate container for the final recordings lets the user configure an [immutability policy](https://docs.microsoft.com/en-us/azure/storage/blobs/immutable-time-based-retention-policy-overview) at the container level, which will prohibit any modification of completed blobs until a specified amount of time has passed or the block is removed; likewise, recordings older than a certain date can be configured to be automatically deleted via a [lifecycle management policy](https://docs.microsoft.com/en-us/azure/storage/blobs/lifecycle-management-overview).
