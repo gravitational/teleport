@@ -690,6 +690,92 @@ steps:
   - git checkout $(& $TeleportSrc/build.assets/webapps/webapps-version.ps1)
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
+- name: Checkout Submodules
+  commands:
+  - $ErrorActionPreference = 'Stop'
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Enable-Git -Workspace $Workspace -PrivateKey $Env:GITHUB_PRIVATE_KEY
+  - cd $TeleportSrc
+  - git submodule update --init e
+  - git submodule update --init --recursive webassets
+  - Reset-Git -Workspace $Workspace
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+    WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
+- name: Install Node Toolchain
+  commands:
+  - $ProgressPreference = 'SilentlyContinue'
+  - $ErrorActionPreference = 'Stop'
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Push-Location "$TeleportSrc/build.assets"
+  - $NodeVersion = $(make print-node-version).Trim()
+  - Pop-Location
+  - Install-Node -NodeVersion $NodeVersion -ToolchainDir "$Workspace/toolchains"
+  environment:
+    WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
+- name: Install Go Toolchain
+  commands:
+  - $ProgressPreference = 'SilentlyContinue'
+  - $ErrorActionPreference = 'Stop'
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Push-Location "$TeleportSrc/build.assets"
+  - $GoVersion = $(make print-go-version).TrimStart("go")
+  - Pop-Location
+  - Install-Go -GoVersion $GoVersion -ToolchainDir "$Workspace/toolchains"
+  environment:
+    WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
+- name: Build tsh
+  commands:
+  - $ErrorActionPreference = 'Stop'
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $Env:GOCACHE = "$Workspace/gocache"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Enable-Go -ToolchainDir "$Workspace/toolchains"
+  - cd $TeleportSrc
+  - $Env:GCO_ENABLED=1
+  - go build -o build/tsh.exe ./tool/tsh
+  environment:
+    WINDOWS_SIGNING_CERT:
+      from_secret: WINDOWS_SIGNING_CERT
+    WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
+- name: Build Teleport Connect
+  commands:
+  - $ErrorActionPreference = 'Stop'
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - $WebappsSrc = "$Workspace/go/src/github.com/gravitational/webapps"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Enable-Node -ToolchainDir "$Workspace/toolchains"
+  - Push-Location $TeleportSrc
+  - $TeleportVersion=$(make print-version).Trim()
+  - Pop-Location
+  - cd $WebappsSrc
+  - $Env:CONNECT_TSH_BIN_PATH="$TeleportSrc\build\tsh.exe"
+  - yarn install --frozen-lockfile
+  - yarn build-term
+  - yarn package-term "-c.extraMetadata.version=$TeleportVersion"
+  environment:
+    CSC_LINK:
+      from_secret: WINDOWS_SIGNING_CERT
+    WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
+- name: Clean up workspace (post)
+  commands:
+  - $ErrorActionPreference = 'Continue'
+  - Remove-Item -Recurse -Force -Path "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  environment:
+    WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
+  when:
+    status:
+    - success
+    - failure
 - name: Send Slack notification (exec)
   commands:
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
@@ -700,6 +786,9 @@ steps:
     SLACK_WEBHOOK_DEV_TELEPORT:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
+  when:
+    status:
+    - failure
 
 ---
 ################################################
@@ -6962,6 +7051,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 286b11598e64b507d2166ef3bae3451f644a638018e840591c6624dc623f43ba
+hmac: 8bd1027fd99d036850e4cc0cdf65cb91ebd27ff3cb160ba79f6d0df2362c1042
 
 ...

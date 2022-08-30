@@ -89,12 +89,12 @@ func windowsPushPipeline() pipeline {
 
 	p.Steps = []step{
 		cloneWindowsRepositoriesStep(p.Workspace.Path),
-		// updateWindowsSubreposStep(p.Workspace.Path),
-		// installWindowsNodeToolchainStep(p.Workspace.Path),
-		// installWindowsGoToolchainStep(p.Workspace.Path),
-		// buildWindowsTshStep(p.Workspace.Path),
-		// buildWindowsTeleportConnectStep(p.Workspace.Path),
-		// cleanUpWindowsWorkspaceStep(p.Workspace.Path),
+		updateWindowsSubreposStep(p.Workspace.Path),
+		installWindowsNodeToolchainStep(p.Workspace.Path),
+		installWindowsGoToolchainStep(p.Workspace.Path),
+		buildWindowsTshStep(p.Workspace.Path),
+		buildWindowsTeleportConnectStep(p.Workspace.Path),
+		cleanUpWindowsWorkspaceStep(p.Workspace.Path),
 		{
 			Name: "Send Slack notification (exec)",
 			Environment: map[string]value{
@@ -107,7 +107,7 @@ func windowsPushPipeline() pipeline {
 				`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 				`Send-ErrorMessage`,
 			},
-			//			When: &condition{Status: []string{"failure"}},
+			When: &condition{Status: []string{"failure"}},
 		},
 	}
 
