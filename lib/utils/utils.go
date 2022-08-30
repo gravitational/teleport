@@ -27,7 +27,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
@@ -39,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -313,16 +313,14 @@ func SplitHostPort(hostname string) (string, string, error) {
 	return host, port, nil
 }
 
-const validHostnameLabel = `[a-zA-Z0-9-]{1,63}`
-
-// validHostname checks for a valid hostname. A valid hostname consists of a sequence of labels
-// containing letters, digits, and hyphens, joined by periods.
-// See https://datatracker.ietf.org/doc/html/rfc1034#section-3.1 for details.
-var validHostname = regexp.MustCompile(fmt.Sprintf(`^%s(\.%s)*$`, validHostnameLabel, validHostnameLabel))
-
 // IsValidHostname checks if a string represents a valid hostname.
 func IsValidHostname(hostname string) bool {
-	return len(hostname) < 256 && validHostname.MatchString(hostname)
+	for _, label := range strings.Split(hostname, ".") {
+		if len(validation.IsDNS1035Label(label)) > 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // ReadPath reads file contents

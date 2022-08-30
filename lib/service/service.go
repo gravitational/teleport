@@ -897,6 +897,7 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	if imClient.IsAvailable(supervisor.ExitContext()) {
 		ec2Hostname, err := imClient.GetTagValue(supervisor.ExitContext(), types.EC2HostnameTag)
 		if err == nil {
+			ec2Hostname = strings.ReplaceAll(ec2Hostname, " ", "_")
 			if utils.IsValidHostname(ec2Hostname) {
 				cfg.Log.Infof("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2HostnameTag, ec2Hostname)
 				cfg.Hostname = ec2Hostname
