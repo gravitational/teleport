@@ -44,30 +44,27 @@ The license warning portion of the outputs should be coloured red and orange res
 
 ```bash
 $ build/tsh status
-> Profile URL:        https://localhost:9876
-  Logged in as:       someUser
-  Cluster:            someCluster
-  Roles:              access, editor
-  Logins:             someUser
-  Valid until:        2022-08-12 21:57:19 +0100 IST [valid for 4h44m0s]
-  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
-  Your Teleport Enterprise Edition license will expire in 10 days. Please reach out
-  to   your Teleport Account Manager (or licenses@goteleport.com) to obtain a new
-  license.
+Profile URL:        https://localhost:9876
+Logged in as:       someUser
+Cluster:            someCluster
+Roles:              access, editor
+Logins:             someUser
+Valid until:        2022-08-12 21:57:19 +0100 IST [valid for 4h44m0s]
+Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+Your Teleport Enterprise Edition license will expire in 10 days. Please reach out to [licenses@goteleport.com](mailto:licenses@goteleport.com) to obtain a new license. Inaction may lead to unplanned outage or degraded performance and support.
 ```
 
 ```
 $ build/tsh login --proxy=localhost:9876 --user someUser
-> Profile URL:        https://localhost:9876
-  Logged in as:       someUser
-  Cluster:            localhost
-  Roles:              access, editor
-  Logins:             someUser
-  Valid until:        2022-08-16 03:38:07 +0100 IST [valid for 12h0m0s]
-  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+Profile URL:        https://localhost:9876
+Logged in as:       someUser
+Cluster:            localhost
+Roles:              access, editor
+Logins:             someUser
+Valid until:        2022-08-16 03:38:07 +0100 IST [valid for 12h0m0s]
+Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 
-  Your Teleport Enterprise Edition license has expired. Please reach out to your
-  Teleport Account Manager (or licenses@goteleport.com) to obtain a new license.
+Your Teleport Enterprise Edition license has expired. Please reach out to [licenses@goteleport.com](mailto:licenses@goteleport.com) to obtain a new license. Inaction may lead to unplanned outage or degraded performance and support.
 ```
 
 ```
@@ -80,7 +77,7 @@ db CA    never updated
 jwt CA   never updated                                                           
 CA pin   sha256:3d72102f020146d09ff400810f59f70b8163ebfe6ec1ecfb0b3b2a0c151592
 
-Your Teleport Enterprise Edition license has expired. Please reach out to [licenses@goteleport.com](mailto:licenses@goteleport.com) to obtain a new license. Inaction may lead to unplanned outage or degraded performance and support."
+Your Teleport Enterprise Edition license has expired. Please reach out to [licenses@goteleport.com](mailto:licenses@goteleport.com) to obtain a new license. Inaction may lead to unplanned outage or degraded performance and support.
 ```
 
 
