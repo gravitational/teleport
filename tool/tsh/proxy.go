@@ -172,7 +172,7 @@ func setupJumpHost(cf *CLIConf, tc *libclient.TeleportClient, sp sshProxyParams)
 		}
 		// We'll be connecting directly to the leaf cluster so make sure agent
 		// loads correct host CA.
-		tc.LocalAgent().UpdateCluster(sp.clusterName)
+		tc.LocalAgent().UpdateClusters(sp.clusterName)
 		return nil
 	})
 }

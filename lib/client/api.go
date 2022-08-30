@@ -1471,6 +1471,11 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	// could lead to the connection hanging.
 	tc.eventsCh = make(chan events.EventFields, 1024)
 
+	var sites []string
+	if tc.SiteName != "" {
+		sites = []string{tc.SiteName}
+	}
+
 	// sometimes we need to use external auth without using local auth
 	// methods, e.g. in automation daemons
 	if c.SkipLocalAuth {
@@ -1506,7 +1511,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 			tc.localAgent = &LocalKeyAgent{
 				Agent:     c.Agent,
 				keyStore:  keyStore,
-				siteName:  tc.SiteName,
+				sites:     sites,
 				username:  username,
 				proxyHost: webProxyHost,
 			}
@@ -1531,7 +1536,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 			Username:   c.Username,
 			KeysOption: c.AddKeysToAgent,
 			Insecure:   c.InsecureSkipVerify,
-			SiteName:   tc.SiteName,
+			Sites:      sites,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1880,6 +1885,23 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	pr, err := tc.Ping(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if pr.Auth.LoadAllHostCAs {
+		sites, err := proxyClient.GetSites(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		var clusters []string
+		for _, site := range sites {
+			clusters = append(clusters, site.Name)
+		}
+		tc.LocalAgent().UpdateClusters(clusters...)
+	}
+
 	// which nodes are we executing this commands on?
 	nodeAddrs, err := tc.getTargetNodes(ctx, proxyClient)
 	if err != nil {
@@ -1889,24 +1911,14 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		return trace.BadParameter("no target host specified")
 	}
 
-	nodeClient, connectErr := proxyClient.ConnectToNode(
+	nodeClient, err := proxyClient.ConnectToNode(
 		ctx,
 		NodeAddr{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: siteInfo.Name},
 		tc.Config.HostLogin,
 	)
-	if connectErr != nil {
-		if tc.shouldGuessCluster(ctx) {
-			// If the user didn't provide a cluster and the auth server says to load all CAs,
-			// try to guess the cluster.
-			nodeClient, err = tc.tryConnectToNodeAnyCluster(ctx, proxyClient, nodeAddrs[0])
-			if err != nil {
-				tc.ExitStatus = 1
-				return trace.NewAggregate(connectErr, err)
-			}
-		} else {
-			tc.ExitStatus = 1
-			return trace.Wrap(connectErr)
-		}
+	if err != nil {
+		tc.ExitStatus = 1
+		return trace.Wrap(err)
 	}
 	defer nodeClient.Close()
 
@@ -1952,43 +1964,6 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %v\n", nodeAddrs[0])
 	}
 	return tc.runShell(ctx, nodeClient, types.SessionPeerMode, nil, nil)
-}
-
-func (tc *TeleportClient) shouldGuessCluster(ctx context.Context) bool {
-	if tc.ExplicitSiteName {
-		return false
-	}
-	pr, err := tc.Ping(ctx)
-	if err != nil {
-		return false
-	}
-	return pr.Auth.LoadAllHostCAs
-}
-
-// tryConnectToNodeAnyCluster attempts to connect to a node in an unknown cluster.
-func (tc *TeleportClient) tryConnectToNodeAnyCluster(ctx context.Context, proxyClient *ProxyClient, nodeAddr string) (*NodeClient, error) {
-	sites, err := proxyClient.GetSites(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var errors []error
-	for _, site := range sites {
-		// Assume that the current cluster was already checked.
-		if site.Name == tc.SiteName {
-			continue
-		}
-		tc.localAgent.UpdateCluster(site.Name)
-		nodeClient, err := proxyClient.ConnectToNode(
-			ctx,
-			NodeAddr{Addr: nodeAddr, Namespace: tc.Namespace, Cluster: site.Name},
-			tc.Config.HostLogin,
-		)
-		if err == nil {
-			return nodeClient, nil
-		}
-		errors = append(errors, err)
-	}
-	return nil, trace.NewAggregate(errors...)
 }
 
 func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) error {

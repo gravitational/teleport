@@ -70,8 +70,8 @@ type LocalKeyAgent struct {
 	// insecure allows to accept public host keys.
 	insecure bool
 
-	// siteName specifies site to execute operation.
-	siteName string
+	// sites specifies sites to execute operation.
+	sites []string
 }
 
 // sshKnowHostGetter allows to fetch key for particular host - trusted cluster.
@@ -137,7 +137,7 @@ type LocalAgentConfig struct {
 	Username   string
 	KeysOption string
 	Insecure   bool
-	SiteName   string
+	Sites      []string
 }
 
 // NewLocalAgent reads all available credentials from the provided LocalKeyStore
@@ -153,7 +153,7 @@ func NewLocalAgent(conf LocalAgentConfig) (a *LocalKeyAgent, err error) {
 		username:  conf.Username,
 		proxyHost: conf.ProxyHost,
 		insecure:  conf.Insecure,
-		siteName:  conf.SiteName,
+		sites:     conf.Sites,
 	}
 
 	if shouldAddKeysToAgent(conf.KeysOption) {
@@ -180,9 +180,9 @@ func (a *LocalKeyAgent) UpdateUsername(username string) {
 	a.username = username
 }
 
-// UpdateCluster changes the cluster that the local agent operates on.
-func (a *LocalKeyAgent) UpdateCluster(cluster string) {
-	a.siteName = cluster
+// UpdateClusters changes the clusters that the local agent operates on.
+func (a *LocalKeyAgent) UpdateClusters(clusters ...string) {
+	a.sites = clusters
 }
 
 // LoadKeyForCluster fetches a cluster-specific SSH key and loads it into the
@@ -360,10 +360,12 @@ func (a *LocalKeyAgent) CheckHostSignature(addr string, remote net.Addr, hostKey
 	}
 
 	clusters := []string{rootCluster}
-	if rootCluster != a.siteName {
-		// In case of establishing connection to leaf cluster the client validate ssh cert against root
-		// cluster proxy cert and leaf cluster cert.
-		clusters = append(clusters, a.siteName)
+	for _, cluster := range a.sites {
+		if rootCluster != cluster {
+			// In case of establishing connection to leaf cluster the client validate ssh cert against root
+			// cluster proxy cert and leaf cluster cert.
+			clusters = append(clusters, cluster)
+		}
 	}
 
 	certChecker := sshutils.CertChecker{
