@@ -199,14 +199,14 @@ func (rv *releaseVersion) buildSteps(setupStepNames []string) []step {
 }
 
 func (rv *releaseVersion) getProducts(clonedRepoPath string) []*product {
+	ossTeleport := NewTeleportProduct(false, false, rv)
 	teleportProducts := []*product{
-		NewTeleportProduct(false, false, rv), // OSS
-		NewTeleportProduct(true, false, rv),  // Enterprise
-		NewTeleportProduct(true, true, rv),   // Enterprise/FIPS
+		ossTeleport,                         // OSS
+		NewTeleportProduct(true, false, rv), // Enterprise
+		NewTeleportProduct(true, true, rv),  // Enterprise/FIPS
 	}
-	teleportLabProducts := make([]*product, 0, len(teleportProducts))
-	for _, teleportProduct := range teleportProducts {
-		teleportLabProducts = append(teleportLabProducts, NewTeleportLabProduct(clonedRepoPath, rv, teleportProduct))
+	teleportLabProducts := []*product{
+		NewTeleportLabProduct(clonedRepoPath, rv, ossTeleport),
 	}
 	teleportOperatorProduct := NewTeleportOperatorProduct(clonedRepoPath)
 
@@ -322,7 +322,7 @@ func teleportSetupStep(shellVersion, packageName, dockerfilePath, downloadURL st
 	sleepTime := 15    // 15 seconds
 
 	return step{
-		Name:  "Download DEB artifact from APT",
+		Name:  fmt.Sprintf("Download %q DEB artifact from APT", packageName),
 		Image: "ubuntu:20.04",
 		Commands: []string{
 			// Setup the environment
