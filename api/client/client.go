@@ -303,7 +303,7 @@ func authConnect(ctx context.Context, params connectParams) (*Client, error) {
 	if params.cfg.IgnoreHTTPProxy {
 		dialer = NewDirectDialer(params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
 	} else {
-		dialer = NewDialer(params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
+		dialer = NewDialer(ctx, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
 	}
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
