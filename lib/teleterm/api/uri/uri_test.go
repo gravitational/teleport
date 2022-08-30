@@ -65,7 +65,8 @@ func TestParseClusterURI(t *testing.T) {
 		{
 			"/clusters/cluster.sh",
 			uri.NewClusterURI("cluster.sh"),
-		}, {
+		},
+		{
 			"/clusters/cluster.sh/servers/server1",
 			uri.NewClusterURI("cluster.sh"),
 		},
