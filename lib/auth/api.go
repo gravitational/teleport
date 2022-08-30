@@ -841,7 +841,10 @@ type Cache interface {
 	ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error)
 
 	// GetInstaller gets installer resource for this cluster
-	GetInstaller(ctx context.Context) (types.Installer, error)
+	GetInstaller(ctx context.Context, name string) (types.Installer, error)
+
+	// GetInstallers gets all the installer resources.
+	GetInstallers(ctx context.Context) ([]types.Installer, error)
 }
 
 type NodeWrapper struct {
