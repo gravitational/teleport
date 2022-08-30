@@ -88,7 +88,7 @@ func windowsPushPipeline() pipeline {
 	}
 
 	p.Steps = []step{
-		// cloneWindowsRepositoriesStep(p.Workspace.Path),
+		cloneWindowsRepositoriesStep(p.Workspace.Path),
 		// updateWindowsSubreposStep(p.Workspace.Path),
 		// installWindowsNodeToolchainStep(p.Workspace.Path),
 		// installWindowsGoToolchainStep(p.Workspace.Path),

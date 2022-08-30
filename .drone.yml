@@ -672,6 +672,24 @@ clone:
 concurrency:
   limit: 1
 steps:
+- name: Check out Teleport
+  commands:
+  - $ErrorActionPreference = 'Stop'
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - $WebappsSrc = "$Workspace/go/src/github.com/gravitational/webapps"
+  - $TeleportRev = if ($Env:DRONE_TAG -ne $null) { $Env:DRONE_TAG } else { $Env:DRONE_COMMIT
+    }
+  - New-Item -Path $TeleportSrc -ItemType Directory | Out-Null
+  - cd $TeleportSrc
+  - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
+  - git checkout $TeleportRev
+  - New-Item -Path $WebappsSrc -ItemType Directory | Out-Null
+  - cd $WebappsSrc
+  - git clone https://github.com/gravitational/webapps.git .
+  - git checkout $(& $TeleportSrc/build.assets/webapps/webapps-version.ps1)
+  environment:
+    WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
 - name: Send Slack notification (exec)
   commands:
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
@@ -6943,6 +6961,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 987304c1b1b4a8b7a171920d5c3b916523d4e2d7e930d7c9a4b26e24af7d0e96
+hmac: 9a4b233cb77fc8346091f46aa2a58b7c513d9809eb4f019d336758385a793942
 
 ...
