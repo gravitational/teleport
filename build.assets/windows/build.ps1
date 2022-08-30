@@ -219,6 +219,6 @@ Branch: ``$Env:DRONE_BRANCH``
 Commit: ``$Env:DRONE_COMMIT_SHA``
 Link: $BuildUrl
 "@
-       Invoke-RestMethod -Uri $Env:SLACK_WEBHOOK_DEV_TELEPORT -Body @{text=$Msg}
+        Invoke-RestMethod -Method 'Post' -Uri $Env:SLACK_WEBHOOK_DEV_TELEPORT -Body $(@{"text"=$Msg} | ConvertTo-Json)
     }
 }
