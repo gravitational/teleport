@@ -115,7 +115,7 @@ require (
 	golang.org/x/net v0.0.0-20220809184613-07c6da5e1ced
 	golang.org/x/oauth2 v0.0.0-20220808172628-8227340efae7
 	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
-	golang.org/x/sys v0.0.0-20220808155132-1c4a2a72c664
+	golang.org/x/sys v0.0.0-20220829200755-d48e67d00261
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
 	golang.org/x/text v0.3.7
 	golang.org/x/tools v0.1.10
@@ -199,6 +199,7 @@ require (
 	github.com/go-openapi/swag v0.19.14 // indirect
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/gobuffalo/flect v0.2.5
+	github.com/gofrs/flock v0.8.1
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang-sql/civil v0.0.0-20190719163853-cb61b32ac6fe // indirect
 	github.com/golang-sql/sqlexp v0.0.0-20170517235910-f1bb20e5a188 // indirect
@@ -251,7 +252,6 @@ require (
 	github.com/mdp/rsc v0.0.0-20160131164516-90f07065088d // indirect
 	github.com/miekg/pkcs11 v1.0.3-0.20190429190417-a667d056470f // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
-	github.com/mitchellh/mapstructure v1.4.1
 	github.com/moby/spdystream v0.2.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
@@ -293,7 +293,7 @@ require (
 	go.starlark.net v0.0.0-20200306205701-8dd3e2ee1dd5 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.19.1 // indirect
-	golang.org/x/exp v0.0.0-20220613132600-b0d781184e0d // indirect
+	golang.org/x/exp v0.0.0-20220613132600-b0d781184e0d
 	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8 // indirect
 	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
