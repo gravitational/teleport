@@ -453,7 +453,7 @@ message Azure {
   // Name is the Azure database server name.
   string Name = 1 [(gogoproto.jsontag) = "name,omitempty"];
   // ResourceID is the Azure fully qualified ID for the resource.
-  string ResourceID = 2 [(gogoproto.jsontag) = "name,omitempty"];
+  string ResourceID = 2 [(gogoproto.jsontag) = "resource_id,omitempty"];
 }
 
 // AD contains Active Directory specific database configuration.
@@ -3121,6 +3121,8 @@ message OIDCConnectorSpecV3 {
     (gogoproto.jsontag) = "redirect_url",
     (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Strings"
   ];
+  // AllowUnverifiedEmail tells the connector to accept OIDC users with unverified emails.
+  bool AllowUnverifiedEmail = 15 [(gogoproto.jsontag) = "allow_unverified_email,omitempty"];
 }
 
 // OIDCAuthRequest is a request to authenticate with OIDC
@@ -4084,6 +4086,12 @@ message InstallerV1 {
 message InstallerSpecV1 {
   // Script represents the contents of a installer shell script
   string Script = 1 [(gogoproto.jsontag) = "script"];
+}
+
+// InstallerV1List represents a list of installer resources.
+message InstallerV1List {
+  // Installers is a list of installer resources.
+  repeated InstallerV1 installers = 1;
 }
 
 // SessionState represents the state of a session.

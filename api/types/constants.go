@@ -185,10 +185,6 @@ const (
 	// cluster networking configuration.
 	MetaNameClusterNetworkingConfig = "cluster-networking-config"
 
-	// MetaNameClusterInstallerScript is the exact name of the
-	// singleton resource holding an installer script
-	MetaNameClusterInstallerScript = "cluster-install-script"
-
 	// KindSemaphore is the resource that provides distributed semaphore functionality
 	KindSemaphore = "semaphore"
 

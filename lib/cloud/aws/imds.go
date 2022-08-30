@@ -149,3 +149,11 @@ func (client *InstanceMetadataClient) GetHostname(ctx context.Context) (string, 
 	value, err := client.getTagValue(ctx, types.CloudHostnameTag)
 	return value, trace.Wrap(err)
 }
+
+func (client *InstanceMetadataClient) GetRegion(ctx context.Context) (string, error) {
+	getRegionOutput, err := client.c.GetRegion(ctx, nil)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return getRegionOutput.Region, nil
+}

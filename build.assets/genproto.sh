@@ -1,24 +1,19 @@
 #!/bin/bash
 #
-# Builds, formats, lints and generates protos for teleport and teleport/api.
+# Generates protos for Teleport and Teleport API.
 set -eu
 
 main() {
   cd "$(dirname "$0")"  # ./build-assets/
   cd ../                # teleport root
 
-  buf build
-  buf lint
-  buf format -w
-
   # Generated protos are written to
   # <teleport-root>/github.com/gravitational/teleport/..., so we copy them to
   # the correct relative path.
+  trap 'rm -fr github.com' EXIT   # don't leave github.com/ behind
+  rm -fr api/gen/proto gen/proto  # cleanup gen/proto folders
   buf generate
-  find github.com -name '*.pb.go' | while read -r f; do
-    mv "$f" "${f#github.com/gravitational/teleport/}"
-  done
-  rm -fr github.com/  # Remove empty generated root.
+  cp -r github.com/gravitational/teleport/* .
 }
 
 main "$@"
