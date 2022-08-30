@@ -29,6 +29,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
+	"github.com/gravitational/teleport/api/observability/tracing"
 )
 
 type raceResult struct {
@@ -112,11 +114,14 @@ func pickDefaultAddr(ctx context.Context, insecure bool, host string, ports []in
 	}
 
 	httpClient := &http.Client{
-		Transport: otelhttp.NewTransport(&http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: insecure,
+		Transport: otelhttp.NewTransport(
+			&http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: insecure,
+				},
 			},
-		}),
+			otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
+		),
 	}
 
 	// NOTE: We rely on a specific order of deferred function execution in
