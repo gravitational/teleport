@@ -99,7 +99,7 @@ func getLatestSemverStep(majorVersion string, majorVersionVarDirectory string) s
 	cloneDirectory := "/tmp/teleport"
 	return step{
 		Name:  fmt.Sprintf("Find the latest available semver for %s", majorVersion),
-		Image: "golang:1.18-alpine",
+		Image: "golang:1.18",
 		Commands: append(
 			cloneRepoCommands(cloneDirectory, fmt.Sprintf("branch/%s", majorVersion)),
 			fmt.Sprintf("cd %q", path.Join(cloneDirectory, "build.assets", "tooling", "cmd", "query-latest")),

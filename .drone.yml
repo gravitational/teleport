@@ -5195,7 +5195,7 @@ clone:
   disable: true
 steps:
 - name: Find the latest available semver for v10
-  image: golang:1.18-alpine
+  image: golang:1.18
   commands:
   - mkdir -pv "/tmp/teleport"
   - cd "/tmp/teleport"
@@ -6681,7 +6681,7 @@ clone:
   disable: true
 steps:
 - name: Find the latest available semver for v9
-  image: golang:1.18-alpine
+  image: golang:1.18
   commands:
   - mkdir -pv "/tmp/teleport"
   - cd "/tmp/teleport"
@@ -8164,7 +8164,7 @@ clone:
   disable: true
 steps:
 - name: Find the latest available semver for v8
-  image: golang:1.18-alpine
+  image: golang:1.18
   commands:
   - mkdir -pv "/tmp/teleport"
   - cd "/tmp/teleport"
@@ -11635,6 +11635,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 8cd95bc39518039784b8e54de979706b3dd144669dec8b1f66460d585796da3a
+hmac: e2232d8f338c4c564d98dd4e1f946de7f5160aaaff0490160188f195428b67bf
 
 ...
