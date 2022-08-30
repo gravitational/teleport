@@ -5174,7 +5174,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:165
+# Generated at dronegen/container_images.go:167
 ################################################
 
 kind: pipeline
@@ -5205,6 +5205,7 @@ steps:
   - mkdir -pv "/go/vars/full-version"
   - cd "/tmp/teleport/build.assets/tooling/cmd/query-latest"
   - go run . "v10" > "/go/vars/full-version/v10"
+  - Found full semver "$(cat "/go/vars/full-version/v10")" for major version "v10"
 - name: Wait for docker
   image: docker
   commands:
@@ -6666,7 +6667,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:165
+# Generated at dronegen/container_images.go:167
 ################################################
 
 kind: pipeline
@@ -6697,6 +6698,7 @@ steps:
   - mkdir -pv "/go/vars/full-version"
   - cd "/tmp/teleport/build.assets/tooling/cmd/query-latest"
   - go run . "v9" > "/go/vars/full-version/v9"
+  - Found full semver "$(cat "/go/vars/full-version/v9")" for major version "v9"
 - name: Wait for docker
   image: docker
   commands:
@@ -8155,7 +8157,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:165
+# Generated at dronegen/container_images.go:167
 ################################################
 
 kind: pipeline
@@ -8186,6 +8188,7 @@ steps:
   - mkdir -pv "/go/vars/full-version"
   - cd "/tmp/teleport/build.assets/tooling/cmd/query-latest"
   - go run . "v8" > "/go/vars/full-version/v8"
+  - Found full semver "$(cat "/go/vars/full-version/v8")" for major version "v8"
 - name: Wait for docker
   image: docker
   commands:
@@ -9644,7 +9647,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:165
+# Generated at dronegen/container_images.go:167
 ################################################
 
 kind: pipeline
@@ -11662,6 +11665,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 326aa28f1e74282e94a573551da4229535d9240c2df9de5f3d0af0828454b5ee
+hmac: 5a10b474bae446d3f873eefed1138d8935755dec773e139432839afc9198c183
 
 ...

@@ -118,6 +118,7 @@ func getLatestSemverStep(majorVersion string, majorVersionVarDirectory string) s
 	// We don't use "/go/src/github.com/gravitational/teleport" here as a later stage
 	// may need to clone a different version, and "/go" persists between steps
 	cloneDirectory := "/tmp/teleport"
+	majorVersionVarPath := path.Join(majorVersionVarDirectory, majorVersion)
 	return step{
 		Name:  fmt.Sprintf("Find the latest available semver for %s", majorVersion),
 		Image: "golang:1.18",
@@ -125,7 +126,8 @@ func getLatestSemverStep(majorVersion string, majorVersionVarDirectory string) s
 			cloneRepoCommands(cloneDirectory, fmt.Sprintf("branch/%s", majorVersion)),
 			fmt.Sprintf("mkdir -pv %q", majorVersionVarDirectory),
 			fmt.Sprintf("cd %q", path.Join(cloneDirectory, "build.assets", "tooling", "cmd", "query-latest")),
-			fmt.Sprintf("go run . %q > %q", majorVersion, path.Join(majorVersionVarDirectory, majorVersion)),
+			fmt.Sprintf("go run . %q > %q", majorVersion, majorVersionVarPath),
+			fmt.Sprintf("Found full semver \"$(cat %q)\" for major version %q", majorVersionVarPath, majorVersion),
 		),
 	}
 }
