@@ -102,6 +102,7 @@ func pushPipelines() []pipeline {
 	ps = append(ps, pushPipeline(buildType{os: "windows", arch: "amd64", windowsUnsigned: true}))
 
 	ps = append(ps, darwinPushPipeline())
+	ps = append(ps, windowsPushPipeline())
 	return ps
 }
 
