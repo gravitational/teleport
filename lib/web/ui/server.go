@@ -168,7 +168,7 @@ type ConnectionDiagnostic struct {
 // We require this
 type ConnectionDiagnosticTraceUI struct {
 	// TraceType as string
-	TraceType string `json:"trace_type,omitempty"`
+	TraceType string `json:"traceType,omitempty"`
 	// Status as string
 	Status string `json:"status,omitempty"`
 	// Details of the trace

@@ -75,10 +75,15 @@ type ConnectionTester interface {
 
 // ConnectionTesterForKind returns the proper Tester given a resource name.
 // It returns trace.NotImplemented if the resource kind does not have a tester.
-func ConnectionTesterForKind(resourceKind string, client auth.ClientI) (ConnectionTester, error) {
+func ConnectionTesterForKind(resourceKind string, client auth.ClientI, proxyHostAddr string) (ConnectionTester, error) {
 	switch resourceKind {
 	case types.KindNode:
-		return NewSSHConnectionTester(client), nil
+		tester, err := NewSSHConnectionTester(client, proxyHostAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return tester, nil
 	}
+
 	return nil, trace.NotImplemented("resource %q does not have a connection tester", resourceKind)
 }

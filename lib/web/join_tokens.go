@@ -291,7 +291,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		return "", trace.NotFound("no proxy servers found")
 	}
 
-	version := "10.1.4" //proxyServers[0].GetTeleportVersion()
+	version := proxyServers[0].GetTeleportVersion()
 	hostname, portStr, err := utils.SplitHostPort(proxyServers[0].GetPublicAddr())
 	if err != nil {
 		return "", trace.Wrap(err)

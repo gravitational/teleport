@@ -64,7 +64,7 @@ func (h *Handler) diagnoseConnection(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	tester, err := conntest.ConnectionTesterForKind(req.ResourceKind, clt)
+	tester, err := conntest.ConnectionTesterForKind(req.ResourceKind, clt, h.ProxyHostPort())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

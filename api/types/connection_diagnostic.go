@@ -147,21 +147,19 @@ func (c *ConnectionDiagnosticV1) SetStaticLabels(sl map[string]string) {
 	c.Metadata.Labels = sl
 }
 
-// NewFailedTraceConnectionDiagnostic creates a new Connection Diagnostic Trace with an error and a failed status
-func NewFailedTraceConnectionDiagnostic(traceType ConnectionDiagnosticTrace_TraceType, details string, err error) *ConnectionDiagnosticTrace {
-	return &ConnectionDiagnosticTrace{
-		Status:  ConnectionDiagnosticTrace_FAILED,
-		Type:    traceType,
-		Details: details,
-		Error:   err.Error(),
-	}
-}
-
-// NewSuccessTraceConnectionDiagnostic creates a new Connection Diagnostic Trace with success status
-func NewSuccessTraceConnectionDiagnostic(traceType ConnectionDiagnosticTrace_TraceType, details string) *ConnectionDiagnosticTrace {
-	return &ConnectionDiagnosticTrace{
+// NewTraceDiagnosticConnection creates a new Connection Diagnostic Trace.
+// If traceErr is not nil, it will set the Status to FAILED, SUCCESS otherwise.
+func NewTraceDiagnosticConnection(traceType ConnectionDiagnosticTrace_TraceType, details string, traceErr error) *ConnectionDiagnosticTrace {
+	ret := &ConnectionDiagnosticTrace{
 		Status:  ConnectionDiagnosticTrace_SUCCESS,
 		Type:    traceType,
 		Details: details,
 	}
+
+	if traceErr != nil {
+		ret.Status = ConnectionDiagnosticTrace_FAILED
+		ret.Error = traceErr.Error()
+	}
+
+	return ret
 }

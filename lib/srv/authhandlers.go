@@ -281,7 +281,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	recordFailedLogin := func(err error) {
 		failedLoginCount.Inc()
 
-		if err := maybeAppendDiagnosticTrace(ctx, connectionDiagnosticID, h.c.AccessPoint,
+		if err := h.maybeAppendDiagnosticTrace(ctx, connectionDiagnosticID,
 			types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
 			"Principal is not allowed by this certificate. Ensure your roles allows you use it.",
 			err,
@@ -358,7 +358,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		return permissions, nil
 	}
 
-	if err := maybeAppendDiagnosticTrace(ctx, connectionDiagnosticID, h.c.AccessPoint,
+	if err := h.maybeAppendDiagnosticTrace(ctx, connectionDiagnosticID,
 		types.ConnectionDiagnosticTrace_RBAC_NODE,
 		"Node found.",
 		nil,
@@ -379,16 +379,15 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		return nil, trace.Wrap(err)
 	}
 
-	if err := maybeAppendDiagnosticTrace(ctx, connectionDiagnosticID, h.c.AccessPoint,
+	if err := h.maybeAppendDiagnosticTrace(ctx, connectionDiagnosticID,
 		types.ConnectionDiagnosticTrace_CONNECTIVITY,
 		"Node is alive and reachable.",
 		nil,
 	); err != nil {
-		fmt.Println(err)
 		return nil, trace.Wrap(err)
 	}
 
-	if err := maybeAppendDiagnosticTrace(ctx, connectionDiagnosticID, h.c.AccessPoint,
+	if err := h.maybeAppendDiagnosticTrace(ctx, connectionDiagnosticID,
 		types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
 		"Successfully authenticated.",
 		nil,
@@ -399,22 +398,14 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	return permissions, nil
 }
 
-func maybeAppendDiagnosticTrace(ctx context.Context, connectionDiagnosticID string, ap AccessPoint, traceType types.ConnectionDiagnosticTrace_TraceType, message string, traceError error) error {
+func (h *AuthHandlers) maybeAppendDiagnosticTrace(ctx context.Context, connectionDiagnosticID string, traceType types.ConnectionDiagnosticTrace_TraceType, message string, traceError error) error {
 	if connectionDiagnosticID == "" {
 		return nil
 	}
 
-	connectionTrace := types.NewSuccessTraceConnectionDiagnostic(traceType, message)
+	connectionTrace := types.NewTraceDiagnosticConnection(traceType, message, traceError)
 
-	if traceError != nil {
-		connectionTrace = types.NewFailedTraceConnectionDiagnostic(
-			traceType,
-			message,
-			traceError,
-		)
-	}
-
-	_, err := ap.AppendDiagnosticTrace(ctx, connectionDiagnosticID, connectionTrace)
+	_, err := h.c.AccessPoint.AppendDiagnosticTrace(ctx, connectionDiagnosticID, connectionTrace)
 	return trace.Wrap(err)
 }
 
