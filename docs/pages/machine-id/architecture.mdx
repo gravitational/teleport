@@ -51,13 +51,15 @@ a set of credentials for the bot user from the Teleport Auth Service. It can
 then use these credentials to communicate with the Teleport Auth Service as the 
 bot.
 
-On a configured regular period `tbot` then:
+On a configured regular period `tbot` begins its renewal process. It begins by
+refreshing the bot's own credentials, by renewing them or fetching a fresh set
+of credentials depending on the configured onboarding method.
 
-1. Renews these bot user credentials
-2. For each destination provided in `tbot`'s configuration:
-   1. Uses impersonation to obtain credentials from the Auth Service for the
-      roles specified in the destination's configuration.
-   2. Outputs these credentials in various formats.
+Then, for each destination provided in `tbot`'s configuration, `tbot` uses
+impersonation to obtain credentials from the Auth Service for the roles
+specified in the destination's configuration. Once these are fetched, these are
+then persisted to the destination in various formats along with other useful
+matter such as the current certificate authority certificates.
 
 Concurrently to this, `tbot` monitors the Teleport certificate authorities to
 detect certificate rotations. When this occurs, it triggers additional renewals
