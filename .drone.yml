@@ -674,13 +674,13 @@ concurrency:
 steps:
 - name: Send Slack notification (exec)
   commands:
-  - $BuildUrl = "$Env:DRONE_SYSTEM_PROTO://$Env:DRONE_SYSTEM_HOSTNAME/$Env:DRONE_REPO_OWNER/$Env:DRONE_REPO_NAME/$Env:DRONE_BUILD_NUMBER"
+  - $BuildUrl = "$Env:DRONE_SYSTEM_PROTO`://$Env:DRONE_SYSTEM_HOSTNAME/$Env:DRONE_REPO_OWNER/$Env:DRONE_REPO_NAME/$Env:DRONE_BUILD_NUMBER"
   - $GoOS = $(go env GOOS)
   - $GoArch = $(go env GOARCH)
   - '$Msg = "THIS IS A TEST (by @trent): Warning: ``$GoOS-$GoArch`` artifact build
     failed for [``$Env:DRONE_REPO_NAME``] - please investigate immediately!`nBranch:
-    ``$Env:DRONE_BRANCH```nCommit: ``$Env:DRONE_COMMIT_SHA```nnLink: $BuildUrl'
-  - 'Invoke-RestMethod -Uri $Env:SLACK_WEBHOOK_DEV_TELEPORT -Body @{text: $msg}'
+    ``$Env:DRONE_BRANCH```nCommit: ``$Env:DRONE_COMMIT_SHA```nnLink: $BuildUrl"'
+  - Invoke-RestMethod -Uri $Env:SLACK_WEBHOOK_DEV_TELEPORT -Body @{text=$msg}
   environment:
     SLACK_WEBHOOK_DEV_TELEPORT:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
@@ -6946,6 +6946,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 5b3f5bc9d83aeffd886b6d42a8f5d5181034c8a84c00b4cb3c92acf3cc070393
+hmac: ebe612d6e05815055473dea46c3baa4239a36512bed0f1df0b14e191ed9c866e
 
 ...
