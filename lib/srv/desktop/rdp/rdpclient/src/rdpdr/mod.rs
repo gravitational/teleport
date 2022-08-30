@@ -1099,8 +1099,17 @@ impl Client {
                             buffer,
                         );
                     }
-                    FileInformationClassLevel::FileDirectoryInformation
-                    | FileInformationClassLevel::FileNamesInformation => {
+                    FileInformationClassLevel::FileNamesInformation => {
+                        let buffer = Some(FileInformationClass::FileNamesInformation(
+                            FileNamesInformation::new(fso.name()?),
+                        ));
+                        return self.prep_drive_query_dir_response(
+                            &req.device_io_request,
+                            NTSTATUS::STATUS_SUCCESS,
+                            buffer,
+                        );
+                    }
+                    FileInformationClassLevel::FileDirectoryInformation => {
                         return Err(not_implemented_error(&format!(
                             "support for ServerDriveQueryDirectoryRequest with file_info_class_lvl = {:?} is not implemented",
                             req.file_info_class_lvl
@@ -2416,6 +2425,7 @@ enum FileInformationClass {
     FileDispositionInformation(FileDispositionInformation),
     FileRenameInformation(FileRenameInformation),
     FileAllocationInformation(FileAllocationInformation),
+    FileNamesInformation(FileNamesInformation),
 }
 
 impl FileInformationClass {
@@ -2430,6 +2440,7 @@ impl FileInformationClass {
             Self::FileDispositionInformation(file_info_class) => file_info_class.encode(),
             Self::FileRenameInformation(file_info_class) => file_info_class.encode(),
             Self::FileAllocationInformation(file_info_class) => file_info_class.encode(),
+            Self::FileNamesInformation(file_info_class) => file_info_class.encode(),
         }
     }
 
@@ -2482,6 +2493,7 @@ impl FileInformationClass {
             Self::FileDispositionInformation(file_info_class) => file_info_class.size(),
             Self::FileRenameInformation(file_info_class) => file_info_class.size(),
             Self::FileAllocationInformation(file_info_class) => file_info_class.size(),
+            Self::FileNamesInformation(file_info_class) => file_info_class.size(),
         }
     }
 }
@@ -2941,6 +2953,45 @@ impl FileAllocationInformation {
 
     fn size(&self) -> u32 {
         Self::BASE_SIZE
+    }
+}
+
+/// 2.4.28 FileNamesInformation
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/a289f7a8-83d2-4927-8c88-b2d328dde5a5?redirectedfrom=MSDN
+#[derive(Debug, Clone)]
+struct FileNamesInformation {
+    next_entry_offset: u32,
+    file_index: u32,
+    file_name_length: u32,
+    file_name: String,
+}
+
+impl FileNamesInformation {
+    /// Base size of the FileBothDirectoryInformation, not accounting for variably sized file_name.
+    /// Note that file_name's size should be calculated as if it were a Unicode string.
+    const BASE_SIZE: u32 = 3 * U32_SIZE;
+
+    fn new(file_name: String) -> Self {
+        // https://github.com/FreeRDP/FreeRDP/blob/dfa231c0a55b005af775b833f92f6bcd30363d77/channels/drive/client/drive_file.c#L912
+        Self {
+            next_entry_offset: 0,
+            file_index: 0,
+            file_name_length: util::unicode_size(&file_name, false),
+            file_name,
+        }
+    }
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.write_u32::<LittleEndian>(self.next_entry_offset)?;
+        w.write_u32::<LittleEndian>(self.file_index)?;
+        w.write_u32::<LittleEndian>(self.file_name_length)?;
+        w.extend_from_slice(&util::to_unicode(&self.file_name, false));
+        Ok(w)
+    }
+
+    fn size(&self) -> u32 {
+        Self::BASE_SIZE + self.file_name_length
     }
 }
 
