@@ -28,72 +28,71 @@ option go_package = "github.com/gravitational/teleport/lib/teleterm/v1";
 
 // TerminalService describes Teleterm service
 service TerminalService {
-    // ListRootClusters lists root clusters
-    rpc ListRootClusters(ListClustersRequest) returns (ListClustersResponse);
-    // ListLeafClusters lists leaf clusters
-    rpc ListLeafClusters(ListLeafClustersRequest) returns (ListClustersResponse);
-    // ListDatabases lists databases
-    rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
-    // ListDatabaseUsers lists allowed users for the given database based on the role set.
-    rpc ListDatabaseUsers(ListDatabaseUsersRequest) returns (ListDatabaseUsersResponse);
-    // GetAllServers returns all servers
-    rpc GetAllServers(GetAllServersRequest) returns (GetAllServersResponse);
-    // GetServers returns filtered, sorted, and paginated servers
-    rpc GetServers(GetServersRequest) returns (GetServersResponse);
-    // ListKubes list kubes
-    rpc ListKubes(ListKubesRequest) returns (ListKubesResponse);
-    // ListApps list apps
-    rpc ListApps(ListAppsRequest) returns (ListAppsResponse);
-    // AddCluster adds a cluster to profile
-    rpc AddCluster(AddClusterRequest) returns (Cluster);
-    // RemoveCluster removes a cluster from profile
-    rpc RemoveCluster(RemoveClusterRequest) returns (EmptyResponse);
+  // ListRootClusters lists root clusters
+  rpc ListRootClusters(ListClustersRequest) returns (ListClustersResponse);
+  // ListLeafClusters lists leaf clusters
+  rpc ListLeafClusters(ListLeafClustersRequest) returns (ListClustersResponse);
+  // ListDatabases lists databases
+  rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
+  // ListDatabaseUsers lists allowed users for the given database based on the role set.
+  rpc ListDatabaseUsers(ListDatabaseUsersRequest) returns (ListDatabaseUsersResponse);
+  // GetAllServers returns all servers
+  rpc GetAllServers(GetAllServersRequest) returns (GetAllServersResponse);
+  // GetServers returns filtered, sorted, and paginated servers
+  rpc GetServers(GetServersRequest) returns (GetServersResponse);
+  // ListKubes list kubes
+  rpc ListKubes(ListKubesRequest) returns (ListKubesResponse);
+  // ListApps list apps
+  rpc ListApps(ListAppsRequest) returns (ListAppsResponse);
+  // AddCluster adds a cluster to profile
+  rpc AddCluster(AddClusterRequest) returns (Cluster);
+  // RemoveCluster removes a cluster from profile
+  rpc RemoveCluster(RemoveClusterRequest) returns (EmptyResponse);
 
-    // ListGateways lists gateways
-    rpc ListGateways(ListGatewaysRequest) returns (ListGatewaysResponse);
-    // CreateGateway creates a gateway
-    rpc CreateGateway(CreateGatewayRequest) returns (Gateway);
-    // RemoveGateway removes a gateway
-    rpc RemoveGateway(RemoveGatewayRequest) returns (EmptyResponse);
-    // RestartGateway stops a gateway and starts a new with identical parameters, keeping the
-    // original URI. A temporary workaround until it's possible to refresh certs in a running
-    // database proxy.
-    rpc RestartGateway(RestartGatewayRequest) returns (EmptyResponse);
-    // SetGatewayTargetSubresourceName changes the TargetSubresourceName field of gateway.Gateway
-    // and returns the updated version of gateway.Gateway.
-    //
-    // In Connect this is used to update the db name of a db connection along with the CLI command.
-    rpc SetGatewayTargetSubresourceName(SetGatewayTargetSubresourceNameRequest) returns (Gateway);
-    // SetGatewayLocalPort starts a new gateway on the new port, stops the old gateway and then
-    // assigns the URI of the old gateway to the new one. It does so without fetching a new db cert.
-    rpc SetGatewayLocalPort(SetGatewayLocalPortRequest) returns (Gateway);
+  // ListGateways lists gateways
+  rpc ListGateways(ListGatewaysRequest) returns (ListGatewaysResponse);
+  // CreateGateway creates a gateway
+  rpc CreateGateway(CreateGatewayRequest) returns (Gateway);
+  // RemoveGateway removes a gateway
+  rpc RemoveGateway(RemoveGatewayRequest) returns (EmptyResponse);
+  // RestartGateway stops a gateway and starts a new with identical parameters, keeping the
+  // original URI. A temporary workaround until it's possible to refresh certs in a running
+  // database proxy.
+  rpc RestartGateway(RestartGatewayRequest) returns (EmptyResponse);
+  // SetGatewayTargetSubresourceName changes the TargetSubresourceName field of gateway.Gateway
+  // and returns the updated version of gateway.Gateway.
+  //
+  // In Connect this is used to update the db name of a db connection along with the CLI command.
+  rpc SetGatewayTargetSubresourceName(SetGatewayTargetSubresourceNameRequest) returns (Gateway);
+  // SetGatewayLocalPort starts a new gateway on the new port, stops the old gateway and then
+  // assigns the URI of the old gateway to the new one. It does so without fetching a new db cert.
+  rpc SetGatewayLocalPort(SetGatewayLocalPortRequest) returns (Gateway);
 
-    // GetAuthSettings returns cluster auth settigns
-    rpc GetAuthSettings(GetAuthSettingsRequest) returns (AuthSettings);
-    // GetCluster returns a cluster
-    rpc GetCluster(GetClusterRequest) returns (Cluster);
-    // Login logs in a user to a cluster
-    rpc Login(LoginRequest) returns (EmptyResponse);
-    // LoginPasswordless logs in a user to a cluster passwordlessly.
-    //
-    // The RPC is streaming both ways and the message sequence example for hardware keys are:
-    // (-> means client-to-server, <- means server-to-client)
-    //
-    // Hardware keys:
-    // -> Init
-    // <- Send PasswordlessPrompt enum TAP to choose a device
-    // -> Receive TAP device response
-    // <- Send PasswordlessPrompt enum PIN
-    // -> Receive PIN response
-    // <- Send PasswordlessPrompt enum RETAP to confirm
-    // -> Receive RETAP device response
-    // <- Send list of credentials (e.g. usernames) associated with device
-    // -> Receive the index number associated with the selected credential in list
-    // <- End
-    rpc LoginPasswordless(stream LoginPasswordlessRequest)
-        returns (stream LoginPasswordlessResponse);
-    // ClusterLogin logs out a user from cluster
-    rpc Logout(LogoutRequest) returns (EmptyResponse);
+  // GetAuthSettings returns cluster auth settigns
+  rpc GetAuthSettings(GetAuthSettingsRequest) returns (AuthSettings);
+  // GetCluster returns a cluster
+  rpc GetCluster(GetClusterRequest) returns (Cluster);
+  // Login logs in a user to a cluster
+  rpc Login(LoginRequest) returns (EmptyResponse);
+  // LoginPasswordless logs in a user to a cluster passwordlessly.
+  //
+  // The RPC is streaming both ways and the message sequence example for hardware keys are:
+  // (-> means client-to-server, <- means server-to-client)
+  //
+  // Hardware keys:
+  // -> Init
+  // <- Send PasswordlessPrompt enum TAP to choose a device
+  // -> Receive TAP device response
+  // <- Send PasswordlessPrompt enum PIN
+  // -> Receive PIN response
+  // <- Send PasswordlessPrompt enum RETAP to confirm
+  // -> Receive RETAP device response
+  // <- Send list of credentials (e.g. usernames) associated with device
+  // -> Receive the index number associated with the selected credential in list
+  // <- End
+  rpc LoginPasswordless(stream LoginPasswordlessRequest) returns (stream LoginPasswordlessResponse);
+  // ClusterLogin logs out a user from cluster
+  rpc Logout(LogoutRequest) returns (EmptyResponse);
 }
 
 // RemoveClusterRequest describes RemoveClusterRequest
@@ -270,24 +269,28 @@ message SetGatewayLocalPortRequest {
   string local_port = 2;
 }
 
-message GetAllServersRequest { string cluster_uri = 1; }
+message GetAllServersRequest {
+  string cluster_uri = 1;
+}
 
-message GetAllServersResponse { repeated Server servers = 1; }
+message GetAllServersResponse {
+  repeated Server servers = 1;
+}
 
 message GetServersRequest {
-    string cluster_uri = 1;
-    int32 limit = 2;
-    string start_key = 3;
-    string search = 4;
-    string query = 5;
-    string sort_by = 6;
-    string search_as_roles = 7;
+  string cluster_uri = 1;
+  int32 limit = 2;
+  string start_key = 3;
+  string search = 4;
+  string query = 5;
+  string sort_by = 6;
+  string search_as_roles = 7;
 }
 
 message GetServersResponse {
-    repeated Server servers = 1;
-    int32 total_count = 2;
-    string start_key = 3;
+  repeated Server servers = 1;
+  int32 total_count = 2;
+  string start_key = 3;
 }
 
 message ListKubesResponse {
