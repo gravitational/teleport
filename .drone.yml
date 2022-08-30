@@ -661,7 +661,6 @@ trigger:
     include:
     - master
     - branch/*
-    - tcsc/slack-alert*
 workspace:
   path: C:/Drone/Workspace/push-build-native-windows-amd64
 platform:
@@ -7051,6 +7050,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 8bd1027fd99d036850e4cc0cdf65cb91ebd27ff3cb160ba79f6d0df2362c1042
+hmac: 2d50f73226640e621d790dadf4f07b891eeb3e9e11f9b2cc8e93f6d4bed8841b
 
 ...

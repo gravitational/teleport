@@ -83,7 +83,7 @@ func windowsPushPipeline() pipeline {
 	p := newWindowsPipeline("push-build-native-windows-amd64")
 	p.Trigger = trigger{
 		Event:  triggerRef{Include: []string{"push"}, Exclude: []string{"pull_request"}},
-		Branch: triggerRef{Include: []string{"master", "branch/*", "tcsc/slack-alert*"}},
+		Branch: triggerRef{Include: []string{"master", "branch/*"}},
 		Repo:   triggerRef{Include: []string{"gravitational/*"}},
 	}
 
