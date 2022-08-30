@@ -3558,6 +3558,14 @@ func (tc *TeleportClient) ActivateKey(ctx context.Context, key *Key) error {
 		return trace.Wrap(err)
 	}
 
+	pr, err := tc.Ping(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !pr.Auth.LoadAllHostCAs {
+		return nil
+	}
+
 	// Connect to the Auth Server of the root cluster and fetch the known hosts.
 	rootClusterName := key.TrustedCA[0].ClusterName
 	if err := tc.UpdateTrustedCA(ctx, rootClusterName); err != nil {
@@ -3694,6 +3702,30 @@ func (tc *TeleportClient) UpdateKnownHosts(ctx context.Context, proxyHost, clust
 	return nil
 }
 
+// UpdateTrustedCAForCluster connects to the Auth Server and fetches a specific cluster's
+// host certificate and updates ~/.tsh/keys/proxy/cas and ~/.tsh/known_hosts.
+func (tc *TeleportClient) UpdateTrustedCAForCluster(ctx context.Context, proxyHost, rootCluster, leafCluster string) error {
+	trustedCA, err := tc.GetTrustedCAForCluster(ctx, rootCluster, leafCluster)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	ca := auth.AuthoritiesToTrustedCerts([]types.CertAuthority{trustedCA})[0]
+	hostCerts, err := ca.SSHCertPublicKeys()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = tc.localAgent.keyStore.AddKnownHostKeys(rootCluster, proxyHost, hostCerts)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Update the CA pool with all the CA the cluster knows about.
+	if err := tc.localAgent.SaveTrustedCerts([]auth.TrustedCerts{ca}); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // GetTrustedCA returns a list of host certificate authorities
 // trusted by the cluster client is authenticated with.
 func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) ([]types.CertAuthority, error) {
@@ -3723,6 +3755,43 @@ func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) 
 
 	// Get the list of host certificates that this cluster knows about.
 	return clt.GetCertAuthorities(ctx, types.HostCA, false)
+}
+
+// GetTrustedCAForCluster returns the host certificate of a leaf
+// cluster that is trusted by the cluster client is authenticated
+// with.
+func (tc *TeleportClient) GetTrustedCAForCluster(ctx context.Context, rootCluster, leafCluster string) (types.CertAuthority, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/GetTrustedCAForCluster",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(attribute.String("rootCluster", rootCluster)),
+		oteltrace.WithAttributes(attribute.String("leafCluster", leafCluster)),
+	)
+	defer span.End()
+
+	// Connect to the proxy.
+	if !tc.Config.ProxySpecified() {
+		return nil, trace.BadParameter("proxy server is not specified")
+	}
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	// Get a client to the Auth Server.
+	clt, err := proxyClient.ClusterAccessPoint(ctx, rootCluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Get the list of host certificates that this cluster knows about.
+	ca, err := clt.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.HostCA,
+		DomainName: leafCluster,
+	}, false)
+	return ca, trace.Wrap(err)
 }
 
 // UpdateTrustedCA connects to the Auth Server and fetches all host certificates
