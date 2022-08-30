@@ -3780,7 +3780,8 @@ impl ClientDriveQueryDirectoryResponse {
                 FileInformationClass::FileFullDirectoryInformation(fs_info_class) => {
                     fs_info_class.size()
                 }
-                // TODO(isaiah): add support for FileDirectoryInformation and FileNamesInformation
+                FileInformationClass::FileNamesInformation(fs_info_class) => fs_info_class.size(),
+                // TODO(isaiah): add support for FileDirectoryInformation
                 // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L794
                 _ => {
                     return Err(not_implemented_error(&format!("ClientDriveQueryDirectoryResponse not implemented for fs_information_class {:?}", fs_information_class)));
