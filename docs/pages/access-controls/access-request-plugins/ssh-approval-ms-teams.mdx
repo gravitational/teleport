@@ -4,7 +4,7 @@ description: How to set up Teleport's MsTeams plugin for privilege elevation app
 ---
 
 This guide will explain how to set up MsTeams to receive Access Request messages
-from Teleport. Teleport's MsTeams integration notifies individuals and channels of
+from Teleport. Teleport's MsTeams integration notifies individuals of
 Access Requests. Users can then approve and deny Access Requests by following the
 message link, making it easier to implement security best practices without
 compromising productivity.
@@ -174,7 +174,7 @@ The result should be as follows:
 At this point, the Teleport MsTeams plugin has the credentials it needs to
 communicate with your Teleport cluster and MsTeams. In this step, you will
 configure the MsTeams plugin to use these credentials. You will also configure the
-plugin to notify the right MsTeams channels when it receives an Access Request
+plugin to notify the right MsTeams users when it receives an Access Request
 update.
 
 ### Generate a config file and assets
@@ -222,7 +222,7 @@ access the Auth Service directly:
   <TabItem label="Connect to the Auth Service"> 
     
 Set `addr` to the address and port of your Auth Service. This address must be
-reachable from the Teleport Slack Plugin.
+reachable from the Teleport MsTeams Plugin.
 
 Set `client_key`, `client_crt`, and `root_cas` to the identity files
 generated earlier:
@@ -266,8 +266,8 @@ identity = "/var/lib/teleport/plugins/ms-teams/auth.pem"
  
 **`[role_to_recipients]`**
 
-The `role_to_recipients` map configure the channels that the MsTeams plugin will
-notify when a user requests access to a specific role. When the Slack plugin
+The `role_to_recipients` map configure the teams users that the MsTeams plugin will
+notify when a user requests access to a specific role. When the MsTeams plugin
 receives an Access Request from the Auth Service, it will look up the role being
 requested and identify the MsTeams channels to notify.
 
@@ -275,22 +275,20 @@ Here is an example of a `role_to_recipients` map:
 
 ```toml
 [role_to_recipients]
-"*" = "admin-teams-channel"
-"dev" = ["dev-teams-channel", "admin-teams-channel"]
-"dba" = "alex@gmail.com"
+"*" = "alice@example.com"
+"dev" = ["alice@example.com", "bob@example.com"]
+"dba" = "bob@example.com"
 ```
 
 In the `role_to_recipients` map, each key is the name of a Teleport role. Each
-value configures the Teams channel (or channels) to notify. The value can be a
-single string or an array of strings. Each string must be either the name of a
-Teams channel (including a user's direct message channel) or the email address
-of a Slack user. If the recipient is an email address, the Slack plugin will
-use that email address to look up a direct message channel.
+value configures the Teams user (or users) to notify. The value can be a
+single string or an array of strings. Each string must be either the name or
+the email address of a MsTeams user. If the recipient is an email address,
+the MsTeams plugin will use that email address to look up a direct message channel.
 
 The `role_to_recipients` map must also include an entry for `"*"`, which the
 plugin looks up if no other entry matches a given role name. In the example
-above, requests for roles aside from `dev` and `dba` will notify the
-`admin-teams-channel` channel.
+above, requests for roles aside from `dev` and `dba` will notify `alice@example.com`.
 
 <Details title="Suggested reviewers">
 
@@ -309,19 +307,14 @@ address and post a message in that channel.
 
 Configure the MsTeams plugin to notify you when a user requests the `editor` role
 by adding the following to your `role_to_recipients` config (replace
-`TELEPORT_USERNAME` with the user you assigned the `editor-reviewer` role
-earlier):
-
-TODO: test this channel thing and document how to get channel ID
+`TELEPORT_USERNAME` with the email of the user you assigned the `editor-reviewer`
+role earlier, and ):
 
 ```toml
 [role_to_recipients]
-"*" = "access-requests"
+"*" = "your-email@example.com"
 "editor" = "TELEPORT_USERNAME"
 ```
-
-Either create an `access-requests` channel in your Slack workspace or rename the
-value of the `"*"` key to an existing channel.
 
 ## Step 7/9. Add and configure the Teams app
 
