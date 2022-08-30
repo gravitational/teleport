@@ -178,6 +178,14 @@ RUN (git clone https://github.com/gogo/protobuf.git ${GOPATH}/src/github.com/gog
      git reset --hard ${GOGO_PROTO_TAG} && \
      make install)
 
+# Install buf
+RUN BIN="/usr/local/bin" && \
+    VERSION="1.7.0" && \
+      curl -sSL \
+        "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
+        -o "${BIN}/buf" && \
+      chmod +x "${BIN}/buf"
+
 ENV PROTO_INCLUDE "/usr/local/include":"/go/src":"/go/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf"
 
 # Install PAM module and policies for testing.

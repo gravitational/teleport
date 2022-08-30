@@ -553,6 +553,35 @@ func (g *GRPCServer) PingInventory(ctx context.Context, req *proto.InventoryPing
 	return &rsp, nil
 }
 
+func (g *GRPCServer) GetClusterAlerts(ctx context.Context, query *types.GetClusterAlertsRequest) (*proto.GetClusterAlertsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	alerts, err := auth.GetClusterAlerts(ctx, *query)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &proto.GetClusterAlertsResponse{
+		Alerts: alerts,
+	}, nil
+}
+
+func (g *GRPCServer) UpsertClusterAlert(ctx context.Context, req *proto.UpsertClusterAlertRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.UpsertClusterAlert(ctx, req.Alert); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
 func (g *GRPCServer) GetUser(ctx context.Context, req *proto.GetUserRequest) (*types.UserV2, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {

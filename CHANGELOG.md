@@ -1,5 +1,32 @@
 # Changelog
 
+## 10.1.7
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed log spam issues related to EC2 tags import. [#15179](https://github.com/gravitational/teleport/pull/15179)
+* Fixed issue with `tctl auth sign` not including SNI in generated kubeconfig in TLS routing mode. [#15632](https://github.com/gravitational/teleport/pull/15632)
+* Fixed issue with inability to set wildcard labels in Teleport Operator resources. [#15600](https://github.com/gravitational/teleport/pull/15600)
+* Fixed issue with nodes not being displayed when user does not have valid principals. [#15797](https://github.com/gravitational/teleport/pull/15797)
+* Fixed issue with JWT headers not being passed through on websocket requests in App Access. [#15738](https://github.com/gravitational/teleport/pull/15738)
+* Fixed issue with `tsh aws s3` failing on paths with special characters. [#15819](https://github.com/gravitational/teleport/pull/15819)
+* Fixed issue with `get-kubeconfig.sh` script not working with Kubernets 1.24+. [#15617](https://github.com/gravitational/teleport/pull/15617)
+* Fixed issue with `tsh mfa rm` not deleting Touch ID credentials. [#15675](https://github.com/gravitational/teleport/pull/15675)
+* Fixed issue with inability to add webauthn devices in Web UI when local auth is disabled. [#15776](https://github.com/gravitational/teleport/pull/15776)
+* Fixed issue with SAML login failing in some scenarios. [#15886](https://github.com/gravitational/teleport/pull/15886)
+* Fixed issue with Firestore backend pagination. [#13756](https://github.com/gravitational/teleport/pull/13756)
+* Added ability for reverse tunnel agents to join over reverse tunnel port without exposing web UI. [#13598](https://github.com/gravitational/teleport/pull/13598)
+* Added `ssh_file_copy` role option allowing to disable scp and SFTP file copying. [#15853](https://github.com/gravitational/teleport/pull/15853)
+* Added ability to disable local auth in teleport-cluster Helm chart. [#15595](https://github.com/gravitational/teleport/pull/15595)
+* Added support for `tsh` alias subcommands. [#14919](https://github.com/gravitational/teleport/pull/14919)
+* Added support for AWS China and GovCloud regions to Database Access. [#15583](https://github.com/gravitational/teleport/pull/15583)
+* Added `tctl alerts` command for managing cluster alerts. [#15694](https://github.com/gravitational/teleport/pull/15694)
+* Added support for IdP initiated SAML logins. [#15733](https://github.com/gravitational/teleport/pull/15733)
+* Updated `tsh db env/config` commands to not show erroneous information in unsupported scenarios. [#15734](https://github.com/gravitational/teleport/pull/15734)
+* Improved connection reliability in proxy peering mode. [#15313](https://github.com/gravitational/teleport/pull/15313)
+* Improved error messaging in joined Kubernetes sessions. [#15492](https://github.com/gravitational/teleport/pull/15492)
+* Improved network utilization on proxies. [#15838](https://github.com/gravitational/teleport/pull/15838)
+
 ## 10.1.4
 
 This release of Teleport contains multiple improvements and bug fixes.
