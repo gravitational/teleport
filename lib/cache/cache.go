@@ -1501,7 +1501,7 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 }
 
 // GetInstaller gets the installer script resource for the cluster
-func (c *Cache) GetInstaller(ctx context.Context) (types.Installer, error) {
+func (c *Cache) GetInstaller(ctx context.Context, name string) (types.Installer, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetInstaller")
 	defer span.End()
 
@@ -1511,7 +1511,22 @@ func (c *Cache) GetInstaller(ctx context.Context) (types.Installer, error) {
 	}
 	defer rg.Release()
 
-	inst, err := rg.clusterConfig.GetInstaller(ctx)
+	inst, err := rg.clusterConfig.GetInstaller(ctx, name)
+	return inst, trace.Wrap(err)
+}
+
+// GetInstallers gets all the installer script resources for the cluster
+func (c *Cache) GetInstallers(ctx context.Context) ([]types.Installer, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetInstallers")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	inst, err := rg.clusterConfig.GetInstallers(ctx)
 	return inst, trace.Wrap(err)
 }
 

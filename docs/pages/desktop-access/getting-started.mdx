@@ -387,6 +387,17 @@ Right-click on `Server authentication certificate template`, `Edit`, then select
 </Figure>
 
 
+### Configure server certificate auto-enrollment
+
+In the group policy editor for `Teleport Access Policy`, select:
+
+```
+Computer Configuration > Policies > Windows Settings > Public Key Policies
+```
+
+Double-click on `Certificate Services Client - Auto-Enrollment`, then select `Enabled` in the `Configuration Model`.
+
+
 ### Ensure your GPO is updated
 
 If you have not done so already, ensure your GPO is updated by opening a PowerShell prompt and running:
