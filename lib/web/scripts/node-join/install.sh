@@ -631,8 +631,8 @@ if [[ "${OSTYPE}" == "linux-gnu"* ]]; then
             fi
         fi
         log "Detected distro type: ${DISTRO_TYPE}"
-        #suse uses a different path for its systemd then other distro types like ubuntu
-        if [[ ${DISTRO_TYPE} =~ "suse"* ]]; then
+        #suse, also identified as sles, uses a different path for its systemd then other distro types like ubuntu
+        if [[ ${DISTRO_TYPE} =~ "suse"* ]] || [[ ${DISTRO_TYPE} =~ "sles"* ]]; then
             SYSTEMD_UNIT_PATH="/etc/systemd/system/teleport.service"
         fi
     fi
