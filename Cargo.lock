@@ -990,7 +990,7 @@ dependencies = [
 [[package]]
 name = "rdp-rs"
 version = "0.1.0"
-source = "git+https://github.com/gravitational/rdp-rs?rev=888b15477d9aaceb83b2afcc73de040a07781d28#888b15477d9aaceb83b2afcc73de040a07781d28"
+source = "git+https://github.com/gravitational/rdp-rs?rev=82bcc2d971a336f1550968c9aa617adb03deb2f1#82bcc2d971a336f1550968c9aa617adb03deb2f1"
 dependencies = [
  "bufstream",
  "byteorder",
@@ -1344,9 +1344,9 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.3.14"
+version = "0.3.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c3f9a28b618c3a6b9251b6908e9c99e04b9e5c02e6581ccbb67d59c34ef7f9b"
+checksum = "db76ff9fa4b1458b3c7f077f3ff9887394058460d21e634355b273aaf11eea45"
 dependencies = [
  "itoa",
  "libc",
