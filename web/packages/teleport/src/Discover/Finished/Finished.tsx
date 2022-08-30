@@ -15,42 +15,52 @@
  */
 
 import React from 'react';
-import { ButtonPrimary, Text, Flex, ButtonText, Image } from 'design';
+import { ButtonPrimary, Text, Flex, ButtonSecondary, Image } from 'design';
 
 import cfg from 'teleport/config';
 import history from 'teleport/services/history';
 
 import celebratePamPng from './celebrate-pam.png';
 
-export function Finished() {
+import type { AgentStepProps } from '../types';
+
+export function Finished(props: AgentStepProps) {
   return (
     <Flex
-      width="400px"
+      width="600px"
       flexDirection="column"
       alignItems="center"
       css={`
         margin: 0 auto;
+        text-align: center;
       `}
     >
       <Image width="120px" height="120px" src={celebratePamPng} />
-      <Text my={3} typography="h4" bold>
-        Resource Successfully Connected
+      <Text mt={3} mb={2} typography="h4" bold>
+        Resource Successfully Added
       </Text>
-      <ButtonPrimary
-        width="100%"
-        size="large"
-        onClick={() => history.push(cfg.routes.root, true)}
-      >
-        Go to Access Provider
-      </ButtonPrimary>
-      <ButtonText
-        pt={2}
-        width="100%"
-        size="large"
-        onClick={() => history.reload()}
-      >
-        Add Another Resource
-      </ButtonText>
+      <Text mb={3}>
+        Resource [{props.agentMeta.resourceName}] has been successfully added to
+        this Teleport Cluster. You can start accessing this resource right away
+        or add another resource.
+      </Text>
+      <Flex>
+        <ButtonPrimary
+          width="270px"
+          size="large"
+          onClick={() => history.push(cfg.routes.root, true)}
+          mr={3}
+        >
+          Browse Existing Resources
+        </ButtonPrimary>
+        <ButtonSecondary
+          width="270px"
+          size="large"
+          onClick={() => history.reload()}
+        >
+          Add Another Resource
+        </ButtonSecondary>
+      </Flex>
     </Flex>
   );
 }

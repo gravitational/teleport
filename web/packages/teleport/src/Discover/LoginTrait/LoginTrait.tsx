@@ -30,7 +30,7 @@ import * as Icons from 'design/Icon';
 
 import useTeleport from 'teleport/useTeleport';
 
-import { Header, ActionButtons } from '../Shared';
+import { Header, HeaderSubtitle, ActionButtons } from '../Shared';
 
 import { useLoginTrait, State } from './useLoginTrait';
 
@@ -91,7 +91,7 @@ export function LoginTrait({
       $content = (
         <>
           <Text bold mb={2}>
-            Remove or Add OS Usernames
+            Select OS Users
           </Text>
           <Box mb={6}>
             {!hasLogins && (
@@ -99,9 +99,10 @@ export function LoginTrait({
                 <Text
                   css={`
                     font-style: italic;
+                    overflow: visible;
                   `}
                 >
-                  No OS usernames defined
+                  No OS users added
                 </Text>
               </CheckboxWrapper>
             )}
@@ -152,6 +153,9 @@ export function LoginTrait({
   return (
     <Box>
       <Header>Set Up Access</Header>
+      <HeaderSubtitle>
+        Select the OS users you will use to connect to server.
+      </HeaderSubtitle>
       {$content}
     </Box>
   );
@@ -220,7 +224,7 @@ const AddLoginButton = ({
         }
       `}
     />
-    Add an OS Username
+    Add new OS User
   </ButtonText>
 );
 

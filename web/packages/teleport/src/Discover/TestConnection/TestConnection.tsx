@@ -16,13 +16,13 @@
 
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { ButtonOutlined, Text, Box, LabelInput, Flex } from 'design';
+import { ButtonSecondary, Text, Box, LabelInput, Flex } from 'design';
 import * as Icons from 'design/Icon';
 import Select from 'shared/components/Select';
 
 import useTeleport from 'teleport/useTeleport';
 
-import { Header, ActionButtons, TextIcon } from '../Shared';
+import { Header, ActionButtons, TextIcon, HeaderSubtitle } from '../Shared';
 
 import { useTestConnection, State } from './useTestConnection';
 
@@ -85,12 +85,16 @@ export function TestConnection({
   return (
     <Box>
       <Header>Test Connection</Header>
+      <HeaderSubtitle>
+        Verify that you can successfully connect to the server you just added.
+      </HeaderSubtitle>
       <StyledBox mb={5}>
-        <Text bold mb={3}>
-          Step 1
+        <Text bold>Step 1</Text>
+        <Text typography="subtitle1" mb={3}>
+          Pick the OS user to test
         </Text>
         <Box width="320px">
-          <LabelInput>Select OS Username</LabelInput>
+          <LabelInput>Select Login</LabelInput>
           <Select
             value={selectedOpt}
             options={usernameOpts}
@@ -100,28 +104,18 @@ export function TestConnection({
         </Box>
       </StyledBox>
       <StyledBox mb={5}>
-        <Text bold mb={3}>
-          Step 2
+        <Text bold>Step 2</Text>
+        <Text typography="subtitle1" mb={3}>
+          Verify that the server is accessible
         </Text>
-        <Flex alignItems="center">
-          <StyledButtonOutline
-            onClick={() => runConnectionDiagnostic(selectedOpt.value)}
-            disabled={attempt.status === 'processing'}
-          >
-            {diagnosis ? 'Restart Test' : 'Test Connection'}
-          </StyledButtonOutline>
-          <Box ml={4}>{$diagnosisStateComponent}</Box>
-        </Flex>
         {showDiagnosisOutput && (
           <Box
-            mt={4}
             bg="rgba(255, 255, 255, 0.05)"
             p={3}
             borderRadius={3}
             border={2}
             borderColor={diagnosisStateBorderColor}
           >
-            <Text bold>Output</Text>
             {attempt.status === 'failed' &&
               `Failed to Start Testing: ${attempt.statusText}`}
             {attempt.status === 'success' && (
@@ -149,17 +143,29 @@ export function TestConnection({
             )}
           </Box>
         )}
+        <Flex alignItems="center" mt={3}>
+          <ButtonSecondary
+            width="200px"
+            onClick={() => runConnectionDiagnostic(selectedOpt.value)}
+            disabled={attempt.status === 'processing'}
+          >
+            {diagnosis ? 'Restart Test' : 'Test Connection'}
+          </ButtonSecondary>
+          <Box ml={4}>{$diagnosisStateComponent}</Box>
+        </Flex>
       </StyledBox>
       <StyledBox>
-        <Text bold mb={3}>
-          Step 3
+        <Text bold>Step 3</Text>
+        <Text typography="subtitle1" mb={3}>
+          Connect to the server
         </Text>
-        <StyledButtonOutline
+        <ButtonSecondary
+          width="200px"
           onClick={() => startSshSession(selectedOpt.value)}
           disabled={attempt.status !== 'success' || !diagnosis?.success}
         >
-          Start SSH Session
-        </StyledButtonOutline>
+          Start Session
+        </ButtonSecondary>
       </StyledBox>
       <ActionButtons
         onProceed={nextStep}
@@ -175,16 +181,4 @@ const StyledBox = styled(Box)`
   background-color: rgba(255, 255, 255, 0.05);
   border-radius: 8px;
   padding: 20px;
-`;
-
-const StyledButtonOutline = styled(ButtonOutlined)`
-  width: 200px;
-  opacity: 1;
-  color: #a8afb2;
-  border-color: #a8afb2;
-
-  &:disabled {
-    opacity: 0.5;
-    pointer-events: none;
-  }
 `;

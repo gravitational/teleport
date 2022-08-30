@@ -1,7 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`failed 1`] = `
-.c2 {
+.c3 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -18,7 +18,7 @@ exports[`failed 1`] = `
   color: #FFFFFF;
 }
 
-.c2 a {
+.c3 a {
   color: #FFFFFF;
 }
 
@@ -31,9 +31,16 @@ exports[`failed 1`] = `
   text-overflow: ellipsis;
   font-weight: 600;
   font-size: 18px;
-  line-height: 32px;
   margin: 0px;
-  margin-bottom: 24px;
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 32px;
 }
 
 <div
@@ -41,11 +48,19 @@ exports[`failed 1`] = `
 >
   <div
     class="c1"
+    font-size="18px"
   >
     Configure Resource
   </div>
   <div
     class="c2"
+  >
+    Install and configure the Teleport SSH Service on the server you want to add. 
+    <br />
+    Run the following command on the server you want to add.
+  </div>
+  <div
+    class="c3"
     kind="danger"
   >
     some error message
@@ -63,7 +78,7 @@ exports[`polling error state 1`] = `
   margin-right: 4px;
 }
 
-.c13 {
+.c15 {
   box-sizing: border-box;
   margin-top: 24px;
 }
@@ -155,7 +170,7 @@ exports[`polling error state 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c14 {
+.c16 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -183,25 +198,25 @@ exports[`polling error state 1`] = `
   width: 165px;
 }
 
-.c14:active {
+.c16:active {
   opacity: 0.56;
 }
 
-.c14:hover,
-.c14:focus {
+.c16:hover,
+.c16:focus {
   background: #651FFF;
 }
 
-.c14:active {
+.c16:active {
   background: #354AA4;
 }
 
-.c14:disabled {
+.c16:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c15 {
+.c17 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -229,20 +244,20 @@ exports[`polling error state 1`] = `
   width: 165px;
 }
 
-.c15:active {
+.c17:active {
   opacity: 0.56;
 }
 
-.c15:hover,
-.c15:focus {
+.c17:hover,
+.c17:focus {
   background: #651FFF;
 }
 
-.c15:active {
+.c17:active {
   background: #354AA4;
 }
 
-.c15:disabled {
+.c17:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -259,16 +274,16 @@ exports[`polling error state 1`] = `
   text-overflow: ellipsis;
   font-weight: 600;
   font-size: 18px;
-  line-height: 32px;
   margin: 0px;
-  margin-bottom: 24px;
+  margin-top: 4px;
+  margin-bottom: 4px;
 }
 
 .c2 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  margin-bottom: 16px;
+  margin-bottom: 32px;
 }
 
 .c4 {
@@ -276,6 +291,14 @@ exports[`polling error state 1`] = `
   text-overflow: ellipsis;
   font-weight: 600;
   margin: 0px;
+}
+
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+  margin-top: 24px;
 }
 
 .c5 {
@@ -325,18 +348,26 @@ exports[`polling error state 1`] = `
   min-height: auto;
 }
 
+.c14 {
+  margin-top: 6px;
+  margin-bottom: 0;
+}
+
 <div
   class="c0"
 >
   <div
     class="c1"
+    font-size="18px"
   >
     Configure Resource
   </div>
   <div
     class="c2"
   >
-    Use below script to add a server to your cluster. This script will install the Teleport agent to provide secure access to your server.
+    Install and configure the Teleport SSH Service on the server you want to add. 
+    <br />
+    Run the following command on the server you want to add.
   </div>
   <div
     class="c3"
@@ -344,7 +375,7 @@ exports[`polling error state 1`] = `
     <div
       class="c4"
     >
-      Script
+      Command
     </div>
     <div
       class="c5"
@@ -371,28 +402,49 @@ exports[`polling error state 1`] = `
       </button>
     </div>
     <div
-      class="c9"
+      class="c0"
     >
-      <span
-        class="c10 icon icon-warning "
-        color="danger"
-      />
-      Timeout, script expired
-       
-      <button
-        class="c11 c12"
-        kind="text"
+      <div
+        class="c9"
       >
-        Regenerate Script
-      </button>
+        <span
+          class="c10 icon icon-warning "
+          color="danger"
+        />
+        We could not detect the server you were trying to add
+         
+        <button
+          class="c11 c12"
+          kind="text"
+        >
+          Generate a new command
+        </button>
+      </div>
+      <div
+        class="c13"
+      >
+        Possible reasons
+      </div>
+      <ul
+        class="c14"
+      >
+        <li>
+          The command was not run on the server you were trying to add
+        </li>
+        <li>
+          The Teleport SSH Service could not join this Teleport cluster. Check the logs for errors by running 
+          <br />
+          \`journalctl status teleport\`
+        </li>
+      </ul>
     </div>
   </div>
   <div
-    class="c13"
+    class="c15"
   >
     
     <button
-      class="c14"
+      class="c16"
       disabled=""
       kind="primary"
       width="165px"
@@ -400,7 +452,7 @@ exports[`polling error state 1`] = `
       Next
     </button>
     <a
-      class="c15"
+      class="c17"
       href="/web"
       kind="primary"
       mt="3"
@@ -576,16 +628,16 @@ exports[`polling state 1`] = `
   text-overflow: ellipsis;
   font-weight: 600;
   font-size: 18px;
-  line-height: 32px;
   margin: 0px;
-  margin-bottom: 24px;
+  margin-top: 4px;
+  margin-bottom: 4px;
 }
 
 .c2 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  margin-bottom: 16px;
+  margin-bottom: 32px;
 }
 
 .c4 {
@@ -640,13 +692,16 @@ exports[`polling state 1`] = `
 >
   <div
     class="c1"
+    font-size="18px"
   >
     Configure Resource
   </div>
   <div
     class="c2"
   >
-    Use below script to add a server to your cluster. This script will install the Teleport agent to provide secure access to your server.
+    Install and configure the Teleport SSH Service on the server you want to add. 
+    <br />
+    Run the following command on the server you want to add.
   </div>
   <div
     class="c3"
@@ -654,7 +709,7 @@ exports[`polling state 1`] = `
     <div
       class="c4"
     >
-      Script
+      Command
     </div>
     <div
       class="c5"
@@ -688,7 +743,7 @@ exports[`polling state 1`] = `
         color="light"
         font-size="4"
       />
-      Waiting for node   |   05:00 minutes until this script expires
+      Waiting for Teleport SSH Service   |   05:00 minutes
     </div>
   </div>
   <div
@@ -880,16 +935,16 @@ exports[`polling success state 1`] = `
   text-overflow: ellipsis;
   font-weight: 600;
   font-size: 18px;
-  line-height: 32px;
   margin: 0px;
-  margin-bottom: 24px;
+  margin-top: 4px;
+  margin-bottom: 4px;
 }
 
 .c2 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  margin-bottom: 16px;
+  margin-bottom: 32px;
 }
 
 .c4 {
@@ -943,13 +998,16 @@ exports[`polling success state 1`] = `
 >
   <div
     class="c1"
+    font-size="18px"
   >
     Configure Resource
   </div>
   <div
     class="c2"
   >
-    Use below script to add a server to your cluster. This script will install the Teleport agent to provide secure access to your server.
+    Install and configure the Teleport SSH Service on the server you want to add. 
+    <br />
+    Run the following command on the server you want to add.
   </div>
   <div
     class="c3"
@@ -957,7 +1015,7 @@ exports[`polling success state 1`] = `
     <div
       class="c4"
     >
-      Script
+      Command
     </div>
     <div
       class="c5"
@@ -990,7 +1048,7 @@ exports[`polling success state 1`] = `
         class="c10 icon icon-checkmark-circle "
         color="success"
       />
-      Successfully executed
+      The server successfully joined this Teleport cluster
     </div>
   </div>
   <div

@@ -64,11 +64,11 @@ export function UserMenuNav({ navItems, username, logout }: Props) {
     >
       <MenuItem {...menuItemProps} to={cfg.routes.root}>
         <MenuItemIcon as={Person} mr="2" />
-        Access Provider
+        Browse Resources
       </MenuItem>
       <MenuItem {...menuItemProps} to={cfg.routes.discover}>
         <MenuItemIcon as={OpenBox} mr="2" />
-        Access Manager
+        Manage Access
       </MenuItem>
       <Box
         my={2}

@@ -91,8 +91,8 @@ export function Discover({
           <SideNavAgentConnect currentStep={currentStep} />
           <main.HorizontalSplit>
             <TopBarContainer>
-              <Text typography="h4" bold>
-                Access Manager
+              <Text typography="h5" bold>
+                Manage Access
               </Text>
               <UserMenuNav
                 navItems={userMenuItems}
@@ -110,15 +110,15 @@ export function Discover({
   );
 }
 
-function SideNavAgentConnect({ currentStep }) {
-  const agentStepTitles: string[] = [
-    'Select Resource Type',
-    'Configure Resource',
-    'Configure Role',
-    'Test Connection',
-    '',
-  ];
+const agentStepTitles: string[] = [
+  'Select Resource Type',
+  'Configure Resource',
+  'Set Up Access',
+  'Test Connection',
+  '',
+];
 
+function SideNavAgentConnect({ currentStep }: { currentStep: number }) {
   return (
     <StyledNav>
       <sideNav.Logo />
@@ -141,7 +141,7 @@ function SideNavAgentConnect({ currentStep }) {
             >
               <Icons.Database />
             </Flex>
-            <Text bold>Resource Connection</Text>
+            <Text bold>Add New Resource</Text>
           </Flex>
           <Box ml={4} mt={4}>
             {agentStepTitles.map((stepTitle, index) => {

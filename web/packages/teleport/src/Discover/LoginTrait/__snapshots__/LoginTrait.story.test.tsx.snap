@@ -5,17 +5,17 @@ exports[`empty state 1`] = `
   box-sizing: border-box;
 }
 
-.c3 {
+.c4 {
   box-sizing: border-box;
   margin-bottom: 40px;
 }
 
-.c10 {
+.c11 {
   box-sizing: border-box;
   margin-top: 24px;
 }
 
-.c6 {
+.c7 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -43,64 +43,18 @@ exports[`empty state 1`] = `
   margin-top: 8px;
 }
 
-.c6:active {
+.c7:active {
   opacity: 0.56;
 }
 
-.c6:hover,
-.c6:focus {
+.c7:hover,
+.c7:focus {
   background: none;
   text-decoration: underline;
 }
 
-.c6:disabled {
+.c7:disabled {
   background: none;
-  color: rgba(255,255,255,0.3);
-}
-
-.c11 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-  margin-right: 16px;
-  width: 165px;
-}
-
-.c11:active {
-  opacity: 0.56;
-}
-
-.c11:hover,
-.c11:focus {
-  background: #651FFF;
-}
-
-.c11:active {
-  background: #354AA4;
-}
-
-.c11:disabled {
-  background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
@@ -128,7 +82,7 @@ exports[`empty state 1`] = `
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
-  margin-top: 16px;
+  margin-right: 16px;
   width: 165px;
 }
 
@@ -150,7 +104,53 @@ exports[`empty state 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c8 {
+.c13 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-top: 16px;
+  width: 165px;
+}
+
+.c13:active {
+  opacity: 0.56;
+}
+
+.c13:hover,
+.c13:focus {
+  background: #651FFF;
+}
+
+.c13:active {
+  background: #354AA4;
+}
+
+.c13:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c9 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
@@ -161,12 +161,19 @@ exports[`empty state 1`] = `
   text-overflow: ellipsis;
   font-weight: 600;
   font-size: 18px;
-  line-height: 32px;
   margin: 0px;
-  margin-bottom: 24px;
+  margin-top: 4px;
+  margin-bottom: 4px;
 }
 
 .c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 32px;
+}
+
+.c3 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
@@ -174,7 +181,7 @@ exports[`empty state 1`] = `
   margin-bottom: 8px;
 }
 
-.c4 {
+.c5 {
   box-sizing: border-box;
   display: flex;
   padding: 8px;
@@ -185,29 +192,30 @@ exports[`empty state 1`] = `
   border-radius: 8px;
 }
 
-.c4.disabled {
+.c5.disabled {
   pointer-events: none;
   opacity: 0.5;
 }
 
-.c5 {
+.c6 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
   font-style: italic;
+  overflow: visible;
 }
 
-.c7 {
+.c8 {
   line-height: normal;
   padding-left: 4px;
 }
 
-.c9 {
+.c10 {
   font-weight: bold;
   letter-spacing: 4px;
 }
 
-.c9:after {
+.c10:after {
   content: ' ';
 }
 
@@ -216,43 +224,49 @@ exports[`empty state 1`] = `
 >
   <div
     class="c1"
+    font-size="18px"
   >
     Set Up Access
   </div>
   <div
     class="c2"
   >
-    Remove or Add OS Usernames
+    Select the OS users you will use to connect to server.
   </div>
   <div
     class="c3"
   >
+    Select OS Users
+  </div>
+  <div
+    class="c4"
+  >
     <div
-      class="c4"
+      class="c5"
     >
       <div
-        class="c5"
+        class="c6"
       >
-        No OS usernames defined
+        No OS users added
       </div>
     </div>
     <button
-      class="c6 c7"
+      class="c7 c8"
       kind="text"
     >
       <span
-        class="c8 icon icon-add c9"
+        class="c9 icon icon-add c10"
         color="light"
       />
-      Add an OS Username
+      Add new OS User
     </button>
   </div>
   <div
-    class="c10"
+    class="c11"
   >
     
     <button
-      class="c11"
+      class="c12"
       disabled=""
       kind="primary"
       width="165px"
@@ -260,7 +274,7 @@ exports[`empty state 1`] = `
       Next
     </button>
     <a
-      class="c12"
+      class="c13"
       href="/web"
       kind="primary"
       mt="3"
@@ -278,17 +292,17 @@ exports[`empty state with static logins 1`] = `
   box-sizing: border-box;
 }
 
-.c3 {
+.c4 {
   box-sizing: border-box;
   margin-bottom: 40px;
 }
 
-.c11 {
+.c12 {
   box-sizing: border-box;
   margin-top: 24px;
 }
 
-.c7 {
+.c8 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -316,64 +330,18 @@ exports[`empty state with static logins 1`] = `
   margin-top: 8px;
 }
 
-.c7:active {
+.c8:active {
   opacity: 0.56;
 }
 
-.c7:hover,
-.c7:focus {
+.c8:hover,
+.c8:focus {
   background: none;
   text-decoration: underline;
 }
 
-.c7:disabled {
+.c8:disabled {
   background: none;
-  color: rgba(255,255,255,0.3);
-}
-
-.c12 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-  margin-right: 16px;
-  width: 165px;
-}
-
-.c12:active {
-  opacity: 0.56;
-}
-
-.c12:hover,
-.c12:focus {
-  background: #651FFF;
-}
-
-.c12:active {
-  background: #354AA4;
-}
-
-.c12:disabled {
-  background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
@@ -401,7 +369,7 @@ exports[`empty state with static logins 1`] = `
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
-  margin-top: 16px;
+  margin-right: 16px;
   width: 165px;
 }
 
@@ -423,7 +391,53 @@ exports[`empty state with static logins 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c9 {
+.c14 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-top: 16px;
+  width: 165px;
+}
+
+.c14:active {
+  opacity: 0.56;
+}
+
+.c14:hover,
+.c14:focus {
+  background: #651FFF;
+}
+
+.c14:active {
+  background: #354AA4;
+}
+
+.c14:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c10 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
@@ -434,12 +448,19 @@ exports[`empty state with static logins 1`] = `
   text-overflow: ellipsis;
   font-weight: 600;
   font-size: 18px;
-  line-height: 32px;
   margin: 0px;
-  margin-bottom: 24px;
+  margin-top: 4px;
+  margin-bottom: 4px;
 }
 
 .c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 32px;
+}
+
+.c3 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
@@ -447,7 +468,7 @@ exports[`empty state with static logins 1`] = `
   margin-bottom: 8px;
 }
 
-.c4 {
+.c5 {
   box-sizing: border-box;
   display: flex;
   padding: 8px;
@@ -458,37 +479,37 @@ exports[`empty state with static logins 1`] = `
   border-radius: 8px;
 }
 
-.c4.disabled {
+.c5.disabled {
   pointer-events: none;
   opacity: 0.5;
 }
 
-.c5 {
+.c6 {
   margin-right: 10px;
   accent-color: #512FC9;
 }
 
-.c5:hover {
+.c6:hover {
   cursor: pointer;
 }
 
-.c6 {
+.c7 {
   width: 250px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.c8 {
+.c9 {
   line-height: normal;
   padding-left: 4px;
 }
 
-.c10 {
+.c11 {
   font-weight: bold;
   letter-spacing: 4px;
 }
 
-.c10:after {
+.c11:after {
   content: ' ';
 }
 
@@ -497,75 +518,81 @@ exports[`empty state with static logins 1`] = `
 >
   <div
     class="c1"
+    font-size="18px"
   >
     Set Up Access
   </div>
   <div
     class="c2"
   >
-    Remove or Add OS Usernames
+    Select the OS users you will use to connect to server.
   </div>
   <div
     class="c3"
   >
+    Select OS Users
+  </div>
+  <div
+    class="c4"
+  >
     <div
-      class="c4 disabled"
+      class="c5 disabled"
     >
       <input
         checked=""
-        class="c5"
+        class="c6"
         id="ubunutu"
         name="ubunutu"
         type="checkbox"
       />
       <label
-        class="c6"
+        class="c7"
         for="ubunutu"
       >
         ubunutu
       </label>
     </div>
     <div
-      class="c4 disabled"
+      class="c5 disabled"
     >
       <input
         checked=""
-        class="c5"
+        class="c6"
         id="debian"
         name="debian"
         type="checkbox"
       />
       <label
-        class="c6"
+        class="c7"
         for="debian"
       >
         debian
       </label>
     </div>
     <button
-      class="c7 c8"
+      class="c8 c9"
       kind="text"
     >
       <span
-        class="c9 icon icon-add c10"
+        class="c10 icon icon-add c11"
         color="light"
       />
-      Add an OS Username
+      Add new OS User
     </button>
   </div>
   <div
-    class="c11"
+    class="c12"
   >
     
     <button
-      class="c12"
+      class="c13"
       kind="primary"
       width="165px"
     >
       Next
     </button>
     <a
-      class="c13"
+      class="c14"
       href="/web"
       kind="primary"
       mt="3"
@@ -579,7 +606,7 @@ exports[`empty state with static logins 1`] = `
 `;
 
 exports[`failed 1`] = `
-.c2 {
+.c3 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -596,7 +623,7 @@ exports[`failed 1`] = `
   color: #FFFFFF;
 }
 
-.c2 a {
+.c3 a {
   color: #FFFFFF;
 }
 
@@ -609,9 +636,16 @@ exports[`failed 1`] = `
   text-overflow: ellipsis;
   font-weight: 600;
   font-size: 18px;
-  line-height: 32px;
   margin: 0px;
-  margin-bottom: 24px;
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 32px;
 }
 
 <div
@@ -619,11 +653,17 @@ exports[`failed 1`] = `
 >
   <div
     class="c1"
+    font-size="18px"
   >
     Set Up Access
   </div>
   <div
     class="c2"
+  >
+    Select the OS users you will use to connect to server.
+  </div>
+  <div
+    class="c3"
     kind="danger"
   >
     some error message
@@ -636,17 +676,17 @@ exports[`loaded with static state 1`] = `
   box-sizing: border-box;
 }
 
-.c3 {
+.c4 {
   box-sizing: border-box;
   margin-bottom: 40px;
 }
 
-.c11 {
+.c12 {
   box-sizing: border-box;
   margin-top: 24px;
 }
 
-.c7 {
+.c8 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -674,64 +714,18 @@ exports[`loaded with static state 1`] = `
   margin-top: 8px;
 }
 
-.c7:active {
+.c8:active {
   opacity: 0.56;
 }
 
-.c7:hover,
-.c7:focus {
+.c8:hover,
+.c8:focus {
   background: none;
   text-decoration: underline;
 }
 
-.c7:disabled {
+.c8:disabled {
   background: none;
-  color: rgba(255,255,255,0.3);
-}
-
-.c12 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-  margin-right: 16px;
-  width: 165px;
-}
-
-.c12:active {
-  opacity: 0.56;
-}
-
-.c12:hover,
-.c12:focus {
-  background: #651FFF;
-}
-
-.c12:active {
-  background: #354AA4;
-}
-
-.c12:disabled {
-  background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
@@ -759,7 +753,7 @@ exports[`loaded with static state 1`] = `
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
-  margin-top: 16px;
+  margin-right: 16px;
   width: 165px;
 }
 
@@ -781,7 +775,53 @@ exports[`loaded with static state 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c9 {
+.c14 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-top: 16px;
+  width: 165px;
+}
+
+.c14:active {
+  opacity: 0.56;
+}
+
+.c14:hover,
+.c14:focus {
+  background: #651FFF;
+}
+
+.c14:active {
+  background: #354AA4;
+}
+
+.c14:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c10 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
@@ -792,12 +832,19 @@ exports[`loaded with static state 1`] = `
   text-overflow: ellipsis;
   font-weight: 600;
   font-size: 18px;
-  line-height: 32px;
   margin: 0px;
-  margin-bottom: 24px;
+  margin-top: 4px;
+  margin-bottom: 4px;
 }
 
 .c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 32px;
+}
+
+.c3 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
@@ -805,7 +852,7 @@ exports[`loaded with static state 1`] = `
   margin-bottom: 8px;
 }
 
-.c4 {
+.c5 {
   box-sizing: border-box;
   display: flex;
   padding: 8px;
@@ -816,37 +863,37 @@ exports[`loaded with static state 1`] = `
   border-radius: 8px;
 }
 
-.c4.disabled {
+.c5.disabled {
   pointer-events: none;
   opacity: 0.5;
 }
 
-.c5 {
+.c6 {
   margin-right: 10px;
   accent-color: #512FC9;
 }
 
-.c5:hover {
+.c6:hover {
   cursor: pointer;
 }
 
-.c6 {
+.c7 {
   width: 250px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.c8 {
+.c9 {
   line-height: normal;
   padding-left: 4px;
 }
 
-.c10 {
+.c11 {
   font-weight: bold;
   letter-spacing: 4px;
 }
 
-.c10:after {
+.c11:after {
   content: ' ';
 }
 
@@ -855,126 +902,132 @@ exports[`loaded with static state 1`] = `
 >
   <div
     class="c1"
+    font-size="18px"
   >
     Set Up Access
   </div>
   <div
     class="c2"
   >
-    Remove or Add OS Usernames
+    Select the OS users you will use to connect to server.
   </div>
   <div
     class="c3"
   >
+    Select OS Users
+  </div>
+  <div
+    class="c4"
+  >
     <div
-      class="c4 disabled"
+      class="c5 disabled"
     >
       <input
         checked=""
-        class="c5"
+        class="c6"
         id="ubunutu"
         name="ubunutu"
         type="checkbox"
       />
       <label
-        class="c6"
+        class="c7"
         for="ubunutu"
       >
         ubunutu
       </label>
     </div>
     <div
-      class="c4 disabled"
+      class="c5 disabled"
     >
       <input
         checked=""
-        class="c5"
+        class="c6"
         id="debian"
         name="debian"
         type="checkbox"
       />
       <label
-        class="c6"
+        class="c7"
         for="debian"
       >
         debian
       </label>
     </div>
     <div
-      class="c4"
+      class="c5"
     >
       <input
         checked=""
-        class="c5"
+        class="c6"
         id="root"
         name="root"
         type="checkbox"
       />
       <label
-        class="c6"
+        class="c7"
         for="root"
       >
         root
       </label>
     </div>
     <div
-      class="c4"
+      class="c5"
     >
       <input
         checked=""
-        class="c5"
+        class="c6"
         id="llama"
         name="llama"
         type="checkbox"
       />
       <label
-        class="c6"
+        class="c7"
         for="llama"
       >
         llama
       </label>
     </div>
     <div
-      class="c4"
+      class="c5"
     >
       <input
         checked=""
-        class="c5"
+        class="c6"
         id="george_washington_really_long_name_testing"
         name="george_washington_really_long_name_testing"
         type="checkbox"
       />
       <label
-        class="c6"
+        class="c7"
         for="george_washington_really_long_name_testing"
       >
         george_washington_really_long_name_testing
       </label>
     </div>
     <button
-      class="c7 c8"
+      class="c8 c9"
       kind="text"
     >
       <span
-        class="c9 icon icon-add c10"
+        class="c10 icon icon-add c11"
         color="light"
       />
-      Add an OS Username
+      Add new OS User
     </button>
   </div>
   <div
-    class="c11"
+    class="c12"
   >
     
     <button
-      class="c12"
+      class="c13"
       kind="primary"
       width="165px"
     >
       Next
     </button>
     <a
-      class="c13"
+      class="c14"
       href="/web"
       kind="primary"
       mt="3"

@@ -111,15 +111,19 @@ export function useDiscover(ctx: TeleportContext, features: Feature[]) {
   };
 }
 
+type BaseMeta = {
+  resourceName: string;
+};
+
 // NodeMeta describes the fields for node resource
 // that needs to be preserved throughout the flow.
-export type NodeMeta = {
+export type NodeMeta = BaseMeta & {
   node: Node;
 };
 
 // AppMeta describes the fields that may be provided or required by user
 // when connecting a app.
-type AppMeta = {
+type AppMeta = BaseMeta & {
   name: string;
   publicAddr: string;
 };

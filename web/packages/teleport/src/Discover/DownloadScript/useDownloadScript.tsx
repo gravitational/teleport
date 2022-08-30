@@ -98,6 +98,9 @@ export function useDownloadScript({ ctx, props }: Props) {
             setPollState('success');
             props.updateAgentMeta({
               ...props.agentMeta,
+              // Node is an oddity in that the hostname is the more
+              // user friendly text.
+              resourceName: res.agents[0].hostname,
               node: res.agents[0],
             });
             cleanUp();

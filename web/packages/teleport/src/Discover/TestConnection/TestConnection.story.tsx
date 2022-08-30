@@ -15,6 +15,7 @@
  */
 
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 
 import { TestConnection } from './TestConnection';
 
@@ -25,14 +26,22 @@ export default {
   title: 'Teleport/Discover/TestConnection',
 };
 
-export const LoadedInit = () => <TestConnection {...props} />;
+export const LoadedInit = () => (
+  <MemoryRouter>
+    <TestConnection {...props} />
+  </MemoryRouter>
+);
 
 export const Processing = () => (
-  <TestConnection {...props} attempt={{ status: 'processing' }} />
+  <MemoryRouter>
+    <TestConnection {...props} attempt={{ status: 'processing' }} />
+  </MemoryRouter>
 );
 
 export const LoadedWithDiagnosisSuccess = () => (
-  <TestConnection {...props} diagnosis={mockDiagnosis} />
+  <MemoryRouter>
+    <TestConnection {...props} diagnosis={mockDiagnosis} />
+  </MemoryRouter>
 );
 
 export const LoadedWithDiagnosisFailure = () => {
@@ -50,14 +59,20 @@ export const LoadedWithDiagnosisFailure = () => {
       } as ConnectionDiagnosticTrace,
     ],
   };
-  return <TestConnection {...props} diagnosis={diagnosisWithErr} />;
+  return (
+    <MemoryRouter>
+      <TestConnection {...props} diagnosis={diagnosisWithErr} />
+    </MemoryRouter>
+  );
 };
 
 export const Failed = () => (
-  <TestConnection
-    {...props}
-    attempt={{ status: 'failed', statusText: 'some error message' }}
-  />
+  <MemoryRouter>
+    <TestConnection
+      {...props}
+      attempt={{ status: 'failed', statusText: 'some error message' }}
+    />
+  </MemoryRouter>
 );
 
 const mockDiagnosis = {

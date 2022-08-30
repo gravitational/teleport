@@ -36,14 +36,9 @@ describe('login trait comp behavior', () => {
     <MemoryRouter>
       <ContextProvider ctx={ctx}>
         <LoginTrait
-          // TODO we don't need all of this
-          attempt={null}
-          joinToken={null}
-          createJoinToken={null}
           agentMeta={mockedNodeMeta}
           updateAgentMeta={null}
           nextStep={null}
-          prevStep={null}
         />
       </ContextProvider>
     </MemoryRouter>
@@ -58,7 +53,7 @@ describe('login trait comp behavior', () => {
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
 
     // Test adding a new login name.
-    fireEvent.click(await screen.findByText(/add an/i));
+    fireEvent.click(await screen.findByText(/add new OS/i));
     const inputEl = screen.getByPlaceholderText('name');
     fireEvent.change(inputEl, { target: { value: 'banana' } });
     fireEvent.click(screen.getByText('Add'));
@@ -84,7 +79,7 @@ describe('login trait comp behavior', () => {
     expect(screen.getByLabelText('banana')).toBeChecked();
 
     // Test existing logins to be rendered with a new login name.
-    fireEvent.click(screen.getByText(/add an OS/i));
+    fireEvent.click(screen.getByText(/add new OS/i));
     const inputEl = screen.getByPlaceholderText('name');
     fireEvent.change(inputEl, { target: { value: 'carrot' } });
     fireEvent.click(screen.getByText('Add'));
@@ -111,6 +106,7 @@ const mockUser: User = {
 };
 
 const mockedNodeMeta: NodeMeta = {
+  resourceName: 'resource-name',
   node: {
     sshLogins: [],
     id: '',

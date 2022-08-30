@@ -23,7 +23,7 @@ import AddDatabase from 'teleport/Databases/AddDatabase';
 import AddKube from 'teleport/Kubes/AddKube';
 import useTeleport from 'teleport/useTeleport';
 
-import { ActionButtons } from '../Shared';
+import { Header, HeaderSubtitle, ActionButtons } from '../Shared';
 
 import applicationIcon from './assets/application.png';
 import databaseIcon from './assets/database.png';
@@ -90,48 +90,26 @@ export function SelectResource({
   const tabs: TabComponent[] = [
     {
       name: 'server',
-      component: (
-        <Flex style={{ lineHeight: '31px' }}>
-          <Image src={serverIcon} width="32px" mr={2} /> Server
-        </Flex>
-      ),
+      component: <TabItem iconSrc={serverIcon} title="Server" />,
     },
     {
       name: 'database',
-      component: (
-        <>
-          <Flex style={{ lineHeight: '31px' }}>
-            <Image src={databaseIcon} width="32px" mr={2} /> Database
-          </Flex>
-        </>
-      ),
+      component: <TabItem iconSrc={databaseIcon} title="Database" />,
     },
 
     {
       name: 'kubernetes',
-      component: (
-        <Flex style={{ lineHeight: '31px' }}>
-          <Image src={k8sIcon} width="32px" mr={2} /> Kubernetes
-        </Flex>
-      ),
+      component: <TabItem iconSrc={k8sIcon} title="Kubernetes" />,
     },
 
     {
       name: 'application',
-      component: (
-        <Flex style={{ lineHeight: '31px' }}>
-          <Image src={applicationIcon} width="32px" mr={2} /> Application
-        </Flex>
-      ),
+      component: <TabItem iconSrc={applicationIcon} title="Application" />,
     },
 
     {
       name: 'desktop',
-      component: (
-        <Flex style={{ lineHeight: '31px' }}>
-          <Image src={serverIcon} width="32px" mr={2} /> Desktop
-        </Flex>
-      ),
+      component: <TabItem iconSrc={serverIcon} title="Desktop" />,
     },
   ];
 
@@ -141,13 +119,12 @@ export function SelectResource({
 
   return (
     <Box width="1020px">
-      <Text typography="h4">Resource Selection</Text>
-      <Text mb={4}>
+      <Header>Select Resource Type</Header>
+      <HeaderSubtitle>
         Users are able to add and access many different types of resources
-        through Teleport. Start by selecting the type of resource you want to
-        add.
-      </Text>
-      <Text mb={2}>Select Resource Type</Text>
+        through Teleport. <br />
+        Start by selecting the type of resource you want to add.
+      </HeaderSubtitle>
       <SlideTabs
         initialSelected={initialSelected > 0 ? initialSelected : 0}
         tabs={tabs}
@@ -214,3 +191,16 @@ export function SelectResource({
     </Box>
   );
 }
+
+const TabItem = ({ iconSrc, title }: { iconSrc: string; title: string }) => (
+  <Flex
+    css={`
+      align-items: center;
+    `}
+  >
+    <Image src={iconSrc} width="32px" mr={2} />
+    <Text bold typography="h5">
+      {title}
+    </Text>
+  </Flex>
+);

@@ -26,7 +26,7 @@ import useTeleport from 'teleport/useTeleport';
 
 import { AgentStepProps } from '../types';
 
-import { Header, ActionButtons, TextIcon } from '../Shared';
+import { Header, HeaderSubtitle, ActionButtons, TextIcon } from '../Shared';
 
 import { useDownloadScript } from './useDownloadScript';
 
@@ -50,6 +50,11 @@ export function DownloadScript({
   return (
     <Box>
       <Header>Configure Resource</Header>
+      <HeaderSubtitle>
+        Install and configure the Teleport SSH Service on the server you want to
+        add. <br />
+        Run the following command on the server you want to add.
+      </HeaderSubtitle>
       {attempt.status === 'failed' && <Danger>{attempt.statusText}</Danger>}
       {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
@@ -58,12 +63,8 @@ export function DownloadScript({
       )}
       {attempt.status === 'success' && (
         <>
-          <Text mb={3}>
-            Use below script to add a server to your cluster. This script will
-            install the Teleport agent to provide secure access to your server.
-          </Text>
           <ScriptBox p={3} borderRadius={3} pollState={pollState}>
-            <Text bold>Script</Text>
+            <Text bold>Command</Text>
             <TextSelectCopy
               text={createBashCommand(joinToken.id)}
               mt={2}
@@ -77,35 +78,55 @@ export function DownloadScript({
                 `}
               >
                 <Icons.Restore fontSize={4} />
-                {`Waiting for node   |   ${formatTime(
+                {`Waiting for Teleport SSH Service   |   ${formatTime(
                   countdownTime
-                )} until this script expires`}
+                )}`}
               </TextIcon>
             )}
             {pollState === 'success' && (
               <TextIcon>
                 <Icons.CircleCheck ml={1} color="success" />
-                Successfully executed
+                The server successfully joined this Teleport cluster
               </TextIcon>
             )}
             {pollState === 'error' && (
-              <TextIcon>
-                <Icons.Warning ml={1} color="danger" />
-                Timeout, script expired{' '}
-                <ButtonText
-                  ml={2}
-                  onClick={regenerateScriptAndRepoll}
+              <Box>
+                <TextIcon>
+                  <Icons.Warning ml={1} color="danger" />
+                  We could not detect the server you were trying to add{' '}
+                  <ButtonText
+                    ml={2}
+                    onClick={regenerateScriptAndRepoll}
+                    css={`
+                      color: ${({ theme }) => theme.colors.link};
+                      font-weight: normal;
+                      padding-left: 2px;
+                      font-size: inherit;
+                      min-height: auto;
+                    `}
+                  >
+                    Generate a new command
+                  </ButtonText>
+                </TextIcon>
+                <Text bold mt={4}>
+                  Possible reasons
+                </Text>
+                <ul
                   css={`
-                    color: ${({ theme }) => theme.colors.link};
-                    font-weight: normal;
-                    padding-left: 2px;
-                    font-size: inherit;
-                    min-height: auto;
+                    margin-top: 6px;
+                    margin-bottom: 0;
                   `}
                 >
-                  Regenerate Script
-                </ButtonText>
-              </TextIcon>
+                  <li>
+                    The command was not run on the server you were trying to add
+                  </li>
+                  <li>
+                    The Teleport SSH Service could not join this Teleport
+                    cluster. Check the logs for errors by running <br />
+                    `journalctl status teleport`
+                  </li>
+                </ul>
+              </Box>
             )}
           </ScriptBox>
           <ActionButtons
@@ -123,15 +144,8 @@ function createBashCommand(tokenId: string) {
 }
 
 function formatTime({ minutes, seconds }: CountdownTime) {
-  let formattedSeconds = seconds.toString();
-  if (seconds < 10) {
-    formattedSeconds = `0${seconds}`;
-  }
-
-  let formattedMinutes = minutes.toString();
-  if (minutes < 10) {
-    formattedMinutes = `0${minutes}`;
-  }
+  const formattedSeconds = String(seconds).padStart(2, '0');
+  const formattedMinutes = String(minutes).padStart(2, '0');
 
   let timeNotation = 'minute';
   if (!minutes && seconds >= 0) {
