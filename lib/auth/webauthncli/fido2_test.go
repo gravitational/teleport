@@ -1072,6 +1072,14 @@ func TestFIDO2Login_bioErrorHandling(t *testing.T) {
 			},
 			wantMsg: "libfido2 error 63",
 		},
+		{
+			name: "retry on operation denied",
+			setAssertionErrors: func() {
+				bio.assertionErrors = []error{
+					libfido2.ErrOperationDenied,
+				}
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

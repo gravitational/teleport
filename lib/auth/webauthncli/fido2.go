@@ -703,10 +703,14 @@ func withRetries(callback deviceCallbackFunc) deviceCallbackFunc {
 			if err == nil {
 				return err
 			}
-
-			// Important: errors mapped by go-libfido2 aren't returned as
-			// libfido2.Error, instead they have their own specialized (string-based)
-			// constants.
+			// Handle errors mapped by go-libfido2.
+			// ErrOperationDenied happens when fingerprint reading fails (UV=false).
+			if errors.Is(err, libfido2.ErrOperationDenied) {
+				fmt.Println("Gesture validation failed, make sure you use registered fingerprint")
+				log.Debug("FIDO2: Retrying libfido2 error 'operation denied'")
+				continue
+			}
+			// Handle generic libfido2.Error instances.
 			var fidoErr libfido2.Error
 			if !errors.As(err, &fidoErr) {
 				return err
