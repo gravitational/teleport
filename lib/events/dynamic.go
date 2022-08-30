@@ -473,6 +473,12 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 			return nil, trace.Wrap(err)
 		}
 		return &e, nil
+	case SessionRecordingAccessEvent:
+		var e events.SessionRecordingAccess
+		if err := utils.FastUnmarshal(data, &e); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &e, nil
 	case UnknownEvent:
 		var e events.CertificateCreate
 		if err := utils.FastUnmarshal(data, &e); err != nil {
