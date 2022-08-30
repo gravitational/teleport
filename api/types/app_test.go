@@ -169,34 +169,34 @@ func TestAppServerSorter(t *testing.T) {
 
 func TestAppIsAWSConsole(t *testing.T) {
 	tests := []struct {
-		name         string
-		uri          string
-		isAWSConsole bool
+		name               string
+		uri                string
+		assertIsAWSConsole require.BoolAssertionFunc
 	}{
 		{
-			name:         "AWS Standard",
-			uri:          "https://console.aws.amazon.com/ec2/v2/home",
-			isAWSConsole: true,
+			name:               "AWS Standard",
+			uri:                "https://console.aws.amazon.com/ec2/v2/home",
+			assertIsAWSConsole: require.True,
 		},
 		{
-			name:         "AWS China",
-			uri:          "https://console.amazonaws.cn/console/home",
-			isAWSConsole: true,
+			name:               "AWS China",
+			uri:                "https://console.amazonaws.cn/console/home",
+			assertIsAWSConsole: require.True,
 		},
 		{
-			name:         "AWS GovCloud (US)",
-			uri:          "https://console.amazonaws-us-gov.com/console/home",
-			isAWSConsole: true,
+			name:               "AWS GovCloud (US)",
+			uri:                "https://console.amazonaws-us-gov.com/console/home",
+			assertIsAWSConsole: require.True,
 		},
 		{
-			name:         "Region based not supported yet",
-			uri:          "https://us-west-1.console.aws.amazon.com",
-			isAWSConsole: false,
+			name:               "Region based not supported yet",
+			uri:                "https://us-west-1.console.aws.amazon.com",
+			assertIsAWSConsole: require.False,
 		},
 		{
-			name:         "Not an AWS Console URL",
-			uri:          "https://hello.world",
-			isAWSConsole: false,
+			name:               "Not an AWS Console URL",
+			uri:                "https://hello.world",
+			assertIsAWSConsole: require.False,
 		},
 	}
 
@@ -209,11 +209,7 @@ func TestAppIsAWSConsole(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			if test.isAWSConsole {
-				require.True(t, app.IsAWSConsole())
-			} else {
-				require.False(t, app.IsAWSConsole())
-			}
+			test.assertIsAWSConsole(t, app.IsAWSConsole())
 		})
 	}
 }
