@@ -236,6 +236,7 @@ func tagPipelines() []pipeline {
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos7: true, fips: true}))
 
 	ps = append(ps, darwinTagPipeline(), darwinTeleportPkgPipeline(), darwinTshPkgPipeline(), darwinConnectDmgPipeline())
+	ps = append(ps, windowsTagPipeline())
 	return ps
 }
 
@@ -426,9 +427,11 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 	}
 
 	environment := map[string]value{
-		"ARCH":             {raw: b.arch},
-		"TMPDIR":           {raw: "/go"},
-		"ENT_TARBALL_PATH": {raw: "/go/artifacts"},
+		"ARCH":                  {raw: b.arch},
+		"TMPDIR":                {raw: "/go"},
+		"ENT_TARBALL_PATH":      {raw: "/go/artifacts"},
+		"AWS_ACCESS_KEY_ID":     {fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_KEY"},
+		"AWS_SECRET_ACCESS_KEY": {fromSecret: "TELEPORT_BUILD_USER_READ_ONLY_SECRET"},
 	}
 
 	dependentPipeline := fmt.Sprintf("build-%s-%s", b.os, b.arch)
@@ -445,8 +448,11 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 
 	packageBuildCommands := []string{
 		fmt.Sprintf("apk add --no-cache %s", strings.Join(apkPackages, " ")),
+		`apk add --no-cache aws-cli`,
 		`cd /go/src/github.com/gravitational/teleport`,
 		`export VERSION=$(cat /go/.version.txt)`,
+		// Login to Amazon ECR Public
+		`aws ecr-public get-login-password --region us-east-1 | docker login -u="AWS" --password-stdin public.ecr.aws`,
 	}
 
 	makeCommand := fmt.Sprintf("make %s", packageType)

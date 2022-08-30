@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=10.1.5
+VERSION=10.1.7
 
 DOCKER_IMAGE_QUAY ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_ECR ?= public.ecr.aws/gravitational/teleport
@@ -237,6 +237,8 @@ $(BUILDDIR)/tctl:
 $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
+# NOTE: Any changes to the `tsh` build here must be copied to `windows.go` in Dronegen until
+# 		we can use this Makefile for native Windows builds.
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh

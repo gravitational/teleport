@@ -2,7 +2,7 @@
 
 # This script is called hourly to check if the certificate
 # has been renewed on S3 and if it has been renewed, restart teleport proxies
-if [[ "${DEBUG}" == "true" ]]; then
+if [[ "${DEBUG:-false}" == "true" ]]; then
     set -x
 fi
 
