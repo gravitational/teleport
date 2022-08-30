@@ -218,11 +218,23 @@ func TestNewExporter(t *testing.T) {
 			errAssertion:      require.NoError,
 			exporterAssertion: require.NotNil,
 		},
+		{
+			name: "file exporter",
+			config: Config{
+				Service:     "test",
+				ExporterURL: "file://" + t.TempDir(),
+			},
+			errAssertion:      require.NoError,
+			exporterAssertion: require.NotNil,
+		},
 	}
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			exporter, err := NewExporter(context.Background(), tt.config)
+			if exporter != nil {
+				t.Cleanup(func() { require.NoError(t, exporter.Shutdown(context.Background())) })
+			}
 			tt.errAssertion(t, err)
 			tt.exporterAssertion(t, exporter)
 		})
@@ -476,6 +488,26 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 				Host:   "localhost:8080",
 			},
 		},
+		{
+			name: "file exporter",
+			cfg: Config{
+				Service:      "test",
+				SamplingRate: 1.0,
+				ExporterURL:  "file:///var/lib/teleport",
+				DialTimeout:  time.Millisecond,
+			},
+			errorAssertion: require.NoError,
+			expectedCfg: Config{
+				Service:      "test",
+				ExporterURL:  "file:///var/lib/teleport",
+				SamplingRate: 1.0,
+				DialTimeout:  time.Millisecond,
+			},
+			expectedURL: &url.URL{
+				Scheme: "file",
+				Host:   "/var/lib/teleport",
+			},
+		},
 	}
 
 	for _, tt := range cases {
@@ -490,6 +522,78 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 				cmpopts.IgnoreInterfaces(struct{ logrus.FieldLogger }{})),
 			)
 			require.NotNil(t, tt.cfg.Logger)
+		})
+	}
+}
+
+func TestConfig_Endpoint(t *testing.T) {
+	cases := []struct {
+		name     string
+		cfg      Config
+		expected string
+	}{
+		{
+			name: "with http scheme",
+			cfg: Config{
+				Service:     "test",
+				ExporterURL: "http://localhost:8080",
+			},
+			expected: "localhost:8080",
+		},
+		{
+			name: "with https scheme",
+			cfg: Config{
+				Service:     "test",
+				ExporterURL: "https://localhost:8080/custom",
+			},
+			expected: "localhost:8080/custom",
+		},
+		{
+			name: "with grpc scheme",
+			cfg: Config{
+				Service:      "test",
+				ExporterURL:  "grpc://collector.opentelemetry.svc:4317",
+				SamplingRate: 1.0,
+				DialTimeout:  time.Millisecond,
+			},
+			expected: "collector.opentelemetry.svc:4317",
+		},
+		{
+			name: "without a scheme",
+			cfg: Config{
+				Service:      "test",
+				ExporterURL:  "collector.opentelemetry.svc:4317",
+				SamplingRate: 1.0,
+				DialTimeout:  time.Millisecond,
+			},
+			expected: "collector.opentelemetry.svc:4317",
+		},
+		{
+			name: "file exporter",
+			cfg: Config{
+				Service:      "test",
+				ExporterURL:  "file:///var/lib/teleport",
+				SamplingRate: 1.0,
+				DialTimeout:  time.Millisecond,
+			},
+			expected: "/var/lib/teleport",
+		},
+		{
+			name: "file exporter with limit",
+			cfg: Config{
+				Service:      "test",
+				ExporterURL:  "file:///var/lib/teleport?limit=200",
+				SamplingRate: 1.0,
+				DialTimeout:  time.Millisecond,
+			},
+			expected: "/var/lib/teleport",
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			require.NoError(t, tt.cfg.CheckAndSetDefaults())
+			require.Equal(t, tt.expected, tt.cfg.Endpoint())
 		})
 	}
 }

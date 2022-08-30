@@ -303,7 +303,7 @@ func authConnect(ctx context.Context, params connectParams) (*Client, error) {
 	if params.cfg.IgnoreHTTPProxy {
 		dialer = NewDirectDialer(params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
 	} else {
-		dialer = NewDialer(params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
+		dialer = NewDialer(ctx, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
 	}
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
@@ -483,6 +483,8 @@ type Config struct {
 	ALPNSNIAuthDialClusterName string
 	// IgnoreHTTPProxy disables support for HTTP proxying when true.
 	IgnoreHTTPProxy bool
+	// Context is the base context to use for dialing. If not provided context.Background is used
+	Context context.Context
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -499,6 +501,10 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.DialTimeout == 0 {
 		c.DialTimeout = defaults.DefaultDialTimeout
+	}
+
+	if c.Context == nil {
+		c.Context = context.Background()
 	}
 
 	c.DialOpts = append(c.DialOpts, grpc.WithKeepaliveParams(keepalive.ClientParameters{

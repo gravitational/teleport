@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -1347,7 +1348,7 @@ func (f *Forwarder) getDialer(ctx authContext, sess *clusterSession, req *http.R
 		}
 	}
 	client := &http.Client{
-		Transport: otelhttp.NewTransport(rt),
+		Transport: otelhttp.NewTransport(rt, otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter)),
 	}
 
 	return spdy.NewDialer(upgradeRoundTripper, client, req.Method, req.URL), nil
@@ -1476,7 +1477,7 @@ func (f *Forwarder) newClusterSessionRemoteCluster(ctx authContext) (*clusterSes
 		// encoded in the TLS certificate. We're setting the dial endpoint to a hardcoded
 		// `kube.teleport.cluster.local` value to indicate this is a Kubernetes proxy request
 		kubeClusterEndpoints: []kubeClusterEndpoint{{addr: reversetunnel.LocalKubernetes}},
-		tlsConfig:            tlsConfig,
+		tlsConfig:            tlsConfig.Clone(),
 	}, nil
 }
 
@@ -1534,7 +1535,7 @@ func (f *Forwarder) newClusterSessionLocal(ctx authContext) (*clusterSession, er
 		authContext:          ctx,
 		creds:                creds,
 		kubeClusterEndpoints: []kubeClusterEndpoint{{addr: creds.targetAddr}},
-		tlsConfig:            creds.tlsConfig,
+		tlsConfig:            creds.tlsConfig.Clone(),
 	}, nil
 }
 
@@ -1554,7 +1555,7 @@ func (f *Forwarder) newClusterSessionDirect(ctx authContext, endpoints []kubeClu
 		parent:               f,
 		authContext:          ctx,
 		kubeClusterEndpoints: endpoints,
-		tlsConfig:            tlsConfig,
+		tlsConfig:            tlsConfig.Clone(),
 		// This session talks to a kubernetes_service, which should handle
 		// audit logging. Avoid duplicate logging.
 		noAuditEvents: true,
@@ -1577,10 +1578,6 @@ func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*forward.Forward
 		if err := http2.ConfigureTransport(transport); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	} else if sess.tlsConfig != nil {
-		// when certificate-authority-data is not provided in kubeconfig the tlsConfig can be nil,
-		// meaning that we will use the system default CA store.
-		sess.tlsConfig.NextProtos = nil
 	}
 
 	rt := http.RoundTripper(transport)

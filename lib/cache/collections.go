@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -33,7 +34,7 @@ type collection interface {
 	// will apply said resources to the cache.  fetch *must*
 	// not mutate cache state outside of the apply function.
 	fetch(ctx context.Context) (apply func(ctx context.Context) error, err error)
-	// process processes event
+	// processEvent processes event
 	processEvent(ctx context.Context, e types.Event) error
 	// watchKind returns a watch
 	// required for this collection
@@ -260,6 +261,13 @@ type resourceKind struct {
 	kind    string
 	subkind string
 	version string
+}
+
+func (r resourceKind) String() string {
+	if r.subkind == "" {
+		return r.kind
+	}
+	return fmt.Sprintf("%s/%s", r.kind, r.subkind)
 }
 
 type accessRequest struct {

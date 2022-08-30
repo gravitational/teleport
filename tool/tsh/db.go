@@ -94,7 +94,7 @@ func isRoleSetRequiredForShowDatabases(cf *CLIConf) bool {
 }
 
 func fetchRoleSetForCluster(ctx context.Context, profile *client.ProfileStatus, proxy *client.ProxyClient, clusterName string) (services.RoleSet, error) {
-	cluster, err := proxy.ClusterAccessPoint(ctx, clusterName, true)
+	cluster, err := proxy.ClusterAccessPoint(ctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -172,7 +172,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 		return trace.Wrap(err)
 	}
 	// Update the database-specific connection profile file.
-	err = dbprofile.Add(tc, db, *profile)
+	err = dbprofile.Add(cf.Context, tc, db, *profile)
 	return trace.Wrap(err)
 }
 
@@ -502,7 +502,7 @@ func isMFADatabaseAccessRequired(cf *CLIConf, tc *client.TeleportClient, databas
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	cluster, err := proxy.ConnectToCluster(cf.Context, tc.SiteName, true)
+	cluster, err := proxy.ConnectToCluster(cf.Context, tc.SiteName)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}

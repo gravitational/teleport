@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/profile"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/gravitational/trace"
@@ -95,6 +96,7 @@ func TestAddProfile(t *testing.T) {
 					WebProxyAddr:      test.webProxyAddrIn,
 					PostgresProxyAddr: test.postgresProxyAddrIn,
 					MySQLProxyAddr:    test.mysqlProxyAddrIn,
+					Tracer:            tracing.NoopProvider().Tracer("test"),
 				},
 			}
 			db := tlsca.RouteToDatabase{

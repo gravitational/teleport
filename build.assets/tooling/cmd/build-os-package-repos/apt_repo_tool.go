@@ -22,40 +22,51 @@ import (
 	"strings"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/mod/semver"
 )
 
 type AptRepoTool struct {
-	config       *Config
+	config       *AptConfig
 	aptly        *Aptly
+	gpg          *GPG
 	s3Manager    *S3manager
 	supportedOSs map[string][]string
 }
 
 // Instantiates a new apt repo tool instance and performs any required setup/config.
-func NewAptRepoTool(config *Config, supportedOSs map[string][]string) (*AptRepoTool, error) {
-	art := &AptRepoTool{
-		config:       config,
-		s3Manager:    NewS3Manager(config.bucketName),
-		supportedOSs: supportedOSs,
-	}
-
+func NewAptRepoTool(config *AptConfig, supportedOSs map[string][]string) (*AptRepoTool, error) {
 	aptly, err := NewAptly(config.aptlyPath)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to create a new aptly instance")
 	}
 
-	art.aptly = aptly
+	gpg, err := NewGPG()
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to create a new GPG instance")
+	}
 
-	return art, nil
+	s3Manager, err := NewS3Manager(config.S3Config)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to create a new s3manager instance")
+	}
+
+	return &AptRepoTool{
+		aptly:        aptly,
+		config:       config,
+		gpg:          gpg,
+		s3Manager:    s3Manager,
+		supportedOSs: supportedOSs,
+	}, nil
 }
 
 // Runs the tool, creating and updating APT repos based upon the current configuration.
 func (art *AptRepoTool) Run() error {
 	start := time.Now()
 	logrus.Infoln("Starting APT repo build process...")
+	logrus.Debugf("Using config: %+v", spew.Sdump(art.config))
 
 	isFirstRun, err := art.aptly.IsFirstRun()
 	if err != nil {
@@ -65,7 +76,7 @@ func (art *AptRepoTool) Run() error {
 	if isFirstRun {
 		logrus.Warningln("First run or disaster recovery detected, attempting to rebuild existing repos from APT repository...")
 
-		err = art.s3Manager.DownloadExistingRepo(art.config.localBucketPath)
+		err = art.s3Manager.DownloadExistingRepo()
 		if err != nil {
 			return trace.Wrap(err, "failed to sync existing repo from S3 bucket")
 		}
@@ -74,6 +85,8 @@ func (art *AptRepoTool) Run() error {
 		if err != nil {
 			return trace.Wrap(err, "failed to recreate existing repos")
 		}
+	} else {
+		logrus.Debugf("Not first run of tool, skipping Aptly repository rebuild process")
 	}
 
 	// Note: this logic will only push the artifact into the `art.supportedOSs` repos.
@@ -94,9 +107,22 @@ func (art *AptRepoTool) Run() error {
 		return trace.Wrap(err, "failed to publish repos")
 	}
 
-	err = art.s3Manager.UploadBuiltRepo(filepath.Join(art.aptly.rootDir, "public"))
+	// Both Hashicorp and Docker publish their key to this path
+	err = art.gpg.WritePublicKeyToFile(filepath.Join(art.aptly.rootDir, "public", "gpg"))
+	if err != nil {
+		return trace.Wrap(err, "failed to write GPG public key")
+	}
+
+	art.s3Manager.ChangeLocalBucketPath(filepath.Join(art.aptly.rootDir, "public"))
+	err = art.s3Manager.UploadBuiltRepo()
 	if err != nil {
 		return trace.Wrap(err, "failed to sync changes to S3 bucket")
+	}
+
+	// Future work: add literals to config?
+	err = art.s3Manager.UploadRedirectURL("index.html", "https://goteleport.com/docs/installation/#linux")
+	if err != nil {
+		return trace.Wrap(err, "failed to redirect index page to Teleport docs")
 	}
 
 	logrus.Infof("APT repo build process completed in %s", time.Since(start).Round(time.Millisecond))

@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
@@ -2689,6 +2690,7 @@ func makeTeleportClientConfig(ctx context.Context, sesCtx *SessionContext) (*cli
 		DefaultPrincipal:  cert.ValidPrincipals[0],
 		HostKeyCallback:   callback,
 		TLSRoutingEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,
+		Tracer:            tracing.NoopProvider().Tracer("test"),
 	}
 
 	return config, nil

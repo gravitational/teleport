@@ -25,6 +25,11 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -44,10 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // TestAuthServerConfig is auth server test config
@@ -70,6 +71,8 @@ type TestAuthServerConfig struct {
 	Streamer events.Streamer
 	// AuditLog allows a test to configure its own audit log.
 	AuditLog events.IAuditLog
+	// TraceClient allows a test to configure the trace client
+	TraceClient otlptrace.Client
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -241,6 +244,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		Streamer:               cfg.Streamer,
 		SkipPeriodicOperations: true,
 		Emitter:                srv.AuditLog,
+		TraceClient:            cfg.TraceClient,
 	}, WithClock(cfg.Clock))
 	if err != nil {
 		return nil, trace.Wrap(err)

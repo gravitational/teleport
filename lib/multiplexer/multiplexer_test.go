@@ -239,15 +239,14 @@ func TestMux(t *testing.T) {
 		require.NotNil(t, err)
 	})
 
-	// Timeout tests client timeout - client dials, but writes nothing
-	// make sure server hangs up
+	// Timeout test makes sure that multiplexer respects read deadlines.
 	t.Run("Timeout", func(t *testing.T) {
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
 		require.Nil(t, err)
 
 		config := Config{
 			Listener:            listener,
-			ReadDeadline:        time.Millisecond,
+			ReadDeadline:        -time.Millisecond,
 			EnableProxyProtocol: true,
 		}
 		mux, err := New(config)
@@ -272,7 +271,6 @@ func TestMux(t *testing.T) {
 		require.Nil(t, err)
 		defer conn.Close()
 
-		time.Sleep(config.ReadDeadline + 5*time.Millisecond)
 		// upgrade connection to TLS
 		tlsConn := tls.Client(conn, clientConfig(backend1))
 		defer tlsConn.Close()

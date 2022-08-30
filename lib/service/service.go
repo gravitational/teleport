@@ -1260,6 +1260,22 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
+	traceClt := tracing.NewNoopClient()
+	if cfg.Tracing.Enabled {
+		traceConf, err := process.Config.Tracing.Config()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		traceConf.Logger = process.log.WithField(trace.Component, teleport.ComponentTracing)
+
+		clt, err := tracing.NewStartedClient(process.ExitContext(), *traceConf)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		traceClt = clt
+	}
+
 	// first, create the AuthServer
 	authServer, err := auth.Init(auth.InitConfig{
 		Backend:                 b,
@@ -1292,6 +1308,7 @@ func (process *TeleportProcess) initAuthService() error {
 		KeyStoreConfig:          cfg.Auth.KeyStore,
 		Emitter:                 checkingEmitter,
 		Streamer:                events.NewReportingStreamer(checkingStreamer, process.Config.UploadEventsC),
+		TraceClient:             traceClt,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1391,22 +1408,6 @@ func (process *TeleportProcess) initAuthService() error {
 	go mux.Serve()
 	authMetrics := &auth.Metrics{GRPCServerLatency: cfg.Metrics.GRPCServerLatency}
 
-	traceClt := tracing.NewNoopClient()
-	if cfg.Tracing.Enabled {
-		traceConf, err := process.Config.Tracing.Config()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		traceConf.Logger = process.log.WithField(trace.Component, teleport.ComponentTracing)
-
-		clt, err := tracing.NewStartedClient(process.ExitContext(), *traceConf)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		traceClt = clt
-	}
-
 	tlsServer, err := auth.NewTLSServer(auth.TLSServerConfig{
 		TLS:           tlsConfig,
 		APIConfig:     *apiConf,
@@ -1416,7 +1417,6 @@ func (process *TeleportProcess) initAuthService() error {
 		ID:            process.id,
 		Listener:      mux.TLS(),
 		Metrics:       authMetrics,
-		TraceClient:   traceClt,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1620,6 +1620,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 	reporter, err := backend.NewReporter(backend.ReporterConfig{
 		Component: teleport.ComponentCache,
 		Backend:   mem,
+		Tracer:    process.TracingProvider.Tracer(teleport.ComponentCache),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1645,6 +1646,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		WebToken:        cfg.services.WebTokens(),
 		Component:       teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
 		MetricComponent: teleport.Component(append(cfg.cacheName, teleport.ComponentCache)...),
+		Tracer:          process.TracingProvider.Tracer(teleport.ComponentCache),
 	}))
 }
 
@@ -2519,9 +2521,9 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) (
 
 // initProxy gets called if teleport runs with 'proxy' role enabled.
 // this means it will do two things:
-//    1. serve a web UI
-//    2. proxy SSH connections to nodes running with 'node' role
-//    3. take care of reverse tunnels
+//  1. serve a web UI
+//  2. proxy SSH connections to nodes running with 'node' role
+//  3. take care of reverse tunnels
 func (process *TeleportProcess) initProxy() error {
 	// If no TLS key was provided for the web listener, generate a self-signed cert
 	if len(process.Config.Proxy.KeyPairs) == 0 &&
@@ -2890,8 +2892,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
 			Log:       process.log.WithField(trace.Component, teleport.ComponentProxy),
-			Client:    conn.Client,
+			Client:    accessPoint,
 		},
+		NodesGetter: conn.Client,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -2901,7 +2904,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
 			Log:       process.log.WithField(trace.Component, teleport.ComponentProxy),
-			Client:    conn.Client,
+			Client:    accessPoint,
 		},
 		AuthorityGetter: accessPoint,
 		Types:           []types.CertAuthType{types.HostCA, types.UserCA},
@@ -3848,6 +3851,7 @@ func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error
 	reporter, err := backend.NewReporter(backend.ReporterConfig{
 		Component: teleport.ComponentBackend,
 		Backend:   backend.NewSanitizer(bk),
+		Tracer:    process.TracingProvider.Tracer(teleport.ComponentBackend),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
