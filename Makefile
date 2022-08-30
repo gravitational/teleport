@@ -182,10 +182,14 @@ TOUCHID_MESSAGE := with Touch ID
 TOUCHID_TAG := touchid
 endif
 
-# Only build teleport/api against libpcsclite if it's available.
+# Build teleport/api against libsclite?
+# Only build if LIBPCSCLITE=yes, or if it's otherwise available.
 # This is used for PIV functionality.
 LIBPCSCLITE_MESSAGE := without libpcsclite
-ifeq ("$(shell pkg-config libpcsclite 2>/dev/null; echo $$?)", "0")
+ifeq ("$(LIBPCSCLITE)", "yes")
+LIBPCSCLITE_MESSAGE := with libpcsclite
+LIBPCSCLITE_BUILD_TAG := libpcsclite
+else ifeq ("$(shell pkg-config libpcsclite 2>/dev/null; echo $$?)", "0")
 LIBPCSCLITE_MESSAGE := with libpcsclite
 LIBPCSCLITE_BUILD_TAG := libpcsclite
 endif
