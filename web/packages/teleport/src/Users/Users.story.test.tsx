@@ -15,8 +15,10 @@
  */
 
 import React from 'react';
-import { Loaded } from './Users.story';
+
 import { render } from 'design/utils/testing';
+
+import { Loaded } from './Users.story';
 
 test('success state', async () => {
   const { container, findByText } = render(<Loaded />);

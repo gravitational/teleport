@@ -1,4 +1,5 @@
 const path = require('path');
+
 const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 const configFactory = require('@gravitational/build/webpack/webpack.base');
 const defaultProdConfig = require('@gravitational/build/webpack/webpack.prod.config');

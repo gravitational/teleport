@@ -16,6 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { Box } from 'design';
+
 import cfg from 'teleport/config';
 import useTeleport from 'teleport/useTeleport';
 import { Route, Switch, NavLink, Redirect } from 'teleport/components/Router';
@@ -25,6 +26,7 @@ import {
   FeatureHeaderTitle,
   TabItem,
 } from 'teleport/components/Layout';
+
 import ChangePassword from './ChangePassword';
 import ManageDevices from './ManageDevices';
 

@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { useState, useEffect } from 'react';
+
 import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
 import { TermEventEnum } from 'teleport/lib/term/enums';
 import {

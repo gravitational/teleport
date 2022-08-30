@@ -17,6 +17,7 @@ limitations under the License.
 // eslint-disable-next-line import/named
 import { createBrowserHistory, History } from 'history';
 import { matchPath } from 'react-router';
+
 import cfg from 'teleport/config';
 
 let _inst: History = null;

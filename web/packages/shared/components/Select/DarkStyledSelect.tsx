@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import styled from 'styled-components';
+
 import { StyledSelect } from './Select';
 
 const StyledDarkSelect = styled(StyledSelect)(

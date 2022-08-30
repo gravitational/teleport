@@ -19,12 +19,14 @@ import styled from 'styled-components';
 import SplitPane from 'shared/components/SplitPane';
 import { Danger } from 'design/Alert';
 import { Indicator, Flex, Text, Box } from 'design';
+
 import TtyPlayer, {
   StatusEnum as TtyStatusEnum,
 } from 'teleport/lib/term/ttyPlayer';
 import EventProvider from 'teleport/lib/term/ttyPlayerEventProvider';
 import { ProgressBarTty } from 'teleport/Player/ProgressBar';
 import Xterm from 'teleport/Player/Xterm';
+
 import BpfPlayer from './BpfPlayer';
 import SwitchMode, { ModeEnum } from './SwitchMode';
 

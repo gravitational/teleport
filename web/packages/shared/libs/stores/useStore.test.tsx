@@ -15,9 +15,11 @@
  */
 
 import React from 'react';
+
+import { render, waitFor } from 'design/utils/testing';
+
 import useStore from './useStore';
 import Store from './store';
-import { render, waitFor } from 'design/utils/testing';
 
 test('components subscribes to store changes and unsubscribes on unmount', async () => {
   const store = new Store();

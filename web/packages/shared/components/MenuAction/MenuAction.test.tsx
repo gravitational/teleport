@@ -15,8 +15,10 @@
  */
 
 import React from 'react';
-import { MenuIcon, MenuItem } from '.';
+
 import { render, fireEvent } from 'design/utils/testing';
+
+import { MenuIcon, MenuItem } from '.';
 
 test('basic functionality of clicking is respected', () => {
   const { queryByTestId, getByTestId, getByText } = render(

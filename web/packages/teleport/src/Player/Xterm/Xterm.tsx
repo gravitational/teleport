@@ -14,9 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 import React, { useEffect, useRef } from 'react';
-import Terminal from 'teleport/lib/term/terminal';
+
 import { getPlatform } from 'design/theme/utils';
 import { useTheme } from 'styled-components';
+
+import Terminal from 'teleport/lib/term/terminal';
 import Tty from 'teleport/lib/term/tty';
 import { TermEventEnum } from 'teleport/lib/term/enums';
 import StyledXterm from 'teleport/Console/StyledXterm';

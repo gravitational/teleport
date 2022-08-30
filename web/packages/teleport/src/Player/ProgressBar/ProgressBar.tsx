@@ -17,7 +17,9 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import * as Icons from 'design/Icon';
+
 import { colors } from 'teleport/Console/colors';
+
 import Slider from './Slider';
 
 export default function ProgressBar(props: ProgressBarProps) {

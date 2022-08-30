@@ -15,7 +15,9 @@ limitations under the License.
 */
 
 import React from 'react';
+
 import * as teleport from 'teleport';
+
 import TrustedClusters from './TrustedClusters';
 
 export default {

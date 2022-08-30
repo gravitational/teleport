@@ -15,8 +15,10 @@ limitations under the License.
 */
 
 import React from 'react';
-import SideNav, { SideNavItem, SideNavItemIcon } from './index';
+
 import * as Icons from '../Icon';
+
+import SideNav, { SideNavItem, SideNavItemIcon } from './index';
 
 export default {
   title: 'Design/SideNav',

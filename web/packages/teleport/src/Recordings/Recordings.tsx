@@ -15,16 +15,20 @@ limitations under the License.
 */
 
 import React from 'react';
+
+import { Danger } from 'design/Alert';
+import { Indicator, Box } from 'design';
+
+import RangePicker from 'teleport/components/EventRangePicker';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import RecordingsList from './RecordingsList';
-import RangePicker from 'teleport/components/EventRangePicker';
-import { Danger } from 'design/Alert';
-import { Indicator, Box } from 'design';
 import useTeleport from 'teleport/useTeleport';
+
+import RecordingsList from './RecordingsList';
+
 import useRecordings, { State } from './useRecordings';
 
 export default function Container() {

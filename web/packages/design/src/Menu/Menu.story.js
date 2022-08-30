@@ -15,13 +15,15 @@ limitations under the License.
 */
 
 import React from 'react';
-import Menu from './Menu';
-import MenuItem from './MenuItem';
-import MenuItemIcon from './MenuItemIcon';
+
 import { ButtonPrimary } from '../Button';
 import Box from '../Box';
 import Flex from '../Flex';
 import * as Icons from '../Icon';
+
+import MenuItemIcon from './MenuItemIcon';
+import MenuItem from './MenuItem';
+import Menu from './Menu';
 
 export default {
   title: 'Design/Menu',

@@ -17,6 +17,7 @@ limitations under the License.
 import api from 'teleport/services/api';
 import cfg, { UrlResourcesParams } from 'teleport/config';
 import { AgentResponse } from 'teleport/services/agents';
+
 import { Desktop } from './types';
 import makeDesktop from './makeDesktop';
 

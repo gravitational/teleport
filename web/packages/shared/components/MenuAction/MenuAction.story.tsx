@@ -16,6 +16,7 @@
 
 import React from 'react';
 import { Flex } from 'design';
+
 import { MenuIcon, MenuButton, MenuItem } from '.';
 
 export default {

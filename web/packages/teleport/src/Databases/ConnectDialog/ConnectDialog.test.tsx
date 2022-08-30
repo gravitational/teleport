@@ -16,6 +16,7 @@
 
 import React from 'react';
 import { render, screen } from 'design/utils/testing';
+
 import ConnectDialog, { Props } from './ConnectDialog';
 
 test('correct connect command generated for postgres db', () => {

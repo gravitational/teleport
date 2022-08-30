@@ -15,6 +15,7 @@
  */
 
 import React from 'react';
+
 import SelectFilter, { Props } from './SelectFilters';
 
 export default {

@@ -1,4 +1,5 @@
 import { displayDate, displayDateTime } from 'shared/services/loc';
+
 import { MatchCallback } from './match';
 
 export function dateMatcher<T>(

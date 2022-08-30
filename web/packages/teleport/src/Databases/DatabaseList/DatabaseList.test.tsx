@@ -15,9 +15,12 @@
  */
 import React from 'react';
 import { render, screen, fireEvent } from 'design/utils/testing';
+
 import { databases } from '../fixtures';
-import DatabaseList from './DatabaseList';
+
 import { props } from '../Databases.story';
+
+import DatabaseList from './DatabaseList';
 
 test('search generates correct url params', () => {
   const replaceHistory = jest.fn();

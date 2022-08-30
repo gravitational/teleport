@@ -2,11 +2,14 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import Popover from 'design/Popover';
 import styled from 'styled-components';
 import { Box } from 'design';
+
+import { useKeyboardShortcuts } from 'teleterm/ui/services/keyboardShortcuts';
+
+import { KeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+
 import { useConnections } from './useConnections';
 import { ConnectionsIcon } from './ConnectionsIcon/ConnectionsIcon';
 import { ConnectionsFilterableList } from './ConnectionsFilterableList/ConnectionsFilterableList';
-import { useKeyboardShortcuts } from 'teleterm/ui/services/keyboardShortcuts';
-import { KeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
 
 export function Connections() {
   const iconRef = useRef();

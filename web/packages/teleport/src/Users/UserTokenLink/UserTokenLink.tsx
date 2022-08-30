@@ -16,7 +16,7 @@
 
 import React from 'react';
 import { formatDistanceStrict } from 'date-fns';
-import TextSelectCopy from 'teleport/components/TextSelectCopy';
+
 import { ButtonSecondary, Text } from 'design';
 import Dialog, {
   DialogHeader,
@@ -24,6 +24,8 @@ import Dialog, {
   DialogContent,
   DialogFooter,
 } from 'design/Dialog';
+
+import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import { ResetToken } from 'teleport/services/user';
 import cfg from 'teleport/config';
 

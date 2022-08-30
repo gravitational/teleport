@@ -15,6 +15,7 @@ limitations under the License.
 */
 import React from 'react';
 import BpfViewer, { formatEvents } from 'shared/components/BpfViewer';
+
 import useTtyBpfMapper from './useTtyBpfMapper';
 
 export default function BpfLogs({ tty, events, split }) {

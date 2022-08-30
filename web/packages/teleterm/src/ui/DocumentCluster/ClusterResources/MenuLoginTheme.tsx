@@ -1,5 +1,6 @@
 import React, { FC } from 'react';
 import { ThemeProvider } from 'styled-components';
+
 import theme from 'teleterm/ui/ThemeProvider/theme';
 
 const menuLoginTheme = {

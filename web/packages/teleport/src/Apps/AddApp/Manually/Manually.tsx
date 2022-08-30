@@ -24,9 +24,11 @@ import {
   ButtonLink,
 } from 'design';
 import { DialogContent, DialogFooter } from 'design/Dialog';
+
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import DownloadLinks from 'teleport/components/DownloadLinks';
 import cfg from 'teleport/config';
+
 import { State } from '../useAddApp';
 
 export default function Manually({

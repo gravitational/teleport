@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { BearerToken } from 'teleport/services/websession';
+
 import { KeysEnum } from './types';
 
 const storage = {

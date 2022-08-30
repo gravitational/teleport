@@ -200,38 +200,6 @@ exports[`render automatic tab 1`] = `
   left: 0;
 }
 
-.c7 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 16px;
-  line-height: 24px;
-  margin: 0px;
-  margin-left: 24px;
-  align-items: center;
-  display: flex;
-  padding: 4px 8px;
-  cursor: pointer;
-  border-bottom: 4px solid transparent;
-}
-
-.c9 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 16px;
-  line-height: 24px;
-  margin: 0px;
-  margin-left: 24px;
-  align-items: center;
-  display: flex;
-  padding: 4px 8px;
-  cursor: pointer;
-  border-bottom: 4px solid transparent;
-  font-weight: 500;
-  border-bottom: 4px solid #651FFF;
-}
-
 .c2 {
   height: 100%;
   outline: none;
@@ -271,6 +239,38 @@ exports[`render automatic tab 1`] = `
 
 .c20 {
   box-sizing: border-box;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+  margin-left: 24px;
+  align-items: center;
+  display: flex;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-bottom: 4px solid transparent;
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+  margin-left: 24px;
+  align-items: center;
+  display: flex;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-bottom: 4px solid transparent;
+  font-weight: 500;
+  border-bottom: 4px solid #651FFF;
 }
 
 <div
@@ -477,6 +477,35 @@ exports[`render failed automatic tab 1`] = `
   left: 0;
 }
 
+.c2 {
+  height: 100%;
+  outline: none;
+  color: black;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  will-change: opacity;
+  transition: opacity 225ms cubic-bezier(0.4,0,0.2,1) 0ms;
+}
+
+.c3 {
+  padding: 32px;
+  padding-top: 24px;
+  background: #1C254D;
+  color: rgba(255,255,255,0.87);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow-y: auto;
+  max-height: calc(100% - 96px);
+  max-width: 600px;
+  width: 100%;
+  min-height: 328px;
+}
+
 .c7 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -507,35 +536,6 @@ exports[`render failed automatic tab 1`] = `
   border-bottom: 4px solid transparent;
   font-weight: 500;
   border-bottom: 4px solid #651FFF;
-}
-
-.c2 {
-  height: 100%;
-  outline: none;
-  color: black;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 1;
-  will-change: opacity;
-  transition: opacity 225ms cubic-bezier(0.4,0,0.2,1) 0ms;
-}
-
-.c3 {
-  padding: 32px;
-  padding-top: 24px;
-  background: #1C254D;
-  color: rgba(255,255,255,0.87);
-  border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  overflow-y: auto;
-  max-height: calc(100% - 96px);
-  max-width: 600px;
-  width: 100%;
-  min-height: 328px;
 }
 
 <div
@@ -915,38 +915,6 @@ exports[`render iam method after token generation 1`] = `
   left: 0;
 }
 
-.c7 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 16px;
-  line-height: 24px;
-  margin: 0px;
-  margin-left: 24px;
-  align-items: center;
-  display: flex;
-  padding: 4px 8px;
-  cursor: pointer;
-  border-bottom: 4px solid transparent;
-  font-weight: 500;
-  border-bottom: 4px solid #651FFF;
-}
-
-.c9 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 16px;
-  line-height: 24px;
-  margin: 0px;
-  margin-left: 24px;
-  align-items: center;
-  display: flex;
-  padding: 4px 8px;
-  cursor: pointer;
-  border-bottom: 4px solid transparent;
-}
-
 .c2 {
   height: 100%;
   outline: none;
@@ -987,6 +955,38 @@ exports[`render iam method after token generation 1`] = `
 
 .c28 {
   box-sizing: border-box;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+  margin-left: 24px;
+  align-items: center;
+  display: flex;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-bottom: 4px solid transparent;
+  font-weight: 500;
+  border-bottom: 4px solid #651FFF;
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+  margin-left: 24px;
+  align-items: center;
+  display: flex;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-bottom: 4px solid transparent;
 }
 
 <div
@@ -1483,38 +1483,6 @@ exports[`render iam method when failed 1`] = `
   left: 0;
 }
 
-.c7 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 16px;
-  line-height: 24px;
-  margin: 0px;
-  margin-left: 24px;
-  align-items: center;
-  display: flex;
-  padding: 4px 8px;
-  cursor: pointer;
-  border-bottom: 4px solid transparent;
-  font-weight: 500;
-  border-bottom: 4px solid #651FFF;
-}
-
-.c9 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 16px;
-  line-height: 24px;
-  margin: 0px;
-  margin-left: 24px;
-  align-items: center;
-  display: flex;
-  padding: 4px 8px;
-  cursor: pointer;
-  border-bottom: 4px solid transparent;
-}
-
 .c2 {
   height: 100%;
   outline: none;
@@ -1555,6 +1523,38 @@ exports[`render iam method when failed 1`] = `
 
 .c25 {
   box-sizing: border-box;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+  margin-left: 24px;
+  align-items: center;
+  display: flex;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-bottom: 4px solid transparent;
+  font-weight: 500;
+  border-bottom: 4px solid #651FFF;
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+  margin-left: 24px;
+  align-items: center;
+  display: flex;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-bottom: 4px solid transparent;
 }
 
 <div
@@ -2003,38 +2003,6 @@ exports[`render iam method while processing 1`] = `
   left: 0;
 }
 
-.c7 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 16px;
-  line-height: 24px;
-  margin: 0px;
-  margin-left: 24px;
-  align-items: center;
-  display: flex;
-  padding: 4px 8px;
-  cursor: pointer;
-  border-bottom: 4px solid transparent;
-  font-weight: 500;
-  border-bottom: 4px solid #651FFF;
-}
-
-.c9 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 16px;
-  line-height: 24px;
-  margin: 0px;
-  margin-left: 24px;
-  align-items: center;
-  display: flex;
-  padding: 4px 8px;
-  cursor: pointer;
-  border-bottom: 4px solid transparent;
-}
-
 .c2 {
   height: 100%;
   outline: none;
@@ -2075,6 +2043,38 @@ exports[`render iam method while processing 1`] = `
 
 .c24 {
   box-sizing: border-box;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+  margin-left: 24px;
+  align-items: center;
+  display: flex;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-bottom: 4px solid transparent;
+  font-weight: 500;
+  border-bottom: 4px solid #651FFF;
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+  margin-left: 24px;
+  align-items: center;
+  display: flex;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-bottom: 4px solid transparent;
 }
 
 <div
@@ -2518,38 +2518,6 @@ exports[`render iam method without a token generated yet 1`] = `
   left: 0;
 }
 
-.c7 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 16px;
-  line-height: 24px;
-  margin: 0px;
-  margin-left: 24px;
-  align-items: center;
-  display: flex;
-  padding: 4px 8px;
-  cursor: pointer;
-  border-bottom: 4px solid transparent;
-  font-weight: 500;
-  border-bottom: 4px solid #651FFF;
-}
-
-.c9 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 16px;
-  line-height: 24px;
-  margin: 0px;
-  margin-left: 24px;
-  align-items: center;
-  display: flex;
-  padding: 4px 8px;
-  cursor: pointer;
-  border-bottom: 4px solid transparent;
-}
-
 .c2 {
   height: 100%;
   outline: none;
@@ -2590,6 +2558,38 @@ exports[`render iam method without a token generated yet 1`] = `
 
 .c24 {
   box-sizing: border-box;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+  margin-left: 24px;
+  align-items: center;
+  display: flex;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-bottom: 4px solid transparent;
+  font-weight: 500;
+  border-bottom: 4px solid #651FFF;
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+  margin-left: 24px;
+  align-items: center;
+  display: flex;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-bottom: 4px solid transparent;
 }
 
 <div
@@ -3005,38 +3005,6 @@ exports[`render manual tab with join token 1`] = `
   left: 0;
 }
 
-.c7 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 16px;
-  line-height: 24px;
-  margin: 0px;
-  margin-left: 24px;
-  align-items: center;
-  display: flex;
-  padding: 4px 8px;
-  cursor: pointer;
-  border-bottom: 4px solid transparent;
-}
-
-.c9 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 16px;
-  line-height: 24px;
-  margin: 0px;
-  margin-left: 24px;
-  align-items: center;
-  display: flex;
-  padding: 4px 8px;
-  cursor: pointer;
-  border-bottom: 4px solid transparent;
-  font-weight: 500;
-  border-bottom: 4px solid #651FFF;
-}
-
 .c2 {
   height: 100%;
   outline: none;
@@ -3076,6 +3044,38 @@ exports[`render manual tab with join token 1`] = `
 
 .c22 {
   box-sizing: border-box;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+  margin-left: 24px;
+  align-items: center;
+  display: flex;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-bottom: 4px solid transparent;
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+  margin-left: 24px;
+  align-items: center;
+  display: flex;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-bottom: 4px solid transparent;
+  font-weight: 500;
+  border-bottom: 4px solid #651FFF;
 }
 
 <div
@@ -3478,38 +3478,6 @@ exports[`render manual tab with local user 1`] = `
   left: 0;
 }
 
-.c7 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 16px;
-  line-height: 24px;
-  margin: 0px;
-  margin-left: 24px;
-  align-items: center;
-  display: flex;
-  padding: 4px 8px;
-  cursor: pointer;
-  border-bottom: 4px solid transparent;
-}
-
-.c9 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 16px;
-  line-height: 24px;
-  margin: 0px;
-  margin-left: 24px;
-  align-items: center;
-  display: flex;
-  padding: 4px 8px;
-  cursor: pointer;
-  border-bottom: 4px solid transparent;
-  font-weight: 500;
-  border-bottom: 4px solid #651FFF;
-}
-
 .c2 {
   height: 100%;
   outline: none;
@@ -3549,6 +3517,38 @@ exports[`render manual tab with local user 1`] = `
 
 .c20 {
   box-sizing: border-box;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+  margin-left: 24px;
+  align-items: center;
+  display: flex;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-bottom: 4px solid transparent;
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+  margin-left: 24px;
+  align-items: center;
+  display: flex;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-bottom: 4px solid transparent;
+  font-weight: 500;
+  border-bottom: 4px solid #651FFF;
 }
 
 <div
@@ -3997,38 +3997,6 @@ exports[`render manual tab with sso user 1`] = `
   left: 0;
 }
 
-.c7 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 16px;
-  line-height: 24px;
-  margin: 0px;
-  margin-left: 24px;
-  align-items: center;
-  display: flex;
-  padding: 4px 8px;
-  cursor: pointer;
-  border-bottom: 4px solid transparent;
-}
-
-.c9 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 16px;
-  line-height: 24px;
-  margin: 0px;
-  margin-left: 24px;
-  align-items: center;
-  display: flex;
-  padding: 4px 8px;
-  cursor: pointer;
-  border-bottom: 4px solid transparent;
-  font-weight: 500;
-  border-bottom: 4px solid #651FFF;
-}
-
 .c2 {
   height: 100%;
   outline: none;
@@ -4068,6 +4036,38 @@ exports[`render manual tab with sso user 1`] = `
 
 .c20 {
   box-sizing: border-box;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+  margin-left: 24px;
+  align-items: center;
+  display: flex;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-bottom: 4px solid transparent;
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+  margin-left: 24px;
+  align-items: center;
+  display: flex;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-bottom: 4px solid transparent;
+  font-weight: 500;
+  border-bottom: 4px solid #651FFF;
 }
 
 <div

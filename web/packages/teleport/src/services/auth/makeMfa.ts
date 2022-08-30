@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { base64urlToBuffer, bufferToBase64url } from 'shared/utils/base64';
+
 import { MfaAuthenticateChallenge, MfaRegistrationChallenge } from './types';
 
 // makeMfaRegistrationChallenge formats fetched register challenge JSON.

@@ -12,6 +12,7 @@ limitations under the License.
 */
 
 import { Store } from 'shared/libs/stores';
+
 import { UserContext } from 'teleport/services/user';
 
 export default class StoreUserContext extends Store<UserContext> {

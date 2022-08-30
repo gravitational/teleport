@@ -15,11 +15,14 @@ limitations under the License.
 */
 
 import React from 'react';
-import { DesktopSession } from './DesktopSession';
-import { State } from './useDesktopSession';
+
 import { TdpClient, TdpClientEvent } from 'teleport/lib/tdp';
 import { PngFrame } from 'teleport/lib/tdp/codec';
+
 import { arrayBuf2260x1130 } from '../lib/tdp/fixtures';
+
+import { State } from './useDesktopSession';
+import { DesktopSession } from './DesktopSession';
 
 export default {
   title: 'Teleport/DesktopSession',

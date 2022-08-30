@@ -16,11 +16,14 @@
 
 import React, { useEffect } from 'react';
 import { Text, Box, ButtonLink, Indicator, ButtonSecondary } from 'design';
+
+import { DialogContent, DialogFooter } from 'design/Dialog';
+
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import DownloadLinks from 'teleport/components/DownloadLinks';
 import cfg from 'teleport/config';
+
 import { State } from './../useAddNode';
-import { DialogContent, DialogFooter } from 'design/Dialog';
 
 export default function Manually({
   isEnterprise,

@@ -17,9 +17,13 @@ limitations under the License.
 import React, { useState } from 'react';
 import { Card } from 'design';
 import { PrimaryAuthType } from 'shared/services';
-import RecoveryCodes from 'teleport/components/RecoveryCodes';
+
 import { StepSlider, NewFlow, StepComponentProps } from 'design/StepSlider';
+
+import RecoveryCodes from 'teleport/components/RecoveryCodes';
+
 import useToken, { State } from '../useToken';
+
 import { Expired } from './Expired';
 import { RegisterSuccess } from './Success';
 import { NewMfaDevice } from './NewMfaDevice';

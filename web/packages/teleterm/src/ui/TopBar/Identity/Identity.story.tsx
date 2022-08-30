@@ -1,7 +1,10 @@
 import React, { useRef, useEffect } from 'react';
-import { Identity, IdentityHandler, IdentityProps } from './Identity';
-import * as tshd from 'teleterm/services/tshd/types';
+
 import Flex from 'design/Flex';
+
+import * as tshd from 'teleterm/services/tshd/types';
+
+import { Identity, IdentityHandler, IdentityProps } from './Identity';
 
 export default {
   title: 'Teleterm/Identity',

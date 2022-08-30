@@ -15,6 +15,7 @@
  */
 
 import React from 'react';
+
 import AuthnDialog, { Props } from './AuthnDialog';
 
 export default {

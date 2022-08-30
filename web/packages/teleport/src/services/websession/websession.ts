@@ -15,10 +15,12 @@ limitations under the License.
 */
 
 import Logger from 'shared/libs/logger';
+
 import cfg from 'teleport/config';
 import history from 'teleport/services/history';
 import api from 'teleport/services/api';
 import localStorage, { KeysEnum } from 'teleport/services/localStorage';
+
 import makeBearerToken from './makeBearerToken';
 import { RenewSessionRequest } from './types';
 

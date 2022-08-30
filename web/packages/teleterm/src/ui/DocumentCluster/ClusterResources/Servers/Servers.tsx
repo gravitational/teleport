@@ -15,14 +15,21 @@ limitations under the License.
 */
 
 import React from 'react';
-import { useServers, State } from './useServers';
+
+import { Cell } from 'design/DataTable';
+
+import { MenuLogin } from 'shared/components/MenuLogin';
+
+import { Danger } from 'design/Alert';
+
 import * as types from 'teleterm/ui/services/clusters/types';
 import { Table } from 'teleterm/ui/components/Table';
-import { Cell } from 'design/DataTable';
+
 import { renderLabelCell } from '../renderLabelCell';
-import { MenuLogin } from 'shared/components/MenuLogin';
+
 import { MenuLoginTheme } from '../MenuLoginTheme';
-import { Danger } from 'design/Alert';
+
+import { useServers, State } from './useServers';
 
 export default function Container() {
   const state = useServers();

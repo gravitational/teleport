@@ -15,7 +15,9 @@ limitations under the License.
 */
 
 import React from 'react';
+
 import Image from '../Image';
+
 import teleportSvg from './../assets/images/teleport-medallion.svg';
 
 export default {

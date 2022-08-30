@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import styled from 'styled-components';
-import defaultTheme from './../theme';
+
 import {
   overflow,
   borders,
@@ -34,6 +34,8 @@ import {
   color,
   textAlign,
 } from '../system';
+
+import defaultTheme from './../theme';
 
 const Box = styled.div`
   box-sizing: border-box;

@@ -42,9 +42,11 @@ import React from 'react';
 import styled from 'styled-components';
 import PropTypes from 'prop-types';
 import ReactDOM from 'react-dom';
-import Transition from './Transition';
+
 import { ownerWindow, ownerDocument } from '../utils';
 import Modal from '../Modal';
+
+import Transition from './Transition';
 
 function getOffsetTop(rect, vertical) {
   let offset = 0;

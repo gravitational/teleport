@@ -14,8 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { MenuItem, MenuItemIcon } from 'design/Menu';
+
 import MenuIcon from './MenuActionIcon';
 import MenuButton from './MenuActionButton';
-import { MenuItem, MenuItemIcon } from 'design/Menu';
 
 export { MenuIcon, MenuButton, MenuItem, MenuItemIcon };

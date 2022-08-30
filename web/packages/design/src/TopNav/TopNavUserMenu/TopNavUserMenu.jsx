@@ -17,7 +17,9 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import PropTypes from 'prop-types';
+
 import { Text } from 'design';
+
 import TopNavItem from '../TopNavItem';
 import Menu from '../../Menu/Menu';
 

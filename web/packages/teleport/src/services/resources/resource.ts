@@ -1,5 +1,6 @@
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
+
 import { makeResource, makeResourceList } from './';
 
 class ResourceService {

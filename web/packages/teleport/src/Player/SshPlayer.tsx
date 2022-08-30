@@ -18,11 +18,13 @@ import React from 'react';
 import styled from 'styled-components';
 import { Danger } from 'design/Alert';
 import { Indicator, Flex, Text, Box } from 'design';
+
 import cfg from 'teleport/config';
 import TtyPlayer, {
   StatusEnum as TtyStatusEnum,
 } from 'teleport/lib/term/ttyPlayer';
 import EventProvider from 'teleport/lib/term/ttyPlayerEventProvider';
+
 import { ProgressBarTty } from './ProgressBar';
 import Xterm from './Xterm';
 

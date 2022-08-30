@@ -1,6 +1,7 @@
+import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
+
 import { DocumentsService } from './documentsService';
 import { Document, DocumentGateway, DocumentTshNode } from './types';
-import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
 
 function getMockedDocuments(): Document[] {
   return [

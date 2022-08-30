@@ -16,11 +16,13 @@
 
 import React from 'react';
 import { Indicator, Box, ButtonPrimary, Alert } from 'design';
+
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
+
 import UserList from './UserList';
 import UserAddEdit from './UserAddEdit';
 import UserDelete from './UserDelete';

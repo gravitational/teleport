@@ -15,9 +15,11 @@
  */
 
 import React from 'react';
+
+import { render, fireEvent, screen } from 'design/utils/testing';
+
 import Table from './Table';
 import { SortIndicator } from './Cells';
-import { render, fireEvent, screen } from 'design/utils/testing';
 
 const colHeaderKeys = ['hostname', 'addr'] as 'hostname'[] | 'addr'[];
 const colHeaders = ['Hostname', 'Address'];

@@ -18,7 +18,9 @@ import React from 'react';
 import { Router } from 'react-router';
 import { createMemoryHistory } from 'history';
 import renderHook, { act } from 'design/utils/renderHook';
+
 import { Filter } from 'teleport/types';
+
 import useUrlQueryParams, { State } from './useUrlQueryParams';
 
 test('apply filters and correct encoding of url', () => {

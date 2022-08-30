@@ -1,6 +1,7 @@
 import React, { Fragment, useMemo, useState } from 'react';
 import { debounce } from 'lodash';
 import styled from 'styled-components';
+
 import { prepareVirtualScrollItems } from './prepareVirtualScrollItems';
 import { VirtualScrollProps } from './types';
 

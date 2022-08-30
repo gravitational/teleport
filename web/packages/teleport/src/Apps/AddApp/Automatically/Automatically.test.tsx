@@ -1,5 +1,6 @@
 import React from 'react';
 import { fireEvent, render, screen } from 'design/utils/testing';
+
 import Automatically, { createAppBashCommand } from './Automatically';
 
 test('render command only after form submit', async () => {

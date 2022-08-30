@@ -15,7 +15,7 @@
  */
 
 import React, { useEffect } from 'react';
-import TextSelectCopy from 'teleport/components/TextSelectCopy';
+
 import {
   Alert,
   Text,
@@ -25,6 +25,9 @@ import {
   ButtonSecondary,
 } from 'design';
 import { DialogContent, DialogFooter } from 'design/Dialog';
+
+import TextSelectCopy from 'teleport/components/TextSelectCopy';
+
 import { createBashCommand, State } from './../useAddNode';
 
 export default function Automatically(props: Props) {

@@ -17,6 +17,7 @@ limitations under the License.
 import React from 'react';
 import theme from 'design/theme';
 import ThemeProvider from 'design/ThemeProvider';
+
 import { colors } from '../colors';
 
 const customTheme = {

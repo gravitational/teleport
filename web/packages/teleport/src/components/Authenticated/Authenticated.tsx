@@ -17,6 +17,7 @@ limitations under the License.
 import React from 'react';
 import { throttle } from 'lodash';
 import Logger from 'shared/libs/logger';
+
 import session from 'teleport/services/websession';
 import history from 'teleport/services/history';
 import localStorage from 'teleport/services/localStorage';

@@ -16,7 +16,9 @@ limitations under the License.
 
 import ReactDOM from 'react-dom';
 import React from 'react';
+
 import history from 'teleport/services/history';
+
 import Teleport from './Teleport';
 import TeleportContext from './teleportContext';
 import cfg from './config';

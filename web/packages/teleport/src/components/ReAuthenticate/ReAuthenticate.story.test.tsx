@@ -16,6 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { render, screen } from 'design/utils/testing';
+
 import { Loaded, Failed } from './ReAuthenticate.story';
 
 test('render re-authentication dialog', () => {

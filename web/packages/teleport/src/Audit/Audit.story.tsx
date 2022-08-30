@@ -17,7 +17,9 @@ limitations under the License.
 import React from 'react';
 import { Router } from 'react-router';
 import { createMemoryHistory } from 'history';
+
 import { ContextProvider, Context } from 'teleport';
+
 import Audit from './Audit';
 import EventList from './EventList';
 import { events, eventsSample } from './fixtures';

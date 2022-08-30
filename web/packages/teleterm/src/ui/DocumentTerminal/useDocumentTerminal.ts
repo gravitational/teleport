@@ -15,12 +15,14 @@ limitations under the License.
 */
 
 import { useEffect } from 'react';
+
+import { useAsync } from 'shared/hooks/useAsync';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { IAppContext } from 'teleterm/ui/types';
 import * as types from 'teleterm/ui/services/workspacesService';
 import { DocumentsService } from 'teleterm/ui/services/workspacesService';
 import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
-import { useAsync } from 'shared/hooks/useAsync';
 import { useWorkspaceDocumentsService } from 'teleterm/ui/Documents';
 import { routing } from 'teleterm/ui/uri';
 import { PtyCommand, PtyProcessCreationStatus } from 'teleterm/services/pty';

@@ -18,16 +18,21 @@ import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router';
 import { FetchStatus, SortType } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
+
 import history from 'teleport/services/history';
-import type { Node, NodesResponse } from 'teleport/services/nodes';
+
 import getResourceUrlQueryParams, {
   ResourceUrlQueryParams,
 } from 'teleport/getUrlQueryParams';
-import { useConsoleContext } from './../consoleContextProvider';
-import * as stores from './../stores';
+
 import labelClick from 'teleport/labelClick';
 import { AgentLabel } from 'teleport/services/agents';
 import { sortLogins } from 'teleport/Nodes/useNodes';
+
+import * as stores from './../stores';
+import { useConsoleContext } from './../consoleContextProvider';
+
+import type { Node, NodesResponse } from 'teleport/services/nodes';
 
 export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
   const consoleCtx = useConsoleContext();

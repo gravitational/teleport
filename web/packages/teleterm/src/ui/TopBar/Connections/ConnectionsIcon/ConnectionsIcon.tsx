@@ -2,8 +2,10 @@ import React, { forwardRef } from 'react';
 import { Cluster } from 'design/Icon';
 import styled from 'styled-components';
 import { Button } from 'design';
-import { ConnectionsIconStatusIndicator } from './ConnectionsIconStatusIndicator';
+
 import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
+
+import { ConnectionsIconStatusIndicator } from './ConnectionsIconStatusIndicator';
 
 interface ConnectionsIconProps {
   isAnyConnectionActive: boolean;

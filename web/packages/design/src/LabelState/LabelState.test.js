@@ -15,13 +15,15 @@
  */
 
 import React from 'react';
+
+import { render, theme } from 'design/utils/testing';
+
 import LabelState, {
   StateDanger,
   StateInfo,
   StateWarning,
   StateSuccess,
 } from './LabelState';
-import { render, theme } from 'design/utils/testing';
 
 const colors = {
   primary: theme.colors.secondary.main,

@@ -16,6 +16,7 @@ limitations under the License.
 
 import styled from 'styled-components';
 import { Box } from 'design';
+
 import 'xterm/css/xterm.css';
 import { colors } from 'teleport/Console/colors';
 

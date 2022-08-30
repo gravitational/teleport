@@ -16,6 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { storiesOf } from '@storybook/react';
+
 import ResourceEditor from './ResourceEditor';
 
 storiesOf('Teleport/ResourceEditor', module)

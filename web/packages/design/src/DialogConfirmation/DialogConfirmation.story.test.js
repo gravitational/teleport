@@ -15,8 +15,10 @@
  */
 
 import React from 'react';
-import { Confirmation } from './DialogConfirmation.story';
+
 import { render } from 'design/utils/testing';
+
+import { Confirmation } from './DialogConfirmation.story';
 
 test('rendering', () => {
   const { container } = render(<Confirmation />);

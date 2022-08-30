@@ -19,6 +19,7 @@ import {
   ThemeProvider as StyledThemeProvider,
   StyleSheetManager,
 } from 'styled-components';
+
 import { GlobalStyle } from './globals';
 import theme from './../theme';
 

@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+
 import { Sessions } from './Sessions';
 import { sessions } from './fixtures';
 

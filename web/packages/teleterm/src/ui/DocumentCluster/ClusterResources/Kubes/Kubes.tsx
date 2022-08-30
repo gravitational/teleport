@@ -15,12 +15,17 @@ limitations under the License.
 */
 
 import React from 'react';
-import { useKubes, State } from './useKubes';
-import { Table } from 'teleterm/ui/components/Table';
+
 import { Cell } from 'design/DataTable';
 import { ButtonBorder } from 'design';
-import { renderLabelCell } from '../renderLabelCell';
+
 import { Danger } from 'design/Alert';
+
+import { Table } from 'teleterm/ui/components/Table';
+
+import { renderLabelCell } from '../renderLabelCell';
+
+import { useKubes, State } from './useKubes';
 
 export default function Container() {
   const state = useKubes();

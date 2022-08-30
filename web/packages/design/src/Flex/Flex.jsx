@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import styled from 'styled-components';
+
 import {
   alignItems,
   justifyContent,
@@ -24,6 +25,7 @@ import {
   propTypes,
 } from 'design/system';
 import theme from 'design/theme';
+
 import Box from '../Box';
 
 const Flex = styled(Box)`

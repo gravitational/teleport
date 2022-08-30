@@ -2,11 +2,13 @@ import { delimiter } from 'path';
 
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 import { PtyProcessOptions } from 'teleterm/sharedProcess/ptyHost';
+
+import { PtyCommand, PtyProcessCreationStatus } from '../types';
+
 import {
   resolveShellEnvCached,
   ResolveShellEnvTimeoutError,
 } from './resolveShellEnv';
-import { PtyCommand, PtyProcessCreationStatus } from '../types';
 
 export async function buildPtyOptions(
   settings: RuntimeSettings,

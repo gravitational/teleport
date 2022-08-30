@@ -15,8 +15,10 @@ limitations under the License.
 */
 
 import Logger from 'shared/libs/logger';
+
 import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
 import { WebauthnAssertionResponse } from 'teleport/services/auth';
+
 import { EventTypeEnum, TermEventEnum, StatusCodeEnum } from './enums';
 import { Protobuf, MessageTypeEnum } from './protobuf';
 

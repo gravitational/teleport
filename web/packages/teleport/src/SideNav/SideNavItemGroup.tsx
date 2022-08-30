@@ -18,9 +18,11 @@ import React from 'react';
 import styled from 'styled-components';
 import { NavLink } from 'react-router-dom';
 import { matchPath } from 'react-router';
+
+import * as Icons from 'design/Icon';
+
 import SideNavItemIcon from './SideNavItemIcon';
 import SideNavItem from './SideNavItem';
-import * as Icons from 'design/Icon';
 import { Item } from './useSideNav';
 
 const SideNavItemGroup: React.FC<{ path: string; item: Item }> = props => {

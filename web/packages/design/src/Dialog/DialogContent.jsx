@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import styled from 'styled-components';
+
 import { Flex } from 'design';
 
 const DialogContent = styled(Flex)``;

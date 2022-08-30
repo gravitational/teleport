@@ -15,8 +15,10 @@
  */
 
 import React from 'react';
-import { BashCommand, NonBash } from './TextSelectCopy.story';
+
 import { render } from 'design/utils/testing';
+
+import { BashCommand, NonBash } from './TextSelectCopy.story';
 
 test('bash set to false does not render $ sign', () => {
   const { container } = render(<NonBash />);

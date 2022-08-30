@@ -16,6 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { render } from 'design/utils/testing';
+
 import { Loaded, Failed, Empty, EmptyReadOnly } from './Databases.story';
 
 test('open source loaded', () => {

@@ -15,8 +15,10 @@
  */
 
 import React from 'react';
-import { Cards } from './CardError.story';
+
 import { render } from 'design/utils/testing';
+
+import { Cards } from './CardError.story';
 
 test('rendering of Error Cards', () => {
   const { container } = render(<Cards />);

@@ -26,6 +26,7 @@ import Dialog, {
 
 import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 import AuthnDialog from 'teleport/components/AuthnDialog';
+
 import useDesktopSession, { State } from './useDesktopSession';
 import TopBar from './TopBar';
 

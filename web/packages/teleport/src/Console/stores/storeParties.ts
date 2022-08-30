@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { Store } from 'shared/libs/stores';
+
 import { Parties } from './types';
 
 export default class StoreParties extends Store<Parties> {

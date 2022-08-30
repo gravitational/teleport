@@ -15,7 +15,9 @@
  */
 
 import React from 'react';
+
 import { render, fireEvent, screen } from 'design/utils/testing';
+
 import { SingleStaticFlow, MultiCardFlow } from './StepSlider.story';
 
 test('single flow', () => {

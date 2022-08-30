@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { formatDistanceStrict } from 'date-fns';
+
 import { Session, Participant } from './types';
 
 export default function makeSession(json): Session {

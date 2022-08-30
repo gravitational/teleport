@@ -15,6 +15,7 @@
  */
 
 import api from 'teleport/services/api';
+
 import RecordingsService from './recordings';
 
 test('fetch session recordings, response formatting', async () => {

@@ -1,10 +1,15 @@
 import renderHook from 'design/utils/renderHook';
-import { useKeyboardShortcuts } from './useKeyboardShortcuts';
+
 import React from 'react';
+
 import AppContextProvider from 'teleterm/ui/appContextProvider';
+
+import AppContext from 'teleterm/ui/appContext';
+
+import { useKeyboardShortcuts } from './useKeyboardShortcuts';
+
 import { KeyboardShortcutsService } from './keyboardShortcutsService';
 import { KeyboardShortcutEventSubscriber } from './types';
-import AppContext from 'teleterm/ui/appContext';
 
 test('call handler on its event type', () => {
   const { handler, getEventEmitter, wrapper } = getTestSetup();

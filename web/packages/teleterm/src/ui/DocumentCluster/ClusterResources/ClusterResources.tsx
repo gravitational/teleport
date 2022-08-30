@@ -17,7 +17,9 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import { Flex } from 'design';
+
 import { useClusterContext } from 'teleterm/ui/DocumentCluster/clusterContext';
+
 import SideNav from './SideNav';
 import Servers from './Servers';
 import Databases from './Databases';

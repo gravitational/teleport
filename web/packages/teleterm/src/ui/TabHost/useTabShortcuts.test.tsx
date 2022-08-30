@@ -1,5 +1,6 @@
 import React from 'react';
 import renderHook from 'design/utils/renderHook';
+
 import { useTabShortcuts } from 'teleterm/ui/TabHost/useTabShortcuts';
 import {
   Document,

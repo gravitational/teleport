@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import styled, { css, useTheme } from 'styled-components';
 import { ButtonIcon, Flex, Text } from 'design';
 import { Close, Info, Warning } from 'design/Icon';
+
 import { NotificationItem, NotificationItemContent } from './types';
 
 interface NotificationProps {

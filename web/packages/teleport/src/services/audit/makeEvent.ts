@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { formatDistanceStrict } from 'date-fns';
+
 import { Event, RawEvent, Formatters, eventCodes } from './types';
 
 export const formatters: Formatters = {

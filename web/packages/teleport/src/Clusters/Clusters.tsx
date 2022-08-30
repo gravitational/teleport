@@ -14,15 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import React from 'react';
+import { Box, Indicator } from 'design';
+import { Danger } from 'design/Alert';
+
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import React from 'react';
-import { Box, Indicator } from 'design';
-import { Danger } from 'design/Alert';
 import useTeleport from 'teleport/useTeleport';
+
 import ClusterList from './ClusterList';
 import useClusters from './useClusters';
 

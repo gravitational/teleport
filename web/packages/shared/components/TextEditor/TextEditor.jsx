@@ -16,6 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import ace from 'ace-builds/src-min-noconflict/ace';
+
 import 'ace-builds/src-noconflict/mode-json';
 import 'ace-builds/src-noconflict/mode-yaml';
 import 'ace-builds/src-noconflict/theme-monokai';

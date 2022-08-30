@@ -16,6 +16,7 @@
 
 import React from 'react';
 import { render } from 'design/utils/testing';
+
 import { FromInvite, FromReset } from './RecoveryCodes.story';
 
 test('render correct dialog after creating a new account', () => {

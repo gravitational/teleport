@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { Uploader, Downloader } from 'teleport/Console/services/fileTransfer';
+
 import StoreFiles from './storeFiles';
 
 export class Scp {

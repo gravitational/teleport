@@ -15,8 +15,10 @@ limitations under the License.
 */
 
 import { map, sortBy } from 'lodash';
+
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
+
 import makeCluster from './makeCluster';
 
 const service = {

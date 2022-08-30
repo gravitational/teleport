@@ -18,6 +18,7 @@ import React from 'react';
 import { Router } from 'react-router';
 import { createMemoryHistory } from 'history';
 import * as Icons from 'design/Icon';
+
 import { TopBar } from './TopBar';
 
 export default {

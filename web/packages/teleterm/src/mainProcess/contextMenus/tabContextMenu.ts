@@ -4,6 +4,7 @@ import {
   Menu,
   MenuItemConstructorOptions,
 } from 'electron';
+
 import {
   TabContextMenuEventChannel,
   TabContextMenuEventType,

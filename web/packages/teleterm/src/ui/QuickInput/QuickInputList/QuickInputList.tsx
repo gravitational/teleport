@@ -18,8 +18,10 @@ import React, { useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { Box, Flex, Label, Text } from 'design';
 import { makeLabelTag } from 'teleport/components/formatters';
-import * as types from 'teleterm/ui/services/quickInput/types';
+
 import { Cli, Server, Person, Database } from 'design/Icon';
+
+import * as types from 'teleterm/ui/services/quickInput/types';
 
 const QuickInputList = React.forwardRef<HTMLElement, Props>((props, ref) => {
   const activeItemRef = useRef<HTMLDivElement>();

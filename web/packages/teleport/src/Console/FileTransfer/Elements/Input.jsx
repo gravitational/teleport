@@ -16,6 +16,7 @@ limitations under the License.
 
 import styled from 'styled-components';
 import { width, space } from 'styled-system';
+
 import { colors } from 'teleport/Console/colors';
 
 const Input = styled.input`

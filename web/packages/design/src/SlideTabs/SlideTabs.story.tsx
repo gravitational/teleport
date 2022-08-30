@@ -15,6 +15,7 @@
  */
 
 import React from 'react';
+
 import SlideTabs from './SlideTabs';
 
 export default {

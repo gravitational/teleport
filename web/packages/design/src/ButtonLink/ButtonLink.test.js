@@ -15,8 +15,10 @@
  */
 
 import React from 'react';
-import ButtonLink from './index';
+
 import { render } from 'design/utils/testing';
+
+import ButtonLink from './index';
 
 describe('design/ButtonLink', () => {
   it('respects the "as" prop', () => {

@@ -15,9 +15,11 @@ limitations under the License.
 */
 
 import React from 'react';
+
+import useAttempt from 'shared/hooks/useAttemptNext';
+
 import cfg from 'teleport/config';
 import auth from 'teleport/services/auth';
-import useAttempt from 'shared/hooks/useAttemptNext';
 
 export default function useReAuthenticate({ onAuthenticated, onClose }: Props) {
   const { attempt, setAttempt, handleError } = useAttempt('');

@@ -16,6 +16,7 @@ limitations under the License.
 
 import React, { forwardRef } from 'react';
 import { Box, Input, LabelInput, Text } from 'design';
+
 import { useRule } from 'shared/components/Validation';
 
 const FieldInput = forwardRef<HTMLInputElement, Props>(

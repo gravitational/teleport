@@ -17,6 +17,7 @@ limitations under the License.
 import React from 'react';
 import { Text, Box } from 'design';
 import PasswordForm from 'shared/components/FormPassword';
+
 import useChangePassword, { State } from './useChangePassword';
 
 export default function Container() {

@@ -15,6 +15,9 @@
  */
 
 import React from 'react';
+
+import { render } from 'design/utils/testing';
+
 import {
   LocalOnly,
   LocalWithOtp,
@@ -26,7 +29,6 @@ import {
   LocalDisabledWithSso,
   LocalDisabledNoSso,
 } from './FormLogin.story';
-import { render } from 'design/utils/testing';
 
 test('auth2faType: off', () => {
   const { container } = render(<LocalOnly />);

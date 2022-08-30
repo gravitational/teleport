@@ -17,6 +17,7 @@
 import { useState } from 'react';
 import { useAttemptNext } from 'shared/hooks';
 import { Option } from 'shared/components/Select';
+
 import { ResetToken, User } from 'teleport/services/user';
 
 export default function useUserDialog(props: Props) {

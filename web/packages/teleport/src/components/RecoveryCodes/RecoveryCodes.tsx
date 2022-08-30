@@ -19,6 +19,7 @@ import styled from 'styled-components';
 import { Flex, Card, Text, Box, ButtonPrimary } from 'design';
 import copyToClipboard from 'design/utils/copyToClipboard';
 import selectElementContent from 'design/utils/selectElementContent';
+
 import { RecoveryCodes } from 'teleport/services/auth';
 
 export default function RecoveryCodesDialog({

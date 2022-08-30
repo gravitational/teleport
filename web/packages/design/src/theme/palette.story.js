@@ -17,8 +17,10 @@ limitations under the License.
 /*eslint import/namespace: ['error', { allowComputed: true }]*/
 
 import React from 'react';
-import * as colors from './palette';
+
 import { Flex, Box } from '..';
+
+import * as colors from './palette';
 import { getContrastText } from './theme';
 
 export default {

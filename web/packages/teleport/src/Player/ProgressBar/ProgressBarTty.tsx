@@ -16,7 +16,9 @@ limitations under the License.
 
 import React from 'react';
 import { throttle } from 'lodash';
+
 import TtyPlayer from 'teleport/lib/term/ttyPlayer';
+
 import ProgressBar from './ProgressBar';
 
 export default function ProgressBarTty(props: { tty: TtyPlayer }) {

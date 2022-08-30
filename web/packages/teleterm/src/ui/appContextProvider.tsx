@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+
 import AppContext from './appContext';
 
 export const AppReactContext = React.createContext<AppContext>(null);

@@ -1,4 +1,5 @@
 const path = require('path');
+
 const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 const HtmlWebPackPlugin = require('html-webpack-plugin');
 const resolvepath = require('@gravitational/build/webpack/resolvepath');

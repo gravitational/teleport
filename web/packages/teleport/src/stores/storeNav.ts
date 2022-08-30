@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { Store } from 'shared/libs/stores';
+
 import { NavGroup } from 'teleport/types';
 
 export const defaultNavState = {

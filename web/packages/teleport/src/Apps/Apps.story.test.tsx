@@ -1,5 +1,6 @@
 import React from 'react';
 import { render } from 'design/utils/testing';
+
 import { Loaded, Failed, Empty, EmptyReadOnly } from './Apps.story';
 
 jest.mock('teleport/useStickyClusterId', () =>

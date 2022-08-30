@@ -16,6 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
+
 import { space, width } from 'design/system';
 import defaultTheme from 'design/theme';
 

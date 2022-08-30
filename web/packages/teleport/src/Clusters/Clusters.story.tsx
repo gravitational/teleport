@@ -17,9 +17,11 @@ limitations under the License.
 import React from 'react';
 import { Router } from 'react-router';
 import { createMemoryHistory } from 'history';
+
+import * as teleport from 'teleport';
+
 import Clusters from './Clusters';
 import * as fixtures from './fixtures';
-import * as teleport from 'teleport';
 
 export default {
   title: 'Teleport/Clusters',

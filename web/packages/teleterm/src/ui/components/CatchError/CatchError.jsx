@@ -16,6 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { Failed } from 'design/CardError';
+
 import Logger from 'teleterm/logger';
 
 export default class CatchError extends React.Component {

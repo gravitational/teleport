@@ -16,6 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { render } from 'design/utils/testing';
+
 import { Local, Sso } from './ConnectDialog.story';
 
 test('kube connect dialogue local', () => {

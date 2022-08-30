@@ -17,10 +17,13 @@ limitations under the License.
 import React from 'react';
 import { ThemeContext } from 'styled-components';
 import { Flex } from 'design';
+
+import { getPlatform } from 'design/theme/utils';
+
 import Tty from 'teleport/lib/term/tty';
 import XTermCtrl from 'teleport/lib/term/terminal';
 import { getMappedAction } from 'teleport/Console/useKeyboardNav';
-import { getPlatform } from 'design/theme/utils';
+
 import StyledXterm from '../../StyledXterm';
 
 export default class Terminal extends React.Component<{ tty: Tty }> {

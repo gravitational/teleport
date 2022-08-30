@@ -1,6 +1,8 @@
 import React from 'react';
+
 import { Text, Indicator, Box } from 'design';
 import * as Icons from 'design/Icon';
+
 import { StyledTable, StyledPanel } from './StyledTable';
 import { TableProps } from './types';
 import { SortHeaderCell, TextCell } from './Cells';

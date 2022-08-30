@@ -17,13 +17,18 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import { typography } from 'design/system';
-import TabItem from './TabItem';
+
 import * as Icons from 'design/Icon';
 import { Box, ButtonIcon } from 'design';
-import * as stores from 'teleport/Console/stores';
+
 import { useStore } from 'shared/libs/stores';
+
+import * as stores from 'teleport/Console/stores';
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
+
 import { colors } from '../colors';
+
+import TabItem from './TabItem';
 
 export default function TabsContainer(props: Props) {
   const ctx = useConsoleContext();

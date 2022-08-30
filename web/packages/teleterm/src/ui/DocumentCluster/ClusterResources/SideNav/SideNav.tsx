@@ -17,6 +17,7 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import { Flex } from 'design';
+
 import ClusterNavButton from 'teleterm/ui/DocumentCluster/ClusterNavButton';
 import ClusterContext, {
   NavLocation,

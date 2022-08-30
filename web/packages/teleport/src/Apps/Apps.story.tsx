@@ -15,6 +15,7 @@
  */
 
 import React from 'react';
+
 import { Apps } from './Apps';
 import { State } from './useApps';
 import { apps } from './fixtures';

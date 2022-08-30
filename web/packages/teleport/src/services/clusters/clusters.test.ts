@@ -1,4 +1,5 @@
 import api from 'teleport/services/api';
+
 import clusterService from './clusters';
 
 test('correct formatting of clusters fetch response', async () => {

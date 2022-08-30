@@ -15,7 +15,9 @@ limitations under the License.
 */
 
 import React from 'react';
+
 import { Flex, Box, Text } from '..';
+
 import theme from './theme';
 
 export default {

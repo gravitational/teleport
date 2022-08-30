@@ -16,6 +16,7 @@
 
 import React from 'react';
 import { Indicator, Box } from 'design';
+
 import useTeleport from 'teleport/useTeleport';
 import {
   FeatureBox,
@@ -24,10 +25,12 @@ import {
 } from 'teleport/components/Layout';
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
+
+import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
+
 import AppList from './AppList';
 import AddApp from './AddApp';
 import useApps, { State } from './useApps';
-import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 
 export default function Container() {
   const ctx = useTeleport();

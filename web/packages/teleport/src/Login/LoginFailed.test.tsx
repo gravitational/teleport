@@ -16,6 +16,7 @@
 
 import React from 'react';
 import { render } from 'design/utils/testing';
+
 import { FailedDefault, FailedCustom } from './Login.story';
 
 test('default error message', () => {

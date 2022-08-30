@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { useState } from 'shared/hooks';
+
 import { Resource, Kind } from 'teleport/services/resources';
 
 export default function useResources<T extends Kind>(

@@ -16,6 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { Flex } from 'design';
+
 import TrustedListItem from './TrustedListItem';
 
 export default function TrustedList({

@@ -16,18 +16,24 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
-import { useParams, useLocation } from 'teleport/components/Router';
+
 import { Flex, Box } from 'design';
-import Tabs, { TabItem } from './PlayerTabs';
-import SshPlayer from './SshPlayer';
-import { DesktopPlayer } from './DesktopPlayer';
-import ActionBar from './ActionBar';
+
+import { Danger } from 'design/Alert';
+
+import { useParams, useLocation } from 'teleport/components/Router';
+
 import session from 'teleport/services/websession';
 import { colors } from 'teleport/Console/colors';
 import { UrlPlayerParams } from 'teleport/config';
 import { getUrlParameter } from 'teleport/services/history';
-import { Danger } from 'design/Alert';
+
 import { RecordingType } from 'teleport/services/recordings';
+
+import ActionBar from './ActionBar';
+import { DesktopPlayer } from './DesktopPlayer';
+import SshPlayer from './SshPlayer';
+import Tabs, { TabItem } from './PlayerTabs';
 
 export default function Player() {
   const { sid, clusterId } = useParams<UrlPlayerParams>();

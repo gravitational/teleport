@@ -1,8 +1,10 @@
 import { ipcMain, ipcRenderer } from 'electron';
+
 import {
   FileStorageEventChannel,
   FileStorageEventType,
 } from '../../mainProcess/types';
+
 import { FileStorage } from './fileStorage';
 
 export function subscribeToFileStorageEvents(configService: FileStorage): void {

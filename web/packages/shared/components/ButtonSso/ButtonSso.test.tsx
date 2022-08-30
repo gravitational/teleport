@@ -15,8 +15,10 @@
  */
 
 import React from 'react';
-import ButtonSso from '.';
+
 import { render } from 'design/utils/testing';
+
+import ButtonSso from '.';
 
 test.each`
   ssoType           | expectedIcon

@@ -14,8 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useCallback, useState } from 'react';
+
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { ExtendedTrackedConnection } from 'teleterm/ui/services/connectionTracker';
 
 export function useConnections() {

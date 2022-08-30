@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
+
+import { ButtonIcon, Flex, Label, Text } from 'design';
+
+import { ExitRight } from 'design/Icon';
+
 import { ListItem } from 'teleterm/ui/components/ListItem';
 import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
-import { ButtonIcon, Flex, Label, Text } from 'design';
 import LinearProgress from 'teleterm/ui/components/LinearProgress';
-import { ExitRight } from 'design/Icon';
+
 import { getUserWithClusterName } from 'teleterm/ui/utils';
 
 interface IdentityListItemProps {

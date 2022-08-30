@@ -19,10 +19,13 @@ import { NavLink } from 'react-router-dom';
 import TopNavUserMenu from 'design/TopNav/TopNavUserMenu';
 import { MenuItemIcon, MenuItem } from 'design/Menu';
 import { Text, Flex, ButtonPrimary, TopNav } from 'design';
-import ClusterSelector from './ClusterSelector';
+
 import { useTheme } from 'styled-components';
+
 import useTeleport from 'teleport/useTeleport';
 import useStickyClusterId from 'teleport/useStickyClusterId';
+
+import ClusterSelector from './ClusterSelector';
 import useTopBar from './useTopBar';
 
 export default function Container() {

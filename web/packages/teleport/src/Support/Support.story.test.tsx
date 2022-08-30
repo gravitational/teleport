@@ -15,8 +15,10 @@
  */
 
 import React from 'react';
-import { SupportOSS, SupportCloud, SupportEnterprise } from './Support.story';
+
 import { render } from 'design/utils/testing';
+
+import { SupportOSS, SupportCloud, SupportEnterprise } from './Support.story';
 
 test('support OSS', () => {
   const { container } = render(<SupportOSS />);

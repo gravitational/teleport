@@ -22,6 +22,7 @@ import Dialog, {
   DialogContent,
   DialogFooter,
 } from 'design/Dialog';
+
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 
 export default function ShareSession({ closeShareSession }: Props) {

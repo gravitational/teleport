@@ -18,6 +18,7 @@ import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router';
 import { FetchStatus, SortType } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
+
 import history from 'teleport/services/history';
 import { KubesResponse } from 'teleport/services/kube';
 import TeleportContext from 'teleport/teleportContext';

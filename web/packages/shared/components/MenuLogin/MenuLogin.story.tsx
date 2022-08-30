@@ -17,9 +17,11 @@ limitations under the License.
 import React from 'react';
 import { storiesOf } from '@storybook/react';
 import { Flex } from 'design';
+
+import { MenuLoginTheme } from 'teleterm/ui/DocumentCluster/ClusterResources/MenuLoginTheme';
+
 import { MenuLogin } from './MenuLogin';
 import { MenuLoginHandle } from './types';
-import { MenuLoginTheme } from 'teleterm/ui/DocumentCluster/ClusterResources/MenuLoginTheme';
 
 storiesOf('Shared/MenuLogin', module).add('MenuLogin', () => {
   return <MenuLoginExamples />;

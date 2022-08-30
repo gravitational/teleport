@@ -15,6 +15,7 @@
  */
 
 import { at } from 'lodash';
+
 import { User } from './types';
 
 export default function makeUser(json): User {

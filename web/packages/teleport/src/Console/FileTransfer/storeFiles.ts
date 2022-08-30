@@ -15,7 +15,9 @@ limitations under the License.
 */
 
 import { Store } from 'shared/libs/stores';
+
 import cfg from 'teleport/config';
+
 import { File } from './types';
 
 const defaultState = {

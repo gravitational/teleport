@@ -1,7 +1,9 @@
 import React from 'react';
 import { Text } from 'design';
-import Document from 'teleterm/ui/Document';
+
 import styled from 'styled-components';
+
+import Document from 'teleterm/ui/Document';
 import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
 import { KeyboardShortcutType } from 'teleterm/services/config';
 

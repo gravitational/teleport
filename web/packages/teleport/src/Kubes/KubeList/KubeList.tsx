@@ -18,11 +18,13 @@ import React, { useState } from 'react';
 import { ButtonBorder } from 'design';
 import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
 import { SortType } from 'design/DataTable/types';
+
 import { Kube } from 'teleport/services/kube';
 import { AuthType } from 'teleport/services/user';
 import { AgentLabel } from 'teleport/services/agents';
 import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';
 import { ResourceUrlQueryParams } from 'teleport/getUrlQueryParams';
+
 import ConnectDialog from '../ConnectDialog';
 
 function KubeList(props: Props) {

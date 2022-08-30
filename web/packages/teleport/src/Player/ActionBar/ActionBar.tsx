@@ -19,6 +19,7 @@ import { NavLink } from 'react-router-dom';
 import { Flex, ButtonPrimary } from 'design';
 import { MenuIcon, MenuItem, MenuItemIcon } from 'shared/components/MenuAction';
 import * as Icons from 'design/Icon';
+
 import cfg from 'teleport/config';
 
 export default function ActionBar({ onLogout }: Props) {

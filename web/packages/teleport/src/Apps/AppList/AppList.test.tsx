@@ -16,9 +16,12 @@
 
 import React from 'react';
 import { render, screen, fireEvent } from 'design/utils/testing';
+
 import cfg from 'teleport/config';
-import AppList from './AppList';
+
 import { props } from '../Apps.story';
+
+import AppList from './AppList';
 
 test('correct launch url is generated for a selected role', () => {
   jest.spyOn(cfg, 'getAppLauncherRoute');

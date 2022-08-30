@@ -30,6 +30,7 @@ import {
   Indicator,
 } from 'design';
 import Select, { Option } from 'shared/components/Select';
+
 import { AuthType } from 'teleport/services/user';
 import { DbType, DbProtocol } from 'teleport/services/databases';
 import {
@@ -39,6 +40,7 @@ import {
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import DownloadLinks from 'teleport/components/DownloadLinks';
 import useTeleport from 'teleport/useTeleport';
+
 import useAddDatabase, { State } from './useAddDatabase';
 
 export default function Container(props: Props) {

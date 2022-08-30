@@ -1,5 +1,7 @@
 import { useEffect } from '@gravitational/shared/hooks';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+
 import {
   KeyboardShortcutEventSubscriber,
   KeyboardShortcutHandlers,

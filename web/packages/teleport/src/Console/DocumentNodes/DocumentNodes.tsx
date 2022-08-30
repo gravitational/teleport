@@ -17,14 +17,17 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import { Indicator, Flex, Box } from 'design';
+
 import NodeList from 'teleport/components/NodeList';
 import QuickLaunch from 'teleport/components/QuickLaunch';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import Document from 'teleport/Console/Document';
+
+import * as stores from 'teleport/Console/stores/types';
+
 import ClusterSelector from './ClusterSelector';
 import useNodes from './useNodes';
 import ThemeProvider from './ThemeProvider';
-import * as stores from 'teleport/Console/stores/types';
 
 type Props = {
   visible: boolean;

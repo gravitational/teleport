@@ -15,10 +15,12 @@
  */
 
 import { useAttempt } from 'shared/hooks';
+
+import { AuthProvider } from 'shared/services';
+
 import history from 'teleport/services/history';
 import cfg from 'teleport/config';
 import auth, { UserCredentials } from 'teleport/services/auth';
-import { AuthProvider } from 'shared/services';
 
 export default function useLogin() {
   const [attempt, attemptActions] = useAttempt({ isProcessing: false });

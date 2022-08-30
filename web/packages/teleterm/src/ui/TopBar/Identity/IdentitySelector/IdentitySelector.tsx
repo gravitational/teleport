@@ -2,9 +2,11 @@ import { SortAsc, SortDesc } from 'design/Icon';
 import React, { forwardRef } from 'react';
 import { Box, Text } from 'design';
 import styled from 'styled-components';
+
+import { getUserWithClusterName } from 'teleterm/ui/utils';
+
 import { UserIcon } from './UserIcon';
 import { PamIcon } from './PamIcon';
-import { getUserWithClusterName } from 'teleterm/ui/utils';
 
 interface IdentitySelectorProps {
   isOpened: boolean;

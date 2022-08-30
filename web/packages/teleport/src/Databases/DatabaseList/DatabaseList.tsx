@@ -18,6 +18,7 @@ import React, { useState } from 'react';
 import { ButtonBorder } from 'design';
 import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
 import { SortType } from 'design/DataTable/types';
+
 import { AuthType } from 'teleport/services/user';
 import { Database, DbProtocol } from 'teleport/services/databases';
 import { AgentLabel } from 'teleport/services/agents';

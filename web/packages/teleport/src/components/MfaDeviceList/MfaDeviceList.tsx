@@ -20,6 +20,7 @@ import { ButtonBorder, Text } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import { dateMatcher } from 'design/utils/match';
 import { displayDate } from 'shared/services/loc';
+
 import { MfaDevice } from 'teleport/services/mfa/types';
 
 export default function MfaDeviceList({

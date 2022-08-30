@@ -16,6 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import { Indicator, Box, Flex } from 'design';
+
 import {
   FeatureBox,
   FeatureHeader,
@@ -27,9 +28,11 @@ import NodeList from 'teleport/components/NodeList';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import useTeleport from 'teleport/useTeleport';
 import useStickyClusterId from 'teleport/useStickyClusterId';
+
+import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
+
 import useNodes, { State } from './useNodes';
 import AddNode from './AddNode';
-import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 
 export default function Container() {
   const teleCtx = useTeleport();

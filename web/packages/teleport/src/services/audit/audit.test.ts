@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-import AuditService from './audit';
 import api from 'teleport/services/api';
+
+import AuditService from './audit';
 
 test('fetch events', async () => {
   const audit = new AuditService();

@@ -16,6 +16,7 @@
 
 import React from 'react';
 import { Box, ButtonSecondary, Text, Flex } from 'design';
+
 import LinearProgress from 'teleterm/ui/components/LinearProgress';
 
 export default function PromptSsoStatus(props: Props) {

@@ -1,6 +1,8 @@
 import React from 'react';
-import * as story from './UserTokenLink.story';
+
 import { render } from 'design/utils/testing';
+
+import * as story from './UserTokenLink.story';
 
 jest
   .spyOn(Date, 'now')

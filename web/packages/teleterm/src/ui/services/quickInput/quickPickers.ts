@@ -18,6 +18,7 @@ import { ClustersService } from 'teleterm/ui/services/clusters';
 import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
 import { QuickInputService } from 'teleterm/ui/services/quickInput';
 import { CommandLauncher } from 'teleterm/ui/commandLauncher';
+
 import {
   QuickInputPicker,
   SuggestionCmd,

@@ -17,6 +17,7 @@ limitations under the License.
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 import { DeviceType, DeviceUsage } from 'teleport/services/mfa';
+
 import makePasswordToken from './makePasswordToken';
 import { makeRecoveryCodes } from './makeRecoveryCodes';
 import {

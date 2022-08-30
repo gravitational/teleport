@@ -16,8 +16,10 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
-import Icon from '../Icon';
+
 import { space, color } from 'design/system';
+
+import Icon from '../Icon';
 
 const sizeMap = {
   0: {

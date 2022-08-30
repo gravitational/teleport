@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { formatDistanceStrict } from 'date-fns';
+
 import { JoinToken } from './types';
 
 export default function makeToken(json): JoinToken {

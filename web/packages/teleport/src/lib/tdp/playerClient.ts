@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import { base64ToArrayBuffer } from 'shared/utils/base64';
+
 import Client, { TdpClientEvent } from './client';
 
 enum Action {

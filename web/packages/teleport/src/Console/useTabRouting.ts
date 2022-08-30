@@ -16,7 +16,9 @@ limitations under the License.
 
 import React from 'react';
 import { useRouteMatch, useParams, useLocation } from 'react-router';
+
 import cfg, { UrlSshParams } from 'teleport/config';
+
 import ConsoleContext from './consoleContext';
 
 export default function useRouting(ctx: ConsoleContext) {

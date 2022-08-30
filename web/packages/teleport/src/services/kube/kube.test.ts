@@ -14,8 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import KubeService from './kube';
 import api from 'teleport/services/api';
+
+import KubeService from './kube';
 
 test('correct processed fetch response formatting', async () => {
   jest.spyOn(api, 'get').mockResolvedValue(mockApiResponse);

@@ -1,4 +1,5 @@
 import { merge } from 'lodash';
+
 import { keyboardShortcutsConfigProvider } from './providers/keyboardShortcutsConfigProvider';
 import { appearanceConfigProvider } from './providers/appearanceConfigProvider';
 import { Config, ConfigService, ConfigServiceProvider } from './types';

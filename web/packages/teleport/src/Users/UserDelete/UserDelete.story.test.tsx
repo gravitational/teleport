@@ -15,8 +15,10 @@
  */
 
 import React from 'react';
-import * as stories from './UserDelete.story';
+
 import { render } from 'design/utils/testing';
+
+import * as stories from './UserDelete.story';
 
 test('processing state', () => {
   const { getByTestId } = render(<stories.Processing />);

@@ -15,13 +15,15 @@ limitations under the License.
 */
 
 import React from 'react';
+
+import { ButtonPrimary } from './../Button';
+
 import DialogConfirmation, {
   DialogHeader,
   DialogContent,
   DialogFooter,
   DialogTitle,
 } from './index';
-import { ButtonPrimary } from './../Button';
 
 export default {
   title: 'Design/Dialog/Confirmation',

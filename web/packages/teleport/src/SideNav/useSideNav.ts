@@ -16,9 +16,11 @@ limitations under the License.
 
 import { useMemo } from 'react';
 import { useHistory } from 'react-router';
+
+import * as Icons from 'design/Icon';
+
 import useTeleport from 'teleport/useTeleport';
 import useStickyClusterId from 'teleport/useStickyClusterId';
-import * as Icons from 'design/Icon';
 import * as Store from 'teleport/stores/storeNav';
 import cfg from 'teleport/config';
 

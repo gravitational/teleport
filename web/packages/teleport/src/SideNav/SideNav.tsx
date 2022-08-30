@@ -18,11 +18,13 @@ import React from 'react';
 import styled from 'styled-components';
 import { NavLink, Link } from 'react-router-dom';
 import { Flex, Image } from 'design';
+
+import cfg from 'teleport/config';
+
 import SideNavItemIcon from './SideNavItemIcon';
 import SideNavItem from './SideNavItem';
 import SideNavItemGroup from './SideNavItemGroup';
 import logoSvg from './logo';
-import cfg from 'teleport/config';
 import useSideNav from './useSideNav';
 
 export default function Container() {

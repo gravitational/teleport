@@ -1,8 +1,11 @@
 import React from 'react';
+
+import { Add } from 'design/Icon';
+
+import styled from 'styled-components';
+
 import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
 import { ListItem } from 'teleterm/ui/components/ListItem';
-import { Add } from 'design/Icon';
-import styled from 'styled-components';
 
 interface AddNewClusterItemProps {
   index: number;

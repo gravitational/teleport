@@ -22,6 +22,7 @@ import Dialog, {
   DialogContent,
 } from 'design/Dialog';
 import { Text, Box, ButtonSecondary } from 'design';
+
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import { AuthType } from 'teleport/services/user';
 

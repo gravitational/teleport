@@ -14,8 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import DatabaseService from './databases';
 import api from 'teleport/services/api';
+
+import DatabaseService from './databases';
 import { Database } from './types';
 
 test('correct formatting of database fetch response', async () => {

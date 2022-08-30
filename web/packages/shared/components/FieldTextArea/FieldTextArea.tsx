@@ -16,8 +16,10 @@
 
 import React from 'react';
 import { Box, LabelInput, Text, TextArea } from 'design';
-import { useRule } from 'shared/components/Validation';
+
 import { TextAreaProps } from 'design/TextArea';
+
+import { useRule } from 'shared/components/Validation';
 
 export interface FieldTextAreaProps
   extends Pick<

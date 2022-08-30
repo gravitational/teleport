@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+
 import { Card, Text } from 'design';
 import { CircleCheck } from 'design/Icon';
 
