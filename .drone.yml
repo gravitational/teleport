@@ -5240,38 +5240,37 @@ steps:
 - name: Download "teleport" DEB artifact from APT
   image: ubuntu:20.04
   commands:
+  - PACKAGE_NAME="teleport"
+  - PACKAGE_VERSION="$(cat '/go/vars/full-version/v10')"
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
-  - MAJOR_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'.' -f 1)
+  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
   - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
     $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
   - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
+  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - echo 'Running apt update...'
   - apt update > /dev/null || true
-  - '[ $(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
+  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
     1 ] && TIMED_OUT=false && break;'
   - echo 'Package not found yet, waiting another 15 seconds...'
   - sleep 15
   - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"${PACKAGE_NAME}\"
+  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
     matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
+  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
     cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"${PACKAGE_NAME}=$${FULL_VERSION}\"..."
+  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\"..."
   - mkdir -pv "/go/artifacts/deb/$(cat '/go/vars/full-version/v10')"
   - cd "/go/artifacts/deb/$(cat '/go/vars/full-version/v10')"
-  - apt download ${PACKAGE_NAME}=$${FULL_VERSION}
+  - apt download $${PACKAGE_NAME}=$${FULL_VERSION}
   - mv *.deb "/go/artifacts/deb/$(cat '/go/vars/full-version/v10')/teleport.deb"
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  environment:
-    PACKAGE_NAME: teleport
-    PACKAGE_VERSION: $(cat '/go/vars/full-version/v10')
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -5571,38 +5570,37 @@ steps:
 - name: Download "teleport-ent" DEB artifact from APT
   image: ubuntu:20.04
   commands:
+  - PACKAGE_NAME="teleport-ent"
+  - PACKAGE_VERSION="$(cat '/go/vars/full-version/v10')"
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
-  - MAJOR_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'.' -f 1)
+  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
   - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
     $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
   - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
+  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - echo 'Running apt update...'
   - apt update > /dev/null || true
-  - '[ $(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
+  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
     1 ] && TIMED_OUT=false && break;'
   - echo 'Package not found yet, waiting another 15 seconds...'
   - sleep 15
   - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"${PACKAGE_NAME}\"
+  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
     matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
+  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
     cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"${PACKAGE_NAME}=$${FULL_VERSION}\"..."
+  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\"..."
   - mkdir -pv "/go/artifacts/deb/$(cat '/go/vars/full-version/v10')"
   - cd "/go/artifacts/deb/$(cat '/go/vars/full-version/v10')"
-  - apt download ${PACKAGE_NAME}=$${FULL_VERSION}
+  - apt download $${PACKAGE_NAME}=$${FULL_VERSION}
   - mv *.deb "/go/artifacts/deb/$(cat '/go/vars/full-version/v10')/teleport-ent.deb"
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  environment:
-    PACKAGE_NAME: teleport-ent
-    PACKAGE_VERSION: $(cat '/go/vars/full-version/v10')
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -5905,38 +5903,37 @@ steps:
 - name: Download "teleport-ent-fips" DEB artifact from APT
   image: ubuntu:20.04
   commands:
+  - PACKAGE_NAME="teleport-ent-fips"
+  - PACKAGE_VERSION="$(cat '/go/vars/full-version/v10')"
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
-  - MAJOR_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'.' -f 1)
+  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
   - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
     $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
   - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
+  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - echo 'Running apt update...'
   - apt update > /dev/null || true
-  - '[ $(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
+  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
     1 ] && TIMED_OUT=false && break;'
   - echo 'Package not found yet, waiting another 15 seconds...'
   - sleep 15
   - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"${PACKAGE_NAME}\"
+  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
     matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
+  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
     cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"${PACKAGE_NAME}=$${FULL_VERSION}\"..."
+  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\"..."
   - mkdir -pv "/go/artifacts/deb/$(cat '/go/vars/full-version/v10')"
   - cd "/go/artifacts/deb/$(cat '/go/vars/full-version/v10')"
-  - apt download ${PACKAGE_NAME}=$${FULL_VERSION}
+  - apt download $${PACKAGE_NAME}=$${FULL_VERSION}
   - mv *.deb "/go/artifacts/deb/$(cat '/go/vars/full-version/v10')/teleport-ent-fips.deb"
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  environment:
-    PACKAGE_NAME: teleport-ent-fips
-    PACKAGE_VERSION: $(cat '/go/vars/full-version/v10')
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -6738,38 +6735,37 @@ steps:
 - name: Download "teleport" DEB artifact from APT
   image: ubuntu:20.04
   commands:
+  - PACKAGE_NAME="teleport"
+  - PACKAGE_VERSION="$(cat '/go/vars/full-version/v9')"
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
-  - MAJOR_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'.' -f 1)
+  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
   - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
     $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
   - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
+  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - echo 'Running apt update...'
   - apt update > /dev/null || true
-  - '[ $(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
+  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
     1 ] && TIMED_OUT=false && break;'
   - echo 'Package not found yet, waiting another 15 seconds...'
   - sleep 15
   - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"${PACKAGE_NAME}\"
+  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
     matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
+  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
     cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"${PACKAGE_NAME}=$${FULL_VERSION}\"..."
+  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\"..."
   - mkdir -pv "/go/artifacts/deb/$(cat '/go/vars/full-version/v9')"
   - cd "/go/artifacts/deb/$(cat '/go/vars/full-version/v9')"
-  - apt download ${PACKAGE_NAME}=$${FULL_VERSION}
+  - apt download $${PACKAGE_NAME}=$${FULL_VERSION}
   - mv *.deb "/go/artifacts/deb/$(cat '/go/vars/full-version/v9')/teleport.deb"
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  environment:
-    PACKAGE_NAME: teleport
-    PACKAGE_VERSION: $(cat '/go/vars/full-version/v9')
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -7069,38 +7065,37 @@ steps:
 - name: Download "teleport-ent" DEB artifact from APT
   image: ubuntu:20.04
   commands:
+  - PACKAGE_NAME="teleport-ent"
+  - PACKAGE_VERSION="$(cat '/go/vars/full-version/v9')"
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
-  - MAJOR_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'.' -f 1)
+  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
   - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
     $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
   - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
+  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - echo 'Running apt update...'
   - apt update > /dev/null || true
-  - '[ $(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
+  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
     1 ] && TIMED_OUT=false && break;'
   - echo 'Package not found yet, waiting another 15 seconds...'
   - sleep 15
   - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"${PACKAGE_NAME}\"
+  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
     matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
+  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
     cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"${PACKAGE_NAME}=$${FULL_VERSION}\"..."
+  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\"..."
   - mkdir -pv "/go/artifacts/deb/$(cat '/go/vars/full-version/v9')"
   - cd "/go/artifacts/deb/$(cat '/go/vars/full-version/v9')"
-  - apt download ${PACKAGE_NAME}=$${FULL_VERSION}
+  - apt download $${PACKAGE_NAME}=$${FULL_VERSION}
   - mv *.deb "/go/artifacts/deb/$(cat '/go/vars/full-version/v9')/teleport-ent.deb"
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  environment:
-    PACKAGE_NAME: teleport-ent
-    PACKAGE_VERSION: $(cat '/go/vars/full-version/v9')
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -7402,38 +7397,37 @@ steps:
 - name: Download "teleport-ent-fips" DEB artifact from APT
   image: ubuntu:20.04
   commands:
+  - PACKAGE_NAME="teleport-ent-fips"
+  - PACKAGE_VERSION="$(cat '/go/vars/full-version/v9')"
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
-  - MAJOR_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'.' -f 1)
+  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
   - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
     $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
   - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
+  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - echo 'Running apt update...'
   - apt update > /dev/null || true
-  - '[ $(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
+  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
     1 ] && TIMED_OUT=false && break;'
   - echo 'Package not found yet, waiting another 15 seconds...'
   - sleep 15
   - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"${PACKAGE_NAME}\"
+  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
     matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
+  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
     cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"${PACKAGE_NAME}=$${FULL_VERSION}\"..."
+  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\"..."
   - mkdir -pv "/go/artifacts/deb/$(cat '/go/vars/full-version/v9')"
   - cd "/go/artifacts/deb/$(cat '/go/vars/full-version/v9')"
-  - apt download ${PACKAGE_NAME}=$${FULL_VERSION}
+  - apt download $${PACKAGE_NAME}=$${FULL_VERSION}
   - mv *.deb "/go/artifacts/deb/$(cat '/go/vars/full-version/v9')/teleport-ent-fips.deb"
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  environment:
-    PACKAGE_NAME: teleport-ent-fips
-    PACKAGE_VERSION: $(cat '/go/vars/full-version/v9')
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -8233,38 +8227,37 @@ steps:
 - name: Download "teleport" DEB artifact from APT
   image: ubuntu:20.04
   commands:
+  - PACKAGE_NAME="teleport"
+  - PACKAGE_VERSION="$(cat '/go/vars/full-version/v8')"
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
-  - MAJOR_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'.' -f 1)
+  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
   - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
     $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
   - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
+  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - echo 'Running apt update...'
   - apt update > /dev/null || true
-  - '[ $(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
+  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
     1 ] && TIMED_OUT=false && break;'
   - echo 'Package not found yet, waiting another 15 seconds...'
   - sleep 15
   - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"${PACKAGE_NAME}\"
+  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
     matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
+  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
     cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"${PACKAGE_NAME}=$${FULL_VERSION}\"..."
+  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\"..."
   - mkdir -pv "/go/artifacts/deb/$(cat '/go/vars/full-version/v8')"
   - cd "/go/artifacts/deb/$(cat '/go/vars/full-version/v8')"
-  - apt download ${PACKAGE_NAME}=$${FULL_VERSION}
+  - apt download $${PACKAGE_NAME}=$${FULL_VERSION}
   - mv *.deb "/go/artifacts/deb/$(cat '/go/vars/full-version/v8')/teleport.deb"
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  environment:
-    PACKAGE_NAME: teleport
-    PACKAGE_VERSION: $(cat '/go/vars/full-version/v8')
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
@@ -8564,38 +8557,37 @@ steps:
 - name: Download "teleport-ent" DEB artifact from APT
   image: ubuntu:20.04
   commands:
+  - PACKAGE_NAME="teleport-ent"
+  - PACKAGE_VERSION="$(cat '/go/vars/full-version/v8')"
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
-  - MAJOR_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'.' -f 1)
+  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
   - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
     $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
   - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
+  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - echo 'Running apt update...'
   - apt update > /dev/null || true
-  - '[ $(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
+  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
     1 ] && TIMED_OUT=false && break;'
   - echo 'Package not found yet, waiting another 15 seconds...'
   - sleep 15
   - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"${PACKAGE_NAME}\"
+  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
     matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
+  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
     cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"${PACKAGE_NAME}=$${FULL_VERSION}\"..."
+  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\"..."
   - mkdir -pv "/go/artifacts/deb/$(cat '/go/vars/full-version/v8')"
   - cd "/go/artifacts/deb/$(cat '/go/vars/full-version/v8')"
-  - apt download ${PACKAGE_NAME}=$${FULL_VERSION}
+  - apt download $${PACKAGE_NAME}=$${FULL_VERSION}
   - mv *.deb "/go/artifacts/deb/$(cat '/go/vars/full-version/v8')/teleport-ent.deb"
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  environment:
-    PACKAGE_NAME: teleport-ent
-    PACKAGE_VERSION: $(cat '/go/vars/full-version/v8')
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
@@ -8897,38 +8889,37 @@ steps:
 - name: Download "teleport-ent-fips" DEB artifact from APT
   image: ubuntu:20.04
   commands:
+  - PACKAGE_NAME="teleport-ent-fips"
+  - PACKAGE_VERSION="$(cat '/go/vars/full-version/v8')"
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
-  - MAJOR_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'.' -f 1)
+  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
   - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
     $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
   - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
+  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - echo 'Running apt update...'
   - apt update > /dev/null || true
-  - '[ $(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
+  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
     1 ] && TIMED_OUT=false && break;'
   - echo 'Package not found yet, waiting another 15 seconds...'
   - sleep 15
   - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"${PACKAGE_NAME}\"
+  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
     matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
+  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
     cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"${PACKAGE_NAME}=$${FULL_VERSION}\"..."
+  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\"..."
   - mkdir -pv "/go/artifacts/deb/$(cat '/go/vars/full-version/v8')"
   - cd "/go/artifacts/deb/$(cat '/go/vars/full-version/v8')"
-  - apt download ${PACKAGE_NAME}=$${FULL_VERSION}
+  - apt download $${PACKAGE_NAME}=$${FULL_VERSION}
   - mv *.deb "/go/artifacts/deb/$(cat '/go/vars/full-version/v8')/teleport-ent-fips.deb"
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  environment:
-    PACKAGE_NAME: teleport-ent-fips
-    PACKAGE_VERSION: $(cat '/go/vars/full-version/v8')
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
@@ -9747,38 +9738,37 @@ steps:
 - name: Download "teleport" DEB artifact from APT
   image: ubuntu:20.04
   commands:
+  - PACKAGE_NAME="teleport"
+  - PACKAGE_VERSION="$DRONE_TAG"
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
-  - MAJOR_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'.' -f 1)
+  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
   - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
     $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
   - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
+  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - echo 'Running apt update...'
   - apt update > /dev/null || true
-  - '[ $(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
+  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
     1 ] && TIMED_OUT=false && break;'
   - echo 'Package not found yet, waiting another 15 seconds...'
   - sleep 15
   - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"${PACKAGE_NAME}\"
+  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
     matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
+  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
     cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"${PACKAGE_NAME}=$${FULL_VERSION}\"..."
+  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\"..."
   - mkdir -pv "/go/artifacts/deb/$DRONE_TAG"
   - cd "/go/artifacts/deb/$DRONE_TAG"
-  - apt download ${PACKAGE_NAME}=$${FULL_VERSION}
+  - apt download $${PACKAGE_NAME}=$${FULL_VERSION}
   - mv *.deb "/go/artifacts/deb/$DRONE_TAG/teleport.deb"
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  environment:
-    PACKAGE_NAME: teleport
-    PACKAGE_VERSION: $DRONE_TAG
   depends_on:
   - Verify build is tagged
   - Check out code
@@ -10086,38 +10076,37 @@ steps:
 - name: Download "teleport-ent" DEB artifact from APT
   image: ubuntu:20.04
   commands:
+  - PACKAGE_NAME="teleport-ent"
+  - PACKAGE_VERSION="$DRONE_TAG"
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
-  - MAJOR_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'.' -f 1)
+  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
   - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
     $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
   - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
+  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - echo 'Running apt update...'
   - apt update > /dev/null || true
-  - '[ $(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
+  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
     1 ] && TIMED_OUT=false && break;'
   - echo 'Package not found yet, waiting another 15 seconds...'
   - sleep 15
   - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"${PACKAGE_NAME}\"
+  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
     matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
+  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
     cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"${PACKAGE_NAME}=$${FULL_VERSION}\"..."
+  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\"..."
   - mkdir -pv "/go/artifacts/deb/$DRONE_TAG"
   - cd "/go/artifacts/deb/$DRONE_TAG"
-  - apt download ${PACKAGE_NAME}=$${FULL_VERSION}
+  - apt download $${PACKAGE_NAME}=$${FULL_VERSION}
   - mv *.deb "/go/artifacts/deb/$DRONE_TAG/teleport-ent.deb"
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  environment:
-    PACKAGE_NAME: teleport-ent
-    PACKAGE_VERSION: $DRONE_TAG
   depends_on:
   - Verify build is tagged
   - Check out code
@@ -10428,38 +10417,37 @@ steps:
 - name: Download "teleport-ent-fips" DEB artifact from APT
   image: ubuntu:20.04
   commands:
+  - PACKAGE_NAME="teleport-ent-fips"
+  - PACKAGE_VERSION="$DRONE_TAG"
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
-  - MAJOR_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'.' -f 1)
+  - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
   - echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://apt.releases.teleport.dev/$${ID?}
     $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}" > /etc/apt/sources.list.d/teleport.list
   - END_TIME=$(( $(date +%s) + 1800 ))
-  - TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)
+  - TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)
   - TIMED_OUT=true
   - while [ $(date +%s) -lt $${END_TIME?} ]; do
   - echo 'Running apt update...'
   - apt update > /dev/null || true
-  - '[ $(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
+  - '[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge
     1 ] && TIMED_OUT=false && break;'
   - echo 'Package not found yet, waiting another 15 seconds...'
   - sleep 15
   - done
-  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"${PACKAGE_NAME}\"
+  - '[ $${TIMED_OUT?} = true ] && echo "Timed out while looking for APT package \"$${PACKAGE_NAME}\"
     matching \"$${TRIMMED_VERSION}\"" && exit 1'
-  - FULL_VERSION=$(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
+  - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
     cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"${PACKAGE_NAME}=$${FULL_VERSION}\"..."
+  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\"..."
   - mkdir -pv "/go/artifacts/deb/$DRONE_TAG"
   - cd "/go/artifacts/deb/$DRONE_TAG"
-  - apt download ${PACKAGE_NAME}=$${FULL_VERSION}
+  - apt download $${PACKAGE_NAME}=$${FULL_VERSION}
   - mv *.deb "/go/artifacts/deb/$DRONE_TAG/teleport-ent-fips.deb"
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
-  environment:
-    PACKAGE_NAME: teleport-ent-fips
-    PACKAGE_VERSION: $DRONE_TAG
   depends_on:
   - Verify build is tagged
   - Check out code
@@ -11694,6 +11682,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: aa2ea72f607c81d1c7000d8bc1fa89acdd7d9d72eabb3d5d64038f8c09e88bd6
+hmac: cb7edefaaaac640a3d44f41df0c8bd09b92c39cfb9bca20e506441c3ebe554ea
 
 ...
