@@ -1072,7 +1072,7 @@ func (s *TLSSuite) TestPasswordCRUD(c *check.C) {
 	c.Assert(err, check.NotNil)
 
 	err = s.server.Auth().UpsertPassword("user1", pass)
-	c.Assert(err, check.NotNil)
+	c.Assert(err, check.IsNil)
 
 	dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
 	c.Assert(err, check.IsNil)
