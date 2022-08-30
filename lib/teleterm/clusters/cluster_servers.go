@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -76,55 +77,55 @@ func (c *Cluster) GetServers(ctx context.Context, r *api.GetServersRequest) (*Ge
 	var (
 		clusterServers []types.Server
 		resp           *types.ListResourcesResponse
+		authClient     auth.ClientI
+		proxyClient    *client.ProxyClient
 		sortBy         types.SortBy
+		err            error
 	)
 
-	err := addMetadataToRetryableError(ctx, func() error {
-		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
+	err = addMetadataToRetryableError(ctx, func() error {
+		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer proxyClient.Close()
-
-		authClient, err := proxyClient.CurrentClusterAccessPoint(ctx)
-		// do we need to call authClient.Close() similar to proxyClient above?
-		// is there a better way to get the auth client instead of this?
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-
-		sortParam := r.SortBy
-		if sortParam != "" {
-			vals := strings.Split(sortParam, ":")
-			if vals[0] != "" {
-				sortBy.Field = vals[0]
-				if len(vals) > 1 && vals[1] == "desc" {
-					sortBy.IsDesc = true
-				}
-			}
-		}
-
-		resp, err = authClient.ListResources(ctx, proto.ListResourcesRequest{
-			Namespace:           defaults.Namespace,
-			ResourceType:        types.KindNode,
-			Limit:               r.Limit,
-			SortBy:              sortBy,
-			PredicateExpression: r.Query,
-			SearchKeywords:      client.ParseSearchKeywords(r.Search, ' '),
-			UseSearchAsRoles:    r.SearchAsRoles == "yes",
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		clusterServers, err = types.ResourcesWithLabels(resp.Resources).AsServers()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
 		return nil
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer authClient.Close()
+
+	authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sortParam := r.SortBy
+	if sortParam != "" {
+		vals := strings.Split(sortParam, ":")
+		if vals[0] != "" {
+			sortBy.Field = vals[0]
+			if len(vals) > 1 && vals[1] == "desc" {
+				sortBy.IsDesc = true
+			}
+		}
+	}
+
+	resp, err = authClient.ListResources(ctx, proto.ListResourcesRequest{
+		Namespace:           defaults.Namespace,
+		ResourceType:        types.KindNode,
+		Limit:               r.Limit,
+		SortBy:              sortBy,
+		PredicateExpression: r.Query,
+		SearchKeywords:      client.ParseSearchKeywords(r.Search, ' '),
+		UseSearchAsRoles:    r.SearchAsRoles == "yes",
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterServers, err = types.ResourcesWithLabels(resp.Resources).AsServers()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
