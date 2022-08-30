@@ -353,10 +353,16 @@ func teleportSetupStep(shellVersion, packageName, dockerfilePath, downloadURL st
 	return step{
 		Name:  fmt.Sprintf("Download %q DEB artifact from APT", packageName),
 		Image: "ubuntu:20.04",
+		Environment: map[string]value{
+			"PACKAGE_VERSION": {
+				raw: shellVersion,
+			},
+			"PACKAGE_NAME": {
+				raw: packageName,
+			},
+		},
 		Commands: []string{
 			// Setup the environment
-			fmt.Sprintf("PACKAGE_VERSION=%q", shellVersion),
-			fmt.Sprintf("PACKAGE_NAME=%q", packageName),
 			"apt update",
 			"apt install --no-install-recommends -y ca-certificates curl",
 			"update-ca-certificates",
@@ -365,28 +371,28 @@ func teleportSetupStep(shellVersion, packageName, dockerfilePath, downloadURL st
 			// Per https://docs.drone.io/pipeline/environment/syntax/#common-problems I'm using '$$' here to ensure
 			// That the shell variable is not expanded until runtime, preventing drone from erroring on the
 			// drone-unsupported '?'
-			"MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)",
+			"MAJOR_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'.' -f 1)",
 			fmt.Sprintf("echo \"deb [signed-by=%s] https://apt.releases.teleport.dev/$${ID?} $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}\""+
 				" > /etc/apt/sources.list.d/teleport.list", keyPath),
 			fmt.Sprintf("END_TIME=$(( $(date +%%s) + %d ))", timeout),
 			"TRIMMED_VERSION=$(echo ${PACKAGE_VERSION} | cut -d'v' -f 2)",
 			"TIMED_OUT=true",
 			// Poll APT until the timeout is reached or the package becomes available
-			"while [ $(date +%s) -lt $END_TIME ]; do",
+			"while [ $(date +%s) -lt ${END_TIME?} ]; do",
 			"echo 'Running apt update...'",
-			// This will error on new major versions where the "stable/${MAJOR_VERSION}" component doesn't exist yet, so we ignore it here.
+			// This will error on new major versions where the "stable/$${MAJOR_VERSION}" component doesn't exist yet, so we ignore it here.
 			"apt update > /dev/null || true",
-			"[ $(apt-cache madison ${PACKAGE_NAME} | grep $TRIMMED_VERSION | wc -l) -ge 1 ] && TIMED_OUT=false && break;",
+			"[ $(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge 1 ] && TIMED_OUT=false && break;",
 			fmt.Sprintf("echo 'Package not found yet, waiting another %d seconds...'", sleepTime),
 			fmt.Sprintf("sleep %d", sleepTime),
 			"done",
 			// Log success or failure and record full version string
-			"[ $TIMED_OUT = true ] && echo \"Timed out while looking for APT package \\\"${PACKAGE_NAME}\\\" matching $TRIMMED_VERSION\" && exit 1",
-			"FULL_VERSION=$(apt-cache madison ${PACKAGE_NAME} | grep $TRIMMED_VERSION | cut -d'|' -f 2 | tr -d ' ' | head -n 1)",
-			"echo \"Found APT package, downloading \\\"${PACKAGE_NAME}=${FULL_VERSION}\\\"...\"",
+			"[ $${TIMED_OUT?} = true ] && echo \"Timed out while looking for APT package \\\"${PACKAGE_NAME}\\\" matching \\\"$${TRIMMED_VERSION}\\\"\" && exit 1",
+			"FULL_VERSION=$(apt-cache madison ${PACKAGE_NAME} | grep $${TRIMMED_VERSION} | cut -d'|' -f 2 | tr -d ' ' | head -n 1)",
+			"echo \"Found APT package, downloading \\\"${PACKAGE_NAME}=$${FULL_VERSION}\\\"...\"",
 			fmt.Sprintf("mkdir -pv %q", downloadDirectory),
 			fmt.Sprintf("cd %q", downloadDirectory),
-			"apt download ${PACKAGE_NAME}=$FULL_VERSION",
+			"apt download ${PACKAGE_NAME}=$${FULL_VERSION}",
 			fmt.Sprintf("mv *.deb %q", downloadPath),
 			// Download the dockerfile
 			fmt.Sprintf("curl -Ls -o %q %q", dockerfilePath, downloadURL),
