@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/utils"
@@ -39,6 +38,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
+
+// periodicFunctionInterval is the interval at which periodic stats are calculated.
+var periodicFunctionInterval = 3 * time.Minute
 
 func newlocalSite(srv *server, domainName string, authServers []string) (*localSite, error) {
 	err := utils.RegisterPrometheusCollectors(localClusterCollectors...)
@@ -506,7 +508,7 @@ func (s *localSite) chanTransportConn(rconn *remoteConn, dreq *sshutils.DialReq)
 
 // periodicFunctions runs functions periodic functions for the local cluster.
 func (s *localSite) periodicFunctions() {
-	ticker := time.NewTicker(defaults.ResyncInterval)
+	ticker := time.NewTicker(periodicFunctionInterval)
 	defer ticker.Stop()
 
 	for {

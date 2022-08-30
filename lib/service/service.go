@@ -1646,6 +1646,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		WebToken:        cfg.services.WebTokens(),
 		Component:       teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
 		MetricComponent: teleport.Component(append(cfg.cacheName, teleport.ComponentCache)...),
+		Tracer:          process.TracingProvider.Tracer(teleport.ComponentCache),
 	}))
 }
 
@@ -2520,9 +2521,9 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) (
 
 // initProxy gets called if teleport runs with 'proxy' role enabled.
 // this means it will do two things:
-//    1. serve a web UI
-//    2. proxy SSH connections to nodes running with 'node' role
-//    3. take care of reverse tunnels
+//  1. serve a web UI
+//  2. proxy SSH connections to nodes running with 'node' role
+//  3. take care of reverse tunnels
 func (process *TeleportProcess) initProxy() error {
 	// If no TLS key was provided for the web listener, generate a self-signed cert
 	if len(process.Config.Proxy.KeyPairs) == 0 &&
@@ -2891,8 +2892,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
 			Log:       process.log.WithField(trace.Component, teleport.ComponentProxy),
-			Client:    conn.Client,
+			Client:    accessPoint,
 		},
+		NodesGetter: conn.Client,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -2902,7 +2904,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
 			Log:       process.log.WithField(trace.Component, teleport.ComponentProxy),
-			Client:    conn.Client,
+			Client:    accessPoint,
 		},
 		AuthorityGetter: accessPoint,
 		Types:           []types.CertAuthType{types.HostCA, types.UserCA},
