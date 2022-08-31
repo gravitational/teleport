@@ -22,6 +22,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -890,7 +891,12 @@ func (c *ServerContext) CancelContext() context.Context {
 // this context.  Not a substitute for calling the
 // ServerContext.Close method.
 func (c *ServerContext) CancelFunc() context.CancelFunc {
-	return c.cancel
+	return func() {
+		buf := make([]byte, 1<<16)
+		stackSize := runtime.Stack(buf, true)
+		c.Logger.WithField("stack", string(buf[0:stackSize])).Debug("------- server context cancelled")
+		c.cancel()
+	}
 }
 
 // SendExecResult sends the result of execution of the "exec" command over the

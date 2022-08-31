@@ -1429,8 +1429,8 @@ func (s *session) heartbeat(ctx context.Context, scx *ServerContext) {
 		return
 	}
 
-	s.log.Debugf("Starting poll and sync of terminal size to all parties.")
-	defer s.log.Debugf("Stopping poll and sync of terminal size to all parties.")
+	s.log.Debug("Starting poll and sync of terminal size to all parties.")
+	defer s.log.Debug("Stopping poll and sync of terminal size to all parties.")
 
 	tickerCh := time.NewTicker(defaults.SessionRefreshPeriod)
 	defer tickerCh.Stop()
@@ -1449,6 +1449,9 @@ func (s *session) heartbeat(ctx context.Context, scx *ServerContext) {
 			if err != nil {
 				s.log.Warnf("Unable to update session %v as active: %v", s.id, err)
 			}
+		case <-ctx.Done():
+			s.log.Debug("------- context done - ending session heartbeat loop")
+			return
 		case <-s.stopC:
 			return
 		}
