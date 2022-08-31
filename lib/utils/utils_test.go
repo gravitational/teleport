@@ -289,6 +289,56 @@ func TestGlobToRegexp(t *testing.T) {
 	}
 }
 
+func TestIsValidHostname(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		hostname string
+		assert   require.BoolAssertionFunc
+	}{
+		{
+			name:     "normal hostname",
+			hostname: "some-host-1.example.com",
+			assert:   require.True,
+		},
+		{
+			name:     "one component",
+			hostname: "example",
+			assert:   require.True,
+		},
+		{
+			name:     "empty",
+			hostname: "",
+			assert:   require.False,
+		},
+		{
+			name:     "invalid characters",
+			hostname: "some spaces.example.com",
+			assert:   require.False,
+		},
+		{
+			name:     "empty label",
+			hostname: "somewhere..example.com",
+			assert:   require.False,
+		},
+		{
+			name:     "label too long",
+			hostname: strings.Repeat("x", 64) + ".example.com",
+			assert:   require.False,
+		},
+		{
+			name:     "hostname too long",
+			hostname: strings.Repeat("x.", 256) + ".example.com",
+			assert:   require.False,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.assert(t, IsValidHostname(tc.hostname))
+		})
+	}
+}
+
 // TestReplaceRegexp tests regexp-style replacement of values
 func TestReplaceRegexp(t *testing.T) {
 	t.Parallel()
