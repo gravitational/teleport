@@ -31,7 +31,9 @@ import (
 // - additional paramenters which depend on the actual kind of resource to test
 // As an example, for SSH Node it also includes the User/Principal that will be used to login.
 type TestConnectionRequest struct {
+	// ResourceKind describes the type of resource to test.
 	ResourceKind string `json:"resource_kind"`
+	// ResourceName is the identification of the resource's instance to test.
 	ResourceName string `json:"resource_name"`
 
 	// ProxyHostPort is the proxy to use in the `--proxy` format (host:webPort,sshPort)
@@ -82,10 +84,10 @@ type ConnectionTester interface {
 
 // ConnectionTesterForKind returns the proper Tester given a resource name.
 // It returns trace.NotImplemented if the resource kind does not have a tester.
-func ConnectionTesterForKind(resourceKind string, client auth.ClientI) (ConnectionTester, error) {
+func ConnectionTesterForKind(resourceKind string, userClt auth.ClientI, proxyClt auth.ClientI) (ConnectionTester, error) {
 	switch resourceKind {
 	case types.KindNode:
-		return NewSSHConnectionTester(client), nil
+		return NewSSHConnectionTester(userClt, proxyClt), nil
 	}
 
 	return nil, trace.NotImplemented("resource %q does not have a connection tester", resourceKind)

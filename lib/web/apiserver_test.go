@@ -3948,7 +3948,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 					Type:    types.ConnectionDiagnosticTrace_RBAC_NODE,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
 					Details: "Node not found. Ensure the Node exists and your role allows you to access it.",
-					Error:   fmt.Sprintf("key %q is not found", "/nodes/default/notanode"),
+					Error:   `key "/nodes/default/notanode" is not found`,
 				},
 			},
 		},
@@ -3966,7 +3966,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
 					Details: `Failed to connect to the Node. Ensure teleport service is running using "systemctl status teleport".`,
-					Error:   "failed connecting to node localhost. ",
+					Error:   "Teleport proxy failed to connect to",
 				},
 			},
 		},
@@ -4040,7 +4040,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 				ResourceName: tt.resourceName,
 				SSHPrincipal: tt.nodeUser,
 				// Default is 30 seconds but since tests run locally, we can reduce this value to also improve test responsiveness
-				DialTimeout: time.Hour,
+				DialTimeout: time.Second,
 			})
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, resp.Code())

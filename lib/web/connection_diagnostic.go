@@ -59,12 +59,12 @@ func (h *Handler) diagnoseConnection(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := ctx.GetUserClient(site)
+	userClt, err := ctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	tester, err := conntest.ConnectionTesterForKind(req.ResourceKind, clt)
+	tester, err := conntest.ConnectionTesterForKind(req.ResourceKind, userClt, h.GetProxyClient())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
