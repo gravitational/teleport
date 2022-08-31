@@ -276,7 +276,7 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		AWSRoleARNs:        id.AWSRoleARNs,
 		AccessRequests:     id.ActiveRequests,
 		DisallowReissue:    id.DisallowReissue,
-		AllowedResourceIDs: types.EventResourceIDs(id.AllowedResourceIDs),
+		AllowedResourceIDs: events.ResourceIDs(id.AllowedResourceIDs),
 	}
 }
 

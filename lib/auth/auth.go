@@ -1948,6 +1948,8 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 	// Keep preserving the login time.
 	sess.SetLoginTime(prevSession.GetLoginTime())
 
+	sess.SetConsumedAccessRequestID(req.AccessRequestID)
+
 	if err := a.upsertWebSession(ctx, req.User, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2596,7 +2598,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 			Expires: req.GetAccessExpiry(),
 		},
 		Roles:                req.GetRoles(),
-		RequestedResourceIDs: types.EventResourceIDs(req.GetRequestedResourceIDs()),
+		RequestedResourceIDs: apievents.ResourceIDs(req.GetRequestedResourceIDs()),
 		RequestID:            req.GetName(),
 		RequestState:         req.GetState().String(),
 		Reason:               req.GetRequestReason(),
