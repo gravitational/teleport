@@ -204,7 +204,7 @@ function Convert-Base64 {
 function Send-ErrorMessage {
     <#
     .SYNOPSIS
-    Formats and sends a buidl failure message to Slack
+    Formats and sends a build failure message to Slack
     #>
     [CmdletBinding()]
     param ()
