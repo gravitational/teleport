@@ -75,8 +75,29 @@ This involves:
    `host_cert` field much like [`SSHSession`], then provide a custom context in
    [`GenerateHostCert()`].
 
+   Additional context fields will be passed to the `predicate` parser to allow
+   further restriction of certificate issuance, including the role, cluster
+   name, host ID, and node name. While present, the TTL field may require
+   additional custom predicate functions to compare durations. Most of these
+   fields (other than principals) are normally unset for SSH nodes.
+
+   We should provide (and document) a sane rule that ensures regular SSH host
+   cert rules are followed, alongside users' own requirements (e.g. DNS suffix).
+
 [`GenerateHostCert()`]: https://github.com/gravitational/teleport/blob/82c520c8183553f310459c3b4a96b70065ee268a/lib/auth/auth_with_roles.go#L2139
 [`SSHSession`]: https://github.com/gravitational/teleport/blob/ab12ad33d9b3143baa5dc1a0c236cb6ed7645f10/lib/services/parser.go#L183
+
+### Issuing short-lived certificates
+
+SSH host certificates issued today via `tctl auth sign` [do not have an
+expiration date][date]. While we could preserve this behavior, any process that
+continually produces certificates with an infinite TTL seems problematic.
+
+Our preference is to generate similarly short-lived certificates as we do for
+other bot credentials; this has certain (minor) caveats as explored in the UX
+section below.
+
+[date]: https://github.com/gravitational/teleport/blob/ab12ad33d9b3143baa5dc1a0c236cb6ed7645f10/tool/tctl/common/auth_command.go#L426
 
 ### UX
 
@@ -91,7 +112,6 @@ include:
    the certificate file for each incoming connection, so no reload is necessary
    unless the `sshd_config` file itself has changed (e.g. changed the path to
    the host cert / key).
-
 
 #### Preferred implementation: Config Template
 
