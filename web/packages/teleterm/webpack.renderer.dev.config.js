@@ -4,7 +4,7 @@ const path = require('path');
 const defaultCfg = require('@gravitational/build/webpack/webpack.dev.config');
 const configFactory = require('@gravitational/build/webpack/webpack.base');
 
-const { extend, createHtmlPlugin } = require('./webpack.renderer.extend');
+const { extend } = require('./webpack.renderer.extend');
 const devCfg = extend(defaultCfg);
 
 devCfg.devServer = {
@@ -28,6 +28,9 @@ devCfg.devServer = {
 };
 
 devCfg.output.publicPath = '';
-devCfg.plugins.push(createHtmlPlugin());
+devCfg.plugins.push(
+  configFactory.plugins.tsChecker(),
+  configFactory.plugins.reactRefresh()
+);
 
 module.exports = devCfg;
