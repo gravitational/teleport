@@ -1967,6 +1967,11 @@ func (f *fakeFIDO2Device) Assertion(
 
 	// "base" credential. Only add an assertion if explicitly requested.
 	if _, ok := credIDs[string(f.key.KeyHandle)]; ok {
+		// Simulate Yubikey4 and require UP, even if UP==false is set.
+		if f.u2fOnly && opts.UP == libfido2.False {
+			return nil, libfido2.ErrUserPresenceRequired
+		}
+
 		assertions = append(assertions, &libfido2.Assertion{
 			AuthDataCBOR: assertionAuthDataCBOR,
 			Sig:          assertionSig,
