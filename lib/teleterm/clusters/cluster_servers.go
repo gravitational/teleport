@@ -89,14 +89,15 @@ func (c *Cluster) GetServers(ctx context.Context, r *api.GetServersRequest) (*Ge
 			return trace.Wrap(err)
 		}
 		defer proxyClient.Close()
+
+		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
 		return nil
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer authClient.Close()
-
-	authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
