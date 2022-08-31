@@ -3333,7 +3333,7 @@ message GithubConnectorSpecV3 {
   // TeamsToRoles maps Github team memberships onto allowed roles.
   repeated TeamRolesMapping TeamsToRoles = 6 [
     (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "teams_to_roles"
+    (gogoproto.jsontag) = "teams_to_roles,omitempty"
   ];
 }
 
