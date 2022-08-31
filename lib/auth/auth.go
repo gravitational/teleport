@@ -96,6 +96,7 @@ const (
 )
 
 const (
+	// githubCacheTimeout is how long Github org entries are cached.
 	githubCacheTimeout = time.Hour
 )
 
