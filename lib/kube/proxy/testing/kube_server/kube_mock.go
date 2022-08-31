@@ -79,7 +79,7 @@ var statusScheme = runtime.NewScheme()
 // ParameterCodec knows about query parameters used with the meta v1 API spec.
 var statusCodecs = serializer.NewCodecFactory(statusScheme)
 
-type kubeMockServer struct {
+type KubeMockServer struct {
 	router *httprouter.Router
 	log    log.Entry
 	server *httptest.Server
@@ -96,9 +96,9 @@ type kubeMockServer struct {
 // The output returns the container followed by a dump of the data received from stdin.
 // More endpoints can be configured
 // TODO: add support for other endpoints
-func NewKubeAPIMock() (*kubeMockServer, error) {
+func NewKubeAPIMock() (*KubeMockServer, error) {
 
-	s := &kubeMockServer{
+	s := &KubeMockServer{
 		router: httprouter.New(),
 		log:    *log.NewEntry(log.New()),
 	}
@@ -113,7 +113,7 @@ func NewKubeAPIMock() (*kubeMockServer, error) {
 	return s, nil
 }
 
-func (s *kubeMockServer) setup() {
+func (s *KubeMockServer) setup() {
 	s.router.UseRawPath = true
 	s.router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", s.withWriter(s.exec))
 	s.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", s.withWriter(s.exec))
@@ -121,16 +121,16 @@ func (s *kubeMockServer) setup() {
 	s.server.EnableHTTP2 = true
 }
 
-func (s *kubeMockServer) Close() error {
+func (s *KubeMockServer) Close() error {
 	s.server.Close()
 	return nil
 }
 
-func (s *kubeMockServer) withWriter(handler httplib.HandlerFunc) httprouter.Handle {
+func (s *KubeMockServer) withWriter(handler httplib.HandlerFunc) httprouter.Handle {
 	return httplib.MakeHandlerWithErrorWriter(handler, s.formatResponseError)
 }
 
-func (s *kubeMockServer) formatResponseError(rw http.ResponseWriter, respErr error) {
+func (s *KubeMockServer) formatResponseError(rw http.ResponseWriter, respErr error) {
 	status := &metav1.Status{
 		Status: metav1.StatusFailure,
 		// Don't trace.Unwrap the error, in case it was wrapped with a
@@ -155,7 +155,7 @@ func (s *kubeMockServer) formatResponseError(rw http.ResponseWriter, respErr err
 	}
 }
 
-func (s *kubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp interface{}, err error) {
+func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp interface{}, err error) {
 
 	q := req.URL.Query()
 
