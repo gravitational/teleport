@@ -18,7 +18,6 @@ package clusters
 
 import (
 	"context"
-	"strings"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
