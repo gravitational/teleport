@@ -36,13 +36,6 @@ type TestConnectionRequest struct {
 	// ResourceName is the identification of the resource's instance to test.
 	ResourceName string `json:"resource_name"`
 
-	// ProxyHostPort is the proxy to use in the `--proxy` format (host:webPort,sshPort)
-	ProxyHostPort string `json:"-"`
-
-	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
-	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
-	TLSRoutingEnabled bool `json:"-"`
-
 	// SSHPrincipal is the Linux username to use in a connection test.
 	// Specific to SSHTester.
 	SSHPrincipal string `json:"ssh_principal,omitempty"`
@@ -82,13 +75,46 @@ type ConnectionTester interface {
 	TestConnection(context.Context, TestConnectionRequest) (types.ConnectionDiagnostic, error)
 }
 
+// ConnectionTesterConfig contains all the required variables to build a connection test.
+type ConnectionTesterConfig struct {
+	// ResourceKind contains the resource type to test.
+	// You should use the types.Kind<Resource> strings.
+	ResourceKind string
+
+	// UserClient is an auth client that has a User's identity.
+	// This is the user that is running the SSH Connection Test.
+	UserClient auth.ClientI
+
+	//ProxyClient is an auth client that has the Proxy's identity.
+	ProxyClient auth.ClientI
+
+	// ProxyHostPort is the proxy to use in the `--proxy` format (host:webPort,sshPort)
+	ProxyHostPort string
+
+	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
+	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
+	TLSRoutingEnabled bool
+}
+
 // ConnectionTesterForKind returns the proper Tester given a resource name.
 // It returns trace.NotImplemented if the resource kind does not have a tester.
-func ConnectionTesterForKind(resourceKind string, userClt auth.ClientI, proxyClt auth.ClientI) (ConnectionTester, error) {
-	switch resourceKind {
+func ConnectionTesterForKind(cfg ConnectionTesterConfig) (ConnectionTester, error) {
+	switch cfg.ResourceKind {
 	case types.KindNode:
-		return NewSSHConnectionTester(userClt, proxyClt), nil
+		tester, err := NewSSHConnectionTester(
+			SSHConnectionTesterConfig{
+				UserClient:        cfg.UserClient,
+				ProxyClient:       cfg.ProxyClient,
+				ProxyHostPort:     cfg.ProxyHostPort,
+				TLSRoutingEnabled: cfg.TLSRoutingEnabled,
+			},
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return tester, nil
 	}
 
-	return nil, trace.NotImplemented("resource %q does not have a connection tester", resourceKind)
+	return nil, trace.NotImplemented("resource %q does not have a connection tester", cfg.ResourceKind)
 }
