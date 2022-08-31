@@ -417,7 +417,7 @@
             {
               "title": "Proxy Peering Migration",
               "slug": "/management/operations/proxy-peering/",
-              "forScopes": ["oss", "enterprise"]
+              "forScopes": ["enterprise"]
             }
           ]
         },

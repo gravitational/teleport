@@ -498,7 +498,8 @@ auth_service:
 
       # The number of reverse tunnel connections agents will attempt to create.
       # This field is only available when using the "proxy_peering" tunnel
-      # strategy type.
+      # strategy type. For high availability we recommend setting this value to
+      # 2 or more.
       agent_connection_count: 1
 
 # This section configures the 'node service':
