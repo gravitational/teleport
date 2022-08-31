@@ -556,7 +556,7 @@ func serializeDatabaseConfig(configInfo *dbConfigInfo, format string) (string, e
 // connection scenario and returns a list of options to use in the connect
 // command.
 func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase,
-	database types.Database, cluster string,
+	database types.Database, rootClusterName string,
 ) ([]dbcmd.ConnectCommandFunc, error) {
 	if !isLocalProxyRequiredForDatabase(tc, db) {
 		return []dbcmd.ConnectCommandFunc{}, nil
@@ -583,6 +583,7 @@ func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *clien
 		database:         database,
 		listener:         listener,
 		localProxyTunnel: localProxyTunnel,
+		rootClusterName:  rootClusterName,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -610,7 +611,7 @@ func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *clien
 	// validation, so connect to localhost.
 	host := "localhost"
 	return []dbcmd.ConnectCommandFunc{
-		dbcmd.WithLocalProxy(host, addr.Port(0), profile.CACertPathForCluster(cluster)),
+		dbcmd.WithLocalProxy(host, addr.Port(0), profile.CACertPathForCluster(rootClusterName)),
 	}, nil
 }
 
@@ -626,6 +627,7 @@ type localProxyConfig struct {
 	// it's always true for Snowflake database. Value is copied here to not modify
 	// cli arguments directly.
 	localProxyTunnel bool
+	rootClusterName  string
 }
 
 // prepareLocalProxyOptions created localProxyOpts needed to create local proxy from localProxyConfig.
@@ -652,7 +654,7 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
 	// If ALPN connection upgrade is required, explicitly use the profile CAs
 	// since the tunneled TLS routing connection serves the Host cert.
 	if opts.alpnConnUpgradeRequired {
-		profileCAs, err := utils.NewCertPoolFromPath(arg.profile.CACertPathForCluster(arg.teleportClient.SiteName))
+		profileCAs, err := utils.NewCertPoolFromPath(arg.profile.CACertPathForCluster(arg.rootClusterName))
 		if err != nil {
 			return localProxyOpts{}, trace.Wrap(err)
 		}
@@ -717,11 +719,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	key, err := tc.LocalAgent().GetCoreKey()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	rootClusterName, err := key.RootClusterName()
+	rootClusterName, err := tc.RootClusterName(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}

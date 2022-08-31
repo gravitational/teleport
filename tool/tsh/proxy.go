@@ -363,6 +363,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		routeToDatabase:  routeToDatabase,
 		listener:         listener,
 		localProxyTunnel: cf.LocalProxyTunnel,
+		rootClusterName:  rootCluster,
 	})
 	if err != nil {
 		return trace.Wrap(err)
