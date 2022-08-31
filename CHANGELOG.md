@@ -1,6 +1,6 @@
 # Changelog
 
-## 10.1.8
+## 10.1.9
 
 This release of Teleport contains multiple improvements and bug fixes.
 
