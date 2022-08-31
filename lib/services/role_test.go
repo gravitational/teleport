@@ -886,11 +886,11 @@ func TestCheckAccessToServer(t *testing.T) {
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"root"}
 					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker"}}
-					r.Spec.Options.RequireSessionMFA = true
+					r.Spec.Options.RequireMFAType = types.RequireSessionMFA
 				}),
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"root"}
-					r.Spec.Options.RequireSessionMFA = false
+					r.Spec.Options.RequireMFAType = types.RequireMFAOff
 				}),
 			},
 			mfaParams: AccessMFAParams{Verified: false},
@@ -906,11 +906,11 @@ func TestCheckAccessToServer(t *testing.T) {
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"root"}
 					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker"}}
-					r.Spec.Options.RequireSessionMFA = true
+					r.Spec.Options.RequireMFAType = types.RequireSessionMFA
 				}),
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"root"}
-					r.Spec.Options.RequireSessionMFA = false
+					r.Spec.Options.RequireMFAType = types.RequireMFAOff
 				}),
 			},
 			mfaParams: AccessMFAParams{Verified: true},
@@ -2573,7 +2573,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 		Version:  types.V3,
 		Spec: types.RoleSpecV5{
 			Options: types.RoleOptions{
-				RequireSessionMFA: true,
+				RequireMFAType: types.RequireSessionMFA,
 			},
 			Allow: types.RoleConditions{
 				Namespaces:     []string{apidefaults.Namespace},
@@ -3543,7 +3543,7 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 		},
 		Spec: types.RoleSpecV5{
 			Options: types.RoleOptions{
-				RequireSessionMFA: true,
+				RequireMFAType: types.RequireSessionMFA,
 			},
 			Allow: types.RoleConditions{
 				Namespaces: []string{apidefaults.Namespace},
@@ -3964,22 +3964,21 @@ func TestCheckAccessToWindowsDesktop(t *testing.T) {
 //
 // To run benchmark:
 //
-//    go test -bench=.
+//	go test -bench=.
 //
 // To run benchmark and obtain CPU and memory profiling:
 //
-//    go test -bench=. -cpuprofile=cpu.prof -memprofile=mem.prof
+//	go test -bench=. -cpuprofile=cpu.prof -memprofile=mem.prof
 //
 // To use the command line tool to read the profile:
 //
-//   go tool pprof cpu.prof
-//   go tool pprof cpu.prof
+//	go tool pprof cpu.prof
+//	go tool pprof cpu.prof
 //
 // To generate a graph:
 //
-//   go tool pprof --pdf cpu.prof > cpu.pdf
-//   go tool pprof --pdf mem.prof > mem.pdf
-//
+//	go tool pprof --pdf cpu.prof > cpu.pdf
+//	go tool pprof --pdf mem.prof > mem.pdf
 func BenchmarkCheckAccessToServer(b *testing.B) {
 	servers := make([]*types.ServerV2, 0, 4000)
 
@@ -4717,7 +4716,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 		server  types.Server
 	}{
 		{
-			test: "test exact match, one sudoer entry, one role",
+			test:    "test exact match, one sudoer entry, one role",
 			sudoers: []string{"%sudo	ALL=(ALL) ALL"},
 			roles: NewRoleSet(&types.RoleV5{
 
@@ -4726,7 +4725,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 						CreateHostUser: types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
-						NodeLabels: types.Labels{"success": []string{"abc"}},
+						NodeLabels:  types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"%sudo	ALL=(ALL) ALL"},
 					},
 				},
@@ -4790,7 +4789,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 						CreateHostUser: types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
-						NodeLabels: types.Labels{"success": []string{"abc"}},
+						NodeLabels:  types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"%sudo	ALL=(ALL) ALL"},
 					},
 				},
@@ -4814,7 +4813,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 			},
 		},
 		{
-			test: "line deny",
+			test:    "line deny",
 			sudoers: []string{"%sudo	ALL=(ALL) ALL"},
 			roles: NewRoleSet(&types.RoleV5{
 				Spec: types.RoleSpecV5{

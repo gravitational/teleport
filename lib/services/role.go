@@ -413,15 +413,16 @@ func applyValueTraitsSlice(inputs []string, traits map[string][]string, fieldNam
 // and traits from identity provider. For example:
 //
 // cluster_labels:
-//   env: ['{{external.groups}}']
+//
+//	env: ['{{external.groups}}']
 //
 // and groups: ['admins', 'devs']
 //
 // will be interpolated to:
 //
 // cluster_labels:
-//   env: ['admins', 'devs']
 //
+//	env: ['admins', 'devs']
 func applyLabelsTraits(inLabels types.Labels, traits map[string][]string) types.Labels {
 	outLabels := make(types.Labels, len(inLabels))
 	// every key will be mapped to the first value
@@ -557,7 +558,6 @@ func MakeRuleSet(rules []types.Rule) RuleSet {
 // Specifying order solves the problem on having multiple rules, e.g. one wildcard
 // rule can override more specific rules with 'where' sections that can have
 // 'actions' lists with side effects that will not be triggered otherwise.
-//
 func (set RuleSet) Match(whereParser predicate.Parser, actionsParser predicate.Parser, resource string, verb string) (bool, error) {
 	// empty set matches nothing
 	if len(set) == 0 {
@@ -1092,6 +1092,43 @@ func (set RoleSet) PinSourceIP() bool {
 		}
 	}
 	return false
+}
+
+// MFAParams returns MFA params for the given user given their roles, the cluster
+// auth preference, and whether mfa has been verified.
+func (set RoleSet) MFAParams(authPrefRequirement types.RequireMFAType) (params AccessMFAParams) {
+	if authPrefRequirement == types.RequireHardwareKeyTouch {
+		// per-session MFA is overridden by hardware key PIV touch requirement.
+		params.NeverRequired = true
+		return params
+	}
+
+	// Let's assume there are no roles, so mfa is never required by roles.
+	var roleAlwaysRequired, roleNeverRequired = false, true
+	if len(set) > 0 {
+		// If there is at least one role, we will also assume mfa is always required,
+		// and then switch always/never required to false depending on what we find.
+		roleAlwaysRequired = true
+	}
+
+	for _, role := range set {
+		switch role.GetOptions().RequireMFAType {
+		case types.RequireHardwareKeyTouch:
+			// per-session MFA is overridden by hardware key PIV touch requirement.
+			params.NeverRequired = true
+			return params
+		case types.RequireSessionMFA, types.RequireSessionMFAAndHardwareKey:
+			roleNeverRequired = false
+		default:
+			roleAlwaysRequired = false
+		}
+	}
+
+	// All roles and the cluster auth preference do not require per-session MFA.
+	params.AlwaysRequired = authPrefRequirement.IsSessionMFARequired() || roleAlwaysRequired
+	// Neither the cluster nor roles ever require per-session MFA.
+	params.NeverRequired = !authPrefRequirement.IsSessionMFARequired() && roleNeverRequired
+	return params
 }
 
 // AdjustSessionTTL will reduce the requested ttl to the lowest max allowed TTL
@@ -1929,6 +1966,10 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 	// by the backend) can slow down this function by 50x for large clusters!
 	isDebugEnabled, debugf := rbacDebugLogger()
 
+	if mfa.NeverRequired {
+		return nil
+	}
+
 	if mfa.AlwaysRequired && !mfa.Verified {
 		debugf("Access to %v %q denied, cluster requires per-session MFA", r.GetKind(), r.GetName())
 		return ErrSessionMFARequired
@@ -2028,7 +2069,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 			return nil
 		}
 		// if MFA is not verified and we require session MFA, deny access
-		if role.GetOptions().RequireSessionMFA {
+		if role.GetOptions().RequireMFAType.IsSessionMFARequired() {
 			debugf("Access to %v %q denied, role %q requires per-session MFA",
 				r.GetKind(), r.GetName(), role.GetName())
 			return ErrSessionMFARequired
@@ -2503,6 +2544,11 @@ type AccessMFAParams struct {
 	// AlwaysRequired is set when MFA is required for all sessions, regardless
 	// of per-role options.
 	AlwaysRequired bool
+	// NeverRequired is set when MFA is never required for any sessions, regardless
+	// of per-role options. This means either both the cluster auth preference and
+	// all roles have per-session MFA off, or at least one of those resources has
+	// "require_session_mfa: hardware_key_touch", which overrides per-session MFA.
+	NeverRequired bool
 	// Verified is set when MFA has been verified by the caller.
 	Verified bool
 }

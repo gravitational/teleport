@@ -18,15 +18,17 @@ package types
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
-	"github.com/gravitational/trace"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -86,9 +88,8 @@ type AuthPreference interface {
 	// SetAllowPasswordless sets the value of the allow passwordless setting.
 	SetAllowPasswordless(b bool)
 
-	// GetRequireSessionMFA returns true when all sessions in this cluster
-	// require an MFA check.
-	GetRequireSessionMFA() bool
+	// GetRequireMFAType returns the type of MFA requirement enforced for this cluster.
+	GetRequireMFAType() RequireMFAType
 
 	// GetDisconnectExpiredCert returns disconnect expired certificate setting
 	GetDisconnectExpiredCert() bool
@@ -337,10 +338,9 @@ func (c *AuthPreferenceV2) SetAllowPasswordless(b bool) {
 	c.Spec.AllowPasswordless = NewBoolOption(b)
 }
 
-// GetRequireSessionMFA returns true when all sessions in this cluster require
-// an MFA check.
-func (c *AuthPreferenceV2) GetRequireSessionMFA() bool {
-	return c.Spec.RequireSessionMFA
+// GetRequireMFAType returns the type of MFA requirement enforced for this cluster.
+func (c *AuthPreferenceV2) GetRequireMFAType() RequireMFAType {
+	return c.Spec.RequireMFAType
 }
 
 // GetDisconnectExpiredCert returns disconnect expired certificate setting
@@ -396,6 +396,9 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// DELETE IN 13.0.0
+	c.CheckSetRequireSessionMFA()
 
 	if c.Spec.Type == "" {
 		c.Spec.Type = constants.Local
@@ -516,6 +519,16 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// RequireSessionMFA must be checked/set when communicating with an old server or client.
+// DELETE IN 13.0.0
+func (c *AuthPreferenceV2) CheckSetRequireSessionMFA() {
+	if c.Spec.RequireMFAType != "" {
+		c.Spec.RequireSessionMFA = c.Spec.RequireMFAType.IsSessionMFARequired()
+	} else if c.Spec.RequireSessionMFA {
+		c.Spec.RequireMFAType = RequireSessionMFA
+	}
 }
 
 // String represents a human readable version of authentication settings.
@@ -700,4 +713,90 @@ func (d *MFADevice) MarshalJSON() ([]byte, error) {
 
 func (d *MFADevice) UnmarshalJSON(buf []byte) error {
 	return jsonpb.Unmarshal(bytes.NewReader(buf), d)
+}
+
+// RequireMFAType is the type of MFA requirement, such as per-session MFA
+// or per-request PIV touch.
+type RequireMFAType string
+
+const (
+	// RequireMFAOff means MFA is *not* required to begin server sessions.
+	RequireMFAOff = RequireMFAType("off")
+	// RequireSessionMFA means MFA is required to begin server sessions.
+	RequireSessionMFA = RequireMFAType("session_mfa")
+	// RequireSessionMFAAndHardwareKey means MFA is required to begin server sessions,
+	// and login sessions must use a private key backed by a hardware key.
+	RequireSessionMFAAndHardwareKey = RequireMFAType("session_mfa_and_hardware_key")
+	// RequireHardwareKeyTouch means login sessions must use a hardware private key that
+	// requires touch to be used. This touch requirement applies to all API requests
+	// rather than only session requests. This touch is different from MFA, so to prevent
+	// requiring double touch on session requests, normal Session MFA is disabled.
+	RequireHardwareKeyTouch = RequireMFAType("hardware_key_touch")
+)
+
+// IsSessionMFARequired returns whether this RequireMFAType requires per-session MFA.
+func (r RequireMFAType) IsSessionMFARequired() bool {
+	return r == RequireSessionMFA || r == RequireSessionMFAAndHardwareKey
+}
+
+// UnmarshalYAML supports parsing RequireMFAType from boolean or alias.
+func (r *RequireMFAType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var val interface{}
+	err := unmarshal(&val)
+	if err != nil {
+		return err
+	}
+
+	if *r, err = parseRequireMFAType(val); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// UnmarshalJSON supports parsing RequireMFAType from boolean or alias.
+func (r *RequireMFAType) UnmarshalJSON(data []byte) error {
+	var val interface{}
+	err := json.Unmarshal(data, &val)
+	if err != nil {
+		return err
+	}
+
+	if *r, err = parseRequireMFAType(val); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func parseRequireMFAType(val interface{}) (RequireMFAType, error) {
+	switch v := val.(type) {
+	case string:
+		switch v {
+		case string(RequireMFAOff), "":
+			return RequireMFAOff, nil
+		case string(RequireSessionMFA):
+			return RequireSessionMFA, nil
+		case string(RequireSessionMFAAndHardwareKey), "hardware_key":
+			return RequireSessionMFAAndHardwareKey, nil
+		case string(RequireHardwareKeyTouch):
+			return RequireHardwareKeyTouch, nil
+		default:
+			switch strings.ToLower(v) {
+			case "yes", "yeah", "y", "true", "1", "on":
+				return RequireSessionMFA, nil
+			case "no", "nope", "n", "false", "0", "off":
+				return RequireMFAOff, nil
+			}
+			return "", trace.BadParameter("RequireMFAType invalid value %T", val)
+		}
+	case bool:
+		if v {
+			return RequireSessionMFA, nil
+		} else {
+			return RequireMFAOff, nil
+		}
+	}
+
+	return "", trace.BadParameter("RequireMFAType invalid type %T", val)
 }
