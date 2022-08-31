@@ -6,7 +6,7 @@ endif
 BUILDDIR ?= build
 LOCALDIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 WEBASSETS_BUILDDIR ?= $(LOCALDIR)../lib/web/build
-BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(LDFLAGS)'
+BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(LDFLAGS)' -trimpath
 CGOFLAG ?= CGO_ENABLED=1
 RELEASE_ENT = teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-bin
 BINARIES ?= $(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh $(BUILDDIR)/tbot
