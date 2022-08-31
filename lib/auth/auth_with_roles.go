@@ -4971,7 +4971,7 @@ func (a *ServerWithRoles) UpdateConnectionDiagnostic(ctx context.Context, connec
 
 // AppendDiagnosticTrace adds a new trace for the given ConnectionDiagnostic.
 func (a *ServerWithRoles) AppendDiagnosticTrace(ctx context.Context, name string, t *types.ConnectionDiagnosticTrace) (types.ConnectionDiagnostic, error) {
-	if err := a.action(apidefaults.Namespace, types.KindConnectionDiagnostic, types.VerbRead, types.VerbUpdate); err != nil {
+	if err := a.action(apidefaults.Namespace, types.KindConnectionDiagnostic, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

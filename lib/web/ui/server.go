@@ -164,8 +164,9 @@ type ConnectionDiagnostic struct {
 	Traces []ConnectionDiagnosticTraceUI `json:"traces,omitempty"`
 }
 
-// ConnectionDiagnostic describes a connection diagnostic trace.
-// We require this
+// ConnectionDiagnosticTraceUI describes a connection diagnostic trace using a UI representation.
+// This is required in order to have a more friendly representation of the enum fields - TraceType and Status.
+// They are converted into string instead of using the numbers (as they are represented in gRPC).
 type ConnectionDiagnosticTraceUI struct {
 	// TraceType as string
 	TraceType string `json:"traceType,omitempty"`

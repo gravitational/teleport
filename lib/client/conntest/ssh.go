@@ -38,23 +38,14 @@ import (
 
 // SSHConnectionTester implements the ConnectionTester interface for Testing SSH access
 type SSHConnectionTester struct {
-	clt          auth.ClientI
-	webProxyAddr string
-	sshProxyAddr string
+	clt auth.ClientI
 }
 
 // NewSSHConnectionTester creates a new SSHConnectionTester
-func NewSSHConnectionTester(clt auth.ClientI, proxyHostAddr string) (*SSHConnectionTester, error) {
-	parsedProxyHostAddr, err := client.ParseProxyHost(proxyHostAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+func NewSSHConnectionTester(clt auth.ClientI) *SSHConnectionTester {
 	return &SSHConnectionTester{
-		clt:          clt,
-		webProxyAddr: parsedProxyHostAddr.WebProxyAddr,
-		sshProxyAddr: parsedProxyHostAddr.SSHProxyAddr,
-	}, nil
+		clt: clt,
+	}
 }
 
 // TestConnection tests an SSH Connection to the target Node using
@@ -138,23 +129,44 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	}
 
 	host := req.ResourceName
-	tlsRoutingEnabled := true
+	tlsRoutingEnabled := req.TLSRoutingEnabled
+
+	parsedProxyHostAddr, err := client.ParseProxyHost(req.ProxyHostPort)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	webProxyAddr := parsedProxyHostAddr.WebProxyAddr
+	sshProxyAddr := parsedProxyHostAddr.SSHProxyAddr
 
 	key.KeyIndex = client.KeyIndex{
 		Username:    req.SSHPrincipal,
-		ProxyHost:   s.webProxyAddr,
+		ProxyHost:   webProxyAddr,
 		ClusterName: clusterName.GetClusterName(),
+	}
+
+	if !tlsRoutingEnabled {
+		proxies, err := s.clt.GetProxies()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if len(proxies) == 0 {
+			return nil, trace.BadParameter("cluster has no proxies")
+		}
+
+		host = proxies[0].GetHostname()
 	}
 
 	processStdout := &bytes.Buffer{}
 
 	clientConf := client.MakeDefaultConfig()
+	clientConf.AddKeysToAgent = client.AddKeysToAgentNo
 	clientConf.AuthMethods = []ssh.AuthMethod{keyAuthMethod}
 	clientConf.Host = host
 	clientConf.HostKeyCallback = hostkeyCallback
 	clientConf.HostLogin = req.SSHPrincipal
 	clientConf.SkipLocalAuth = true
-	clientConf.SSHProxyAddr = s.sshProxyAddr
+	clientConf.SSHProxyAddr = sshProxyAddr
 	clientConf.Stderr = io.Discard
 	clientConf.Stdin = &bytes.Buffer{}
 	clientConf.Stdout = processStdout
@@ -162,10 +174,9 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	clientConf.TLSRoutingEnabled = tlsRoutingEnabled
 	clientConf.UseKeyPrincipals = true
 	clientConf.Username = currentUser.GetName()
-	clientConf.WebProxyAddr = s.webProxyAddr
-	clientConf.AddKeysToAgent = client.AddKeysToAgentNo
+	clientConf.WebProxyAddr = webProxyAddr
 
-	teleClient, err := client.NewClient(clientConf)
+	tc, err := client.NewClient(clientConf)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -173,7 +184,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	ctxWithTimeout, cancelFunc := context.WithTimeout(ctx, req.DialTimeout)
 	defer cancelFunc()
 
-	if err := teleClient.SSH(ctxWithTimeout, []string{"whoami"}, false); err != nil {
+	if err := tc.SSH(ctxWithTimeout, []string{"whoami"}, false); err != nil {
 		return s.handleErrFromSSH(ctx, connectionDiagnosticID, req.SSHPrincipal, err, processStdout)
 	}
 
@@ -197,20 +208,6 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 }
 
 func (s SSHConnectionTester) handleErrFromSSH(ctx context.Context, connectionDiagnosticID string, sshPrincipal string, sshError error, processStdout *bytes.Buffer) (types.ConnectionDiagnostic, error) {
-	// Either the node doesn't exist or the user doesn't have access to it.
-	if trace.IsNotFound(sshError) {
-		connDiag, err := s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewTraceDiagnosticConnection(
-			types.ConnectionDiagnosticTrace_RBAC_NODE,
-			"Node not found. Ensure the Node exists and your role allows you to access it.",
-			sshError,
-		))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return connDiag, nil
-	}
-
 	if trace.IsConnectionProblem(sshError) {
 		connDiag, err := s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewTraceDiagnosticConnection(
 			types.ConnectionDiagnosticTrace_CONNECTIVITY,
@@ -225,7 +222,6 @@ func (s SSHConnectionTester) handleErrFromSSH(ctx context.Context, connectionDia
 	}
 
 	processStdoutString := strings.TrimSpace(processStdout.String())
-
 	if strings.HasPrefix(processStdoutString, "Failed to launch: user: unknown user") {
 		connDiag, err := s.clt.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewTraceDiagnosticConnection(
 			types.ConnectionDiagnosticTrace_NODE_PRINCIPAL,

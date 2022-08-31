@@ -4349,7 +4349,7 @@ func (g *GRPCServer) UpdateConnectionDiagnostic(ctx context.Context, connectionD
 	return &empty.Empty{}, nil
 }
 
-// AppendConnectionD updates a connection diagnostic
+// AppendDiagnosticTrace updates a connection diagnostic
 func (g *GRPCServer) AppendDiagnosticTrace(ctx context.Context, in *proto.AppendDiagnosticTraceRequest) (*types.ConnectionDiagnosticV1, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {

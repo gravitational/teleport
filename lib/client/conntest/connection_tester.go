@@ -34,6 +34,13 @@ type TestConnectionRequest struct {
 	ResourceKind string `json:"resource_kind"`
 	ResourceName string `json:"resource_name"`
 
+	// ProxyHostPort is the proxy to use in the `--proxy` format (host:webPort,sshPort)
+	ProxyHostPort string `json:"-"`
+
+	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
+	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
+	TLSRoutingEnabled bool `json:"-"`
+
 	// SSHPrincipal is the Linux username to use in a connection test.
 	// Specific to SSHTester.
 	SSHPrincipal string `json:"ssh_principal,omitempty"`
@@ -75,14 +82,10 @@ type ConnectionTester interface {
 
 // ConnectionTesterForKind returns the proper Tester given a resource name.
 // It returns trace.NotImplemented if the resource kind does not have a tester.
-func ConnectionTesterForKind(resourceKind string, client auth.ClientI, proxyHostAddr string) (ConnectionTester, error) {
+func ConnectionTesterForKind(resourceKind string, client auth.ClientI) (ConnectionTester, error) {
 	switch resourceKind {
 	case types.KindNode:
-		tester, err := NewSSHConnectionTester(client, proxyHostAddr)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return tester, nil
+		return NewSSHConnectionTester(client), nil
 	}
 
 	return nil, trace.NotImplemented("resource %q does not have a connection tester", resourceKind)

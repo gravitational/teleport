@@ -281,9 +281,17 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	recordFailedLogin := func(err error) {
 		failedLoginCount.Inc()
 
+		message := "Principal is not allowed by this certificate. Ensure your roles allows you use it."
+		traceType := types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL
+
+		if trace.IsAccessDenied(err) {
+			message = "You are not authorized to access this node. Ensure your role allows you to access it."
+			traceType = types.ConnectionDiagnosticTrace_RBAC_NODE
+		}
+
 		if err := h.maybeAppendDiagnosticTrace(ctx, connectionDiagnosticID,
-			types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
-			"Principal is not allowed by this certificate. Ensure your roles allows you use it.",
+			traceType,
+			message,
 			err,
 		); err != nil {
 			h.log.WithError(err).Warn("Failed to append Trace to ConnectionDiagnostic.")
@@ -358,14 +366,6 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		return permissions, nil
 	}
 
-	if err := h.maybeAppendDiagnosticTrace(ctx, connectionDiagnosticID,
-		types.ConnectionDiagnosticTrace_RBAC_NODE,
-		"Node found.",
-		nil,
-	); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// check if the user has permission to log into the node.
 	switch {
 	case h.c.Component == teleport.ComponentForwardingNode:
@@ -380,6 +380,14 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	}
 
 	if err := h.maybeAppendDiagnosticTrace(ctx, connectionDiagnosticID,
+		types.ConnectionDiagnosticTrace_RBAC_NODE,
+		"You have access to the Node.",
+		nil,
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := h.maybeAppendDiagnosticTrace(ctx, connectionDiagnosticID,
 		types.ConnectionDiagnosticTrace_CONNECTIVITY,
 		"Node is alive and reachable.",
 		nil,
@@ -389,7 +397,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 
 	if err := h.maybeAppendDiagnosticTrace(ctx, connectionDiagnosticID,
 		types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
-		"Successfully authenticated.",
+		"The requested principal is allowed.",
 		nil,
 	); err != nil {
 		return nil, trace.Wrap(err)

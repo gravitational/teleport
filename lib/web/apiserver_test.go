@@ -3856,15 +3856,16 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 	}
 	require.NotNil(t, roleWithFullAccess)
 
-	rolesWithoutAccessToNode := func(username string) []types.Role {
+	rolesWithoutAccessToNode := func(username string, login string) []types.Role {
 		ret, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Namespaces: []string{apidefaults.Namespace},
-				NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				NodeLabels: types.Labels{"forbidden": []string{"yes"}},
 				Rules: []types.Rule{
 					types.NewRule(types.KindConnectionDiagnostic, services.RW()),
 					types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
 				},
+				Logins: []string{login},
 			},
 		})
 		require.NoError(t, err)
@@ -3891,7 +3892,6 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 	require.NotNil(t, roleWithPrincipal)
 
 	env := newWebPack(t, 1)
-	clusterName := env.server.ClusterName()
 
 	for _, tt := range []struct {
 		name            string
@@ -3899,7 +3899,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 		roles           []types.Role
 		resourceName    string
 		nodeUser        string
-		updateAddr      string
+		stopNode        bool
 		expectedSuccess bool
 		expectedMessage string
 		expectedTraces  []types.ConnectionDiagnosticTrace
@@ -3916,7 +3916,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 				{
 					Type:    types.ConnectionDiagnosticTrace_RBAC_NODE,
 					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
-					Details: "Node found.",
+					Details: "You have access to the Node.",
 				},
 				{
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
@@ -3926,7 +3926,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 				{
 					Type:    types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
 					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
-					Details: "Successfully authenticated.",
+					Details: "The requested principal is allowed.",
 				},
 				{
 					Type:    types.ConnectionDiagnosticTrace_NODE_PRINCIPAL,
@@ -3958,14 +3958,14 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 			roles:           roleWithFullAccess("nodenotreachable", osUsername),
 			resourceName:    "node",
 			nodeUser:        osUsername,
-			updateAddr:      "192.0.2.1:22", // Part of IPv4 address block reserved for documentation and examples (similar to example.org/com) (https://www.rfc-editor.org/rfc/rfc5737)
+			stopNode:        true,
 			expectedSuccess: false,
 			expectedMessage: "failed",
 			expectedTraces: []types.ConnectionDiagnosticTrace{
 				{
 					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
-					Details: "Failed to connect to the Node. Ensure teleport is running.",
+					Details: `Failed to connect to the Node. Ensure teleport service is running using "systemctl status teleport".`,
 					Error:   "failed connecting to node localhost. ",
 				},
 			},
@@ -3973,7 +3973,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 		{
 			name:            "no access to node",
 			teleportUser:    "userwithoutaccess",
-			roles:           rolesWithoutAccessToNode("userwithoutaccess"),
+			roles:           rolesWithoutAccessToNode("userwithoutaccess", osUsername),
 			resourceName:    "node",
 			nodeUser:        osUsername,
 			expectedSuccess: false,
@@ -3982,8 +3982,8 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 				{
 					Type:    types.ConnectionDiagnosticTrace_RBAC_NODE,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
-					Details: "Node not found. Ensure the Node exists and your role allows you to access it.",
-					Error:   "not found",
+					Details: "You are not authorized to access this node. Ensure your role allows you to access it.",
+					Error:   fmt.Sprintf("user userwithoutaccess@localhost is not authorized to login as %s@localhost: access to node denied", osUsername),
 				},
 			},
 		},
@@ -4023,34 +4023,24 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			pack := env.proxies[0].authPack(t, tt.teleportUser, tt.roles)
+			localEnv := env
+
+			if tt.stopNode {
+				localEnv = newWebPack(t, 1)
+				require.NoError(t, localEnv.node.Close())
+			}
+
+			clusterName := localEnv.server.ClusterName()
+			pack := localEnv.proxies[0].authPack(t, tt.teleportUser, tt.roles)
 
 			createConnectionEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "diagnostics", "connections")
-
-			if tt.updateAddr != "" {
-				testingNode, err := env.proxies[0].client.GetNode(ctx, apidefaults.Namespace, tt.resourceName)
-				require.NoError(t, err)
-
-				originalAddress := testingNode.GetAddr()
-				testingNode.SetAddr(tt.updateAddr)
-
-				_, err = env.node.GetAccessPoint().UpsertNode(ctx, testingNode)
-				require.NoError(t, err)
-
-				t.Cleanup(func() {
-					testingNode.SetAddr(originalAddress)
-
-					_, err = env.node.GetAccessPoint().UpsertNode(ctx, testingNode)
-					require.NoError(t, err)
-				})
-			}
 
 			resp, err := pack.clt.PostJSON(ctx, createConnectionEndpoint, conntest.TestConnectionRequest{
 				ResourceKind: types.KindNode,
 				ResourceName: tt.resourceName,
 				SSHPrincipal: tt.nodeUser,
 				// Default is 30 seconds but since tests run locally, we can reduce this value to also improve test responsiveness
-				DialTimeout: time.Second,
+				DialTimeout: time.Hour,
 			})
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, resp.Code())
@@ -4062,6 +4052,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 			expectedFailedTraces := 0
 
 			t.Log(tt.name)
+			t.Log(connectionDiagnostic.Message, connectionDiagnostic.Success)
 			for i, trace := range connectionDiagnostic.Traces {
 				if trace.Status == types.ConnectionDiagnosticTrace_FAILED.String() {
 					gotFailedTraces++
@@ -4085,9 +4076,9 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 					}
 
 					foundTrace = true
-					require.Equal(t, expectedTrace.Status.String(), returnedTrace.Status)
-					require.Equal(t, expectedTrace.Details, returnedTrace.Details)
-					require.Equal(t, expectedTrace.Error, returnedTrace.Error)
+					require.Equal(t, returnedTrace.Status, expectedTrace.Status.String())
+					require.Equal(t, returnedTrace.Details, expectedTrace.Details)
+					require.Contains(t, returnedTrace.Error, expectedTrace.Error)
 				}
 
 				require.True(t, foundTrace, expectedTrace)

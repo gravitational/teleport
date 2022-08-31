@@ -3077,6 +3077,10 @@ func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.
 	log.Infof("Connecting to proxy=%v login=%q", sshProxyAddr, sshConfig.User)
 	client, err := makeProxySSHClientDirect(ctx, tc, sshConfig, sshProxyAddr)
 	if err != nil {
+		if strings.HasPrefix(err.Error(), "ssh: handshake failed: ssh: unable to authenticate") {
+			return nil, trace.AccessDenied("failed to authenticate with proxy %v: %v", sshProxyAddr, err)
+		}
+
 		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", sshProxyAddr)
 	}
 	log.Infof("Successful auth with proxy %v.", sshProxyAddr)

@@ -64,10 +64,18 @@ func (h *Handler) diagnoseConnection(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	tester, err := conntest.ConnectionTesterForKind(req.ResourceKind, clt, h.ProxyHostPort())
+	tester, err := conntest.ConnectionTesterForKind(req.ResourceKind, clt)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	proxySettings, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.TLSRoutingEnabled = proxySettings.TLSRoutingEnabled
+
+	req.ProxyHostPort = h.ProxyHostPort()
 
 	connectionDiagnostic, err := tester.TestConnection(r.Context(), req)
 	if err != nil {
