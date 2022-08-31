@@ -789,10 +789,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	var windowsUser string
 	authorize := func(login string) error {
 		windowsUser = login // capture attempted login user
-		mfaParams := services.AccessMFAParams{
-			Verified:       identity.MFAVerified != "",
-			AlwaysRequired: authPref.GetRequireSessionMFA(),
-		}
+		mfaParams := authCtx.MFAParams(authPref.GetRequireMFAType())
 		return authCtx.Checker.CheckAccess(
 			desktop,
 			mfaParams,
@@ -1094,18 +1091,21 @@ func (s *WindowsService) updateCA(ctx context.Context) error {
 // private key archival.
 //
 // This function is equivalent to running:
-//     certutil –dspublish –f <PathToCertFile.cer> NTAuthCA
+//
+//	certutil –dspublish –f <PathToCertFile.cer> NTAuthCA
 //
 // You can confirm the cert is present by running:
-//     certutil -viewstore "ldap:///CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,DC=example,DC=com>?caCertificate"
+//
+//	certutil -viewstore "ldap:///CN=NTAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,DC=example,DC=com>?caCertificate"
 //
 // Once the CA is published to LDAP, it should eventually sync and be present in the
 // machine's enterprise NTAuth store. You can check that with:
-//     certutil -viewstore -enterprise NTAuth
+//
+//	certutil -viewstore -enterprise NTAuth
 //
 // You can expedite the synchronization by running:
-//     certutil -pulse
 //
+//	certutil -pulse
 func (s *WindowsService) updateCAInNTAuthStore(ctx context.Context, caDER []byte) error {
 	// Check if our CA is already in the store. The LDAP entry for NTAuth store
 	// is constant and it should always exist.

@@ -218,7 +218,7 @@ func (m *mockAuth) GetAuthPreference(ctx context.Context) (types.AuthPreference,
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
-		RequireSessionMFA: true,
+		RequireMFAType: types.RequireMFAType_SESSION,
 	})
 }
 
@@ -228,6 +228,13 @@ type mockChecker struct {
 
 func (m *mockChecker) CheckAccess(r services.AccessCheckable, mfa services.AccessMFAParams, matchers ...services.RoleMatcher) error {
 	return nil
+}
+
+func (m *mockChecker) MFAParams(authPrefMFARequirement types.RequireMFAType) services.AccessMFAParams {
+	return services.AccessMFAParams{
+		AlwaysRequired: authPrefMFARequirement.IsSessionMFARequired(),
+		NeverRequired:  !authPrefMFARequirement.IsSessionMFARequired(),
+	}
 }
 
 type mockConnector struct {

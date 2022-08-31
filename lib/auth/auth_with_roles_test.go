@@ -2361,7 +2361,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 		req                *proto.IsMFARequiredRequest
 	}{
 		{
-			name:       "RequireSessionMFA enabled MySQL protocol doesn't match database name",
+			name:       "RequireSessionMFA on MySQL protocol doesn't match database name",
 			dbProtocol: libdefaults.ProtocolMySQL,
 			req: &proto.IsMFARequiredRequest{
 				Target: &proto.IsMFARequiredRequest_Database{
@@ -2375,7 +2375,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			},
 			modifyRoleFunc: func(role types.Role) {
 				roleOpt := role.GetOptions()
-				roleOpt.RequireSessionMFA = true
+				roleOpt.RequireMFAType = types.RequireMFAType_SESSION
 				role.SetOptions(roleOpt)
 
 				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
@@ -2385,7 +2385,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			checkMFA: require.True,
 		},
 		{
-			name:       "RequireSessionMFA disabled",
+			name:       "RequireSessionMFA off",
 			dbProtocol: libdefaults.ProtocolMySQL,
 			req: &proto.IsMFARequiredRequest{
 				Target: &proto.IsMFARequiredRequest_Database{
@@ -2399,7 +2399,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			},
 			modifyRoleFunc: func(role types.Role) {
 				roleOpt := role.GetOptions()
-				roleOpt.RequireSessionMFA = false
+				roleOpt.RequireMFAType = types.RequireMFAType_OFF
 				role.SetOptions(roleOpt)
 
 				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
@@ -2409,7 +2409,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			checkMFA: require.False,
 		},
 		{
-			name:       "RequireSessionMFA enabled Postgres protocol database name doesn't match",
+			name:       "RequireSessionMFA on Postgres protocol database name doesn't match",
 			dbProtocol: libdefaults.ProtocolPostgres,
 			req: &proto.IsMFARequiredRequest{
 				Target: &proto.IsMFARequiredRequest_Database{
@@ -2423,7 +2423,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			},
 			modifyRoleFunc: func(role types.Role) {
 				roleOpt := role.GetOptions()
-				roleOpt.RequireSessionMFA = true
+				roleOpt.RequireMFAType = types.RequireMFAType_SESSION
 				role.SetOptions(roleOpt)
 
 				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
@@ -2433,7 +2433,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			checkMFA: require.False,
 		},
 		{
-			name:       "RequireSessionMFA enabled Postgres protocol database name matches",
+			name:       "RequireSessionMFA on Postgres protocol database name matches",
 			dbProtocol: libdefaults.ProtocolPostgres,
 			req: &proto.IsMFARequiredRequest{
 				Target: &proto.IsMFARequiredRequest_Database{
@@ -2447,7 +2447,7 @@ func TestIsMFARequiredMFADB(t *testing.T) {
 			},
 			modifyRoleFunc: func(role types.Role) {
 				roleOpt := role.GetOptions()
-				roleOpt.RequireSessionMFA = true
+				roleOpt.RequireMFAType = types.RequireMFAType_SESSION
 				role.SetOptions(roleOpt)
 
 				role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})

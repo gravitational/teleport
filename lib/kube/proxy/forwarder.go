@@ -766,10 +766,9 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	mfaParams := services.AccessMFAParams{
-		Verified:       actx.Identity.GetIdentity().MFAVerified != "",
-		AlwaysRequired: ap.GetRequireSessionMFA(),
-	}
+
+	mfaParams := actx.MFAParams(ap.GetRequireMFAType())
+
 	// Check authz against the first match.
 	//
 	// We assume that users won't register two identically-named clusters with
