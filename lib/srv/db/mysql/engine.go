@@ -155,10 +155,8 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	mfaParams := services.AccessMFAParams{
-		Verified:       sessionCtx.Identity.MFAVerified != "",
-		AlwaysRequired: ap.GetRequireSessionMFA(),
-	}
+
+	mfaParams := sessionCtx.MFAParams(ap.GetRequireMFAType())
 	dbRoleMatchers := role.DatabaseRoleMatchers(
 		defaults.ProtocolMySQL,
 		sessionCtx.DatabaseUser,

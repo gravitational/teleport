@@ -865,13 +865,13 @@ func (t StaticToken) Parse() ([]types.ProvisionTokenV1, error) {
 
 // AuthenticationConfig describes the auth_service/authentication section of teleport.yaml
 type AuthenticationConfig struct {
-	Type              string                     `yaml:"type"`
-	SecondFactor      constants.SecondFactorType `yaml:"second_factor,omitempty"`
-	ConnectorName     string                     `yaml:"connector_name,omitempty"`
-	U2F               *UniversalSecondFactor     `yaml:"u2f,omitempty"`
-	Webauthn          *Webauthn                  `yaml:"webauthn,omitempty"`
-	RequireSessionMFA bool                       `yaml:"require_session_mfa,omitempty"`
-	LockingMode       constants.LockingMode      `yaml:"locking_mode,omitempty"`
+	Type           string                     `yaml:"type"`
+	SecondFactor   constants.SecondFactorType `yaml:"second_factor,omitempty"`
+	ConnectorName  string                     `yaml:"connector_name,omitempty"`
+	U2F            *UniversalSecondFactor     `yaml:"u2f,omitempty"`
+	Webauthn       *Webauthn                  `yaml:"webauthn,omitempty"`
+	RequireMFAType types.RequireMFAType       `yaml:"require_session_mfa,omitempty"`
+	LockingMode    constants.LockingMode      `yaml:"locking_mode,omitempty"`
 
 	// LocalAuth controls if local authentication is allowed.
 	LocalAuth *types.BoolOption `yaml:"local_auth"`
@@ -909,7 +909,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		ConnectorName:     a.ConnectorName,
 		U2F:               u,
 		Webauthn:          w,
-		RequireSessionMFA: a.RequireSessionMFA,
+		RequireMFAType:    a.RequireMFAType,
 		LockingMode:       a.LockingMode,
 		AllowLocalAuth:    a.LocalAuth,
 		AllowPasswordless: a.Passwordless,

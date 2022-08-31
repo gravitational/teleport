@@ -3193,10 +3193,12 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		return nil, trace.Wrap(err)
 	}
 
-	if pref.GetRequireSessionMFA() {
-		// Cluster always requires MFA, regardless of roles.
+	if params := checker.MFAParams(pref.GetRequireMFAType()); params.AlwaysRequired {
 		return &proto.IsMFARequiredResponse{Required: true}, nil
+	} else if params.NeverRequired {
+		return &proto.IsMFARequiredResponse{Required: false}, nil
 	}
+
 	var noMFAAccessErr, notFoundErr error
 	switch t := req.Target.(type) {
 	case *proto.IsMFARequiredRequest_Node:

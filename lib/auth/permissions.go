@@ -169,6 +169,17 @@ func (c *Context) UseSearchAsRoles(access services.RoleGetter, clusterName strin
 	return nil
 }
 
+// MFAParams returns MFA params for the given auth context and auth preference MFA requirement.
+func (c *Context) MFAParams(authPrefMFARequirement types.RequireMFAType) services.AccessMFAParams {
+	params := c.Checker.MFAParams(authPrefMFARequirement)
+
+	// Builtin services (like proxy_service and kube_service) are not gated
+	// on MFA and only need to pass normal RBAC action checks.
+	_, isService := c.Identity.(BuiltinRole)
+	params.Verified = isService || c.Identity.GetIdentity().MFAVerified != ""
+	return params
+}
+
 // Authorize authorizes user based on identity supplied via context
 func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	if ctx == nil {

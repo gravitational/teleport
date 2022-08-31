@@ -1277,7 +1277,7 @@ func TestTerminalRequireSessionMfa(t *testing.T) {
 					Webauthn: &types.Webauthn{
 						RPID: "localhost",
 					},
-					RequireSessionMFA: true,
+					RequireMFAType: types.RequireMFAType_SESSION,
 				})
 				require.NoError(t, err)
 
@@ -1427,7 +1427,7 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 				Webauthn: &types.Webauthn{
 					RPID: "localhost",
 				},
-				RequireSessionMFA: true,
+				RequireMFAType: types.RequireMFAType_SESSION,
 			},
 			mfaHandler: handleMFAWebauthnChallenge,
 			registerDevice: func(t *testing.T, ctx context.Context, clt *auth.Client) *auth.TestDevice {
@@ -3602,8 +3602,8 @@ func TestWebSessionsRenewAllowsOldBearerTokenToLinger(t *testing.T) {
 }
 
 // TestChangeUserAuthentication_recoveryCodesReturnedForCloud tests for following:
-//  - Recovery codes are not returned for usernames that are not emails
-//  - Recovery codes are returned for usernames that are valid emails
+//   - Recovery codes are not returned for usernames that are not emails
+//   - Recovery codes are returned for usernames that are valid emails
 func TestChangeUserAuthentication_recoveryCodesReturnedForCloud(t *testing.T) {
 	env := newWebPack(t, 1)
 	ctx := context.Background()

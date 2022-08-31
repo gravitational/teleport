@@ -682,8 +682,8 @@ func TestLabelCompatibility(t *testing.T) {
 	require.Equal(t, map[string]string{"key": "val"}, out)
 }
 
-func newRole(mut func(*types.RoleV5)) types.RoleV5 {
-	r := types.RoleV5{
+func newRole(mut func(*types.RoleV5)) *types.RoleV5 {
+	r := &types.RoleV5{
 		Metadata: types.Metadata{
 			Name:      "name",
 			Namespace: apidefaults.Namespace,
@@ -699,7 +699,7 @@ func newRole(mut func(*types.RoleV5)) types.RoleV5 {
 			},
 		},
 	}
-	mut(&r)
+	mut(r)
 	return r
 }
 
@@ -741,14 +741,15 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 	}
 	testCases := []struct {
-		name      string
-		roles     []types.RoleV5
-		checks    []check
-		mfaParams AccessMFAParams
+		name                   string
+		roles                  []*types.RoleV5
+		checks                 []check
+		authPrefMFARequireType types.RequireMFAType
+		mfaVerified            bool
 	}{
 		{
 			name:  "empty role set has access to nothing",
-			roles: []types.RoleV5{},
+			roles: []*types.RoleV5{},
 			checks: []check{
 				{server: serverNoLabels, login: "root", hasAccess: false},
 				{server: serverWorker, login: "root", hasAccess: false},
@@ -757,7 +758,7 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 		{
 			name: "role is limited to default namespace",
-			roles: []types.RoleV5{
+			roles: []*types.RoleV5{
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"admin"}
 					r.Spec.Allow.Namespaces = []string{apidefaults.Namespace}
@@ -774,7 +775,7 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 		{
 			name: "role is limited to labels in default namespace",
-			roles: []types.RoleV5{
+			roles: []*types.RoleV5{
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"admin"}
 					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker"}}
@@ -791,7 +792,7 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 		{
 			name: "role matches any label out of multiple labels",
-			roles: []types.RoleV5{
+			roles: []*types.RoleV5{
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"admin"}
 					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker2", "worker"}}
@@ -808,7 +809,7 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 		{
 			name: "node_labels with empty list value matches nothing",
-			roles: []types.RoleV5{
+			roles: []*types.RoleV5{
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"admin"}
 					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{}}
@@ -825,7 +826,7 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 		{
 			name: "one role is more permissive than another",
-			roles: []types.RoleV5{
+			roles: []*types.RoleV5{
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"admin"}
 					r.Spec.Allow.Namespaces = []string{apidefaults.Namespace}
@@ -846,7 +847,7 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 		{
 			name: "one role needs to access servers sharing the partially same label value",
-			roles: []types.RoleV5{
+			roles: []*types.RoleV5{
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"admin"}
 					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"^db(.*)$"}, "status": []string{"follow*"}}
@@ -866,7 +867,7 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 		{
 			name: "no logins means no access",
-			roles: []types.RoleV5{
+			roles: []*types.RoleV5{
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = nil
 				}),
@@ -882,18 +883,17 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 		{
 			name: "one role requires MFA but MFA was not verified",
-			roles: []types.RoleV5{
+			roles: []*types.RoleV5{
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"root"}
 					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker"}}
-					r.Spec.Options.RequireSessionMFA = true
+					r.Spec.Options.RequireMFAType = types.RequireMFAType_SESSION
 				}),
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"root"}
-					r.Spec.Options.RequireSessionMFA = false
+					r.Spec.Options.RequireMFAType = types.RequireMFAType_OFF
 				}),
 			},
-			mfaParams: AccessMFAParams{Verified: false},
 			checks: []check{
 				{server: serverNoLabels, login: "root", hasAccess: true},
 				{server: serverWorker, login: "root", hasAccess: false},
@@ -902,18 +902,18 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 		{
 			name: "one role requires MFA and MFA was verified",
-			roles: []types.RoleV5{
+			roles: []*types.RoleV5{
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"root"}
 					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker"}}
-					r.Spec.Options.RequireSessionMFA = true
+					r.Spec.Options.RequireMFAType = types.RequireMFAType_SESSION
 				}),
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"root"}
-					r.Spec.Options.RequireSessionMFA = false
+					r.Spec.Options.RequireMFAType = types.RequireMFAType_OFF
 				}),
 			},
-			mfaParams: AccessMFAParams{Verified: true},
+			mfaVerified: true,
 			checks: []check{
 				{server: serverNoLabels, login: "root", hasAccess: true},
 				{server: serverWorker, login: "root", hasAccess: true},
@@ -922,12 +922,12 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 		{
 			name: "cluster requires MFA but MFA was not verified",
-			roles: []types.RoleV5{
+			roles: []*types.RoleV5{
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"root"}
 				}),
 			},
-			mfaParams: AccessMFAParams{Verified: false, AlwaysRequired: true},
+			authPrefMFARequireType: types.RequireMFAType_SESSION,
 			checks: []check{
 				{server: serverNoLabels, login: "root", hasAccess: false},
 				{server: serverWorker, login: "root", hasAccess: false},
@@ -936,12 +936,13 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 		{
 			name: "cluster requires MFA and MFA was verified",
-			roles: []types.RoleV5{
+			roles: []*types.RoleV5{
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"root"}
 				}),
 			},
-			mfaParams: AccessMFAParams{Verified: true, AlwaysRequired: true},
+			authPrefMFARequireType: types.RequireMFAType_SESSION,
+			mfaVerified:            true,
 			checks: []check{
 				{server: serverNoLabels, login: "root", hasAccess: true},
 				{server: serverWorker, login: "root", hasAccess: true},
@@ -953,13 +954,15 @@ func TestCheckAccessToServer(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var set RoleSet
 			for i := range tc.roles {
-				set = append(set, &tc.roles[i])
+				set = append(set, tc.roles[i])
 			}
 			for j, check := range tc.checks {
 				comment := fmt.Sprintf("check %v: user: %v, server: %v, should access: %v", j, check.login, check.server.GetName(), check.hasAccess)
+				mfaParams := set.MFAParams(tc.authPrefMFARequireType)
+				mfaParams.Verified = tc.mfaVerified
 				err := set.checkAccess(
 					check.server,
-					tc.mfaParams,
+					mfaParams,
 					NewLoginMatcher(check.login))
 				if check.hasAccess {
 					require.NoError(t, err, comment)
@@ -2573,7 +2576,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 		Version:  types.V3,
 		Spec: types.RoleSpecV5{
 			Options: types.RoleOptions{
-				RequireSessionMFA: true,
+				RequireMFAType: types.RequireMFAType_SESSION,
 			},
 			Allow: types.RoleConditions{
 				Namespaces:     []string{apidefaults.Namespace},
@@ -3543,7 +3546,7 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 		},
 		Spec: types.RoleSpecV5{
 			Options: types.RoleOptions{
-				RequireSessionMFA: true,
+				RequireMFAType: types.RequireMFAType_SESSION,
 			},
 			Allow: types.RoleConditions{
 				Namespaces: []string{apidefaults.Namespace},
@@ -3687,24 +3690,24 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 func TestDesktopRecordingEnabled(t *testing.T) {
 	for _, test := range []struct {
 		desc         string
-		roles        []types.RoleV5
+		roleSet      RoleSet
 		shouldRecord bool
 	}{
 		{
 			desc: "single role recording disabled",
-			roles: []types.RoleV5{
+			roleSet: NewRoleSet(
 				newRole(func(r *types.RoleV5) {
 					r.SetName("no-record")
 					r.SetOptions(types.RoleOptions{
 						RecordSession: &types.RecordSession{Desktop: types.NewBoolOption(false)},
 					})
 				}),
-			},
+			),
 			shouldRecord: false,
 		},
 		{
 			desc: "multiple roles, one requires recording",
-			roles: []types.RoleV5{
+			roleSet: NewRoleSet(
 				newRole(func(r *types.RoleV5) {
 					r.SetOptions(types.RoleOptions{
 						RecordSession: &types.RecordSession{Desktop: types.NewBoolOption(false)},
@@ -3717,17 +3720,12 @@ func TestDesktopRecordingEnabled(t *testing.T) {
 				}),
 				// recording defaults to true, so a default role should force recording
 				newRole(func(r *types.RoleV5) {}),
-			},
+			),
 			shouldRecord: true,
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			var roles []types.Role
-			for _, r := range test.roles {
-				roles = append(roles, &r)
-			}
-			rs := NewRoleSet(roles...)
-			require.Equal(t, test.shouldRecord, rs.RecordDesktopSession())
+			require.Equal(t, test.shouldRecord, test.roleSet.RecordDesktopSession())
 		})
 	}
 }
@@ -3735,45 +3733,42 @@ func TestDesktopRecordingEnabled(t *testing.T) {
 func TestDesktopClipboard(t *testing.T) {
 	for _, test := range []struct {
 		desc         string
-		roles        []types.RoleV5
+		roleSet      RoleSet
 		hasClipboard bool
 	}{
 		{
-			desc:         "single role, unspecified, defaults true",
-			roles:        []types.RoleV5{newRole(func(r *types.RoleV5) {})},
+			desc: "single role, unspecified, defaults true",
+			roleSet: NewRoleSet(
+				newRole(func(r *types.RoleV5) {}),
+			),
 			hasClipboard: true,
 		},
 		{
 			desc: "single role, explicitly disabled",
-			roles: []types.RoleV5{
+			roleSet: NewRoleSet(
 				newRole(func(r *types.RoleV5) {
 					r.SetOptions(types.RoleOptions{
 						DesktopClipboard: types.NewBoolOption(false),
 					})
 				}),
-			},
+			),
 			hasClipboard: false,
 		},
 		{
 			desc: "multiple conflicting roles, disable wins",
-			roles: []types.RoleV5{
+			roleSet: NewRoleSet(
 				newRole(func(r *types.RoleV5) {}),
 				newRole(func(r *types.RoleV5) {
 					r.SetOptions(types.RoleOptions{
 						DesktopClipboard: types.NewBoolOption(false),
 					})
 				}),
-			},
+			),
 			hasClipboard: false,
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			var roles []types.Role
-			for i := range test.roles {
-				roles = append(roles, &test.roles[i])
-			}
-			rs := NewRoleSet(roles...)
-			require.Equal(t, test.hasClipboard, rs.DesktopClipboard())
+			require.Equal(t, test.hasClipboard, test.roleSet.DesktopClipboard())
 		})
 	}
 }
@@ -3781,28 +3776,30 @@ func TestDesktopClipboard(t *testing.T) {
 func TestDesktopDirectorySharing(t *testing.T) {
 	for _, test := range []struct {
 		desc                string
-		roles               []types.RoleV5
+		roleSet             RoleSet
 		hasDirectorySharing bool
 	}{
 		{
-			desc:                "single role, unspecified, defaults true",
-			roles:               []types.RoleV5{newRole(func(r *types.RoleV5) {})},
+			desc: "single role, unspecified, defaults true",
+			roleSet: NewRoleSet(
+				newRole(func(r *types.RoleV5) {}),
+			),
 			hasDirectorySharing: true,
 		},
 		{
 			desc: "single role, explicitly disabled",
-			roles: []types.RoleV5{
+			roleSet: NewRoleSet(
 				newRole(func(r *types.RoleV5) {
 					r.SetOptions(types.RoleOptions{
 						DesktopDirectorySharing: types.NewBoolOption(false),
 					})
 				}),
-			},
+			),
 			hasDirectorySharing: false,
 		},
 		{
 			desc: "multiple conflicting roles, disable wins",
-			roles: []types.RoleV5{
+			roleSet: NewRoleSet(
 				newRole(func(r *types.RoleV5) {
 					r.SetOptions(types.RoleOptions{
 						DesktopDirectorySharing: types.NewBoolOption(false),
@@ -3813,17 +3810,12 @@ func TestDesktopDirectorySharing(t *testing.T) {
 						DesktopDirectorySharing: types.NewBoolOption(true),
 					})
 				}),
-			},
+			),
 			hasDirectorySharing: false,
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			roles := []types.Role{}
-			for i := range test.roles {
-				roles = append(roles, &test.roles[i])
-			}
-			rs := NewRoleSet(roles...)
-			require.Equal(t, test.hasDirectorySharing, rs.DesktopDirectorySharing())
+			require.Equal(t, test.hasDirectorySharing, test.roleSet.DesktopDirectorySharing())
 		})
 	}
 }
@@ -3853,13 +3845,13 @@ func TestCheckAccessToWindowsDesktop(t *testing.T) {
 
 	for _, test := range []struct {
 		name      string
-		roles     []types.RoleV5
+		roleSet   RoleSet
 		mfaParams AccessMFAParams
 		checks    []check
 	}{
 		{
-			name:  "no roles, no access",
-			roles: []types.RoleV5{},
+			name:    "no roles, no access",
+			roleSet: RoleSet{},
 			checks: []check{
 				{desktop: desktopNoLabels, login: "admin", hasAccess: false},
 				{desktop: desktop2012, login: "admin", hasAccess: false},
@@ -3867,7 +3859,7 @@ func TestCheckAccessToWindowsDesktop(t *testing.T) {
 		},
 		{
 			name: "empty label, no access",
-			roles: []types.RoleV5{
+			roleSet: RoleSet{
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.WindowsDesktopLogins = []string{"admin"}
 					r.Spec.Allow.WindowsDesktopLabels = types.Labels{"role": []string{}}
@@ -3880,7 +3872,7 @@ func TestCheckAccessToWindowsDesktop(t *testing.T) {
 		},
 		{
 			name: "single role allows a single login",
-			roles: []types.RoleV5{
+			roleSet: RoleSet{
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.WindowsDesktopLogins = []string{"admin"}
 				}),
@@ -3894,7 +3886,7 @@ func TestCheckAccessToWindowsDesktop(t *testing.T) {
 		},
 		{
 			name: "single role with allowed labels",
-			roles: []types.RoleV5{
+			roleSet: RoleSet{
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.WindowsDesktopLogins = []string{"admin"}
 					r.Spec.Allow.WindowsDesktopLabels = types.Labels{"win_version": []string{"2012"}}
@@ -3907,7 +3899,7 @@ func TestCheckAccessToWindowsDesktop(t *testing.T) {
 		},
 		{
 			name: "single role with deny labels",
-			roles: []types.RoleV5{
+			roleSet: RoleSet{
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.WindowsDesktopLogins = []string{"admin"}
 					r.Spec.Deny.Namespaces = []string{apidefaults.Namespace}
@@ -3921,7 +3913,7 @@ func TestCheckAccessToWindowsDesktop(t *testing.T) {
 		},
 		{
 			name: "one role more permissive than another",
-			roles: []types.RoleV5{
+			roleSet: RoleSet{
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.WindowsDesktopLogins = []string{"admin"}
 					r.Spec.Allow.NodeLabels = types.Labels{"win_version": []string{"2012"}}
@@ -3939,15 +3931,10 @@ func TestCheckAccessToWindowsDesktop(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			var set RoleSet
-			for _, r := range test.roles {
-				set = append(set, &r)
-			}
-
 			for i, check := range test.checks {
 				msg := fmt.Sprintf("check=%d, user=%v, server=%v, should_have_access=%v",
 					i, check.login, check.desktop.GetName(), check.hasAccess)
-				err := set.checkAccess(check.desktop, test.mfaParams, NewWindowsLoginMatcher(check.login))
+				err := test.roleSet.checkAccess(check.desktop, test.mfaParams, NewWindowsLoginMatcher(check.login))
 				if check.hasAccess {
 					require.NoError(t, err, msg)
 				} else {
@@ -3964,22 +3951,21 @@ func TestCheckAccessToWindowsDesktop(t *testing.T) {
 //
 // To run benchmark:
 //
-//    go test -bench=.
+//	go test -bench=.
 //
 // To run benchmark and obtain CPU and memory profiling:
 //
-//    go test -bench=. -cpuprofile=cpu.prof -memprofile=mem.prof
+//	go test -bench=. -cpuprofile=cpu.prof -memprofile=mem.prof
 //
 // To use the command line tool to read the profile:
 //
-//   go tool pprof cpu.prof
-//   go tool pprof cpu.prof
+//	go tool pprof cpu.prof
+//	go tool pprof cpu.prof
 //
 // To generate a graph:
 //
-//   go tool pprof --pdf cpu.prof > cpu.pdf
-//   go tool pprof --pdf mem.prof > mem.pdf
-//
+//	go tool pprof --pdf cpu.prof > cpu.pdf
+//	go tool pprof --pdf mem.prof > mem.pdf
 func BenchmarkCheckAccessToServer(b *testing.B) {
 	servers := make([]*types.ServerV2, 0, 4000)
 
@@ -4720,7 +4706,6 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 			test: "test exact match, one sudoer entry, one role",
 			sudoers: []string{"%sudo	ALL=(ALL) ALL"},
 			roles: NewRoleSet(&types.RoleV5{
-
 				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
 						CreateHostUser: types.NewBoolOption(true),
@@ -5031,8 +5016,8 @@ func TestFetchAllClusterRoles_PrefersRolesAndTraitsFromCurrentUser(t *testing.T)
 
 	currentUserRoleGetter := mockCurrentUserRoleGetter{
 		nameToRole: map[string]types.Role{
-			"dev":   &devRole,
-			"admin": &adminRole,
+			"dev":   devRole,
+			"admin": adminRole,
 		},
 		currentUser: user,
 	}
@@ -5045,8 +5030,8 @@ func TestFetchAllClusterRoles_PrefersRolesAndTraitsFromCurrentUser(t *testing.T)
 	// After sort: "admin","default-implicit-role","dev"
 	sort.Sort(SortedRoles(roleSet))
 	require.Len(t, roleSet, 3)
-	require.Contains(t, roleSet, &devRole, "devRole not found in roleSet")
-	require.Contains(t, roleSet, &adminRole, "adminRole not found in roleSet")
+	require.Contains(t, roleSet, devRole, "devRole not found in roleSet")
+	require.Contains(t, roleSet, adminRole, "adminRole not found in roleSet")
 	require.Equal(t, []string{"currentUserTraitLogin"}, roleSet[2].GetLogins(types.Allow))
 }
 
@@ -5067,8 +5052,8 @@ func TestFetchAllClusterRoles_UsesDefaultRolesAndTraitsIfCurrentUserIsUnavailabl
 	currentUserRoleGetter := mockCurrentUserRoleGetter{
 		getCurrentUserError: trace.NotImplemented("GetCurrentUser not implemented on server"),
 		nameToRole: map[string]types.Role{
-			"access": &accessRole,
-			"editor": &editorRole,
+			"access": accessRole,
+			"editor": editorRole,
 		},
 	}
 
@@ -5080,7 +5065,119 @@ func TestFetchAllClusterRoles_UsesDefaultRolesAndTraitsIfCurrentUserIsUnavailabl
 	// After sort: "access","default-implicit-role","editor"
 	sort.Sort(SortedRoles(roleSet))
 	require.Len(t, roleSet, 3)
-	require.Contains(t, roleSet, &accessRole, "accessRole not found in roleSet")
-	require.Contains(t, roleSet, &editorRole, "editorRole not found in roleSet")
+	require.Contains(t, roleSet, accessRole, "accessRole not found in roleSet")
+	require.Contains(t, roleSet, editorRole, "editorRole not found in roleSet")
 	require.Equal(t, []string{"defaultTraitLogin"}, roleSet[0].GetLogins(types.Allow))
+}
+
+func TestMFAParams(t *testing.T) {
+	testCases := []struct {
+		name                   string
+		roleMFARequireTypes    []types.RequireMFAType
+		authPrefMFARequireType types.RequireMFAType
+		expectMFAParams        AccessMFAParams
+	}{
+		{
+			name: "empty role set and auth pref requirement",
+			expectMFAParams: AccessMFAParams{
+				NeverRequired: true,
+			}},
+		{
+			name: "no roles require mfa, auth pref doesn't require mfa",
+			roleMFARequireTypes: []types.RequireMFAType{
+				types.RequireMFAType_OFF,
+				types.RequireMFAType_OFF,
+			},
+			authPrefMFARequireType: types.RequireMFAType_OFF,
+			expectMFAParams: AccessMFAParams{
+				NeverRequired: true,
+			},
+		},
+		{
+			name: "no roles require mfa, auth pref requires mfa",
+			roleMFARequireTypes: []types.RequireMFAType{
+				types.RequireMFAType_OFF,
+				types.RequireMFAType_OFF,
+			},
+			authPrefMFARequireType: types.RequireMFAType_SESSION,
+			expectMFAParams: AccessMFAParams{
+				AlwaysRequired: true,
+			},
+		},
+		{
+			name: "some roles require mfa, auth pref doesn't require mfa",
+			roleMFARequireTypes: []types.RequireMFAType{
+				types.RequireMFAType_OFF,
+				types.RequireMFAType_SESSION,
+			},
+			authPrefMFARequireType: types.RequireMFAType_OFF,
+			expectMFAParams:        AccessMFAParams{},
+		},
+		{
+			name: "some roles require mfa, auth pref requires mfa",
+			roleMFARequireTypes: []types.RequireMFAType{
+				types.RequireMFAType_OFF,
+				types.RequireMFAType_SESSION,
+			},
+			authPrefMFARequireType: types.RequireMFAType_SESSION,
+			expectMFAParams: AccessMFAParams{
+				AlwaysRequired: true,
+			},
+		},
+		{
+			name: "all roles require mfa, auth pref requires mfa",
+			roleMFARequireTypes: []types.RequireMFAType{
+				types.RequireMFAType_SESSION,
+				types.RequireMFAType_SESSION,
+			},
+			authPrefMFARequireType: types.RequireMFAType_SESSION,
+			expectMFAParams: AccessMFAParams{
+				AlwaysRequired: true,
+			},
+		},
+		{
+			name: "all roles require mfa, auth pref doesn't require mfa",
+			roleMFARequireTypes: []types.RequireMFAType{
+				types.RequireMFAType_SESSION,
+				types.RequireMFAType_SESSION,
+			},
+			authPrefMFARequireType: types.RequireMFAType_OFF,
+			expectMFAParams: AccessMFAParams{
+				AlwaysRequired: true,
+			},
+		},
+		{
+			name: "auth pref requires hardware key touch",
+			roleMFARequireTypes: []types.RequireMFAType{
+				types.RequireMFAType_SESSION,
+				types.RequireMFAType_SESSION,
+			},
+			authPrefMFARequireType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+			expectMFAParams: AccessMFAParams{
+				NeverRequired: true,
+			},
+		},
+		{
+			name: "role requires hardware key touch",
+			roleMFARequireTypes: []types.RequireMFAType{
+				types.RequireMFAType_SESSION,
+				types.RequireMFAType_HARDWARE_KEY_TOUCH,
+			},
+			authPrefMFARequireType: types.RequireMFAType_SESSION,
+			expectMFAParams: AccessMFAParams{
+				NeverRequired: true,
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var set RoleSet
+			for _, roleRequirement := range tc.roleMFARequireTypes {
+				set = append(set, newRole(func(r *types.RoleV5) {
+					r.Spec.Options.RequireMFAType = roleRequirement
+				}))
+			}
+			require.Equal(t, tc.expectMFAParams, set.MFAParams(tc.authPrefMFARequireType))
+		})
+	}
 }
