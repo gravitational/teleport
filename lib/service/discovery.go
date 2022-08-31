@@ -20,7 +20,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery"
 	"github.com/gravitational/trace"
@@ -61,32 +60,18 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		return trace.Wrap(err)
 	}
 
-	clusterName := conn.ServerIdentity.ClusterName
-
 	// asyncEmitter makes sure that sessions do not block
 	// in case if connections are slow
 	asyncEmitter, err := process.newAsyncEmitter(conn.Client)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	streamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{
-		Inner:       conn.Client,
-		Clock:       process.Clock,
-		ClusterName: clusterName,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	streamEmitter := &events.StreamerAndEmitter{
-		Emitter:  asyncEmitter,
-		Streamer: streamer,
-	}
 
 	discoveryService, err := discovery.New(process.ExitContext(), &discovery.Config{
 		Clients:     cloud.NewClients(),
 		Matchers:    process.Config.Discovery.AWSMatchers,
 		NodeWatcher: nodeWatcher,
-		Emitter:     streamEmitter,
+		Emitter:     asyncEmitter,
 		AccessPoint: accessPoint,
 	})
 

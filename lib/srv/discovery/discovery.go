@@ -23,9 +23,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/server"
 	"github.com/gravitational/trace"
@@ -36,15 +36,14 @@ type Config struct {
 	Clients     cloud.Clients
 	Matchers    []services.AWSMatcher
 	NodeWatcher *services.NodeWatcher
-	Emitter     events.StreamEmitter
+	Emitter     apievents.Emitter
 	AccessPoint auth.DiscoveryAccessPoint
 }
 
-// Server is a discovery server, It
+// Server is a discovery server, used to discover cloud resources for
+// inclusion in Teleport
 type Server struct {
 	*Config
-	events.StreamEmitter
-
 	ctx context.Context
 
 	// log is used for logging.
@@ -59,8 +58,7 @@ type Server struct {
 
 func New(ctx context.Context, cfg *Config) (*Server, error) {
 	s := &Server{
-		Config:        cfg,
-		StreamEmitter: cfg.Emitter,
+		Config: cfg,
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component:       teleport.ComponentDiscovery,
 			trace.ComponentFields: logrus.Fields{},
@@ -77,7 +75,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 	s.ec2Installer = server.NewSSMInstaller(server.SSMInstallerConfig{
-		Emitter: s,
+		Emitter: cfg.Emitter,
 	})
 
 	return s, nil
@@ -163,9 +161,7 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) Stop() {
-	if s.cloudWatcher != nil {
-		s.cloudWatcher.Stop()
-	}
+	s.cloudWatcher.Stop()
 }
 
 // Wait will block while the server is running.

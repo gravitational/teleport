@@ -86,7 +86,7 @@ type FileConfig struct {
 	// Tracing is the "tracing_service" section in Teleport configuration file
 	Tracing TracingService `yaml:"tracing_service,omitempty"`
 
-	// Discoveryis the "discovery_service" section in the Teleport
+	// Discovery is the "discovery_service" section in the Teleport
 	// configuration file
 	Discovery Discovery `yaml:"discovery_service,omitempty"`
 }

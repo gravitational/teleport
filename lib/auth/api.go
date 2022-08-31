@@ -676,7 +676,7 @@ type WindowsDesktopAccessPoint interface {
 	accessPoint
 }
 
-// ReadDiscoveryAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
+// ReadDiscoveryAccessPoint is a read only API interface to be
 // used by a teleport.ComponentDiscovery.
 //
 // NOTE: This interface must match the resources replicated in cache.ForDiscovery.

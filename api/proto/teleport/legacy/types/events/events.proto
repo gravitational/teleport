@@ -3762,7 +3762,7 @@ message KubernetesClusterDelete {
   ];
 }
 
-// SSMRun is emitted after an SSM document completes execution.
+// SSMRun is emitted after an AWS SSM document completes execution.
 message SSMRun {
   // Metadata is a common event metadata.
   Metadata Metadata = 1 [

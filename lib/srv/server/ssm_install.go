@@ -133,11 +133,10 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 		return trace.Wrap(err)
 	}
 	status := aws.StringValue(cmdOut.Status)
-	var code string
+
+	code := libevents.SSMRunFailCode
 	if status == ssm.CommandStatusSuccess {
 		code = libevents.SSMRunSuccessCode
-	} else {
-		code = libevents.SSMRunFailCode
 	}
 
 	event := events.SSMRun{
