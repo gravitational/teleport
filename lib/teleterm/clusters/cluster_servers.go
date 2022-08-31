@@ -74,11 +74,10 @@ func (c *Cluster) GetAllServers(ctx context.Context) ([]Server, error) {
 
 func (c *Cluster) GetServers(ctx context.Context, r *api.GetServersRequest) (*GetServersResponse, error) {
 	var (
-		clusterServers []types.Server
-		resp           *types.ListResourcesResponse
-		authClient     auth.ClientI
-		proxyClient    *client.ProxyClient
-		err            error
+		resp        *types.ListResourcesResponse
+		authClient  auth.ClientI
+		proxyClient *client.ProxyClient
+		err         error
 	)
 
 	err = addMetadataToRetryableError(ctx, func() error {
@@ -93,6 +92,20 @@ func (c *Cluster) GetServers(ctx context.Context, r *api.GetServersRequest) (*Ge
 			return trace.Wrap(err)
 		}
 		defer authClient.Close()
+		sortBy := types.GetSortByFromString(r.SortBy)
+
+		resp, err = authClient.ListResources(ctx, proto.ListResourcesRequest{
+			Namespace:           defaults.Namespace,
+			ResourceType:        types.KindNode,
+			Limit:               r.Limit,
+			SortBy:              sortBy,
+			PredicateExpression: r.Query,
+			SearchKeywords:      client.ParseSearchKeywords(r.Search, ' '),
+			UseSearchAsRoles:    r.SearchAsRoles == "yes",
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
 		return nil
 	})
@@ -100,22 +113,7 @@ func (c *Cluster) GetServers(ctx context.Context, r *api.GetServersRequest) (*Ge
 		return nil, trace.Wrap(err)
 	}
 
-	sortBy := types.GetSortByFromString(r.SortBy)
-
-	resp, err = authClient.ListResources(ctx, proto.ListResourcesRequest{
-		Namespace:           defaults.Namespace,
-		ResourceType:        types.KindNode,
-		Limit:               r.Limit,
-		SortBy:              sortBy,
-		PredicateExpression: r.Query,
-		SearchKeywords:      client.ParseSearchKeywords(r.Search, ' '),
-		UseSearchAsRoles:    r.SearchAsRoles == "yes",
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	clusterServers, err = types.ResourcesWithLabels(resp.Resources).AsServers()
+	clusterServers, err := types.ResourcesWithLabels(resp.Resources).AsServers()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
