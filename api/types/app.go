@@ -237,7 +237,18 @@ func (a *AppV3) GetRewrite() *Rewrite {
 
 // IsAWSConsole returns true if this app is AWS management console.
 func (a *AppV3) IsAWSConsole() bool {
-	return strings.HasPrefix(a.Spec.URI, constants.AWSConsoleURL)
+	// TODO(greedy52) support region based console URL like:
+	// https://us-east-1.console.aws.amazon.com/
+	for _, consoleURL := range []string{
+		constants.AWSConsoleURL,
+		constants.AWSUSGovConsoleURL,
+		constants.AWSCNConsoleURL,
+	} {
+		if strings.HasPrefix(a.Spec.URI, consoleURL) {
+			return true
+		}
+	}
+	return false
 }
 
 // IsTCP returns true if this app represents a TCP endpoint.
