@@ -37,15 +37,15 @@ However, the PKCS#11 interface is complex, hard to use, and does not provide a s
 Personal Identity Verification (PIV), described in [FIPS-201](https://csrc.nist.gov/publications/detail/fips/201/3/final) and defined by [NIST SP 800-73](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-73-4.pdf), is an open standard for smart card access. 
 
 PIV builds upon the PKCS#11 interface and provides us with additional capabilities including:
- - PIN and Touch requirements for accessing keys (if requested during key generation)
+ - Optional PIN and Touch requirements for accessing keys
  - PIV secrets for granular [adminstrative access](https://developers.yubico.com/PIV/Introduction/Admin_access.html)
  - [Attestation](https://docs.yubico.com/yesdk/users-manual/application-piv/attestation.html) of private key slots
  
 ##### Attestation
 
-Attestation makes it possible for us to take a hardware private keys and verify that it was generated on a trusted hardware key. This verification will be useful for enforcing hardware private key usage.
+Attestation makes it possible for us to take a hardware private key and verify that it was generated on a trusted hardware key. This verification will be useful for enforcing hardware private key usage.
 
-Note that attestation is not expressly included in the PIV standard. However, PIV was designed around the idea of a central authority creating trusted PIV smart cards, so all PIV implementations should provide some way to perform attestation. In fact, hardware keys in general should all support attestation in some capacity.
+Attestation is not expressly included in the PIV standard. However, PIV was designed around the idea of a central authority creating trusted PIV smart cards, so all PIV implementations should provide some way to perform attestation. In fact, even non-PIV hardware keys can be expected to support attestation in some form.
 
 For example, Yubico created their own [PIV attestation extension](https://developers.yubico.com/PIV/Introduction/Yubico_extensions.html). Other hardware keys may implement the same extension, such as [solokeys](https://github.com/solokeys/piv-authenticator/blob/1922d6d97ba9ea4800572eea4b8a243ada2bf668/src/constants.rs#L27) which has indications that it will, or they may provide alternative methods for attestation.
 
@@ -53,9 +53,9 @@ For example, Yubico created their own [PIV attestation extension](https://develo
 
 We will use the [go-piv](https://github.com/go-piv/piv-go) library, which is a Golang port of Yubikey's C library [ykpiv](https://github.com/Yubico/yubico-piv-tool/blob/master/lib/ykpiv.c). This is the same library used by [yubikey-agent](https://github.com/FiloSottile/yubikey-agent). 
 
-Currently, Yubikey is one of the only PIV-compatible commercial hardware keys. As a result, current PIV implementations like piv-go are specifically designed around Yubikey's implementation of PIV - the `libykcs11.so` module. While the majority of PIV is standardized, the Yubikey PIV implementation has [some extensions](https://developers.yubico.com/PIV/Introduction/Yubico_extensions.html) and other idiosyncracies which may not be standard accross future PIV implemenations.
+Currently, Yubikey is one of the only PIV-compatible commercial hardware keys. As a result, current PIV implementations like piv-go are specifically designed around Yubikey's implementation of PIV - the `libykcs11.so` module. While the majority of PIV is standardized, the Yubikey PIV implementation has [some extensions](https://developers.yubico.com/PIV/Introduction/Yubico_extensions.html) and other idiosyncracies which may not be standard across future PIV implemenations.
 
-Unfortunately, there is no common PIV library, so our best option is to use `piv-go` for a streamlined implemenation and prepare to adjust in the future as more PIV-compatible hardware keys are released. Possible adjustments include:
+There is no common PIV library, so our best option is to use `piv-go` for a streamlined implemenation and prepare to adjust in the future as more PIV-compatible hardware keys are released. Possible adjustments include:
  - using multiple PIV libraries to support custom PIV implementations
  - switching to a PIV library which expressly supports all/more PIV implemenations
  - working within a PIV library, through PRs or a Fork, to expand PIV support
@@ -65,11 +65,11 @@ Note: the adjustments above will largely be client-side and therefore should not
 
 ### Security
 
-Currently, Teleport clients generate new RSA private keys to be signed by the Teleport Auth server during login. These keys are then stored on disk alongside the certificates, where they can be accessed and used to perform actions as the logged in user. These actions include any Teleport Auth server request, such as listing clusters (`tsh ls`), starting an ssh session (`tsh ssh`), or adding/changing cluster resources (`tctl create`). In order for an attacker to exflitrate a user's login session and perform such actions, they would just need to export the user's certificate and private key files, which are all stored on the user's disk (in `~/.tsh`).
+Currently, Teleport clients generate new RSA private keys to be signed by the Teleport Auth server during login. These keys are then stored on disk alongside the certificates (in `~/.tsh`), where they can be accessed and used to perform actions as the logged in user. These actions include any Teleport Auth server request, such as listing clusters (`tsh ls`), starting an ssh session (`tsh ssh`), or adding/changing cluster resources (`tctl create`). If an attacker manages to exfiltrate a user's `~/.tsh` folder, they could use the contained certificates and key to perform actions as the user.
 
-With hardware private keys, even if an attacker exports a user's certificates from disk, they will not provide access unless the attacker also has access to the user's hardware key. Therefore, simple exfiltration attacks on a user's `~/.tsh` directory would not work.
+With the introduction of a hardware private key, the user's key would not be stored on disk in `~/.tsh`. Instead, it would be generated and stored directly on the hardware key, where it can not be exported. Therefore, if an attacker exfiltrates a user's `~/.tsh` folder, the contained certificates would be useless without also having access to the user's hardware key.
 
-However, an attacker could still potentially gain access if they hack into the user's computer while the hardware key is connected. To mitigate this risk, we have two options:
+So far, just introducing hardware private keys into the login process prevents simple exfiltration attacks. However, an attacker could still potentially steal a user's login session if they hack into the user's computer while the hardware key is connected. To mitigate this risk, we also need to enforce a presence check. For this, we have two options:
  1. Enable [per-session MFA](https://goteleport.com/docs/access-controls/guides/per-session-mfa/) alongside hardware private key enforcement, which requires you to pass an MFA check (touch) to start a new Teleport Service session (SSH/Kube/etc.). 
  2. Enforce Touch to access hardware private keys, which can be done with PIV-compatible hardware keys. In this case, Touch is required for every Teleport request, not just new Teleport Service sessions.
 
@@ -118,7 +118,7 @@ spec:
 
 - `none` (default): No enforcement on private key usage.
 - `hardware_key`: A user's private keys must be generated on a hardware key. As a result, the user cannot use their signed certificates unless they have their hardware key connected.
-- `hardware_key_touch`: A user's private keys must be generated on a hardware key, and must require touch to be accessed. As a result, the user must touch their hardware key on login, and on every subsequent request.
+- `hardware_key_touch`: A user's private keys must be generated on a hardware key, and must require touch to be accessed. As a result, the user must touch their hardware key on login, and on subsequent request (touch is cached on the hardware key for 15 seconds).
 
 #### Per-session MFA configuration
 
@@ -127,7 +127,7 @@ auth_service:
   ...
   authentication:
     ...
-    require_session_mfa: on | hardware_key | hardware_key_touch
+    require_session_mfa: off | on | hardware_key | hardware_key_touch
 ```
 ```yaml
 kind: cluster_auth_preference
@@ -135,7 +135,7 @@ version: v2
 metadata:
   name: cluster-auth-preference
 spec:
-  require_session_mfa: on | hardware_key | hardware_key_touch
+  require_session_mfa: off | on | hardware_key | hardware_key_touch
 ```
 ```yaml
 kind: role
@@ -144,68 +144,96 @@ metadata:
   name: role-name
 spec:
   role_options:
-    require_session_mfa: on | hardware_key | hardware_key_touch
+    require_session_mfa: off | on | hardware_key | hardware_key_touch
 ```
 
-- `on`: Current per-session MFA functionality - user's are required to pass an MFA challenge with a registered MFA device in order to start new SSH|Kubernetes|DB|Desktop sessions. Non-session requests, and app-session requests are not impacted.
+- `on`: Current per-session MFA functionality - users are required to pass an MFA challenge with a registered MFA device in order to start new SSH|Kubernetes|DB|Desktop sessions. Non-session requests, and app-session requests are not impacted.
 - `hardware_key`: Essentially combines `require_session_mfa: on` with `private_key_policy: hardware_key`. MFA tap is only required for session requests, but all Teleport API requests require certificates backed by a hardware private key.
 - `hardware_key_touch`: This is the same as `private_key_policy: hardware_key_touch`. Per-session MFA is disabled in favor of touch checks directly on the hardware key the user used to login.
+  - This will require some changes to the per-session MFA checks. If a user has `require_session_mfa: hardware_key_touch`, then this should override any other per-session MFA requirement, including the cluster-wide requirement or node/access specific requirements.
 
-Note: From a product perspective, we have decided to add the new `require_session_mfa` options and omit the new `private_key_policy` option to reduce configuration knobs. Since the underlying implementation will be completely separate from per-session MFA, this RFD will continue to refer to `private_key_policy` to make reasoning about the proposed changes easier to understand.
+This change will require changing the `require_session_mfa` fields above from a `bool` to a `string`. This will be handled by introducing a new proto field and custom marshalling logic to maintain interoperability between new and old servers and clients. See https://github.com/gravitational/teleport/pull/12054 for an example of this.
+
+Note: From a product perspective, we have decided to add the new `require_session_mfa` options and omit the new `private_key_policy` option to reduce configuration knobs. Since the underlying implementation will be separate from per-session MFA, this RFD will continue to refer to `private_key_policy` to make reasoning about the proposed changes easier to understand.
 
 #### Enforcement - Attestation
 
-In order to enforce the user private key usage, we need to take a certificate's public key and tie it back to a trusted hardware device, which can be done with attestation, as explained [above](#attestation).
+In order to enforce user private key usage, we need to take a certificate's public key and tie it back to a trusted hardware device, which can be done with attestation, as explained [above](#attestation).
 
-First, we need to get attestation data from the user's hardware key during login, which we will do with the new rpc `AttestHardwarePrivateKey`.
+Attestation will be handled during the normal login/certificate signing process by including a new `AttestationRequest` field in each login path. For all logins, we need to include the `AttestationREquest` field in the http request objects:
 
-```proto
-service HardwareKeyService {
-  rpc AttestHardwarePrivateKey(AttestHardwarePrivateKeyRequest) returns (AttestHardwarePrivateKeyResponse);
+```go
+// lib/client/weblogin.go
+type SSOLoginConsoleReq struct {
+  ...
+	AttestationRequest AttestationRequest `json:"attestation_request,omitempty"`
 }
 
-message AttestHardwarePrivateKeyRequest {
-  YubikeyPIVAttestationRequest yubikey_attestation_request = 1;
-  // We may add non-yubikey and non-piv options in the future
+type CreateSSHCertReq struct {
+  ...
+	AttestationRequest AttestationRequest `json:"attestation_request,omitempty"`
 }
 
-// Data used to attest a slot - https://pkg.go.dev/github.com/go-piv/piv-go@v1.10.0/piv#Verify
-message YubikeyPIVAttestationRequest {
-  bytes slot_cert = 1;
-  bytes attestation_cert = 2;
+type AuthenticateSSHUserRequest struct {
+  ...
+	AttestationRequest AttestationRequest `json:"attestation_request,omitempty"`
 }
-
-message AttestHardwarePrivateKeyResponse { }
 ```
 
-In addition to verifying the certificate chain for a user's hardware private key to a trusted hardware key manufacturer, the resulting attestation object will provide information about the private key, including;
+For SSO login, the `AttestationRequest` field also needs to be added to each SSO auth request type (`OIDCAuthRequest`, `SAMLAuthRequest`, `GithubAuthRequest`), so we will make `AttestationRequest` a proto type.
+
+```proto
+// AttestationRequest is a request to attest an attestation request.
+message AttestationRequest {
+  oneof attestation_request {
+    // yubikey_attestation_request is a request to attest a specific YubiKey PIV slot.
+    YubiKeyAttestationRequest yubikey_attestation_request = 1;
+  }
+}
+
+// YubiKeyAttestationRequest is a request to attest a specific YubiKey PIV slot.
+// See https://pkg.go.dev/github.com/go-piv/piv-go@v1.9.0/piv#Attestation
+message YubiKeyAttestationRequest {
+  // slot_cert is an attestation certificate generated from a YubiKey PIV
+  // slot's public key and signed by the YubiKey's attestation certificate.
+  bytes slot_cert = 1;
+
+  // attestation_cert is a YubiKey's unique attestation certificate signed by a Yubico CA.
+  bytes attestation_cert = 2;
+}
+```
+
+When the Auth Server receives a login request, it will check the attached attestation request, and verify it. In addition to verifying the certificate chain for the hardware private key, the resulting attestation object will provide information about the private key, including;
  - Device information, including serial number, model, version 
  - Configured Touch (And PIN) Policies if any
 
-This attestation data will be check against server settings. If the attestation is valid, it will be stored in the backend in `/hardware_key_attestations/SHA256(public_key_der)`.
+Currently, we are only interested in verifying the certificate chain for the public key, and checking its private key policy, so the resulting attestation response will look like:
 
 ```go
-type AttestationData struct {
-  // PublicKeyDER is the public key of the hardware private key attested in PKIX, ASN.1 DER form.
+// AttestationResponse is veriried attestation data for a public key.
+type AttestationResponse struct {
+	// PublicKeyDER is the public key in PKIX, ASN.1 DER form.
 	PublicKeyDER []byte `json:"public_key"`
-  // Type is the type of hardware key this attestation is for.
-	Type HardwareKeyType `json:"type"`
-	// TouchRequired specifies whether touch is required to access the hardware private key.
-	TouchRequired bool `json:"touch_required"`
-  // json blob containing the resulting attestation object. 
-  //
-  // For yubikey, this will look like https://pkg.go.dev/github.com/go-piv/piv-go@v1.9.0/piv#Attestation
-  // In the future, we can check the attesation object for additional information, like PIN policy,
-  // model type, serial number, etc.
-  AttestationObject []byte `json:"attestation"`
+	// PrivateKeyPolicy specifies the private key policy supported by the attested hardware key.
+	PrivateKeyPolicy PrivateKeyPolicy `json:"private_key_policy"`
 }
 ```
 
-### Certificate private key policy extension
+This `AttestationResponse` will then be checked against the user's private key policy requirement. If verified, the Auth server will sign the user's certificates with a private key policy extension matching the attestation. 
 
-When the Auth Server receives a new certificate request, it will check the cluster auth preference and the user's role options to get their required private key policy. If their policy is `hardware_key`, then the Auth Server will look for a valid attestation in the backend associated with the given public key. If their policy is `hardware_key_touch`, then the Auth Server will also check that the attestation has `TouchRequired: true`.
+```go
+// tls extension
+PrivateKeyPolicyASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 15}
 
-If the attestation checks are successful, then the Auth Server will sign the TLS and SSH certificates with the new `private_key_policy` TLS extra subject name and Extension respectively. The Auth Server's Authorizer, which is used for all API requests, will check certificates for this extension before authorizing requests.
+// ssh extension
+CertExtensionPrivateKeyPolicy = "private-key-policy"
+```
+
+The `AttestationResponse` will also be stored in the backend under `/key_attestations/<sha256>` so that reissue requests can pass the attestation check without re-providing the attestation request. Key attestations will expire at the same time as the initial login certificates.
+
+#### Certificate key policy extension enforcement
+
+On every Teleport request that enforces valid certificates, we will check that the required private key policy extension is included. This check will be handled by Teleport's shared authorizer, in a similar way to [user locking](https://github.com/gravitational/teleport/blob/master/rfd/0009-locking.md) enforcement.
 
 ### Client changes
 
@@ -213,44 +241,19 @@ Teleport clients will need the ability to connect to a user's hardware key, gene
 
 #### Private key policy discovery
 
-Teleport clients should be able to automatically determine if a user requires a hardware private key for login to avoid additional UX concerns. For this, we will introduce the `GetPrivateKeyPolicy` rpc.
+Teleport clients should be able to automatically determine if a user requires a hardware private key for login to avoid additional UX concerns. Since it is not possible to retrieve a user's actual private key policy requirement before login, Teleport clients will make a best effort attempt to guess the key policy requirement.
 
-```proto
-service HardwareKeyService {
-  rpc GetPrivateKeyPolicy(GetPrivateKeyPolicyRequest) returns (GetPrivateKeyPolicyResponse);
-}
+First, the client will ping the Teleport Auth server to get the cluster-wide private key policy if set. Second, the client will check for an existing key in the user's key store (`~/.tsh`), and check its associated private key policy. Between the two private key policies retrieved, the stricter one will be used for initial login. This guessing logic will capture all cases except for the case where a user's role private key policy is stricter than the cluster-wide policy, and do not have an active/expired login session stored in `~/.tsh`. Z
 
-// The user will be pulled from the request certificate, so request message can be empty for now.
-message GetPrivateKeyPolicyRequest {}
+If the private key policy was incorrect and a stricter requirement is neeeded, then the server will respond with a `private key policy not met: <private-key-policy>` error. The client will parse this error and resort to re-authenticating with the correct private key policy, meaning that the user will be re-prompted for their login credentials.
 
-message GetPrivateKeyPolicyResponse {
-    PrivateKeyPolicy policy = 1;
-}
-
-enum PrivateKeyPolicy {
-    PRIVATE_KEY_POLICY_NONE = 0;
-    PRIVATE_KEY_POLICY_HARDWARE_KEY = 1;
-    PRIVATE_KEY_POLICY_HARDWARE_KEY_TOUCH = 2;
-}
-```
-
-In order for a Teleport Client to call `GetPrivateKeyPolicy`, it first needs a set of valid certificates. Unlike `IsMFARequired`, which issues an MFA certificate Reissue request after logging in with non-MFA certificates, we need to call `GetPrivateKeyPolicy` on the initial login.
-
-We can provide a user with set of certificates using a plain RSA private key in memory first. The resulting certificates will fail the hardware key attestation check in the Auth server, so they will be invalid for all API requests, except for `GetPrivateKeyPolicy` and `GenerateUserCerts`. This way, after the initial login, `GenerateUserCerts` can be used to issue new certificates with a hardware private key.
-
-While this strategy does prevent the user from needing to login twice, it presents a possible workaround. If a Teleport Client stores the initial RSA private key and certificates, then they can be used by anyone to reissue hardware key certifificates. To mitigate this risk, the initial certificates will have a TTL of 1 minute and will only be authorized for a single reissue request. This flow is similar to per-session MFA, which also issues one-time-use certificates with a 1 minute TTL.
-
-To avoid situtations where the user has to login twice, we will go with the second option.
+If a user's private key policy requirement is increased during an active login, the server will respond to any requests from the user with a `private key policy not met: <private-key-policy>` error. The Teleport client can capture this error and intiate re-login with the correct key policy.
 
 #### Hardware private key login
 
-As mentioned above, hardware key login will start with the normal login flow, followed by a call to `GetPrivateKeyPolicy`. If the result is `PRIVATE_KEY_POLICY_HARDWARE_KEY` or `PRIVATE_KEY_POLICY_HARDWARE_KEY_TOUCH`, then the Teleport client will:
- 1. Find a hardware key on the user's device
- 2. Generate a new private key on the hardware key (with Touch policy "cached" if required)
- 3. Use the hardware private key to get a new set of signed certificates from the Teleport Auth Server
- 4. Upsert Attestation data with `AttestHardwarePrivateKey` so that future Teleport requests can verify that the certificates being used chain back to a trusted hardware key CA 
+On login, a Teleport client will find a private key that meets the private key policy provided (via the key policy guesser or server error). If the key policy is `none`, then a new RSA private key will be generated as usual.
 
-The resulting certificates from will only be operable if:
+If the key policy is `hardware_key` or `hardware_key_touch`, then a private key will be generated directly on the hardware key. The resulting login certificates will only be operable if:
  - The hardware key is connected during the operation
  - The hardware private key can still be found
  - The hardware private keys' Touch challenges are passed (if applicable)
@@ -299,7 +302,7 @@ slot=<slot>
 
 #### Unsupported clients
 
-The WebUI will not be able to support PIV login, since it is brower-based and cannot connect directly to the user's PIV device. If a user with `require_session_mfa: hardware_key` attempts to login on the WebUI, or use an existing login session, it will fail.
+The WebUI will not be able to support PIV login, since it is brower-based and cannot connect directly to the user's PIV device. If a user with `require_session_mfa: hardware_key` attempts to login on the WebUI, or use an existing login session, it will fail. However, WebUI user registration and password reset logic must still work, regardless of the user's private key policy requirement. After intial registration/reset flow, the user should be directed to a page which notifies them that `tsh` or Teleport Connect must be used.
 
 It may be possible to work around this limitation by introducing a local proxy to connect to the hardware key, or by supporting a hardware key solution which doesn't need a direct connection, but this is out of scope and will not be explored in this PR. 
 
