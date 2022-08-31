@@ -69,18 +69,14 @@ This involves:
    already iterates over all LHS arguments and ANDs the result. A hypothetical
    `ends_with()` should behave the same way.
 
-3. Evaluating `where` clauses in [`GenerateHostCert()`]. These follow an
-   entirely different codepath than regular Teleport resource access
-   ([`CheckAccessToRule()`]), so we'll likely need to implement special handling
-   for this special non-resource, since we don't have a single name / namespace /
-   etc.
-
-   [Session Access] has a custom predicate implementation that would mostly suit
-   our needs, though we'll need to follow standard RBAC rule behavior.
+3. Evaluating `where` clauses in [`GenerateHostCert()`]. As these are not
+   proper Teleport resources, the `predicate` context doesn't include any
+   useful values to compare against. We'll want to add a new optional
+   `host_cert` field much like [`SSHSession`], then provide a custom context in
+   [`GenerateHostCert()`].
 
 [`GenerateHostCert()`]: https://github.com/gravitational/teleport/blob/82c520c8183553f310459c3b4a96b70065ee268a/lib/auth/auth_with_roles.go#L2139
-[`CheckAccessToRule()`]: https://github.com/gravitational/teleport/blob/82c520c8183553f310459c3b4a96b70065ee268a/lib/services/role.go#L2309
-[Session Access]: https://github.com/gravitational/teleport/blob/82c520c8183553f310459c3b4a96b70065ee268a/lib/auth/session_access.go#L126
+[`SSHSession`]: https://github.com/gravitational/teleport/blob/ab12ad33d9b3143baa5dc1a0c236cb6ed7645f10/lib/services/parser.go#L183
 
 ### UX
 
@@ -115,13 +111,18 @@ destinations:
 ```
 
 While rendering the config template, the bot would call `GenerateHostCert()`,
-format it appropriately, and write it to disk. A new certificate would be 
-written at startup, then approximately every 20 minutes while running normally.
+format the resulting certificate and key appropriately, and write it to disk.
+A new certificate would be written at startup, then approximately every 20
+minutes while running normally.
 
 Per testing, OpenSSH re-reads certificate files on demand, so no additional work
 is needed to make use of these certificates once paths are configured.
 Additionally, sshd does play nice with `tbot init`'s ACL implementation, and
 does not care about file permissions unless they're owned by `root`.
+
+A downside to this approach is that permissions errors (for example, if the
+`where` predicate doesn't match) will be reported as errors but will not crash
+the bot.
 
 ##### `sshd` caveat with short-lived certificates
 
@@ -162,7 +163,7 @@ This UX works fine in tandem with secure certificate issuance, but users still
 need to reissue certs when CAs are rotated or when compromised. Users could
 potentially use cron / systemd timers / etc to automate this.
 
-#### Option 2: Out of band
+#### Alternative 2: Out of band
 
 If we deem that these certs should be renewed at a different interval than other
 bot resources, we could add a new renewal loop for specifically these
