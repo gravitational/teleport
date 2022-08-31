@@ -1383,7 +1383,7 @@ func onLogin(cf *CLIConf) error {
 		// but cluster is specified, treat this as selecting a new cluster
 		// for the same proxy
 		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.SiteName != "":
-			pr, err := tc.PingAndShowMOTD(cf.Context)
+			_, err := tc.PingAndShowMOTD(cf.Context)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -1394,16 +1394,6 @@ func onLogin(cf *CLIConf) error {
 			})
 			if err != nil {
 				return trace.Wrap(err)
-			}
-			// If we didn't load the new cluster's host CAs when initially logging in, we need to do it now.
-			if !pr.Auth.LoadAllHostCAs {
-				rootCluster, err := tc.RootClusterName(cf.Context)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				if err := tc.UpdateTrustedCAForCluster(cf.Context, host(profile.ProxyURL.Host), rootCluster, cf.SiteName); err != nil {
-					return trace.Wrap(err)
-				}
 			}
 			if err := tc.SaveProfile(cf.HomePath, true); err != nil {
 				return trace.Wrap(err)
