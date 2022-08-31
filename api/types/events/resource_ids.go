@@ -1,6 +1,3 @@
-//go:build directory_sharing
-// +build directory_sharing
-
 /*
 Copyright 2022 Gravitational, Inc.
 
@@ -17,8 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package desktop
+package events
 
-func AllowDirectorySharing() bool {
-	return true
+import "github.com/gravitational/teleport/api/types"
+
+// EventResourceIDs converts a []ResourceID to a []events.ResourceID
+func ResourceIDs(resourceIDs []types.ResourceID) []ResourceID {
+	if resourceIDs == nil {
+		return nil
+	}
+	out := make([]ResourceID, len(resourceIDs))
+	for i := range resourceIDs {
+		out[i].ClusterName = resourceIDs[i].ClusterName
+		out[i].Kind = resourceIDs[i].Kind
+		out[i].Name = resourceIDs[i].Name
+	}
+	return out
 }
