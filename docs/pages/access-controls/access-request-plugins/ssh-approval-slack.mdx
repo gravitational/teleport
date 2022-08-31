@@ -32,13 +32,14 @@ Here is an example of sending an Access Request via Teleport's Slack plugin:
 - Slack admin privileges to create an app and install it to your workspace. Your
   Slack profile must have the "Workspace Owner" or "Workspace Admin" banner
   below your profile picture.
+- Either a Linux host or Kubernetes cluster where you will run the Mattermost plugin.
 
 (!/docs/pages/includes/tctl.mdx!)
 
 ## Step 1/8. Define RBAC resources
 
 Before you set up the Slack plugin, you will need to enable Role Access Requests
-in your Teleport cluster.
+in the Proxy or Auth Service.
 
 (!/docs/pages/includes/plugins/editor-request-rbac.mdx!)
 
@@ -258,14 +259,14 @@ Set `identity` to the identity file generated earlier:
 
 ```toml
 [teleport]
-addr = "mytenant.teleport.sh:443"
+addr = "teleport.example.com:443"
 identity = "/var/lib/teleport/plugins/slack/auth.pem"
 ```
 </TabItem>
 <TabItem label="Connect to the Proxy or Auth Service" scope="cloud" options="Helm Chart">
 
-**`address`**: Include the hostname and HTTPS port of your Teleprot Enterprise
-or Teleport Cloud tenant (e.g., `mytenant.teleport.sh:443`).
+**`address`**: Include the hostname and port of your Teleport Proxy or Auth Service.
+(e.g., `teleport.example.com:443`).
 
 **`identitySecretName`**: Fill in the `identitySecretName` field with the name
 of the Kubernetes secret you created earlier.
@@ -276,13 +277,13 @@ of the Kubernetes secret you created earlier.
 </ScopedBlock>
 <ScopedBlock scope="cloud">
 
-Set `addr` to  your Teleport Cloud tenant address with port `443`.
+Set `addr` to  your Teleport Proxy address with port `443`.
 
 Set `identity` to the identity file generated earlier:
 
 ```toml
 [teleport]
-addr = "mytenant.teleport.sh:443"
+addr = "teleport.example.com:443"
 identity = "/var/lib/teleport/plugins/slack/auth.pem"
 ```
 
@@ -424,7 +425,7 @@ $ kubectl logs deploy/teleport-plugin-slack
 ```
 
 Debug logs can be enabled by setting `log.severity` to `DEBUG` in
-`teleport-slack-helm.yaml` and execute the `helm upgrade ...` command
+`teleport-slack-helm.yaml` and executing the `helm upgrade ...` command
 above again. Then you can restart the plugin with the following command:
 
 ```code

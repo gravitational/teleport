@@ -41,7 +41,8 @@ connect to it directly).
 | - | - | - |
 | `string` | `""` | Yes |
 
-Name of the Kubernetes secret that contains the credentials for the connection.
+Name of the Kubernetes secret that contains the credentials for the connection
+to your Teleport cluster.
 
 The secret should be in the following format:
 
@@ -55,8 +56,8 @@ data:
   auth_id: ...
 ```
 
-Check out the [Slack Helm Chart
-documentation](https://github.com/gravitational/teleport-plugins/tree/master/charts/access/slack#prerequisites)
+Check out the [Access Requests with
+Slack](../../access-controls/access-request-plugins/ssh-approval-slack/)
 for more information about how to acquire these credentials.
 
 <Tabs>
@@ -79,7 +80,9 @@ for more information about how to acquire these credentials.
 | - | - | - |
 | `string` | `"auth_id"` | No |
 
-Name of the key in the Kubernetes secret that holds the credentials for the connection. If the secret follows the format above, it can be omitted.
+The key in the Kubernetes secret specified by `teleport.identitySecretName` that holds the
+credentials for the connection to your Teleport cluster. If the secret has the path,
+`"auth_id"`, you can omit this field.
 
 <Tabs>
   <TabItem label="values.yaml">
