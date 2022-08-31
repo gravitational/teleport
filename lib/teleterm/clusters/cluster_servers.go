@@ -79,7 +79,6 @@ func (c *Cluster) GetServers(ctx context.Context, r *api.GetServersRequest) (*Ge
 		resp           *types.ListResourcesResponse
 		authClient     auth.ClientI
 		proxyClient    *client.ProxyClient
-		sortBy         types.SortBy
 		err            error
 	)
 
@@ -102,16 +101,7 @@ func (c *Cluster) GetServers(ctx context.Context, r *api.GetServersRequest) (*Ge
 		return nil, trace.Wrap(err)
 	}
 
-	sortParam := r.SortBy
-	if sortParam != "" {
-		vals := strings.Split(sortParam, ":")
-		if vals[0] != "" {
-			sortBy.Field = vals[0]
-			if len(vals) > 1 && vals[1] == "desc" {
-				sortBy.IsDesc = true
-			}
-		}
-	}
+	sortBy := types.GetSortByFromString(r.SortBy)
 
 	resp, err = authClient.ListResources(ctx, proto.ListResourcesRequest{
 		Namespace:           defaults.Namespace,
