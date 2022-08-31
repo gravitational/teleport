@@ -186,7 +186,7 @@ func getElastiCacheClusters(ctx context.Context, client elasticacheiface.ElastiC
 		func(page *elasticache.DescribeReplicationGroupsOutput, lastPage bool) bool {
 			pageNum++
 			clusters = append(clusters, page.ReplicationGroups...)
-			return pageNum <= maxPages
+			return pageNum <= common.MaxPages
 		},
 	)
 	return clusters, common.ConvertError(err)
@@ -214,7 +214,7 @@ func getElastiCacheNodes(ctx context.Context, client elasticacheiface.ElastiCach
 					nodes = append(nodes, cacheCluster)
 				}
 			}
-			return pageNum <= maxPages
+			return pageNum <= common.MaxPages
 		},
 	)
 	return nodes, common.ConvertError(err)
@@ -231,7 +231,7 @@ func getElastiCacheSubnetGroups(ctx context.Context, client elasticacheiface.Ela
 		func(page *elasticache.DescribeCacheSubnetGroupsOutput, lastPage bool) bool {
 			pageNum++
 			subnetGroups = append(subnetGroups, page.CacheSubnetGroups...)
-			return pageNum <= maxPages
+			return pageNum <= common.MaxPages
 		},
 	)
 	return subnetGroups, common.ConvertError(err)
