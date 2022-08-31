@@ -381,9 +381,10 @@ func HasName(r *http.Request, proxyPublicAddrs []utils.NetAddr) (string, bool) {
 	// At this point, it is assumed the caller is requesting an application and
 	// not the proxy, redirect the caller to the application launcher.
 	u := url.URL{
-		Scheme: "https",
-		Host:   proxyPublicAddrs[0].String(),
-		Path:   fmt.Sprintf("/web/launch/%v?path=%v", raddr.Host(), r.URL.Path),
+		Scheme:   "https",
+		Host:     proxyPublicAddrs[0].String(),
+		Path:     fmt.Sprintf("/web/launch/%s", raddr.Host()),
+		RawQuery: fmt.Sprintf("path=%s", url.QueryEscape(r.URL.Path)),
 	}
 	return u.String(), true
 }
