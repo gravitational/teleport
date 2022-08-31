@@ -76,7 +76,8 @@ and save it as `/var/lib/teleport/license.pem` on the auth server.
 
 ### Systemd Unit File
 
-Generate a systemd unit file for Teleport and save it in `/etc/systemd/system/teleport.service` on both servers.
+Generate a systemd unit file for Teleport and save it in `/etc/systemd/system/teleport.service` on both servers. If using Teleport `v10.1.4` or later, this can be completed
+using the following command:
 
 ```code
 $ sudo teleport install systemd -o /etc/systemd/system/teleport.service

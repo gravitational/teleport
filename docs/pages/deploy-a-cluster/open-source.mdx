@@ -166,8 +166,8 @@ On your Linux machine, run the necessary commands to start the `teleport` daemon
   </TabItem>
 
   <TabItem label="Source or custom install">
-  Create a systemd unit file using the `teleport install systemd` command and the unit file path you'd
-  like to use for your configuration. We recommend the path `/etc/systemd/system/teleport.service` for most use cases:
+  Create a systemd unit file using the `teleport install systemd` command on Teleport `v10.1.4` and later. Enter the unit file path you'd
+  like to use for your configuration as part of the command. We recommend the path `/etc/systemd/system/teleport.service` for most use cases:
 
     ```code
     $ sudo teleport install systemd -o /etc/systemd/system/teleport.service
