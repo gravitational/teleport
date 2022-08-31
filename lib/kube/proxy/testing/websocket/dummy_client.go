@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 
@@ -28,11 +28,11 @@ func CheckIfWebSocketsAreSupported(
 	if err != nil {
 		return err
 	}
-	rt, wsRt, err := RoundTripperFor(config)
+	rt, wsRt, err := roundTripperFor(config)
 	if err != nil {
 		return err
 	}
-	conn, err := Negotiate(rt, wsRt, req, machineryremotecommand.StreamProtocolV4Name, machineryremotecommand.StreamProtocolV1Name)
+	conn, err := negotiate(rt, wsRt, req, machineryremotecommand.StreamProtocolV4Name, machineryremotecommand.StreamProtocolV1Name)
 	if err != nil {
 		return err
 	}
@@ -47,7 +47,7 @@ func CheckIfWebSocketsAreSupported(
 	}
 }
 
-func RoundTripperFor(config *rest.Config) (http.RoundTripper, *RoundTripper, error) {
+func roundTripperFor(config *rest.Config) (http.RoundTripper, *roundTripper, error) {
 	transportCfg, err := config.TransportConfig()
 	if err != nil {
 		return nil, nil, err
@@ -57,7 +57,7 @@ func RoundTripperFor(config *rest.Config) (http.RoundTripper, *RoundTripper, err
 		return nil, nil, err
 	}
 
-	upgradeRoundTripper := &RoundTripper{
+	upgradeRoundTripper := &roundTripper{
 		TLSConfig: tlsConfig,
 	}
 	wrapper, err := transport.HTTPWrappersForConfig(transportCfg, upgradeRoundTripper)
@@ -67,7 +67,7 @@ func RoundTripperFor(config *rest.Config) (http.RoundTripper, *RoundTripper, err
 	return wrapper, upgradeRoundTripper, nil
 }
 
-func Negotiate(rt http.RoundTripper, wsRt *RoundTripper, req *http.Request, protocols ...string) (*gwebsocket.Conn, error) {
+func negotiate(rt http.RoundTripper, wsRt *roundTripper, req *http.Request, protocols ...string) (*gwebsocket.Conn, error) {
 	req.Header[httpstream.HeaderProtocolVersion] = protocols
 	resp, err := rt.RoundTrip(req)
 	if err != nil {
@@ -81,9 +81,9 @@ func Negotiate(rt http.RoundTripper, wsRt *RoundTripper, req *http.Request, prot
 	return wsRt.Conn, nil
 }
 
-// RoundTripper knows how to establish a connection to a remote WebSocket endpoint and make it available for use.
-// RoundTripper must not be reused.
-type RoundTripper struct {
+// roundTripper knows how to establish a connection to a remote WebSocket endpoint and make it available for use.
+// roundTripper must not be reused.
+type roundTripper struct {
 	// TLSConfig holds the TLS configuration settings to use when connecting
 	// to the remote server.
 	TLSConfig *tls.Config
@@ -99,13 +99,13 @@ type RoundTripper struct {
 }
 
 // TLSClientConfig implements pkg/util/net.TLSClientConfigHolder.
-func (rt *RoundTripper) TLSClientConfig() *tls.Config {
+func (rt *roundTripper) TLSClientConfig() *tls.Config {
 	return rt.TLSConfig
 }
 
 // RoundTrip connects to the remote websocket using the headers in the request and the TLS
 // configuration from the config
-func (rt *RoundTripper) RoundTrip(request *http.Request) (retResp *http.Response, retErr error) {
+func (rt *roundTripper) RoundTrip(request *http.Request) (retResp *http.Response, retErr error) {
 	defer func() {
 		if request.Body != nil {
 			err := request.Body.Close()
@@ -136,7 +136,7 @@ func (rt *RoundTripper) RoundTrip(request *http.Request) (retResp *http.Response
 			return nil, err
 		}
 		// resp.Body contains (a part of) the response when err == gwebsocket.ErrBadHandshake
-		responseErrorBytes, bodyErr := ioutil.ReadAll(resp.Body)
+		responseErrorBytes, bodyErr := io.ReadAll(resp.Body)
 		if bodyErr != nil {
 			return nil, err
 		}
