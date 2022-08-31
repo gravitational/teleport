@@ -551,9 +551,8 @@ func mustCreateSelfSignedCert(t *testing.T) tls.Certificate {
 // actually balance traffic.
 type mockAWSALBProxy struct {
 	net.Listener
-	proxyAddr    string
-	cert         tls.Certificate
-	connDeadline time.Duration
+	proxyAddr string
+	cert      tls.Certificate
 }
 
 func (m *mockAWSALBProxy) serve(ctx context.Context, t *testing.T) {
@@ -586,24 +585,19 @@ func (m *mockAWSALBProxy) serve(ctx context.Context, t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			// Add some deadline to prevent connection from getting stuck.
-			downstreamConn.SetDeadline(time.Now().Add(m.connDeadline))
-			upstreamConn.SetDeadline(time.Now().Add(m.connDeadline))
-
 			utils.ProxyConn(ctx, downstreamConn, upstreamConn)
 		}()
 	}
 }
 
-func mustStartMockALBProxy(t *testing.T, proxyAddr string, connDeadline time.Duration) *mockAWSALBProxy {
+func mustStartMockALBProxy(t *testing.T, proxyAddr string) *mockAWSALBProxy {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
 	m := &mockAWSALBProxy{
-		proxyAddr:    proxyAddr,
-		connDeadline: connDeadline,
-		Listener:     mustCreateListener(t),
-		cert:         mustCreateSelfSignedCert(t),
+		proxyAddr: proxyAddr,
+		Listener:  mustCreateListener(t),
+		cert:      mustCreateSelfSignedCert(t),
 	}
 	go m.serve(ctx, t)
 	return m

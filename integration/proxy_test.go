@@ -630,9 +630,9 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 	t.Run("ALPN connection upgrade", func(t *testing.T) {
 		// Make a mock ALB which points to the Teleport Proxy Service. Then
 		// ALPN local proxies will point to this ALB instead.
-		albProxy := mustStartMockALBProxy(t, pack.root.cluster.Web, 5*time.Second)
+		albProxy := mustStartMockALBProxy(t, pack.root.cluster.Web)
 
-		// Test a protocol in the alpncommon.IsDBTLSProtocol list where the
+		// Test a protocol in the alpncommon.IsDBTLSProtocol list where
 		// the database client will perform a native TLS handshake.
 		//
 		// Packet layers:
