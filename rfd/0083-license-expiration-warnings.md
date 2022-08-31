@@ -22,7 +22,6 @@ To encourage the renewal of licenses after expiration and let users know before 
 ## Success criteria
 
 Teleport displays license warnings to users in both CLI and web UI starting from a certain time prior to the license expiration, as well as post-expiration.
-Teleport administrators can optionally configure the license expiration warning interval but not disable it completely on a per role basis.
 
 ## Scope
 
@@ -42,7 +41,7 @@ After expiration all tsh and tctl commands will display the license expiry warni
 
 The license warning portion of the outputs should be coloured red and orange respectively for the expired and unexpired warnings.
 
-```bash
+```
 $ build/tsh status
 Profile URL:        https://localhost:9876
 Logged in as:       someUser
@@ -86,50 +85,62 @@ CLI does not support snoozing the warnings as you can in the webUI. Which provid
 ### Web UI UX
 
 Web UI will display license expiration banner on top of the page with the following rules:
-Show warning (yellow) to users N days prior to expiration, 1 day snooze, based on license_warning_days role option with same warning text as the CLI
+Show warning (yellow) to users N days prior to expiration, 1 day snooze
 Show error (red) to all users after expiration, no dismiss or snoozing available.
 Snoozing allows users to disable the warning in the web UI from being displayed for N days.
 
-### Configuration UX
-
-The time interval in which to show a warning before expiry can be configured on a per role basis.
-Interval can be configured by modifying a role option ‘license_warning_days’.
-Default will be 90 days, admins can configure if needed.
-Default preset roles will use the default. For example the editor/auditor/access roles.
-When multiple roles for the same user have different values for this interval the longest one will be used.
-This value cannot be configured to be below the minimum value of 10 days.
-
-
-```yaml
-kind: role
-version: v5
-metadata:
-  name: editor
-spec:
-  options:
-    license_warning_days: 90  # ← defaults to 30, min 10
-```
-
-Default values for default roles:
-Editor - 90 days
-Auditor - 30 days
-Access - 30 days
-
-If you have multiple roles, the longest time period takes precedence.
-
 ## Implementation details
 
-Existing web api endpoint ‘/ping’ already returns a license warning. Due to this endpoint being unauthenticated and the proposed functionality requires the ability to differentiate based on identity/role this cannot be used as is.
-Instead this RFD proposes a new authenticated endpoint ‘/license’ be exposed to provide the required functionality. This would consist of
-- An auth api method under the hood that checks the license expiration and determines the warning to give.
-- A webapi endpoint that calls it.
-  - Method: GET
-  - Path: `/webapi/check-license`
-  - Request body: empty
-  - Response: `{"warningMessages": ["Your Teleport Enterprise Edition license will expire in 10 days ..."]}`
+License warnings can piggyback on the cluster alert endpoint `ServerWithRoles.GetClusterAlerts` with the responses being
+
+```
+{
+  "alerts": [
+    {
+      "kind": "cluster_alert",
+      "version": "v1",
+      "metadata": {
+        "name": "license-warning",
+        "labels": {
+          "teleport.internal/alert-on-login": "yes",
+          "teleport.internal/alert-permit-all": "yes"
+        },
+        "expires": "2022-08-31T17:26:05.728149Z"
+      },
+      "spec": {
+        "severity": 5,
+        "message": "Your Teleport Enterprise Edition license will expire in 10 days. Please reach out to [licenses@goteleport.com](mailto:licenses@goteleport.com) to obtain a new license. Inaction may lead to unplanned outage or degraded performance and support.",
+        "created": "2022-08-30T17:26:05.728149Z"
+      }
+    }
+  ]
+}
+```
+
+```
+{
+  "alerts": [
+    {
+      "kind": "cluster_alert",
+      "version": "v1",
+      "metadata": {
+        "name": "license-warning",
+        "labels": {
+          "teleport.internal/alert-on-login": "yes",
+          "teleport.internal/alert-permit-all": "yes"
+        },
+      },
+      "spec": {
+        "severity": 5,
+        "message": "Your Teleport Enterprise Edition license has expired. Please reach out to [licenses@goteleport.com](mailto:licenses@goteleport.com) to obtain a new license. Inaction may lead to unplanned outage or degraded performance and support.",
+        "created": "2022-08-31T17:26:05.728149Z"
+      }
+    }
+  ]
+}
+```
 
 ## Security considerations
-Admins cannot fully disable warnings, because there will be a minimum threshold of 10 days.
 If your license expired, you can’t disable or snooze the warning.
 Users could avoid seeing this warning by passing the output of the CLI through a program that strips the warning from it.
 
