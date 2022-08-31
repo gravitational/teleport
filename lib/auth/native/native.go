@@ -83,11 +83,17 @@ func GeneratePrivateKey() (*keys.PrivateKey, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	rsaSigner, err := keys.NewStandardSigner(rsaKey)
+	keyDER, err := x509.MarshalPKCS8PrivateKey(rsaKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return keys.NewPrivateKey(rsaSigner)
+
+	keyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:    keys.PKCS8PrivateKeyType,
+		Headers: nil,
+		Bytes:   keyDER,
+	})
+	return keys.NewPrivateKey(rsaKey, keyPEM)
 }
 
 func getOrGenerateRSAPrivateKey() (*rsa.PrivateKey, error) {
@@ -368,8 +374,8 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 // BuildPrincipals takes a hostID, nodeName, clusterName, and role and builds a list of
 // principals to insert into a certificate. This function is backward compatible with
 // older clients which means:
-//    * If RoleAdmin is in the list of roles, only a single principal is returned: hostID
-//    * If nodename is empty, it is not included in the list of principals.
+//   - If RoleAdmin is in the list of roles, only a single principal is returned: hostID
+//   - If nodename is empty, it is not included in the list of principals.
 func BuildPrincipals(hostID string, nodeName string, clusterName string, roles types.SystemRoles) []string {
 	// TODO(russjones): This should probably be clusterName, but we need to
 	// verify changing this won't break older clients.

@@ -1214,16 +1214,19 @@ func serializeVersion(format string, proxyVersion string) (string, error) {
 // onPlay is used to interact with recorded sessions.
 // It has several modes:
 //
-// 1. If --format is "pty" (the default), then the recorded
-//    session is played back in the user's terminal.
-// 2. Otherwise, `tsh play` is used to export a session from the
-//    binary protobuf format into YAML or JSON.
+//  1. If --format is "pty" (the default), then the recorded
+//     session is played back in the user's terminal.
+//  2. Otherwise, `tsh play` is used to export a session from the
+//     binary protobuf format into YAML or JSON.
 //
 // Each of these modes has two subcases:
 // a) --session-id ends with ".tar" - tsh operates on a local file
-//    containing a previously downloaded session
+//
+//	containing a previously downloaded session
+//
 // b) --session-id is the ID of a session - tsh operates on the session
-//    recording by connecting to the Teleport cluster
+//
+//	recording by connecting to the Teleport cluster
 func onPlay(cf *CLIConf) error {
 	if format := strings.ToLower(cf.Format); format == teleport.PTY {
 		return playSession(cf)
@@ -3265,7 +3268,7 @@ func onShow(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("Cert: %#v\nPriv: %#v\nPub: %#v\n", cert, key.GetBaseSigner(), key.MarshalSSHPublicKey())
+	fmt.Printf("Cert: %#v\nPriv: %#v\nPub: %#v\n", cert, key.Signer, key.MarshalSSHPublicKey())
 	fmt.Printf("Fingerprint: %s\n", ssh.FingerprintSHA256(key.SSHPublicKey()))
 	return nil
 }
