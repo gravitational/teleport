@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=10.1.7
+VERSION=10.1.9
 
 DOCKER_IMAGE_QUAY ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_ECR ?= public.ecr.aws/gravitational/teleport
@@ -916,10 +916,7 @@ grpc-teleterm:
 # Unlike grpc-teleterm, this target runs locally.
 .PHONY: grpc-teleterm/host
 grpc-teleterm/host:
-	$(CLANG_FORMAT) -i -style=$(CLANG_FORMAT_STYLE) \
-		lib/teleterm/api/proto/**/*.proto
-
-	cd lib/teleterm && buf generate
+	cd lib/teleterm && buf build && buf lint && buf format -w && buf generate
 
 .PHONY: goinstall
 goinstall:
