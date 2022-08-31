@@ -847,7 +847,7 @@ func decodeFileSystemObject(in peekReader) (FileSystemObject, error) {
 	if err != nil {
 		return FileSystemObject{}, trace.Wrap(err)
 	}
-	err = binary.Read(in, binary.BigEndian, &isEmpty)
+	isEmpty, err = in.ReadByte()
 	if err != nil {
 		return FileSystemObject{}, trace.Wrap(err)
 	}
