@@ -39,7 +39,7 @@ use consts::{
     FileSystemInformationClassLevel, MajorFunction, MinorFunction, PacketId, BOOL_SIZE,
     DIRECTORY_SHARE_CLIENT_NAME, DRIVE_CAPABILITY_VERSION_02, FILE_ATTR_SIZE,
     GENERAL_CAPABILITY_VERSION_02, I64_SIZE, I8_SIZE, NTSTATUS, SCARD_DEVICE_ID,
-    SMARTCARD_CAPABILITY_VERSION_01, U32_SIZE, U8_SIZE, VERSION_MAJOR, VERSION_MINOR,
+    SMARTCARD_CAPABILITY_VERSION_01, TDP_FALSE, U32_SIZE, U8_SIZE, VERSION_MAJOR, VERSION_MINOR,
 };
 use num_traits::{FromPrimitive, ToPrimitive};
 use rdp::core::mcs;
@@ -768,7 +768,6 @@ impl Client {
         self.tdp_sd_write(rdp_req)
     }
 
-    #[allow(clippy::wildcard_in_or_patterns)]
     fn process_irp_set_information(
         &mut self,
         device_io_request: DeviceIoRequest,
@@ -777,10 +776,27 @@ impl Client {
         let rdp_req = ServerDriveSetInformationRequest::decode(device_io_request, payload)?;
         debug!("received RDP: {:?}", rdp_req);
 
+        // Determine whether to send back a STATUS_DIRECTORY_NOT_EMPTY
+        // or STATUS_SUCCESS in the case of a succesful operation
+        // https://github.com/FreeRDP/FreeRDP/blob/dfa231c0a55b005af775b833f92f6bcd30363d77/channels/drive/client/drive_main.c#L430-L431
+        let io_status = match self.file_cache.get(rdp_req.device_io_request.file_id) {
+            Some(file) => {
+                if file.fso.file_type == FileType::Directory && file.fso.is_empty == TDP_FALSE {
+                    NTSTATUS::STATUS_DIRECTORY_NOT_EMPTY
+                } else {
+                    NTSTATUS::STATUS_SUCCESS
+                }
+            }
+            None => {
+                // File not found in cache
+                return self.prep_set_info_response(&rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL);
+            }
+        };
+
         match rdp_req.file_information_class_level {
             FileInformationClassLevel::FileRenameInformation => match rdp_req.set_buffer {
                 FileInformationClass::FileRenameInformation(ref rename_info) => {
-                    self.rename(rdp_req.clone(), rename_info)
+                    self.rename(rdp_req.clone(), rename_info, io_status)
                 }
                 _ => Err(invalid_data_error(
                     "FileInformationClass does not match FileInformationClassLevel",
@@ -789,8 +805,12 @@ impl Client {
             FileInformationClassLevel::FileDispositionInformation => match rdp_req.set_buffer {
                 FileInformationClass::FileDispositionInformation(ref info) => {
                     if let Some(file) = self.file_cache.get_mut(rdp_req.device_io_request.file_id) {
-                        file.delete_pending = info.delete_pending == 1;
-                        return self.prep_set_info_response(&rdp_req, NTSTATUS::STATUS_SUCCESS);
+                        if !(file.fso.file_type == FileType::Directory && file.fso.is_empty == TDP_FALSE) {
+                            // https://github.com/FreeRDP/FreeRDP/blob/dfa231c0a55b005af775b833f92f6bcd30363d77/channels/drive/client/drive_file.c#L681
+                            file.delete_pending = info.delete_pending == 1;
+                        }
+
+                        return self.prep_set_info_response(&rdp_req, io_status);
                     }
 
                     // File not found in cache
@@ -807,7 +827,7 @@ impl Client {
                 // Each of these ask us to change something we don't have control over at the browser
                 // level, so we just do nothing and send back a success.
                 // https://github.com/FreeRDP/FreeRDP/blob/dfa231c0a55b005af775b833f92f6bcd30363d77/channels/drive/client/drive_file.c#L579
-                self.prep_set_info_response(&rdp_req, NTSTATUS::STATUS_SUCCESS)
+                self.prep_set_info_response(&rdp_req, io_status)
             }
 
             _ => {
@@ -1377,11 +1397,12 @@ impl Client {
         &mut self,
         rdp_req: ServerDriveSetInformationRequest,
         rename_info: &FileRenameInformation,
+        io_status: NTSTATUS,
     ) -> RdpResult<Vec<Vec<u8>>> {
         // https://github.com/FreeRDP/FreeRDP/blob/dfa231c0a55b005af775b833f92f6bcd30363d77/channels/drive/client/drive_file.c#L709
         match rename_info.replace_if_exists {
-            Boolean::True => self.rename_replace_if_exists(rdp_req, rename_info),
-            Boolean::False => self.rename_dont_replace_if_exists(rdp_req, rename_info),
+            Boolean::True => self.rename_replace_if_exists(rdp_req, rename_info, io_status),
+            Boolean::False => self.rename_dont_replace_if_exists(rdp_req, rename_info, io_status),
         }
     }
 
@@ -1389,16 +1410,18 @@ impl Client {
         &mut self,
         rdp_req: ServerDriveSetInformationRequest,
         rename_info: &FileRenameInformation,
+        io_status: NTSTATUS,
     ) -> RdpResult<Vec<Vec<u8>>> {
         // If replace_if_exists is true, we can just send a TDP SharedDirectoryMoveRequest,
         // which works like the unix `mv` utility (meaning it will automatically replace if exists).
-        self.tdp_sd_move(rdp_req, rename_info)
+        self.tdp_sd_move(rdp_req, rename_info, io_status)
     }
 
     fn rename_dont_replace_if_exists(
         &mut self,
         rdp_req: ServerDriveSetInformationRequest,
         rename_info: &FileRenameInformation,
+        io_status: NTSTATUS,
     ) -> RdpResult<Vec<Vec<u8>>> {
         let new_path = UnixPath::from(&rename_info.file_name);
         // If replace_if_exists is false, first check if the new_path exists.
@@ -1417,7 +1440,7 @@ impl Client {
                       -> RdpResult<Vec<Vec<u8>>> {
                     if res.err_code == TdpErrCode::DoesNotExist {
                         // If the file doesn't already exist, send a move request.
-                        return cli.tdp_sd_move(rdp_req, &rename_info);
+                        return cli.tdp_sd_move(rdp_req, &rename_info, io_status);
                     }
                     // If it does, send back a name collision error, as is done in FreeRDP.
                     cli.prep_set_info_response(&rdp_req, NTSTATUS::STATUS_OBJECT_NAME_COLLISION)
@@ -1432,6 +1455,7 @@ impl Client {
         &mut self,
         rdp_req: ServerDriveSetInformationRequest,
         rename_info: &FileRenameInformation,
+        io_status: NTSTATUS,
     ) -> RdpResult<Vec<Vec<u8>>> {
         if let Some(file) = self.file_cache.get(rdp_req.device_io_request.file_id) {
             (self.tdp_sd_move_request)(SharedDirectoryMoveRequest {
@@ -1452,7 +1476,7 @@ impl Client {
                                 .prep_set_info_response(&rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL);
                         }
 
-                        cli.prep_set_info_response(&rdp_req, NTSTATUS::STATUS_SUCCESS)
+                        cli.prep_set_info_response(&rdp_req, io_status)
                     },
                 ),
             );
@@ -1579,6 +1603,7 @@ impl Iterator for FileCacheObject {
                 last_modified: self.fso.last_modified,
                 size: self.fso.size,
                 file_type: self.fso.file_type,
+                is_empty: TDP_FALSE,
                 path: UnixPath::from(".".to_string()),
             })
         } else if !self.dotdot_sent {
@@ -1588,6 +1613,7 @@ impl Iterator for FileCacheObject {
                 last_modified: self.fso.last_modified,
                 size: 0,
                 file_type: FileType::Directory,
+                is_empty: TDP_FALSE,
                 path: UnixPath::from("..".to_string()),
             })
         } else {
@@ -2246,21 +2272,32 @@ pub struct DeviceCreateRequest {
 
 impl DeviceCreateRequest {
     fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
-        let invalid_flags = || invalid_data_error("invalid flags in Device Create Request");
+        debug!("In DeviceCreateRequest decode");
+        let invalid_flags = |flag_name: &str, v: u32| {
+            invalid_data_error(&format!(
+                "invalid flags in Device Create Request: {} = {}",
+                flag_name, v
+            ))
+        };
 
-        let desired_access = flags::DesiredAccess::from_bits(payload.read_u32::<LittleEndian>()?)
-            .ok_or_else(invalid_flags)?;
+        let desired_access = payload.read_u32::<LittleEndian>()?;
         let allocation_size = payload.read_u64::<LittleEndian>()?;
-        let file_attributes = flags::FileAttributes::from_bits(payload.read_u32::<LittleEndian>()?)
-            .ok_or_else(invalid_flags)?;
-        let shared_access = flags::SharedAccess::from_bits(payload.read_u32::<LittleEndian>()?)
-            .ok_or_else(invalid_flags)?;
-        let create_disposition =
-            flags::CreateDisposition::from_bits(payload.read_u32::<LittleEndian>()?)
-                .ok_or_else(invalid_flags)?;
-        let create_options = flags::CreateOptions::from_bits(payload.read_u32::<LittleEndian>()?)
-            .ok_or_else(invalid_flags)?;
+        let file_attributes = payload.read_u32::<LittleEndian>()?;
+        let shared_access = payload.read_u32::<LittleEndian>()?;
+        let create_disposition = payload.read_u32::<LittleEndian>()?;
+        let create_options = payload.read_u32::<LittleEndian>()?;
         let path_length = payload.read_u32::<LittleEndian>()?;
+
+        let desired_access = flags::DesiredAccess::from_bits(desired_access)
+            .ok_or_else(|| invalid_flags("desired_access", desired_access))?;
+        let file_attributes = flags::FileAttributes::from_bits(file_attributes)
+            .ok_or_else(|| invalid_flags("file_attributes", file_attributes))?;
+        let shared_access = flags::SharedAccess::from_bits(shared_access)
+            .ok_or_else(|| invalid_flags("shared_access", shared_access))?;
+        let create_disposition = flags::CreateDisposition::from_bits(create_disposition)
+            .ok_or_else(|| invalid_flags("create_disposition", create_disposition))?;
+        let create_options = flags::CreateOptions::from_bits(create_options)
+            .ok_or_else(|| invalid_flags("create_options", create_options))?;
 
         // usize is 32 bits on a 32 bit target and 64 on a 64, so we can safely say try_into().unwrap()
         // for a u32 will never panic on the machines that run teleport.
