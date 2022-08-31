@@ -127,6 +127,8 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	// to https://publicAddr. In that case do a 302 to the correct path instead
 	// of doing path re-writing on all requests. This is a workaround to make
 	// sure Teleport does not break SPA.
+	t.c.log.Debugf("here i am. %s, %s, %s", r.Host, r.Method, r.RequestURI)
+
 	if location, ok := t.needsPathRedirect(r); ok {
 		return &http.Response{
 			Status:     http.StatusText(http.StatusFound),

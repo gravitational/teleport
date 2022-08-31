@@ -138,6 +138,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // handleForward forwards the request to the application service.
 func (h *Handler) handleForward(w http.ResponseWriter, r *http.Request, session *session) error {
+	h.log.Debugf("handling forward: %s %s %s", r.Host, r.URL, r.RequestURI)
 	session.fwd.ServeHTTP(w, r)
 	return nil
 }
