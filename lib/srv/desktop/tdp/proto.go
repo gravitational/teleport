@@ -915,12 +915,20 @@ func decodeSharedDirectoryCreateRequest(in peekReader) (SharedDirectoryCreateReq
 type SharedDirectoryCreateResponse struct {
 	CompletionID uint32
 	ErrCode      uint32
+	Fso          FileSystemObject
 }
 
 func (s SharedDirectoryCreateResponse) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryCreateResponse))
-	binary.Write(buf, binary.BigEndian, s)
+	binary.Write(buf, binary.BigEndian, s.CompletionID)
+	binary.Write(buf, binary.BigEndian, s.ErrCode)
+	fsoEnc, err := s.Fso.Encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	buf.Write(fsoEnc)
+
 	return buf.Bytes(), nil
 }
 
@@ -929,13 +937,28 @@ func decodeSharedDirectoryCreateResponse(in peekReader) (SharedDirectoryCreateRe
 	if err != nil {
 		return SharedDirectoryCreateResponse{}, trace.Wrap(err)
 	}
-	if t != byte(TypeSharedDirectoryCreateRequest) {
-		return SharedDirectoryCreateResponse{}, trace.BadParameter("got message type %v, expected SharedDirectoryCreateResponse(%v)", t, TypeSharedDirectoryCreateRequest)
+	if t != byte(TypeSharedDirectoryCreateResponse) {
+		return SharedDirectoryCreateResponse{}, trace.BadParameter("got message type %v, expected SharedDirectoryCreateResponse(%v)", t, TypeSharedDirectoryCreateResponse)
+	}
+	var completionID, errCode uint32
+	err = binary.Read(in, binary.BigEndian, &completionID)
+	if err != nil {
+		return SharedDirectoryCreateResponse{}, trace.Wrap(err)
+	}
+	err = binary.Read(in, binary.BigEndian, &errCode)
+	if err != nil {
+		return SharedDirectoryCreateResponse{}, trace.Wrap(err)
+	}
+	fso, err := decodeFileSystemObject(in)
+	if err != nil {
+		return SharedDirectoryCreateResponse{}, trace.Wrap(err)
 	}
 
-	var res SharedDirectoryCreateResponse
-	err = binary.Read(in, binary.BigEndian, &res)
-	return res, err
+	return SharedDirectoryCreateResponse{
+		CompletionID: completionID,
+		ErrCode:      errCode,
+		Fso:          fso,
+	}, err
 }
 
 type SharedDirectoryDeleteRequest struct {
@@ -1002,8 +1025,8 @@ func decodeSharedDirectoryDeleteResponse(in peekReader) (SharedDirectoryDeleteRe
 	if err != nil {
 		return SharedDirectoryDeleteResponse{}, trace.Wrap(err)
 	}
-	if t != byte(TypeSharedDirectoryDeleteRequest) {
-		return SharedDirectoryDeleteResponse{}, trace.BadParameter("got message type %v, expected SharedDirectoryDeleteResponse(%v)", t, TypeSharedDirectoryDeleteRequest)
+	if t != byte(TypeSharedDirectoryDeleteResponse) {
+		return SharedDirectoryDeleteResponse{}, trace.BadParameter("got message type %v, expected SharedDirectoryDeleteResponse(%v)", t, TypeSharedDirectoryDeleteResponse)
 	}
 
 	var res SharedDirectoryDeleteResponse
@@ -1076,7 +1099,7 @@ func (s SharedDirectoryListResponse) Encode() ([]byte, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		binary.Write(buf, binary.BigEndian, fsoEnc)
+		buf.Write(fsoEnc)
 	}
 
 	return buf.Bytes(), nil

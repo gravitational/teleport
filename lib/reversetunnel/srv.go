@@ -290,10 +290,11 @@ func NewServer(cfg Config) (Server, error) {
 	proxyWatcher, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: cfg.Component,
-			Client:    cfg.LocalAuthClient,
+			Client:    cfg.LocalAccessPoint,
 			Log:       cfg.Log,
 		},
-		ProxiesC: make(chan []types.Server, 10),
+		ProxiesC:    make(chan []types.Server, 10),
+		ProxyGetter: cfg.LocalAccessPoint,
 	})
 	if err != nil {
 		cancel()

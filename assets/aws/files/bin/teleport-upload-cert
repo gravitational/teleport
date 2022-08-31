@@ -2,7 +2,7 @@
 # This script is called to upload renewed cert
 # to the S3 bucket
 set -e
-if [[ "${DEBUG}" == "true" ]]; then
+if [[ "${DEBUG:-false}" == "true" ]]; then
     set -x
 fi
 
