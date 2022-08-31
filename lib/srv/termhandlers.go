@@ -198,10 +198,14 @@ func parseWinChange(req *ssh.Request) (*rsession.TerminalParams, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	params, err := rsession.NewTerminalParamsFromUint32(r.W, r.H)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// DELETE IN 12.0
+	// TODO(tross): needed for backward compatibility with sending the sshutils.WindowChangeRequest
+	// directly instead of leveraging ssh.Session.WindowChange
+	if r.Columns == 0 && r.Rows == 0 && r.H != 0 && r.W != 0 {
+		params, err := rsession.NewTerminalParamsFromUint32(r.W, r.H)
+		return params, trace.Wrap(err)
 	}
 
-	return params, nil
+	params, err := rsession.NewTerminalParamsFromUint32(r.Columns, r.Rows)
+	return params, trace.Wrap(err)
 }
