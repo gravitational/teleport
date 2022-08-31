@@ -775,6 +775,19 @@ steps:
     status:
     - success
     - failure
+- name: Send Slack notification (exec)
+  commands:
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Send-ErrorMessage
+  environment:
+    SLACK_WEBHOOK_DEV_TELEPORT:
+      from_secret: SLACK_WEBHOOK_DEV_TELEPORT
+    WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
+  when:
+    status:
+    - failure
 
 ---
 ################################################
@@ -7037,6 +7050,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 03da095af9472394da27acbb5f9ebf277336bfe13b93df2347dae1ed1dcd522d
+hmac: 2d50f73226640e621d790dadf4f07b891eeb3e9e11f9b2cc8e93f6d4bed8841b
 
 ...
