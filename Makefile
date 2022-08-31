@@ -189,9 +189,6 @@ LIBPCSCLITE_MESSAGE := without libpcsclite
 ifeq ("$(LIBPCSCLITE)", "yes")
 LIBPCSCLITE_MESSAGE := with libpcsclite
 LIBPCSCLITE_BUILD_TAG := libpcsclite
-else ifeq ("$(shell pkg-config libpcsclite 2>/dev/null; echo $$?)", "0")
-LIBPCSCLITE_MESSAGE := with libpcsclite
-LIBPCSCLITE_BUILD_TAG := libpcsclite
 endif
 
 # Reproducible builds are only available on select targets, and only when OS=linux.
