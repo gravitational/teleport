@@ -14,15 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package common
+package events
 
-import "time"
+import "github.com/gravitational/teleport/api/types"
 
-const (
-	// DefaultMongoDBServerSelectionTimeout is the timeout for selecting a
-	// MongoDB server to connect to.
-	DefaultMongoDBServerSelectionTimeout = 5 * time.Second
-
-	// MaxPages is the maximum number of pages to iterate over when fetching cloud databases.
-	MaxPages = 10
-)
+// EventResourceIDs converts a []ResourceID to a []events.ResourceID
+func ResourceIDs(resourceIDs []types.ResourceID) []ResourceID {
+	if resourceIDs == nil {
+		return nil
+	}
+	out := make([]ResourceID, len(resourceIDs))
+	for i := range resourceIDs {
+		out[i].ClusterName = resourceIDs[i].ClusterName
+		out[i].Kind = resourceIDs[i].Kind
+		out[i].Name = resourceIDs[i].Name
+	}
+	return out
+}
