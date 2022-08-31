@@ -59,15 +59,19 @@ spec:
 ```
 
 This involves:
-1. Adding new comparison functions (like `matches()` for regexes or a simple 
-   `ends_with()`) to better match against DNS names.
+1. Adding new comparison functions to better match against DNS names. Minimally,
+   we'll add an `ends_with(inputs, suffix)`, but may consider a regex or glob
+   matcher. The latter may have problematic quoting and escaping requirements
+   that may not be worth solving in the underlying `predicate` library, so we'll
+   avoid implementing regex matchers until a meaningful use-case exists.
 
 2. Ensuring these functions support lists of strings (or building separate
    functions specifically for matching against `[]string`).
 
-   For example, as implemented today, `equals(host_cert.principals, "foo")`
-   already iterates over all LHS arguments and ANDs the result. A hypothetical
-   `ends_with()` should behave the same way.
+   For example, a hypothetical `ends_with(principals, ".example.com")` should 
+   AND the result for each input principal. Luckily this does not require any
+   changes to the underlying library, and we can confine this behavior to only
+   new functions to avoid impact to existing rules.
 
 3. Evaluating `where` clauses in [`GenerateHostCert()`]. As these are not
    proper Teleport resources, the `predicate` context doesn't include any
