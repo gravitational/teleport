@@ -157,14 +157,18 @@ func (h *Handler) desktopIsActive(w http.ResponseWriter, r *http.Request, p http
 			}
 
 			if len(desktops) == 0 {
-				return nil, trace.NotFound("desktop not found")
+				break
 			}
 
-			if err := checker.CheckAccess(desktops[0], services.AccessMFAParams{}); err != nil {
+			err = checker.CheckAccess(desktops[0], services.AccessMFAParams{})
+			switch {
+			case err == nil:
+				return desktopIsActive{true}, nil
+			case trace.IsAccessDenied(err):
+				break
+			default:
 				return nil, trace.Wrap(err)
 			}
-
-			return desktopIsActive{true}, nil
 		}
 	}
 
