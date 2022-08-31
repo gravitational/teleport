@@ -58,9 +58,7 @@ func TestAccessElasticsearch(t *testing.T) {
 		desc         string
 		user         string
 		role         string
-		allowDbNames []string
 		allowDbUsers []string
-		dbName       string
 		dbUser       string
 		err          bool
 	}{
@@ -68,28 +66,14 @@ func TestAccessElasticsearch(t *testing.T) {
 			desc:         "has access to all database names and users",
 			user:         "alice",
 			role:         "admin",
-			allowDbNames: []string{types.Wildcard},
 			allowDbUsers: []string{types.Wildcard},
-			dbName:       "Elasticsearch",
 			dbUser:       "Elasticsearch",
 		},
 		{
 			desc:         "has access to nothing",
 			user:         "alice",
 			role:         "admin",
-			allowDbNames: []string{},
 			allowDbUsers: []string{},
-			dbName:       "Elasticsearch",
-			dbUser:       "Elasticsearch",
-			err:          true,
-		},
-		{
-			desc:         "no access to databases",
-			user:         "alice",
-			role:         "admin",
-			allowDbNames: []string{},
-			allowDbUsers: []string{types.Wildcard},
-			dbName:       "Elasticsearch",
 			dbUser:       "Elasticsearch",
 			err:          true,
 		},
@@ -97,9 +81,7 @@ func TestAccessElasticsearch(t *testing.T) {
 			desc:         "no access to users",
 			user:         "alice",
 			role:         "admin",
-			allowDbNames: []string{types.Wildcard},
 			allowDbUsers: []string{},
-			dbName:       "Elasticsearch",
 			dbUser:       "Elasticsearch",
 			err:          true,
 		},
@@ -107,19 +89,15 @@ func TestAccessElasticsearch(t *testing.T) {
 			desc:         "access allowed to specific user/database",
 			user:         "alice",
 			role:         "admin",
-			allowDbNames: []string{"metrics"},
 			allowDbUsers: []string{"alice"},
-			dbName:       "metrics",
 			dbUser:       "alice",
 		},
 		{
 			desc:         "access denied to specific user/database",
 			user:         "alice",
 			role:         "admin",
-			allowDbNames: []string{"metrics"},
 			allowDbUsers: []string{"alice"},
-			dbName:       "Elasticsearch",
-			dbUser:       "Elasticsearch",
+			dbUser:       "",
 			err:          true,
 		},
 	}
@@ -128,10 +106,10 @@ func TestAccessElasticsearch(t *testing.T) {
 		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			// Create user/role with the requested permissions.
-			testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, test.allowDbNames)
+			testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, []string{})
 
 			// Try to connect to the database as this user.
-			dbConn, proxy, err := testCtx.elasticsearchClient(ctx, test.user, "Elasticsearch", test.dbUser, test.dbName)
+			dbConn, proxy, err := testCtx.elasticsearchClient(ctx, test.user, "Elasticsearch", test.dbUser)
 
 			t.Cleanup(func() {
 				proxy.Close()
@@ -168,7 +146,7 @@ func TestAuditElasticsearch(t *testing.T) {
 
 	t.Run("access denied", func(t *testing.T) {
 		// Access denied should trigger an unsuccessful session start event.
-		dbConn, proxy, err := testCtx.elasticsearchClient(ctx, "alice", "Elasticsearch", "notadmin", "")
+		dbConn, proxy, err := testCtx.elasticsearchClient(ctx, "alice", "Elasticsearch", "notadmin")
 		require.NoError(t, err)
 
 		resp, err := dbConn.Ping()
@@ -192,7 +170,7 @@ func TestAuditElasticsearch(t *testing.T) {
 		// Connect should trigger successful session start event.
 		var err error
 
-		dbConn, proxy, err = testCtx.elasticsearchClient(ctx, "alice", "Elasticsearch", "admin", "")
+		dbConn, proxy, err = testCtx.elasticsearchClient(ctx, "alice", "Elasticsearch", "admin")
 		require.NoError(t, err)
 		resp, err := dbConn.Ping()
 

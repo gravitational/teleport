@@ -1630,12 +1630,11 @@ func (c *testContext) snowflakeClient(ctx context.Context, teleportUser, dbServi
 }
 
 // elasticsearchClient returns an Elasticsearch test DB client.
-func (c *testContext) elasticsearchClient(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (*elastic.Client, *alpnproxy.LocalProxy, error) {
+func (c *testContext) elasticsearchClient(ctx context.Context, teleportUser, dbService, dbUser string) (*elastic.Client, *alpnproxy.LocalProxy, error) {
 	route := tlsca.RouteToDatabase{
 		ServiceName: dbService,
 		Protocol:    defaults.ProtocolElasticsearch,
 		Username:    dbUser,
-		Database:    dbName,
 	}
 
 	proxy, err := c.startLocalALPNProxy(ctx, c.webListener.Addr().String(), teleportUser, route)
