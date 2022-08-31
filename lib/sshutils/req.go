@@ -34,6 +34,15 @@ type EnvReqParams struct {
 
 // WinChangeReqParams specifies parameters for window changes
 type WinChangeReqParams struct {
+	// From RFC 4254 Section 6.7. - these values are sent when using ssh.Session.WindowChange
+	Columns uint32
+	Rows    uint32
+	Width   uint32
+	Height  uint32
+
+	// DELETE IN 12.0
+	// TODO(tross): needed for backward compatibility with sending the sshutils.WindowChangeRequest
+	// directly instead of leveraging ssh.Session.WindowChange
 	W   uint32
 	H   uint32
 	Wpx uint32
@@ -53,22 +62,21 @@ type PTYReqParams struct {
 // TerminalModes converts encoded terminal modes into a ssh.TerminalModes map.
 // The encoding is described in: https://tools.ietf.org/html/rfc4254#section-8
 //
-//   All 'encoded terminal modes' (as passed in a pty request) are encoded
-//   into a byte stream.  It is intended that the coding be portable
-//   across different environments.  The stream consists of opcode-
-//   argument pairs wherein the opcode is a byte value.  Opcodes 1 to 159
-//   have a single uint32 argument.  Opcodes 160 to 255 are not yet
-//   defined, and cause parsing to stop (they should only be used after
-//   any other data).  The stream is terminated by opcode TTY_OP_END
-//   (0x00).
+//	All 'encoded terminal modes' (as passed in a pty request) are encoded
+//	into a byte stream.  It is intended that the coding be portable
+//	across different environments.  The stream consists of opcode-
+//	argument pairs wherein the opcode is a byte value.  Opcodes 1 to 159
+//	have a single uint32 argument.  Opcodes 160 to 255 are not yet
+//	defined, and cause parsing to stop (they should only be used after
+//	any other data).  The stream is terminated by opcode TTY_OP_END
+//	(0x00).
 //
 // In practice, this means encoded terminal modes get translated like below:
 //
-//  0x80 0x00 0x00 0x38 0x40  0x81 0x00 0x00 0x38 0x40  0x35 0x00 0x00 0x00 0x00  0x00
-//  |___|__________________|  |___|__________________|  |___|__________________|  |__|
-//         0x80: 0x3840              0x81: 0x3840              0x35: 0x00         0x00
-//  ssh.TTY_OP_ISPEED: 14400  ssh.TTY_OP_OSPEED: 14400         ssh.ECHO:0
-//
+//	0x80 0x00 0x00 0x38 0x40  0x81 0x00 0x00 0x38 0x40  0x35 0x00 0x00 0x00 0x00  0x00
+//	|___|__________________|  |___|__________________|  |___|__________________|  |__|
+//	       0x80: 0x3840              0x81: 0x3840              0x35: 0x00         0x00
+//	ssh.TTY_OP_ISPEED: 14400  ssh.TTY_OP_OSPEED: 14400         ssh.ECHO:0
 func (p *PTYReqParams) TerminalModes() (ssh.TerminalModes, error) {
 	terminalModes := ssh.TerminalModes{}
 
