@@ -246,12 +246,13 @@ func createRemoteCommandProxy(req remoteCommandRequest) (*remoteCommandProxy, er
 	)
 	if wsstream.IsWebSocketRequest(req.httpRequest) {
 		return nil, fmt.Errorf("only SPDY streams upgrades are supported")
-	} else {
-		proxy, err = createSPDYStreams(req)
 	}
+
+	proxy, err = createSPDYStreams(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if proxy.resizeStream != nil {
 		proxy.resizeQueue = newTermQueue(req.context, req.onResize)
 		go proxy.resizeQueue.handleResizeEvents(proxy.resizeStream)
