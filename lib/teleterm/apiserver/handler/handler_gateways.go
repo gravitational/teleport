@@ -81,20 +81,20 @@ func newAPIGateway(gateway gateway.Gateway) (*api.Gateway, error) {
 	}
 
 	return &api.Gateway{
-		Uri:                   gateway.URI.String(),
-		TargetUri:             gateway.TargetURI,
-		TargetName:            gateway.TargetName,
-		TargetUser:            gateway.TargetUser,
-		TargetSubresourceName: gateway.TargetSubresourceName,
-		Protocol:              gateway.Protocol,
-		LocalAddress:          gateway.LocalAddress,
-		LocalPort:             gateway.LocalPort,
+		Uri:                   gateway.URI().String(),
+		TargetUri:             gateway.TargetURI(),
+		TargetName:            gateway.TargetName(),
+		TargetUser:            gateway.TargetUser(),
+		TargetSubresourceName: gateway.TargetSubresourceName(),
+		Protocol:              gateway.Protocol(),
+		LocalAddress:          gateway.LocalAddress(),
+		LocalPort:             gateway.LocalPort(),
 		CliCommand:            command,
 	}, nil
 }
 
-// RestartGateway stops a gateway and starts a new with identical parameters, keeping the original
-// URI.
+// RestartGateway stops a gateway and starts a new with identical parameters but fresh certs,
+// keeping the original URI.
 func (s *Handler) RestartGateway(ctx context.Context, req *api.RestartGatewayRequest) (*api.EmptyResponse, error) {
 	if err := s.DaemonService.RestartGateway(ctx, req.GatewayUri); err != nil {
 		return nil, trace.Wrap(err)
@@ -109,6 +109,21 @@ func (s *Handler) RestartGateway(ctx context.Context, req *api.RestartGatewayReq
 // In Connect this is used to update the db name of a db connection along with the CLI command.
 func (s *Handler) SetGatewayTargetSubresourceName(ctx context.Context, req *api.SetGatewayTargetSubresourceNameRequest) (*api.Gateway, error) {
 	gateway, err := s.DaemonService.SetGatewayTargetSubresourceName(req.GatewayUri, req.TargetSubresourceName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	apiGateway, err := newAPIGateway(*gateway)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return apiGateway, nil
+}
+
+// SetGatewayLocalPort restarts the gateway under the new port without fetching new certs.
+func (s *Handler) SetGatewayLocalPort(ctx context.Context, req *api.SetGatewayLocalPortRequest) (*api.Gateway, error) {
+	gateway, err := s.DaemonService.SetGatewayLocalPort(req.GatewayUri, req.LocalPort)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

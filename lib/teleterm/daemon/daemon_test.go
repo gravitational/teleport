@@ -16,6 +16,7 @@ package daemon
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -24,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
+	"github.com/gravitational/teleport/lib/teleterm/gatewaytest"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -53,7 +55,9 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		KeyPath:               "../../../fixtures/certs/proxy1-key.pem",
 		Insecure:              true,
 		WebProxyAddr:          hs.Listener.Addr().String(),
-	}, params.CLICommandProvider)
+		CLICommandProvider:    params.CLICommandProvider,
+		TCPPortAllocator:      params.TCPPortAllocator,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -64,21 +68,28 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 	return gateway, nil
 }
 
+type gatewayCRUDTestContext struct {
+	nameToGateway        map[string]*gateway.Gateway
+	mockGatewayCreator   *mockGatewayCreator
+	mockTCPPortAllocator *gatewaytest.MockTCPPortAllocator
+}
+
 func TestGatewayCRUD(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name                 string
 		gatewayNamesToCreate []string
-		testFunc             func(*testing.T, map[string]*gateway.Gateway, *mockGatewayCreator, *Service)
+		// tcpPortAllocator is an optional field which lets us provide a custom
+		// gatewaytest.MockTCPPortAllocator with some ports already in use.
+		tcpPortAllocator *gatewaytest.MockTCPPortAllocator
+		testFunc         func(*testing.T, *gatewayCRUDTestContext, *Service)
 	}{
 		{
 			name:                 "create then find",
 			gatewayNamesToCreate: []string{"gateway"},
-			testFunc: func(
-				t *testing.T, nameToGateway map[string]*gateway.Gateway, mockGatewayCreator *mockGatewayCreator, daemon *Service,
-			) {
-				createdGateway := nameToGateway["gateway"]
-				foundGateway, err := daemon.findGateway(createdGateway.URI.String())
+			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
+				createdGateway := c.nameToGateway["gateway"]
+				foundGateway, err := daemon.findGateway(createdGateway.URI().String())
 				require.NoError(t, err)
 				require.Equal(t, createdGateway, foundGateway)
 			},
@@ -86,56 +97,110 @@ func TestGatewayCRUD(t *testing.T) {
 		{
 			name:                 "ListGateways",
 			gatewayNamesToCreate: []string{"gateway1", "gateway2"},
-			testFunc: func(
-				t *testing.T, nameToGateway map[string]*gateway.Gateway, mockGatewayCreator *mockGatewayCreator, daemon *Service,
-			) {
+			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				gateways := daemon.ListGateways()
 				gatewayURIs := map[uri.ResourceURI]struct{}{}
 
 				for _, gateway := range gateways {
-					gatewayURIs[gateway.URI] = struct{}{}
+					gatewayURIs[gateway.URI()] = struct{}{}
 				}
 
 				require.Equal(t, 2, len(gateways))
-				require.Contains(t, gatewayURIs, nameToGateway["gateway1"].URI)
-				require.Contains(t, gatewayURIs, nameToGateway["gateway2"].URI)
+				require.Contains(t, gatewayURIs, c.nameToGateway["gateway1"].URI())
+				require.Contains(t, gatewayURIs, c.nameToGateway["gateway2"].URI())
 			},
 		},
 		{
 			name:                 "RemoveGateway",
 			gatewayNamesToCreate: []string{"gatewayToRemove", "gatewayToKeep"},
-			testFunc: func(
-				t *testing.T, nameToGateway map[string]*gateway.Gateway, mockGatewayCreator *mockGatewayCreator, daemon *Service,
-			) {
-				gatewayToRemove := nameToGateway["gatewayToRemove"]
-				gatewayToKeep := nameToGateway["gatewayToKeep"]
-				err := daemon.RemoveGateway(gatewayToRemove.URI.String())
+			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
+				gatewayToRemove := c.nameToGateway["gatewayToRemove"]
+				gatewayToKeep := c.nameToGateway["gatewayToKeep"]
+				err := daemon.RemoveGateway(gatewayToRemove.URI().String())
 				require.NoError(t, err)
 
-				_, err = daemon.findGateway(gatewayToRemove.URI.String())
+				_, err = daemon.findGateway(gatewayToRemove.URI().String())
 				require.True(t, trace.IsNotFound(err), "gatewayToRemove wasn't removed")
 
-				_, err = daemon.findGateway(gatewayToKeep.URI.String())
+				_, err = daemon.findGateway(gatewayToKeep.URI().String())
 				require.NoError(t, err)
 			},
 		},
 		{
 			name:                 "RestartGateway",
 			gatewayNamesToCreate: []string{"gateway"},
-			testFunc: func(
-				t *testing.T, nameToGateway map[string]*gateway.Gateway, mockGatewayCreator *mockGatewayCreator, daemon *Service,
-			) {
-				gateway := nameToGateway["gateway"]
-				require.Equal(t, 1, mockGatewayCreator.callCount)
+			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
+				gateway := c.nameToGateway["gateway"]
+				require.Equal(t, 1, c.mockGatewayCreator.callCount)
 
-				err := daemon.RestartGateway(context.Background(), gateway.URI.String())
+				err := daemon.RestartGateway(context.Background(), gateway.URI().String())
 				require.NoError(t, err)
-				require.Equal(t, 2, mockGatewayCreator.callCount)
+				require.Equal(t, 2, c.mockGatewayCreator.callCount)
 				require.Equal(t, 1, len(daemon.gateways))
 
 				// Check if the restarted gateway is still available under the same URI.
-				_, err = daemon.findGateway(gateway.URI.String())
+				restartedGateway, err := daemon.findGateway(gateway.URI().String())
 				require.NoError(t, err)
+				require.Equal(t, gateway.URI(), restartedGateway.URI())
+			},
+		},
+		{
+			name:                 "SetGatewayLocalPort closes previous gateway if new port is free",
+			gatewayNamesToCreate: []string{"gateway"},
+			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
+				oldGateway := c.nameToGateway["gateway"]
+				oldListener := c.mockTCPPortAllocator.RecentListener()
+
+				require.Equal(t, 0, oldListener.CloseCallCount)
+
+				updatedGateway, err := daemon.SetGatewayLocalPort(oldGateway.URI().String(), "12345")
+				require.NoError(t, err)
+				require.Equal(t, "12345", updatedGateway.LocalPort())
+				updatedGatewayAddress := c.mockTCPPortAllocator.RecentListener().RealAddr().String()
+
+				// Check if the restarted gateway is still available under the same URI.
+				foundGateway, err := daemon.findGateway(oldGateway.URI().String())
+				require.NoError(t, err)
+				require.Equal(t, oldGateway.URI(), foundGateway.URI())
+
+				// Verify that the gateway accepts connections on the new address.
+				gatewaytest.BlockUntilGatewayAcceptsConnections(t, updatedGatewayAddress)
+
+				// Verify that the old listener was closed.
+				require.Equal(t, 1, oldListener.CloseCallCount)
+			},
+		},
+		{
+			name:                 "SetGatewayLocalPort doesn't close or modify previous gateway if new port is occupied",
+			gatewayNamesToCreate: []string{"gateway"},
+			tcpPortAllocator:     &gatewaytest.MockTCPPortAllocator{PortsInUse: []string{"12345"}},
+			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
+				gateway := c.nameToGateway["gateway"]
+				gatewayAddress := net.JoinHostPort(gateway.LocalAddress(), gateway.LocalPort())
+				listener := c.mockTCPPortAllocator.RecentListener()
+
+				require.Equal(t, 0, listener.CloseCallCount)
+
+				_, err := daemon.SetGatewayLocalPort(gateway.URI().String(), "12345")
+				require.ErrorContains(t, err, "address already in use")
+
+				// Verify that the gateway still accepts connections on the old address.
+				require.Equal(t, 0, listener.CloseCallCount)
+				gatewaytest.BlockUntilGatewayAcceptsConnections(t, gatewayAddress)
+			},
+		},
+		{
+			name:                 "SetGatewayLocalPort is a noop if new port is equal to old port",
+			gatewayNamesToCreate: []string{"gateway"},
+			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
+				gateway := c.nameToGateway["gateway"]
+				localPort := gateway.LocalPort()
+				require.Equal(t, 1, c.mockTCPPortAllocator.CallCount)
+
+				_, err := daemon.SetGatewayLocalPort(gateway.URI().String(), localPort)
+				require.NoError(t, err)
+
+				require.Equal(t, 1, c.mockTCPPortAllocator.CallCount)
 			},
 		},
 	}
@@ -144,6 +209,10 @@ func TestGatewayCRUD(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			if tt.tcpPortAllocator == nil {
+				tt.tcpPortAllocator = &gatewaytest.MockTCPPortAllocator{}
+			}
 
 			homeDir := t.TempDir()
 			mockGatewayCreator := &mockGatewayCreator{t: t}
@@ -155,8 +224,9 @@ func TestGatewayCRUD(t *testing.T) {
 			require.NoError(t, err)
 
 			daemon, err := New(Config{
-				Storage:        storage,
-				GatewayCreator: mockGatewayCreator,
+				Storage:          storage,
+				GatewayCreator:   mockGatewayCreator,
+				TCPPortAllocator: tt.tcpPortAllocator,
 			})
 			require.NoError(t, err)
 
@@ -175,7 +245,11 @@ func TestGatewayCRUD(t *testing.T) {
 				nameToGateway[gatewayName] = gateway
 			}
 
-			tt.testFunc(t, nameToGateway, mockGatewayCreator, daemon)
+			tt.testFunc(t, &gatewayCRUDTestContext{
+				nameToGateway:        nameToGateway,
+				mockGatewayCreator:   mockGatewayCreator,
+				mockTCPPortAllocator: tt.tcpPortAllocator,
+			}, daemon)
 		})
 	}
 }

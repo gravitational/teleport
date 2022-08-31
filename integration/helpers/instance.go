@@ -462,6 +462,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 			Addr:        Host,
 		},
 	}
+	tconf.SSH.AllowFileCopying = true
 	tconf.Auth.ListenAddr.Addr = i.Auth
 	tconf.Auth.PublicAddrs = []utils.NetAddr{
 		{
@@ -596,7 +597,7 @@ func (i *TeleInstance) StartNode(tconf *service.Config) (*service.TeleportProces
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return i.startNode(tconf, port)
+	return i.StartNodeWithTargetPort(tconf, port)
 }
 
 // StartReverseTunnelNode starts a SSH node and connects it to the cluster via reverse tunnel.
@@ -605,11 +606,11 @@ func (i *TeleInstance) StartReverseTunnelNode(tconf *service.Config) (*service.T
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return i.startNode(tconf, port)
+	return i.StartNodeWithTargetPort(tconf, port)
 }
 
-// startNode starts a node and connects it to the cluster.
-func (i *TeleInstance) startNode(tconf *service.Config, authPort string) (*service.TeleportProcess, error) {
+// StartNodeWithTargetPort starts a node and connects it to the cluster via a specified port.
+func (i *TeleInstance) StartNodeWithTargetPort(tconf *service.Config, authPort string) (*service.TeleportProcess, error) {
 	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -620,7 +621,7 @@ func (i *TeleInstance) startNode(tconf *service.Config, authPort string) (*servi
 
 	authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, authPort))
 	tconf.AuthServers = append(tconf.AuthServers, *authServer)
-	tconf.Token = "token"
+	tconf.SetToken("token")
 	tconf.UploadEventsC = i.UploadEventsC
 	tconf.CachePolicy = service.CachePolicy{
 		Enabled: true,
@@ -677,7 +678,7 @@ func (i *TeleInstance) StartApp(conf *service.Config) (*service.TeleportProcess,
 			Addr:        i.Web,
 		},
 	}
-	conf.Token = "token"
+	conf.SetToken("token")
 	conf.UploadEventsC = i.UploadEventsC
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
@@ -729,7 +730,7 @@ func (i *TeleInstance) StartApps(configs []*service.Config) ([]*service.Teleport
 					Addr:        i.Web,
 				},
 			}
-			cfg.Token = "token"
+			cfg.SetToken("token")
 			cfg.UploadEventsC = i.UploadEventsC
 			cfg.Auth.Enabled = false
 			cfg.Proxy.Enabled = false
@@ -793,7 +794,7 @@ func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportPro
 			Addr:        i.Web,
 		},
 	}
-	conf.Token = "token"
+	conf.SetToken("token")
 	conf.UploadEventsC = i.UploadEventsC
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
@@ -856,7 +857,7 @@ func (i *TeleInstance) StartKube(t *testing.T, conf *service.Config, clusterName
 			Addr:        i.Web,
 		},
 	}
-	conf.Token = "token"
+	conf.SetToken("token")
 	conf.UploadEventsC = i.UploadEventsC
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
@@ -904,7 +905,7 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 	tconf.Log = i.Log
 	authServer := utils.MustParseAddr(i.Auth)
 	tconf.AuthServers = append(tconf.AuthServers, *authServer)
-	tconf.Token = "token"
+	tconf.SetToken("token")
 	tconf.HostUUID = name
 	tconf.Hostname = name
 	tconf.UploadEventsC = i.UploadEventsC
@@ -997,7 +998,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error)
 	tconf.UploadEventsC = i.UploadEventsC
 	tconf.HostUUID = cfg.Name
 	tconf.Hostname = cfg.Name
-	tconf.Token = "token"
+	tconf.SetToken("token")
 
 	tconf.Auth.Enabled = false
 
@@ -1044,23 +1045,22 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error)
 		return nil, trace.Wrap(err)
 	}
 
+	log.Debugf("Teleport proxy (in instance %v) started: %v/%v events received.",
+		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
+
 	// Extract and set reversetunnel.Server and reversetunnel.AgentPool upon
 	// receipt of a ProxyReverseTunnelReady event
-	var tunnel reversetunnel.Server
 	for _, re := range receivedEvents {
 		switch re.Name {
 		case service.ProxyReverseTunnelReady:
 			ts, ok := re.Payload.(reversetunnel.Server)
 			if ok {
-				tunnel = ts
-				break
+				return ts, nil
 			}
 		}
 	}
 
-	log.Debugf("Teleport proxy (in instance %v) started: %v/%v events received.",
-		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
-	return tunnel, nil
+	return nil, nil
 }
 
 // Reset re-creates the teleport instance based on the same configuration
@@ -1287,7 +1287,7 @@ func (i *TeleInstance) NewClient(cfg ClientConfig) (*client.TeleportClient, erro
 
 	// Add key to client and update CAs that will be trusted (equivalent to
 	// updating "known hosts" with OpenSSH.
-	_, err = tc.AddKey(&creds.Key)
+	err = tc.AddKey(&creds.Key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

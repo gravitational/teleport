@@ -834,18 +834,17 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr())
 
 	sessionStartTime := s.cfg.Clock.Now().UTC().Round(time.Millisecond)
-	rdpc, err := rdpclient.New(ctx, rdpclient.Config{
+	rdpc, err := rdpclient.New(rdpclient.Config{
 		Log: log,
 		GenerateUserCert: func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error) {
 			return s.generateCredentials(ctx, username, desktop.GetDomain(), ttl)
 		},
-		CertTTL:        windowsDesktopCertTTL,
-		Addr:           desktop.GetAddr(),
-		Conn:           tdpConn,
-		AuthorizeFn:    authorize,
-		AllowClipboard: authCtx.Checker.DesktopClipboard(),
-		// AllowDirectorySharing() ensures this setting is modulated by build flag while in development
-		AllowDirectorySharing: authCtx.Checker.DesktopDirectorySharing() && AllowDirectorySharing(),
+		CertTTL:               windowsDesktopCertTTL,
+		Addr:                  desktop.GetAddr(),
+		Conn:                  tdpConn,
+		AuthorizeFn:           authorize,
+		AllowClipboard:        authCtx.Checker.DesktopClipboard(),
+		AllowDirectorySharing: authCtx.Checker.DesktopDirectorySharing(),
 	})
 	if err != nil {
 		s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)

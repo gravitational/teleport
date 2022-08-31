@@ -21,6 +21,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/sethvargo/go-diceware/diceware"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -29,11 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
-
-	"github.com/sethvargo/go-diceware/diceware"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/bcrypt"
 )
 
 const (
@@ -101,7 +101,7 @@ func (s *Server) StartAccountRecovery(ctx context.Context, req *proto.StartAccou
 // After MaxAccountRecoveryAttempts, user is temporarily locked from further attempts at recovering and also
 // locked from logging in. Modeled after existing function WithUserLock.
 func (s *Server) verifyCodeWithRecoveryLock(ctx context.Context, username string, recoveryCode []byte) error {
-	user, err := s.Identity.GetUser(username, false)
+	user, err := s.Services.GetUser(username, false)
 	switch {
 	case trace.IsNotFound(err):
 		// If user is not found, still authenticate. It should always return an error.
@@ -138,7 +138,7 @@ func (s *Server) verifyCodeWithRecoveryLock(ctx context.Context, username string
 
 	// Temp lock both user login and recovery attempts.
 	user.SetRecoveryAttemptLockExpires(lockedUntil, accountLockedMsg)
-	if err := s.Identity.UpsertUser(user); err != nil {
+	if err := s.UpsertUser(user); err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.Wrap(verifyCodeErr)
 	}
@@ -290,7 +290,7 @@ func (s *Server) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAcc
 func (s *Server) verifyAuthnWithRecoveryLock(ctx context.Context, startToken types.UserToken, authenticateFn func() error) error {
 	// Determine user exists first since an existence of token
 	// does not guarantee the user defined in token exists anymore.
-	user, err := s.Identity.GetUser(startToken.GetUser(), false)
+	user, err := s.Services.GetUser(startToken.GetUser(), false)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.AccessDenied(verifyRecoveryGenericErrMsg)
@@ -338,7 +338,7 @@ func (s *Server) verifyAuthnWithRecoveryLock(ctx context.Context, startToken typ
 
 	// Lock the user from logging in.
 	user.SetLocked(lockedUntil, accountLockedMsg)
-	if err := s.Identity.UpsertUser(user); err != nil {
+	if err := s.UpsertUser(user); err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.AccessDenied(verifyRecoveryBadAuthnErrMsg)
 	}
@@ -359,7 +359,7 @@ func (s *Server) recordFailedRecoveryAttempt(ctx context.Context, username strin
 	}
 
 	// Collect all attempts.
-	attempts, err := s.Identity.GetUserRecoveryAttempts(ctx, username)
+	attempts, err := s.GetUserRecoveryAttempts(ctx, username)
 	if err != nil {
 		return time.Time{}, !maxedAttempts, trace.Wrap(err)
 	}
@@ -431,7 +431,7 @@ func (s *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 	}
 
 	// Check and remove user locks so user can immediately sign in after finishing recovering.
-	user, err := s.GetUser(approvedToken.GetUser(), false /* without secrets */)
+	user, err := s.Services.GetUser(approvedToken.GetUser(), false /* without secrets */)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.AccessDenied(completeRecoveryGenericErrMsg)
@@ -439,7 +439,7 @@ func (s *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 
 	if user.GetStatus().IsLocked {
 		user.ResetLocks()
-		if err := s.Identity.UpsertUser(user); err != nil {
+		if err := s.UpsertUser(user); err != nil {
 			log.Error(trace.DebugReport(err))
 			return trace.AccessDenied(completeRecoveryGenericErrMsg)
 		}
@@ -570,7 +570,7 @@ func (s *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username st
 // isAccountRecoveryAllowed gets cluster auth configuration and check if cloud, local auth
 // and second factor is allowed, which are required for account recovery.
 func (s *Server) isAccountRecoveryAllowed(ctx context.Context) error {
-	if modules.GetModules().Features().Cloud == false {
+	if !modules.GetModules().Features().Cloud {
 		return trace.AccessDenied("account recovery is only available for enterprise cloud")
 	}
 

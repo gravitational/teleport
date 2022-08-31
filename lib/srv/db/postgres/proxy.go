@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -107,7 +108,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 //
 // Returns the startup message that contains initial connect parameters and
 // the upgraded TLS connection.
-func (p *Proxy) handleStartup(ctx context.Context, clientConn net.Conn) (*pgproto3.StartupMessage, *tls.Conn, *pgproto3.Backend, error) {
+func (p *Proxy) handleStartup(ctx context.Context, clientConn net.Conn) (*pgproto3.StartupMessage, utils.TLSConn, *pgproto3.Backend, error) {
 	// Backend acts as a server for the Postgres wire protocol.
 	backend := pgproto3.NewBackend(pgproto3.NewChunkReader(clientConn), clientConn)
 	startupMessage, err := backend.ReceiveStartupMessage()
@@ -146,12 +147,15 @@ func (p *Proxy) handleStartup(ctx context.Context, clientConn net.Conn) (*pgprot
 	case *pgproto3.StartupMessage:
 		// TLS connection between the client and this proxy has been
 		// established, just return the startup message.
-		tlsConn, ok := clientConn.(*tls.Conn)
-		if !ok {
+		switch tlsConn := clientConn.(type) {
+		case *tls.Conn:
+			return m, tlsConn, backend, nil
+		case *alpnproxy.PingConn:
+			return m, tlsConn, backend, nil
+		default:
 			return nil, nil, nil, trace.BadParameter(
 				"expected tls connection, got %T", clientConn)
 		}
-		return m, tlsConn, backend, nil
 	}
 	return nil, nil, nil, trace.BadParameter(
 		"unsupported startup message: %#v", startupMessage)

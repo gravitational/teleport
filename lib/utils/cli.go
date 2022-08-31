@@ -19,6 +19,7 @@ package utils
 import (
 	"bytes"
 	"crypto/x509"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -31,9 +32,10 @@ import (
 	"testing"
 	"unicode"
 
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/kingpin"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -210,14 +212,7 @@ func formatErrorWriter(err error, w io.Writer) {
 }
 
 func formatCertError(err error) string {
-	switch innerError := trace.Unwrap(err).(type) {
-	case x509.HostnameError:
-		return fmt.Sprintf("Cannot establish https connection to %s:\n%s\n%s\n",
-			innerError.Host,
-			innerError.Error(),
-			"try a different hostname for --proxy or specify --insecure flag if you know what you're doing.")
-	case x509.UnknownAuthorityError:
-		return `WARNING:
+	const unknownAuthority = `WARNING:
 
   The proxy you are connecting to has presented a certificate signed by a
   unknown authority. This is most likely due to either being presented
@@ -235,15 +230,33 @@ func formatCertError(err error) string {
   If you think something malicious may be occurring, contact your Teleport
   system administrator to resolve this issue.
 `
-	case x509.CertificateInvalidError:
+	if errors.As(err, &x509.UnknownAuthorityError{}) {
+		return unknownAuthority
+	}
+
+	var hostnameErr x509.HostnameError
+	if errors.As(err, &hostnameErr) {
+		return fmt.Sprintf("Cannot establish https connection to %s:\n%s\n%s\n",
+			hostnameErr.Host,
+			hostnameErr.Error(),
+			"try a different hostname for --proxy or specify --insecure flag if you know what you're doing.")
+	}
+
+	var certInvalidErr x509.CertificateInvalidError
+	if errors.As(err, &x509.CertificateInvalidError{}) {
 		return fmt.Sprintf(`WARNING:
 
   The certificate presented by the proxy is invalid: %v.
 
-  Contact your Teleport system administrator to resolve this issue.`, innerError)
-	default:
-		return ""
+  Contact your Teleport system administrator to resolve this issue.`, certInvalidErr)
 	}
+
+	// Check for less explicit errors. These are often emitted on Darwin
+	if strings.Contains(err.Error(), "certificate is not trusted") {
+		return unknownAuthority
+	}
+
+	return ""
 }
 
 const (
@@ -283,6 +296,9 @@ func Consolef(w io.Writer, log logrus.FieldLogger, component, msg string, params
 // some defaults common for all Teleport CLI tools
 func InitCLIParser(appName, appHelp string) (app *kingpin.Application) {
 	app = kingpin.New(appName, appHelp)
+
+	// make all flags repeatable, this makes the CLI easier to use.
+	app.AllRepeatable(true)
 
 	// hide "--help" flag
 	app.HelpFlag.Hidden()

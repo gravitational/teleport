@@ -37,6 +37,8 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -58,19 +60,21 @@ func onProxyCommandSSH(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	proxyParams, err := getSSHProxyParams(cf, tc)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if len(tc.JumpHosts) > 0 {
-		err := setupJumpHost(cf, tc, *proxyParams)
+	err = libclient.RetryWithRelogin(cf.Context, tc, func() error {
+		proxyParams, err := getSSHProxyParams(cf, tc)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-	}
 
-	return trace.Wrap(sshProxy(cf.Context, tc, *proxyParams))
+		if len(tc.JumpHosts) > 0 {
+			err := setupJumpHost(cf, tc, *proxyParams)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return trace.Wrap(sshProxy(cf.Context, tc, *proxyParams))
+	})
+	return trace.Wrap(err)
 }
 
 // sshProxyParams combines parameters for establishing an SSH proxy used
@@ -90,12 +94,13 @@ type sshProxyParams struct {
 	tlsRouting bool
 }
 
-// getSSHProxyParams prepares parameters for establishing an SSH proxy.
+// getSSHProxyParams prepares parameters for establishing an SSH proxy connection.
 func getSSHProxyParams(cf *CLIConf, tc *libclient.TeleportClient) (*sshProxyParams, error) {
 	targetHost, targetPort, err := net.SplitHostPort(tc.Host)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	// Without jump hosts, we will be connecting to the current Teleport client
 	// proxy the user is logged into.
 	if len(tc.JumpHosts) == 0 {
@@ -112,6 +117,7 @@ func getSSHProxyParams(cf *CLIConf, tc *libclient.TeleportClient) (*sshProxyPara
 			tlsRouting:  tc.TLSRoutingEnabled,
 		}, nil
 	}
+
 	// When jump host is specified, we will be connecting to the jump host's
 	// proxy directly. Call its ping endpoint to figure out the cluster details
 	// such as cluster name, SSH proxy address, etc.
@@ -123,10 +129,12 @@ func getSSHProxyParams(cf *CLIConf, tc *libclient.TeleportClient) (*sshProxyPara
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	sshProxyHost, sshProxyPort, err := ping.Proxy.SSHProxyHostPort()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return &sshProxyParams{
 		proxyHost:   sshProxyHost,
 		proxyPort:   sshProxyPort,
@@ -180,7 +188,8 @@ func sshProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxyPara
 	}
 	defer upstreamConn.Close()
 
-	client, err := makeSSHClient(ctx, upstreamConn, upstreamConn.RemoteAddr().String(), &ssh.ClientConfig{
+	remoteProxyAddr := net.JoinHostPort(sp.proxyHost, sp.proxyPort)
+	client, err := makeSSHClient(ctx, upstreamConn, remoteProxyAddr, &ssh.ClientConfig{
 		User: tc.HostLogin,
 		Auth: []ssh.AuthMethod{
 			ssh.PublicKeysCallback(tc.LocalAgent().Signers),
@@ -202,13 +211,13 @@ func sshProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxyPara
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = agent.RequestAgentForwarding(sess)
+	err = agent.RequestAgentForwarding(sess.Session)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	sshUserHost := fmt.Sprintf("%s:%s", sp.targetHost, sp.targetPort)
-	if err = sess.RequestSubsystem(proxySubsystemName(sshUserHost, sp.clusterName)); err != nil {
+	if err = sess.RequestSubsystem(ctx, proxySubsystemName(sshUserHost, sp.clusterName)); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := proxySession(ctx, sess); err != nil {
@@ -263,7 +272,7 @@ func makeSSHClient(ctx context.Context, conn net.Conn, addr string, cfg *ssh.Cli
 	return tracessh.NewClient(cc, chs, reqs), nil
 }
 
-func proxySession(ctx context.Context, sess *ssh.Session) error {
+func proxySession(ctx context.Context, sess *tracessh.Session) error {
 	stdout, err := sess.StdoutPipe()
 	if err != nil {
 		return trace.Wrap(err)
@@ -442,10 +451,16 @@ func mkLocalProxy(ctx context.Context, opts localProxyOpts) (*alpnproxy.LocalPro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	protocols := append([]alpncommon.Protocol{alpnProtocol}, opts.protocols...)
+	if alpncommon.HasPingSupport(alpnProtocol) {
+		protocols = append(alpncommon.ProtocolsWithPing(alpnProtocol), protocols...)
+	}
+
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		InsecureSkipVerify: opts.insecure,
 		RemoteProxyAddr:    opts.proxyAddr,
-		Protocols:          append([]alpncommon.Protocol{alpnProtocol}, opts.protocols...),
+		Protocols:          protocols,
 		Listener:           opts.listener,
 		ParentContext:      ctx,
 		SNI:                address.Host(),
@@ -464,11 +479,18 @@ func mkLocalProxyCerts(certFile, keyFile string) ([]tls.Certificate, error) {
 	if (certFile == "" && keyFile != "") || (certFile != "" && keyFile == "") {
 		return nil, trace.BadParameter("both --cert-file and --key-file are required")
 	}
-	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	cert, err := keys.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return []tls.Certificate{cert}, nil
+}
+
+func alpnProtocolForApp(app types.Application) alpncommon.Protocol {
+	if app.IsTCP() {
+		return alpncommon.ProtocolTCP
+	}
+	return alpncommon.ProtocolHTTP
 }
 
 func onProxyCommandApp(cf *CLIConf) error {
@@ -478,6 +500,11 @@ func onProxyCommandApp(cf *CLIConf) error {
 	}
 
 	appCerts, err := loadAppCertificate(tc, cf.AppName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	app, err := getRegisteredApp(cf, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -500,7 +527,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		Listener:           listener,
 		RemoteProxyAddr:    tc.WebProxyAddr,
-		Protocols:          []alpncommon.Protocol{alpncommon.ProtocolHTTP},
+		Protocols:          []alpncommon.Protocol{alpnProtocolForApp(app)},
 		InsecureSkipVerify: cf.InsecureSkipVerify,
 		ParentContext:      cf.Context,
 		SNI:                address.Host(),
@@ -577,16 +604,17 @@ func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certi
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
-	cc, ok := key.AppTLSCerts[appName]
+	cert, ok := key.AppTLSCerts[appName]
 	if !ok {
 		return tls.Certificate{}, trace.NotFound("please login into the application first. 'tsh app login'")
 	}
-	cert, err := tls.X509KeyPair(cc, key.Priv)
+
+	tlsCert, err := key.TLSCertificate(cert)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	expiresAt, err := getTLSCertExpireTime(cert)
+	expiresAt, err := getTLSCertExpireTime(tlsCert)
 	if err != nil {
 		return tls.Certificate{}, trace.WrapWithMessage(err, "invalid certificate - please login to the application again. 'tsh app login'")
 	}
@@ -595,7 +623,7 @@ func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certi
 			"application %s certificate has expired, please re-login to the app using 'tsh app login'",
 			appName)
 	}
-	return cert, nil
+	return tlsCert, nil
 }
 
 // getTLSCertExpireTime returns the certificate NotAfter time.

@@ -613,6 +613,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		ProxyListenerMode:        fc.Auth.ProxyListenerMode,
 		RoutingStrategy:          fc.Auth.RoutingStrategy,
 		TunnelStrategy:           fc.Auth.TunnelStrategy,
+		ProxyPingInterval:        fc.Auth.ProxyPingInterval,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -912,6 +913,16 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Proxy.MongoPublicAddrs = addrs
 	}
+	if fc.Proxy.PeerPublicAddr != "" {
+		if fc.Proxy.PeerAddr == "" {
+			return trace.BadParameter("peer_listen_addr must be set when peer_public_addr is set")
+		}
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.PeerPublicAddr, int(defaults.ProxyPeeringListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.PeerPublicAddr = *addr
+	}
 
 	acme, err := fc.Proxy.ACME.Parse()
 	if err != nil {
@@ -1047,13 +1058,20 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 		return trace.Wrap(err)
 	}
 
+	cfg.SSH.AllowFileCopying = fc.SSH.SSHFileCopy()
+
 	for _, matcher := range fc.SSH.AWSMatchers {
 		cfg.SSH.AWSMatchers = append(cfg.SSH.AWSMatchers,
 			services.AWSMatcher{
-				Types:       matcher.Types,
-				Regions:     matcher.Regions,
-				Tags:        matcher.Tags,
-				SSMDocument: matcher.SSMDocument,
+				Types:   matcher.Matcher.Types,
+				Regions: matcher.Matcher.Regions,
+				Tags:    matcher.Matcher.Tags,
+				Params: services.InstallerParams{
+					JoinMethod: matcher.InstallParams.JoinParams.Method,
+					JoinToken:  matcher.InstallParams.JoinParams.TokenName,
+					ScriptName: matcher.InstallParams.ScriptName,
+				},
+				SSM: &services.AWSSSM{DocumentName: matcher.SSM.DocumentName},
 			})
 	}
 
@@ -1123,6 +1141,16 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				Types:   matcher.Types,
 				Regions: matcher.Regions,
 				Tags:    matcher.Tags,
+			})
+	}
+	for _, matcher := range fc.Databases.AzureMatchers {
+		cfg.Databases.AzureMatchers = append(cfg.Databases.AzureMatchers,
+			services.AzureMatcher{
+				Subscriptions:  matcher.Subscriptions,
+				ResourceGroups: matcher.ResourceGroups,
+				Types:          matcher.Types,
+				Regions:        matcher.Regions,
+				ResourceTags:   matcher.ResourceTags,
 			})
 	}
 	for _, database := range fc.Databases.Databases {
@@ -1290,6 +1318,11 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 			app.Rewrite = &service.Rewrite{
 				Redirect: application.Rewrite.Redirect,
 				Headers:  headers,
+			}
+		}
+		if application.AWS != nil {
+			app.AWS = &service.AppAWS{
+				ExternalID: application.AWS.ExternalID,
 			}
 		}
 		if err := app.CheckAndSetDefaults(); err != nil {
@@ -1940,9 +1973,9 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		cfg.PIDFile = clf.PIDFile
 	}
 
-	// apply --token flag:
-	if _, err := cfg.ApplyToken(clf.AuthToken); err != nil {
-		return trace.Wrap(err)
+	if clf.AuthToken != "" {
+		// store the value of the --token flag:
+		cfg.SetToken(clf.AuthToken)
 	}
 
 	// Apply flags used for the node to validate the Auth Server.
@@ -2130,17 +2163,16 @@ func splitRoles(roles string) []string {
 func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.AuthToken != "" {
 		cfg.JoinMethod = types.JoinMethodToken
-		_, err := cfg.ApplyToken(fc.AuthToken)
-		return trace.Wrap(err)
+		cfg.SetToken(fc.AuthToken)
 	}
+
 	if fc.JoinParams != (JoinParams{}) {
-		if cfg.Token != "" {
+		if cfg.HasToken() {
 			return trace.BadParameter("only one of auth_token or join_params should be set")
 		}
-		_, err := cfg.ApplyToken(fc.JoinParams.TokenName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+
+		cfg.SetToken(fc.JoinParams.TokenName)
+
 		switch fc.JoinParams.Method {
 		case types.JoinMethodEC2, types.JoinMethodIAM, types.JoinMethodToken:
 			cfg.JoinMethod = fc.JoinParams.Method
@@ -2148,5 +2180,6 @@ func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.BadParameter(`unknown value for join_params.method: %q, expected one of %v`, fc.JoinParams.Method, []types.JoinMethod{types.JoinMethodEC2, types.JoinMethodIAM, types.JoinMethodToken})
 		}
 	}
+
 	return nil
 }

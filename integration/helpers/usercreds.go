@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 )
 
 // UserCreds holds user client credentials
@@ -37,7 +38,7 @@ type UserCreds struct {
 
 // SetupUserCreds sets up user credentials for client
 func SetupUserCreds(tc *client.TeleportClient, proxyHost string, creds UserCreds) error {
-	_, err := tc.AddKey(&creds.Key)
+	err := tc.AddKey(&creds.Key)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -100,13 +101,14 @@ type UserCredsRequest struct {
 
 // GenerateUserCreds generates key to be used by client
 func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
-	priv, pub, err := testauthority.New().GenerateKeyPair()
+	priv, err := testauthority.New().GeneratePrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	a := req.Process.GetAuthServer()
+	sshPub := ssh.MarshalAuthorizedKey(priv.SSHPublicKey())
 	sshCert, x509Cert, err := a.GenerateUserTestCerts(
-		pub, req.Username, time.Hour, constants.CertificateFormatStandard, req.RouteToCluster, req.SourceIP)
+		sshPub, req.Username, time.Hour, constants.CertificateFormatStandard, req.RouteToCluster, req.SourceIP)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -121,13 +123,13 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return &UserCreds{
 		HostCA: ca,
 		Key: client.Key{
-			Priv:    priv,
-			Pub:     pub,
-			Cert:    sshCert,
-			TLSCert: x509Cert,
+			PrivateKey: priv,
+			Cert:       sshCert,
+			TLSCert:    x509Cert,
 		},
 	}, nil
 }

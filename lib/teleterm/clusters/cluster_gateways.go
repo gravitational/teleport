@@ -35,6 +35,7 @@ type CreateGatewayParams struct {
 	// LocalPort is the gateway local port
 	LocalPort          string
 	CLICommandProvider gateway.CLICommandProvider
+	TCPPortAllocator   gateway.TCPPortAllocator
 }
 
 // CreateGateway creates a gateway
@@ -60,7 +61,9 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 		Insecure:              c.clusterClient.InsecureSkipVerify,
 		WebProxyAddr:          c.clusterClient.WebProxyAddr,
 		Log:                   c.Log.WithField("gateway", params.TargetURI),
-	}, params.CLICommandProvider)
+		CLICommandProvider:    params.CLICommandProvider,
+		TCPPortAllocator:      params.TCPPortAllocator,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

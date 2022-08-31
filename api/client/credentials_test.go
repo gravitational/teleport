@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 
 	"github.com/stretchr/testify/require"
@@ -251,7 +252,13 @@ func getExpectedTLSConfig(t *testing.T) *tls.Config {
 }
 
 func getExpectedSSHConfig(t *testing.T) *ssh.ClientConfig {
-	config, err := sshutils.ProxyClientSSHConfig(sshCert, keyPEM, [][]byte{sshCACert})
+	cert, err := sshutils.ParseCertificate(sshCert)
+	require.NoError(t, err)
+
+	priv, err := keys.ParsePrivateKey(keyPEM)
+	require.NoError(t, err)
+
+	config, err := sshutils.ProxyClientSSHConfig(cert, priv, sshCACert)
 	require.NoError(t, err)
 
 	return config

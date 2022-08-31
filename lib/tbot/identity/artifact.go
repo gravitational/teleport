@@ -24,11 +24,21 @@ import (
 
 // Artifact is a component of a serialized identity.
 type Artifact struct {
+	// Key is the name that this artifact should be stored under within a
+	// destination. For a file based destination, this will be the file name.
 	Key       string
 	Kind      ArtifactKind
 	ToBytes   func(*Identity) []byte
 	FromBytes func(*proto.Certs, *LoadIdentityParams, []byte)
-	Optional  bool
+
+	// Optional indicates whether or not an identity should fail to load if this
+	// key is missing.
+	Optional bool
+
+	// OldKey allows an artifact to be migrated from an older key to a new key.
+	// If this value is set, and we are unable to load from Key, we will try
+	// and load from OldKey
+	OldKey string
 }
 
 // Matches returns true if this artifact's Kind matches any one of the given
@@ -50,8 +60,12 @@ func (a *Artifact) Matches(kinds ...ArtifactKind) bool {
 var artifacts = []Artifact{
 	// SSH artifacts
 	{
-		Key:  SSHCertKey,
-		Kind: KindAlways,
+		Key: SSHCertKey,
+
+		// DELETE IN: 12.0
+		// Migrate from old key "sshcert".
+		OldKey: "sshcert",
+		Kind:   KindAlways,
 		ToBytes: func(i *Identity) []byte {
 			return i.CertBytes
 		},
