@@ -25,6 +25,12 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
+
+	"github.com/gravitational/teleport/api/types"
+	clients "github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/cloud"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
@@ -132,7 +138,7 @@ func TestWatcher(t *testing.T) {
 		name              string
 		awsMatchers       []services.AWSMatcher
 		azureMatchers     []services.AzureMatcher
-		clients           common.CloudClients
+		clients           clients.Clients
 		expectedDatabases types.Databases
 	}{
 		{
@@ -149,7 +155,7 @@ func TestWatcher(t *testing.T) {
 					Tags:    types.Labels{"env": []string{"dev"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				RDSPerRegion: map[string]rdsiface.RDSAPI{
 					"us-east-1": &cloud.RDSMock{
 						DBInstances: []*rds.DBInstance{rdsInstance1, rdsInstance3},
@@ -170,7 +176,7 @@ func TestWatcher(t *testing.T) {
 				Regions: []string{"us-east-1"},
 				Tags:    types.Labels{"*": []string{"*"}},
 			}},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				RDSPerRegion: map[string]rdsiface.RDSAPI{
 					"us-east-1": &cloud.RDSMock{
 						DBClusters: []*rds.DBCluster{auroraCluster1, auroraClusterUnsupported},
@@ -186,7 +192,7 @@ func TestWatcher(t *testing.T) {
 				Regions: []string{"us-east-1"},
 				Tags:    types.Labels{"*": []string{"*"}},
 			}},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				RDS: &cloud.RDSMock{
 					DBInstances: []*rds.DBInstance{rdsInstance1, rdsInstanceUnavailable, rdsInstanceUnknownStatus},
 					DBClusters:  []*rds.DBCluster{auroraCluster1, auroraClusterUnavailable, auroraClusterUnknownStatus},
@@ -201,7 +207,7 @@ func TestWatcher(t *testing.T) {
 				Regions: []string{"ca-central-1", "us-west-1", "us-east-1"},
 				Tags:    types.Labels{"*": []string{"*"}},
 			}},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				RDSPerRegion: map[string]rdsiface.RDSAPI{
 					"ca-central-1": &cloud.RDSMockUnauth{},
 					"us-west-1": &cloud.RDSMockByDBType{
@@ -225,7 +231,7 @@ func TestWatcher(t *testing.T) {
 					Tags:    types.Labels{"env": []string{"prod"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				Redshift: &cloud.RedshiftMock{
 					Clusters: []*redshift.Cluster{redshiftUse1Prod, redshiftUse1Dev},
 				},
@@ -241,7 +247,7 @@ func TestWatcher(t *testing.T) {
 					Tags:    types.Labels{"*": []string{"*"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				Redshift: &cloud.RedshiftMock{
 					Clusters: []*redshift.Cluster{redshiftUse1Prod, redshiftUse1Unavailable, redshiftUse1UnknownStatus},
 				},
@@ -257,7 +263,7 @@ func TestWatcher(t *testing.T) {
 					Tags:    types.Labels{"env": []string{"prod", "qa"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				ElastiCache: &cloud.ElastiCacheMock{
 					ReplicationGroups: []*elasticache.ReplicationGroup{
 						elasticacheProd, // labels match
@@ -280,7 +286,7 @@ func TestWatcher(t *testing.T) {
 					Tags:    types.Labels{"env": []string{"prod"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				MemoryDB: &cloud.MemoryDBMock{
 					Clusters: []*memorydb.Cluster{
 						memorydbProd, // labels match
@@ -307,7 +313,7 @@ func TestWatcher(t *testing.T) {
 					Tags:    types.Labels{"env": []string{"prod"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				RDS: &cloud.RDSMock{
 					DBClusters: []*rds.DBCluster{auroraCluster1},
 				},
