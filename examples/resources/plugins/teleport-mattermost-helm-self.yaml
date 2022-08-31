@@ -3,8 +3,8 @@ teleport:
   identitySecretName: teleport-plugin-mattermost-identity  # Identity file path
 
 mattermost:
-  url: https://mattermost.example.com/  # URL of the MatterMost instance
-  token: mattermosttoken                # MatterMost token of the bot
+  url: https://mattermost.example.com/  # URL of the Mattermost instance
+  token: mattermosttoken                # Mattermost token of the bot
   recipients:
     - "access-requests@example.com"     # User
     - "team/example-channel"            # Channel

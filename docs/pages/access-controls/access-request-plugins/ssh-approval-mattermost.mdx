@@ -31,13 +31,14 @@ plugin:
 
 - A Mattermost account with admin privileges. This plugin has been tested with
   Mattermost v7.0.1.
+- Either a Linux host or Kubernetes cluster where you will run the Mattermost plugin.
 
 (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/8. Define RBAC resources
 
 Before you set up the Mattermost plugin, you will need to enable Role Access
-Requests in your Teleport cluster.
+Requests in the Proxy or Auth Service.
 
 (!/docs/pages/includes/plugins/editor-request-rbac.mdx!)
 
@@ -54,7 +55,7 @@ will require both public internet access and Teleport Auth Service access.
 <ScopedBlock scope="cloud">
 
 Install the Teleport Mattermost plugin on a host that can access both your
-Teleport Cloud tenant and your Mattermost deployment.
+Teleport Proxy Service and your Mattermost deployment.
 
 </ScopedBlock>
 
@@ -177,7 +178,7 @@ Edit the configuration as explained below:
 <TabItem label="Teleport Enterprise" scope={["oss", "enterprise"]} options="Executable">
 
 **`addr`**: Include the hostname and HTTPS port of your Teleport Proxy Service
-(e.g., `mytenant.teleport.sh:443`). If you are configuring your plugin to
+(e.g., `teleport.example.com:443`). If you are configuring your plugin to
 connect directly to the Teleport Auth Service, use your Auth Service's gRPC
 endpoint (e.g., `teleport.example.com:3025`).
 
@@ -196,7 +197,7 @@ files and leave `identity` commented out.
 <TabItem label="Teleport Cloud" scope="cloud" options="Executable">
 
 **`addr`**: Include the hostname and HTTPS port of your Teleport Cloud tenant
-(e.g., `mytenant.teleport.sh:443`).
+(e.g., `teleport.example.com:443`).
 
 **`identity`**, **`client_key`**, **`client_crt`**, **`root_cas`**: Fill in the
 `identity` field with the path to the identity file you exported earlier and
@@ -206,7 +207,7 @@ comment out the other fields.
 <TabItem label="Teleport Enterprise " scope={["oss", "enterprise"]} options="Helm Chart">
 
 **`address`**: Include the hostname and HTTPS port of your Teleport Cloud tenant
-(e.g., `mytenant.teleport.sh:443`).
+(e.g., `teleport.example.com:443`).
 
 **`identitySecretName`**: Fill in the `identitySecretName` field with the name
 of the Kubernetes secret you created earlier.
@@ -215,7 +216,7 @@ of the Kubernetes secret you created earlier.
 <TabItem label="Teleport Cloud " scope="cloud" options="Helm Chart">
 
 **`address`**: Include the hostname and HTTPS port of your Teleport Cloud tenant
-(e.g., `mytenant.teleport.sh:443`).
+(e.g., `teleport.example.com:443`).
 
 **`identitySecretName`**: Fill in the `identitySecretName` field with the name
 of the Kubernetes secret you created earlier.
@@ -411,7 +412,7 @@ $ kubectl logs deploy/teleport-plugin-mattermost
 ```
 
 Debug logs can be enabled by setting `log.severity` to `DEBUG` in
-`teleport-mattermost-helm.yaml` and execute the `helm upgrade ...` command
+`teleport-mattermost-helm.yaml` and executing the `helm upgrade ...` command
 above again. Then you can restart the plugin with the following command:
 
 ```code
