@@ -24,6 +24,48 @@
 
 set -euo pipefail
 
+# require_curl checks if $CURL is set and exits with error
+# if it is empty
+require_curl() {
+  if [ -z "$CURL" ]; then
+    echo "This script requires either curl or wget in order to download files"
+    exit 1
+  fi
+}
+
+install_via_apt() {
+  echo "Installing Teleport through apt-get"
+  require_curl
+  $SUDO "$CURL" https://apt.releases.teleport.dev/gpg -o /usr/share/keyrings/teleport-archive-keyring.asc
+  SRC="deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://deb.releases.teleport.dev/ stable main"
+  echo $SRC | $SUDO tee /etc/apt/sources.list.d/teleport.list >/dev/null
+  $SUDO apt-get update
+  $SUDO apt-get install teleport
+}
+
+# install_via_yum installs latest teleport via yum or dnf
+install_via_yum() {
+  if type dnf >/dev/null; then
+    $SUDO dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+    $SUDO dnf install teleport -y
+  else
+    $SUDO yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+    $SUDO yum install teleport -y
+  fi
+
+}
+
+install_via_curl() {
+  require_curl
+
+  # TODO save to a /tmp file instead
+  $CURL https://get.gravitational.com/teleport-v10.1.4-linux-arm-bin.tar.gz.sha256
+  $CURL -O https://get.gravitational.com/teleport-v10.1.4-linux-arm-bin.tar.gz
+  sha256sum -a 256 teleport-v10.1.4-linux-arm-bin.tar.gz
+  tar -xzf teleport-v10.1.4-linux-arm-bin.tar.gz
+  $SUDO ./teleport/install
+}
+
 install_teleport() {
   echo "installing teleport"
 
@@ -68,48 +110,43 @@ install_teleport() {
 
   OSRELEASE=/etc/os-release
   # detect distro
+  ID=""
+  ID_LIKE=""
   if [[ -f "$OSRELEASE" ]]; then
     . $OSRELEASE
   fi
 
+  echo "The detected ID is $ID"
+
   # select install method based on distribution
   # if ID is ubuntu/debian/(what else?), run apt
   case "$ID" in
-  ubuntu)
-    echo "ubuntu"
-    # require curl
-    # TODO determine if it is legacy
-    $SUDO $CURL https://apt.releases.teleport.dev/gpg -o /usr/share/keyrings/teleport-archive-keyring.asc
-    echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
-    https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/v10" |
-      $SUDO tee /etc/apt/sources.list.d/teleport.list >/dev/null
-    $SUDO apt-get update
-    $SUDO apt-get install teleport
-    ;;
-
-  debian)
-    echo "is debian debian!"
-    $SUDO $CURL https://apt.releases.teleport.dev/gpg -o /usr/share/keyrings/teleport-archive-keyring.asc
-    echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
-    https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/v10" |
-      $SUDO tee /etc/apt/sources.list.d/teleport.list >/dev/null
-    $SUDO apt-get update
-    $SUDO apt-get install teleport
+  debian | ubuntu | kali | linuxmint | pop | raspbian | neon | zorin  | parrot | elementary)
+    install_via_apt
     ;;
   # if ID is amazon Linux 2/RHEL/(what else?), run yum
-  rhel)
+  centos | rhel | fedora | rocky | almalinux | xenenterprise | ol | scientific) # todo add amazn back
     echo "is redhat enterprise linux"
-    ;;
-  amazn)
-    echo "is amazon linux"
+    install_via_yum
     ;;
   *)
-    # if ID is other, curl the tarball, unzip and install
-    echo "is another distro"
+    # beforing downloading manually, check if we didn't miss any debian or rh/fedora derived distros
+    case "$ID_LIKE" in
+    ubuntu | debian)
+      install_via_apt
+      ;;
+    "rhel fedora" | fedora | "centos rhel fedora")
+      install_via_yum
+      ;;
+    *)
+    # if ID and ID_LIKE didn't return a supported distro, download through curl
+    echo "There is no oficially supported package to $ID distribution. Downloading and installying Teleport manually"
+    install_via_curl
     ;;
+    esac
   esac
-
 }
 
 install_teleport
-which teleport
+# which teleport
+teleport configure
