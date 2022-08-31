@@ -1771,6 +1771,7 @@ message OneOf {
         events.SessionConnect SessionConnect = 67;
         events.CertificateCreate CertificateCreate = 68;
         events.SFTP SFTP = 69;
+        events.SessionRecordingAccess SessionRecordingAccess = 94;
         events.Unknown Unknown = 80;
     }
 }
@@ -1894,4 +1895,17 @@ message RouteToDatabase {
     string Username = 3 [ (gogoproto.jsontag) = "username,omitempty" ];
     // Database is an optional database name to embed.
     string Database = 4 [ (gogoproto.jsontag) = "database,omitempty" ];
+}
+
+// SessionRecordingAccess is emitted when a session recording is accessed, allowing
+// session views to be included in the audit log
+message SessionRecordingAccess {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SessionID is the ID of the session.
+    string SessionID = 2 [ (gogoproto.jsontag) = "sid" ];
+    // UserMetadata is a common user event metadata.
+    UserMetadata UserMetadata = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
