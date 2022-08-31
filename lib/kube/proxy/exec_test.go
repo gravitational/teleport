@@ -192,6 +192,7 @@ type testContext struct {
 	kubeServiceAddress string
 	kubeServer         *TLSServer
 	emitter            *eventstest.ChannelEmitter
+	listener           net.Listener
 	// clock to override clock in tests.
 	clock     clockwork.FakeClock
 	ctx       context.Context
@@ -203,6 +204,7 @@ type testContext struct {
 func (c *testContext) startKubeService(t *testing.T) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
+	c.listener = listener
 	go c.kubeServer.Serve(listener)
 }
 
@@ -341,7 +343,7 @@ func setupTestContext(ctx context.Context, t *testing.T, clusters ...withKuberne
 
 	time.Sleep(1 * time.Second)
 
-	testCtx.kubeServiceAddress = testCtx.kubeServer.listener.Addr().String()
+	testCtx.kubeServiceAddress = testCtx.listener.Addr().String()
 	return testCtx
 }
 
