@@ -214,7 +214,7 @@ function Send-ErrorMessage {
         $GoOS = $(go env GOOS)
 		$GoArch = $(go env GOARCH)
         $Msg = @"
-THIS IS A TEST (by @trent): Warning: ``$GoOS-$GoArch`` artifact build failed for [``$Env:DRONE_REPO_NAME``] - please investigate immediately!
+Warning: ``$GoOS-$GoArch`` artifact build failed for [``$Env:DRONE_REPO_NAME``] - please investigate immediately!
 Branch: ``$Env:DRONE_BRANCH``
 Commit: ``$Env:DRONE_COMMIT_SHA``
 Link: $BuildUrl
