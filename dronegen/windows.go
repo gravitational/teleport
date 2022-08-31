@@ -14,7 +14,9 @@
 
 package main
 
-import "path"
+import (
+	"path"
+)
 
 const (
 	perBuildWorkspace = `$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER`
@@ -87,6 +89,20 @@ func windowsPushPipeline() pipeline {
 		buildWindowsTshStep(p.Workspace.Path),
 		buildWindowsTeleportConnectStep(p.Workspace.Path),
 		cleanUpWindowsWorkspaceStep(p.Workspace.Path),
+		{
+			Name: "Send Slack notification (exec)",
+			Environment: map[string]value{
+				"WORKSPACE_DIR":              {raw: p.Workspace.Path},
+				"SLACK_WEBHOOK_DEV_TELEPORT": {fromSecret: "SLACK_WEBHOOK_DEV_TELEPORT"},
+			},
+			Commands: []string{
+				`$Workspace = "` + perBuildWorkspace + `"`,
+				`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
+				`. "$TeleportSrc/build.assets/windows/build.ps1"`,
+				`Send-ErrorMessage`,
+			},
+			When: &condition{Status: []string{"failure"}},
+		},
 	}
 
 	return p

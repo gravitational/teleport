@@ -779,6 +779,10 @@
           "title": "Access Controls",
           "slug": "/desktop-access/rbac/"
         },
+	{
+	    "title": "Directory Sharing",
+	    "slug": "/desktop-access/directory-sharing/"
+	},
         {
           "title": "Reference",
           "slug": "/desktop-access/reference/",
@@ -969,6 +973,10 @@
             {
               "title": "teleport-plugin-jira",
               "slug": "/reference/helm-reference/teleport-plugin-jira/"
+            },
+            {
+              "title": "teleport-plugin-pagerduty",
+              "slug": "/reference/helm-reference/teleport-plugin-pagerduty/"
             }
           ]
         }

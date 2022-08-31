@@ -2266,7 +2266,7 @@ type installerConfig struct {
 }
 
 func (c *installerConfig) erase(ctx context.Context) error {
-	if err := c.clusterConfigCache.DeleteInstaller(ctx); err != nil {
+	if err := c.clusterConfigCache.DeleteAllInstallers(ctx); err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
@@ -2275,29 +2275,27 @@ func (c *installerConfig) erase(ctx context.Context) error {
 }
 
 func (c *installerConfig) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	var noConfig bool
-	resource, err := c.ClusterConfig.GetInstaller(ctx)
+	resources, err := c.ClusterConfig.GetInstallers(ctx)
 	if err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-		noConfig = true
+		return nil, trace.Wrap(err)
 	}
 	return func(ctx context.Context) error {
-		// either zero or one instance exists, so we either erase or
-		// update, but not both.
-		if noConfig {
-			return trace.Wrap(c.erase(ctx))
+		if err := c.erase(ctx); err != nil {
+			return trace.Wrap(err)
 		}
-
-		return trace.Wrap(c.clusterConfigCache.SetInstaller(ctx, resource))
+		for _, res := range resources {
+			if err := c.clusterConfigCache.SetInstaller(ctx, res); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
 	}, nil
 }
 
 func (c *installerConfig) processEvent(ctx context.Context, event types.Event) error {
 	switch event.Type {
 	case types.OpDelete:
-		err := c.clusterConfigCache.DeleteInstaller(ctx)
+		err := c.clusterConfigCache.DeleteInstaller(ctx, event.Resource.GetName())
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				c.Warningf("Failed to delete resource %v.", err)

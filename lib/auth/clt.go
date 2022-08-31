@@ -754,21 +754,6 @@ func (c *Client) DeleteProxy(name string) error {
 	return nil
 }
 
-// UpsertPassword updates web access password for the user
-func (c *Client) UpsertPassword(user string, password []byte) error {
-	_, err := c.PostJSON(
-		context.TODO(),
-		c.Endpoint("users", user, "web", "password"),
-		upsertPasswordReq{
-			Password: string(password),
-		})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 // UpsertUser user updates user entry.
 func (c *Client) UpsertUser(user types.User) error {
 	data, err := services.MarshalUser(user)
@@ -1399,8 +1384,6 @@ type WebService interface {
 
 // IdentityService manages identities and users
 type IdentityService interface {
-	// UpsertPassword updates web access password for the user
-	UpsertPassword(user string, password []byte) error
 	// UpsertOIDCConnector updates or creates OIDC connector
 	UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error
 	// GetOIDCConnector returns OIDC connector information by id
