@@ -828,6 +828,10 @@
           "slug": "/machine-id/getting-started/"
         },
         {
+          "title": "Architecture",
+          "slug": "/machine-id/architecture/"
+        },
+        {
           "title": "Troubleshooting",
           "slug": "/machine-id/troubleshooting/"
         },
