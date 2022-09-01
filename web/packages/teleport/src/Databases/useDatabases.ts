@@ -39,6 +39,7 @@ export default function useDatabases(ctx: Ctx) {
   const isEnterprise = ctx.isEnterprise;
   const version = ctx.storeUser.state.cluster.authVersion;
   const authType = ctx.storeUser.state.authType;
+  const accessRequestId = ctx.storeUser.getAccessRequestId();
   const [isAddDialogVisible, setIsAddDialogVisible] = useState(false);
   const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
   const [params, setParams] = useState<ResourceUrlQueryParams>({
@@ -178,6 +179,7 @@ export default function useDatabases(ctx: Ctx) {
     fetchStatus,
     isSearchEmpty,
     onLabelClick,
+    accessRequestId,
   };
 }
 

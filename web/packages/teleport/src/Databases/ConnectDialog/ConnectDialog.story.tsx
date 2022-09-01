@@ -32,3 +32,17 @@ export const Connect = () => (
     authType="local"
   />
 );
+
+export const ConnectWithRequestId = () => {
+  return (
+    <ConnectDialog
+      username="yassine"
+      dbName="aurora"
+      dbProtocol="postgres"
+      clusterId="im-a-cluster"
+      onClose={() => null}
+      authType="local"
+      accessRequestId="e1e8072c-1eb8-5df4-a7bd-b6863b19271c"
+    />
+  );
+};

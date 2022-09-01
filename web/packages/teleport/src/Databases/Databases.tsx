@@ -65,6 +65,7 @@ export function Databases(props: State) {
     fetchStatus,
     isSearchEmpty,
     onLabelClick,
+    accessRequestId,
   } = props;
 
   const hasNoDatabases = results.databases.length === 0 && isSearchEmpty;
@@ -110,6 +111,7 @@ export function Databases(props: State) {
             pathname={pathname}
             replaceHistory={replaceHistory}
             onLabelClick={onLabelClick}
+            accessRequestId={accessRequestId}
           />
         </>
       )}
