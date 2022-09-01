@@ -53,7 +53,7 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentDiscovery,
 			Log:       process.log.WithField(trace.Component, teleport.ComponentDiscovery),
-			Client:    conn.Client,
+			Client:    accessPoint,
 		},
 	})
 	if err != nil {
@@ -92,11 +92,11 @@ func (process *TeleportProcess) initDiscoveryService() error {
 	})
 
 	process.BroadcastEvent(Event{Name: DiscoveryReady, Payload: nil})
-	log.Infof("Discovery service has successfully started")
 
 	if err := discoveryService.Start(); err != nil {
 		return trace.Wrap(err)
 	}
+	log.Infof("Discovery service has successfully started")
 
 	if err := discoveryService.Wait(); err != nil {
 		return trace.Wrap(err)

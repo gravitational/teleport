@@ -91,7 +91,7 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 		return trace.Wrap(err)
 	}
 
-	var g errgroup.Group
+	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(10)
 	for _, inst := range ids {
 		inst := inst

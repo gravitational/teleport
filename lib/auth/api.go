@@ -701,6 +701,9 @@ type ReadDiscoveryAccessPoint interface {
 
 	// GetNamespace returns namespace by name
 	GetNamespace(name string) (*types.Namespace, error)
+
+	// GetNodes returns a list of registered servers for this cluster.
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 }
 
 // DiscoveryAccessPoint is an API interface implemented by a certificate authority (CA) to be

@@ -138,11 +138,11 @@ type ec2FetcherConfig struct {
 }
 
 type ec2InstanceFetcher struct {
-	Filters    []*ec2.Filter
-	EC2        ec2iface.EC2API
-	Region     string
-	Document   string
-	Parameters map[string]string
+	Filters      []*ec2.Filter
+	EC2          ec2iface.EC2API
+	Region       string
+	DocumentName string
+	Parameters   map[string]string
 }
 
 func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
@@ -158,10 +158,10 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 		})
 	}
 	fetcherConfig := ec2InstanceFetcher{
-		EC2:      cfg.EC2Client,
-		Filters:  tagFilters,
-		Region:   cfg.Region,
-		Document: cfg.Document,
+		EC2:          cfg.EC2Client,
+		Filters:      tagFilters,
+		Region:       cfg.Region,
+		DocumentName: cfg.Document,
 		Parameters: map[string]string{
 			"token":      cfg.Matcher.Params.JoinToken,
 			"scriptName": cfg.Matcher.Params.ScriptName,
@@ -181,7 +181,7 @@ func (f *ec2InstanceFetcher) GetEC2Instances(ctx context.Context) ([]EC2Instance
 				instances = append(instances, EC2Instances{
 					AccountID:    aws.StringValue(res.OwnerId),
 					Region:       f.Region,
-					DocumentName: f.Document,
+					DocumentName: f.DocumentName,
 					Instances:    res.Instances,
 					Parameters:   f.Parameters,
 				})

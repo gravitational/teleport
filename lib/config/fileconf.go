@@ -1108,6 +1108,7 @@ func (ssh *SSH) X11ServerConfig() (*x11.ServerConfig, error) {
 	return cfg, nil
 }
 
+// Discovery represents a discovery_service section in the config file.
 type Discovery struct {
 	Service `yaml:",inline"`
 

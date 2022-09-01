@@ -463,12 +463,12 @@ type TestCloudClients struct {
 	STS                     stsiface.STSAPI
 	GCPSQL                  GCPSQLAdminClient
 	EC2                     ec2iface.EC2API
+	SSM                     ssmiface.SSMAPI
 	AzureMySQL              azure.DBServersClient
 	AzureMySQLPerSub        map[string]azure.DBServersClient
 	AzurePostgres           azure.DBServersClient
 	AzurePostgresPerSub     map[string]azure.DBServersClient
 	AzureSubscriptionClient *azure.SubscriptionClient
-	SSM                     ssmiface.SSMAPI
 }
 
 // GetAWSSession returns AWS session for the specified region.

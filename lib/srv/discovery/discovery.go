@@ -54,16 +54,20 @@ type Server struct {
 	cloudWatcher *server.Watcher
 	// ec2Installer is used to start the installation process on discovered EC2 nodes
 	ec2Installer *server.SSMInstaller
+
+	cancelfn context.CancelFunc
 }
 
 func New(ctx context.Context, cfg *Config) (*Server, error) {
+	localCtx, cancelfn := context.WithCancel(ctx)
+
 	s := &Server{
 		Config: cfg,
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component:       teleport.ComponentDiscovery,
-			trace.ComponentFields: logrus.Fields{},
+			trace.Component: teleport.ComponentDiscovery,
 		}),
-		ctx: ctx,
+		ctx:      localCtx,
+		cancelfn: cancelfn,
 	}
 	var err error
 	if len(s.Matchers) == 0 {
@@ -77,7 +81,6 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	s.ec2Installer = server.NewSSMInstaller(server.SSMInstallerConfig{
 		Emitter: cfg.Emitter,
 	})
-
 	return s, nil
 }
 
@@ -113,8 +116,8 @@ func (s *Server) handleInstances(instances *server.EC2Instances) error {
 	}
 	s.filterExistingNodes(instances)
 	if len(instances.Instances) == 0 {
-		s.log.Debugf("All fetched nodes already enrolled.")
-		return nil
+
+		return trace.NotFound("all fetched nodes already enrolled.")
 	}
 	instIDs := make([]string, len(instances.Instances))
 	for idx, inst := range instances.Instances {
@@ -155,12 +158,15 @@ func (s *Server) handleEC2Discovery() {
 	}
 }
 
+// Start starts the discovery service.
 func (s *Server) Start() error {
 	go s.handleEC2Discovery()
 	return nil
 }
 
+// Stop stops the discovery service.
 func (s *Server) Stop() {
+	s.cancelfn()
 	s.cloudWatcher.Stop()
 }
 
