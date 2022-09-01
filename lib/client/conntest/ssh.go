@@ -29,7 +29,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -42,9 +41,6 @@ type SSHConnectionTesterConfig struct {
 	// UserClient is an auth client that has a User's identity.
 	// This is the user that is running the SSH Connection Test.
 	UserClient auth.ClientI
-
-	//ProxyClient is an auth client that has the Proxy's identity.
-	ProxyClient auth.ClientI
 
 	// ProxyHostPort is the proxy to use in the `--proxy` format (host:webPort,sshPort)
 	ProxyHostPort string
@@ -161,30 +157,12 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		ClusterName: clusterName.GetClusterName(),
 	}
 
-	host, err := s.getNodeHost(ctx, req.ResourceName)
-	if err != nil {
-		if trace.IsNotFound(err) {
-			connDiag, err := s.cfg.UserClient.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewTraceDiagnosticConnection(
-				types.ConnectionDiagnosticTrace_RBAC_NODE,
-				"Node not found. Ensure the Node exists and your role allows you to access it.",
-				err,
-			))
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return connDiag, nil
-		}
-
-		return nil, trace.Wrap(err)
-	}
-
 	processStdout := &bytes.Buffer{}
 
 	clientConf := client.MakeDefaultConfig()
 	clientConf.AddKeysToAgent = client.AddKeysToAgentNo
 	clientConf.AuthMethods = []ssh.AuthMethod{keyAuthMethod}
-	clientConf.Host = host
+	clientConf.Host = req.ResourceName
 	clientConf.HostKeyCallback = hostkeyCallback
 	clientConf.HostLogin = req.SSHPrincipal
 	clientConf.SkipLocalAuth = true
@@ -229,19 +207,6 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	return connDiag, nil
 }
 
-func (s SSHConnectionTester) getNodeHost(ctx context.Context, nodeName string) (host string, err error) {
-	if s.cfg.TLSRoutingEnabled {
-		return nodeName, nil
-	}
-
-	node, err := s.cfg.ProxyClient.GetNode(ctx, defaults.Namespace, nodeName)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return node.GetHostname(), nil
-}
-
 func (s SSHConnectionTester) handleErrFromSSH(ctx context.Context, connectionDiagnosticID string, sshPrincipal string, sshError error, processStdout *bytes.Buffer) (types.ConnectionDiagnostic, error) {
 	if trace.IsConnectionProblem(sshError) {
 		connDiag, err := s.cfg.UserClient.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewTraceDiagnosticConnection(
@@ -283,7 +248,7 @@ func (s SSHConnectionTester) handleErrFromSSH(ctx context.Context, connectionDia
 
 	connDiag, err := s.cfg.UserClient.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewTraceDiagnosticConnection(
 		types.ConnectionDiagnosticTrace_UNKNOWN_ERROR,
-		"Unknown error.",
+		fmt.Sprintf("Unknown error. %s", processStdoutString),
 		sshError,
 	))
 	if err != nil {

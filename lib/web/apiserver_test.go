@@ -3845,8 +3845,6 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 				NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 				Rules: []types.Rule{
 					types.NewRule(types.KindConnectionDiagnostic, services.RW()),
-					types.NewRule(types.KindNode, services.RW()),
-					types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
 				},
 				Logins: []string{login},
 			},
@@ -3863,7 +3861,6 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 				NodeLabels: types.Labels{"forbidden": []string{"yes"}},
 				Rules: []types.Rule{
 					types.NewRule(types.KindConnectionDiagnostic, services.RW()),
-					types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
 				},
 				Logins: []string{login},
 			},
@@ -3879,9 +3876,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 				Namespaces: []string{apidefaults.Namespace},
 				NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 				Rules: []types.Rule{
-					types.NewRule(types.KindNode, services.RO()),
 					types.NewRule(types.KindConnectionDiagnostic, services.RW()),
-					types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
 				},
 				Logins: []string{principal},
 			},
@@ -3892,6 +3887,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 	require.NotNil(t, roleWithPrincipal)
 
 	env := newWebPack(t, 1)
+	nodeName := env.node.GetInfo().GetHostname()
 
 	for _, tt := range []struct {
 		name            string
@@ -3908,7 +3904,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 			name:            "success",
 			roles:           roleWithFullAccess("success", osUsername),
 			teleportUser:    "success",
-			resourceName:    "node",
+			resourceName:    nodeName,
 			nodeUser:        osUsername,
 			expectedSuccess: true,
 			expectedMessage: "success",
@@ -3945,10 +3941,10 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 			expectedMessage: "failed",
 			expectedTraces: []types.ConnectionDiagnosticTrace{
 				{
-					Type:    types.ConnectionDiagnosticTrace_RBAC_NODE,
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
-					Details: "Node not found. Ensure the Node exists and your role allows you to access it.",
-					Error:   `key "/nodes/default/notanode" is not found`,
+					Details: `Failed to connect to the Node. Ensure teleport service is running using "systemctl status teleport".`,
+					Error:   "Teleport proxy failed to connect to",
 				},
 			},
 		},
@@ -3956,7 +3952,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 			name:            "node not reachable",
 			teleportUser:    "nodenotreachable",
 			roles:           roleWithFullAccess("nodenotreachable", osUsername),
-			resourceName:    "node",
+			resourceName:    nodeName,
 			nodeUser:        osUsername,
 			stopNode:        true,
 			expectedSuccess: false,
@@ -3974,7 +3970,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 			name:            "no access to node",
 			teleportUser:    "userwithoutaccess",
 			roles:           rolesWithoutAccessToNode("userwithoutaccess", osUsername),
-			resourceName:    "node",
+			resourceName:    nodeName,
 			nodeUser:        osUsername,
 			expectedSuccess: false,
 			expectedMessage: "failed",
@@ -3991,7 +3987,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 			name:            "selected principal is not part of the allowed principals",
 			teleportUser:    "deniedprincipal",
 			roles:           roleWithFullAccess("deniedprincipal", "otherprincipal"),
-			resourceName:    "node",
+			resourceName:    nodeName,
 			nodeUser:        osUsername,
 			expectedSuccess: false,
 			expectedMessage: "failed",
@@ -4008,7 +4004,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 			name:            "principal doesnt exist in target host",
 			teleportUser:    "principaldoesnotexist",
 			roles:           roleWithPrincipal("principaldoesnotexist", "nonvalidlinuxuser"),
-			resourceName:    "node",
+			resourceName:    nodeName,
 			nodeUser:        "nonvalidlinuxuser",
 			expectedSuccess: false,
 			expectedMessage: "failed",
@@ -4023,6 +4019,9 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			// if tt.name != "success" {
+			// 	return
+			// }
 			localEnv := env
 
 			if tt.stopNode {

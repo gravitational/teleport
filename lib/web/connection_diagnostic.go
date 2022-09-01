@@ -72,7 +72,6 @@ func (h *Handler) diagnoseConnection(w http.ResponseWriter, r *http.Request, p h
 	connectionTesterConfig := conntest.ConnectionTesterConfig{
 		ResourceKind:      req.ResourceKind,
 		UserClient:        userClt,
-		ProxyClient:       h.GetProxyClient(),
 		ProxyHostPort:     h.ProxyHostPort(),
 		TLSRoutingEnabled: proxySettings.TLSRoutingEnabled,
 	}

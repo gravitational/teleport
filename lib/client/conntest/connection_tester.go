@@ -85,9 +85,6 @@ type ConnectionTesterConfig struct {
 	// This is the user that is running the SSH Connection Test.
 	UserClient auth.ClientI
 
-	//ProxyClient is an auth client that has the Proxy's identity.
-	ProxyClient auth.ClientI
-
 	// ProxyHostPort is the proxy to use in the `--proxy` format (host:webPort,sshPort)
 	ProxyHostPort string
 
@@ -104,7 +101,6 @@ func ConnectionTesterForKind(cfg ConnectionTesterConfig) (ConnectionTester, erro
 		tester, err := NewSSHConnectionTester(
 			SSHConnectionTesterConfig{
 				UserClient:        cfg.UserClient,
-				ProxyClient:       cfg.ProxyClient,
 				ProxyHostPort:     cfg.ProxyHostPort,
 				TLSRoutingEnabled: cfg.TLSRoutingEnabled,
 			},
