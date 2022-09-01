@@ -713,7 +713,7 @@ func (a *Server) createOIDCUser(p *createUserParams, dryRun bool) (types.User, e
 	return user, nil
 }
 
-// usernameFromClaims gets the username of the OIDC user based on the claims received. The `preferred_username` field in the OIDC
+// usernameFromClaims gets the username of the OIDC user based on the claims received. The `username_claim` field in the OIDC
 // config specifies which claim from the OIDC provider to use as the user's username. If it isn't specified, the email will be used
 // as the username. If it is specified but specifies a claim that doesn't exist, an error is returned.
 func usernameFromClaims(connector types.OIDCConnector, claims jose.Claims, ident *oidc.Identity) (string, error) {
@@ -724,11 +724,10 @@ func usernameFromClaims(connector types.OIDCConnector, claims jose.Claims, ident
 	}
 
 	username, ok, err := claims.StringClaim(usernameClaim)
-
 	if err != nil {
 		return "", err
 	} else if !ok {
-		return "", trace.AccessDenied("The configured username_claim of '%v' was not received from the IdP. Please update the username_claim in connector '%v'.", usernameClaim, connector.GetName())
+		return "", trace.BadParameter("The configured username_claim of %q was not received from the IdP. Please update the username_claim in connector %q.", usernameClaim, connector.GetName())
 	}
 
 	return username, nil

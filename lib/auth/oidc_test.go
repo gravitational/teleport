@@ -859,6 +859,7 @@ func TestUsernameClaim(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			// Create OIDC connector with UsernameClaim specified.
 			connector, err := types.NewOIDCConnector("okta-oidc", tc.spec)
+			require.NoError(t, err)
 
 			// Create OIDC request.
 			oidcRequest := types.OIDCAuthRequest{
@@ -873,7 +874,6 @@ func TestUsernameClaim(t *testing.T) {
 
 			// Generate the userCreateParams for the OIDC user.
 			createUserParams, err := s.a.calculateOIDCUser(&diagCtx, connector, claims, ident, request)
-
 			if tc.expectedError != "" {
 				require.ErrorContains(t, err, tc.expectedError)
 			} else {
