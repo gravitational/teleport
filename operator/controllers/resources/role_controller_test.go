@@ -180,7 +180,11 @@ allow:
 						Name:      roleName,
 					}, obj)
 					errorConditions := getRoleStatusConditionError(obj.Object)
-					require.NotEmpty(t, errorConditions)
+					// If there's no error condition, reconciliation has not happened yet
+					if len(errorConditions) == 0 {
+						return false
+					}
+
 					_, err := setup.tClient.GetRole(ctx, roleName)
 					require.True(t, trace.IsNotFound(err), "The role should not be created in Teleport")
 					return true
