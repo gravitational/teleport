@@ -3671,6 +3671,8 @@ message SessionRecordingAccess {
   ];
 }
 
+// CassandraSession is emitted when a Cassandra client sends
+// the prepare a CQL statement.
 message CassandraPrepare {
   // Metadata is a common event metadata.
   Metadata Metadata = 1 [
@@ -3696,11 +3698,13 @@ message CassandraPrepare {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
-
+  // Query is the CQL statement.
   string Query = 5 [(gogoproto.jsontag) = "query,omitempty"];
+  // Keyspace is the keyspace the statement is in.
   string Keyspace = 6 [(gogoproto.jsontag) = "keyspace,omitempty"];
 }
 
+// CassandraExecute is emitted when a Cassandra client executes a CQL statement.
 message CassandraExecute {
   // Metadata is a common event metadata.
   Metadata Metadata = 1 [
@@ -3726,10 +3730,11 @@ message CassandraExecute {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
-
+  // QueryId is the prepared query id to execute.
   string QueryId = 5 [(gogoproto.jsontag) = "query_id,omitempty"];
 }
 
+// CassandraBatch is emitted when a Cassandra client executes a batch of CQL statements.
 message CassandraBatch {
   // Metadata is a common event metadata.
   Metadata Metadata = 1 [
@@ -3756,21 +3761,33 @@ message CassandraBatch {
     (gogoproto.jsontag) = ""
   ];
 
+  // QueryId is the prepared query id to execute.
   string Queries = 5 [(gogoproto.jsontag) = "query_id,omitempty"];
+  // Consistency is the consistency level to use.
   string Consistency = 6 [(gogoproto.jsontag) = "consistency,omitempty"];
+  // Keyspace is the keyspace the statement is in.
   string Keyspace = 7 [(gogoproto.jsontag) = "keyspace,omitempty"];
+  // BatchType is the type of batch.
   string BatchType = 8 [(gogoproto.jsontag) = "type,omitempty"];
+  // BatchSize is the batch children statements.
   message BatchChild {
     message Value {
+      // Type is the type of the value.
       uint32 Type = 1 [(gogoproto.jsontag) = "type,omitempty"];
+      // Content is the value.
       string Contents = 2 [(gogoproto.jsontag) = "contents,omitempty"];
     }
+    // QueryOrId is the query or query id to execute.
     string QueryOrId = 1 [(gogoproto.jsontag) = "query_or_id,omitempty"];
-    repeated Value values = 2 [(gogoproto.jsontag) = "values,omitempty"];
+    // Values is the values to bind to the query.
+    repeated Value Values = 2 [(gogoproto.jsontag) = "values,omitempty"];
   }
-  repeated BatchChild children = 9 [(gogoproto.jsontag) = "children,omitempty"];
+  // Children is batch children statements.
+  repeated BatchChild Children = 9 [(gogoproto.jsontag) = "children,omitempty"];
 }
 
+// CassandraRegister is emitted when a Cassandra client
+// request to register for the specified event types
 message CassandraRegister {
   // Metadata is a common event metadata.
   Metadata Metadata = 1 [
@@ -3796,5 +3813,6 @@ message CassandraRegister {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+  // EventTypes is the list of event types to register for.
   repeated string EventTypes = 5 [(gogoproto.jsontag) = "events_types,omitempty"];
 }
