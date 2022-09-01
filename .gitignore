@@ -81,4 +81,5 @@ go.work
 go.work.sum
 
 # Buf side-effects
+/bin/
 /github.com

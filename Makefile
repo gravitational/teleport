@@ -889,8 +889,9 @@ enter/centos7:
 enter/teleterm:
 	make -C build.assets enter/teleterm
 
-
-BUF := buf
+# Use a versioned name so we can do updates correctly and distinguish from the
+# regular 'buf' binary in buildboxes.
+BUF := $(PWD)/bin/buf-$(shell grep bufbuild/buf tools/go.mod | awk '{print $$2}')
 
 # protos/all runs build, lint and format on all protos.
 # Use `make grpc` to regenerate protos inside buildbox.
@@ -898,42 +899,48 @@ BUF := buf
 protos/all: protos/build protos/lint protos/format
 
 .PHONY: protos/build
-protos/build: buf/installed
+protos/build: $(BUF)
 	$(BUF) build
 	cd lib/teleterm && $(BUF) build
 
 .PHONY: protos/format
-protos/format: buf/installed
+protos/format: $(BUF)
 	$(BUF) format -w
 	cd lib/teleterm && $(BUF) format -w
 
 .PHONY: protos/lint
-protos/lint: buf/installed
+protos/lint: $(BUF)
 	$(BUF) lint
 	cd api/proto && $(BUF) lint --config=buf-legacy.yaml
 	cd lib/teleterm && $(BUF) lint
 
+.PHONY: protos/gen/go
+protos/gen/go: $(BUF) protos/gen/plugins
+	rm -fr github.com/ api/gen/proto gen/proto
+	PATH="$(PWD)/bin:$$PATH" $(BUF) generate
+	cp -r github.com/gravitational/teleport/* .
+	rm -fr github.com/
+
+.PHONY: protos/gen/plugins
+protos/gen/plugins:
+	mkdir -p bin
+# Install protoc plugins under bin/.
+# These are required for codegen.
+	cd tools && go build -o ../bin/ github.com/gogo/protobuf/protoc-gen-gogofast
+	cd tools && go build -o ../bin/ github.com/golang/protobuf/protoc-gen-go
+
+$(BUF):
+ifneq (,$(findstring $(PWD)/bin/buf-,$(BUF)))
+	mkdir -p bin
+	cd tools && go build -o $(BUF) github.com/bufbuild/buf/cmd/buf
+endif
+
 .PHONY: lint-protos
 lint-protos: protos/lint
 
-.PHONY: buf/installed
-buf/installed:
-	@if ! type -p $(BUF) >/dev/null; then \
-		echo 'Buf is required to build/format/lint protos. Follow https://docs.buf.build/installation.'; \
-		exit 1; \
-	fi
-
 # grpc generates GRPC stubs from service definitions.
-# This target runs in the buildbox container.
 .PHONY: grpc
-grpc:
-	$(MAKE) -C build.assets grpc
-
-# grpc/host generates GRPC stubs.
-# Unlike grpc, this target runs locally.
-.PHONY: grpc/host
-grpc/host: protos/all
-	@build.assets/genproto.sh
+grpc: protos/gen/go
 
 print/env:
 	env
@@ -954,8 +961,8 @@ grpc-teleterm:
 # grpc-teleterm/host generates GRPC stubs.
 # Unlike grpc-teleterm, this target runs locally.
 .PHONY: grpc-teleterm/host
-grpc-teleterm/host: protos/all
-	cd lib/teleterm && $(BUF) generate
+grpc-teleterm/host: protos/all protos/gen/plugins
+	cd lib/teleterm && PATH="../../bin:$$PATH" $(BUF) generate
 
 .PHONY: goinstall
 goinstall:

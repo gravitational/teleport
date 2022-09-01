@@ -17,9 +17,26 @@ RUN (export NODE_ARCH=$(if [ "$BUILDARCH" = "amd64" ]; then echo "x64"; else ech
      tar -xJf /tmp/nodejs.tar.xz -C /usr/local/lib/nodejs-linux --strip-components=1)
 RUN corepack enable yarn
 
+# Install protoc
+ARG PROTOC_VER
+RUN (export PROTOC_TARBALL=protoc-${PROTOC_VER}-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip && \
+     curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
+     cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
+     chmod -R a+r /usr/local/include/google/protobuf && \
+     chmod -R a+xr /usr/local/bin/protoc && \
+     rm /tmp/${PROTOC_TARBALL})
+
+# Install buf
+# Keep in sync with tools/go.mod.
+RUN BIN="/usr/local/bin" && \
+    VERSION="1.7.0" && \
+      curl -sSL \
+        "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
+        -o "${BIN}/buf" && \
+      chmod +x "${BIN}/buf"
+
 # Install js proto tools
 RUN (npm install --global grpc_tools_node_protoc_ts@5.0.1)
-RUN go install github.com/golang/protobuf/protoc-gen-go@v1.4.3
 
 # Install rpm tools so we can build rpm packages
 RUN apt-get update -y && apt-get install -q -y --no-install-recommends rpm && \

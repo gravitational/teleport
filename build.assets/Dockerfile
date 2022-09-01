@@ -184,32 +184,6 @@ RUN (curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar 
      cd bats-core-1.2.1 && ./install.sh /usr/local && cd .. && \
      rm -r bats-core-1.2.1)
 
-# Install protobuf and grpc build tools.
-ARG PROTOC_VER
-ARG GOGO_PROTO_TAG
-ENV GOGOPROTO_ROOT ${GOPATH}/src/github.com/gogo/protobuf
-
-RUN (export PROTOC_TARBALL=protoc-${PROTOC_VER}-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip && \
-     curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
-     cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
-     chmod -R a+r /usr/local/include/google/protobuf && \
-     chmod -R a+xr /usr/local/bin/protoc && \
-     rm /tmp/${PROTOC_TARBALL})
-RUN (git clone https://github.com/gogo/protobuf.git --branch ${GOGO_PROTO_TAG} --depth 1 ${GOPATH}/src/github.com/gogo/protobuf && \
-     cd ${GOPATH}/src/github.com/gogo/protobuf && \
-     make install && \
-     make clean)
-
-# Install buf
-RUN BIN="/usr/local/bin" && \
-    VERSION="1.7.0" && \
-      curl -sSL \
-        "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
-        -o "${BIN}/buf" && \
-      chmod +x "${BIN}/buf"
-
-ENV PROTO_INCLUDE "/usr/local/include":"/go/src":"/go/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf"
-
 # Install PAM module and policies for testing.
 COPY pam/ /opt/pam_teleport/
 RUN make -C /opt/pam_teleport install

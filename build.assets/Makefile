@@ -24,12 +24,12 @@ ARCH ?= amd64
 BUILDBOX_VERSION ?= teleport11
 
 # NOTE: Windows Drone scripts hardcode $GOLANG_VERSION rather than drawing it
-#       from here at build time, so any changes here must be reflected in 
+#       from here at build time, so any changes here must be reflected in
 #       `dronegen/windows.go`
 GOLANG_VERSION ?= go1.18.3
 
 # NOTE: Windows Drone scripts hardcode $NODE_VERSION rather than drawing it
-#       from here at build time, so any changes here must be reflected in 
+#       from here at build time, so any changes here must be reflected in
 #       `dronegen/windows.go`
 NODE_VERSION ?= 16.13.2
 
@@ -50,8 +50,6 @@ RUNTIME_ARCH := $(RUNTIME_ARCH_$(HOST_ARCH))
 # Newer version of protoc have removed JS support that breaks our Teleterm build.
 # Related issue: https://github.com/protocolbuffers/protobuf-javascript/issues/105
 PROTOC_VER ?= 3.20.1
-# Keep in sync with api/proto/buf.yaml (and buf.lock).
-GOGO_PROTO_TAG ?= v1.3.2
 
 BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:$(BUILDBOX_VERSION)
 BUILDBOX_FIPS=public.ecr.aws/gravitational/teleport-buildbox-fips:$(BUILDBOX_VERSION)
@@ -139,14 +137,12 @@ buildbox:
 	if [[ "$(BUILDBOX_NAME)" == "$(BUILDBOX)" ]]; then \
 		if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX) 2>&1 >/dev/null; then docker pull $(BUILDBOX) || true; fi; \
 		DOCKER_BUILDKIT=1 docker build --platform=linux/$(RUNTIME_ARCH) \
-			--build-arg UID=$(UID) \
-			--build-arg GID=$(GID) \
 			--build-arg BUILDARCH=$(RUNTIME_ARCH) \
+			--build-arg GID=$(GID) \
 			--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
-			--build-arg RUST_VERSION=$(RUST_VERSION) \
-			--build-arg PROTOC_VER=$(PROTOC_VER) \
-			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
 			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
+			--build-arg RUST_VERSION=$(RUST_VERSION) \
+			--build-arg UID=$(UID) \
 			--cache-from $(BUILDBOX) \
 			--tag $(BUILDBOX) . ; \
 	fi
@@ -173,13 +169,12 @@ buildbox-fips:
 buildbox-centos7:
 	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_CENTOS7) 2>&1 >/dev/null; then docker pull $(BUILDBOX_CENTOS7) || true; fi;
 	DOCKER_BUILDKIT=1 docker build \
-		--build-arg UID=$(UID) \
-		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
+		--build-arg GID=$(GID) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
-		--build-arg RUST_VERSION=$(RUST_VERSION) \
-		--build-arg PROTOC_VER=$(PROTOC_VER) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
+		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--build-arg UID=$(UID) \
 		--cache-from $(BUILDBOX_CENTOS7) \
 		--tag $(BUILDBOX_CENTOS7) -f Dockerfile-centos7 .
 
@@ -190,11 +185,11 @@ buildbox-centos7:
 buildbox-centos7-fips:
 	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_CENTOS7_FIPS) 2>&1 >/dev/null; then docker pull $(BUILDBOX_CENTOS7_FIPS) || true; fi;
 	docker build \
-		--build-arg UID=$(UID) \
-		--build-arg GID=$(GID) \
 		--build-arg BORINGCRYPTO_RUNTIME=$(BORINGCRYPTO_RUNTIME) \
-		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--build-arg GID=$(GID) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
+		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--build-arg UID=$(UID) \
 		--cache-from $(BUILDBOX_CENTOS7_FIPS) \
 		--tag $(BUILDBOX_CENTOS7_FIPS) -f Dockerfile-centos7-fips .
 
@@ -234,10 +229,11 @@ buildbox-arm-fips: buildbox-fips
 buildbox-teleterm: buildbox
 	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_TELETERM) 2>&1 >/dev/null; then docker pull $(BUILDBOX_TELETERM) || true; fi;
 	docker build \
-		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
-		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
+		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
 		--build-arg GRPC_NODE_PLUGIN_BINARY_TYPE=$(GRPC_NODE_PLUGIN_BINARY_TYPE) \
+		--build-arg NODE_VERSION=$(NODE_VERSION) \
+		--build-arg PROTOC_VER=$(PROTOC_VER) \
 		--cache-from $(BUILDBOX) \
 		--cache-from $(BUILDBOX_TELETERM) \
 		--tag $(BUILDBOX_TELETERM) -f Dockerfile-teleterm .
@@ -260,19 +256,12 @@ teleterm: buildbox-teleterm
 	docker run $(WEBAPPSDOCKERFLAGS) $(NOROOT) $(BUILDBOX_TELETERM) \
 		bash -c "cd ../webapps && export CONNECT_TSH_BIN_PATH=\$$PWD/../teleport/build/tsh && yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$(CONNECT_VERSION)"
 
-# grpc generates GRPC stubs from inside the buildbox
-.PHONY: grpc
-grpc: buildbox
-	docker run \
-		$(DOCKERFLAGS) -e CLANG_FORMAT=/usr/bin/clang-format-10 -t $(BUILDBOX) \
-		make -C /go/src/github.com/gravitational/teleport grpc/host
-
 # grpc-teleterm generates GRPC stubs for Teleterm from inside buildbox-teleterm
 .PHONY: grpc-teleterm
 grpc-teleterm: buildbox-teleterm
 	docker run \
 		$(DOCKERFLAGS) -e CLANG_FORMAT=/usr/bin/clang-format-10 -t $(BUILDBOX_TELETERM) \
-		make -C /go/src/github.com/gravitational/teleport grpc-teleterm/host
+		make -C /go/src/github.com/gravitational/teleport grpc-teleterm/host BUF=buf
 
 #
 # Removes the docker image
