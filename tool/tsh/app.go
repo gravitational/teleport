@@ -391,7 +391,7 @@ func generateAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportC
 		return trace.Wrap(err)
 	}
 
-	key, err := utils.ParsePrivateKey(keyPem)
+	key, err := keys.ParsePrivateKey(keyPem)
 	if err != nil {
 		return trace.Wrap(err)
 	}
