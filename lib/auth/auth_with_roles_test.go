@@ -3868,31 +3868,33 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 	}()}
 
 	for _, testCase := range testCases {
-		ctx := context.Background()
-		srv := newTestTLSServer(t)
-		err := srv.Auth().CreateRole(ctx, testCase.role)
-		require.NoError(t, err)
+		t.Run(testCase.name, func(t *testing.T) {
+			ctx := context.Background()
+			srv := newTestTLSServer(t)
+			err := srv.Auth().CreateRole(ctx, testCase.role)
+			require.NoError(t, err)
 
-		_, err = srv.Auth().CreateSessionTracker(ctx, testCase.tracker)
-		require.NoError(t, err)
+			_, err = srv.Auth().CreateSessionTracker(ctx, testCase.tracker)
+			require.NoError(t, err)
 
-		user, err := types.NewUser(uuid.NewString())
-		require.NoError(t, err)
+			user, err := types.NewUser(uuid.NewString())
+			require.NoError(t, err)
 
-		user.AddRole(testCase.role.GetName())
-		err = srv.Auth().UpsertUser(user)
-		require.NoError(t, err)
+			user.AddRole(testCase.role.GetName())
+			err = srv.Auth().UpsertUser(user)
+			require.NoError(t, err)
 
-		clt, err := srv.NewClient(TestUser(user.GetName()))
-		require.NoError(t, err)
+			clt, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
 
-		found, err := clt.GetActiveSessionTrackers(ctx)
-		require.NoError(t, err)
+			found, err := clt.GetActiveSessionTrackers(ctx)
+			require.NoError(t, err)
 
-		if len(found) == 0 {
-			require.False(t, testCase.hasAccess)
-		} else {
-			require.True(t, testCase.hasAccess)
-		}
+			if len(found) == 0 {
+				require.False(t, testCase.hasAccess)
+			} else {
+				require.True(t, testCase.hasAccess)
+			}
+		})
 	}
 }
