@@ -168,7 +168,7 @@ certificates:
    --destination-dir=./tbot-user \
    --token={{.token}} \{{range .ca_pins}}
    --ca-pin={{.}} \{{end}}
-   --auth-server={{.auth_server}}{{if .join_method}} \
+   --auth-server={{.addr}}{{if .join_method}} \
    --join-method={{.join_method}}{{end}}
 
 Please note:
@@ -177,7 +177,7 @@ Please note:
   - /var/lib/teleport/bot must be accessible to the bot user, or --data-dir
     must point to another accessible directory to store internal bot data.
   - This invitation token will expire in {{.minutes}} minutes
-  - {{.auth_server}} must be reachable from the new node
+  - {{.addr}} must be reachable from the new node
 `))
 
 // AddBot adds a new certificate renewal bot to the cluster.
@@ -223,17 +223,16 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	authServers, err := client.GetAuthServers()
+	proxies, err := client.GetProxies()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(authServers) == 0 {
-		return trace.Errorf("This cluster does not have any auth servers running.")
+	if len(proxies) == 0 {
+		return trace.Errorf("This cluster does not have any proxy servers running.")
 	}
-
-	addr := authServers[0].GetPublicAddr()
+	addr := proxies[0].GetPublicAddr()
 	if addr == "" {
-		addr = authServers[0].GetAddr()
+		addr = proxies[0].GetAddr()
 	}
 
 	joinMethod := response.JoinMethod
@@ -249,7 +248,7 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 		"token":       response.TokenID,
 		"minutes":     int(time.Duration(response.TokenTTL).Minutes()),
 		"ca_pins":     caPins,
-		"auth_server": addr,
+		"addr":        addr,
 		"join_method": joinMethod,
 	})
 }
