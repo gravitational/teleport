@@ -3789,6 +3789,7 @@ func TestGenerateHostCert(t *testing.T) {
 }
 
 type getActiveSessionsTestCase struct {
+	name      string
 	tracker   types.SessionTracker
 	role      types.Role
 	hasAccess bool
@@ -3797,7 +3798,7 @@ type getActiveSessionsTestCase struct {
 func TestGetActiveSessionTrackers(t *testing.T) {
 	t.Parallel()
 
-	case1 := func() getActiveSessionsTestCase {
+	testCases := []getActiveSessionsTestCase{func() getActiveSessionsTestCase {
 		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
 			SessionID: "1",
 			Kind:      string(types.SSHSessionKind),
@@ -3814,10 +3815,8 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		return getActiveSessionsTestCase{tracker, role, true}
-	}
-
-	case2 := func() getActiveSessionsTestCase {
+		return getActiveSessionsTestCase{"with access simple", tracker, role, true}
+	}(), func() getActiveSessionsTestCase {
 		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
 			SessionID: "1",
 			Kind:      string(types.SSHSessionKind),
@@ -3827,10 +3826,8 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 		role, err := types.NewRole("foo", types.RoleSpecV5{})
 		require.NoError(t, err)
 
-		return getActiveSessionsTestCase{tracker, role, false}
-	}
-
-	case3 := func() getActiveSessionsTestCase {
+		return getActiveSessionsTestCase{"with no access rule", tracker, role, false}
+	}(), func() getActiveSessionsTestCase {
 		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
 			SessionID: "1",
 			Kind:      string(types.KubernetesSessionKind),
@@ -3848,10 +3845,8 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		return getActiveSessionsTestCase{tracker, role, true}
-	}
-
-	case4 := func() getActiveSessionsTestCase {
+		return getActiveSessionsTestCase{"access with match expression", tracker, role, true}
+	}(), func() getActiveSessionsTestCase {
 		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
 			SessionID: "2",
 			Kind:      string(types.KubernetesSessionKind),
@@ -3869,10 +3864,8 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		return getActiveSessionsTestCase{tracker, role, false}
-	}
-
-	testCases := []getActiveSessionsTestCase{case1(), case2(), case3(), case4()}
+		return getActiveSessionsTestCase{"no access with match expression", tracker, role, false}
+	}()}
 
 	for _, testCase := range testCases {
 		ctx := context.Background()
