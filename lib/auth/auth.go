@@ -2585,7 +2585,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 			Expires: req.GetAccessExpiry(),
 		},
 		Roles:                req.GetRoles(),
-		RequestedResourceIDs: types.EventResourceIDs(req.GetRequestedResourceIDs()),
+		RequestedResourceIDs: apievents.ResourceIDs(req.GetRequestedResourceIDs()),
 		RequestID:            req.GetName(),
 		RequestState:         req.GetState().String(),
 		Reason:               req.GetRequestReason(),

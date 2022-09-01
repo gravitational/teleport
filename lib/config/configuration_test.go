@@ -290,7 +290,7 @@ func TestConfigReading(t *testing.T) {
 	require.True(t, conf.SSH.Enabled())
 	require.False(t, conf.Kube.Enabled())
 
-	// static config
+	// good config
 	conf, err = ReadFromFile(testConfigs.configFile)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(conf, &FileConfig{
@@ -416,6 +416,35 @@ func TestConfigReading(t *testing.T) {
 					Regions: []string{"us-central-1"},
 					Tags: map[string]apiutils.Strings{
 						"c": {"d"},
+					},
+				},
+			},
+			AzureMatchers: []AzureMatcher{
+				{
+					Subscriptions:  []string{"sub1", "sub2"},
+					ResourceGroups: []string{"rg1", "rg2"},
+					Types:          []string{"mysql"},
+					Regions:        []string{"eastus", "westus"},
+					ResourceTags: map[string]apiutils.Strings{
+						"a": {"b"},
+					},
+				},
+				{
+					Subscriptions:  []string{"sub3", "sub4"},
+					ResourceGroups: []string{"rg3", "rg4"},
+					Types:          []string{"postgres"},
+					Regions:        []string{"centralus"},
+					ResourceTags: map[string]apiutils.Strings{
+						"c": {"d"},
+					},
+				},
+				{
+					Subscriptions:  nil,
+					ResourceGroups: nil,
+					Types:          []string{"mysql", "postgres"},
+					Regions:        []string{"centralus"},
+					ResourceTags: map[string]apiutils.Strings{
+						"e": {"f"},
 					},
 				},
 			},
@@ -756,6 +785,29 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.Equal(t, 1, *cfg.Auth.KeyStore.SlotNumber)
 	require.Equal(t, "example_pin", cfg.Auth.KeyStore.Pin)
 	require.ElementsMatch(t, []string{"ca-pin-from-string", "ca-pin-from-file1", "ca-pin-from-file2"}, cfg.CAPins)
+
+	require.True(t, cfg.Databases.Enabled)
+	require.Empty(t, cmp.Diff(cfg.Databases.AzureMatchers,
+		[]services.AzureMatcher{
+			{
+				Subscriptions:  []string{"sub1", "sub2"},
+				ResourceGroups: []string{"group1", "group2"},
+				Types:          []string{"postgres", "mysql"},
+				Regions:        []string{"eastus", "centralus"},
+				ResourceTags: map[string]apiutils.Strings{
+					"a": {"b"},
+				},
+			},
+			{
+				Subscriptions:  nil,
+				ResourceGroups: nil,
+				Types:          []string{"postgres", "mysql"},
+				Regions:        []string{"westus"},
+				ResourceTags: map[string]apiutils.Strings{
+					"c": {"d"},
+				},
+			},
+		}))
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
@@ -1274,6 +1326,33 @@ func makeConfigFixture() string {
 			Types:   []string{"rds"},
 			Regions: []string{"us-central-1"},
 			Tags:    map[string]apiutils.Strings{"c": {"d"}},
+		},
+	}
+	conf.Databases.AzureMatchers = []AzureMatcher{
+		{
+			Subscriptions:  []string{"sub1", "sub2"},
+			ResourceGroups: []string{"rg1", "rg2"},
+			Types:          []string{"mysql"},
+			Regions:        []string{"eastus", "westus"},
+			ResourceTags: map[string]apiutils.Strings{
+				"a": {"b"},
+			},
+		},
+		{
+			Subscriptions:  []string{"sub3", "sub4"},
+			ResourceGroups: []string{"rg3", "rg4"},
+			Types:          []string{"postgres"},
+			Regions:        []string{"centralus"},
+			ResourceTags: map[string]apiutils.Strings{
+				"c": {"d"},
+			},
+		},
+		{
+			Types:   []string{"mysql", "postgres"},
+			Regions: []string{"centralus"},
+			ResourceTags: map[string]apiutils.Strings{
+				"e": {"f"},
+			},
 		},
 	}
 
@@ -1932,6 +2011,12 @@ db_service:
   aws:
   - types: ["rds", "redshift"]
     regions: ["us-east-1", "us-west-1"]
+    tags:
+      '*': '*'
+  azure:
+  - subscriptions: ["foo", "bar"]
+    types: ["mysql", "postgres"]
+    regions: ["eastus", "westus"]
     tags:
       '*': '*'
   databases:
