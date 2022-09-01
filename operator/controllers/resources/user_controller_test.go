@@ -170,7 +170,10 @@ traits:
 						Name:      userName,
 					}, obj)
 					errorConditions := getUserStatusConditionError(obj.Object)
-					require.NotEmpty(t, errorConditions)
+					// If there's no error condition, reconciliation has not happened yet
+					if len(errorConditions) == 0 {
+						return false
+					}
 
 					_, err := setup.tClient.GetUser(userName, false /* withSecrets */)
 					require.True(t, trace.IsNotFound(err), "The user should not be created in Teleport")
