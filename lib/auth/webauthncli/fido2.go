@@ -722,7 +722,9 @@ func withRetries(callback deviceCallbackFunc) deviceCallbackFunc {
 				const msg = "" +
 					"The user verification function in your security key is blocked. " +
 					"This is likely due to too many failed authentication attempts. " +
-					"Consult your manufacturer documentation for how to unblock your security key."
+					"Consult your manufacturer documentation for how to unblock your security key. " +
+					"Alternatively, you may unblock your device by using it in the Web UI."
+
 				return trace.Wrap(err, msg)
 			case 63: // FIDO_ERR_UV_INVALID, 0x3f
 				log.Debug("FIDO2: Retrying libfido2 error 63")
