@@ -67,7 +67,11 @@ func TestGatewayStart(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	t.Cleanup(func() { gateway.Close() })
+	t.Cleanup(func() {
+		if err := gateway.Close(); err != nil {
+			t.Logf("Ignoring error from gateway.Close() during cleanup, it appears the gateway was already closed. The error was: %s", err)
+		}
+	})
 	gatewayAddress := net.JoinHostPort(gateway.LocalAddress(), gateway.LocalPort())
 
 	require.NotEmpty(t, gateway.LocalPort())
@@ -171,7 +175,9 @@ func serveGatewayAndBlockUntilItAcceptsConnections(t *testing.T, gateway *Gatewa
 		serveErr <- err
 	}()
 	t.Cleanup(func() {
-		gateway.Close()
+		if err := gateway.Close(); err != nil {
+			t.Logf("Ignoring error from gateway.Close() during cleanup, it appears the gateway was already closed. The error was: %s", err)
+		}
 		require.NoError(t, <-serveErr, "Gateway %s returned error from Serve()", gateway.URI())
 	})
 
