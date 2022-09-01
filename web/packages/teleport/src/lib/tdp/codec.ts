@@ -221,11 +221,12 @@ export type SharedDirectoryListResponse = {
   fsoList: FileSystemObject[];
 };
 
-// | last_modified uint64 | size uint64 | file_type uint32 | path_length uint32 | path byte[] |
+// | last_modified uint64 | size uint64 | file_type uint32 | is_empty bool | path_length uint32 | path byte[] |
 export type FileSystemObject = {
   lastModified: bigint;
   size: bigint;
   fileType: FileType;
+  isEmpty: boolean;
   path: string;
 };
 
@@ -739,11 +740,12 @@ export default class Codec {
     return withFsoList.buffer;
   }
 
-  // | last_modified uint64 | size uint64 | file_type uint32 | path_length uint32 | path byte[] |
+  // | last_modified uint64 | size uint64 | file_type uint32 | is_empty bool | path_length uint32 | path byte[] |
   encodeFileSystemObject(fso: FileSystemObject): Message {
     const dataUtf8array = this.encoder.encode(fso.path);
 
-    const bufLen = 2 * uint64Length + 2 * uint32Length + dataUtf8array.length;
+    const bufLen =
+      byteLength + 2 * uint64Length + 2 * uint32Length + dataUtf8array.length;
     const buffer = new ArrayBuffer(bufLen);
     const view = new DataView(buffer);
     let offset = 0;
@@ -753,6 +755,8 @@ export default class Codec {
     offset += uint64Length;
     view.setUint32(offset, fso.fileType);
     offset += uint32Length;
+    view.setUint8(offset, fso.isEmpty ? 1 : 0);
+    offset += byteLength;
     view.setUint32(offset, dataUtf8array.length);
     offset += uint32Length;
     dataUtf8array.forEach(byte => {
