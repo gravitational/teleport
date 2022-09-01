@@ -19,10 +19,13 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
+	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 // New creates an instance of Daemon service
@@ -32,8 +35,9 @@ func New(cfg Config) (*Service, error) {
 	}
 
 	return &Service{
-		cfg:      &cfg,
-		gateways: make(map[string]*gateway.Gateway),
+		cfg:              &cfg,
+		gateways:         make(map[string]*gateway.Gateway),
+		clusterEventsC:   make(chan *api.ClusterEvent),
 	}, nil
 }
 
@@ -148,6 +152,35 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		LocalPort:             params.LocalPort,
 		CLICommandProvider:    cliCommandProvider,
 		TCPPortAllocator:      s.cfg.TCPPortAllocator,
+		// TODO: Add test that makes sure NewWithLocalPort properly copies OnNewConnection.
+		OnNewConnection: func(gatewayURI uri.ResourceURI, targetURI string) {
+			// TODO Refactor targetURI from string to uri.ResourceURI.
+			// https://github.com/gravitational/teleport/issues/15953
+			clusterURI, err := uri.ParseClusterURI(targetURI)
+			if err != nil {
+				s.Log().WithError(err).Warnf(
+					"Malformed gateway target URI (%s), could not parse it into uri.ResourceURI",
+					targetURI,
+				)
+				return
+			}
+
+			clusterEvent := &api.ClusterEvent{
+				ClusterUri: clusterURI.String(),
+				Event: &api.ClusterEvent_NewGatewayConnectionAccepted{
+					NewGatewayConnectionAccepted: &api.NewGatewayConnectionAccepted{
+						GatewayUri: gatewayURI.String(),
+						TargetUri:  targetURI,
+					},
+				},
+			}
+
+			s.Log().Debug("Sending ClusterEvent to clusterEventsC")
+
+			s.clusterEventsC <- clusterEvent
+
+			s.Log().Debug("Message sent to clusterEventsC")
+		},
 	}
 
 	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, clusterCreateGatewayParams)
@@ -372,9 +405,21 @@ func (s *Service) Stop() {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	s.Log().Info("Stopping")
+
 	for _, gateway := range s.gateways {
 		gateway.Close()
 	}
+
+	close(s.clusterEventsC)
+}
+
+func (s *Service) Log() *logrus.Entry {
+	return s.cfg.Log
+}
+
+func (s *Service) ClusterEventsC() <-chan *api.ClusterEvent {
+	return s.clusterEventsC
 }
 
 // Service is the daemon service
@@ -383,7 +428,8 @@ type Service struct {
 	mu  sync.RWMutex
 	// gateways holds the long-running gateways for resources on different clusters. So far it's been
 	// used mostly for database gateways but it has potential to be used for app access as well.
-	gateways map[string]*gateway.Gateway
+	gateways         map[string]*gateway.Gateway
+	clusterEventsC   chan *api.ClusterEvent
 }
 
 type CreateGatewayParams struct {

@@ -63,7 +63,17 @@ type Config struct {
 	// TCPPortAllocator creates listeners on the given ports. This interface lets us avoid occupying
 	// hardcoded ports in tests.
 	TCPPortAllocator TCPPortAllocator
+	// OnNewConnection is a callback called when a new downstream connection is accepted by the
+	// gateway. The full gateway struct is not passed as an argument to the callback on purpose to
+	// avoid callsites mutating the gateway without acquiring a lock on daemon.Service.mu.
+	//
+	// Note that the callback blocks handling of the connection.
+	//
+	// OnNewConnection is copied between gateways when calling gateway.NewWithLocalPort.
+	OnNewConnection OnNewConnectionFunc
 }
+
+type OnNewConnectionFunc func(gatewayURI uri.ResourceURI, targetURI string)
 
 // CheckAndSetDefaults checks and sets the defaults
 func (c *Config) CheckAndSetDefaults() error {

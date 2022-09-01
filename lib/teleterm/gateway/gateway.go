@@ -80,7 +80,7 @@ func New(cfg Config) (*Gateway, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	localProxy, err := alpn.NewLocalProxy(alpn.LocalProxyConfig{
+	localProxyConfig := alpn.LocalProxyConfig{
 		InsecureSkipVerify: cfg.Insecure,
 		RemoteProxyAddr:    cfg.WebProxyAddr,
 		Protocols:          []alpncommon.Protocol{protocol},
@@ -88,7 +88,18 @@ func New(cfg Config) (*Gateway, error) {
 		ParentContext:      closeContext,
 		SNI:                address.Host(),
 		Certs:              []tls.Certificate{tlsCert},
-	})
+	}
+
+	// TODO: Add tests for OnNewConnection.
+	if cfg.OnNewConnection != nil {
+		localProxyConfig.OnNewConnection = func(lp *alpn.LocalProxy, conn net.Conn) {
+			cfg.Log.Debug("New connection")
+			cfg.OnNewConnection(cfg.URI, cfg.TargetURI)
+			cfg.Log.Debug("OnNewConnection finished")
+		}
+	}
+
+	localProxy, err := alpn.NewLocalProxy(localProxyConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
