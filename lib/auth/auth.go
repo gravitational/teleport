@@ -3181,7 +3181,6 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		return &proto.IsMFARequiredResponse{Required: true}, nil
 	} else if params.NeverRequired {
 		return &proto.IsMFARequiredResponse{Required: false}, nil
-
 	}
 
 	var noMFAAccessErr, notFoundErr error

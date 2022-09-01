@@ -230,6 +230,13 @@ func (m *mockChecker) CheckAccess(r services.AccessCheckable, mfa services.Acces
 	return nil
 }
 
+func (m *mockChecker) MFAParams(authPrefMFARequirement types.RequireMFAType) services.AccessMFAParams {
+	return services.AccessMFAParams{
+		AlwaysRequired: authPrefMFARequirement.IsSessionMFARequired(),
+		NeverRequired:  !authPrefMFARequirement.IsSessionMFARequired(),
+	}
+}
+
 type mockConnector struct {
 	conn io.ReadWriteCloser
 }

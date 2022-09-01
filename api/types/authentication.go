@@ -793,9 +793,8 @@ func parseRequireMFAType(val interface{}) (RequireMFAType, error) {
 	case bool:
 		if v {
 			return RequireSessionMFA, nil
-		} else {
-			return RequireMFAOff, nil
 		}
+		return RequireMFAOff, nil
 	}
 
 	return "", trace.BadParameter("RequireMFAType invalid type %T", val)
