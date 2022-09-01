@@ -45,6 +45,7 @@ const UnknownValue = "?"
 
 var ErrAuditdDisabled = trace.Errorf("auditd is disabled")
 
+// NetlinkConnector implements netlink related functionality.
 type NetlinkConnector interface {
 	Execute(m netlink.Message) ([]netlink.Message, error)
 	Receive() ([]netlink.Message, error)
@@ -52,7 +53,8 @@ type NetlinkConnector interface {
 	Close() error
 }
 
-// Message is a
+// Message is an audit message. It contains TTY name, users and connection
+// information.
 type Message struct {
 	// SystemUser is a name of Linux user.
 	SystemUser string

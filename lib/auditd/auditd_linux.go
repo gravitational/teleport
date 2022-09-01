@@ -42,6 +42,12 @@ const (
 	enabled
 )
 
+const msgDataTmpl = `op={{ .Opcode }} acct="{{ .Msg.SystemUser }}" exe="{{ .Exe }}" ` +
+	`hostname={{ .Hostname }} addr={{ .Msg.ConnAddress }} terminal={{ .Msg.TTYName }} ` +
+	`{{if .Msg.TeleportUser}}teleportUser={{.Msg.TeleportUser}} {{end}}res={{ .Result }}`
+
+var messageTmpl = template.Must(template.New("auditd-message").Parse(msgDataTmpl))
+
 // Client is auditd client.
 type Client struct {
 	conn NetlinkConnector
@@ -65,7 +71,7 @@ type auditStatus struct {
 	Mask                  uint32 /* Bit mask for valid entries */
 	Enabled               uint32 /* 1 = enabled, 0 = disabled */
 	Failure               uint32 /* Failure-to-log action */
-	Pid                   uint32 /* pid of auditd process */
+	PID                   uint32 /* pid of auditd process */
 	RateLimit             uint32 /* messages rate limit (per second) */
 	BacklogLimit          uint32 /* waiting messages limit */
 	Lost                  uint32 /* messages lost */
@@ -245,33 +251,28 @@ func getAuditStatus(conn NetlinkConnector) (*auditStatus, error) {
 
 // SendMsg sends a message. Client will create a new connection if not connected already.
 func (c *Client) SendMsg(event EventType, result ResultType) error {
-	const msgDataTmpl = `op={{ .Opcode }} acct="{{ .Msg.SystemUser }}" exe={{ .Exe }} ` +
-		`hostname={{ .Hostname }} addr={{ .Msg.ConnAddress }} terminal={{ .Msg.TTYName }} ` +
-		`{{if .Msg.TeleportUser}}teleportUser={{.Msg.TeleportUser}} {{end}}res={{ .Result }}`
 	op := eventToOp(event)
-
 	buf := &bytes.Buffer{}
-	if err := template.Must(template.New("auditd-message").
-		Parse(msgDataTmpl)).
-		Execute(buf,
-			struct {
-				Result   ResultType
-				Opcode   string
-				Exe      string
-				Hostname string
-				Msg      Message
-			}{
-				Opcode:   op,
-				Result:   result,
-				Exe:      c.execName,
-				Hostname: c.hostname,
-				Msg: Message{
-					SystemUser:   c.systemUser,
-					TeleportUser: c.teleportUser,
-					ConnAddress:  c.address,
-					TTYName:      c.ttyName,
-				},
-			}); err != nil {
+
+	if err := messageTmpl.Execute(buf,
+		struct {
+			Result   ResultType
+			Opcode   string
+			Exe      string
+			Hostname string
+			Msg      Message
+		}{
+			Opcode:   op,
+			Result:   result,
+			Exe:      c.execName,
+			Hostname: c.hostname,
+			Msg: Message{
+				SystemUser:   c.systemUser,
+				TeleportUser: c.teleportUser,
+				ConnAddress:  c.address,
+				TTYName:      c.ttyName,
+			},
+		}); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -315,6 +316,7 @@ func (c *Client) sendMsg(eventType netlink.HeaderType, MsgData []byte) error {
 	return nil
 }
 
+// Close closes the underlying netlink connection and resets the struct state.
 func (c *Client) Close() error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
@@ -345,8 +347,9 @@ func eventToOp(event EventType) string {
 	}
 }
 
-// hasCapabilities returns true if the system process has permission to
+// hasCapabilities returns true if the OS process has permission to
 // write to auditd events log.
+// Currently, we require the process to run as a root.
 func hasCapabilities() bool {
 	return os.Getuid() == 0
 }

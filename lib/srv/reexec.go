@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -28,7 +29,6 @@ import (
 	"os/user"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -98,8 +98,12 @@ type ExecCommand struct {
 	// allocated for an exec request.
 	Terminal bool `json:"term"`
 
+	// TerminalName is the name of TTY terminal, ex: /dev/tty1.
+	// Currently, this field is used by auditd.
 	TerminalName string `json:"terminal_name"`
 
+	// ClientAddress contains IP address of the connected client.
+	// Currently, this field is used by auditd.
 	ClientAddress string `json:"client_address"`
 
 	// RequestType is the type of request: either "exec" or "shell". This will
@@ -211,7 +215,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 
 	defer func() {
 		if err != nil {
-			if strings.Contains(err.Error(), "unknown user") {
+			if errors.Is(err, user.UnknownUserError(c.Login)) {
 				if err := auditd.SendEvent(auditd.AuditUserErr, auditd.Failed, auditdMsg); err != nil {
 					log.WithError(err).Errorf("failed to send UserErr event to auditd: %v", err)
 				}
