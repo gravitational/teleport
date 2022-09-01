@@ -36,19 +36,22 @@ require_curl() {
 install_via_apt() {
   echo "Installing Teleport through apt-get"
   require_curl
-  $SUDO "$CURL" https://apt.releases.teleport.dev/gpg -o /usr/share/keyrings/teleport-archive-keyring.asc
+  echo "Downloading Teleport's PGP public key..."
+  $SUDO $CURL https://apt.releases.teleport.dev/gpg -o /usr/share/keyrings/teleport-archive-keyring.asc
   SRC="deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://deb.releases.teleport.dev/ stable main"
-  echo $SRC | $SUDO tee /etc/apt/sources.list.d/teleport.list >/dev/null
+  echo "$SRC" | $SUDO tee /etc/apt/sources.list.d/teleport.list >/dev/null
   $SUDO apt-get update
   $SUDO apt-get install teleport
 }
 
 # install_via_yum installs latest teleport via yum or dnf
 install_via_yum() {
-  if type dnf >/dev/null; then
+  if type dnf &>/dev/null; then
+    echo "Installing Teleport through dnf"
     $SUDO dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
     $SUDO dnf install teleport -y
   else
+    echo "Installing Teleport through yum"
     $SUDO yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
     $SUDO yum install teleport -y
   fi
@@ -84,9 +87,9 @@ install_teleport() {
     # running as root, no need for sudo/doas
     IS_ROOT="YES"
     SUDO=""
-  elif type sudo >/dev/null; then
+  elif type sudo &>/dev/null; then
     SUDO="sudo"
-  elif type doas >/dev/null; then
+  elif type doas &>/dev/null; then
     SUDO="doas"
   fi
 
@@ -96,37 +99,30 @@ install_teleport() {
     exit 1
   fi
 
-  echo $SUDO
-
   # set curl (curl | wget)
   CURL=""
-  if type curl >/dev/null; then
+  if type curl &>/dev/null; then
     CURL="curl -fsSL"
-  elif type wget >/dev/null; then
+  elif type wget &>/dev/null; then
     CURL="wget -q -O-" # TODO double check these flags
   fi
 
-  echo $CURL
-
-  OSRELEASE=/etc/os-release
   # detect distro
+  OSRELEASE=/etc/os-release
   ID=""
   ID_LIKE=""
   if [[ -f "$OSRELEASE" ]]; then
     . $OSRELEASE
   fi
 
-  echo "The detected ID is $ID"
-
   # select install method based on distribution
   # if ID is ubuntu/debian/(what else?), run apt
   case "$ID" in
-  debian | ubuntu | kali | linuxmint | pop | raspbian | neon | zorin  | parrot | elementary)
+  debian | ubuntu | kali | linuxmint | pop | raspbian | neon | zorin | parrot | elementary)
     install_via_apt
     ;;
   # if ID is amazon Linux 2/RHEL/(what else?), run yum
   centos | rhel | fedora | rocky | almalinux | xenenterprise | ol | scientific) # todo add amazn back
-    echo "is redhat enterprise linux"
     install_via_yum
     ;;
   *)
@@ -139,14 +135,15 @@ install_teleport() {
       install_via_yum
       ;;
     *)
-    # if ID and ID_LIKE didn't return a supported distro, download through curl
-    echo "There is no oficially supported package to $ID distribution. Downloading and installying Teleport manually"
-    install_via_curl
-    ;;
+      # if ID and ID_LIKE didn't return a supported distro, download through curl
+      echo "There is no oficially supported package to $ID distribution. Downloading and installying Teleport via curl"
+      install_via_curl
+      ;;
     esac
+    ;;
   esac
+
+  echo "$(teleport version) installed successfully."
 }
 
 install_teleport
-# which teleport
-teleport configure
