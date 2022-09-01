@@ -36,10 +36,13 @@ require_curl() {
 install_via_apt() {
   echo "Installing Teleport through apt-get"
   require_curl
+
   echo "Downloading Teleport's PGP public key..."
-  $SUDO $CURL https://apt.releases.teleport.dev/gpg -o /usr/share/keyrings/teleport-archive-keyring.asc
+  $SUDO $CURL https://apt.releases.teleport.dev/gpg | $SUDO tee /usr/share/keyrings/teleport-archive-keyring.asc >/dev/null
+
   SRC="deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://deb.releases.teleport.dev/ stable main"
   echo "$SRC" | $SUDO tee /etc/apt/sources.list.d/teleport.list >/dev/null
+  
   $SUDO apt-get update
   $SUDO apt-get install teleport
 }
