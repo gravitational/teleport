@@ -1310,6 +1310,8 @@ func (s *session) heartbeat(ctx context.Context, scx *ServerContext) {
 			if err != nil {
 				s.log.Warnf("Unable to update session %v as active: %v", s.id, err)
 			}
+		case <-ctx.Done():
+			return
 		case <-s.stopC:
 			return
 		}
