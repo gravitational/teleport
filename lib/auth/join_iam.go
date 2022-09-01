@@ -58,7 +58,8 @@ const (
 )
 
 // validateSTSHost returns an error if the given stsHost is not a valid regional
-// endpoint for the AWS STS service, or nil if it is valid.
+// endpoint for the AWS STS service, or nil if it is valid. If fips is true, the
+// endpoint must be a valid FIPS endpoint.
 //
 // This is a security-critical check: we are allowing the client to tell us
 // which URL we should use to validate their identity. If the client could pass
@@ -68,21 +69,27 @@ const (
 // To keep this validation simple and secure, we check the given endpoint
 // against a static list of known valid endpoints. We will need to update this
 // list as AWS adds new regions.
-func validateSTSHost(stsHost string) error {
+func validateSTSHost(stsHost string, fips bool) error {
 	valid := apiutils.SliceContainsStr(validSTSEndpoints, stsHost)
-	if valid {
-		return nil
+	if !valid {
+		return trace.AccessDenied("IAM join request uses unknown STS host %q. "+
+			"This could mean that the Teleport Node attempting to join the cluster is "+
+			"running in a new AWS region which is unknown to this Teleport auth server. "+
+			"Alternatively, if this URL looks suspicious, an attacker may be attempting to "+
+			"join your Teleport cluster. "+
+			"Following is the list of valid STS endpoints known to this auth server. "+
+			"If a legitimate STS endpoint is not included, please file an issue at "+
+			"https://github.com/gravitational/teleport. %v",
+			stsHost, validSTSEndpoints)
 	}
 
-	return trace.AccessDenied("IAM join request uses unknown STS host %q. "+
-		"This could mean that the Teleport Node attempting to join the cluster is "+
-		"running in a new AWS region which is unknown to this Teleport auth server. "+
-		"Alternatively, if this URL looks suspicious, an attacker may be attempting to "+
-		"join your Teleport cluster. "+
-		"Following is the list of valid STS endpoints known to this auth server. "+
-		"If a legitimate STS endpoint is not included, please file an issue at "+
-		"https://github.com/gravitational/teleport. %v",
-		stsHost, validSTSEndpoints)
+	if fips && !apiutils.SliceContainsStr(fipsSTSEndpoints, stsHost) {
+		return trace.AccessDenied("Auth service is running in FIPS mode, but a non-fips STS endpoint (%s) was used. "+
+			"Ensure that all nodes joining the cluster are up to date and are also run in FIPS mode.",
+			stsHost)
+	}
+
+	return nil
 }
 
 // validateSTSIdentityRequest checks that a received sts:GetCallerIdentity
@@ -102,7 +109,7 @@ func validateSTSHost(stsHost string) error {
 //
 // Action=GetCallerIdentity&Version=2011-06-15
 // ```
-func validateSTSIdentityRequest(req *http.Request, challenge string) (err error) {
+func validateSTSIdentityRequest(req *http.Request, challenge string, fips bool) (err error) {
 	defer func() {
 		// Always log a warning on the Auth server if the function detects an
 		// invalid sts:GetCallerIdentity request, it's either going to be caused
@@ -112,7 +119,7 @@ func validateSTSIdentityRequest(req *http.Request, challenge string) (err error)
 		}
 	}()
 
-	if err := validateSTSHost(req.Host); err != nil {
+	if err := validateSTSHost(req.Host, fips); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -295,7 +302,7 @@ func (a *Server) checkIAMRequest(ctx context.Context, challenge string, req *pro
 
 	// validate that the host, method, and headers are correct and the expected
 	// challenge is included in the signed portion of the request
-	if err := validateSTSIdentityRequest(identityRequest, challenge); err != nil {
+	if err := validateSTSIdentityRequest(identityRequest, challenge, a.fips); err != nil {
 		return trace.Wrap(err)
 	}
 
