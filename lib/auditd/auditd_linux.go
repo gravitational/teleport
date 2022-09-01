@@ -85,7 +85,7 @@ func IsLoginUIDSet() bool {
 	client := NewClient(Message{})
 	defer func() {
 		if err := client.Close(); err != nil {
-			log.WithError(err).Warn("failed to create auditd client")
+			log.WithError(err).Warn("Failed to close auditd client.")
 		}
 	}()
 	// We don't need to acquire the internal client mutex as the connection is
@@ -217,7 +217,6 @@ func getAuditStatus(conn NetlinkConnector) (*auditStatus, error) {
 			Type:  netlink.HeaderType(AuditGet),
 			Flags: netlink.Request | netlink.Acknowledge,
 		},
-		Data: nil,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -229,7 +228,7 @@ func getAuditStatus(conn NetlinkConnector) (*auditStatus, error) {
 	}
 
 	if len(msgs) != 1 {
-		return nil, trace.Errorf("returned wrong messages number, expected 1, got: %d", len(msgs))
+		return nil, trace.BadParameter("returned wrong messages number, expected 1, got: %d", len(msgs))
 	}
 
 	// auditd marshalling depends on the system architecture.
