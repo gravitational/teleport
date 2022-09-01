@@ -417,6 +417,7 @@ func (c *Client) start() {
 							last_modified: C.uint64_t(m.Fso.LastModified),
 							size:          C.uint64_t(m.Fso.Size),
 							file_type:     m.Fso.FileType,
+							is_empty:      C.uint8_t(m.Fso.IsEmpty),
 							path:          path,
 						},
 					}); errCode != C.ErrCodeSuccess {
@@ -435,6 +436,7 @@ func (c *Client) start() {
 							last_modified: C.uint64_t(m.Fso.LastModified),
 							size:          C.uint64_t(m.Fso.Size),
 							file_type:     m.Fso.FileType,
+							is_empty:      C.uint8_t(m.Fso.IsEmpty),
 							path:          path,
 						},
 					}); errCode != C.ErrCodeSuccess {
@@ -464,6 +466,7 @@ func (c *Client) start() {
 							last_modified: C.uint64_t(fso.LastModified),
 							size:          C.uint64_t(fso.Size),
 							file_type:     fso.FileType,
+							is_empty:      C.uint8_t(fso.IsEmpty),
 							path:          path,
 						})
 					}
