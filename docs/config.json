@@ -825,6 +825,10 @@
           "slug": "/machine-id/getting-started/"
         },
         {
+          "title": "Architecture",
+          "slug": "/machine-id/architecture/"
+        },
+        {
           "title": "Troubleshooting",
           "slug": "/machine-id/troubleshooting/"
         },
@@ -1050,7 +1054,7 @@
       "last_report": "August 9th, 2022"
     },
     "cloud": {
-      "version": "10.1.4",
+      "version": "10.1.9",
       "major_version": "10",
       "sla": {
         "monthly_percentage": "99.5%",
@@ -1081,14 +1085,14 @@
     },
     "teleport": {
       "major_version": "10",
-      "version": "10.1.4",
+      "version": "10.1.9",
       "golang": "1.18",
       "plugin": {
-        "version": "10.1.4"
+        "version": "10.1.9"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "quay.io/gravitational/teleport:10.1.4",
-      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:10.1.4"
+      "latest_oss_docker_image": "quay.io/gravitational/teleport:10.1.9",
+      "latest_ent_docker_image": "quay.io/gravitational/teleport-ent:10.1.9"
     }
   },
   "redirects": [
