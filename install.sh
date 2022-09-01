@@ -42,7 +42,7 @@ install_via_apt() {
 
   SRC="deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://deb.releases.teleport.dev/ stable main"
   echo "$SRC" | $SUDO tee /etc/apt/sources.list.d/teleport.list >/dev/null
-  
+
   $SUDO apt-get update
   $SUDO apt-get install teleport
 }
@@ -64,12 +64,28 @@ install_via_yum() {
 install_via_curl() {
   require_curl
 
-  # TODO save to a /tmp file instead
-  $CURL https://get.gravitational.com/teleport-v10.1.4-linux-arm-bin.tar.gz.sha256
-  $CURL -O https://get.gravitational.com/teleport-v10.1.4-linux-arm-bin.tar.gz
-  sha256sum -a 256 teleport-v10.1.4-linux-arm-bin.tar.gz
-  tar -xzf teleport-v10.1.4-linux-arm-bin.tar.gz
-  $SUDO ./teleport/install
+  TELEPORT_VERSION=teleport-v10.1.9-linux-amd64-bin.tar.gz
+  TMP_PATH="/tmp/$TELEPORT_VERSION"
+  TMP_CHECKSUM="/tmp/$TELEPORT_VERSION.sha256"
+
+  echo "Downloading checksum..."
+  $CURL "https://get.gravitational.com/$TELEPORT_VERSION.sha256" | $SUDO tee $TMP_CHECKSUM >/dev/null
+
+  echo "Downloading Teleport..."
+  if type curl &>/dev/null; then
+    $SUDO $CURL -o $TMP_PATH "https://get.gravitational.com/$TELEPORT_VERSION"
+  else
+    $SUDO $CURL -O $TMP_PATH "https://get.gravitational.com/$TELEPORT_VERSION"
+  fi
+
+  # TODO install sha256sum if not present
+  # TODO fail if not match
+  cd /tmp
+  $SUDO sha256sum -c $TMP_CHECKSUM
+  cd -
+
+  $SUDO tar -xzf $TMP_PATH -C /tmp
+  $SUDO /tmp/teleport/install
 }
 
 install_teleport() {
@@ -105,9 +121,9 @@ install_teleport() {
   # set curl (curl | wget)
   CURL=""
   if type curl &>/dev/null; then
-    CURL="curl -fsSL"
+    CURL="curl -fL"
   elif type wget &>/dev/null; then
-    CURL="wget -q -O-" # TODO double check these flags
+    CURL="wget -O-"
   fi
 
   # detect distro
@@ -139,7 +155,7 @@ install_teleport() {
       ;;
     *)
       # if ID and ID_LIKE didn't return a supported distro, download through curl
-      echo "There is no oficially supported package to $ID distribution. Downloading and installying Teleport via curl"
+      echo "There is no oficially supported package to $ID distribution. Downloading and installing Teleport via curl"
       install_via_curl
       ;;
     esac
