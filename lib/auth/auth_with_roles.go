@@ -1638,13 +1638,6 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 	return a.authServer.CreateToken(ctx, token)
 }
 
-func (a *ServerWithRoles) UpsertPassword(user string, password []byte) error {
-	if err := a.currentUserAction(user); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.UpsertPassword(user, password)
-}
-
 // ChangePassword updates users password based on the old password.
 func (a *ServerWithRoles) ChangePassword(req services.ChangePasswordReq) error {
 	if err := a.currentUserAction(req.User); err != nil {
