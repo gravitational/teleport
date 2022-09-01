@@ -60,7 +60,7 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 		CertPath:              c.status.DatabaseCertPathForCluster(c.clusterClient.SiteName, db.GetName()),
 		Insecure:              c.clusterClient.InsecureSkipVerify,
 		WebProxyAddr:          c.clusterClient.WebProxyAddr,
-		Log:                   c.Log.WithField("gateway", params.TargetURI),
+		Log:                   c.Log,
 		CLICommandProvider:    params.CLICommandProvider,
 		TCPPortAllocator:      params.TCPPortAllocator,
 	})
