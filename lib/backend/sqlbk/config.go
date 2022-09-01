@@ -41,6 +41,34 @@ const (
 	DefaultRetryTimeout = 10 * time.Second
 )
 
+type TLSAuthConfig struct {
+	// ClientKeyFile is the path to the database user's private
+	// key file used for authentication.
+	ClientKeyFile string `json:"client_key_file,omitempty"`
+
+	// ClientCertFile is the path to the database user's certificate
+	// file used for authentication.
+	ClientCertFile string `json:"client_cert_file,omitempty"`
+
+	// TLSCAFile is the trusted certificate authority used to generate the
+	// client certificates.
+	CAFile string `json:"ca_file,omitempty"`
+
+	// Username is the optional username used to connect, overriding the CN
+	// specified by the client certificate.
+	Username string `json:"username,omitempty"`
+}
+
+type AzureAuthConfig struct {
+	// Username is the username used to connect.
+	Username string `json:"username,omitempty"`
+
+	// ClientID is the optional client ID of the managed identity to use.
+	// Might be required if there's more than one managed identity available
+	// through the IDMS.
+	ClientID string `json:"client_id,omitempty"`
+}
+
 // Config defines a configuration for the Backend.
 type Config struct {
 	// Addr defines the host:port of the database instance.
@@ -51,33 +79,9 @@ type Config struct {
 
 	// TLS defines configurations for validating server certificates
 	// and mutual authentication.
-	TLS struct {
-		// ClientKeyFile is the path to the database user's private
-		// key file used for authentication.
-		ClientKeyFile string `json:"client_key_file,omitempty"`
+	TLS TLSAuthConfig `json:"tls"`
 
-		// ClientCertFile is the path to the database user's certificate
-		// file used for authentication.
-		ClientCertFile string `json:"client_cert_file,omitempty"`
-
-		// TLSCAFile is the trusted certificate authority used to generate the
-		// client certificates.
-		CAFile string `json:"ca_file,omitempty"`
-
-		// Username is the optional username used to connect, overriding the CN
-		// specified by the client certificate.
-		Username string `json:"username,omitempty"`
-	} `json:"tls"`
-
-	Azure struct {
-		// Username is the username used to connect.
-		Username string `json:"username,omitempty"`
-
-		// ClientID is the optional client ID of the managed identity to use.
-		// Might be required if there's more than one managed identity available
-		// through the IDMS.
-		ClientID string `json:"client_id,omitempty"`
-	} `json:"azure"`
+	Azure AzureAuthConfig `json:"azure"`
 
 	// BufferSize is a default buffer size used to emit events.
 	BufferSize int `json:"buffer_size,omitempty"`
