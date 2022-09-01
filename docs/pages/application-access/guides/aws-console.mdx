@@ -200,17 +200,17 @@ sudo teleport start --config=/path/to/teleport.yaml
 Note that the URI must start with the one of the following URLs in order to be
 recognized as an AWS console.
 
-| Partition         | AWS Console URL |
-| ----------------- | --------------- |
-| AWS Standard      | `https://console.aws.amazon.com` |
-| AWS GovCloud (US) | `https://console.amazonaws-us-gov.com` |
-| AWS China         | `https://console.amazonaws.cn` |
+| Regions                   | AWS Console URL |
+| ------------------------- | --------------- |
+| Standard AWS regions      | `https://console.aws.amazon.com` |
+| AWS GovCloud (US) regions | `https://console.amazonaws-us-gov.com` |
+| AWS China regions         | `https://console.amazonaws.cn` |
 
-<Admonition type="warning" title="non-standard AWS partitions">
-For non-standard AWS partitions such as AWS GovCloud (US) and AWS China, please
-set the corresponding region in the `AWS_REGION` environment variable or in the
-AWS credentials file so that the Application Service can use the correct STS
-endpoint.
+<Admonition type="warning" title="non-standard AWS regions">
+For non-standard AWS regions such as AWS GovCloud (US) regions and AWS China
+regions, please set the corresponding region in the `AWS_REGION` environment
+variable or in the AWS credentials file so that the Application Service can use
+the correct STS endpoint.
 </Admonition>
 
 ### Multiple AWS accounts
