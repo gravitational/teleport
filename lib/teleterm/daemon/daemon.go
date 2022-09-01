@@ -38,6 +38,7 @@ func New(cfg Config) (*Service, error) {
 		cfg:              &cfg,
 		gateways:         make(map[string]*gateway.Gateway),
 		clusterEventsC:   make(chan *api.ClusterEvent),
+		ClusterEventsSem: make(chan struct{}, 1),
 	}, nil
 }
 
@@ -430,6 +431,7 @@ type Service struct {
 	// used mostly for database gateways but it has potential to be used for app access as well.
 	gateways         map[string]*gateway.Gateway
 	clusterEventsC   chan *api.ClusterEvent
+	ClusterEventsSem chan struct{}
 }
 
 type CreateGatewayParams struct {

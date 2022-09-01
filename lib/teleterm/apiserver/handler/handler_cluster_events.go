@@ -15,6 +15,8 @@
 package handler
 
 import (
+	"time"
+
 	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 
 	"github.com/gravitational/trace"
@@ -23,6 +25,18 @@ import (
 func (s *Handler) ClusterEvents(_ *api.ClusterEventsRequest, stream api.TerminalService_ClusterEventsServer) error {
 	// TODO: Move the logic from this handler to a separate place.
 	log := s.DaemonService.Log().WithField(trace.Component, "conn:cevents")
+
+	select {
+	case <-time.After(time.Second):
+		message := "Couldn't acquire lock within a second, another stream is already active."
+		log.Info(message)
+		return trace.AlreadyExists(message)
+	case <-stream.Context().Done():
+		log.Info("The client has disconnected while waiting for the lock, closing the stream.")
+		return nil
+	case s.DaemonService.ClusterEventsSem <- struct{}{}:
+		defer func() { <-s.DaemonService.ClusterEventsSem }()
+	}
 
 	log.Info("Opened the stream.")
 
