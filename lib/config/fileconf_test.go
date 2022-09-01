@@ -556,7 +556,7 @@ func TestSSHSection(t *testing.T) {
 			expectError:       require.NoError,
 			expectEnabled:     require.True,
 			expectFileCopying: require.True,
-		},
+		}, {
 			desc:        "AWS section is filled with defaults",
 			expectError: require.NoError,
 			mutate: func(cfg cfgMap) {
@@ -694,7 +694,6 @@ func TestSSHSection(t *testing.T) {
 			if testCase.expectAllowsTCPForwarding != nil {
 				testCase.expectAllowsTCPForwarding(t, cfg.SSH.AllowTCPForwarding())
 			}
-
 
 			if testCase.expectFileCopying != nil {
 				testCase.expectFileCopying(t, cfg.SSH.SSHFileCopy())
