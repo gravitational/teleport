@@ -23,6 +23,8 @@ import (
 	"net/http"
 
 	"github.com/gravitational/teleport"
+	vc "github.com/gravitational/teleport/lib/versioncontrol"
+
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
@@ -36,6 +38,31 @@ import (
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentVersionControl,
 })
+
+// LatestStable gets the most recent "stable" (not pre-release) version.
+// NOTE: this may return a version *older* than the current teleport version
+// if the current teleport version is a newer prerelease.
+func LatestStable() (string, error) {
+	return latestStable(Iterator{}, vc.Normalize(teleport.Version))
+}
+
+// latestStable is the business logic of LatestStable, broken out for testing purposes.
+func latestStable(iter Iterator, current string) (string, error) {
+	if !semver.IsValid(current) {
+		return "", trace.BadParameter("cannot get latest stable, invalid semver: %q", current)
+	}
+	// we only care about newer releaseas, so set halting point to 'current'
+	iter.halt = current
+
+	// set up visitor that will default to 'current' if nothing newer is observed.
+	var visitor vc.Visitor
+	for iter.Next() {
+		for _, r := range iter.Page() {
+			visitor.Visit(r.Version)
+		}
+	}
+	return visitor.Latest(), trace.Wrap(iter.Error())
+}
 
 // defaultHaltingPoint represents the default cutoff for the iterator. this value
 // is expanded/truncated to `<major>.<minor>` so e.g. `v1` would halt iteration on the
