@@ -1076,40 +1076,37 @@ impl Client {
             // time will give us "..", and then we will iterate through any files/directories stored
             // within dir.
             if let Some(fso) = dir.next() {
-                match req.file_info_class_lvl {
-                    // TODO(isaiah): we should support all the file_info_class_lvl's that FreeRDP does:
-                    // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L794
+                let buffer = match req.file_info_class_lvl {
                     FileInformationClassLevel::FileBothDirectoryInformation => {
-                        let buffer = Some(FileInformationClass::FileBothDirectoryInformation(
+                        Some(FileInformationClass::FileBothDirectoryInformation(
                             FileBothDirectoryInformation::from(fso)?,
-                        ));
-                        return self.prep_drive_query_dir_response(
-                            &req.device_io_request,
-                            NTSTATUS::STATUS_SUCCESS,
-                            buffer,
-                        );
+                        ))
                     }
                     FileInformationClassLevel::FileFullDirectoryInformation => {
-                        let buffer = Some(FileInformationClass::FileFullDirectoryInformation(
+                        Some(FileInformationClass::FileFullDirectoryInformation(
                             FileFullDirectoryInformation::from(fso)?,
-                        ));
-                        return self.prep_drive_query_dir_response(
-                            &req.device_io_request,
-                            NTSTATUS::STATUS_SUCCESS,
-                            buffer,
-                        );
+                        ))
                     }
-                    FileInformationClassLevel::FileDirectoryInformation
-                    | FileInformationClassLevel::FileNamesInformation => {
-                        return Err(not_implemented_error(&format!(
-                            "support for ServerDriveQueryDirectoryRequest with file_info_class_lvl = {:?} is not implemented",
-                            req.file_info_class_lvl
-                        )));
+                    FileInformationClassLevel::FileNamesInformation => {
+                        Some(FileInformationClass::FileNamesInformation(
+                            FileNamesInformation::new(fso.name()?),
+                        ))
+                    }
+                    FileInformationClassLevel::FileDirectoryInformation => {
+                        Some(FileInformationClass::FileDirectoryInformation(
+                            FileDirectoryInformation::from(fso)?,
+                        ))
                     }
                     _ => {
                         return Err(invalid_data_error("received invalid FileInformationClassLevel in ServerDriveQueryDirectoryRequest"));
                     }
-                }
+                };
+
+                return self.prep_drive_query_dir_response(
+                    &req.device_io_request,
+                    NTSTATUS::STATUS_SUCCESS,
+                    buffer,
+                );
             }
 
             // If we reach here it means our iterator is exhausted,
@@ -2416,6 +2413,8 @@ enum FileInformationClass {
     FileDispositionInformation(FileDispositionInformation),
     FileRenameInformation(FileRenameInformation),
     FileAllocationInformation(FileAllocationInformation),
+    FileNamesInformation(FileNamesInformation),
+    FileDirectoryInformation(FileDirectoryInformation),
 }
 
 impl FileInformationClass {
@@ -2430,6 +2429,8 @@ impl FileInformationClass {
             Self::FileDispositionInformation(file_info_class) => file_info_class.encode(),
             Self::FileRenameInformation(file_info_class) => file_info_class.encode(),
             Self::FileAllocationInformation(file_info_class) => file_info_class.encode(),
+            Self::FileNamesInformation(file_info_class) => file_info_class.encode(),
+            Self::FileDirectoryInformation(file_info_class) => file_info_class.encode(),
         }
     }
 
@@ -2482,6 +2483,8 @@ impl FileInformationClass {
             Self::FileDispositionInformation(file_info_class) => file_info_class.size(),
             Self::FileRenameInformation(file_info_class) => file_info_class.size(),
             Self::FileAllocationInformation(file_info_class) => file_info_class.size(),
+            Self::FileNamesInformation(file_info_class) => file_info_class.size(),
+            Self::FileDirectoryInformation(file_info_class) => file_info_class.size(),
         }
     }
 }
@@ -2941,6 +2944,136 @@ impl FileAllocationInformation {
 
     fn size(&self) -> u32 {
         Self::BASE_SIZE
+    }
+}
+
+/// 2.4.28 FileNamesInformation
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/a289f7a8-83d2-4927-8c88-b2d328dde5a5?redirectedfrom=MSDN
+#[derive(Debug, Clone)]
+struct FileNamesInformation {
+    next_entry_offset: u32,
+    file_index: u32,
+    file_name_length: u32,
+    file_name: String,
+}
+
+impl FileNamesInformation {
+    /// Base size of the FileBothDirectoryInformation, not accounting for variably sized file_name.
+    /// Note that file_name's size should be calculated as if it were a Unicode string.
+    const BASE_SIZE: u32 = 3 * U32_SIZE;
+
+    fn new(file_name: String) -> Self {
+        // https://github.com/FreeRDP/FreeRDP/blob/dfa231c0a55b005af775b833f92f6bcd30363d77/channels/drive/client/drive_file.c#L912
+        Self {
+            next_entry_offset: 0,
+            file_index: 0,
+            file_name_length: util::unicode_size(&file_name, false),
+            file_name,
+        }
+    }
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.write_u32::<LittleEndian>(self.next_entry_offset)?;
+        w.write_u32::<LittleEndian>(self.file_index)?;
+        w.write_u32::<LittleEndian>(self.file_name_length)?;
+        w.extend_from_slice(&util::to_unicode(&self.file_name, false));
+        Ok(w)
+    }
+
+    fn size(&self) -> u32 {
+        Self::BASE_SIZE + self.file_name_length
+    }
+}
+
+/// 2.4.10 FileDirectoryInformation
+/// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/b38bf518-9057-4c88-9ddd-5e2d3976a64b
+#[derive(Debug, Clone)]
+struct FileDirectoryInformation {
+    next_entry_offset: u32,
+    file_index: u32,
+    creation_time: i64,
+    last_access_time: i64,
+    last_write_time: i64,
+    change_time: i64,
+    end_of_file: i64,
+    allocation_size: i64,
+    file_attributes: flags::FileAttributes,
+    file_name_length: u32,
+    file_name: String,
+}
+
+impl FileDirectoryInformation {
+    /// Base size of the FileDirectoryInformation, not accounting for variably sized file_name.
+    /// Note that file_name's size should be calculated as if it were a Unicode string.
+    const BASE_SIZE: u32 = (3 * U32_SIZE) + FILE_ATTR_SIZE + (6 * I64_SIZE); // 64
+
+    fn new(
+        creation_time: i64,
+        last_access_time: i64,
+        last_write_time: i64,
+        change_time: i64,
+        file_size: i64,
+        file_attributes: flags::FileAttributes,
+        file_name: String,
+    ) -> Self {
+        // Default field values taken from
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L796
+        Self {
+            next_entry_offset: 0,
+            file_index: 0,
+            creation_time,
+            last_access_time,
+            last_write_time,
+            change_time,
+            end_of_file: file_size,
+            allocation_size: file_size,
+            file_attributes,
+            file_name_length: util::unicode_size(&file_name, false),
+            file_name,
+        }
+    }
+
+    fn encode(&self) -> RdpResult<Vec<u8>> {
+        let mut w = vec![];
+        w.write_u32::<LittleEndian>(self.next_entry_offset)?;
+        w.write_u32::<LittleEndian>(self.file_index)?;
+        w.write_i64::<LittleEndian>(self.creation_time)?;
+        w.write_i64::<LittleEndian>(self.last_access_time)?;
+        w.write_i64::<LittleEndian>(self.last_write_time)?;
+        w.write_i64::<LittleEndian>(self.change_time)?;
+        w.write_i64::<LittleEndian>(self.end_of_file)?;
+        w.write_i64::<LittleEndian>(self.allocation_size)?;
+        w.write_u32::<LittleEndian>(self.file_attributes.bits())?;
+        w.write_u32::<LittleEndian>(self.file_name_length)?;
+        // When working with this field, use file_name_length to determine the length of the file name rather
+        // than assuming the presence of a trailing null delimiter. Dot directory names are valid for this field.
+        w.extend_from_slice(&util::to_unicode(&self.file_name, false));
+        Ok(w)
+    }
+
+    fn from(fso: FileSystemObject) -> RdpResult<Self> {
+        let file_attributes = if fso.file_type == FileType::Directory {
+            flags::FileAttributes::FILE_ATTRIBUTE_DIRECTORY
+        } else {
+            flags::FileAttributes::FILE_ATTRIBUTE_NORMAL
+        };
+
+        let last_modified = to_windows_time(fso.last_modified);
+
+        Ok(Self::new(
+            last_modified,
+            last_modified,
+            last_modified,
+            last_modified,
+            i64::try_from(fso.size)?,
+            file_attributes,
+            fso.name()?,
+        ))
+    }
+
+    fn size(&self) -> u32 {
+        Self::BASE_SIZE + self.file_name_length
     }
 }
 
@@ -3740,8 +3873,10 @@ impl ClientDriveQueryDirectoryResponse {
                 FileInformationClass::FileFullDirectoryInformation(fs_info_class) => {
                     fs_info_class.size()
                 }
-                // TODO(isaiah): add support for FileDirectoryInformation and FileNamesInformation
-                // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L794
+                FileInformationClass::FileNamesInformation(fs_info_class) => fs_info_class.size(),
+                FileInformationClass::FileDirectoryInformation(fs_info_class) => {
+                    fs_info_class.size()
+                }
                 _ => {
                     return Err(not_implemented_error(&format!("ClientDriveQueryDirectoryResponse not implemented for fs_information_class {:?}", fs_information_class)));
                 }
