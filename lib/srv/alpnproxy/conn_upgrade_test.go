@@ -30,6 +30,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -160,8 +161,8 @@ func mustStartMockALPNServer(t *testing.T, supportedProtos []string) *mockALPNSe
 // upgrade request and sends back some data inside the tunnel.
 func mockConnUpgradeHandler(t *testing.T, upgradeType string, write []byte) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, connectionUpgradeWebAPI, r.URL.Path)
-		require.Equal(t, upgradeType, r.Header.Get("Upgrade"))
+		require.Equal(t, teleport.WebAPIConnUpgrade, r.URL.Path)
+		require.Equal(t, upgradeType, r.Header.Get(teleport.WebAPIConnUpgradeHeader))
 
 		hj, ok := w.(http.Hijacker)
 		require.True(t, ok)

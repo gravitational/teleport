@@ -22,6 +22,7 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -30,10 +31,10 @@ import (
 // selectConnectionUpgrade selects the requested upgrade type and returns the
 // corresponding handler.
 func (h *Handler) selectConnectionUpgrade(r *http.Request) (string, ConnectionHandler, error) {
-	upgrades := r.Header.Values("Upgrade")
+	upgrades := r.Header.Values(teleport.WebAPIConnUpgradeHeader)
 	for _, upgradeType := range upgrades {
 		switch upgradeType {
-		case "alpn":
+		case teleport.WebAPIConnUpgradeTypeALPN:
 			return upgradeType, h.upgradeALPN, nil
 		}
 	}
@@ -88,7 +89,7 @@ func (h *Handler) upgradeALPN(ctx context.Context, conn net.Conn) error {
 
 func writeUpgradeResponse(w io.Writer, upgradeType string) error {
 	header := make(http.Header)
-	header.Add("Upgrade", upgradeType)
+	header.Add(teleport.WebAPIConnUpgradeHeader, upgradeType)
 	response := &http.Response{
 		Status:     http.StatusText(http.StatusSwitchingProtocols),
 		StatusCode: http.StatusSwitchingProtocols,

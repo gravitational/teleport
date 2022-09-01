@@ -6,7 +6,6 @@ you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
-
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -25,6 +24,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
@@ -105,7 +105,7 @@ func (d alpnConnUpgradeDialer) DialContext(ctx context.Context, network, addr st
 	err = upgradeConnThroughWebAPI(tlsConn, url.URL{
 		Host:   addr,
 		Scheme: "https",
-		Path:   connectionUpgradeWebAPI,
+		Path:   teleport.WebAPIConnUpgrade,
 	})
 	if err != nil {
 		defer tlsConn.Close()
@@ -121,7 +121,7 @@ func upgradeConnThroughWebAPI(conn net.Conn, api url.URL) error {
 	}
 
 	// For now, only "alpn" is supported.
-	req.Header.Add("Upgrade", "alpn")
+	req.Header.Add(teleport.WebAPIConnUpgradeHeader, teleport.WebAPIConnUpgradeTypeALPN)
 
 	// Send the request and check if upgrade is successful.
 	if err = req.Write(conn); err != nil {
@@ -137,7 +137,7 @@ func upgradeConnThroughWebAPI(conn net.Conn, api url.URL) error {
 		if http.StatusNotFound == resp.StatusCode {
 			return trace.NotImplemented(
 				"connection upgrade call to %q failed with status code %v. Please upgrade the server and try again.",
-				connectionUpgradeWebAPI,
+				teleport.WebAPIConnUpgrade,
 				resp.StatusCode,
 			)
 		}
@@ -145,9 +145,3 @@ func upgradeConnThroughWebAPI(conn net.Conn, api url.URL) error {
 	}
 	return nil
 }
-
-const (
-	// connectionUpgradeWebAPI is the HTTP web API to make the connection
-	// upgrade call.
-	connectionUpgradeWebAPI = "/webapi/connectionupgrade"
-)
