@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/julienschmidt/httprouter"
 	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
@@ -529,6 +530,21 @@ func TestValidRedirectURL(t *testing.T) {
 	}
 }
 
+func TestMetaRedirect(t *testing.T) {
+	t.Parallel()
+	h := &Handler{}
+	redirectHandler := h.WithMetaRedirect(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) string {
+		return "https://example.com"
+	})
+	req := httptest.NewRequest(http.MethodPost, "/some/route", nil)
+	resp := httptest.NewRecorder()
+	redirectHandler(resp, req, nil)
+	targetElement := `<meta http-equiv="refresh" content="0;URL='https://example.com'" />`
+	require.Equal(t, http.StatusOK, resp.Code)
+	body := resp.Body.String()
+	require.Contains(t, body, targetElement)
+}
+
 func Test_clientMetaFromReq(t *testing.T) {
 	ua := "foobar"
 	r := httptest.NewRequest(
@@ -663,12 +679,13 @@ func TestSAML(t *testing.T) {
 			})
 
 			require.NoError(t, err)
-			require.Equal(t, http.StatusFound, authRe.Code(), "Response: %v", string(authRe.Bytes()))
+			// This route uses a meta redirect, so expect redirect URL in body instead of location header.
+			require.Equal(t, http.StatusOK, authRe.Code(), "Response: %v", string(authRe.Bytes()))
 			if tc.validSession {
 				// we have got valid session
 				require.NotEmpty(t, authRe.Headers().Get("Set-Cookie"))
 			}
-			require.Equal(t, tc.expectedRedirectURL, authRe.Headers().Get("Location"))
+			require.Contains(t, string(authRe.Bytes()), tc.expectedRedirectURL)
 		})
 	}
 }
@@ -4697,4 +4714,66 @@ type mockProxySettings struct{}
 
 func (mock *mockProxySettings) GetProxySettings(ctx context.Context) (*webclient.ProxySettings, error) {
 	return &webclient.ProxySettings{}, nil
+}
+
+// TestUserContextWithAccessRequest checks that the userContext includes the ID of the
+// access request after it has been consumed and the web session has been renewed.
+func TestUserContextWithAccessRequest(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	ctx := context.Background()
+
+	// Set user and role names.
+	username := "user"
+	baseRoleName := "role"
+	requestableRolename := "requestable-role"
+
+	// Create user's base role with the ability to request the requestable role.
+	baseRole, err := types.NewRole(baseRoleName, types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles: []string{requestableRolename},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create user with the base role.
+	pack := proxy.authPack(t, username, []types.Role{baseRole})
+
+	// Create the requestable role.
+	requestableRole, err := types.NewRole(requestableRolename, types.RoleSpecV5{})
+	require.NoError(t, err)
+	err = env.server.Auth().UpsertRole(ctx, requestableRole)
+	require.NoError(t, err)
+
+	// Create and approve an access request for the requestable role.
+	accessReq, err := services.NewAccessRequest(username, requestableRolename)
+	require.NoError(t, err)
+	accessReq.SetState(types.RequestState_APPROVED)
+	err = env.server.Auth().CreateAccessRequest(ctx, accessReq)
+	require.NoError(t, err)
+
+	// Get the ID of the created and approved access request.
+	accessRequestID := accessReq.GetMetadata().Name
+
+	// Make a request to renew the session with the ID of the access request.
+	_, err = pack.clt.PostJSON(ctx, pack.clt.Endpoint("webapi", "sessions", "renew"), renewSessionRequest{
+		AccessRequestID: accessRequestID,
+	})
+	require.NoError(t, err)
+
+	// Make a request to fetch the userContext.
+	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "context")
+	response, err := pack.clt.Get(context.Background(), endpoint, url.Values{})
+	require.NoError(t, err)
+
+	// Process the JSON response of the request.
+	var userContext ui.UserContext
+	err = json.Unmarshal(response.Bytes(), &userContext)
+	require.NoError(t, err)
+
+	// Verify that the userContext returned contains the correct Access Request ID.
+	require.Equal(t, accessRequestID, userContext.ConsumedAccessRequestID)
 }

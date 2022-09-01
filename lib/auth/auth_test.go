@@ -40,6 +40,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -2113,20 +2114,41 @@ func TestInstallerCRUD(t *testing.T) {
 	var inst types.Installer
 	var err error
 	contents := "#! just some script contents"
-	inst, err = types.NewInstallerV1(contents)
+	inst, err = types.NewInstallerV1(installers.InstallerScriptName, contents)
 	require.NoError(t, err)
 
 	require.NoError(t, s.a.SetInstaller(ctx, inst))
 
-	inst, err = s.a.GetInstaller(ctx)
+	inst, err = s.a.GetInstaller(ctx, installers.InstallerScriptName)
 	require.NoError(t, err)
 	require.Equal(t, contents, inst.GetScript())
 
-	// resets to the default installer
-	err = s.a.DeleteInstaller(ctx)
+	newContents := "nothing useful here"
+	newInstaller, err := types.NewInstallerV1("other-script", newContents)
+	require.NoError(t, err)
+	require.NoError(t, s.a.SetInstaller(ctx, newInstaller))
+
+	newInst, err := s.a.GetInstaller(ctx, "other-script")
+	require.NoError(t, err)
+	require.Equal(t, newContents, newInst.GetScript())
+
+	instcoll, err := s.a.GetInstallers(ctx)
+	require.NoError(t, err)
+	var instScripts []string
+	for _, inst := range instcoll {
+		instScripts = append(instScripts, inst.GetScript())
+	}
+
+	require.ElementsMatch(t,
+		[]string{inst.GetScript(), newInst.GetScript()},
+		instScripts,
+	)
+
+	err = s.a.DeleteInstaller(ctx, installers.InstallerScriptName)
 	require.NoError(t, err)
 
-	_, err = s.a.GetInstaller(ctx)
+	_, err = s.a.GetInstaller(ctx, installers.InstallerScriptName)
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
+
 }

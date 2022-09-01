@@ -116,7 +116,7 @@ Here is a detailed breakdown of the differences between Teleport's editions.
 |Auth and Proxy Service management|Self-hosted|Self-hosted|Fully managed|
 |Proxy Service domain name|Custom|Custom|A subdomain of `teleport.sh`|
 |Version support|All supported releases available to install and download.|All supported releases available to install and download.|Deploys last stable release with 2-3 week lag for stability.|
-|[Backend support](set../../reference/backends.mdx)|Any S3-compatible storage for session records, many managed backends for custom audit log storage.|Any S3-compatible storage for session records, many managed backends for custom audit log storage|All data is stored in DynamoDB and S3 with server-side encryption|
+|[Backend support](reference/backends.mdx)|Any S3-compatible storage for session records, many managed backends for custom audit log storage.|Any S3-compatible storage for session records, many managed backends for custom audit log storage|All data is stored in DynamoDB and S3 with server-side encryption|
 |Data storage location|Can store data anywhere in the world, on most managed cloud backends|Can store data anywhere in the world, on most managed cloud backends| Data is stored in `us-west-2`, with Proxy Service instances deployed across the world for low-latency access|
 |[Hardware Security Module support](./deploy-a-cluster/teleport-enterprise/hsm.mdx) for encryption at rest|&#10006;|&#10004;|&#10006;|
 
@@ -141,6 +141,18 @@ Teleport provides security-critical support for the current and two previous rel
 
 See our [Upgrading](./management/operations/upgrading.mdx) guide for more
 information.
+
+## Which operating systems are supported?
+
+Teleport binaries runs on Linux, macOS, and Windows.
+
+|Operating System| Version                 |
+|----------------|-------------------------|
+| macOS          | 10.13+ (High Sierra)    |
+| Windows        | Windows 10+ (rev. 1607) |
+| Linux/CentOS   | CentOS 7+               |
+| Linux/Ubuntu   | Ubuntu 14.04+           |
+| Linux/Debian   | Debian 8+               |
 
 ## Does the Web UI support copy and paste?
 

@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -368,7 +369,7 @@ func TestInstaller(t *testing.T) {
 	user, err := CreateUser(srv.Auth(), "testuser")
 	require.NoError(t, err)
 
-	inst, err := types.NewInstallerV1("contents")
+	inst, err := types.NewInstallerV1(installers.InstallerScriptName, "contents")
 	require.NoError(t, err)
 	err = srv.Auth().SetInstaller(ctx, inst)
 	require.NoError(t, err)
@@ -381,21 +382,21 @@ func TestInstaller(t *testing.T) {
 		roles:  []string{"test-empty"},
 		assert: require.Error,
 		installerAction: func(c *Client) error {
-			_, err := c.GetInstaller(ctx)
+			_, err := c.GetInstaller(ctx, installers.InstallerScriptName)
 			return err
 		},
 	}, {
 		roles:  []string{"test-read"},
 		assert: require.NoError,
 		installerAction: func(c *Client) error {
-			_, err := c.GetInstaller(ctx)
+			_, err := c.GetInstaller(ctx, installers.InstallerScriptName)
 			return err
 		},
 	}, {
 		roles:  []string{"test-update"},
 		assert: require.NoError,
 		installerAction: func(c *Client) error {
-			inst, err := types.NewInstallerV1("new-contents")
+			inst, err := types.NewInstallerV1(installers.InstallerScriptName, "new-contents")
 			require.NoError(t, err)
 			return c.SetInstaller(ctx, inst)
 		},
@@ -403,7 +404,7 @@ func TestInstaller(t *testing.T) {
 		roles:  []string{"test-delete"},
 		assert: require.NoError,
 		installerAction: func(c *Client) error {
-			err := c.DeleteInstaller(ctx)
+			err := c.DeleteInstaller(ctx, installers.InstallerScriptName)
 			return err
 		},
 	}} {
