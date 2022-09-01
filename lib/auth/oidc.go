@@ -718,7 +718,6 @@ func (a *Server) createOIDCUser(p *createUserParams, dryRun bool) (types.User, e
 // as the username. If it is specified but specifies a claim that doesn't exist, an error is returned.
 func usernameFromClaims(connector types.OIDCConnector, claims jose.Claims, ident *oidc.Identity) (string, error) {
 	usernameClaim := connector.GetUsernameClaim()
-
 	if usernameClaim == "" {
 		return ident.Email, nil
 	}

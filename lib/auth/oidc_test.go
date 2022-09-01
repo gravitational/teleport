@@ -783,6 +783,7 @@ func TestEmailVerifiedClaim(t *testing.T) {
 	}
 }
 
+// TestUsernameClaim ensures that the `username_claim` field in an OIDC config is handled correctly.
 func TestUsernameClaim(t *testing.T) {
 	ctx := context.Background()
 	s := setUpSuite(t)
@@ -840,7 +841,7 @@ func TestUsernameClaim(t *testing.T) {
 				RedirectURLs:  []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
 				UsernameClaim: "prefred_usrnam",
 			},
-			expectedError: "The configured username_claim of 'prefred_usrnam' was not received from the IdP. Please update the username_claim in connector 'okta-oidc'.",
+			expectedError: "The configured username_claim of \"prefred_usrnam\" was not received from the IdP. Please update the username_claim in connector \"okta-oidc\".",
 		},
 		{
 			desc: "no username_claim specified, default to using email",
