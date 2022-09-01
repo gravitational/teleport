@@ -2809,6 +2809,9 @@ message WebSessionSpecV2 {
     (gogoproto.jsontag) = "idle_timeout",
     (gogoproto.casttype) = "Duration"
   ];
+  // ConsumedAccessRequestID is the ID of the access request from which additional roles to assume
+  // were obtained.
+  string ConsumedAccessRequestID = 10 [(gogoproto.jsontag) = "consumed_access_request_id,omitempty"];
 }
 
 // WebSessionFilter encodes cache watch parameters for filtering web sessions.
@@ -4086,6 +4089,12 @@ message InstallerV1 {
 message InstallerSpecV1 {
   // Script represents the contents of a installer shell script
   string Script = 1 [(gogoproto.jsontag) = "script"];
+}
+
+// InstallerV1List represents a list of installer resources.
+message InstallerV1List {
+  // Installers is a list of installer resources.
+  repeated InstallerV1 installers = 1;
 }
 
 // SessionState represents the state of a session.

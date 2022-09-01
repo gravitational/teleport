@@ -115,7 +115,6 @@ func (c *ClusterAlert) setDefaults() {
 // CheckAndSetDefaults verfies required fields.
 func (c *ClusterAlert) CheckAndSetDefaults() error {
 	c.setDefaults()
-
 	if c.Version != V1 {
 		return trace.BadParameter("unsupported cluster alert version: %s", c.Version)
 	}
@@ -128,14 +127,8 @@ func (c *ClusterAlert) CheckAndSetDefaults() error {
 		return trace.BadParameter("alert name must be specified")
 	}
 
-	if c.Spec.Message == "" {
-		return trace.BadParameter("alert message must be specified")
-	}
-
-	for _, c := range c.Spec.Message {
-		if unicode.IsControl(c) {
-			return trace.BadParameter("control characters not supported in alerts")
-		}
+	if err := c.CheckMessage(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	for key, val := range c.Metadata.Labels {
@@ -144,6 +137,19 @@ func (c *ClusterAlert) CheckAndSetDefaults() error {
 		}
 		if !matchStrictLabel(val) {
 			return trace.BadParameter("invalid alert label value: %q", val)
+		}
+	}
+	return nil
+}
+
+func (c *ClusterAlert) CheckMessage() error {
+	if c.Spec.Message == "" {
+		return trace.BadParameter("alert message must be specified")
+	}
+
+	for _, c := range c.Spec.Message {
+		if unicode.IsControl(c) {
+			return trace.BadParameter("control characters not supported in alerts")
 		}
 	}
 	return nil
