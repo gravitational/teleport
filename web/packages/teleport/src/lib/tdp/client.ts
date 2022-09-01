@@ -278,6 +278,7 @@ export default class Client extends EventEmitterWebAuthnSender {
             lastModified: BigInt(0),
             fileType: FileType.File,
             size: BigInt(0),
+            isEmpty: true,
             path: path,
           },
         });
@@ -306,6 +307,7 @@ export default class Client extends EventEmitterWebAuthnSender {
           lastModified: BigInt(0),
           fileType: FileType.File,
           size: BigInt(0),
+          isEmpty: true,
           path: req.path,
         },
       });
@@ -411,6 +413,7 @@ export default class Client extends EventEmitterWebAuthnSender {
       lastModified: BigInt(info.lastModified),
       fileType: info.kind === 'file' ? FileType.File : FileType.Directory,
       size: BigInt(info.size),
+      isEmpty: info.isEmpty,
       path: info.path,
     };
   }
