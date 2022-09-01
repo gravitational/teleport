@@ -3512,7 +3512,7 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		// Browser connections to web UI and other clients (like database
 		// access) connecting to web proxy won't be affected since they
 		// don't present a certificate.
-		tlsClone.ClientAuth = tls.VerifyClientCertIfGiven
+		tlsClone.ClientAuth = tls.NoClientCert
 
 		// Build the client CA pool containing the cluster's user CA in
 		// order to be able to validate certificates provided by app
