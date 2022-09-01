@@ -1060,7 +1060,10 @@ func (m *Frame) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthProxyservice
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthProxyservice
 			}
 			if (iNdEx + skippy) > l {
@@ -1247,7 +1250,10 @@ func (m *DialRequest) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthProxyservice
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthProxyservice
 			}
 			if (iNdEx + skippy) > l {
@@ -1362,7 +1368,10 @@ func (m *NetAddr) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthProxyservice
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthProxyservice
 			}
 			if (iNdEx + skippy) > l {
@@ -1447,7 +1456,10 @@ func (m *Data) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthProxyservice
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthProxyservice
 			}
 			if (iNdEx + skippy) > l {
@@ -1498,7 +1510,10 @@ func (m *ConnectionEstablished) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthProxyservice
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthProxyservice
 			}
 			if (iNdEx + skippy) > l {

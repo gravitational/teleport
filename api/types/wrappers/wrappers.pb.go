@@ -444,7 +444,10 @@ func (m *StringValues) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthWrappers
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthWrappers
 			}
 			if (iNdEx + skippy) > l {
@@ -607,7 +610,7 @@ func (m *LabelValues) Unmarshal(dAtA []byte) error {
 					if err != nil {
 						return err
 					}
-					if (skippy < 0) || (iNdEx+skippy) < 0 {
+					if skippy < 0 {
 						return ErrInvalidLengthWrappers
 					}
 					if (iNdEx + skippy) > postIndex {
@@ -624,7 +627,10 @@ func (m *LabelValues) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthWrappers
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthWrappers
 			}
 			if (iNdEx + skippy) > l {
@@ -709,7 +715,10 @@ func (m *CustomType) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthWrappers
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthWrappers
 			}
 			if (iNdEx + skippy) > l {

@@ -2865,7 +2865,10 @@ func (m *SessionData) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthWebauthn
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthWebauthn
 			}
 			if (iNdEx + skippy) > l {
@@ -2948,7 +2951,10 @@ func (m *User) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthWebauthn
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthWebauthn
 			}
 			if (iNdEx + skippy) > l {
@@ -3035,7 +3041,10 @@ func (m *CredentialAssertion) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthWebauthn
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthWebauthn
 			}
 			if (iNdEx + skippy) > l {
@@ -3273,7 +3282,10 @@ func (m *PublicKeyCredentialRequestOptions) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthWebauthn
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthWebauthn
 			}
 			if (iNdEx + skippy) > l {
@@ -3462,7 +3474,10 @@ func (m *CredentialAssertionResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthWebauthn
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthWebauthn
 			}
 			if (iNdEx + skippy) > l {
@@ -3649,7 +3664,10 @@ func (m *AuthenticatorAssertionResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthWebauthn
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthWebauthn
 			}
 			if (iNdEx + skippy) > l {
@@ -3736,7 +3754,10 @@ func (m *CredentialCreation) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthWebauthn
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthWebauthn
 			}
 			if (iNdEx + skippy) > l {
@@ -4084,7 +4105,10 @@ func (m *PublicKeyCredentialCreationOptions) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthWebauthn
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthWebauthn
 			}
 			if (iNdEx + skippy) > l {
@@ -4273,7 +4297,10 @@ func (m *CredentialCreationResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthWebauthn
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthWebauthn
 			}
 			if (iNdEx + skippy) > l {
@@ -4392,7 +4419,10 @@ func (m *AuthenticatorAttestationResponse) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthWebauthn
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthWebauthn
 			}
 			if (iNdEx + skippy) > l {
@@ -4475,7 +4505,10 @@ func (m *AuthenticationExtensionsClientInputs) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthWebauthn
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthWebauthn
 			}
 			if (iNdEx + skippy) > l {
@@ -4546,7 +4579,10 @@ func (m *AuthenticationExtensionsClientOutputs) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthWebauthn
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthWebauthn
 			}
 			if (iNdEx + skippy) > l {
@@ -4681,7 +4717,10 @@ func (m *AuthenticatorSelection) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthWebauthn
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthWebauthn
 			}
 			if (iNdEx + skippy) > l {
@@ -4798,7 +4837,10 @@ func (m *CredentialDescriptor) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthWebauthn
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthWebauthn
 			}
 			if (iNdEx + skippy) > l {
@@ -4900,7 +4942,10 @@ func (m *CredentialParameter) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthWebauthn
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthWebauthn
 			}
 			if (iNdEx + skippy) > l {
@@ -5047,7 +5092,10 @@ func (m *RelyingPartyEntity) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthWebauthn
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthWebauthn
 			}
 			if (iNdEx + skippy) > l {
@@ -5228,7 +5276,10 @@ func (m *UserEntity) Unmarshal(dAtA []byte) error {
 			if err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
+			if skippy < 0 {
+				return ErrInvalidLengthWebauthn
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthWebauthn
 			}
 			if (iNdEx + skippy) > l {
