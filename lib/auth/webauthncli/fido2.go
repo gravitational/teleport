@@ -131,16 +131,18 @@ func fido2Login(
 	var usedAppID bool
 
 	pathToRPID := &sync.Map{} // map[string]string
-	filter := func(dev FIDODevice, info *deviceInfo) (bool, error) {
+	// TODO (codingllama): not sure if capability is best name, maybe you got better suggestion.
+	deviceCapabilityCheck := func(dev FIDODevice, info *deviceInfo) error {
 		switch {
 		case uv && !info.uvCapable():
 			log.Debugf("FIDO2: Device %v: filtered due to lack of UV", info.path)
-			return false, nil
+			// TODO (codingllama): shopuld we suggest setting pin here if it has uv option present but set to false?
+			return trace.BadParameter("Device not capable due to lack of UV")
 		case passwordless && !info.rk:
 			log.Debugf("FIDO2: Device %v: filtered due to lack of RK", info.path)
-			return false, nil
+			return trace.BadParameter("Device not capable due to lack of resident keys")
 		case len(allowedCreds) == 0: // Nothing else to check
-			return true, nil
+			return nil
 		}
 
 		// Does the device have a suitable credential?
@@ -148,11 +150,10 @@ func fido2Login(
 		actualRPID, err := discoverRPID(dev, info, pin, rpID, appID, allowedCreds)
 		if err != nil {
 			log.Debugf("FIDO2: Device %v: filtered due to lack of allowed credential", info.path)
-			return false, nil
+			return trace.BadParameter("Device not capable or running assertion due to missing allowed credentials")
 		}
 		pathToRPID.Store(info.path, actualRPID)
-
-		return true, nil
+		return nil
 	}
 
 	user := opts.User
@@ -170,6 +171,15 @@ func fido2Login(
 		if uv {
 			opts.UV = libfido2.True
 		}
+
+		devCapableErr := deviceCapabilityCheck(dev, info)
+		if devCapableErr != nil {
+			// Run dummy assertion just to wait for touch. If somebody touches it,
+			// return compatibility error.
+			_ = runDummyUserPresenceAssertion(dev)
+			return trace.Wrap(devCapableErr)
+		}
+
 		assertions, err := dev.Assertion(actualRPID, ccdHash[:], allowedCreds, pin, opts)
 		if errors.Is(err, libfido2.ErrUnsupportedOption) && uv && pin != "" {
 			// Try again if we are getting "unsupported option" and the PIN is set.
@@ -205,8 +215,7 @@ func fido2Login(
 		mu.Unlock()
 		return nil
 	}
-
-	if err := runOnFIDO2Devices(ctx, prompt, filter, deviceCallback); err != nil {
+	if err := runOnFIDO2Devices(ctx, prompt, deviceCallback); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
@@ -394,19 +403,19 @@ func fido2Register(
 	var mu sync.Mutex
 	var attestation *libfido2.Attestation
 
-	filter := func(dev FIDODevice, info *deviceInfo) (bool, error) {
+	deviceCapabilityCheck := func(dev FIDODevice, info *deviceInfo) error {
 		switch {
 		case plat && !info.plat:
 			log.Debugf("FIDO2: Device %v: filtered due to plat mismatch (requested %v, device %v)", info.path, plat, info.plat)
-			return false, nil
+			return trace.BadParameter("Device not capable due to plat mismatch (requested %v, device %v)", plat, info.plat)
 		case rrk && !info.rk:
 			log.Debugf("FIDO2: Device %v: filtered due to lack of resident keys", info.path)
-			return false, nil
+			return trace.BadParameter("Device not capable due to lack of resident keys")
 		case uv && !info.uvCapable():
 			log.Debugf("FIDO2: Device %v: filtered due to lack of UV", info.path)
-			return false, nil
+			return trace.BadParameter("Device not capable due to lack of UV")
 		case len(excludeList) == 0:
-			return true, nil
+			return nil
 		}
 
 		// Does the device hold an excluded credential?
@@ -415,12 +424,12 @@ func fido2Register(
 			UP: libfido2.False,
 		}); {
 		case errors.Is(err, libfido2.ErrNoCredentials):
-			return true, nil
+			return nil
 		case err == nil:
 			log.Debugf("FIDO2: Device %v: filtered due to presence of excluded credential", info.path)
-			return false, nil
+			return trace.BadParameter("Device not capable due to presence of excluded credential")
 		default: // unexpected error
-			return false, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 	}
 
@@ -441,6 +450,14 @@ func fido2Register(
 			opts.UV = libfido2.True
 		}
 
+		devCapableErr := deviceCapabilityCheck(d, info)
+		if devCapableErr != nil {
+			// Run dummy assertion just to wait for touch. If somebody touches it,
+			// return compatibility error.
+			_ = runDummyUserPresenceAssertion(d)
+			return trace.Wrap(devCapableErr)
+		}
+
 		resp, err := d.MakeCredential(ccdHash[:], rp, user, libfido2.ES256, pin, opts)
 		if err != nil {
 			return trace.Wrap(err)
@@ -456,7 +473,7 @@ func fido2Register(
 		return nil
 	}
 
-	if err := runOnFIDO2Devices(ctx, prompt, filter, deviceCallback); err != nil {
+	if err := runOnFIDO2Devices(ctx, prompt, deviceCallback); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -549,14 +566,13 @@ var errNoSuitableDevices = errors.New("no suitable devices found")
 func runOnFIDO2Devices(
 	ctx context.Context,
 	prompt runPrompt,
-	filter deviceFilterFunc,
 	deviceCallback deviceCallbackFunc) error {
 	cb := withRetries(deviceCallback)
 
 	// Do we have readily available devices?
 	knownPaths := make(map[string]struct{}) // filled by findSuitableDevices*
 	prompted := false
-	devices, err := findSuitableDevices(filter, knownPaths)
+	devices, err := findDevices(knownPaths)
 	if errors.Is(err, errNoSuitableDevices) {
 		// No readily available devices means we need to prompt, otherwise the
 		// user gets no feedback whatsoever.
@@ -565,7 +581,7 @@ func runOnFIDO2Devices(
 		}
 		prompted = true
 
-		devices, err = findSuitableDevicesOrTimeout(ctx, filter, knownPaths)
+		devices, err = findDevicesOrTimeout(ctx, knownPaths)
 	}
 	if err != nil {
 		return trace.Wrap(err)
@@ -606,13 +622,13 @@ func runOnFIDO2Devices(
 	return trace.Wrap(err)
 }
 
-func findSuitableDevicesOrTimeout(
-	ctx context.Context, filter deviceFilterFunc, knownPaths map[string]struct{}) ([]deviceWithInfo, error) {
+func findDevicesOrTimeout(
+	ctx context.Context, knownPaths map[string]struct{}) ([]deviceWithInfo, error) {
 	ticker := time.NewTicker(FIDO2PollInterval)
 	defer ticker.Stop()
 
 	for {
-		switch devices, err := findSuitableDevices(filter, knownPaths); {
+		switch devices, err := findDevices(knownPaths); {
 		case err == nil:
 			return devices, nil
 		case errors.Is(err, errNoSuitableDevices):
@@ -630,7 +646,7 @@ func findSuitableDevicesOrTimeout(
 	}
 }
 
-func findSuitableDevices(filter deviceFilterFunc, knownPaths map[string]struct{}) ([]deviceWithInfo, error) {
+func findDevices(knownPaths map[string]struct{}) ([]deviceWithInfo, error) {
 	locs, err := fidoDeviceLocations()
 	if err != nil {
 		return nil, trace.Wrap(err, "device locations")
@@ -674,12 +690,6 @@ func findSuitableDevices(filter deviceFilterFunc, knownPaths map[string]struct{}
 		log.Debugf("FIDO2: Info for device %v: %#v", path, info)
 
 		di := makeDevInfo(path, info)
-		switch ok, err := filter(dev, di); {
-		case err != nil:
-			return nil, trace.Wrap(err, "device %v: filter", path)
-		case !ok:
-			continue // Skip device.
-		}
 		devs = append(devs, deviceWithInfo{FIDODevice: dev, info: di})
 	}
 
@@ -813,6 +823,16 @@ func selectDevice(
 	}
 
 	return resp.dev, resp.requiresPIN, trace.Wrap(resp.err)
+}
+
+// runDummyUserPresenceAssertion runs dummy UP assertion just to collect user touch.
+func runDummyUserPresenceAssertion(dev FIDODevice) error {
+	const rpID = "7f364cc0-958c-4177-b3ea-b2d8d7f15d4a" // arbitrary, unlikely to collide with a real RP
+	const cdh = "00000000000000000000000000000000"      // "random", size 32
+	_, err := dev.Assertion(rpID, []byte(cdh), nil /* credentials */, "", &libfido2.AssertionOpts{
+		UP: libfido2.True,
+	})
+	return err
 }
 
 // deviceInfo contains an aggregate of a device's information and capabilities.
