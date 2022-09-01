@@ -252,6 +252,9 @@ const (
 	// ComponentInstance is an abstract component common to all services.
 	ComponentInstance = "instance"
 
+	// ComponentVersionControl is the component common to all version control operations.
+	ComponentVersionControl = "version-control"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 
