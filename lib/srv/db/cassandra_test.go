@@ -19,7 +19,6 @@ package db
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"net"
 	"strings"
 	"testing"
@@ -153,7 +152,7 @@ func TestAccessCassandraHandshake(t *testing.T) {
 	teleportUser := "alice"
 
 	for _, tc := range tests {
-		t.Run(fmt.Sprintf("%s", tc.protocolVersion), func(t *testing.T) {
+		t.Run(tc.protocolVersion.String(), func(t *testing.T) {
 			t.Run("successful", func(t *testing.T) {
 				testCtx.createUserAndRole(ctx, t, teleportUser, "admin", []string{"cassandra"}, []string{types.Wildcard})
 				cqlRawClient, err := testCtx.cassandraRawClient(ctx, teleportUser, "cassandra", "cassandra")

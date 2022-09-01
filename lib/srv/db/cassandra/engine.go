@@ -89,6 +89,8 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 	return nil
 }
 
+// HandleConnection processes the connection from Cassandra proxy coming
+// over reverse tunnel.
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
 	err := e.authorizeConnection(ctx)
 	if err != nil {
@@ -290,7 +292,8 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*prot
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	serverConn, err := tls.Dial("tcp", sessionCtx.Database.GetURI(), config)
+	tlsDialer := tls.Dialer{Config: config}
+	serverConn, err := tlsDialer.DialContext(ctx, "tcp", sessionCtx.Database.GetURI())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

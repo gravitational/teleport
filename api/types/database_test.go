@@ -223,22 +223,3 @@ func TestMySQLServerVersion(t *testing.T) {
 	database.SetMySQLServerVersion("8.0.1")
 	require.Equal(t, "8.0.1", database.GetMySQLServerVersion())
 }
-
-func TestDatabaseAWSCassandra(t *testing.T) {
-	t.Run("valid URI", func(t *testing.T) {
-		database, err := NewDatabaseV3(Metadata{
-			Name: "cassandra",
-		}, DatabaseSpecV3{
-			Protocol: "cassandra",
-			URI:      "cassandra.eu-central-1.amazonaws.com:9142",
-		})
-
-		require.NoError(t, err)
-		require.Equal(t, AWS{
-			Region: "ca-central-1",
-		}, database.GetAWS())
-		require.True(t, database.IsElastiCache())
-		require.True(t, database.IsAWSHosted())
-		require.True(t, database.IsCloudHosted())
-	})
-}

@@ -1399,12 +1399,6 @@ type DatabaseAWSMemoryDB struct {
 	ClusterName string `yaml:"cluster_name,omitempty"`
 }
 
-// DatabaseAWSKeyspace ...
-type DatabaseAWSKeyspace struct {
-	// ClusterName is the MemoryDB cluster name.
-	PolicyToUser map[string]string `yaml:"user_to_policy,omitempty"`
-}
-
 // DatabaseGCP contains GCP specific settings for Cloud SQL databases.
 type DatabaseGCP struct {
 	// ProjectID is the GCP project ID where the database is deployed.

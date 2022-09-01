@@ -38,47 +38,82 @@ const (
 	passwordAuthenticator = "org.apache.cassandra.auth.PasswordAuthenticator"
 )
 
+// HandleAuthResponse implements the Cassandra handshake.
+//
+//	Client -> Server: Options
+//	Server <- Client: Supported
+//	Client -> Server: Startup
+//	Server <- Client: Authenticate
+//	Client -> Server: AuthResponse
+//	Server <- Client: Ready/ErrorResponse/AuthSuccess
 type handshakeHandler interface {
 	handleHandshake(clientConn, serverConn *protocol.Conn) error
 }
 
+// basicHandshake is a basic handshake handler that does not perform any
+// additional flow but validates the username received in the AuthResponse.
 type basicHandshake struct {
 	ses *common.Session
 }
 
 func (pp *basicHandshake) handleHandshake(clientConn, serverConn *protocol.Conn) error {
 	for {
+		// Read a packet from the cassandra client.
 		req, err := clientConn.ReadPacket()
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
+		// Pass all packets to the server except AuthResponse.
+		// In case of AuthResponse, validate the username and send
+		// an error message to the client if the username is invalid
+		// Otherwise, pass the AuthResponse to the server.
 		if req.Header().OpCode == primitive.OpCodeAuthResponse {
 			if err := handleAuthResponse(clientConn, pp.ses, req); err != nil {
 				return trace.Wrap(err)
 			}
 		}
+
+		// Forward the packet to the server.
 		if err := serverConn.WriteFrame(req.Frame()); err != nil {
 			return trace.Wrap(err)
 		}
+
+		// Read a response from the server.
 		rcv, err := serverConn.ReadPacket()
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		// Forward the response from the server to the client.
 		if _, err := clientConn.Write(rcv.Raw()); err != nil {
 			return trace.Wrap(err)
 		}
 		switch rcv.Header().OpCode {
 		case primitive.OpCodeReady, primitive.OpCodeAuthSuccess:
+			// If the server responded with Ready or AuthSuccess, the handshake
+			// was complete. Return to the caller to allow audit events by another handler.
 			return nil
 		}
 	}
 }
 
+// failedHandshake triggers a cassandra handshake without sending any packets the cassandra server.
+// This is used to trigger an authentication error message to the client.
 type failedHandshake struct {
+	// err is the error to send to the client.
+	// If err is AccessDenied, the client will receive an AuthenticationError
+	// otherwise, the client will receive an ErrorResponse.
 	error error
 }
 
+// handleHandshake triggers a cassandra handshake without sending any packets the cassandra server.
+//
+//	Client -> Engine: Options
+//	Client <- Engine: Supported
+//	Client -> Engine: Startup
+//	Client <- Engine: Authenticate
+//	Client -> Engine: AuthResponse
+//	Client <- Engine: ErrorResponse/AuthenticationError
 func (h failedHandshake) handshake(clientConn, _ *protocol.Conn) error {
 	for {
 		packet, err := clientConn.ReadPacket()
@@ -152,9 +187,9 @@ func sendAuthenticationErrorMessage(authErr error, clientConn *protocol.Conn, in
 	return nil
 }
 
+// authHandler is a handler that performs the Cassandra authentication flow.
 type authAWSSigV4Auth struct {
-	ses      *common.Session
-	authFunc func(username string, ses *common.Session) (gocql.Authenticator, error)
+	ses *common.Session
 }
 
 func (a *authAWSSigV4Auth) getSigV4Authenticator(username string) (gocql.Authenticator, error) {
@@ -236,6 +271,21 @@ func (a *authAWSSigV4Auth) handleStartupMessage(clientConn, serverConn *protocol
 	return nil
 }
 
+// handleHandshake is a handler that performs the Cassandra authentication flow with to AWS Keyspaces using
+// AWS Signature V4.
+//
+//	Client -> Engine    Server: Options
+//	Client    Engine -> Server: Options
+//	Client    Engine <- Server: Supported
+//	Client <- Engine    Server: Supported
+//	Client -> Engine    Server: Startup
+//	Client <- Engine    Server: Authenticate
+//	Client -> Engine    Server: AuthResponse
+//	Client    Engine -> Server: Startup
+//	Client    Engine <- Server: AuthChallenge
+//	Client    Engine -> Server: AuthResponse
+//	Client    Engine <- Server: AuthSuccess
+//	Client <- Engine    Server: AuthSuccess
 func (a *authAWSSigV4Auth) handleHandshake(clientConn, serverConn *protocol.Conn) error {
 	for {
 		req, err := clientConn.ReadPacket()

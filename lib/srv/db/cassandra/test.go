@@ -93,7 +93,6 @@ type TestServerOption func(*TestServer)
 
 type TestServer struct {
 	cfg       common.TestServerConfig
-	listener  net.Listener
 	port      string
 	tlsConfig *tls.Config
 	log       logrus.FieldLogger
