@@ -33,15 +33,48 @@ require_curl() {
   fi
 }
 
-install_via_apt() {
-  echo "Installing Teleport through apt-get"
-  require_curl
+add_apt_key() {
+  GPG_URL="https://apt.releases.teleport.dev/gpg"
+  ASC_URL="https://deb.releases.teleport.dev/teleport-pubkey.asc"
+  KEY_URL=$GPG_URL
 
+  # check if we must use legacy .asc key
+  echo "version_id is $VERSION_ID"
+  case "$ID" in
+  ubuntu | pop | neon | zorin)
+    if ! expr "$VERSION_ID" : "2.*" >/dev/null; then
+      echo "entrou aqui"
+      KEY_URL=$ASC_URL
+    fi
+    ;;
+  debian | raspbian)
+    if [ "$VERSION_ID" -lt 11 ]; then
+      KEY_URL=$ASC_URL
+    fi
+    ;;
+  linuxmint | parrot)
+    if [ "$VERSION_ID" -lt 5 ]; then
+      KEY_URL=$ASC_URL
+    fi
+    ;;
+  elementary)
+    if [ "$VERSION_ID" -lt 6 ]; then
+      KEY_URL=$ASC_URL
+    fi
+    ;;
+  esac
   echo "Downloading Teleport's PGP public key..."
-  $SUDO $CURL https://apt.releases.teleport.dev/gpg | $SUDO tee /usr/share/keyrings/teleport-archive-keyring.asc >/dev/null
+  $SUDO $CURL $KEY_URL | $SUDO tee /usr/share/keyrings/teleport-archive-keyring.asc >/dev/null
+  $SUDO apt-get update
 
   SRC="deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://deb.releases.teleport.dev/ stable main"
   echo "$SRC" | $SUDO tee /etc/apt/sources.list.d/teleport.list >/dev/null
+}
+
+install_via_apt() {
+  echo "Installing Teleport through apt-get"
+  require_curl
+  add_apt_key
 
   $SUDO apt-get update
   $SUDO apt-get install teleport
@@ -130,6 +163,7 @@ install_teleport() {
   OSRELEASE=/etc/os-release
   ID=""
   ID_LIKE=""
+  VERSION_ID=""
   if [[ -f "$OSRELEASE" ]]; then
     . $OSRELEASE
   fi
