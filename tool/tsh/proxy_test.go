@@ -137,7 +137,7 @@ func testRootLoginLeafSSHBlocked(t *testing.T, s *suite) {
 			"ssh",
 			"--insecure",
 			"-p", leafPort,
-			s.leaf.Config.Hostname,
+			"localhost",
 			"echo", "hello",
 		}, setHomePath(tshHome))
 		return err == nil
@@ -220,11 +220,11 @@ func TestSSHLeafFromRoot(t *testing.T) {
 			"ssh",
 			"--insecure",
 			"-p", leafPort,
-			s.leaf.Config.Hostname,
+			"localhost",
 			"echo", "hello",
 		}, setHomePath(tshHome))
 		return err == nil
-	}, 20*time.Second, 2*time.Second)
+	}, 10*time.Second, 2*time.Second)
 }
 
 // TestProxySSH verifies "tsh proxy ssh" functionality

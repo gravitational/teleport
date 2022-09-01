@@ -1907,19 +1907,20 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	}
 
 	pr, err := tc.Ping(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if pr.Auth.LoadAllHostCAs {
-		sites, err := proxyClient.GetSites(ctx)
-		if err != nil {
-			return trace.Wrap(err)
+	if err == nil {
+		if pr.Auth.LoadAllHostCAs {
+			sites, err := proxyClient.GetSites(ctx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			var clusters []string
+			for _, site := range sites {
+				clusters = append(clusters, site.Name)
+			}
+			tc.LocalAgent().UpdateClusters(clusters...)
 		}
-		var clusters []string
-		for _, site := range sites {
-			clusters = append(clusters, site.Name)
-		}
-		tc.LocalAgent().UpdateClusters(clusters...)
+	} else {
+		log.Debugf("Couldn't ping proxy: %v", err)
 	}
 
 	// which nodes are we executing this commands on?
