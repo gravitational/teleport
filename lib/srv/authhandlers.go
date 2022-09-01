@@ -281,11 +281,11 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	recordFailedLogin := func(err error) {
 		failedLoginCount.Inc()
 
-		message := "Principal is not allowed by this certificate. Ensure your roles allows you use it."
+		message := fmt.Sprintf("Principal %q is not allowed by this certificate. Ensure your roles grants access by adding it to the 'login' property.", conn.User())
 		traceType := types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL
 
 		if trace.IsAccessDenied(err) {
-			message = "You are not authorized to access this node. Ensure your role allows you to access it."
+			message = "You are not authorized to access this node. Ensure your role grants access by adding it to the 'node_labels' property."
 			traceType = types.ConnectionDiagnosticTrace_RBAC_NODE
 		}
 

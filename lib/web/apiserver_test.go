@@ -3982,7 +3982,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 				{
 					Type:    types.ConnectionDiagnosticTrace_RBAC_NODE,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
-					Details: "You are not authorized to access this node. Ensure your role allows you to access it.",
+					Details: "You are not authorized to access this node. Ensure your role grants access by adding it to the 'node_labels' property.",
 					Error:   fmt.Sprintf("user userwithoutaccess@localhost is not authorized to login as %s@localhost: access to node denied", osUsername),
 				},
 			},
@@ -3999,7 +3999,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 				{
 					Type:    types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
-					Details: "Principal is not allowed by this certificate. Ensure your roles allows you use it.",
+					Details: `Principal "` + osUsername + `" is not allowed by this certificate. Ensure your roles grants access by adding it to the 'login' property.`,
 					Error:   `ssh: principal "` + osUsername + `" not in the set of valid principals for given certificate: ["otherprincipal" "-teleport-internal-join"]`,
 				},
 			},
