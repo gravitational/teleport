@@ -64,7 +64,7 @@ func TestAWS(t *testing.T) {
 	}))
 	require.NoError(t, err)
 
-	// Log into the "aws" app.
+	// Log into the "aws-app" app.
 	err = Run(
 		context.Background(),
 		[]string{"app", "login", "aws-app"},

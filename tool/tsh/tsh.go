@@ -593,7 +593,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	daemonStart.Flag("certs-dir", "Directory containing certs used to create secure gRPC connection with daemon service").StringVar(&cf.DaemonCertsDir)
 
 	// AWS.
-	// Note that the "aws" command uses Interspersed(false) to forward all args to AWS CLI.
+	// Use Interspersed(false) to forward all flags to AWS CLI.
 	aws := app.Command("aws", "Access AWS API.").Interspersed(false)
 	aws.Arg("command", "AWS command and subcommands arguments that are going to be forwarded to AWS CLI.").StringsVar(&cf.AWSCommandArgs)
 	aws.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
