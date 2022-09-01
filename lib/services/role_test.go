@@ -887,11 +887,11 @@ func TestCheckAccessToServer(t *testing.T) {
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"root"}
 					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker"}}
-					r.Spec.Options.RequireMFAType = types.RequireSessionMFA
+					r.Spec.Options.RequireMFAType = types.RequireMFAType_SESSION
 				}),
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"root"}
-					r.Spec.Options.RequireMFAType = types.RequireMFAOff
+					r.Spec.Options.RequireMFAType = types.RequireMFAType_OFF
 				}),
 			},
 			checks: []check{
@@ -906,11 +906,11 @@ func TestCheckAccessToServer(t *testing.T) {
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"root"}
 					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker"}}
-					r.Spec.Options.RequireMFAType = types.RequireSessionMFA
+					r.Spec.Options.RequireMFAType = types.RequireMFAType_SESSION
 				}),
 				newRole(func(r *types.RoleV5) {
 					r.Spec.Allow.Logins = []string{"root"}
-					r.Spec.Options.RequireMFAType = types.RequireMFAOff
+					r.Spec.Options.RequireMFAType = types.RequireMFAType_OFF
 				}),
 			},
 			mfaVerified: true,
@@ -927,7 +927,7 @@ func TestCheckAccessToServer(t *testing.T) {
 					r.Spec.Allow.Logins = []string{"root"}
 				}),
 			},
-			authPrefMFARequireType: types.RequireSessionMFA,
+			authPrefMFARequireType: types.RequireMFAType_SESSION,
 			checks: []check{
 				{server: serverNoLabels, login: "root", hasAccess: false},
 				{server: serverWorker, login: "root", hasAccess: false},
@@ -941,7 +941,7 @@ func TestCheckAccessToServer(t *testing.T) {
 					r.Spec.Allow.Logins = []string{"root"}
 				}),
 			},
-			authPrefMFARequireType: types.RequireSessionMFA,
+			authPrefMFARequireType: types.RequireMFAType_SESSION,
 			mfaVerified:            true,
 			checks: []check{
 				{server: serverNoLabels, login: "root", hasAccess: true},
@@ -2576,7 +2576,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 		Version:  types.V3,
 		Spec: types.RoleSpecV5{
 			Options: types.RoleOptions{
-				RequireMFAType: types.RequireSessionMFA,
+				RequireMFAType: types.RequireMFAType_SESSION,
 			},
 			Allow: types.RoleConditions{
 				Namespaces:     []string{apidefaults.Namespace},
@@ -3546,7 +3546,7 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 		},
 		Spec: types.RoleSpecV5{
 			Options: types.RoleOptions{
-				RequireMFAType: types.RequireSessionMFA,
+				RequireMFAType: types.RequireMFAType_SESSION,
 			},
 			Allow: types.RoleConditions{
 				Namespaces: []string{apidefaults.Namespace},
@@ -5085,10 +5085,10 @@ func TestMFAParams(t *testing.T) {
 		{
 			name: "no roles require mfa, auth pref doesn't require mfa",
 			roleMFARequireTypes: []types.RequireMFAType{
-				types.RequireMFAOff,
-				types.RequireMFAOff,
+				types.RequireMFAType_OFF,
+				types.RequireMFAType_OFF,
 			},
-			authPrefMFARequireType: types.RequireMFAOff,
+			authPrefMFARequireType: types.RequireMFAType_OFF,
 			expectMFAParams: AccessMFAParams{
 				NeverRequired: true,
 			},
@@ -5096,10 +5096,10 @@ func TestMFAParams(t *testing.T) {
 		{
 			name: "no roles require mfa, auth pref requires mfa",
 			roleMFARequireTypes: []types.RequireMFAType{
-				types.RequireMFAOff,
-				types.RequireMFAOff,
+				types.RequireMFAType_OFF,
+				types.RequireMFAType_OFF,
 			},
-			authPrefMFARequireType: types.RequireSessionMFA,
+			authPrefMFARequireType: types.RequireMFAType_SESSION,
 			expectMFAParams: AccessMFAParams{
 				AlwaysRequired: true,
 			},
@@ -5107,19 +5107,19 @@ func TestMFAParams(t *testing.T) {
 		{
 			name: "some roles require mfa, auth pref doesn't require mfa",
 			roleMFARequireTypes: []types.RequireMFAType{
-				types.RequireMFAOff,
-				types.RequireSessionMFA,
+				types.RequireMFAType_OFF,
+				types.RequireMFAType_SESSION,
 			},
-			authPrefMFARequireType: types.RequireMFAOff,
+			authPrefMFARequireType: types.RequireMFAType_OFF,
 			expectMFAParams:        AccessMFAParams{},
 		},
 		{
 			name: "some roles require mfa, auth pref requires mfa",
 			roleMFARequireTypes: []types.RequireMFAType{
-				types.RequireMFAOff,
-				types.RequireSessionMFA,
+				types.RequireMFAType_OFF,
+				types.RequireMFAType_SESSION,
 			},
-			authPrefMFARequireType: types.RequireSessionMFA,
+			authPrefMFARequireType: types.RequireMFAType_SESSION,
 			expectMFAParams: AccessMFAParams{
 				AlwaysRequired: true,
 			},
@@ -5127,10 +5127,10 @@ func TestMFAParams(t *testing.T) {
 		{
 			name: "all roles require mfa, auth pref requires mfa",
 			roleMFARequireTypes: []types.RequireMFAType{
-				types.RequireSessionMFA,
-				types.RequireSessionMFA,
+				types.RequireMFAType_SESSION,
+				types.RequireMFAType_SESSION,
 			},
-			authPrefMFARequireType: types.RequireSessionMFA,
+			authPrefMFARequireType: types.RequireMFAType_SESSION,
 			expectMFAParams: AccessMFAParams{
 				AlwaysRequired: true,
 			},
@@ -5138,10 +5138,10 @@ func TestMFAParams(t *testing.T) {
 		{
 			name: "all roles require mfa, auth pref doesn't require mfa",
 			roleMFARequireTypes: []types.RequireMFAType{
-				types.RequireSessionMFA,
-				types.RequireSessionMFA,
+				types.RequireMFAType_SESSION,
+				types.RequireMFAType_SESSION,
 			},
-			authPrefMFARequireType: types.RequireMFAOff,
+			authPrefMFARequireType: types.RequireMFAType_OFF,
 			expectMFAParams: AccessMFAParams{
 				AlwaysRequired: true,
 			},
@@ -5149,10 +5149,10 @@ func TestMFAParams(t *testing.T) {
 		{
 			name: "auth pref requires hardware key touch",
 			roleMFARequireTypes: []types.RequireMFAType{
-				types.RequireSessionMFA,
-				types.RequireSessionMFA,
+				types.RequireMFAType_SESSION,
+				types.RequireMFAType_SESSION,
 			},
-			authPrefMFARequireType: types.RequireHardwareKeyTouch,
+			authPrefMFARequireType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
 			expectMFAParams: AccessMFAParams{
 				NeverRequired: true,
 			},
@@ -5160,10 +5160,10 @@ func TestMFAParams(t *testing.T) {
 		{
 			name: "role requires hardware key touch",
 			roleMFARequireTypes: []types.RequireMFAType{
-				types.RequireSessionMFA,
-				types.RequireHardwareKeyTouch,
+				types.RequireMFAType_SESSION,
+				types.RequireMFAType_HARDWARE_KEY_TOUCH,
 			},
-			authPrefMFARequireType: types.RequireSessionMFA,
+			authPrefMFARequireType: types.RequireMFAType_SESSION,
 			expectMFAParams: AccessMFAParams{
 				NeverRequired: true,
 			},

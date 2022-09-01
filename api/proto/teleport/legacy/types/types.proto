@@ -1371,10 +1371,7 @@ message AuthPreferenceSpecV2 {
   ];
 
   // RequireMFAType is the type of MFA requirement enforced for this cluster.
-  string RequireMFAType = 12 [
-    (gogoproto.jsontag) = "require_session_mfa,omitempty",
-    (gogoproto.casttype) = "RequireMFAType"
-  ];
+  RequireMFAType RequireMFAType = 12 [(gogoproto.jsontag) = "require_session_mfa,omitempty"];
 }
 
 // U2F defines settings for U2F device.
@@ -2031,10 +2028,7 @@ message RoleOptions {
   ];
 
   // RequireMFAType is the type of MFA requirement enforced for this user.
-  string RequireMFAType = 23 [
-    (gogoproto.jsontag) = "require_session_mfa,omitempty",
-    (gogoproto.casttype) = "RequireMFAType"
-  ];
+  RequireMFAType RequireMFAType = 23 [(gogoproto.jsontag) = "require_session_mfa,omitempty"];
 }
 
 message RecordSession {
@@ -4225,4 +4219,21 @@ message GetClusterAlertsRequest {
   string AlertID = 2;
   // Labels is an optional label selector.
   map<string, string> Labels = 3;
+}
+
+// RequireMFAType is a type of MFA requirement enforced outside of login,
+// such as per-session MFA or per-request PIV touch.
+enum RequireMFAType {
+  // OFF means additional MFA enforcement is not enabled.
+  OFF = 0;
+  // SESSION means MFA is required to begin server sessions.
+  SESSION = 1;
+  // SESSION_AND_HARDWARE_KEY means MFA is required to begin server sessions,
+  // and login sessions must use a private key backed by a hardware key.
+  SESSION_AND_HARDWARE_KEY = 2;
+  // HARDWARE_KEY_TOUCH means login sessions must use a hardware private key that
+  // requires touch to be used. This touch requirement applies to all API requests
+  // rather than only session requests. This touch is different from MFA, so to prevent
+  // requiring double touch on session requests, normal Session MFA is disabled.
+  HARDWARE_KEY_TOUCH = 3;
 }

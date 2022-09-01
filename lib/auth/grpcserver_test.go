@@ -802,7 +802,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	require.NoError(t, err)
 	// Make sure MFA is required for this user.
 	roleOpt := role.GetOptions()
-	roleOpt.RequireMFAType = types.RequireSessionMFA
+	roleOpt.RequireMFAType = types.RequireMFAType_SESSION
 	role.SetOptions(roleOpt)
 	err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
@@ -1053,12 +1053,13 @@ func TestIsMFARequired(t *testing.T) {
 	user, role, err := CreateUserAndRole(srv.Auth(), "no-mfa-user", []string{"no-mfa-user"})
 	require.NoError(t, err)
 
-	for _, requireMFAType := range []types.RequireMFAType{types.RequireMFAOff,
-		types.RequireSessionMFA,
-		types.RequireSessionMFAAndHardwareKey,
-		types.RequireHardwareKeyTouch,
+	for _, requireMFAType := range []types.RequireMFAType{
+		types.RequireMFAType_OFF,
+		types.RequireMFAType_SESSION,
+		types.RequireMFAType_SESSION_AND_HARDWARE_KEY,
+		types.RequireMFAType_HARDWARE_KEY_TOUCH,
 	} {
-		t.Run(fmt.Sprintf("requirMFAType=%v", requireMFAType), func(t *testing.T) {
+		t.Run(fmt.Sprintf("requireMFAType=%v", requireMFAType), func(t *testing.T) {
 			roleOpt := role.GetOptions()
 			roleOpt.RequireMFAType = requireMFAType
 			role.SetOptions(roleOpt)
@@ -1135,7 +1136,7 @@ func TestIsMFARequiredUnauthorized(t *testing.T) {
 
 	// Require MFA.
 	roleOpt := role.GetOptions()
-	roleOpt.RequireMFAType = types.RequireSessionMFA
+	roleOpt.RequireMFAType = types.RequireMFAType_SESSION
 	role.SetOptions(roleOpt)
 	role.SetNodeLabels(types.Allow, map[string]apiutils.Strings{"a": []string{"c"}})
 	err = srv.Auth().UpsertRole(ctx, role)

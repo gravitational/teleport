@@ -524,10 +524,10 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 // RequireSessionMFA must be checked/set when communicating with an old server or client.
 // DELETE IN 13.0.0
 func (c *AuthPreferenceV2) CheckSetRequireSessionMFA() {
-	if c.Spec.RequireMFAType != "" {
+	if c.Spec.RequireMFAType != RequireMFAType_OFF {
 		c.Spec.RequireSessionMFA = c.Spec.RequireMFAType.IsSessionMFARequired()
 	} else if c.Spec.RequireSessionMFA {
-		c.Spec.RequireMFAType = RequireSessionMFA
+		c.Spec.RequireMFAType = RequireMFAType_SESSION
 	}
 }
 
@@ -715,28 +715,35 @@ func (d *MFADevice) UnmarshalJSON(buf []byte) error {
 	return jsonpb.Unmarshal(bytes.NewReader(buf), d)
 }
 
-// RequireMFAType is the type of MFA requirement, such as per-session MFA
-// or per-request PIV touch.
-type RequireMFAType string
+// type RequireMFATypeString string
 
-const (
-	// RequireMFAOff means MFA is *not* required to begin server sessions.
-	RequireMFAOff = RequireMFAType("off")
-	// RequireSessionMFA means MFA is required to begin server sessions.
-	RequireSessionMFA = RequireMFAType("session_mfa")
-	// RequireSessionMFAAndHardwareKey means MFA is required to begin server sessions,
-	// and login sessions must use a private key backed by a hardware key.
-	RequireSessionMFAAndHardwareKey = RequireMFAType("session_mfa_and_hardware_key")
-	// RequireHardwareKeyTouch means login sessions must use a hardware private key that
-	// requires touch to be used. This touch requirement applies to all API requests
-	// rather than only session requests. This touch is different from MFA, so to prevent
-	// requiring double touch on session requests, normal Session MFA is disabled.
-	RequireHardwareKeyTouch = RequireMFAType("hardware_key_touch")
-)
+// const (
+// 	// RequireMFAOff means MFA is *not* required to begin server sessions.
+// 	RequireMFAOff RequireMFATypeString = "off"
+// 	// RequireMFASession means MFA is required to begin server sessions.
+// 	RequireMFASession RequireMFATypeString = "session_mfa"
+// 	// RequireMFASessionAndHardwareKey means MFA is required to begin server sessions,
+// 	// and login sessions must use a private key backed by a hardware key.
+// 	RequireMFASessionAndHardwareKey RequireMFATypeString = "hardware_key"
+// 	// RequireMFAHardwareKeyTouch means login sessions must use a hardware private key that
+// 	// requires touch to be used. This touch requirement applies to all API requests
+// 	// rather than only session requests. This touch is different from MFA, so to prevent
+// 	// requiring double touch on session requests, normal Session MFA is disabled.
+// 	RequireMFAHardwareKeyTouch RequireMFATypeString = "hardware_key_touch"
+// )
 
 // IsSessionMFARequired returns whether this RequireMFAType requires per-session MFA.
 func (r RequireMFAType) IsSessionMFARequired() bool {
-	return r == RequireSessionMFA || r == RequireSessionMFAAndHardwareKey
+	return r == RequireMFAType_SESSION || r == RequireMFAType_SESSION_AND_HARDWARE_KEY
+}
+
+// MarshalJSON marshals RequireMFAType to boolean or string.
+func (r *RequireMFAType) MarshalYAML() (interface{}, error) {
+	val, err := r.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return val, nil
 }
 
 // UnmarshalYAML supports parsing RequireMFAType from boolean or alias.
@@ -744,14 +751,20 @@ func (r *RequireMFAType) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	var val interface{}
 	err := unmarshal(&val)
 	if err != nil {
-		return err
-	}
-
-	if *r, err = parseRequireMFAType(val); err != nil {
 		return trace.Wrap(err)
 	}
 
-	return nil
+	err = r.decode(val)
+	return trace.Wrap(err)
+}
+
+// MarshalJSON marshals RequireMFAType to boolean or string.
+func (r *RequireMFAType) MarshalJSON() ([]byte, error) {
+	val, err := r.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return json.Marshal(val)
 }
 
 // UnmarshalJSON supports parsing RequireMFAType from boolean or alias.
@@ -759,43 +772,64 @@ func (r *RequireMFAType) UnmarshalJSON(data []byte) error {
 	var val interface{}
 	err := json.Unmarshal(data, &val)
 	if err != nil {
-		return err
-	}
-
-	if *r, err = parseRequireMFAType(val); err != nil {
 		return trace.Wrap(err)
 	}
 
-	return nil
+	err = r.decode(val)
+	return trace.Wrap(err)
 }
 
-func parseRequireMFAType(val interface{}) (RequireMFAType, error) {
+var (
+	RequireMFATypeHardwareKeyString      = "hardware_key"
+	RequireMFATypeHardwareKeyTouchString = "hardware_key_touch"
+)
+
+// encode RequireMFAType into a string or boolean. This is necessary for
+// backwards compatibility with the json/yaml tag "require_session_mfa",
+// which used to be a boolean.
+func (r *RequireMFAType) encode() (interface{}, error) {
+	switch *r {
+	case RequireMFAType_OFF:
+		return false, nil
+	case RequireMFAType_SESSION:
+		return true, nil
+	case RequireMFAType_SESSION_AND_HARDWARE_KEY:
+		return RequireMFATypeHardwareKeyString, nil
+	case RequireMFAType_HARDWARE_KEY_TOUCH:
+		return RequireMFATypeHardwareKeyTouchString, nil
+	default:
+		return nil, trace.BadParameter("RequireMFAType invalid value %v", r)
+	}
+}
+
+// decode RequireMFAType from a string or boolean. This is necessary for
+// backwards compatibility with the json/yaml tag "require_session_mfa",
+// which used to be a boolean.
+func (r *RequireMFAType) decode(val interface{}) error {
 	switch v := val.(type) {
 	case string:
 		switch v {
-		case string(RequireMFAOff), "":
-			return RequireMFAOff, nil
-		case string(RequireSessionMFA):
-			return RequireSessionMFA, nil
-		case string(RequireSessionMFAAndHardwareKey), "hardware_key":
-			return RequireSessionMFAAndHardwareKey, nil
-		case string(RequireHardwareKeyTouch):
-			return RequireHardwareKeyTouch, nil
+		case RequireMFATypeHardwareKeyString:
+			*r = RequireMFAType_SESSION_AND_HARDWARE_KEY
+		case RequireMFATypeHardwareKeyTouchString:
+			*r = RequireMFAType_HARDWARE_KEY_TOUCH
 		default:
 			switch strings.ToLower(v) {
 			case "yes", "yeah", "y", "true", "1", "on":
-				return RequireSessionMFA, nil
+				*r = RequireMFAType_SESSION
 			case "no", "nope", "n", "false", "0", "off":
-				return RequireMFAOff, nil
+				*r = RequireMFAType_OFF
 			}
-			return "", trace.BadParameter("RequireMFAType invalid value %T", val)
+			return trace.BadParameter("RequireMFAType invalid value %v", val)
 		}
 	case bool:
 		if v {
-			return RequireSessionMFA, nil
+			*r = RequireMFAType_SESSION
+		} else {
+			*r = RequireMFAType_OFF
 		}
-		return RequireMFAOff, nil
+	default:
+		return trace.BadParameter("RequireMFAType invalid type %T", val)
 	}
-
-	return "", trace.BadParameter("RequireMFAType invalid type %T", val)
+	return nil
 }

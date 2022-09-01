@@ -861,35 +861,35 @@ func TestSetRoleRequireSessionMFABackwardsCompatibility(t *testing.T) {
 		},
 	}
 
-	// Upsert should set "RequireSessionMFA" on the provided role if "RequireMFAType" is set
-	role.Spec.Options.RequireMFAType = types.RequireSessionMFA
+	// UpsertRole should set "RequireSessionMFA" on the provided role if "RequireMFAType" is set
+	role.Spec.Options.RequireMFAType = types.RequireMFAType_SESSION
 	role.Spec.Options.RequireSessionMFA = false
 	err = clt.UpsertRole(ctx, role)
 	require.NoError(t, err)
-	require.Equal(t, role.GetOptions().RequireMFAType.IsSessionMFARequired(), role.GetOptions().RequireSessionMFA)
+	require.True(t, role.GetOptions().RequireSessionMFA)
 
 	// GetRole should set "RequireMFAType" on the received role if empty
-	role.Spec.Options.RequireMFAType = ""
+	role.Spec.Options.RequireMFAType = 0
 	role.Spec.Options.RequireSessionMFA = true
 	roleResp, err := clt.GetRole(ctx, role.GetName())
 	require.NoError(t, err)
-	require.Equal(t, types.RequireSessionMFA, roleResp.GetOptions().RequireMFAType)
+	require.Equal(t, types.RequireMFAType_SESSION, roleResp.GetOptions().RequireMFAType)
 
 	// GetRoles should set "RequireMFAType" on the received roles if empty
-	role.Spec.Options.RequireMFAType = ""
+	role.Spec.Options.RequireMFAType = 0
 	role.Spec.Options.RequireSessionMFA = true
 	rolesResp, err := clt.GetRoles(ctx)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(rolesResp))
-	require.Equal(t, types.RequireSessionMFA, rolesResp[0].GetOptions().RequireMFAType)
+	require.Equal(t, types.RequireMFAType_SESSION, rolesResp[0].GetOptions().RequireMFAType)
 
 	// GetCurrentUserRoles should set "RequireMFAType" on the received roles if empty
-	role.Spec.Options.RequireMFAType = ""
+	role.Spec.Options.RequireMFAType = 0
 	role.Spec.Options.RequireSessionMFA = true
 	rolesResp, err = clt.GetCurrentUserRoles(ctx)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(rolesResp))
-	require.Equal(t, types.RequireSessionMFA, rolesResp[0].GetOptions().RequireMFAType)
+	require.Equal(t, types.RequireMFAType_SESSION, rolesResp[0].GetOptions().RequireMFAType)
 }
 
 type mockAuthPreferenceServer struct {
@@ -952,17 +952,17 @@ func TestSetAuthPreferenceRequireSessionMFABackwardsCompatibility(t *testing.T) 
 		},
 	}
 
-	// Upsert should set "RequireSessionMFA" on the provided auth pref if "RequireMFAType" is set
-	pref.Spec.RequireMFAType = types.RequireSessionMFA
+	// SetAuthPreference should set "RequireSessionMFA" on the provided auth pref if "RequireMFAType" is set
+	pref.Spec.RequireMFAType = types.RequireMFAType_SESSION
 	pref.Spec.RequireSessionMFA = false
 	err = clt.SetAuthPreference(ctx, pref)
 	require.NoError(t, err)
-	require.Equal(t, pref.Spec.RequireMFAType.IsSessionMFARequired(), pref.Spec.RequireSessionMFA)
+	require.True(t, pref.Spec.RequireSessionMFA)
 
 	// GetAuthPreference should set "RequireMFAType" on the received auth pref if empty
-	pref.Spec.RequireMFAType = ""
+	pref.Spec.RequireMFAType = 0
 	pref.Spec.RequireSessionMFA = true
 	prefResp, err := clt.GetAuthPreference(ctx)
 	require.NoError(t, err)
-	require.Equal(t, types.RequireSessionMFA, prefResp.GetRequireMFAType())
+	require.Equal(t, types.RequireMFAType_SESSION, prefResp.GetRequireMFAType())
 }
