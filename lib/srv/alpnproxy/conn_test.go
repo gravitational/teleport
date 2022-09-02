@@ -175,9 +175,11 @@ func TestPingConnection(t *testing.T) {
 						// the function to complete the goroutine.
 						case errors.Is(err, io.ErrClosedPipe):
 							return
-						// Any other error should fail the test.
+						// Any other error should fail the test and complete the
+						// goroutine.
 						default:
 							resChan <- readResult{err: err}
+							return
 						}
 					}
 
