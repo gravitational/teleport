@@ -1073,7 +1073,7 @@ func (s *Server) HandleRequest(ctx context.Context, r *ssh.Request) {
 	case teleport.KeepAliveReqType:
 		s.handleKeepAlive(r)
 	case teleport.RecordingProxyReqType:
-		s.handleRecordingProxy(r)
+		s.handleRecordingProxy(ctx, r)
 	case teleport.VersionRequest:
 		s.handleVersionRequest(r)
 	case teleport.TerminalSizeRequest:
@@ -1899,14 +1899,14 @@ func (s *Server) handleKeepAlive(req *ssh.Request) {
 
 // handleRecordingProxy responds to global out-of-band with a bool which
 // indicates if it is in recording mode or not.
-func (s *Server) handleRecordingProxy(req *ssh.Request) {
+func (s *Server) handleRecordingProxy(ctx context.Context, req *ssh.Request) {
 	var recordingProxy bool
 
 	s.Logger.Debugf("Global request (%v, %v) received", req.Type, req.WantReply)
 
 	if req.WantReply {
 		// get the cluster config, if we can't get it, reply false
-		recConfig, err := s.authService.GetSessionRecordingConfig(s.ctx)
+		recConfig, err := s.authService.GetSessionRecordingConfig(ctx)
 		if err != nil {
 			err := req.Reply(false, nil)
 			if err != nil {
