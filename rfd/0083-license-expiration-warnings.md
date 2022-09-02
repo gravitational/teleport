@@ -100,7 +100,7 @@ License warnings can piggyback on the cluster alert endpoint `ServerWithRoles.Ge
       "kind": "cluster_alert",
       "version": "v1",
       "metadata": {
-        "name": "license-warning",
+        "name": "123e4567-e89b-12d3-a456-426614174000.",
         "labels": {
           "teleport.internal/alert-on-login": "yes",
           "teleport.internal/alert-permit-all": "yes"
@@ -124,21 +124,28 @@ License warnings can piggyback on the cluster alert endpoint `ServerWithRoles.Ge
       "kind": "cluster_alert",
       "version": "v1",
       "metadata": {
-        "name": "license-warning",
+        "name": "123e4567-e89b-12d3-a456-426614174000",
         "labels": {
           "teleport.internal/alert-on-login": "yes",
-          "teleport.internal/alert-permit-all": "yes"
+          "teleport.internal/alert-permit-all": "yes",
+          "teleport.internal/license-warning-expired": "yes",
         },
+        "expires": "2022-08-31T17:26:05.728149Z"
       },
       "spec": {
         "severity": 5,
         "message": "Your Teleport Enterprise Edition license has expired. Please reach out to [licenses@goteleport.com](mailto:licenses@goteleport.com) to obtain a new license. Inaction may lead to unplanned outage or degraded performance and support.",
-        "created": "2022-08-31T17:26:05.728149Z"
+        "created": "2022-08-30T17:26:05.728149Z"
       }
     }
   ]
 }
 ```
+
+
+On startup and every 1 hour afterwards the auth server will check the license and generate a license warning if applicable, or clear license warning alerts if they are no longer needed.
+
+These license warning alerts will need to be auth server specific so the host id will need to be added to the cluster alert spec to allow this.
 
 ## Security considerations
 If your license expired, you can’t disable or snooze the warning.
