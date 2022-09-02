@@ -5245,6 +5245,7 @@ steps:
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
+  - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
@@ -5595,6 +5596,7 @@ steps:
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
+  - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
@@ -5948,6 +5950,7 @@ steps:
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
+  - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
@@ -6786,6 +6789,7 @@ steps:
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
+  - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
@@ -7136,6 +7140,7 @@ steps:
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
+  - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
@@ -7488,6 +7493,7 @@ steps:
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
+  - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
@@ -8324,6 +8330,7 @@ steps:
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
+  - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
@@ -8674,6 +8681,7 @@ steps:
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
+  - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
@@ -9026,6 +9034,7 @@ steps:
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
+  - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
@@ -9881,6 +9890,7 @@ steps:
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
+  - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
@@ -10236,6 +10246,7 @@ steps:
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
+  - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
@@ -10594,6 +10605,7 @@ steps:
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
+  - mkdir -pv $(dirname "/go/build/Dockerfile")
   - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
@@ -11859,6 +11871,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 57afe7dd0dea2b8e1d56f3c617b147fe4bc0d152b48cd697fbe86d716eafdb0a
+hmac: 3a4e01222f8ac793d629eebce8ac8b5360f8bad92199bebe8606177190891ea2
 
 ...

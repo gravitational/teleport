@@ -357,6 +357,7 @@ func teleportSetupStep(shellVersion, packageName, dockerfilePath, downloadURL st
 		"apt install --no-install-recommends -y ca-certificates curl",
 		"update-ca-certificates",
 		// Download the dockerfile
+		fmt.Sprintf("mkdir -pv $(dirname %q)", dockerfilePath),
 		fmt.Sprintf("curl -Ls -o %q %q", dockerfilePath, downloadURL),
 		// Add the Teleport APT repo
 		fmt.Sprintf("curl https://apt.releases.teleport.dev/gpg -o %q", keyPath),
