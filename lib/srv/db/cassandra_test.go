@@ -20,8 +20,8 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
-	"strings"
 	"testing"
+	"time"
 
 	"github.com/datastax/go-cassandra-native-protocol/frame"
 	"github.com/datastax/go-cassandra-native-protocol/message"
@@ -254,13 +254,20 @@ func TestBatchCassandra(t *testing.T) {
 	err = dbConn.ExecuteBatch(batch)
 	require.NoError(t, err)
 
-	for {
-		event := waitForEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
-		query := event.(*events.DatabaseSessionQuery).DatabaseQuery
-		if strings.Contains(query, "INSERT INTO batch_table (id) VALUES") {
-			break
+	require.Eventually(t, func() bool {
+		event := waitForEvent(t, testCtx, libevents.CassandraBatchEventCode)
+		query, ok := event.(*events.CassandraBatch)
+		if !ok {
+			return false
 		}
-	}
+		if len(query.Children) != 2 {
+			return false
+		}
+		require.Equal(t, "INSERT INTO batch_table (id) VALUES 1", query.Children[0].Query)
+		require.Equal(t, "INSERT INTO batch_table (id) VALUES 2", query.Children[1].Query)
+		return true
+
+	}, 3*time.Second, time.Millisecond*100)
 }
 
 func TestEventCassandra(t *testing.T) {
@@ -275,13 +282,7 @@ func TestEventCassandra(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(dbConn.Close)
 
-	for {
-		event := waitForEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
-		query := event.(*events.DatabaseSessionQuery).DatabaseQuery
-		if strings.Contains(query, "REGISTER") {
-			break
-		}
-	}
+	waitForEvent(t, testCtx, libevents.CassandraRegisterEventCode)
 }
 
 func withCassandra(name string, opts ...cassandra.TestServerOption) withDatabaseOption {

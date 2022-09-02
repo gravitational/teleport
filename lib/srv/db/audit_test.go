@@ -18,6 +18,7 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -240,6 +241,7 @@ func waitForEvent(t *testing.T, testCtx *testContext, code string) events.AuditE
 		select {
 		case event := <-testCtx.emitter.C():
 			if event.GetCode() != code {
+				fmt.Printf("MYDEBUG skipping event: %v %v\n ", event.GetCode(), event.GetType())
 				continue
 			}
 			return event

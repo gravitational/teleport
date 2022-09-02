@@ -884,6 +884,7 @@ func TestDatabaseAccessCassandraRootCluster(t *testing.T) {
 	err = dbConn.Query("select cluster_name from system.local").Scan(&clusterName)
 	require.NoError(t, err)
 	require.Equal(t, "Test Cluster", clusterName)
+	dbConn.Close()
 }
 
 // TestDatabaseAccessCassandraLeafCluster tests a scenario where a user connects
@@ -911,6 +912,7 @@ func TestDatabaseAccessCassandraLeafCluster(t *testing.T) {
 	err = dbConn.Query("select cluster_name from system.local").Scan(&clusterName)
 	require.NoError(t, err)
 	require.Equal(t, "Test Cluster", clusterName)
+	dbConn.Close()
 }
 
 func waitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime time.Time, eventType string) []apievents.AuditEvent {

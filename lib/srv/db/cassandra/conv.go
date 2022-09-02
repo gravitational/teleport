@@ -17,6 +17,7 @@ limitations under the License.
 package cassandra
 
 import (
+	"encoding/hex"
 	"fmt"
 
 	"github.com/datastax/go-cassandra-native-protocol/message"
@@ -37,8 +38,9 @@ func batchChildToProto(batches []*message.BatchChild) []*events.CassandraBatch_B
 	out := make([]*events.CassandraBatch_BatchChild, 0, len(batches))
 	for _, v := range batches {
 		out = append(out, &events.CassandraBatch_BatchChild{
-			QueryOrId: fmt.Sprintf("%+v", v.Id),
-			Values:    convBatchChildValues(v.Values),
+			ID:     hex.EncodeToString(v.Id),
+			Query:  v.Query,
+			Values: convBatchChildValues(v.Values),
 		})
 	}
 	return out
