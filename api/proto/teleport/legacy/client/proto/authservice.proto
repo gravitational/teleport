@@ -2515,6 +2515,7 @@ service AuthService {
 
   // GetWindowsDesktopServices returns all registered Windows desktop services.
   rpc GetWindowsDesktopServices(google.protobuf.Empty) returns (GetWindowsDesktopServicesResponse);
+  // TODO(zmb3): Document me.
   rpc GetWindowsDesktopService(GetWindowsDesktopServiceRequest) returns (GetWindowsDesktopServiceResponse);
   // UpsertWindowsDesktopService registers a new Windows desktop service.
   rpc UpsertWindowsDesktopService(types.WindowsDesktopServiceV3) returns (types.KeepAlive);
