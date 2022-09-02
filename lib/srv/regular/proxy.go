@@ -90,10 +90,11 @@ type proxySubsys struct {
 // proxy subsystem
 //
 // proxy subsystem name can take the following forms:
-//  "proxy:host:22"          - standard SSH request to connect to  host:22 on the 1st cluster
-//  "proxy:@clustername"        - Teleport request to connect to an auth server for cluster with name 'clustername'
-//  "proxy:host:22@clustername" - Teleport request to connect to host:22 on cluster 'clustername'
-//  "proxy:host:22@namespace@clustername"
+//
+//	"proxy:host:22"          - standard SSH request to connect to  host:22 on the 1st cluster
+//	"proxy:@clustername"        - Teleport request to connect to an auth server for cluster with name 'clustername'
+//	"proxy:host:22@clustername" - Teleport request to connect to host:22 on cluster 'clustername'
+//	"proxy:host:22@namespace@clustername"
 func parseProxySubsysRequest(request string) (proxySubsysRequest, error) {
 	log.Debugf("parse_proxy_subsys(%q)", request)
 	var (
@@ -228,6 +229,9 @@ func (t *proxySubsys) String() string {
 // Start is called by Golang's ssh when it needs to engage this sybsystem (typically to establish
 // a mapping connection between a client & remote node we're proxying to)
 func (t *proxySubsys) Start(ctx context.Context, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) error {
+	ctx, span := tracing.DefaultProvider().Tracer("proxySubsys").Start(ctx, "proxySubsys/Start")
+	defer span.End()
+
 	// once we start the connection, update logger to include component fields
 	t.log = logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentSubsystemProxy,
@@ -316,8 +320,10 @@ func (t *proxySubsys) proxyToSite(
 
 // proxyToHost establishes a proxy connection from the connected SSH client to the
 // requested remote node (t.host:t.port) via the given site
-func (t *proxySubsys) proxyToHost(
-	ctx context.Context, site reversetunnel.RemoteSite, remoteAddr net.Addr, ch ssh.Channel) error {
+func (t *proxySubsys) proxyToHost(ctx context.Context, site reversetunnel.RemoteSite, remoteAddr net.Addr, ch ssh.Channel) error {
+	ctx, span := tracing.DefaultProvider().Tracer("proxySubsys").Start(ctx, "proxySubsys/proxyToHost")
+	defer span.End()
+
 	//
 	// first, lets fetch a list of servers at the given site. this allows us to
 	// match the given "host name" against node configuration (their 'nodename' setting)
@@ -369,10 +375,12 @@ func (t *proxySubsys) proxyToHost(
 	t.log.Debugf("proxy connecting to host=%v port=%v, exact port=%v, strategy=%s", t.host, t.port, t.SpecifiedPort(), strategy)
 
 	// determine which server to connect to
+	span.AddEvent("finding matching server")
 	server, err := t.getMatchingServer(nodeWatcher, strategy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	span.AddEvent("retrieved server")
 
 	// Create a slice of principals that will be added into the host certificate.
 	// Here t.host is either an IP address or a DNS name as the user requested.
@@ -422,6 +430,8 @@ func (t *proxySubsys) proxyToHost(
 		Addr:        serverAddr,
 	}
 	connectingToNode.Inc()
+
+	span.AddEvent("dialing remote site")
 	conn, err := site.Dial(reversetunnel.DialParams{
 		From:         remoteAddr,
 		To:           toAddr,
@@ -436,10 +446,13 @@ func (t *proxySubsys) proxyToHost(
 		failedConnectingToNode.Inc()
 		return trace.Wrap(err)
 	}
+	span.AddEvent("connected to remote site")
 
 	// this custom SSH handshake allows SSH proxy to relay the client's IP
 	// address to the SSH server
+	span.AddEvent("starting custom SSH handshake")
 	t.doHandshake(ctx, remoteAddr, ch, conn)
+	span.AddEvent("custom SSH handshake complete")
 
 	proxiedSessions.Inc()
 	go func() {
