@@ -130,9 +130,9 @@ RUN yum groupinstall -y 'Development Tools' && \
     which \
     zip \
     # required by PIV integration
-    pcsc-lite-devel \  
+    pcsc-lite-devel \
     # required by libbpf
-    zlib-static && \    
+    zlib-static && \
     yum clean all
 
 # Install etcd.
