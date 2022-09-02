@@ -30,7 +30,7 @@ RUN apt-get update -y --fix-missing && \
         libelf-dev \
         libpcsclite-dev \
         libpam-dev \
-        libsqlite3-0 \ 
+        libsqlite3-0 \
         llvm-10 \
         locales \
         make \
