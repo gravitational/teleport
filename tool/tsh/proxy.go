@@ -423,7 +423,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 type localProxyOpts struct {
 	proxyAddr string
 	listener  net.Listener
-	protocols []alpncommon.Protocol
+	protocols []string
 	insecure  bool
 	certFile  string
 	keyFile   string
@@ -434,7 +434,7 @@ func (l *localProxyOpts) protocol() string {
 	if len(l.protocols) == 0 {
 		return ""
 	}
-	return string(l.protocols[0])
+	return l.protocols[0]
 }
 
 func mkLocalProxy(ctx context.Context, opts localProxyOpts) (*alpnproxy.LocalProxy, error) {
@@ -451,7 +451,7 @@ func mkLocalProxy(ctx context.Context, opts localProxyOpts) (*alpnproxy.LocalPro
 		return nil, trace.Wrap(err)
 	}
 
-	protocols := append([]alpncommon.Protocol{alpnProtocol}, opts.protocols...)
+	protocols := append([]string{alpnProtocol}, opts.protocols...)
 	if alpncommon.HasPingSupport(alpnProtocol) {
 		protocols = append(alpncommon.ProtocolsWithPing(alpnProtocol), protocols...)
 	}
@@ -485,7 +485,7 @@ func mkLocalProxyCerts(certFile, keyFile string) ([]tls.Certificate, error) {
 	return []tls.Certificate{cert}, nil
 }
 
-func alpnProtocolForApp(app types.Application) alpncommon.Protocol {
+func alpnProtocolForApp(app types.Application) string {
 	if app.IsTCP() {
 		return alpncommon.ProtocolTCP
 	}
@@ -526,7 +526,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		Listener:           listener,
 		RemoteProxyAddr:    tc.WebProxyAddr,
-		Protocols:          []alpncommon.Protocol{alpnProtocolForApp(app)},
+		Protocols:          []string{alpnProtocolForApp(app)},
 		InsecureSkipVerify: cf.InsecureSkipVerify,
 		ParentContext:      cf.Context,
 		SNI:                address.Host(),

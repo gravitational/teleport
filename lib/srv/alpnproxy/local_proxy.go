@@ -47,7 +47,7 @@ type LocalProxyConfig struct {
 	// RemoteProxyAddr is the downstream destination address of remote ALPN proxy service.
 	RemoteProxyAddr string
 	// Protocol set for the upstream TLS connection.
-	Protocols []common.Protocol
+	Protocols []string
 	// InsecureSkipTLSVerify turns off verification for x509 upstream ALPN proxy service certificate.
 	InsecureSkipVerify bool
 	// Listener is listener running on local machine.
@@ -161,7 +161,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 	defer tlsConn.Close()
 
 	var upstreamConn net.Conn = tlsConn
-	if common.IsPingProtocol(common.Protocol(tlsConn.ConnectionState().NegotiatedProtocol)) {
+	if common.IsPingProtocol(tlsConn.ConnectionState().NegotiatedProtocol) {
 		log.Debug("Using ping connection")
 		upstreamConn = NewPingConn(tlsConn)
 	}

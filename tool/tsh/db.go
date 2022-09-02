@@ -659,7 +659,7 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
 	opts := localProxyOpts{
 		proxyAddr: arg.teleportClient.WebProxyAddr,
 		listener:  arg.listener,
-		protocols: []common.Protocol{common.Protocol(arg.routeToDatabase.Protocol)},
+		protocols: []string{arg.routeToDatabase.Protocol},
 		insecure:  arg.cliConf.InsecureSkipVerify,
 		certFile:  certFile,
 		keyFile:   keyFile,
@@ -684,7 +684,7 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (localProxyOpts, error) {
 
 		mysqlServerVersionProto := mySQLVersionToProto(arg.database)
 		if mysqlServerVersionProto != "" {
-			opts.protocols = append(opts.protocols, common.Protocol(mysqlServerVersionProto))
+			opts.protocols = append(opts.protocols, mysqlServerVersionProto)
 		}
 	}
 
@@ -702,7 +702,7 @@ func mySQLVersionToProto(database types.Database) string {
 	versionBase64 := base64.StdEncoding.EncodeToString([]byte(version))
 
 	// Include MySQL server version
-	return string(common.ProtocolMySQLWithVerPrefix) + versionBase64
+	return common.ProtocolMySQLWithVerPrefix + versionBase64
 }
 
 // onDatabaseConnect implements "tsh db connect" command.

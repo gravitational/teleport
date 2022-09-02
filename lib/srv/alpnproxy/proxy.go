@@ -86,20 +86,20 @@ type Router struct {
 type MatchFunc func(sni, alpn string) bool
 
 // MatchByProtocol creates match function based on client TLS ALPN protocol.
-func MatchByProtocol(protocols ...common.Protocol) MatchFunc {
-	m := make(map[common.Protocol]struct{})
+func MatchByProtocol(protocols ...string) MatchFunc {
+	m := make(map[string]bool, len(protocols))
 	for _, v := range protocols {
-		m[v] = struct{}{}
+		m[v] = true
 	}
+
 	return func(sni, alpn string) bool {
-		_, ok := m[common.Protocol(alpn)]
-		return ok
+		return m[alpn]
 	}
 }
 
 // MatchByProtocolWithPing creates match function based on client TLS APLN
 // protocol matching also their ping protocol variations.
-func MatchByProtocolWithPing(protocols ...common.Protocol) MatchFunc {
+func MatchByProtocolWithPing(protocols ...string) MatchFunc {
 	return MatchByProtocol(append(protocols, common.ProtocolsWithPing(protocols...)...)...)
 }
 
@@ -117,8 +117,8 @@ func ExtractMySQLEngineVersion(fn func(ctx context.Context, conn net.Conn) error
 		const mysqlVerStart = len(common.ProtocolMySQLWithVerPrefix)
 
 		for _, alpn := range info.ALPN {
-			if strings.HasSuffix(alpn, string(common.ProtocolPingSuffix)) ||
-				!strings.HasPrefix(alpn, string(common.ProtocolMySQLWithVerPrefix)) ||
+			if strings.HasSuffix(alpn, common.ProtocolPingSuffix) ||
+				!strings.HasPrefix(alpn, common.ProtocolMySQLWithVerPrefix) ||
 				len(alpn) == mysqlVerStart {
 				continue
 			}
@@ -232,7 +232,7 @@ type HandlerFunc func(ctx context.Context, conn net.Conn) error
 // TLS SNI ALPN values to particular service.
 type Proxy struct {
 	cfg                ProxyConfig
-	supportedProtocols []common.Protocol
+	supportedProtocols []string
 	log                logrus.FieldLogger
 
 	// mu guards cancel
@@ -310,7 +310,7 @@ func (p *Proxy) Serve(ctx context.Context) error {
 	p.cancel = cancel
 	p.mu.Unlock()
 
-	p.cfg.WebTLSConfig.NextProtos = common.ProtocolsToString(p.supportedProtocols)
+	p.cfg.WebTLSConfig.NextProtos = p.supportedProtocols
 	for {
 		clientConn, err := p.cfg.Listener.Accept()
 		if err != nil {
@@ -394,15 +394,11 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 
 	var handlerConn net.Conn = tlsConn
 	// Check if ping is supported/required by the client.
-	if common.IsPingProtocol(common.Protocol(tlsConn.ConnectionState().NegotiatedProtocol)) {
+	if common.IsPingProtocol(tlsConn.ConnectionState().NegotiatedProtocol) {
 		handlerConn = p.handlePingConnection(ctx, tlsConn)
 	}
 
-	isDatabaseConnection, err := dbutils.IsDatabaseConnection(tlsConn.ConnectionState())
-	if err != nil {
-		p.log.WithError(err).Debug("Failed to check if connection is database connection.")
-	}
-	if isDatabaseConnection {
+	if dbutils.IsDatabaseConnection(tlsConn.ConnectionState()) {
 		return trace.Wrap(p.handleDatabaseConnection(ctx, handlerConn, connInfo))
 	}
 	return trace.Wrap(handlerDesc.handle(ctx, handlerConn, connInfo))
@@ -544,11 +540,7 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 		return trace.Wrap(err)
 	}
 
-	isDatabaseConnection, err := dbutils.IsDatabaseConnection(tlsConn.ConnectionState())
-	if err != nil {
-		p.log.WithError(err).Debug("Failed to check if connection is database connection.")
-	}
-	if !isDatabaseConnection {
+	if !dbutils.IsDatabaseConnection(tlsConn.ConnectionState()) {
 		return trace.BadParameter("not database connection")
 	}
 	return trace.Wrap(p.handleDatabaseConnection(ctx, tlsConn, info))
@@ -570,11 +562,10 @@ func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo
 	// list is empty the default HTTP handler will be returned.
 	clientProtocols := clientHelloInfo.SupportedProtos
 	if len(clientProtocols) == 0 {
-		clientProtocols = []string{string(common.ProtocolHTTP)}
+		clientProtocols = []string{common.ProtocolHTTP}
 	}
 
-	for _, v := range clientProtocols {
-		protocol := common.Protocol(v)
+	for _, protocol := range clientProtocols {
 		if common.IsDBTLSProtocol(protocol) {
 			return &HandlerDecs{
 				MatchFunc:           MatchByProtocol(protocol),
@@ -584,7 +575,7 @@ func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo
 		}
 
 		for _, h := range p.cfg.Router.alpnHandlers {
-			if ok := h.MatchFunc(clientHelloInfo.ServerName, string(protocol)); ok {
+			if ok := h.MatchFunc(clientHelloInfo.ServerName, protocol); ok {
 				return h, nil
 			}
 		}

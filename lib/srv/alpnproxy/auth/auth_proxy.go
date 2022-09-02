@@ -75,10 +75,10 @@ func getClusterName(info alpnproxy.ConnectionInfo) (string, error) {
 		return "", trace.NotFound("missing ALPN value")
 	}
 	protocol := info.ALPN[0]
-	if !strings.HasPrefix(protocol, string(common.ProtocolAuth)) {
+	if !strings.HasPrefix(protocol, common.ProtocolAuth) {
 		return "", trace.BadParameter("auth routing prefix not found")
 	}
-	routeToCluster := strings.TrimPrefix(protocol, string(common.ProtocolAuth))
+	routeToCluster := strings.TrimPrefix(protocol, common.ProtocolAuth)
 	cn, err := apiutils.DecodeClusterName(routeToCluster)
 	if err != nil {
 		return "", trace.Wrap(err)

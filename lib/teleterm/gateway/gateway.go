@@ -82,7 +82,7 @@ func New(cfg Config) (*Gateway, error) {
 	localProxy, err := alpn.NewLocalProxy(alpn.LocalProxyConfig{
 		InsecureSkipVerify: cfg.Insecure,
 		RemoteProxyAddr:    cfg.WebProxyAddr,
-		Protocols:          []alpncommon.Protocol{protocol},
+		Protocols:          []string{protocol},
 		Listener:           listener,
 		ParentContext:      closeContext,
 		SNI:                address.Host(),

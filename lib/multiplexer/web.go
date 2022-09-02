@@ -149,11 +149,7 @@ func (l *WebListener) detectAndForward(conn *tls.Conn) {
 	// connection either to database access listener if identity encoded
 	// in the cert indicates this is a database connection, or to a regular
 	// tls listener.
-	isDatabaseConnection, err := dbcommon.IsDatabaseConnection(conn.ConnectionState())
-	if err != nil {
-		l.log.WithError(err).Debug("Failed to check if connection is database connection.")
-	}
-	if isDatabaseConnection {
+	if dbcommon.IsDatabaseConnection(conn.ConnectionState()) {
 		l.dbListener.HandleConnection(l.context, conn)
 		return
 	}

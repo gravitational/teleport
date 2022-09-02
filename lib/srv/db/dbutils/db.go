@@ -19,23 +19,26 @@ package dbutils
 import (
 	"crypto/tls"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // IsDatabaseConnection inspects the TLS connection state and returns true
 // if it's a database access connection as determined by the decoded
 // identity from the client certificate.
-func IsDatabaseConnection(state tls.ConnectionState) (bool, error) {
+func IsDatabaseConnection(state tls.ConnectionState) bool {
 	// VerifiedChains must be populated after the handshake.
 	if len(state.VerifiedChains) < 1 || len(state.VerifiedChains[0]) < 1 {
-		return false, nil
+		return false
 	}
-	identity, err := tlsca.FromSubject(state.VerifiedChains[0][0].Subject,
-		state.VerifiedChains[0][0].NotAfter)
-	if err != nil {
-		return false, trace.Wrap(err)
+
+	for _, attr := range state.VerifiedChains[0][0].Subject.Names {
+		if !attr.Type.Equal(tlsca.DatabaseServiceNameASN1ExtensionOID) {
+			continue
+		}
+
+		val, ok := attr.Value.(string)
+		return ok && val != ""
 	}
-	return identity.RouteToDatabase.ServiceName != "", nil
+
+	return false
 }

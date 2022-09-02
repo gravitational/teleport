@@ -509,10 +509,11 @@ func (process *TeleportProcess) addConnector(connector *Connector) {
 // the resulting payload as a *Connector. Returns (nil, nil) when the
 // ExitContext is done, so error checking should happen on the connector rather
 // than the error:
-//  conn, err := process.waitForConnector("FooIdentity", log)
-//  if conn == nil {
-//  	return trace.Wrap(err)
-//  }
+//
+//	conn, err := process.waitForConnector("FooIdentity", log)
+//	if conn == nil {
+//		return trace.Wrap(err)
+//	}
 func (process *TeleportProcess) waitForConnector(identityEvent string, log logrus.FieldLogger) (*Connector, error) {
 	event, err := process.WaitForEvent(process.ExitContext(), identityEvent)
 	if err != nil {
@@ -2840,10 +2841,10 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) (
 
 // initProxy gets called if teleport runs with 'proxy' role enabled.
 // this means it will do four things:
-//    1. serve a web UI
-//    2. proxy SSH connections to nodes running with 'node' role
-//    3. take care of reverse tunnels
-//    4. optionally proxy kubernetes connections
+//  1. serve a web UI
+//  2. proxy SSH connections to nodes running with 'node' role
+//  3. take care of reverse tunnels
+//  4. optionally proxy kubernetes connections
 func (process *TeleportProcess) initProxy() error {
 	// If no TLS key was provided for the web listener, generate a self-signed cert
 	if len(process.Config.Proxy.KeyPairs) == 0 &&
@@ -3696,7 +3697,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		if alpnRouter != nil && !cfg.Proxy.DisableDatabaseProxy {
 			alpnRouter.Add(alpnproxy.HandlerDecs{
-				MatchFunc:           alpnproxy.MatchByALPNPrefix(string(alpncommon.ProtocolMySQL)),
+				MatchFunc:           alpnproxy.MatchByALPNPrefix(alpncommon.ProtocolMySQL),
 				HandlerWithConnInfo: alpnproxy.ExtractMySQLEngineVersion(dbProxyServer.MySQLProxy().HandleConnection),
 			})
 			alpnRouter.Add(alpnproxy.HandlerDecs{
@@ -3783,7 +3784,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if !cfg.Proxy.DisableTLS && !cfg.Proxy.DisableALPNSNIListener && listeners.web != nil {
 		authDialerService := alpnproxyauth.NewAuthProxyDialerService(tsrv, clusterName, utils.NetAddrsToStrings(process.Config.AuthServers))
 		alpnRouter.Add(alpnproxy.HandlerDecs{
-			MatchFunc:           alpnproxy.MatchByALPNPrefix(string(alpncommon.ProtocolAuth)),
+			MatchFunc:           alpnproxy.MatchByALPNPrefix(alpncommon.ProtocolAuth),
 			HandlerWithConnInfo: authDialerService.HandleConnection,
 			ForwardTLS:          true,
 		})
@@ -4039,7 +4040,7 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 
 	// Go 1.17 introduced strict ALPN https://golang.org/doc/go1.17#ALPN If a client protocol is not recognized
 	// the TLS handshake will fail.
-	tlsConfig.NextProtos = apiutils.Deduplicate(append(tlsConfig.NextProtos, alpncommon.ProtocolsToString(alpncommon.SupportedProtocols)...))
+	tlsConfig.NextProtos = apiutils.Deduplicate(append(tlsConfig.NextProtos, alpncommon.SupportedProtocols...))
 
 	for _, pair := range process.Config.Proxy.KeyPairs {
 		process.Config.Log.Infof("Loading TLS certificate %v and key %v.", pair.Certificate, pair.PrivateKey)
@@ -4118,7 +4119,7 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConf *tls.Config, cfg *
 
 	grpcListener := alpnproxy.NewMuxListenerWrapper(nil /* serviceListener */, listeners.web)
 	router.Add(alpnproxy.HandlerDecs{
-		MatchFunc: alpnproxy.MatchByALPNPrefix(string(alpncommon.ProtocolProxyGRPC)),
+		MatchFunc: alpnproxy.MatchByALPNPrefix(alpncommon.ProtocolProxyGRPC),
 		Handler:   grpcListener.HandleConnection,
 	})
 	listeners.grpc = grpcListener

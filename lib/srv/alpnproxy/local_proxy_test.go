@@ -140,7 +140,7 @@ func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *Loc
 	lp, err := NewLocalProxy(LocalProxyConfig{
 		Listener:           mustCreateLocalListener(t),
 		RemoteProxyAddr:    hs.Listener.Addr().String(),
-		Protocols:          []common.Protocol{common.ProtocolHTTP},
+		Protocols:          []string{common.ProtocolHTTP},
 		ParentContext:      context.Background(),
 		InsecureSkipVerify: true,
 		AWSCredentials:     cred,

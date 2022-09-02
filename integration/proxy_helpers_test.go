@@ -28,19 +28,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/trace"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
+	"github.com/gravitational/teleport/api/breaker"
+
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
-	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -469,7 +469,7 @@ func mustCreateKubeConfigFile(t *testing.T, config clientcmdapi.Config) string {
 	return configPath
 }
 
-func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpncommon.Protocol) *alpnproxy.LocalProxy {
+func mustStartALPNLocalProxy(t *testing.T, addr string, protocol string) *alpnproxy.LocalProxy {
 	listener, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 
@@ -477,7 +477,7 @@ func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpncommon.Prot
 	require.NoError(t, err)
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:    addr,
-		Protocols:          []alpncommon.Protocol{protocol},
+		Protocols:          []string{protocol},
 		InsecureSkipVerify: true,
 		Listener:           listener,
 		ParentContext:      context.Background(),

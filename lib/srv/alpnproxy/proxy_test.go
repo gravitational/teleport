@@ -55,7 +55,7 @@ func TestProxySSHHandler(t *testing.T) {
 	suite.Start(t)
 
 	conn, err := tls.Dial("tcp", suite.GetServerAddress(), &tls.Config{
-		NextProtos: []string{string(common.ProtocolProxySSH)},
+		NextProtos: []string{common.ProtocolProxySSH},
 		ServerName: "localhost",
 		RootCAs:    suite.GetCertPool(),
 	})
@@ -92,7 +92,7 @@ func TestProxyKubeHandler(t *testing.T) {
 	suite.Start(t)
 
 	conn, err := tls.Dial("tcp", suite.GetServerAddress(), &tls.Config{
-		NextProtos: []string{string(common.ProtocolHTTP2)},
+		NextProtos: []string{common.ProtocolHTTP2},
 		ServerName: kubeSNI,
 		RootCAs:    suite.GetCertPool(),
 	})
@@ -138,7 +138,7 @@ func TestProxyTLSDatabaseHandler(t *testing.T) {
 		MatchFunc: MatchByProtocol(common.ProtocolHTTP),
 		Handler: func(ctx context.Context, conn net.Conn) error {
 			defer conn.Close()
-			_, err := fmt.Fprint(conn, string(common.ProtocolHTTP))
+			_, err := fmt.Fprint(conn, common.ProtocolHTTP)
 			require.NoError(t, err)
 			return nil
 		},
@@ -161,7 +161,7 @@ func TestProxyTLSDatabaseHandler(t *testing.T) {
 
 	t.Run("tls database connection wrapped with ALPN value", func(t *testing.T) {
 		conn, err := tls.Dial("tcp", suite.GetServerAddress(), &tls.Config{
-			NextProtos: []string{string(common.ProtocolMongoDB)},
+			NextProtos: []string{common.ProtocolMongoDB},
 			RootCAs:    suite.GetCertPool(),
 			ServerName: "localhost",
 		})
@@ -181,7 +181,7 @@ func TestProxyTLSDatabaseHandler(t *testing.T) {
 
 	t.Run("tls database connection wrapped with ALPN ping value", func(t *testing.T) {
 		baseConn, err := tls.Dial("tcp", suite.GetServerAddress(), &tls.Config{
-			NextProtos: []string{string(common.ProtocolWithPing(common.ProtocolMongoDB))},
+			NextProtos: []string{common.ProtocolWithPing(common.ProtocolMongoDB)},
 			RootCAs:    suite.GetCertPool(),
 			ServerName: "localhost",
 		})
@@ -235,7 +235,7 @@ func TestProxyRouteToDatabase(t *testing.T) {
 
 	t.Run("dial with user certs with RouteToDatabase info", func(t *testing.T) {
 		conn, err := tls.Dial("tcp", suite.GetServerAddress(), &tls.Config{
-			NextProtos: []string{string(common.ProtocolReverseTunnel)},
+			NextProtos: []string{common.ProtocolReverseTunnel},
 			RootCAs:    suite.GetCertPool(),
 			ServerName: "localhost",
 			Certificates: []tls.Certificate{
@@ -249,7 +249,7 @@ func TestProxyRouteToDatabase(t *testing.T) {
 
 	t.Run("dial with no user certs", func(t *testing.T) {
 		conn, err := tls.Dial("tcp", suite.GetServerAddress(), &tls.Config{
-			NextProtos: []string{string(common.ProtocolReverseTunnel)},
+			NextProtos: []string{common.ProtocolReverseTunnel},
 			RootCAs:    suite.GetCertPool(),
 			ServerName: "localhost",
 		})
@@ -285,7 +285,7 @@ func TestLocalProxyPostgresProtocol(t *testing.T) {
 	require.NoError(t, err)
 	localProxyConfig := LocalProxyConfig{
 		RemoteProxyAddr:    suite.GetServerAddress(),
-		Protocols:          []common.Protocol{common.ProtocolPostgres},
+		Protocols:          []string{common.ProtocolPostgres},
 		Listener:           localProxyListener,
 		SNI:                "localhost",
 		ParentContext:      context.Background(),
@@ -339,12 +339,12 @@ func TestProxyHTTPConnection(t *testing.T) {
 func TestProxyALPNProtocolsRouting(t *testing.T) {
 	t.Parallel()
 
-	makeHandler := func(protocol common.Protocol) HandlerDecs {
+	makeHandler := func(protocol string) HandlerDecs {
 		return HandlerDecs{
 			MatchFunc: MatchByProtocol(protocol),
 			Handler: func(ctx context.Context, conn net.Conn) error {
 				defer conn.Close()
-				_, err := fmt.Fprint(conn, string(protocol))
+				_, err := fmt.Fprint(conn, protocol)
 				require.NoError(t, err)
 				return nil
 			},
@@ -365,9 +365,9 @@ func TestProxyALPNProtocolsRouting(t *testing.T) {
 				makeHandler(common.ProtocolHTTP),
 				makeHandler(common.ProtocolProxySSH),
 			},
-			ClientNextProtos:    []string{string(common.ProtocolProxySSH)},
+			ClientNextProtos:    []string{common.ProtocolProxySSH},
 			ServerName:          "localhost",
-			wantProtocolHandler: string(common.ProtocolProxySSH),
+			wantProtocolHandler: common.ProtocolProxySSH,
 		},
 		{
 			name: "supported protocol as last element",
@@ -379,9 +379,9 @@ func TestProxyALPNProtocolsRouting(t *testing.T) {
 				"unknown-protocol1",
 				"unknown-protocol2",
 				"unknown-protocol3",
-				string(common.ProtocolProxySSH)},
+				common.ProtocolProxySSH},
 			ServerName:          "localhost",
-			wantProtocolHandler: string(common.ProtocolProxySSH),
+			wantProtocolHandler: common.ProtocolProxySSH,
 		},
 		{
 			name: "nil client next protos - default http handler should be called",
@@ -391,7 +391,7 @@ func TestProxyALPNProtocolsRouting(t *testing.T) {
 			},
 			ClientNextProtos:    nil,
 			ServerName:          "localhost",
-			wantProtocolHandler: string(common.ProtocolHTTP),
+			wantProtocolHandler: common.ProtocolHTTP,
 		},
 		{
 			name:             "kube ServerName prefix should route to kube handler",
@@ -416,7 +416,7 @@ func TestProxyALPNProtocolsRouting(t *testing.T) {
 			handlers: []HandlerDecs{
 				makeHandler(common.ProtocolHTTP),
 			},
-			wantProtocolHandler: string(common.ProtocolHTTP),
+			wantProtocolHandler: common.ProtocolHTTP,
 		},
 		{
 			name:       "kubernetes servername prefix should route to web handler",
@@ -424,7 +424,7 @@ func TestProxyALPNProtocolsRouting(t *testing.T) {
 			handlers: []HandlerDecs{
 				makeHandler(common.ProtocolHTTP),
 			},
-			wantProtocolHandler: string(common.ProtocolHTTP),
+			wantProtocolHandler: common.ProtocolHTTP,
 		},
 		{
 			name:             "kube ServerName prefix should route to kube handler",
@@ -472,7 +472,7 @@ func TestProxyALPNProtocolsRouting(t *testing.T) {
 
 func TestMatchMySQLConn(t *testing.T) {
 	encodeProto := func(version string) string {
-		return string(common.ProtocolMySQLWithVerPrefix) + base64.StdEncoding.EncodeToString([]byte(version))
+		return common.ProtocolMySQLWithVerPrefix + base64.StdEncoding.EncodeToString([]byte(version))
 	}
 
 	tests := []struct {
@@ -487,7 +487,7 @@ func TestMatchMySQLConn(t *testing.T) {
 		},
 		{
 			name:    "protocol only",
-			protos:  []string{string(common.ProtocolMySQL)},
+			protos:  []string{common.ProtocolMySQL},
 			version: nil,
 		},
 		{
@@ -497,7 +497,7 @@ func TestMatchMySQLConn(t *testing.T) {
 		},
 		{
 			name:    "missing -",
-			protos:  []string{string(common.ProtocolMySQL) + base64.StdEncoding.EncodeToString([]byte("8.0.1"))},
+			protos:  []string{common.ProtocolMySQL + base64.StdEncoding.EncodeToString([]byte("8.0.1"))},
 			version: nil,
 		},
 		{
@@ -564,7 +564,7 @@ func TestProxyPingConnections(t *testing.T) {
 
 			localProxyConfig := LocalProxyConfig{
 				RemoteProxyAddr:    suite.GetServerAddress(),
-				Protocols:          []common.Protocol{common.ProtocolWithPing(protocol), protocol},
+				Protocols:          []string{common.ProtocolWithPing(protocol), protocol},
 				Listener:           localProxyListener,
 				SNI:                "localhost",
 				ParentContext:      context.Background(),

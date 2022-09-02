@@ -100,7 +100,7 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 		t.Log.Debugf("Failed to ping web proxy %q addr: %v", addr.Addr, err)
 	} else if resp.Proxy.TLSRoutingEnabled {
 		opts = append(opts, proxy.WithALPNDialer(&tls.Config{
-			NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
+			NextProtos: []string{alpncommon.ProtocolReverseTunnel},
 		}))
 	}
 
