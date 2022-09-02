@@ -210,7 +210,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	}
 
 	if err := auditd.SendEvent(auditd.AuditUserLogin, auditd.Success, auditdMsg); err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Errorf("failed to login user start: %v", err)
+		log.WithError(err).Errorf("failed to send user start event to auditd: %v", err)
 	}
 
 	defer func() {
