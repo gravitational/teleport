@@ -17,6 +17,7 @@ limitations under the License.
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
@@ -71,6 +72,11 @@ const (
 	StreamTypeError = "error"
 	// Value for streamType header for terminal resize stream
 	StreamTypeResize = "resize"
+
+	// CloseStreamMessage is an expected keyword if stdin is enable and the
+	// underlying protocol does not support half closed streams.
+	// It is only required for websockets.
+	CloseStreamMessage = "\r\nexit_message\r\n"
 )
 
 // statusScheme is private scheme for the decoding here until someone fixes the TODO in NewConnection
@@ -81,7 +87,7 @@ var statusCodecs = serializer.NewCodecFactory(statusScheme)
 
 type KubeMockServer struct {
 	router *httprouter.Router
-	log    log.Entry
+	log    *log.Entry
 	server *httptest.Server
 	TLS    *tls.Config
 	Addr   net.Addr
@@ -92,15 +98,15 @@ type KubeMockServer struct {
 // NewKubeAPIMock creates Kubernetes API server for handling exec calls.
 // For now it just supports exec via SPDY protocol and returns the following content into the available streams:
 // {containerName}\n
-// {stdInDump}
+// {stdinDump}
 // The output returns the container followed by a dump of the data received from stdin.
 // More endpoints can be configured
-// TODO: add support for other endpoints
+// TODO(tigrato): add support for other endpoints
 func NewKubeAPIMock() (*KubeMockServer, error) {
 
 	s := &KubeMockServer{
 		router: httprouter.New(),
-		log:    *log.NewEntry(log.New()),
+		log:    log.NewEntry(log.New()),
 	}
 	s.setup()
 	if err := http2.ConfigureServer(s.server.Config, &http2.Server{}); err != nil {
@@ -194,17 +200,29 @@ func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httpro
 	}
 
 	if request.stdin {
-		buffer := make([]byte, 1024)
+		buffer := make([]byte, 32*1024)
 		for {
 			buffer = buffer[:cap(buffer)]
 			n, err := proxy.stdinStream.Read(buffer)
-			if err == io.EOF {
+			if err == io.EOF && n == 0 {
 				break
-			} else if err != nil {
+			} else if err != nil && n == 0 {
 				s.log.WithError(err).Errorf("unable to receive from stdin")
 				break
 			}
+
 			buffer = buffer[:n]
+			// Unfortunatly, K8S Websocket protocol does not support half closed streams,
+			// i.e. indicating that nothing else will be sent via stdin. If the server
+			// reads the stdin stream until io.EOF is received, it will block on reading.
+			// This issue is being tracked by https://github.com/kubernetes/kubernetes/issues/89899
+			// In order to prevent this issue, and uniquely for the purpose of testing,
+			// this server expects an exit keyword specified by CloseStreamMessage.
+			// Once the exit is received, the server stops reading stdin.
+			if bytes.Equal(buffer, []byte(CloseStreamMessage)) {
+				break
+			}
+
 			if request.stdout {
 				if _, err := proxy.stdoutStream.Write(buffer); err != nil {
 					s.log.WithError(err).Errorf("unable to send to stdout")
@@ -216,7 +234,9 @@ func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httpro
 					s.log.WithError(err).Errorf("unable to send to stdout")
 				}
 			}
+
 		}
+
 	}
 
 	return nil, nil
