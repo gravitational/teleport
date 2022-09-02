@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -101,7 +102,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		return nil, trace.Wrap(err)
 	}
 
-	key, err := client.GenerateRSAKey()
+	key, err := client.NewKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -112,7 +113,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	}
 
 	certs, err := s.cfg.UserClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey:              key.MarshalSSHPublicKey(),
+		PublicKey:              key.Pub,
 		Username:               currentUser.GetName(),
 		Expires:                time.Now().Add(time.Minute).UTC(),
 		ConnectionDiagnosticID: connectionDiagnosticID,
@@ -157,10 +158,22 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		ClusterName: clusterName.GetClusterName(),
 	}
 
+	agent := agent.NewKeyring()
+	agentKeys, err := key.AsAgentKeys()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, k := range agentKeys {
+		if err := agent.Add(k); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	processStdout := &bytes.Buffer{}
 
 	clientConf := client.MakeDefaultConfig()
 	clientConf.AddKeysToAgent = client.AddKeysToAgentNo
+	clientConf.Agent = agent
 	clientConf.AuthMethods = []ssh.AuthMethod{keyAuthMethod}
 	clientConf.Host = req.ResourceName
 	clientConf.HostKeyCallback = hostkeyCallback
