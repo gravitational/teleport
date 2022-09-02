@@ -721,6 +721,24 @@ func (proxy *ProxyClient) FindNodesByFilters(ctx context.Context, req proto.List
 	return servers, trace.Wrap(err)
 }
 
+func (proxy *ProxyClient) GetClusterAlerts(ctx context.Context, req types.GetClusterAlertsRequest) ([]types.ClusterAlert, error) {
+	ctx, span := proxy.Tracer.Start(
+		ctx,
+		"proxyClient/GetClusterAlerts",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	site, err := proxy.CurrentClusterAccessPoint(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer site.Close()
+
+	alerts, err := site.GetClusterAlerts(ctx, req)
+	return alerts, trace.Wrap(err)
+}
+
 // FindNodesByFiltersForCluster returns list of the nodes in a specified cluster which have filters matched.
 func (proxy *ProxyClient) FindNodesByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster string) ([]types.Server, error) {
 	ctx, span := proxy.Tracer.Start(

@@ -2441,6 +2441,24 @@ func (tc *TeleportClient) ListNodesWithFilters(ctx context.Context) ([]types.Ser
 	return servers, nil
 }
 
+// GetClusterAlerts returns a list of matching alerts from the current cluster.
+func (tc *TeleportClient) GetClusterAlerts(ctx context.Context, req types.GetClusterAlertsRequest) ([]types.ClusterAlert, error) {
+	ctx, span := tc.Tracer.Start(ctx,
+		"teleportClient/GetClusterAlerts",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	alerts, err := proxyClient.GetClusterAlerts(ctx, req)
+	return alerts, trace.Wrap(err)
+}
+
 // ListNodesWithFiltersAllClusters returns a map of all nodes in all clusters connected to this proxy.
 func (tc *TeleportClient) ListNodesWithFiltersAllClusters(ctx context.Context) (map[string][]types.Server, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
@@ -3059,6 +3077,10 @@ func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.
 	log.Infof("Connecting to proxy=%v login=%q", sshProxyAddr, sshConfig.User)
 	client, err := makeProxySSHClientDirect(ctx, tc, sshConfig, sshProxyAddr)
 	if err != nil {
+		if utils.IsHandshakeFailedError(err) {
+			return nil, trace.AccessDenied("failed to authenticate with proxy %v: %v", sshProxyAddr, err)
+		}
+
 		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", sshProxyAddr)
 	}
 	log.Infof("Successful auth with proxy %v.", sshProxyAddr)
