@@ -16,15 +16,13 @@
 # This script detects the current Linux distribution and installs Teleport
 # through it's package manager when available, or downloading a tarball otherwise.
 
-# TODO consider using a template and generating this script
-
 set -euo pipefail
 
 # require_curl checks if $CURL is set and exits with error
 # if it is empty
 require_curl() {
   if [ -z "$CURL" ]; then
-    echo "This script requires either curl or wget in order to download files"
+    echo "This script requires either curl or wget in order to download files, please install one of these and try again."
     exit 1
   fi
 }
@@ -40,7 +38,6 @@ add_apt_key() {
   case "$ID" in
   ubuntu | pop | neon | zorin)
     if ! expr "$VERSION_ID" : "2.*" >/dev/null; then
-      echo "entrou aqui"
       KEY_URL=$ASC_URL
     fi
     ;;
@@ -113,9 +110,8 @@ install_via_curl() {
     ARCH="arm64"
     ;;
   **)
-    # TODO improve message
-    # TODO consider installing one as default?
-    echo "Your system's architecture couldn't be determined. Please refer to the installation guide."
+    echo "Your system's architecture couldn't be determined. Please refer to the installation guide for more information:"
+    echo "https://goteleport.com/docs/installation/"
     exit 1
     ;;
   esac
@@ -151,9 +147,9 @@ install_teleport() {
 
   # exit if not on Linux
   if [[ $(uname) != "Linux" ]]; then
-    echo "This script works only for Linux"
-    echo "TODO improve this message"
-    exit
+    echo "This script works only for Linux, please go to the downloads page to find a link to your operating system:"
+    echo "https://goteleport.com/download/"
+    exit 1
   fi
 
   IS_ROOT=""
@@ -200,7 +196,7 @@ install_teleport() {
     install_via_apt
     ;;
   # if ID is amazon Linux 2/RHEL/etc, run yum
-  centos | rhel | fedora | rocky | almalinux | xenenterprise | ol | scientific) # todo add amazn back
+  centos | rhel | fedora | rocky | almalinux | xenenterprise | ol | scientific | amzn)
     install_via_yum
     ;;
   *)
@@ -214,15 +210,14 @@ install_teleport() {
       ;;
     *)
       # if ID and ID_LIKE didn't return a supported distro, download through curl
-      echo "There is no oficially supported package to $ID. Downloading and installing Teleport via curl"
+      echo "There is no oficially supported package to your package manager. Downloading and installing Teleport via CURL."
       install_via_curl
       ;;
     esac
     ;;
   esac
 
-  echo "$(teleport version) installed successfully."
-  # TODO message
+  echo "$(teleport version) installed successfully!"
 }
 
 install_teleport
