@@ -479,7 +479,7 @@ func (a *Server) runPeriodicOperations() {
 	releaseCheck := interval.New(interval.Config{
 		Duration:      time.Hour * 24,
 		FirstDuration: firstReleaseCheck,
-		Jitter:        utils.NewFullJitter(),
+		Jitter:        retryutils.NewFullJitter(),
 	})
 	defer releaseCheck.Stop()
 	for {
