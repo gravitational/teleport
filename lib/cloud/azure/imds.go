@@ -141,6 +141,7 @@ func (client *InstanceMetadataClient) IsAvailable(ctx context.Context) bool {
 	return err == nil
 }
 
+// GetTags gets all of the Azure instance's tags.
 func (client *InstanceMetadataClient) GetTags(ctx context.Context) (map[string]string, error) {
 	if !client.IsAvailable(ctx) {
 		return nil, trace.NotFound("Instance metadata not available")

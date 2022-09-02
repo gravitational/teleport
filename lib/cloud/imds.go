@@ -36,7 +36,7 @@ type InstanceMetadata interface {
 	// GetHostname gets the hostname set by the cloud instance that Teleport
 	// should use, if any.
 	GetHostname(ctx context.Context) (string, error)
-	// GetType gets the
+	// GetType gets the cloud instance type.
 	GetType() types.InstanceMetadataType
 }
 
@@ -56,6 +56,8 @@ func initAzure(ctx context.Context) (InstanceMetadata, error) {
 	return azure.NewInstanceMetadataClient(), nil
 }
 
+// DiscoverInstanceMetadata checks which cloud instance type Teleport is
+// running on, if any.
 func DiscoverInstanceMetadata(ctx context.Context) (InstanceMetadata, error) {
 	ctx, cancel := context.WithTimeout(ctx, 250*time.Millisecond)
 	defer cancel()

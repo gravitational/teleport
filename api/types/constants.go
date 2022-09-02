@@ -350,6 +350,7 @@ const (
 // CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.
 const CloudHostnameTag = "TeleportHostname"
 
+// InstanceMetadataType is the type of cloud instance metadata client.
 type InstanceMetadataType string
 
 const (
