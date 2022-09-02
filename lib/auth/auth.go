@@ -1867,7 +1867,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 	allowedResourceIDs := accessInfo.AllowedResourceIDs
 	accessRequests := identity.ActiveRequests
 
-	if req.UpdateUserTraits {
+	if req.ReloadUser {
 		// We don't call from the cache layer because we want to
 		// retrieve the recently updated user. Otherwise the cache
 		// returns stale data.
