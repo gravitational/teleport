@@ -149,7 +149,7 @@ func (l *LocalProxy) GetAddr() string {
 func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamConn net.Conn, serverName string) error {
 	defer downstreamConn.Close()
 
-	upstreamConn, err := tls.Dial("tcp", l.cfg.RemoteProxyAddr, &tls.Config{
+	tlsConn, err := tls.Dial("tcp", l.cfg.RemoteProxyAddr, &tls.Config{
 		NextProtos:         l.cfg.GetProtocols(),
 		InsecureSkipVerify: l.cfg.InsecureSkipVerify,
 		ServerName:         serverName,
@@ -158,7 +158,13 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer upstreamConn.Close()
+	defer tlsConn.Close()
+
+	var upstreamConn net.Conn = tlsConn
+	if common.IsPingProtocol(common.Protocol(tlsConn.ConnectionState().NegotiatedProtocol)) {
+		log.Debug("Using ping connection")
+		upstreamConn = NewPingConn(tlsConn)
+	}
 
 	errC := make(chan error, 2)
 	go func() {

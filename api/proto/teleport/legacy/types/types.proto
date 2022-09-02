@@ -1203,6 +1203,14 @@ message ClusterNetworkingConfigSpecV2 {
 
   // TunnelStrategyV1 determines the tunnel strategy used in the cluster.
   TunnelStrategyV1 TunnelStrategy = 9 [(gogoproto.jsontag) = "tunnel_strategy,omitempty"];
+
+  // ProxyPingInterval defines in which interval the TLS routing ping message
+  // should be sent. This is applicable only when using ping-wrapped
+  // connections, regular TLS routing connections are not affected.
+  int64 ProxyPingInterval = 10 [
+    (gogoproto.jsontag) = "proxy_ping_interval,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
 }
 
 // TunnelStrategyV1 defines possible tunnel strategy types.
@@ -3336,7 +3344,7 @@ message GithubConnectorSpecV3 {
   // TeamsToRoles maps Github team memberships onto allowed roles.
   repeated TeamRolesMapping TeamsToRoles = 6 [
     (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "teams_to_roles"
+    (gogoproto.jsontag) = "teams_to_roles,omitempty"
   ];
 }
 
