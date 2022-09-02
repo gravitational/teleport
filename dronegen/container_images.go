@@ -477,12 +477,10 @@ func (p *product) GetBuildStepName(arch string, version *releaseVersion) string 
 func (p *product) createBuildStep(arch string, version *releaseVersion) (step, *buildStepOutput) {
 	imageName := p.BuildLocalImageName(arch, version)
 
-	if p.DockerfileTarget == "" {
-		p.DockerfileTarget = "''" // Set target to an empty shell string rather than shell nil
-	}
-
 	buildCommand := "docker build"
-	buildCommand += fmt.Sprintf(" --target %q", p.DockerfileTarget)
+	if p.DockerfileTarget != "" {
+		buildCommand += fmt.Sprintf(" --target %q", p.DockerfileTarget)
+	}
 	buildCommand += fmt.Sprintf(" --platform %q", "linux/"+arch)
 	buildCommand += fmt.Sprintf(" --tag %q", imageName)
 	buildCommand += fmt.Sprintf(" --file %q", p.DockerfilePath)
