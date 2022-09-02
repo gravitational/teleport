@@ -41,7 +41,6 @@ func TestGetSortByFromString(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.in, func(t *testing.T) {
-			t.Parallel()
 
 			out := GetSortByFromString(tt.in)
 			require.Equal(t, tt.out, out)

@@ -38,7 +38,7 @@ type Server struct {
 	types.Server
 }
 
-// GetAllServers returns a full list of nodes without pagination or sorting.
+// GetAllServers returns a full list of servers without pagination or sorting.
 func (c *Cluster) GetAllServers(ctx context.Context) ([]Server, error) {
 	var clusterServers []types.Server
 	err := addMetadataToRetryableError(ctx, func() error {
@@ -134,7 +134,6 @@ func (c *Cluster) GetServers(ctx context.Context, r *api.GetServersRequest) (*Ge
 }
 
 type GetServersResponse struct {
-	// Resources is a list of resource.
 	Servers []Server
 	// StartKey is the next key to use as a starting point.
 	StartKey string
