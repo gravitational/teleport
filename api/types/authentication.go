@@ -764,7 +764,8 @@ func (r *RequireMFAType) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return json.Marshal(val)
+	out, err := json.Marshal(val)
+	return out, trace.Wrap(err)
 }
 
 // UnmarshalJSON supports parsing RequireMFAType from boolean or alias.
@@ -779,7 +780,7 @@ func (r *RequireMFAType) UnmarshalJSON(data []byte) error {
 	return trace.Wrap(err)
 }
 
-var (
+const (
 	RequireMFATypeHardwareKeyString      = "hardware_key"
 	RequireMFATypeHardwareKeyTouchString = "hardware_key_touch"
 )
@@ -798,7 +799,7 @@ func (r *RequireMFAType) encode() (interface{}, error) {
 	case RequireMFAType_HARDWARE_KEY_TOUCH:
 		return RequireMFATypeHardwareKeyTouchString, nil
 	default:
-		return nil, trace.BadParameter("RequireMFAType invalid value %v", r)
+		return nil, trace.BadParameter("RequireMFAType invalid value %v", *r)
 	}
 }
 
