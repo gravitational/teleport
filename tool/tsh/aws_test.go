@@ -121,7 +121,7 @@ func makeUserWithAWSRole(t *testing.T) (types.User, types.Role) {
 	awsRole, err := types.NewRoleV3("aws", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			AppLabels: types.Labels{
-				"*": apiutils.Strings{"*"},
+				types.Wildcard: apiutils.Strings{types.Wildcard},
 			},
 			AWSRoleARNs: []string{
 				"arn:aws:iam::123456890:role/some-aws-role",
@@ -166,7 +166,7 @@ func makeTestApplicationServer(t *testing.T, auth *service.TeleportProcess, prox
 		srv.Close()
 	})
 
-	// Wait for database agent to start.
+	// Wait for apps agent to start.
 	_, err = srv.WaitForEventTimeout(10*time.Second, service.AppsReady)
 	require.NoError(t, err, "app server didn't start after 10s")
 	return srv
