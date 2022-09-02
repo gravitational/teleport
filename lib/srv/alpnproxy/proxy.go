@@ -30,9 +30,11 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/atomic"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -311,6 +313,9 @@ func (p *Proxy) Serve(ctx context.Context) error {
 	p.mu.Unlock()
 
 	p.cfg.WebTLSConfig.NextProtos = p.supportedProtocols
+
+	tracer := tracing.DefaultProvider().Tracer("alpn")
+
 	for {
 		clientConn, err := p.cfg.Listener.Accept()
 		if err != nil {
@@ -320,6 +325,8 @@ func (p *Proxy) Serve(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 		go func() {
+			ctx, span := tracer.Start(ctx, "alpn/Serve")
+			defer span.End()
 			// In case of successful handleConn call leave the connection Close() call up to service handler.
 			// For example in ReverseTunnel handles connection asynchronously and closing conn after
 			// service handler returned will break service logic.
@@ -362,11 +369,15 @@ type HandlerFuncWithInfo func(ctx context.Context, conn net.Conn, info Connectio
 //     was set if yes forward to the generic TLS DB handler.
 //  6. Forward connection to the handler obtained in step 2.
 func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
+	span := oteltrace.SpanFromContext(ctx)
+
+	span.AddEvent("start readHelloMessageWithoutTLSTermination")
 	hello, conn, err := p.readHelloMessageWithoutTLSTermination(clientConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	span.AddEvent("start getHandlerDescBaseOnClientHelloMsg")
 	handlerDesc, err := p.getHandlerDescBaseOnClientHelloMsg(hello)
 	if err != nil {
 		return trace.Wrap(err)
@@ -378,13 +389,17 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 	}
 
 	if handlerDesc.ForwardTLS {
+		span.AddEvent("forwarding TLS connection")
 		return trace.Wrap(handlerDesc.handle(ctx, conn, connInfo))
 	}
 
+	span.AddEvent("creating TLS connection")
 	tlsConn := tls.Server(conn, p.getTLSConfig(handlerDesc))
 	if err := tlsConn.SetReadDeadline(p.cfg.Clock.Now().Add(p.cfg.ReadDeadline)); err != nil {
 		return trace.Wrap(err)
 	}
+
+	span.AddEvent("performing TLS handshake")
 	if err := tlsConn.Handshake(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -394,13 +409,18 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 
 	var handlerConn net.Conn = tlsConn
 	// Check if ping is supported/required by the client.
+
+	span.AddEvent("checking if is ping protocol")
 	if common.IsPingProtocol(tlsConn.ConnectionState().NegotiatedProtocol) {
 		handlerConn = p.handlePingConnection(ctx, tlsConn)
 	}
 
+	span.AddEvent("checking if is database protocol")
 	if dbutils.IsDatabaseConnection(tlsConn.ConnectionState()) {
 		return trace.Wrap(p.handleDatabaseConnection(ctx, handlerConn, connInfo))
 	}
+
+	span.AddEvent("passing off connection")
 	return trace.Wrap(handlerDesc.handle(ctx, handlerConn, connInfo))
 }
 
