@@ -389,6 +389,11 @@ func teleportSetupStep(shellVersion, packageName, dockerfilePath, downloadURL st
 	}
 
 	for _, arch := range archs {
+		// Our built debs are listed as ISA "armhf" not "arm", so we account for that here
+		if arch == "arm" {
+			arch = "armhf"
+		}
+
 		commands = append(commands, []string{
 			// This will allow APT to download other architectures
 			fmt.Sprintf("dpkg --add-architecture %q", arch),
@@ -405,6 +410,11 @@ func teleportSetupStep(shellVersion, packageName, dockerfilePath, downloadURL st
 		destPath := path.Join(archDir, fmt.Sprintf("%s.deb", shellVersion))
 
 		archDestFileMap[arch] = destPath
+
+		// Our built debs are listed as ISA "armhf" not "arm", so we account for that here
+		if arch == "arm" {
+			arch = "armhf"
+		}
 
 		// This could probably be parallelized to slightly reduce runtime
 		fullPackageName := fmt.Sprintf("%s:%s=$${FULL_VERSION}", packageName, arch)

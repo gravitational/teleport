@@ -5272,7 +5272,7 @@ steps:
   - mkdir -pv "/tmp/apt-download"
   - cd "/tmp/apt-download"
   - dpkg --add-architecture "amd64"
-  - dpkg --add-architecture "arm"
+  - dpkg --add-architecture "armhf"
   - dpkg --add-architecture "arm64"
   - apt update &> /dev/null || true
   - mkdir -pv "/go/artifacts/deb/teleport/amd64"
@@ -5283,11 +5283,11 @@ steps:
   - echo "Downloaded \"teleport:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/amd64/$(cat
     '/go/vars/full-version/v10').deb\""
   - mkdir -pv "/go/artifacts/deb/teleport/arm"
-  - apt download "teleport:arm=$${FULL_VERSION}"
+  - apt download "teleport:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport/arm/$(cat '/go/vars/full-version/v10').deb"
-  - echo "Downloaded \"teleport:arm=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm/$(cat
+  - echo "Downloaded \"teleport:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm/$(cat
     '/go/vars/full-version/v10').deb\""
   - mkdir -pv "/go/artifacts/deb/teleport/arm64"
   - apt download "teleport:arm64=$${FULL_VERSION}"
@@ -5627,7 +5627,7 @@ steps:
   - mkdir -pv "/tmp/apt-download"
   - cd "/tmp/apt-download"
   - dpkg --add-architecture "amd64"
-  - dpkg --add-architecture "arm"
+  - dpkg --add-architecture "armhf"
   - dpkg --add-architecture "arm64"
   - apt update &> /dev/null || true
   - mkdir -pv "/go/artifacts/deb/teleport-ent/amd64"
@@ -5638,11 +5638,11 @@ steps:
   - echo "Downloaded \"teleport-ent:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/amd64/$(cat
     '/go/vars/full-version/v10').deb\""
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm"
-  - apt download "teleport-ent:arm=$${FULL_VERSION}"
+  - apt download "teleport-ent:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/arm/$(cat '/go/vars/full-version/v10').deb"
-  - echo "Downloaded \"teleport-ent:arm=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm/$(cat
+  - echo "Downloaded \"teleport-ent:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm/$(cat
     '/go/vars/full-version/v10').deb\""
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm64"
   - apt download "teleport-ent:arm64=$${FULL_VERSION}"
@@ -6826,7 +6826,7 @@ steps:
   - mkdir -pv "/tmp/apt-download"
   - cd "/tmp/apt-download"
   - dpkg --add-architecture "amd64"
-  - dpkg --add-architecture "arm"
+  - dpkg --add-architecture "armhf"
   - dpkg --add-architecture "arm64"
   - apt update &> /dev/null || true
   - mkdir -pv "/go/artifacts/deb/teleport/amd64"
@@ -6837,11 +6837,11 @@ steps:
   - echo "Downloaded \"teleport:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/amd64/$(cat
     '/go/vars/full-version/v9').deb\""
   - mkdir -pv "/go/artifacts/deb/teleport/arm"
-  - apt download "teleport:arm=$${FULL_VERSION}"
+  - apt download "teleport:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport/arm/$(cat '/go/vars/full-version/v9').deb"
-  - echo "Downloaded \"teleport:arm=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm/$(cat
+  - echo "Downloaded \"teleport:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm/$(cat
     '/go/vars/full-version/v9').deb\""
   - mkdir -pv "/go/artifacts/deb/teleport/arm64"
   - apt download "teleport:arm64=$${FULL_VERSION}"
@@ -7181,7 +7181,7 @@ steps:
   - mkdir -pv "/tmp/apt-download"
   - cd "/tmp/apt-download"
   - dpkg --add-architecture "amd64"
-  - dpkg --add-architecture "arm"
+  - dpkg --add-architecture "armhf"
   - dpkg --add-architecture "arm64"
   - apt update &> /dev/null || true
   - mkdir -pv "/go/artifacts/deb/teleport-ent/amd64"
@@ -7192,11 +7192,11 @@ steps:
   - echo "Downloaded \"teleport-ent:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/amd64/$(cat
     '/go/vars/full-version/v9').deb\""
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm"
-  - apt download "teleport-ent:arm=$${FULL_VERSION}"
+  - apt download "teleport-ent:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/arm/$(cat '/go/vars/full-version/v9').deb"
-  - echo "Downloaded \"teleport-ent:arm=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm/$(cat
+  - echo "Downloaded \"teleport-ent:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm/$(cat
     '/go/vars/full-version/v9').deb\""
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm64"
   - apt download "teleport-ent:arm64=$${FULL_VERSION}"
@@ -8377,7 +8377,7 @@ steps:
   - mkdir -pv "/tmp/apt-download"
   - cd "/tmp/apt-download"
   - dpkg --add-architecture "amd64"
-  - dpkg --add-architecture "arm"
+  - dpkg --add-architecture "armhf"
   - dpkg --add-architecture "arm64"
   - apt update &> /dev/null || true
   - mkdir -pv "/go/artifacts/deb/teleport/amd64"
@@ -8388,11 +8388,11 @@ steps:
   - echo "Downloaded \"teleport:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/amd64/$(cat
     '/go/vars/full-version/v8').deb\""
   - mkdir -pv "/go/artifacts/deb/teleport/arm"
-  - apt download "teleport:arm=$${FULL_VERSION}"
+  - apt download "teleport:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport/arm/$(cat '/go/vars/full-version/v8').deb"
-  - echo "Downloaded \"teleport:arm=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm/$(cat
+  - echo "Downloaded \"teleport:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm/$(cat
     '/go/vars/full-version/v8').deb\""
   - mkdir -pv "/go/artifacts/deb/teleport/arm64"
   - apt download "teleport:arm64=$${FULL_VERSION}"
@@ -8732,7 +8732,7 @@ steps:
   - mkdir -pv "/tmp/apt-download"
   - cd "/tmp/apt-download"
   - dpkg --add-architecture "amd64"
-  - dpkg --add-architecture "arm"
+  - dpkg --add-architecture "armhf"
   - dpkg --add-architecture "arm64"
   - apt update &> /dev/null || true
   - mkdir -pv "/go/artifacts/deb/teleport-ent/amd64"
@@ -8743,11 +8743,11 @@ steps:
   - echo "Downloaded \"teleport-ent:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/amd64/$(cat
     '/go/vars/full-version/v8').deb\""
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm"
-  - apt download "teleport-ent:arm=$${FULL_VERSION}"
+  - apt download "teleport-ent:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/arm/$(cat '/go/vars/full-version/v8').deb"
-  - echo "Downloaded \"teleport-ent:arm=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm/$(cat
+  - echo "Downloaded \"teleport-ent:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm/$(cat
     '/go/vars/full-version/v8').deb\""
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm64"
   - apt download "teleport-ent:arm64=$${FULL_VERSION}"
@@ -9947,7 +9947,7 @@ steps:
   - mkdir -pv "/tmp/apt-download"
   - cd "/tmp/apt-download"
   - dpkg --add-architecture "amd64"
-  - dpkg --add-architecture "arm"
+  - dpkg --add-architecture "armhf"
   - dpkg --add-architecture "arm64"
   - apt update &> /dev/null || true
   - mkdir -pv "/go/artifacts/deb/teleport/amd64"
@@ -9957,11 +9957,11 @@ steps:
   - mv $${FILENAME} "/go/artifacts/deb/teleport/amd64/$DRONE_TAG.deb"
   - echo "Downloaded \"teleport:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/amd64/$DRONE_TAG.deb\""
   - mkdir -pv "/go/artifacts/deb/teleport/arm"
-  - apt download "teleport:arm=$${FULL_VERSION}"
+  - apt download "teleport:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport/arm/$DRONE_TAG.deb"
-  - echo "Downloaded \"teleport:arm=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm/$DRONE_TAG.deb\""
+  - echo "Downloaded \"teleport:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm/$DRONE_TAG.deb\""
   - mkdir -pv "/go/artifacts/deb/teleport/arm64"
   - apt download "teleport:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
@@ -10307,7 +10307,7 @@ steps:
   - mkdir -pv "/tmp/apt-download"
   - cd "/tmp/apt-download"
   - dpkg --add-architecture "amd64"
-  - dpkg --add-architecture "arm"
+  - dpkg --add-architecture "armhf"
   - dpkg --add-architecture "arm64"
   - apt update &> /dev/null || true
   - mkdir -pv "/go/artifacts/deb/teleport-ent/amd64"
@@ -10317,11 +10317,11 @@ steps:
   - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/amd64/$DRONE_TAG.deb"
   - echo "Downloaded \"teleport-ent:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/amd64/$DRONE_TAG.deb\""
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm"
-  - apt download "teleport-ent:arm=$${FULL_VERSION}"
+  - apt download "teleport-ent:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/arm/$DRONE_TAG.deb"
-  - echo "Downloaded \"teleport-ent:arm=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm/$DRONE_TAG.deb\""
+  - echo "Downloaded \"teleport-ent:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm/$DRONE_TAG.deb\""
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm64"
   - apt download "teleport-ent:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
@@ -11911,6 +11911,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: b0812d8055c8ad761e187fb8c07b37da9f80ae4e30e5904c656e04bbe1dcd2c6
+hmac: 2e0de383e99d483b162bee5827e9017c48b9dff8bb9b93726a7277a826a9b181
 
 ...
