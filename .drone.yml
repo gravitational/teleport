@@ -5270,6 +5270,7 @@ steps:
   - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
     "amd64\", \"arm\", \"arm64"..."
   - mkdir -pv "/tmp/apt-download"
+  - cd "/tmp/apt-download"
   - dpkg --add-architecture "amd64"
   - dpkg --add-architecture "arm"
   - dpkg --add-architecture "arm64"
@@ -5624,6 +5625,7 @@ steps:
   - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
     "amd64\", \"arm\", \"arm64"..."
   - mkdir -pv "/tmp/apt-download"
+  - cd "/tmp/apt-download"
   - dpkg --add-architecture "amd64"
   - dpkg --add-architecture "arm"
   - dpkg --add-architecture "arm64"
@@ -5981,6 +5983,7 @@ steps:
   - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
     "amd64"..."
   - mkdir -pv "/tmp/apt-download"
+  - cd "/tmp/apt-download"
   - dpkg --add-architecture "amd64"
   - apt update &> /dev/null || true
   - mkdir -pv "/go/artifacts/deb/teleport-ent-fips/amd64"
@@ -6821,6 +6824,7 @@ steps:
   - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
     "amd64\", \"arm\", \"arm64"..."
   - mkdir -pv "/tmp/apt-download"
+  - cd "/tmp/apt-download"
   - dpkg --add-architecture "amd64"
   - dpkg --add-architecture "arm"
   - dpkg --add-architecture "arm64"
@@ -7175,6 +7179,7 @@ steps:
   - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
     "amd64\", \"arm\", \"arm64"..."
   - mkdir -pv "/tmp/apt-download"
+  - cd "/tmp/apt-download"
   - dpkg --add-architecture "amd64"
   - dpkg --add-architecture "arm"
   - dpkg --add-architecture "arm64"
@@ -7531,6 +7536,7 @@ steps:
   - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
     "amd64"..."
   - mkdir -pv "/tmp/apt-download"
+  - cd "/tmp/apt-download"
   - dpkg --add-architecture "amd64"
   - apt update &> /dev/null || true
   - mkdir -pv "/go/artifacts/deb/teleport-ent-fips/amd64"
@@ -8369,6 +8375,7 @@ steps:
   - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
     "amd64\", \"arm\", \"arm64"..."
   - mkdir -pv "/tmp/apt-download"
+  - cd "/tmp/apt-download"
   - dpkg --add-architecture "amd64"
   - dpkg --add-architecture "arm"
   - dpkg --add-architecture "arm64"
@@ -8723,6 +8730,7 @@ steps:
   - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
     "amd64\", \"arm\", \"arm64"..."
   - mkdir -pv "/tmp/apt-download"
+  - cd "/tmp/apt-download"
   - dpkg --add-architecture "amd64"
   - dpkg --add-architecture "arm"
   - dpkg --add-architecture "arm64"
@@ -9079,6 +9087,7 @@ steps:
   - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
     "amd64"..."
   - mkdir -pv "/tmp/apt-download"
+  - cd "/tmp/apt-download"
   - dpkg --add-architecture "amd64"
   - apt update &> /dev/null || true
   - mkdir -pv "/go/artifacts/deb/teleport-ent-fips/amd64"
@@ -9936,6 +9945,7 @@ steps:
   - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
     "amd64\", \"arm\", \"arm64"..."
   - mkdir -pv "/tmp/apt-download"
+  - cd "/tmp/apt-download"
   - dpkg --add-architecture "amd64"
   - dpkg --add-architecture "arm"
   - dpkg --add-architecture "arm64"
@@ -10295,6 +10305,7 @@ steps:
   - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
     "amd64\", \"arm\", \"arm64"..."
   - mkdir -pv "/tmp/apt-download"
+  - cd "/tmp/apt-download"
   - dpkg --add-architecture "amd64"
   - dpkg --add-architecture "arm"
   - dpkg --add-architecture "arm64"
@@ -10657,6 +10668,7 @@ steps:
   - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
     "amd64"..."
   - mkdir -pv "/tmp/apt-download"
+  - cd "/tmp/apt-download"
   - dpkg --add-architecture "amd64"
   - apt update &> /dev/null || true
   - mkdir -pv "/go/artifacts/deb/teleport-ent-fips/amd64"
@@ -11899,6 +11911,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 16252b3d3d13192dbfed969a50407440df092d906826729af6ec31bfdd4b424e
+hmac: 877bf1c7467a32f4c2e54ca08b9b83abc5c122a708f1a8b86d816c56262f43e6
 
 ...

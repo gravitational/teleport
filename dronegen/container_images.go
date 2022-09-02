@@ -385,6 +385,7 @@ func teleportSetupStep(shellVersion, packageName, dockerfilePath, downloadURL st
 		"FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} | cut -d'|' -f 2 | tr -d ' ' | head -n 1)",
 		fmt.Sprintf("echo \"Found APT package, downloading \\\"$${PACKAGE_NAME}=$${FULL_VERSION}\\\" for %q...\"", strings.Join(archs, "\", \"")),
 		fmt.Sprintf("mkdir -pv %q", downloadDirectory),
+		fmt.Sprintf("cd %q", downloadDirectory),
 	}
 
 	for _, arch := range archs {
