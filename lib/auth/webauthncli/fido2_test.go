@@ -1076,6 +1076,8 @@ func TestFIDO2Login_bioErrorHandling(t *testing.T) {
 			name: "retry on operation denied",
 			setAssertionErrors: func() {
 				bio.assertionErrors = []error{
+					// Note: this happens only for UV=false assertions. UV=true failures
+					// return error 63.
 					libfido2.ErrOperationDenied,
 				}
 			},
