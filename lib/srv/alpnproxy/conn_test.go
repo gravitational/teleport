@@ -136,7 +136,14 @@ func TestPingConnection(t *testing.T) {
 		defer r.Close()
 		defer w.Close()
 
-		readChan := make(chan []byte)
+		// readResult struct is used to store the result of a read.
+		type readResult struct {
+			data []byte
+			err  error
+		}
+
+		// Channel is used to store the result of a read.
+		resChan := make(chan readResult)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -170,13 +177,13 @@ func TestPingConnection(t *testing.T) {
 							return
 						// Any other error should fail the test.
 						default:
-							require.Fail(t, "Failed to read from connection: %v", err)
+							resChan <- readResult{err: err}
 						}
 					}
 
 					chanBytes := make([]byte, n)
 					copy(chanBytes, buf[:n])
-					readChan <- chanBytes
+					resChan <- readResult{data: chanBytes}
 				}
 			}()
 		}
@@ -187,8 +194,9 @@ func TestPingConnection(t *testing.T) {
 				select {
 				case <-ctx.Done():
 					require.Fail(t, "Failed to read message (context timeout)")
-				case data := <-readChan:
-					aggregator = append(aggregator, data...)
+				case res := <-resChan:
+					require.NoError(t, res.err, "Failed to read message")
+					aggregator = append(aggregator, res.data...)
 				}
 			}
 		}
