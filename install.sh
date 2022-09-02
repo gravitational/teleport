@@ -93,10 +93,14 @@ install_via_yum() {
 install_via_curl() {
   require_curl
   ARCH=""
-  TELEPORT_VERSION="v10.1.9" # TODO
 
-  # require sha256sum 
-  if type sha256sum &>/dev/null; then
+  if [[ -z "$TELEPORT_VERSION" ]]; then
+    echo "Please provide the version you want to in stall. E.g.: v10.1.9"
+    exit 1
+  fi
+
+  # require sha256sum
+  if ! type sha256sum &>/dev/null; then
     echo "This script requires sha256sum to validate the download checksum. Please install it and try again."
     exit 1
   fi
@@ -129,7 +133,7 @@ install_via_curl() {
   echo "Downloading checksum..."
   $CURL "https://get.gravitational.com/$TELEPORT_FILE_NAME.sha256" | $SUDO tee $TMP_CHECKSUM >/dev/null
 
-  echo "Downloading Teleport..."
+  echo "Downloading Teleport $TELEPORT_VERSION..."
   if type curl &>/dev/null; then
     $SUDO $CURL -o $TMP_PATH "https://get.gravitational.com/$TELEPORT_FILE_NAME"
   else
@@ -216,6 +220,13 @@ install_teleport() {
     *)
       # if ID and ID_LIKE didn't return a supported distro, download through curl
       echo "There is no oficially supported package to your package manager. Downloading and installing Teleport via CURL."
+      TELEPORT_VERSION=""
+      if [ $# -ge 1 ] && [ -n "$1" ]; then
+        TELEPORT_VERSION=$1
+      else
+        echo "Please provide the version you want to in stall. E.g.: v10.1.9"
+        exit 1
+      fi
       install_via_curl
       ;;
     esac
@@ -225,4 +236,4 @@ install_teleport() {
   echo "$(teleport version) installed successfully!"
 }
 
-install_teleport
+install_teleport $1
