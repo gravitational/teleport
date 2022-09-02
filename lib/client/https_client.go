@@ -21,7 +21,10 @@ import (
 	"context"
 	"crypto/x509"
 	"net/http"
+	"net/http/httptrace"
 	"net/url"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace"
 
 	"github.com/gravitational/teleport"
 	apiproxy "github.com/gravitational/teleport/api/client/proxy"
@@ -50,6 +53,9 @@ func NewInsecureWebClient() *http.Client {
 		Transport: otelhttp.NewTransport(
 			apiproxy.NewHTTPFallbackRoundTripper(&transport, true /* insecure */),
 			otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
+			otelhttp.WithClientTrace(func(ctx context.Context) *httptrace.ClientTrace {
+				return otelhttptrace.NewClientTrace(ctx, otelhttptrace.WithoutSubSpans())
+			}),
 		),
 	}
 }
@@ -69,6 +75,9 @@ func newClientWithPool(pool *x509.CertPool) *http.Client {
 				},
 			},
 			otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
+			otelhttp.WithClientTrace(func(ctx context.Context) *httptrace.ClientTrace {
+				return otelhttptrace.NewClientTrace(ctx, otelhttptrace.WithoutSubSpans())
+			}),
 		),
 	}
 }
@@ -90,11 +99,11 @@ type WebClient struct {
 
 // PostJSONWithFallback serializes an object to JSON and attempts to execute a POST
 // using HTTPS, and then fall back to plain HTTP under certain, very specific circumstances.
-//  * The caller must specifically allow it via the allowHTTPFallback parameter, and
-//  * The target host must resolve to the loopback address.
+//   - The caller must specifically allow it via the allowHTTPFallback parameter, and
+//   - The target host must resolve to the loopback address.
+//
 // If these conditions are not met, then the plain-HTTP fallback is not allowed,
 // and a the HTTPS failure will be considered final.
-//
 func (w *WebClient) PostJSONWithFallback(ctx context.Context, endpoint string, val interface{}, allowHTTPFallback bool) (*roundtrip.Response, error) {
 	// First try HTTPS and see how that goes
 	log.Debugf("Attempting %s", endpoint)
