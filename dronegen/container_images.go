@@ -411,6 +411,7 @@ func teleportSetupStep(shellVersion, packageName, dockerfilePath, downloadURL st
 			fmt.Sprintf("mkdir -pv %q", archDir),
 			fmt.Sprintf("apt download %q", fullPackageName),
 			"FILENAME=$(ls)", // This will only return the download file as it is the only file in that directory
+			"echo \"Downloaded file \\\"$${FILENAME}\\\"\"",
 			fmt.Sprintf("mv $${FILENAME} %q", destPath),
 			fmt.Sprintf("Downloaded %q to %q", fullPackageName, destPath),
 		}...)

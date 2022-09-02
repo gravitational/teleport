@@ -5277,18 +5277,21 @@ steps:
   - mkdir -pv "/go/artifacts/deb/teleport/amd64"
   - apt download "teleport:amd64=$${FULL_VERSION}"
   - FILENAME=$(ls)
+  - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport/amd64/$(cat '/go/vars/full-version/v10').deb"
   - Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/amd64/$(cat
     '/go/vars/full-version/v10').deb"
   - mkdir -pv "/go/artifacts/deb/teleport/arm"
   - apt download "teleport:arm=$${FULL_VERSION}"
   - FILENAME=$(ls)
+  - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport/arm/$(cat '/go/vars/full-version/v10').deb"
   - Downloaded "teleport:arm=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/arm/$(cat
     '/go/vars/full-version/v10').deb"
   - mkdir -pv "/go/artifacts/deb/teleport/arm64"
   - apt download "teleport:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
+  - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport/arm64/$(cat '/go/vars/full-version/v10').deb"
   - Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/arm64/$(cat
     '/go/vars/full-version/v10').deb"
@@ -5628,18 +5631,21 @@ steps:
   - mkdir -pv "/go/artifacts/deb/teleport-ent/amd64"
   - apt download "teleport-ent:amd64=$${FULL_VERSION}"
   - FILENAME=$(ls)
+  - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/amd64/$(cat '/go/vars/full-version/v10').deb"
   - Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/amd64/$(cat
     '/go/vars/full-version/v10').deb"
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm"
   - apt download "teleport-ent:arm=$${FULL_VERSION}"
   - FILENAME=$(ls)
+  - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/arm/$(cat '/go/vars/full-version/v10').deb"
   - Downloaded "teleport-ent:arm=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/arm/$(cat
     '/go/vars/full-version/v10').deb"
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm64"
   - apt download "teleport-ent:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
+  - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/arm64/$(cat '/go/vars/full-version/v10').deb"
   - Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/arm64/$(cat
     '/go/vars/full-version/v10').deb"
@@ -5980,6 +5986,7 @@ steps:
   - mkdir -pv "/go/artifacts/deb/teleport-ent-fips/amd64"
   - apt download "teleport-ent-fips:amd64=$${FULL_VERSION}"
   - FILENAME=$(ls)
+  - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport-ent-fips/amd64/$(cat '/go/vars/full-version/v10').deb"
   - Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
     '/go/vars/full-version/v10').deb"
@@ -6821,18 +6828,21 @@ steps:
   - mkdir -pv "/go/artifacts/deb/teleport/amd64"
   - apt download "teleport:amd64=$${FULL_VERSION}"
   - FILENAME=$(ls)
+  - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport/amd64/$(cat '/go/vars/full-version/v9').deb"
   - Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/amd64/$(cat
     '/go/vars/full-version/v9').deb"
   - mkdir -pv "/go/artifacts/deb/teleport/arm"
   - apt download "teleport:arm=$${FULL_VERSION}"
   - FILENAME=$(ls)
+  - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport/arm/$(cat '/go/vars/full-version/v9').deb"
   - Downloaded "teleport:arm=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/arm/$(cat
     '/go/vars/full-version/v9').deb"
   - mkdir -pv "/go/artifacts/deb/teleport/arm64"
   - apt download "teleport:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
+  - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport/arm64/$(cat '/go/vars/full-version/v9').deb"
   - Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/arm64/$(cat
     '/go/vars/full-version/v9').deb"
@@ -7172,18 +7182,21 @@ steps:
   - mkdir -pv "/go/artifacts/deb/teleport-ent/amd64"
   - apt download "teleport-ent:amd64=$${FULL_VERSION}"
   - FILENAME=$(ls)
+  - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/amd64/$(cat '/go/vars/full-version/v9').deb"
   - Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/amd64/$(cat
     '/go/vars/full-version/v9').deb"
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm"
   - apt download "teleport-ent:arm=$${FULL_VERSION}"
   - FILENAME=$(ls)
+  - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/arm/$(cat '/go/vars/full-version/v9').deb"
   - Downloaded "teleport-ent:arm=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/arm/$(cat
     '/go/vars/full-version/v9').deb"
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm64"
   - apt download "teleport-ent:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
+  - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/arm64/$(cat '/go/vars/full-version/v9').deb"
   - Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/arm64/$(cat
     '/go/vars/full-version/v9').deb"
@@ -7523,6 +7536,7 @@ steps:
   - mkdir -pv "/go/artifacts/deb/teleport-ent-fips/amd64"
   - apt download "teleport-ent-fips:amd64=$${FULL_VERSION}"
   - FILENAME=$(ls)
+  - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport-ent-fips/amd64/$(cat '/go/vars/full-version/v9').deb"
   - Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
     '/go/vars/full-version/v9').deb"
@@ -8362,18 +8376,21 @@ steps:
   - mkdir -pv "/go/artifacts/deb/teleport/amd64"
   - apt download "teleport:amd64=$${FULL_VERSION}"
   - FILENAME=$(ls)
+  - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport/amd64/$(cat '/go/vars/full-version/v8').deb"
   - Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/amd64/$(cat
     '/go/vars/full-version/v8').deb"
   - mkdir -pv "/go/artifacts/deb/teleport/arm"
   - apt download "teleport:arm=$${FULL_VERSION}"
   - FILENAME=$(ls)
+  - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport/arm/$(cat '/go/vars/full-version/v8').deb"
   - Downloaded "teleport:arm=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/arm/$(cat
     '/go/vars/full-version/v8').deb"
   - mkdir -pv "/go/artifacts/deb/teleport/arm64"
   - apt download "teleport:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
+  - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport/arm64/$(cat '/go/vars/full-version/v8').deb"
   - Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/arm64/$(cat
     '/go/vars/full-version/v8').deb"
@@ -8713,18 +8730,21 @@ steps:
   - mkdir -pv "/go/artifacts/deb/teleport-ent/amd64"
   - apt download "teleport-ent:amd64=$${FULL_VERSION}"
   - FILENAME=$(ls)
+  - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/amd64/$(cat '/go/vars/full-version/v8').deb"
   - Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/amd64/$(cat
     '/go/vars/full-version/v8').deb"
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm"
   - apt download "teleport-ent:arm=$${FULL_VERSION}"
   - FILENAME=$(ls)
+  - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/arm/$(cat '/go/vars/full-version/v8').deb"
   - Downloaded "teleport-ent:arm=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/arm/$(cat
     '/go/vars/full-version/v8').deb"
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm64"
   - apt download "teleport-ent:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
+  - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/arm64/$(cat '/go/vars/full-version/v8').deb"
   - Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/arm64/$(cat
     '/go/vars/full-version/v8').deb"
@@ -9064,6 +9084,7 @@ steps:
   - mkdir -pv "/go/artifacts/deb/teleport-ent-fips/amd64"
   - apt download "teleport-ent-fips:amd64=$${FULL_VERSION}"
   - FILENAME=$(ls)
+  - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport-ent-fips/amd64/$(cat '/go/vars/full-version/v8').deb"
   - Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
     '/go/vars/full-version/v8').deb"
@@ -9922,16 +9943,19 @@ steps:
   - mkdir -pv "/go/artifacts/deb/teleport/amd64"
   - apt download "teleport:amd64=$${FULL_VERSION}"
   - FILENAME=$(ls)
+  - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport/amd64/$DRONE_TAG.deb"
   - Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/amd64/$DRONE_TAG.deb"
   - mkdir -pv "/go/artifacts/deb/teleport/arm"
   - apt download "teleport:arm=$${FULL_VERSION}"
   - FILENAME=$(ls)
+  - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport/arm/$DRONE_TAG.deb"
   - Downloaded "teleport:arm=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/arm/$DRONE_TAG.deb"
   - mkdir -pv "/go/artifacts/deb/teleport/arm64"
   - apt download "teleport:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
+  - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport/arm64/$DRONE_TAG.deb"
   - Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/arm64/$DRONE_TAG.deb"
   depends_on:
@@ -10278,16 +10302,19 @@ steps:
   - mkdir -pv "/go/artifacts/deb/teleport-ent/amd64"
   - apt download "teleport-ent:amd64=$${FULL_VERSION}"
   - FILENAME=$(ls)
+  - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/amd64/$DRONE_TAG.deb"
   - Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/amd64/$DRONE_TAG.deb"
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm"
   - apt download "teleport-ent:arm=$${FULL_VERSION}"
   - FILENAME=$(ls)
+  - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/arm/$DRONE_TAG.deb"
   - Downloaded "teleport-ent:arm=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/arm/$DRONE_TAG.deb"
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm64"
   - apt download "teleport-ent:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
+  - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/arm64/$DRONE_TAG.deb"
   - Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/arm64/$DRONE_TAG.deb"
   depends_on:
@@ -10635,6 +10662,7 @@ steps:
   - mkdir -pv "/go/artifacts/deb/teleport-ent-fips/amd64"
   - apt download "teleport-ent-fips:amd64=$${FULL_VERSION}"
   - FILENAME=$(ls)
+  - echo "Downloaded file \"$${FILENAME}\""
   - mv $${FILENAME} "/go/artifacts/deb/teleport-ent-fips/amd64/$DRONE_TAG.deb"
   - Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent-fips/amd64/$DRONE_TAG.deb"
   depends_on:
@@ -11871,6 +11899,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 3a4e01222f8ac793d629eebce8ac8b5360f8bad92199bebe8606177190891ea2
+hmac: 16252b3d3d13192dbfed969a50407440df092d906826729af6ec31bfdd4b424e
 
 ...
