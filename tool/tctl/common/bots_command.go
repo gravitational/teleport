@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
@@ -166,8 +165,7 @@ certificates:
 
 > tbot start \
    --destination-dir=./tbot-user \
-   --token={{.token}} \{{range .ca_pins}}
-   --ca-pin={{.}} \{{end}}
+   --token={{.token}} \
    --auth-server={{.addr}}{{if .join_method}} \
    --join-method={{.join_method}}{{end}}
 
@@ -212,17 +210,6 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 		return nil
 	}
 
-	// Calculate the CA pins for this cluster. The CA pins are used by the
-	// client to verify the identity of the Auth Server.
-	localCAResponse, err := client.GetClusterCACert(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	caPins, err := tlsca.CalculatePins(localCAResponse.TLSCA)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	proxies, err := client.GetProxies()
 	if err != nil {
 		return trace.Wrap(err)
@@ -247,7 +234,6 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 	return startMessageTemplate.Execute(os.Stdout, map[string]interface{}{
 		"token":       response.TokenID,
 		"minutes":     int(time.Duration(response.TokenTTL).Minutes()),
-		"ca_pins":     caPins,
 		"addr":        addr,
 		"join_method": joinMethod,
 	})
