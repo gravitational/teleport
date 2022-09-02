@@ -18,6 +18,7 @@ package common
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"strings"
 
@@ -29,6 +30,25 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 )
+
+// ExitCodeError wraps an exit code as an error.
+type ExitCodeError struct {
+	// Code is the exit code
+	Code int
+}
+
+// Error implements the error interface.
+func (e *ExitCodeError) Error() string {
+	return fmt.Sprintf("exit code %d", e.Code)
+}
+
+// Is implements the errors.Is interface.
+func (e *ExitCodeError) Is(target error) bool {
+	if inner, ok := target.(*ExitCodeError); ok {
+		return e.Code == inner.Code
+	}
+	return false
+}
 
 // SessionsCollection is a collection of session end events.
 type SessionsCollection struct {

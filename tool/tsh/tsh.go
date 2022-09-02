@@ -408,14 +408,6 @@ func (c *CLIConf) RunCommand(cmd *exec.Cmd) error {
 	return trace.Wrap(cmd.Run())
 }
 
-type exitCodeError struct {
-	code int
-}
-
-func (e *exitCodeError) Error() string {
-	return fmt.Sprintf("exit code %d", e.code)
-}
-
 func main() {
 	cmdLineOrig := os.Args[1:]
 	var cmdLine []string
@@ -437,9 +429,9 @@ func main() {
 	err := Run(ctx, cmdLine)
 	prompt.NotifyExit() // Allow prompt to restore terminal state on exit.
 	if err != nil {
-		var exitError *exitCodeError
+		var exitError *common.ExitCodeError
 		if errors.As(err, &exitError) {
-			os.Exit(exitError.code)
+			os.Exit(exitError.Code)
 		}
 		utils.FatalError(err)
 	}
@@ -1742,7 +1734,7 @@ func onLogout(cf *CLIConf) error {
 		if err != nil {
 			if trace.IsNotFound(err) {
 				fmt.Printf("User %v already logged out from %v.\n", cf.Username, proxyHost)
-				return trace.Wrap(&exitCodeError{code: 1})
+				return trace.Wrap(&common.ExitCodeError{Code: 1})
 			}
 			return trace.Wrap(err)
 		}
@@ -2678,7 +2670,7 @@ func onSSH(cf *CLIConf) error {
 				fmt.Fprintf(os.Stderr, "Hint: try addressing the node by unique id (ex: tsh ssh user@node-id)\n")
 				fmt.Fprintf(os.Stderr, "Hint: use 'tsh ls -v' to list all nodes with their unique ids\n")
 				fmt.Fprintf(os.Stderr, "\n")
-				return trace.Wrap(&exitCodeError{code: 1})
+				return trace.Wrap(&common.ExitCodeError{Code: 1})
 			}
 			return trace.Wrap(err)
 		}
@@ -2686,7 +2678,7 @@ func onSSH(cf *CLIConf) error {
 	})
 	// Exit with the same exit status as the failed command.
 	if tc.ExitStatus != 0 {
-		var exitErr *exitCodeError
+		var exitErr *common.ExitCodeError
 		if errors.As(err, &exitErr) {
 			// Already have an exitCodeError, return that.
 			return trace.Wrap(err)
@@ -2695,7 +2687,7 @@ func onSSH(cf *CLIConf) error {
 			// Print the error here so we don't lose it when returning the exitCodeError.
 			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
 		}
-		err = &exitCodeError{code: tc.ExitStatus}
+		err = &common.ExitCodeError{Code: tc.ExitStatus}
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(err)
@@ -2715,7 +2707,7 @@ func onBenchmark(cf *CLIConf) error {
 	result, err := cnf.Benchmark(cf.Context, tc)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-		return trace.Wrap(&exitCodeError{code: 255})
+		return trace.Wrap(&common.ExitCodeError{Code: 255})
 	}
 	fmt.Printf("\n")
 	fmt.Printf("* Requests originated: %v\n", result.RequestsOriginated)
@@ -2789,7 +2781,7 @@ func onSCP(cf *CLIConf) error {
 	// exit with the same exit status as the failed command:
 	if tc.ExitStatus != 0 {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-		return trace.Wrap(&exitCodeError{code: tc.ExitStatus})
+		return trace.Wrap(&common.ExitCodeError{Code: tc.ExitStatus})
 	}
 	return trace.Wrap(err)
 }
