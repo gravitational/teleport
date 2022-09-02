@@ -40,15 +40,17 @@ const (
 )
 
 func init() {
-	// replaces default logger from Kubernetes klog package with one that does not log anything
-	// this is required to suppress log messages from wssstream when forcing the connection close.
-	// - use of closed network connection
-	// - Error on socket receive: read tcp 192.168.1.236:3027->192.168.1.236:57842: use of closed network connection
-	// both logs are emitted because `wssstream` does not properly close websocket connections. Instead of closing the server side
-	// it closes the full connection.
+	// Replace the default logger from Kubernetes klog package with one that does not log anything.
+	// This is required to suppress log messages from wsstream when forcing the connection to close.
+	// Error logs are emitted because `wsstream` does not properly close websocket connections -
+	// instead of closing only the server side it closes the full connection while the server is
+	// still waiting for the client to close it.
+	// Examples of logs emitted by bad behavior are:
+	// - Use of closed network connection
+	// - Error on socket receive: read tcp 192.168.1.236:3027->192.168.1.236:57842: use of closed
+	//   network connection
 
-	// golang init function order guarantees that the klog package was inited before this package.
-	// TODO (tigrato): remove once wsstream package does not have broken behavior when closing websocket connections
+	// Go init running order guarantees that the klog package is initialized before this package.
 	klog.SetLoggerWithOptions(logr.Discard())
 }
 
@@ -135,16 +137,17 @@ func createWebSocketStreams(req remoteCommandRequest) (*remoteCommandProxy, erro
 		resizeStream: streams[resizeChannel],
 	}
 
-	// when stdin, stdout or stderr are not enabled, websocket creates a io.Pipe for them so they are not nil.
-	// since we need to forward to another k8s server (teleport or real kubernetes API) we must disabled the readers
-	// because, if defined, the SPDY executor will wait for read/write into the streams and will hang.
+	// When stdin, stdout or stderr are not enabled, websocket creates a io.Pipe
+	// for them so they are not nil.
+	// Since we need to forward to another k8s server (Teleport or real k8s API),
+	// we must disabled the readers, otherwise the SPDY executor will wait for
+	// read/write into the streams and will hang.
 	if !req.stdin {
 		proxy.stdinStream = nil
 	}
 	if !req.stdout {
 		proxy.stdoutStream = nil
 	}
-
 	if !req.stderr {
 		proxy.stderrStream = nil
 	}
