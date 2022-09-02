@@ -1,4 +1,4 @@
-.version: &version "10.1.9-tracing.1"
+.version: &version "10.1.9-tracing.2"
 
 name: teleport-kube-agent
 apiVersion: v2
