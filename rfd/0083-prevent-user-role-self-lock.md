@@ -90,11 +90,16 @@ Now we need to define what _admin_ means in our system. W can take 2 approaches:
 1. User with an immutable `editor` role is _admin_.
 2. User with a role that grants user/role editing capabilities is _admin_.
 
-From the user's perspective, the first approach is simpler. The error message saying: "You can't delete the last user with `editor` role." will be easier to understand than "You can't delete the last user with: list of full user & role management capabilities".
+From the user's perspective, the first approach is simpler. The error message saying: "You can't delete the last user with `editor` role." will be easier to understand than "You can't delete the last user with: list of role management capabilities".
 
-Also, implementation would be slightly easier. We wouldn't need to define validation for editing roles (since the `editor` role would be immutable).
+The other benefit is that we wouldn't need to define validation for editing roles (since the `editor` role would be immutable).
 
-The drawback here is that we force users to have the `editor` role.
+The drawbacks here are:
+
+- we force users to have the `editor` role
+- complicated migration in case of updating cluster. It is still possible to delete/edit default roles so not all existing clusters will have default roles in the initial form. Maybe the `editor` role is used as a role with a different meaning than the initial one? We can't override existing roles. So the solution would be to add 3 new roles (instead of editing/re-adding: editor, auditor, access). This will ensure we don't break anything. But the problem will be users would have to assign manually a new _admin_ role to some users.
+
+I think `2.` approach is better since migration cost outweighs the benefits of the pros.
 
 ### UI and behavior changes
 
