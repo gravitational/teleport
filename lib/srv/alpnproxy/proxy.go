@@ -19,6 +19,7 @@ package alpnproxy
 import (
 	"bytes"
 	"context"
+	"crypto/subtle"
 	"crypto/tls"
 	"encoding/base64"
 	"io"
@@ -88,7 +89,14 @@ type Router struct {
 type MatchFunc func(sni, alpn string) bool
 
 // MatchByProtocol creates match function based on client TLS ALPN protocol.
-func MatchByProtocol(protocols ...string) MatchFunc {
+func MatchByProtocol(protocol string) MatchFunc {
+	return func(sni, alpn string) bool {
+		return subtle.ConstantTimeCompare([]byte(protocol), []byte(alpn)) == 1
+	}
+}
+
+// MatchByProtocols creates match function based on client TLS ALPN protocols.
+func MatchByProtocols(protocols ...string) MatchFunc {
 	m := make(map[string]bool, len(protocols))
 	for _, v := range protocols {
 		m[v] = true
@@ -102,7 +110,7 @@ func MatchByProtocol(protocols ...string) MatchFunc {
 // MatchByProtocolWithPing creates match function based on client TLS APLN
 // protocol matching also their ping protocol variations.
 func MatchByProtocolWithPing(protocols ...string) MatchFunc {
-	return MatchByProtocol(append(protocols, common.ProtocolsWithPing(protocols...)...)...)
+	return MatchByProtocols(append(protocols, common.ProtocolsWithPing(protocols...)...)...)
 }
 
 // MatchByALPNPrefix creates match function based on client TLS ALPN protocol prefix.

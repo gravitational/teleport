@@ -4106,7 +4106,7 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConf *tls.Config, cfg *
 	if !cfg.Proxy.DisableWebService {
 		webWrapper := alpnproxy.NewMuxListenerWrapper(nil, listeners.web)
 		router.Add(alpnproxy.HandlerDecs{
-			MatchFunc: alpnproxy.MatchByProtocol(
+			MatchFunc: alpnproxy.MatchByProtocols(
 				alpncommon.ProtocolHTTP,
 				alpncommon.ProtocolHTTP2,
 				acme.ALPNProto,
