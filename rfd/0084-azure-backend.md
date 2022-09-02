@@ -81,9 +81,9 @@ Authentication will happen according to the default behavior of [the Azure Go SD
 
 ## Audit log
 
-The current two cloud storage options (DynamoDB on AWS and Firestore on GCP) can store both the auth backend and the events in the audit log. For user convenience, we'll implement audit log storage for the `sqlbk`/Postgres backend - an alternative would be to store the audit log in Cosmos DB, but that would require that our users set up both a Postgres server and a Cosmos DB account. As a bonus, this storage option will also be usable outside of Azure.
+The current two cloud storage options (DynamoDB on AWS and Firestore on GCP) can store both the auth backend and the events in the audit log. To match the same convenience, we'll implement audit log storage for Postgres - an alternative would be to store the audit log in Cosmos DB, but that would require that our users set up both a Postgres server and a Cosmos DB storage account. As a bonus, this option will also be usable outside of Azure as a HA-capable audit log to use with etcd or Postgres as a backend.
 
-An `audit` table will be added to the current database schema:
+The database schema will be composed of just an `audit` table:
 ```pgsql
 CREATE TABLE audit (
     count BIGSERIAL PRIMARY KEY,
@@ -97,19 +97,9 @@ CREATE TABLE audit (
 CREATE INDEX ON audit (time, event, sid, ei);
 ```
 
-Assuming it's fine to store the log in the same database as the backend, a minimal configuration could be as simple as:
+We'll have to make sure to leave the SQL backend schema and the SQL audit log schema compatible, so that they can use the same database and credentials, for ease of setup.
 
-```yaml
-teleport:
-  storage:
-    ...
-
-    audit_events_uri: ['backend://']
-```
-
-with the relevant `ClusterAuditConfigSpecV2` options such as `audit_retention_period` that affect all audit logs being specified in the usual way, and future tunables for the backend-adjacent audit log being added either as extra options for the audit-aware backend or in the URI. An `audit_events_uri` that contains a `backend://` will result in an error if the configured backend cannot act as storage for the audit log.
-
-If we decide to go for a setup in which the audit log is completely independent of the backend storage, we could just specify a URI with all the relevant options and open a whole new connection pool for it:
+Configuration will be something like the following:
 
 ```yaml
 teleport:
@@ -119,14 +109,14 @@ teleport:
     audit_events_uri: ['postgres://host:123/database?sslmode=verify-full&sslrootcert=cafile&sslcert=certfile&sslkey=keyfile']
 ```
 
-IAM authentication in such case would require some bespoke parameter in the query of the URI:
+IAM authentication in such case would require some bespoke parameter in the query or fragment of the URI:
 
 ```yaml
 teleport:
   storage:
     ...
 
-    audit_events_uri: ['postgres://host:123/database?sslmode=verify-full&sslrootcert=cafile&user=pgusername%40pgservername&authentication=azure']
+    audit_events_uri: ['postgres://host:123/database?sslmode=verify-full&sslrootcert=cafile&user=pgusername%40pgservername#auth=azure']
 ```
 
 Additional security could be provided by only granting `INSERT` (and `SELECT`) privileges to the Postgres user on the table that stores audit events, but not `UPDATE` or `DELETE` privileges; such a setup couldn't be automatically managed by Teleport, and thus would require detailed documentation and some care.
