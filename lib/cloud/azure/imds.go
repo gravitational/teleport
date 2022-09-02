@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
@@ -34,12 +33,6 @@ const (
 	// minimumSupportedAPIVersion is the minimum supported version of the Azure instance metadata API.
 	minimumSupportedAPIVersion = "2019-06-04"
 )
-
-func init() {
-	cloud.RegisterIMDSProvider(string(types.InstanceMetadataTypeAzure), func(ctx context.Context) (cloud.InstanceMetadata, error) {
-		return NewInstanceMetadataClient(), nil
-	})
-}
 
 // InstanceMetadataClient is a client for Azure instance metadata.
 type InstanceMetadataClient struct {

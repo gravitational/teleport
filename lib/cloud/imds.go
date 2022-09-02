@@ -18,10 +18,11 @@ package cloud
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/trace"
 )
 
@@ -39,32 +40,20 @@ type InstanceMetadata interface {
 	GetType() types.InstanceMetadataType
 }
 
-type IMDSClientConstructor func(ctx context.Context) (InstanceMetadata, error)
+type imConstructor func(ctx context.Context) (InstanceMetadata, error)
 
-type IMDSProvider struct {
-	Name        string
-	Constructor IMDSClientConstructor
+var providers = map[types.InstanceMetadataType]imConstructor{
+	types.InstanceMetadataTypeEC2:   initEC2,
+	types.InstanceMetadataTypeAzure: initAzure,
 }
 
-var (
-	providers   []IMDSProvider
-	providersMu sync.RWMutex
-)
-
-func getProviders() []IMDSProvider {
-	providersMu.RLock()
-	defer providersMu.RUnlock()
-	p := append([]IMDSProvider{}, providers...)
-	return p
+func initEC2(ctx context.Context) (InstanceMetadata, error) {
+	im, err := aws.NewInstanceMetadataClient(ctx)
+	return im, trace.Wrap(err)
 }
 
-func RegisterIMDSProvider(name string, constructor IMDSClientConstructor) {
-	providersMu.Lock()
-	defer providersMu.Unlock()
-	providers = append(providers, IMDSProvider{
-		Name:        name,
-		Constructor: constructor,
-	})
+func initAzure(ctx context.Context) (InstanceMetadata, error) {
+	return azure.NewInstanceMetadataClient(), nil
 }
 
 func DiscoverInstanceMetadata(ctx context.Context) (InstanceMetadata, error) {
@@ -72,14 +61,13 @@ func DiscoverInstanceMetadata(ctx context.Context) (InstanceMetadata, error) {
 	defer cancel()
 
 	c := make(chan InstanceMetadata)
-	providers := getProviders()
 	clients := make([]InstanceMetadata, 0, len(providers))
-	for _, provider := range providers {
-		client, err := provider.Constructor(ctx)
+	for _, constructor := range providers {
+		im, err := constructor(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		clients = append(clients, client)
+		clients = append(clients, im)
 	}
 
 	for _, client := range clients {
