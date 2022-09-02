@@ -27,7 +27,7 @@ require_curl() {
   fi
 }
 
-# add Teleport repository keys
+# add Teleport repository key
 add_apt_key() {
   GPG_URL="https://apt.releases.teleport.dev/gpg"
   ASC_URL="https://deb.releases.teleport.dev/teleport-pubkey.asc"
@@ -95,6 +95,12 @@ install_via_curl() {
   ARCH=""
   TELEPORT_VERSION="v10.1.9" # TODO
 
+  # require sha256sum 
+  if type sha256sum &>/dev/null; then
+    echo "This script requires sha256sum to validate the download checksum. Please install it and try again."
+    exit 1
+  fi
+
   # detect architecture
   case $(uname -m) in
   x86_64)
@@ -130,8 +136,6 @@ install_via_curl() {
     $SUDO $CURL -O $TMP_PATH "https://get.gravitational.com/$TELEPORT_FILE_NAME"
   fi
 
-  # TODO install sha256sum if not present
-  # TODO fail if not match
   cd /tmp
   $SUDO sha256sum -c $TMP_CHECKSUM
   cd -
@@ -181,12 +185,12 @@ install_teleport() {
   fi
 
   # detect distro
-  OSRELEASE=/etc/os-release
+  OS_RELEASE=/etc/os-release
   ID=""
   ID_LIKE=""
   VERSION_ID=""
-  if [[ -f "$OSRELEASE" ]]; then
-    . $OSRELEASE
+  if [[ -f "$OS_RELEASE" ]]; then
+    . $OS_RELEASE
   fi
 
   # select install method based on distribution
@@ -200,7 +204,8 @@ install_teleport() {
     install_via_yum
     ;;
   *)
-    # before downloading manually, double check if we didn't miss any debian or rh/fedora derived distros
+    # before downloading manually, double check if we didn't miss any
+    # debian or rh/fedora derived distros using the ID_LIKE var
     case "$ID_LIKE" in
     ubuntu | debian)
       install_via_apt
