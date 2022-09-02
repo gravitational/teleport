@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
@@ -3410,7 +3411,7 @@ func waitForNodeCount(ctx context.Context, t *helpers.TeleInstance, clusterName 
 		iterWaitTime = time.Second
 	)
 
-	err := utils.RetryStaticFor(deadline, iterWaitTime, func() error {
+	err := retryutils.RetryStaticFor(deadline, iterWaitTime, func() error {
 		remoteSite, err := t.Tunnel.GetSite(clusterName)
 		if err != nil {
 			return trace.Wrap(err)

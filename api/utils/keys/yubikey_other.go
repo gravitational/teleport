@@ -17,6 +17,7 @@ limitations under the License.
 package keys
 
 import (
+	"context"
 	"crypto"
 	"errors"
 
@@ -25,7 +26,7 @@ import (
 
 var errPIVUnavailable = errors.New("PIV is unavailable in current build")
 
-func GetOrGenerateYubiKeyPrivateKey(touchRequired bool) (*PrivateKey, error) {
+func GetOrGenerateYubiKeyPrivateKey(ctx context.Context, touchRequired bool) (*PrivateKey, error) {
 	return nil, trace.Wrap(errPIVUnavailable)
 }
 

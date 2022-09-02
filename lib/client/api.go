@@ -3276,7 +3276,7 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	// TODO (Joerger): Remove this env var check once we can pull server settings to decide whether
 	// or not to initiate PIV login - https://github.com/gravitational/teleport/pull/15336
 	if os.Getenv("PIV_LOGIN") != "" {
-		priv, err := keys.GetOrGenerateYubiKeyPrivateKey(false)
+		priv, err := keys.GetOrGenerateYubiKeyPrivateKey(ctx, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

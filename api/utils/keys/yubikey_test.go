@@ -17,6 +17,7 @@ limitations under the License.
 package keys
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -30,16 +31,18 @@ func TestGetOrGenerateYubiKeyPrivateKey(t *testing.T) {
 		t.Skipf("Skipping TestGenerateYubiKeyPrivateKey because TELEPORT_TEST_YUBIKEY_PIV is not set")
 	}
 
+	ctx := context.Background()
+
 	// Connect to the first yubiKey and reset it.
-	y, err := findYubiKey(0)
+	y, err := findYubiKey(ctx, 0)
 	require.NoError(t, err)
-	yk, err := y.open()
+	yk, err := y.open(ctx)
 	require.NoError(t, err)
 	require.NoError(t, yk.Reset())
 	require.NoError(t, yk.Close())
 
 	// Generate a new YubiKeyPrivateKey.
-	priv, err := GetOrGenerateYubiKeyPrivateKey(false)
+	priv, err := GetOrGenerateYubiKeyPrivateKey(ctx, false)
 	require.NoError(t, err)
 
 	// Test creating a self signed certificate with the key.
@@ -47,7 +50,7 @@ func TestGetOrGenerateYubiKeyPrivateKey(t *testing.T) {
 	require.NoError(t, err)
 
 	// Another call to GetOrGenerateYubiKeyPrivateKey should retrieve the previously generated key.
-	retrievePriv, err := GetOrGenerateYubiKeyPrivateKey(false)
+	retrievePriv, err := GetOrGenerateYubiKeyPrivateKey(ctx, false)
 	require.NoError(t, err)
 	require.Equal(t, priv, retrievePriv)
 

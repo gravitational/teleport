@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -40,7 +41,7 @@ import (
 // of the cluster - Nodes, Proxies and SSH nodes
 type PresenceService struct {
 	log    *logrus.Entry
-	jitter utils.Jitter
+	jitter retryutils.Jitter
 	backend.Backend
 }
 
@@ -52,7 +53,7 @@ type backendItemToResourceFunc func(item backend.Item) (types.ResourceWithLabels
 func NewPresenceService(b backend.Backend) *PresenceService {
 	return &PresenceService{
 		log:     logrus.WithFields(logrus.Fields{trace.Component: "Presence"}),
-		jitter:  utils.NewFullJitter(),
+		jitter:  retryutils.NewFullJitter(),
 		Backend: b,
 	}
 }
