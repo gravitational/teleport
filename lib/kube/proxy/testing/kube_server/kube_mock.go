@@ -212,7 +212,7 @@ func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httpro
 			}
 
 			buffer = buffer[:n]
-			// Unfortunatly, K8S Websocket protocol does not support half closed streams,
+			// Unfortunately, K8S Websocket protocol does not support half closed streams,
 			// i.e. indicating that nothing else will be sent via stdin. If the server
 			// reads the stdin stream until io.EOF is received, it will block on reading.
 			// This issue is being tracked by https://github.com/kubernetes/kubernetes/issues/89899
