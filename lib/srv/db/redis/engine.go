@@ -22,6 +22,7 @@ import (
 	"errors"
 	"net"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/go-redis/redis/v8"
 	"github.com/gravitational/trace"
 
@@ -156,8 +157,12 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 
-	// Create new client without username or password. Those will be added when we receive AUTH command.
-	e.redisClient, err = e.newClient("", "")
+	user, password, err := e.getInitialUserAndPassword(ctx, sessionCtx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	e.redisClient, err = e.newClient(username, password)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -176,6 +181,29 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	}
 
 	return nil
+}
+
+func (e *Engine) getInitialUserAndPassword(ctx context.Context, sessionCtx *common.Session) (string, string, error) {
+	switch {
+	case sessionCtx.Database.IsAzure():
+		// TODO handle Azure Redis Enterprise
+		resourceID, err := arm.ParseResourceID(sessionCtx.Database.GetAzure().ResourceID)
+		if err != nil {
+			return "", "", trace.Wrap(err)
+		}
+		client, err := e.CloudClients.GetAzureRedisClient(resourceID.SubscriptionID)
+		if err != nil {
+			return "", "", trace.Wrap(err)
+		}
+		token, err := client.GetToken(ctx, resourceID.ResourceGroupName, resourceID.Name)
+		if err != nil {
+			return "", "", trace.Wrap(err)
+		}
+		return "", token, nil
+	default:
+		// Create new client without username or password. Those will be added when we receive AUTH command.
+		return "", "", nil
+	}
 }
 
 // getNewClientFn returns a partial Redis client factory function.
@@ -197,6 +225,8 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 		if sessionCtx.Database.GetAWS().MemoryDB.EndpointType == apiawsutils.MemoryDBClusterEndpoint {
 			defaultMode = Cluster
 		}
+
+		// TODO handle Azure Redis Enterprise
 	}
 
 	connectionOptions, err := ParseRedisAddressWithDefaultMode(sessionCtx.Database.GetURI(), defaultMode)

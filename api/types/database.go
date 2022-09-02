@@ -19,6 +19,7 @@ package types
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"strings"
 	"text/template"
 	"time"
@@ -519,6 +520,19 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		if d.Spec.Azure.Name == "" {
 			d.Spec.Azure.Name = name
 		}
+	case strings.Contains(d.Spec.URI, AzureCacheEndpointSuffix):
+		// ResourceID is required for fetching Redis tokens.
+		if d.Spec.Azure.ResourceID == "" {
+			return trace.BadParameter("missing ResourceID for Azure Cache %v", d.Metadata.Name)
+		}
+
+		name, err := parseAzureCacheEndpoint(d.Spec.URI)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if d.Spec.Azure.Name == "" {
+			d.Spec.Azure.Name = name
+		}
 	}
 	return nil
 }
@@ -536,6 +550,37 @@ func parseAzureEndpoint(endpoint string) (name string, err error) {
 		return "", trace.BadParameter("failed to parse %v as Azure endpoint", endpoint)
 	}
 	return parts[0], nil
+}
+
+// parseAzureCacheEndpoint extracts database server name from Azure Cache endpoint.
+func parseAzureCacheEndpoint(endpoint string) (name string, err error) {
+	// Note that the Redis URI may contain schema and parameters.
+	host, err := getHostFromRedisURI(endpoint)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// Azure cache endpoint looks like this:
+	// name.redis.cache.windows.net
+	parts := strings.Split(host, ".")
+	if !strings.HasSuffix(host, AzureCacheEndpointSuffix) || len(parts) != 5 {
+		return "", trace.BadParameter("failed to parse %v as Azure Cache endpoint", endpoint)
+	}
+	return parts[0], nil
+}
+
+// getHostFromRedisURI TODO
+func getHostFromRedisURI(endpoint string) (string, error) {
+	// Add a temporary schema to make a valid URL for url.Parse.
+	if !strings.Contains(endpoint, "://") {
+		endpoint = "schema://" + endpoint
+	}
+
+	parsedURL, err := url.Parse(endpoint)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return parsedURL.Hostname(), nil
 }
 
 // GetIAMPolicy returns AWS IAM policy for this database.
@@ -724,6 +769,9 @@ func (d Databases) Swap(i, j int) { d[i], d[j] = d[j], d[i] }
 const (
 	// AzureEndpointSuffix is the Azure database endpoint suffix.
 	AzureEndpointSuffix = ".database.azure.com"
+
+	// AzureCacheEndpointSuffix TODO
+	AzureCacheEndpointSuffix = "redis.cache.windows.net"
 )
 
 type arnTemplateInput struct {
