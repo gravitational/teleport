@@ -33,7 +33,7 @@ ADDFLAGS ?=
 PWD ?= `pwd`
 TELEPORT_DEBUG ?= false
 GITTAG=v$(VERSION)
-BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
+BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s' -trimpath
 CGOFLAG ?= CGO_ENABLED=1
 CGOFLAG_TSH ?= CGO_ENABLED=1
 # Windows requires extra parameters to cross-compile with CGO.
@@ -42,7 +42,7 @@ ARCH ?= amd64
 ifneq ("$(ARCH)","amd64")
 $(error "Building for windows requires ARCH=amd64")
 endif
-BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s' -buildmode=exe
+BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s' -trimpath -buildmode=exe
 CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
 CGOFLAG_TSH = $(CGOFLAG)
 endif
