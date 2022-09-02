@@ -14,13 +14,9 @@
 # limitations under the License.
 
 # This script detects the current Linux distribution and installs Teleport
-# following the OS's conventions.
+# through it's package manager when available, or downloading a tarball otherwise.
 
 # TODO consider using a template and generating this script
-
-# TODO let user know that this will not leave a teleport process running.
-# If this is what they wish, they should go to the documentation
-# This script only downloads and make sure teleport's files are in the correct place.
 
 set -euo pipefail
 
@@ -33,12 +29,13 @@ require_curl() {
   fi
 }
 
+# add Teleport repository keys
 add_apt_key() {
   GPG_URL="https://apt.releases.teleport.dev/gpg"
   ASC_URL="https://deb.releases.teleport.dev/teleport-pubkey.asc"
   KEY_URL=$GPG_URL
 
-  # check if we must use legacy .asc key
+  # check if we it is necessary to use legacy .asc key
   echo "version_id is $VERSION_ID"
   case "$ID" in
   ubuntu | pop | neon | zorin)
@@ -63,7 +60,8 @@ add_apt_key() {
     fi
     ;;
   esac
-  echo "Downloading Teleport's PGP public key..."
+
+  echo "Downloading Teleport's public key..."
   $SUDO $CURL $KEY_URL | $SUDO tee /usr/share/keyrings/teleport-archive-keyring.asc >/dev/null
   $SUDO apt-get update
 
@@ -80,7 +78,7 @@ install_via_apt() {
   $SUDO apt-get install teleport
 }
 
-# install_via_yum installs latest teleport via yum or dnf
+# installs the latest teleport via yum or dnf, if available
 install_via_yum() {
   if type dnf &>/dev/null; then
     echo "Installing Teleport through dnf"
@@ -94,21 +92,46 @@ install_via_yum() {
 
 }
 
+# download .tar.gz file via curl/wget, unzip it and run the install sript
 install_via_curl() {
   require_curl
+  ARCH=""
+  TELEPORT_VERSION="v10.1.9" # TODO
 
-  TELEPORT_VERSION=teleport-v10.1.9-linux-amd64-bin.tar.gz
-  TMP_PATH="/tmp/$TELEPORT_VERSION"
-  TMP_CHECKSUM="/tmp/$TELEPORT_VERSION.sha256"
+  # detect architecture
+  case $(uname -m) in
+  x86_64)
+    ARCH="amd64"
+    ;;
+  i386)
+    ARCH="386"
+    ;;
+  armv7l)
+    ARCH="arm"
+    ;;
+  aarch64)
+    ARCH="arm64"
+    ;;
+  **)
+    # TODO improve message
+    # TODO consider installing one as default?
+    echo "Your system's architecture couldn't be determined. Please refer to the installation guide."
+    exit 1
+    ;;
+  esac
+
+  TELEPORT_FILE_NAME="teleport-$TELEPORT_VERSION-linux-$ARCH-bin.tar.gz"
+  TMP_PATH="/tmp/$TELEPORT_FILE_NAME"
+  TMP_CHECKSUM="/tmp/$TELEPORT_FILE_NAME.sha256"
 
   echo "Downloading checksum..."
-  $CURL "https://get.gravitational.com/$TELEPORT_VERSION.sha256" | $SUDO tee $TMP_CHECKSUM >/dev/null
+  $CURL "https://get.gravitational.com/$TELEPORT_FILE_NAME.sha256" | $SUDO tee $TMP_CHECKSUM >/dev/null
 
   echo "Downloading Teleport..."
   if type curl &>/dev/null; then
-    $SUDO $CURL -o $TMP_PATH "https://get.gravitational.com/$TELEPORT_VERSION"
+    $SUDO $CURL -o $TMP_PATH "https://get.gravitational.com/$TELEPORT_FILE_NAME"
   else
-    $SUDO $CURL -O $TMP_PATH "https://get.gravitational.com/$TELEPORT_VERSION"
+    $SUDO $CURL -O $TMP_PATH "https://get.gravitational.com/$TELEPORT_FILE_NAME"
   fi
 
   # TODO install sha256sum if not present
@@ -121,8 +144,10 @@ install_via_curl() {
   $SUDO /tmp/teleport/install
 }
 
+# wrap script in a function so a partial download
+# doesn't execute
 install_teleport() {
-  echo "installing teleport"
+  echo "Teleport Installation Script"
 
   # exit if not on Linux
   if [[ $(uname) != "Linux" ]]; then
@@ -169,17 +194,17 @@ install_teleport() {
   fi
 
   # select install method based on distribution
-  # if ID is ubuntu/debian/(what else?), run apt
+  # if ID is debian derivate, run apt-get
   case "$ID" in
   debian | ubuntu | kali | linuxmint | pop | raspbian | neon | zorin | parrot | elementary)
     install_via_apt
     ;;
-  # if ID is amazon Linux 2/RHEL/(what else?), run yum
+  # if ID is amazon Linux 2/RHEL/etc, run yum
   centos | rhel | fedora | rocky | almalinux | xenenterprise | ol | scientific) # todo add amazn back
     install_via_yum
     ;;
   *)
-    # beforing downloading manually, check if we didn't miss any debian or rh/fedora derived distros
+    # beforing downloading manually, double check if we didn't miss any debian or rh/fedora derived distros
     case "$ID_LIKE" in
     ubuntu | debian)
       install_via_apt
@@ -189,7 +214,7 @@ install_teleport() {
       ;;
     *)
       # if ID and ID_LIKE didn't return a supported distro, download through curl
-      echo "There is no oficially supported package to $ID distribution. Downloading and installing Teleport via curl"
+      echo "There is no oficially supported package to $ID. Downloading and installing Teleport via curl"
       install_via_curl
       ;;
     esac
@@ -197,6 +222,7 @@ install_teleport() {
   esac
 
   echo "$(teleport version) installed successfully."
+  # TODO message
 }
 
 install_teleport
