@@ -19,6 +19,8 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -94,8 +96,10 @@ func TestAWS(t *testing.T) {
 		require.NotEmpty(t, getEnvValue("AWS_SECRET_ACCESS_KEY"))
 
 		// Validate the local proxy is serving the advertised CA.
-		caPool, err := utils.NewCertPoolFromPath(getEnvValue("AWS_CA_BUNDLE"))
+		bytes, err := os.ReadFile(getEnvValue("AWS_CA_BUNDLE"))
 		require.NoError(t, err)
+		caPool := x509.NewCertPool()
+		caPool.AppendCertsFromPEM(bytes)
 
 		conn, err := tls.Dial("tcp", strings.TrimPrefix(endpointURL, "https://"), &tls.Config{
 			ServerName: "localhost",
