@@ -1643,7 +1643,7 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	require.Len(t, certRequests(sess2.GetTLSCert()), 0)
 }
 
-func TestExtendWebSessionWithUpdateUserTraits(t *testing.T) {
+func TestExtendWebSessionWithReloadUser(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -1669,7 +1669,7 @@ func TestExtendWebSessionWithUpdateUserTraits(t *testing.T) {
 			Password: pass,
 		},
 	}
-	err = clt.UpsertPassword(user, pass)
+	err = tt.server.Auth().UpsertPassword(user, pass)
 	require.NoError(t, err)
 	ws, err := proxy.AuthenticateWebUser(ctx, req)
 	require.NoError(t, err)
@@ -1683,9 +1683,9 @@ func TestExtendWebSessionWithUpdateUserTraits(t *testing.T) {
 
 	// Renew session with the updated traits.
 	sess1, err := web.ExtendWebSession(ctx, WebSessionReq{
-		User:             user,
-		PrevSessionID:    ws.GetName(),
-		UpdateUserTraits: true,
+		User:          user,
+		PrevSessionID: ws.GetName(),
+		ReloadUser:    true,
 	})
 	require.NoError(t, err)
 

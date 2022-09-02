@@ -1743,8 +1743,9 @@ type renewSessionRequest struct {
 	AccessRequestID string `json:"requestId"`
 	// Switchback indicates switching back to default roles when creating new session.
 	Switchback bool `json:"switchback"`
-	// UpdateUserTraits is a flag to indicate if user traits need to be updated.
-	UpdateUserTraits bool `json:"updateUserTraits"`
+	// ReloadUser is a flag to indicate if user needs to be refetched from the backend
+	// to apply new user changes e.g. user traits were updated.
+	ReloadUser bool `json:"reloadUser"`
 }
 
 // renewSession updates this existing session with a new session.
@@ -1752,7 +1753,7 @@ type renewSessionRequest struct {
 // Depending on request fields sent in for extension, the new session creation can vary depending on:
 //   - AccessRequestID (opt): appends roles approved from access request to currently assigned roles or,
 //   - Switchback (opt): roles stacked with assuming approved access requests, will revert to user's default roles
-//   - UpdateLoginTraits (opt): similar to default but updates the login traits by retrieving it from the backend
+//   - ReloadUser (opt): similar to default but updates user related data (e.g login traits) by retrieving it from the backend
 //   - default (none set): create new session with currently assigned roles
 func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	req := renewSessionRequest{}
@@ -1760,7 +1761,7 @@ func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params ht
 		return nil, trace.Wrap(err)
 	}
 
-	if req.AccessRequestID != "" && req.Switchback || req.AccessRequestID != "" && req.UpdateUserTraits || req.Switchback && req.UpdateUserTraits {
+	if req.AccessRequestID != "" && req.Switchback || req.AccessRequestID != "" && req.ReloadUser || req.Switchback && req.ReloadUser {
 		return nil, trace.BadParameter("failed to renew session: only one field can be set")
 	}
 
