@@ -90,10 +90,7 @@ func (l *ListenerMuxWrapper) Accept() (net.Conn, error) {
 }
 
 func (l *ListenerMuxWrapper) startAcceptingConnectionServiceListener() {
-	if l.Listener == nil {
-		return
-	}
-	for {
+	for l.Listener != nil {
 		conn, err := l.Listener.Accept()
 		if err != nil {
 			if !utils.IsUseOfClosedNetworkError(err) {
@@ -105,7 +102,6 @@ func (l *ListenerMuxWrapper) startAcceptingConnectionServiceListener() {
 		case l.connC <- conn:
 		case <-l.close:
 			return
-
 		}
 	}
 }

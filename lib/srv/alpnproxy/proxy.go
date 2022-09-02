@@ -27,7 +27,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"go.uber.org/atomic"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/auth"
@@ -35,9 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // ProxyConfig  is the configuration for an ALPN proxy server.
@@ -353,14 +353,14 @@ type ConnectionInfo struct {
 type HandlerFuncWithInfo func(ctx context.Context, conn net.Conn, info ConnectionInfo) error
 
 // handleConn routes incoming connection based on SNI TLS information to the proper Handler by following steps:
-// 1) Read TLS hello message without TLS termination and returns conn that will be used for further operations.
-// 2) Get routing rules for p.Router.Router based on SNI and ALPN fields read in step 1.
-// 3) If the selected handler was configured with the ForwardTLS
-//    forwards the connection to the handler without TLS termination.
-// 4) Trigger TLS handshake and terminates the TLS connection.
-// 5) For backward compatibility check RouteToDatabase identity field
-//    was set if yes forward to the generic TLS DB handler.
-// 6) Forward connection to the handler obtained in step 2.
+//  1. Read TLS hello message without TLS termination and returns conn that will be used for further operations.
+//  2. Get routing rules for p.Router.Router based on SNI and ALPN fields read in step 1.
+//  3. If the selected handler was configured with the ForwardTLS
+//     forwards the connection to the handler without TLS termination.
+//  4. Trigger TLS handshake and terminates the TLS connection.
+//  5. For backward compatibility check RouteToDatabase identity field
+//     was set if yes forward to the generic TLS DB handler.
+//  6. Forward connection to the handler obtained in step 2.
 func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn) error {
 	hello, conn, err := p.readHelloMessageWithoutTLSTermination(clientConn)
 	if err != nil {
@@ -446,11 +446,48 @@ func (p *Proxy) getTLSConfig(desc *HandlerDecs) *tls.Config {
 	return p.cfg.WebTLSConfig
 }
 
+// buffer pool to reduce GC
+var buffers = sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Buffer)
+	},
+}
+
+// GetBuffer fetches a buffer from the pool
+func getBuffer() *bytes.Buffer {
+	return buffers.Get().(*bytes.Buffer)
+}
+
+// PutBuffer returns a buffer to the pool
+func putBuffer(buf *bytes.Buffer) {
+	buf.Reset()
+	buffers.Put(buf)
+}
+
+type wrapperBuffer struct {
+	buf  *bytes.Buffer
+	done *atomic.Bool
+}
+
+func (w wrapperBuffer) Read(p []byte) (int, error) {
+	if w.done.Load() {
+		return 0, io.EOF
+	}
+
+	n, err := w.buf.Read(p)
+	if err == io.EOF {
+		w.done.Store(true)
+		putBuffer(w.buf)
+	}
+
+	return n, err
+}
+
 // readHelloMessageWithoutTLSTermination allows reading a ClientHelloInfo message without termination of
 // incoming TLS connection. After calling readHelloMessageWithoutTLSTermination function a returned
 // net.Conn should be used for further operation.
 func (p *Proxy) readHelloMessageWithoutTLSTermination(conn net.Conn) (*tls.ClientHelloInfo, net.Conn, error) {
-	buff := new(bytes.Buffer)
+	buff := getBuffer()
 	var hello *tls.ClientHelloInfo
 	tlsConn := tls.Server(readOnlyConn{reader: io.TeeReader(conn, buff)}, &tls.Config{
 		GetConfigForClient: func(info *tls.ClientHelloInfo) (*tls.Config, error) {
@@ -472,7 +509,7 @@ func (p *Proxy) readHelloMessageWithoutTLSTermination(conn net.Conn) (*tls.Clien
 	if err := conn.SetReadDeadline(time.Time{}); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	return hello, newBufferedConn(conn, buff), nil
+	return hello, newBufferedConn(conn, wrapperBuffer{buf: buff, done: atomic.NewBool(false)}), nil
 }
 
 func (p *Proxy) handleDatabaseConnection(ctx context.Context, conn net.Conn, connInfo ConnectionInfo) error {
