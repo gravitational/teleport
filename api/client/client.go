@@ -24,9 +24,12 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http/httptrace"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace"
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -403,6 +406,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	// must come last, otherwise provided opts may get clobbered by defaults above
 	dialOpts = append(dialOpts, c.c.DialOpts...)
 
+	dialContext = httptrace.WithClientTrace(dialContext, otelhttptrace.NewClientTrace(dialContext, otelhttptrace.WithoutSubSpans()))
 	conn, err := grpc.DialContext(dialContext, addr, dialOpts...)
 	if err != nil {
 		return trace.Wrap(err)

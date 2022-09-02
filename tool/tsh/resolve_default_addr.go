@@ -23,11 +23,13 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/gravitational/teleport/api/observability/tracing"
@@ -121,6 +123,9 @@ func pickDefaultAddr(ctx context.Context, insecure bool, host string, ports []in
 				},
 			},
 			otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
+			otelhttp.WithClientTrace(func(ctx context.Context) *httptrace.ClientTrace {
+				return otelhttptrace.NewClientTrace(ctx, otelhttptrace.WithoutSubSpans())
+			}),
 		),
 	}
 

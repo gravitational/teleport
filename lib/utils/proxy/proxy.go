@@ -20,8 +20,16 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	"net/http/httptrace"
 	"net/url"
 	"time"
+
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
@@ -29,10 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -68,20 +72,27 @@ func (d directDial) dialALPNWithDeadline(ctx context.Context, network string, ad
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	span.AddEvent("getting tls config")
 	conf, err := d.getTLSConfig(address)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	span.AddEvent("tls config created")
 
 	tlsDialer := tls.Dialer{
 		NetDialer: dialer,
 		Config:    conf,
 	}
 
+	span.AddEvent("dialing alpn proxy", oteltrace.WithAttributes(attribute.String("address", addr)))
+
+	ctx = httptrace.WithClientTrace(ctx, otelhttptrace.NewClientTrace(ctx, otelhttptrace.WithoutSubSpans()))
 	tlsConn, err := tlsDialer.DialContext(ctx, network, addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	span.AddEvent("connection established. creating ssh client")
 	return tracessh.NewClientConnWithDeadline(ctx, tlsConn, addr, config)
 }
 

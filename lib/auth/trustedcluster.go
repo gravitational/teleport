@@ -20,12 +20,14 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptrace"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/gravitational/teleport"
@@ -624,7 +626,13 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *Valida
 		tr.TLSClientConfig = tlsConfig
 
 		insecureWebClient := &http.Client{
-			Transport: otelhttp.NewTransport(tr, otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter)),
+			Transport: otelhttp.NewTransport(
+				tr,
+				otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
+				otelhttp.WithClientTrace(func(ctx context.Context) *httptrace.ClientTrace {
+					return otelhttptrace.NewClientTrace(ctx, otelhttptrace.WithoutSubSpans())
+				}),
+			),
 		}
 		opts = append(opts, roundtrip.HTTPClient(insecureWebClient))
 	}

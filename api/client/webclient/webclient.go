@@ -26,11 +26,14 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"net/url"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace"
 
 	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/constants"
@@ -98,6 +101,9 @@ func newWebClient(cfg *Config) (*http.Client, error) {
 		Transport: otelhttp.NewTransport(
 			proxy.NewHTTPFallbackRoundTripper(&transport, cfg.Insecure),
 			otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
+			otelhttp.WithClientTrace(func(ctx context.Context) *httptrace.ClientTrace {
+				return otelhttptrace.NewClientTrace(ctx, otelhttptrace.WithoutSubSpans())
+			}),
 		),
 		Timeout: cfg.Timeout,
 	}, nil
@@ -105,8 +111,9 @@ func newWebClient(cfg *Config) (*http.Client, error) {
 
 // doWithFallback attempts to execute an HTTP request using https, and then
 // fall back to plain HTTP under certain, very specific circumstances.
-//  * The caller must specifically allow it via the allowPlainHTTP parameter, and
-//  * The target host must resolve to the loopback address.
+//   - The caller must specifically allow it via the allowPlainHTTP parameter, and
+//   - The target host must resolve to the loopback address.
+//
 // If these conditions are not met, then the plain-HTTP fallback is not allowed,
 // and a the HTTPS failure will be considered final.
 func doWithFallback(clt *http.Client, allowPlainHTTP bool, extraHeaders map[string]string, req *http.Request) (*http.Response, error) {

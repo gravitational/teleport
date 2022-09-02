@@ -144,12 +144,14 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 	ctx, span := tracing.DefaultProvider().Tracer("localExec").Start(ctx, "localExec/Start")
 	defer span.End()
 
+	span.AddEvent("checking for scp")
 	// Parse the command to see if it is scp.
 	err := e.transformSecureCopy()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	span.AddEvent("creating command to run")
 	// Create the command that will actually execute.
 	e.Cmd, err = ConfigureCommand(e.Ctx)
 	if err != nil {
@@ -167,6 +169,7 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 	}
 
 	// Start the command.
+	span.AddEvent("starting command")
 	err = e.Cmd.Start()
 	if err != nil {
 		e.Ctx.Warningf("Local command %v failed to start: %v", e.GetCommand(), err)
@@ -179,6 +182,7 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 			Code:    exitCode(err),
 		}, trace.ConvertSystemError(err)
 	}
+	span.AddEvent("command running")
 
 	go func() {
 		if _, err := io.Copy(inputWriter, channel); err != nil {

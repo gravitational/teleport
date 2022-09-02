@@ -23,10 +23,13 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -199,6 +202,9 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 				Transport: otelhttp.NewTransport(
 					breaker.NewRoundTripper(cb, transport),
 					otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
+					otelhttp.WithClientTrace(func(ctx context.Context) *httptrace.ClientTrace {
+						return otelhttptrace.NewClientTrace(ctx, otelhttptrace.WithoutSubSpans())
+					}),
 				),
 			}),
 			roundtrip.SanitizerEnabled(true),
@@ -932,7 +938,7 @@ func (c *Client) DeleteWebSession(ctx context.Context, user string, sid string) 
 	return trace.Wrap(err)
 }
 
-// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
+// GenerateHostCert takes the public key in the Open SSH “authorized_keys“
 // plain text format, signs it using Host Certificate Authority private key and returns the
 // resulting certificate.
 func (c *Client) GenerateHostCert(
