@@ -200,7 +200,7 @@ install_teleport() {
     install_via_yum
     ;;
   *)
-    # beforing downloading manually, double check if we didn't miss any debian or rh/fedora derived distros
+    # before downloading manually, double check if we didn't miss any debian or rh/fedora derived distros
     case "$ID_LIKE" in
     ubuntu | debian)
       install_via_apt
