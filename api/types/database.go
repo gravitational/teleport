@@ -466,7 +466,8 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	if d.Spec.URI == "" {
 		switch {
 		case d.IsAWSCassandra():
-			// In cas of AWS Hosted Cassandra allow to omit URI.
+			// In case of AWS Hosted Cassandra allow to omit URI.
+			// The URL will be constructed from the database resource based on the region and account ID.
 		default:
 			return trace.BadParameter("database %q URI is empty", d.GetName())
 		}

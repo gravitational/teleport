@@ -3779,7 +3779,7 @@ message CassandraBatch {
     message Value {
       // Type is the type of the value.
       uint32 Type = 1 [(gogoproto.jsontag) = "type,omitempty"];
-      // Content is the value.
+      // Contents is the value contents.
       string Contents = 2 [(gogoproto.jsontag) = "contents,omitempty"];
     }
     // ID is the id of the statement.

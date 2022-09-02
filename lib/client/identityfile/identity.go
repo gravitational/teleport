@@ -325,13 +325,15 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			return nil, trace.Wrap(err)
 		}
 	case FormatCassandra:
-		// create private key + certificate bundle
+		// Cassandra expects a JKS keystore file with the private key and certificate
+		// in it. The keystore file is password protected.
 		keystoreBuf, err := prepareCassandraKeystore(cfg)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		// create CA bundle
+		// Cassandra expects a JKS truststore file with the CA certificate in it.
+		// The truststore file is password protected.
 		truststoreBuf, err := prepareCassandraTruststore(cfg)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -398,7 +400,6 @@ func prepareCassandraTruststore(cfg WriteConfig) (*bytes.Buffer, error) {
 	if err := ts.SetTrustedCertificateEntry("cassandra", trustIn); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	var buff bytes.Buffer
 	if err := ts.Store(&buff, []byte(cfg.JKSPassword)); err != nil {
 		return nil, trace.Wrap(err)
@@ -434,7 +435,6 @@ func prepareCassandraKeystore(cfg WriteConfig) (*bytes.Buffer, error) {
 	if err := ks.SetPrivateKeyEntry("certificate", pkeIn, []byte(cfg.JKSPassword)); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	var buff bytes.Buffer
 	if err := ks.Store(&buff, []byte{}); err != nil {
 		return nil, trace.Wrap(err)

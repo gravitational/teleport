@@ -17,7 +17,6 @@ limitations under the License.
 package cassandra
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/hex"
@@ -25,6 +24,7 @@ import (
 	"io"
 	"net"
 
+	"github.com/datastax/go-cassandra-native-protocol/client"
 	"github.com/datastax/go-cassandra-native-protocol/message"
 	"github.com/gravitational/trace"
 
@@ -163,23 +163,13 @@ func (e *Engine) handleServerConnection(clientConn, serverConn net.Conn) error {
 	return nil
 }
 
-func getUsernameFromAuthResponse(msg *message.AuthResponse) (string, error) {
-	// auth token contains username and password split by \0 character
-	// ex: \0username\0password
-	data := bytes.Split(msg.Token, []byte{0})
-	if len(data) != 3 {
-		return "", trace.BadParameter("failed to extract username from the auth package")
-	}
-	return string(data[1]), nil
-}
-
 func validateCassandraUsername(ses *common.Session, msg *message.AuthResponse) error {
-	username, err := getUsernameFromAuthResponse(msg)
-	if err != nil {
+	var userCredentials client.AuthCredentials
+	if err := userCredentials.Unmarshal(msg.Token); err != nil {
 		return trace.Wrap(err)
 	}
-	if ses.DatabaseUser != username {
-		return trace.AccessDenied("user %s is not authorized to access the database", username)
+	if ses.DatabaseUser != userCredentials.Username {
+		return trace.AccessDenied("user %s is not authorized to access the database", userCredentials.Username)
 	}
 	return nil
 }
@@ -250,7 +240,8 @@ func (e *Engine) processPacket(packet *protocol.Packet) error {
 			EventTypes:       eventTypesToString(msg.EventTypes),
 		})
 	case *message.Revise:
-		return trace.NotImplemented("revise package is not supported")
+		// Revise message is support by DES (DataStax Enterprise) only.
+		// Skip audit for this message.
 	default:
 		return trace.BadParameter("received a message with unexpected type %T", body.Message)
 	}

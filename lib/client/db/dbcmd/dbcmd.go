@@ -27,11 +27,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/db/mysql"
@@ -106,8 +106,6 @@ type CLICommandBuilder struct {
 	port        int
 	options     connectionCommandOpts
 	uid         utils.UID
-
-	DBResource types.Database
 }
 
 func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
@@ -561,6 +559,12 @@ func WithNoTLS() ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
 		opts.noTLS = true
 	}
+}
+
+// WithRandomPassword is the connect command option that makes the command
+// generate a random password for the database user.
+func WithRandomPassword() ConnectCommandFunc {
+	return WithPassword(uuid.New().String())
 }
 
 // WithPassword is the command option that allows to set the database password

@@ -1557,7 +1557,8 @@ func (c *testContext) cassandraClient(ctx context.Context, teleportUser, dbServi
 	return c.cassandraClientWithAddr(ctx, c.webListener.Addr().String(), teleportUser, dbService, dbUser, opts...)
 }
 
-// cassandraClient connects to test Cassandra through database access as a specified Teleport user and database account.
+// cassandraRawClient connects to test Cassandra through using a raw connection that
+// allows to send/receive a native Cassandra protocol frames.
 func (c *testContext) cassandraRawClient(ctx context.Context, teleportUser, dbService, dbUser string, opts ...cassandra.ClientOptions) (*cqlclient.CqlClientConnection, error) {
 	options := cassandra.ClientOptionsParams{
 		Username: "cassandra",

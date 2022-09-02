@@ -28,7 +28,6 @@ import (
 	"text/template"
 
 	"github.com/ghodss/yaml"
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 
@@ -724,9 +723,9 @@ func onDatabaseConnect(cf *CLIConf) error {
 
 	if database.GetProtocol() == defaults.ProtocolCassandra && database.IsAWSHosted() {
 		// Cassandra client always prompt for password, so we need to provide it
-		// and provide an auto generated dummy password to skip the prompt in case of
+		// and provide an auto generated random password to skip the prompt in case of
 		// connection to AWS hosted cassandra.
-		opts = append(opts, dbcmd.WithPassword(uuid.New().String()))
+		opts = append(opts, dbcmd.WithRandomPassword())
 	}
 
 	bb := dbcmd.NewCmdBuilder(tc, profile, routeToDatabase, rootClusterName, opts...)

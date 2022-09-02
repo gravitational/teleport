@@ -39,13 +39,14 @@ const (
 )
 
 // HandleAuthResponse implements the Cassandra handshake.
+// The example Cassandra handshake looks like follows:
 //
-//	Client -> Server: Options
-//	Server <- Client: Supported
-//	Client -> Server: Startup
-//	Server <- Client: Authenticate
-//	Client -> Server: AuthResponse
-//	Server <- Client: Ready/ErrorResponse/AuthSuccess
+// Client -> Server: Options
+// Server <- Client: Supported
+// Client -> Server: Startup
+// Server <- Client: Authenticate
+// Client -> Server: AuthResponse
+// Server <- Client: Ready/ErrorResponse/AuthSuccess
 type handshakeHandler interface {
 	handleHandshake(clientConn, serverConn *protocol.Conn) error
 }
@@ -108,12 +109,12 @@ type failedHandshake struct {
 
 // handleHandshake triggers a cassandra handshake without sending any packets the cassandra server.
 //
-//	Client -> Engine: Options
-//	Client <- Engine: Supported
-//	Client -> Engine: Startup
-//	Client <- Engine: Authenticate
-//	Client -> Engine: AuthResponse
-//	Client <- Engine: ErrorResponse/AuthenticationError
+// Client -> Engine: Options
+// Client <- Engine: Supported
+// Client -> Engine: Startup
+// Client <- Engine: Authenticate
+// Client -> Engine: AuthResponse
+// Client <- Engine: ErrorResponse/AuthenticationError
 func (h failedHandshake) handshake(clientConn, _ *protocol.Conn) error {
 	for {
 		packet, err := clientConn.ReadPacket()
@@ -272,20 +273,19 @@ func (a *authAWSSigV4Auth) handleStartupMessage(clientConn, serverConn *protocol
 }
 
 // handleHandshake is a handler that performs the Cassandra authentication flow with to AWS Keyspaces using
-// AWS Signature V4.
-//
-//	Client -> Engine    Server: Options
-//	Client    Engine -> Server: Options
-//	Client    Engine <- Server: Supported
-//	Client <- Engine    Server: Supported
-//	Client -> Engine    Server: Startup
-//	Client <- Engine    Server: Authenticate
-//	Client -> Engine    Server: AuthResponse
-//	Client    Engine -> Server: Startup
-//	Client    Engine <- Server: AuthChallenge
-//	Client    Engine -> Server: AuthResponse
-//	Client    Engine <- Server: AuthSuccess
-//	Client <- Engine    Server: AuthSuccess
+// AWS Signature V4. The flow is as follows:
+// Client -> Engine    AWS: Options
+// Client    Engine -> AWS: Options
+// Client    Engine <- AWS: Supported
+// Client <- Engine    AWS: Supported
+// Client -> Engine    AWS: Startup
+// Client <- Engine    AWS: Authenticate
+// Client -> Engine    AWS: AuthResponse
+// Client    Engine -> AWS: Startup
+// Client    Engine <- AWS: AuthChallenge
+// Client    Engine -> AWS: AuthResponse
+// Client    Engine <- AWS: AuthSuccess
+// Client <- Engine    AWS: AuthSuccess
 func (a *authAWSSigV4Auth) handleHandshake(clientConn, serverConn *protocol.Conn) error {
 	for {
 		req, err := clientConn.ReadPacket()
@@ -313,6 +313,9 @@ func (a *authAWSSigV4Auth) handleHandshake(clientConn, serverConn *protocol.Conn
 	}
 }
 
+// handleAuth is a function that handles the authentication flow with AWS Keyspaces.
+// Signature V4 is used to authenticate with AWS Keyspaces where the username is the role ARN.
+// STS AWS is used to get temporary credentials for the role.
 func (a *authAWSSigV4Auth) handleAuth(_, serverConn *protocol.Conn, fr *frame.Frame) error {
 	authMsg, ok := fr.Body.Message.(*message.Authenticate)
 	if !ok {
@@ -362,7 +365,7 @@ func (a *authAWSSigV4Auth) handleAuth(_, serverConn *protocol.Conn, fr *frame.Fr
 					Token: data,
 				})
 		default:
-			return fmt.Errorf("unknown frame response during authentication: %v", v)
+			return trace.BadParameter("unknown frame response during authentication: %v", v)
 		}
 	}
 }

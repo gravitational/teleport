@@ -21,6 +21,7 @@ import (
 	"io"
 	"net"
 
+	"github.com/datastax/go-cassandra-native-protocol/client"
 	"github.com/datastax/go-cassandra-native-protocol/frame"
 	"github.com/datastax/go-cassandra-native-protocol/message"
 	"github.com/datastax/go-cassandra-native-protocol/primitive"
@@ -75,8 +76,8 @@ func (c *Conn) WriteFrame(outgoing *frame.Frame) error {
 
 	if startup, ok := outgoing.Body.Message.(*message.Startup); ok {
 		compression := startup.GetCompression()
-		c.frameCodec = frame.NewRawCodecWithCompression(NewBodyCompressor(compression))
-		c.segmentCode = segment.NewCodecWithCompression(NewPayloadCompressor(compression))
+		c.frameCodec = frame.NewRawCodecWithCompression(client.NewBodyCompressor(compression))
+		c.segmentCode = segment.NewCodecWithCompression(client.NewPayloadCompressor(compression))
 	}
 	c.maybeSwitchToModernLayout(outgoing)
 	return nil
@@ -105,8 +106,8 @@ func (c *Conn) readFrame(r io.Reader) (*frame.Frame, error) {
 
 	if startup, ok := fr.Body.Message.(*message.Startup); ok {
 		compression := startup.GetCompression()
-		c.frameCodec = frame.NewRawCodecWithCompression(NewBodyCompressor(compression))
-		c.segmentCode = segment.NewCodecWithCompression(NewPayloadCompressor(compression))
+		c.frameCodec = frame.NewRawCodecWithCompression(client.NewBodyCompressor(compression))
+		c.segmentCode = segment.NewCodecWithCompression(client.NewPayloadCompressor(compression))
 		// If moderate framing layout is supported all received from a client after Startup message should
 		// use segment encoding.
 		c.modernLayoutRead = fr.Header.Version.SupportsModernFramingLayout()
