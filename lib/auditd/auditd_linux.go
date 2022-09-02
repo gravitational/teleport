@@ -146,6 +146,10 @@ func SendEvent(event EventType, result ResultType, msg Message) error {
 	}()
 
 	if err := client.SendMsg(event, result); err != nil {
+		if err == ErrAuditdDisabled {
+			// Do not return the error to the caller if auditd is disabled
+			return nil
+		}
 		return trace.Wrap(err)
 	}
 
