@@ -237,7 +237,7 @@ func getAuditStatus(conn NetlinkConnector) (*auditStatus, error) {
 		return nil, trace.BadParameter("returned wrong messages number, expected 1, got: %d", len(msgs))
 	}
 
-	// auditd marshalling depends on the system architecture.
+	// auditd marshaling depends on the system architecture.
 	byteOrder := nlenc.NativeEndian()
 	status := &auditStatus{}
 
