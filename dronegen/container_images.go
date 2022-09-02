@@ -277,7 +277,7 @@ func NewTeleportProduct(isEnterprise, isFips bool, version *releaseVersion) *pro
 		supportedArches = append(supportedArches, "arm", "arm64")
 	}
 
-	setupStep, debPath := teleportSetupStep(version.ShellVersion, name, dockerfile, downloadURL)
+	setupStep, debPaths := teleportSetupStep(version.ShellVersion, name, dockerfile, downloadURL, supportedArches)
 
 	return &product{
 		Name:             name,
@@ -288,7 +288,7 @@ func NewTeleportProduct(isEnterprise, isFips bool, version *releaseVersion) *pro
 		SetupSteps:       []step{setupStep},
 		DockerfileArgBuilder: func(arch string) []string {
 			return []string{
-				fmt.Sprintf("DEB_PATH=%s", debPath),
+				fmt.Sprintf("DEB_PATH=%s", debPaths[arch]),
 			}
 		},
 		ImageNameBuilder: func(repo, tag string) string {
@@ -343,55 +343,82 @@ func defaultImageTagBuilder(repo, name, tag string) string {
 	return fmt.Sprintf("%s%s:%s", repo, name, tag)
 }
 
-func teleportSetupStep(shellVersion, packageName, dockerfilePath, downloadURL string) (step, string) {
+func teleportSetupStep(shellVersion, packageName, dockerfilePath, downloadURL string, archs []string) (step, map[string]string) {
 	keyPath := "/usr/share/keyrings/teleport-archive-keyring.asc"
-	downloadDirectory := path.Join("/go/artifacts/deb/", shellVersion)
-	downloadPath := path.Join(downloadDirectory, fmt.Sprintf("%s.deb", packageName))
+	downloadDirectory := "/tmp/apt-download"
 	timeout := 30 * 60 // 30 minutes in seconds
 	sleepTime := 15    // 15 seconds
 
+	commands := []string{
+		// Download the dockerfile
+		fmt.Sprintf("curl -Ls -o %q %q", dockerfilePath, downloadURL),
+		// Setup the environment
+		fmt.Sprintf("PACKAGE_NAME=%q", packageName),
+		fmt.Sprintf("PACKAGE_VERSION=%q", shellVersion),
+		"apt update",
+		"apt install --no-install-recommends -y ca-certificates curl",
+		"update-ca-certificates",
+		fmt.Sprintf("curl https://apt.releases.teleport.dev/gpg -o %q", keyPath),
+		". /etc/os-release",
+		// Per https://docs.drone.io/pipeline/environment/syntax/#common-problems I'm using '$$' here to ensure
+		// That the shell variable is not expanded until runtime, preventing drone from erroring on the
+		// drone-unsupported '?'
+		"MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)",
+		fmt.Sprintf("echo \"deb [signed-by=%s] https://apt.releases.teleport.dev/$${ID?} $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}\""+
+			" > /etc/apt/sources.list.d/teleport.list", keyPath),
+		fmt.Sprintf("END_TIME=$(( $(date +%%s) + %d ))", timeout),
+		"TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)",
+		"TIMED_OUT=true",
+		// Poll APT until the timeout is reached or the package becomes available
+		"while [ $(date +%s) -lt $${END_TIME?} ]; do",
+		"echo 'Running apt update...'",
+		// This will error on new major versions where the "stable/$${MAJOR_VERSION}" component doesn't exist yet, so we ignore it here.
+		"apt update > /dev/null || true",
+		"[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge 1 ] && TIMED_OUT=false && break;",
+		fmt.Sprintf("echo 'Package not found yet, waiting another %d seconds...'", sleepTime),
+		fmt.Sprintf("sleep %d", sleepTime),
+		"done",
+		// Log success or failure and record full version string
+		"[ $${TIMED_OUT?} = true ] && echo \"Timed out while looking for APT package \\\"$${PACKAGE_NAME}\\\" matching \\\"$${TRIMMED_VERSION}\\\"\" && exit 1",
+		"FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} | cut -d'|' -f 2 | tr -d ' ' | head -n 1)",
+		fmt.Sprintf("echo \"Found APT package, downloading \\\"$${PACKAGE_NAME}=$${FULL_VERSION}\\\" for %q...\"", strings.Join(archs, "\", \"")),
+		fmt.Sprintf("mkdir -pv %q", downloadDirectory),
+	}
+
+	for _, arch := range archs {
+		commands = append(commands, []string{
+			// This will allow APT to download other architectures
+			fmt.Sprintf("dpkg --add-architecture %q", arch),
+		}...)
+	}
+
+	// This will error due to Ubuntu's APT repo structure but it doesn't matter here
+	commands = append(commands, "apt update &> /dev/null || true")
+
+	archDestFileMap := make(map[string]string, len(archs))
+	for _, arch := range archs {
+		archDir := path.Join("/go/artifacts/deb/", packageName, arch)
+		// Example: `/go/artifacts/deb/teleport-ent/arm64/v10.1.4.deb`
+		destPath := path.Join(archDir, fmt.Sprintf("%s.deb", shellVersion))
+
+		archDestFileMap[arch] = destPath
+
+		// This could probably be parallelized to slightly reduce runtime
+		fullPackageName := fmt.Sprintf("%s:%s=$${FULL_VERSION}", packageName, arch)
+		commands = append(commands, []string{
+			fmt.Sprintf("mkdir -pv %q", archDir),
+			fmt.Sprintf("apt download %q", fullPackageName),
+			"FILENAME=$(ls)", // This will only return the download file as it is the only file in that directory
+			fmt.Sprintf("mv $${FILENAME} %q", destPath),
+			fmt.Sprintf("Downloaded %q to %q", fullPackageName, destPath),
+		}...)
+	}
+
 	return step{
-		Name:  fmt.Sprintf("Download %q DEB artifact from APT", packageName),
-		Image: "ubuntu:20.04",
-		Commands: []string{
-			// Setup the environment
-			fmt.Sprintf("PACKAGE_NAME=%q", packageName),
-			fmt.Sprintf("PACKAGE_VERSION=%q", shellVersion),
-			"apt update",
-			"apt install --no-install-recommends -y ca-certificates curl",
-			"update-ca-certificates",
-			fmt.Sprintf("curl https://apt.releases.teleport.dev/gpg -o %q", keyPath),
-			". /etc/os-release",
-			// Per https://docs.drone.io/pipeline/environment/syntax/#common-problems I'm using '$$' here to ensure
-			// That the shell variable is not expanded until runtime, preventing drone from erroring on the
-			// drone-unsupported '?'
-			"MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)",
-			fmt.Sprintf("echo \"deb [signed-by=%s] https://apt.releases.teleport.dev/$${ID?} $${VERSION_CODENAME?} stable/$${MAJOR_VERSION?}\""+
-				" > /etc/apt/sources.list.d/teleport.list", keyPath),
-			fmt.Sprintf("END_TIME=$(( $(date +%%s) + %d ))", timeout),
-			"TRIMMED_VERSION=$(echo $${PACKAGE_VERSION} | cut -d'v' -f 2)",
-			"TIMED_OUT=true",
-			// Poll APT until the timeout is reached or the package becomes available
-			"while [ $(date +%s) -lt $${END_TIME?} ]; do",
-			"echo 'Running apt update...'",
-			// This will error on new major versions where the "stable/$${MAJOR_VERSION}" component doesn't exist yet, so we ignore it here.
-			"apt update > /dev/null || true",
-			"[ $(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION?} | wc -l) -ge 1 ] && TIMED_OUT=false && break;",
-			fmt.Sprintf("echo 'Package not found yet, waiting another %d seconds...'", sleepTime),
-			fmt.Sprintf("sleep %d", sleepTime),
-			"done",
-			// Log success or failure and record full version string
-			"[ $${TIMED_OUT?} = true ] && echo \"Timed out while looking for APT package \\\"$${PACKAGE_NAME}\\\" matching \\\"$${TRIMMED_VERSION}\\\"\" && exit 1",
-			"FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} | cut -d'|' -f 2 | tr -d ' ' | head -n 1)",
-			"echo \"Found APT package, downloading \\\"$${PACKAGE_NAME}=$${FULL_VERSION}\\\"...\"",
-			fmt.Sprintf("mkdir -pv %q", downloadDirectory),
-			fmt.Sprintf("cd %q", downloadDirectory),
-			"apt download $${PACKAGE_NAME}=$${FULL_VERSION}",
-			fmt.Sprintf("mv *.deb %q", downloadPath),
-			// Download the dockerfile
-			fmt.Sprintf("curl -Ls -o %q %q", dockerfilePath, downloadURL),
-		},
-	}, downloadPath
+		Name:     fmt.Sprintf("Download %q DEB artifact from APT", packageName),
+		Image:    "ubuntu:20.04",
+		Commands: commands,
+	}, archDestFileMap
 }
 
 func (p *product) BuildLocalImageName(arch string, version *releaseVersion) string {

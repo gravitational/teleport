@@ -5240,6 +5240,7 @@ steps:
 - name: Download "teleport" DEB artifact from APT
   image: ubuntu:20.04
   commands:
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - PACKAGE_NAME="teleport"
   - PACKAGE_VERSION="$(cat '/go/vars/full-version/v10')"
   - apt update
@@ -5265,12 +5266,31 @@ steps:
     matching \"$${TRIMMED_VERSION}\"" && exit 1'
   - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
     cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\"..."
-  - mkdir -pv "/go/artifacts/deb/$(cat '/go/vars/full-version/v10')"
-  - cd "/go/artifacts/deb/$(cat '/go/vars/full-version/v10')"
-  - apt download $${PACKAGE_NAME}=$${FULL_VERSION}
-  - mv *.deb "/go/artifacts/deb/$(cat '/go/vars/full-version/v10')/teleport.deb"
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
+    "amd64\", \"arm\", \"arm64"..."
+  - mkdir -pv "/tmp/apt-download"
+  - dpkg --add-architecture "amd64"
+  - dpkg --add-architecture "arm"
+  - dpkg --add-architecture "arm64"
+  - apt update &> /dev/null || true
+  - mkdir -pv "/go/artifacts/deb/teleport/amd64"
+  - apt download "teleport:amd64=$${FULL_VERSION}"
+  - FILENAME=$(ls)
+  - mv $${FILENAME} "/go/artifacts/deb/teleport/amd64/$(cat '/go/vars/full-version/v10').deb"
+  - Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/amd64/$(cat
+    '/go/vars/full-version/v10').deb"
+  - mkdir -pv "/go/artifacts/deb/teleport/arm"
+  - apt download "teleport:arm=$${FULL_VERSION}"
+  - FILENAME=$(ls)
+  - mv $${FILENAME} "/go/artifacts/deb/teleport/arm/$(cat '/go/vars/full-version/v10').deb"
+  - Downloaded "teleport:arm=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/arm/$(cat
+    '/go/vars/full-version/v10').deb"
+  - mkdir -pv "/go/artifacts/deb/teleport/arm64"
+  - apt download "teleport:arm64=$${FULL_VERSION}"
+  - FILENAME=$(ls)
+  - mv $${FILENAME} "/go/artifacts/deb/teleport/arm64/$(cat '/go/vars/full-version/v10').deb"
+  - Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/arm64/$(cat
+    '/go/vars/full-version/v10').deb"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -5280,8 +5300,8 @@ steps:
   commands:
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-v10-amd64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/$(cat '/go/vars/full-version/v10')/teleport.deb"
-    /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/amd64/$(cat
+    '/go/vars/full-version/v10').deb" /go/build
   volumes:
   - name: dockersock
     path: /var/run
@@ -5295,8 +5315,8 @@ steps:
   commands:
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm" --tag "teleport-v10-arm"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/$(cat '/go/vars/full-version/v10')/teleport.deb"
-    /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm/$(cat
+    '/go/vars/full-version/v10').deb" /go/build
   volumes:
   - name: dockersock
     path: /var/run
@@ -5310,8 +5330,8 @@ steps:
   commands:
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-v10-arm64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/$(cat '/go/vars/full-version/v10')/teleport.deb"
-    /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm64/$(cat
+    '/go/vars/full-version/v10').deb" /go/build
   volumes:
   - name: dockersock
     path: /var/run
@@ -5570,6 +5590,7 @@ steps:
 - name: Download "teleport-ent" DEB artifact from APT
   image: ubuntu:20.04
   commands:
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - PACKAGE_NAME="teleport-ent"
   - PACKAGE_VERSION="$(cat '/go/vars/full-version/v10')"
   - apt update
@@ -5595,12 +5616,31 @@ steps:
     matching \"$${TRIMMED_VERSION}\"" && exit 1'
   - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
     cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\"..."
-  - mkdir -pv "/go/artifacts/deb/$(cat '/go/vars/full-version/v10')"
-  - cd "/go/artifacts/deb/$(cat '/go/vars/full-version/v10')"
-  - apt download $${PACKAGE_NAME}=$${FULL_VERSION}
-  - mv *.deb "/go/artifacts/deb/$(cat '/go/vars/full-version/v10')/teleport-ent.deb"
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
+    "amd64\", \"arm\", \"arm64"..."
+  - mkdir -pv "/tmp/apt-download"
+  - dpkg --add-architecture "amd64"
+  - dpkg --add-architecture "arm"
+  - dpkg --add-architecture "arm64"
+  - apt update &> /dev/null || true
+  - mkdir -pv "/go/artifacts/deb/teleport-ent/amd64"
+  - apt download "teleport-ent:amd64=$${FULL_VERSION}"
+  - FILENAME=$(ls)
+  - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/amd64/$(cat '/go/vars/full-version/v10').deb"
+  - Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/amd64/$(cat
+    '/go/vars/full-version/v10').deb"
+  - mkdir -pv "/go/artifacts/deb/teleport-ent/arm"
+  - apt download "teleport-ent:arm=$${FULL_VERSION}"
+  - FILENAME=$(ls)
+  - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/arm/$(cat '/go/vars/full-version/v10').deb"
+  - Downloaded "teleport-ent:arm=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/arm/$(cat
+    '/go/vars/full-version/v10').deb"
+  - mkdir -pv "/go/artifacts/deb/teleport-ent/arm64"
+  - apt download "teleport-ent:arm64=$${FULL_VERSION}"
+  - FILENAME=$(ls)
+  - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/arm64/$(cat '/go/vars/full-version/v10').deb"
+  - Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/arm64/$(cat
+    '/go/vars/full-version/v10').deb"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -5610,8 +5650,8 @@ steps:
   commands:
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-ent-v10-amd64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/$(cat '/go/vars/full-version/v10')/teleport-ent.deb"
-    /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/amd64/$(cat
+    '/go/vars/full-version/v10').deb" /go/build
   volumes:
   - name: dockersock
     path: /var/run
@@ -5625,8 +5665,8 @@ steps:
   commands:
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm" --tag "teleport-ent-v10-arm"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/$(cat '/go/vars/full-version/v10')/teleport-ent.deb"
-    /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm/$(cat
+    '/go/vars/full-version/v10').deb" /go/build
   volumes:
   - name: dockersock
     path: /var/run
@@ -5640,8 +5680,8 @@ steps:
   commands:
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-ent-v10-arm64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/$(cat '/go/vars/full-version/v10')/teleport-ent.deb"
-    /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm64/$(cat
+    '/go/vars/full-version/v10').deb" /go/build
   volumes:
   - name: dockersock
     path: /var/run
@@ -5903,6 +5943,7 @@ steps:
 - name: Download "teleport-ent-fips" DEB artifact from APT
   image: ubuntu:20.04
   commands:
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - PACKAGE_NAME="teleport-ent-fips"
   - PACKAGE_VERSION="$(cat '/go/vars/full-version/v10')"
   - apt update
@@ -5928,12 +5969,17 @@ steps:
     matching \"$${TRIMMED_VERSION}\"" && exit 1'
   - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
     cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\"..."
-  - mkdir -pv "/go/artifacts/deb/$(cat '/go/vars/full-version/v10')"
-  - cd "/go/artifacts/deb/$(cat '/go/vars/full-version/v10')"
-  - apt download $${PACKAGE_NAME}=$${FULL_VERSION}
-  - mv *.deb "/go/artifacts/deb/$(cat '/go/vars/full-version/v10')/teleport-ent-fips.deb"
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
+    "amd64"..."
+  - mkdir -pv "/tmp/apt-download"
+  - dpkg --add-architecture "amd64"
+  - apt update &> /dev/null || true
+  - mkdir -pv "/go/artifacts/deb/teleport-ent-fips/amd64"
+  - apt download "teleport-ent-fips:amd64=$${FULL_VERSION}"
+  - FILENAME=$(ls)
+  - mv $${FILENAME} "/go/artifacts/deb/teleport-ent-fips/amd64/$(cat '/go/vars/full-version/v10').deb"
+  - Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
+    '/go/vars/full-version/v10').deb"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -5943,8 +5989,8 @@ steps:
   commands:
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport-fips" --platform "linux/amd64" --tag "teleport-ent-fips-v10-amd64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/$(cat '/go/vars/full-version/v10')/teleport-ent-fips.deb"
-    /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
+    '/go/vars/full-version/v10').deb" /go/build
   volumes:
   - name: dockersock
     path: /var/run
@@ -6735,6 +6781,7 @@ steps:
 - name: Download "teleport" DEB artifact from APT
   image: ubuntu:20.04
   commands:
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - PACKAGE_NAME="teleport"
   - PACKAGE_VERSION="$(cat '/go/vars/full-version/v9')"
   - apt update
@@ -6760,12 +6807,31 @@ steps:
     matching \"$${TRIMMED_VERSION}\"" && exit 1'
   - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
     cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\"..."
-  - mkdir -pv "/go/artifacts/deb/$(cat '/go/vars/full-version/v9')"
-  - cd "/go/artifacts/deb/$(cat '/go/vars/full-version/v9')"
-  - apt download $${PACKAGE_NAME}=$${FULL_VERSION}
-  - mv *.deb "/go/artifacts/deb/$(cat '/go/vars/full-version/v9')/teleport.deb"
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
+    "amd64\", \"arm\", \"arm64"..."
+  - mkdir -pv "/tmp/apt-download"
+  - dpkg --add-architecture "amd64"
+  - dpkg --add-architecture "arm"
+  - dpkg --add-architecture "arm64"
+  - apt update &> /dev/null || true
+  - mkdir -pv "/go/artifacts/deb/teleport/amd64"
+  - apt download "teleport:amd64=$${FULL_VERSION}"
+  - FILENAME=$(ls)
+  - mv $${FILENAME} "/go/artifacts/deb/teleport/amd64/$(cat '/go/vars/full-version/v9').deb"
+  - Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/amd64/$(cat
+    '/go/vars/full-version/v9').deb"
+  - mkdir -pv "/go/artifacts/deb/teleport/arm"
+  - apt download "teleport:arm=$${FULL_VERSION}"
+  - FILENAME=$(ls)
+  - mv $${FILENAME} "/go/artifacts/deb/teleport/arm/$(cat '/go/vars/full-version/v9').deb"
+  - Downloaded "teleport:arm=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/arm/$(cat
+    '/go/vars/full-version/v9').deb"
+  - mkdir -pv "/go/artifacts/deb/teleport/arm64"
+  - apt download "teleport:arm64=$${FULL_VERSION}"
+  - FILENAME=$(ls)
+  - mv $${FILENAME} "/go/artifacts/deb/teleport/arm64/$(cat '/go/vars/full-version/v9').deb"
+  - Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/arm64/$(cat
+    '/go/vars/full-version/v9').deb"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -6775,8 +6841,8 @@ steps:
   commands:
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-v9-amd64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/$(cat '/go/vars/full-version/v9')/teleport.deb"
-    /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/amd64/$(cat
+    '/go/vars/full-version/v9').deb" /go/build
   volumes:
   - name: dockersock
     path: /var/run
@@ -6790,8 +6856,8 @@ steps:
   commands:
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm" --tag "teleport-v9-arm"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/$(cat '/go/vars/full-version/v9')/teleport.deb"
-    /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm/$(cat
+    '/go/vars/full-version/v9').deb" /go/build
   volumes:
   - name: dockersock
     path: /var/run
@@ -6805,8 +6871,8 @@ steps:
   commands:
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-v9-arm64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/$(cat '/go/vars/full-version/v9')/teleport.deb"
-    /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm64/$(cat
+    '/go/vars/full-version/v9').deb" /go/build
   volumes:
   - name: dockersock
     path: /var/run
@@ -7065,6 +7131,7 @@ steps:
 - name: Download "teleport-ent" DEB artifact from APT
   image: ubuntu:20.04
   commands:
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - PACKAGE_NAME="teleport-ent"
   - PACKAGE_VERSION="$(cat '/go/vars/full-version/v9')"
   - apt update
@@ -7090,12 +7157,31 @@ steps:
     matching \"$${TRIMMED_VERSION}\"" && exit 1'
   - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
     cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\"..."
-  - mkdir -pv "/go/artifacts/deb/$(cat '/go/vars/full-version/v9')"
-  - cd "/go/artifacts/deb/$(cat '/go/vars/full-version/v9')"
-  - apt download $${PACKAGE_NAME}=$${FULL_VERSION}
-  - mv *.deb "/go/artifacts/deb/$(cat '/go/vars/full-version/v9')/teleport-ent.deb"
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
+    "amd64\", \"arm\", \"arm64"..."
+  - mkdir -pv "/tmp/apt-download"
+  - dpkg --add-architecture "amd64"
+  - dpkg --add-architecture "arm"
+  - dpkg --add-architecture "arm64"
+  - apt update &> /dev/null || true
+  - mkdir -pv "/go/artifacts/deb/teleport-ent/amd64"
+  - apt download "teleport-ent:amd64=$${FULL_VERSION}"
+  - FILENAME=$(ls)
+  - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/amd64/$(cat '/go/vars/full-version/v9').deb"
+  - Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/amd64/$(cat
+    '/go/vars/full-version/v9').deb"
+  - mkdir -pv "/go/artifacts/deb/teleport-ent/arm"
+  - apt download "teleport-ent:arm=$${FULL_VERSION}"
+  - FILENAME=$(ls)
+  - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/arm/$(cat '/go/vars/full-version/v9').deb"
+  - Downloaded "teleport-ent:arm=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/arm/$(cat
+    '/go/vars/full-version/v9').deb"
+  - mkdir -pv "/go/artifacts/deb/teleport-ent/arm64"
+  - apt download "teleport-ent:arm64=$${FULL_VERSION}"
+  - FILENAME=$(ls)
+  - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/arm64/$(cat '/go/vars/full-version/v9').deb"
+  - Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/arm64/$(cat
+    '/go/vars/full-version/v9').deb"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -7105,8 +7191,8 @@ steps:
   commands:
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-ent-v9-amd64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/$(cat '/go/vars/full-version/v9')/teleport-ent.deb"
-    /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/amd64/$(cat
+    '/go/vars/full-version/v9').deb" /go/build
   volumes:
   - name: dockersock
     path: /var/run
@@ -7120,8 +7206,8 @@ steps:
   commands:
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm" --tag "teleport-ent-v9-arm"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/$(cat '/go/vars/full-version/v9')/teleport-ent.deb"
-    /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm/$(cat
+    '/go/vars/full-version/v9').deb" /go/build
   volumes:
   - name: dockersock
     path: /var/run
@@ -7135,8 +7221,8 @@ steps:
   commands:
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-ent-v9-arm64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/$(cat '/go/vars/full-version/v9')/teleport-ent.deb"
-    /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm64/$(cat
+    '/go/vars/full-version/v9').deb" /go/build
   volumes:
   - name: dockersock
     path: /var/run
@@ -7397,6 +7483,7 @@ steps:
 - name: Download "teleport-ent-fips" DEB artifact from APT
   image: ubuntu:20.04
   commands:
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - PACKAGE_NAME="teleport-ent-fips"
   - PACKAGE_VERSION="$(cat '/go/vars/full-version/v9')"
   - apt update
@@ -7422,12 +7509,17 @@ steps:
     matching \"$${TRIMMED_VERSION}\"" && exit 1'
   - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
     cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\"..."
-  - mkdir -pv "/go/artifacts/deb/$(cat '/go/vars/full-version/v9')"
-  - cd "/go/artifacts/deb/$(cat '/go/vars/full-version/v9')"
-  - apt download $${PACKAGE_NAME}=$${FULL_VERSION}
-  - mv *.deb "/go/artifacts/deb/$(cat '/go/vars/full-version/v9')/teleport-ent-fips.deb"
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
+    "amd64"..."
+  - mkdir -pv "/tmp/apt-download"
+  - dpkg --add-architecture "amd64"
+  - apt update &> /dev/null || true
+  - mkdir -pv "/go/artifacts/deb/teleport-ent-fips/amd64"
+  - apt download "teleport-ent-fips:amd64=$${FULL_VERSION}"
+  - FILENAME=$(ls)
+  - mv $${FILENAME} "/go/artifacts/deb/teleport-ent-fips/amd64/$(cat '/go/vars/full-version/v9').deb"
+  - Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
+    '/go/vars/full-version/v9').deb"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -7437,8 +7529,8 @@ steps:
   commands:
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport-fips" --platform "linux/amd64" --tag "teleport-ent-fips-v9-amd64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/$(cat '/go/vars/full-version/v9')/teleport-ent-fips.deb"
-    /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
+    '/go/vars/full-version/v9').deb" /go/build
   volumes:
   - name: dockersock
     path: /var/run
@@ -8227,6 +8319,7 @@ steps:
 - name: Download "teleport" DEB artifact from APT
   image: ubuntu:20.04
   commands:
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - PACKAGE_NAME="teleport"
   - PACKAGE_VERSION="$(cat '/go/vars/full-version/v8')"
   - apt update
@@ -8252,12 +8345,31 @@ steps:
     matching \"$${TRIMMED_VERSION}\"" && exit 1'
   - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
     cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\"..."
-  - mkdir -pv "/go/artifacts/deb/$(cat '/go/vars/full-version/v8')"
-  - cd "/go/artifacts/deb/$(cat '/go/vars/full-version/v8')"
-  - apt download $${PACKAGE_NAME}=$${FULL_VERSION}
-  - mv *.deb "/go/artifacts/deb/$(cat '/go/vars/full-version/v8')/teleport.deb"
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
+    "amd64\", \"arm\", \"arm64"..."
+  - mkdir -pv "/tmp/apt-download"
+  - dpkg --add-architecture "amd64"
+  - dpkg --add-architecture "arm"
+  - dpkg --add-architecture "arm64"
+  - apt update &> /dev/null || true
+  - mkdir -pv "/go/artifacts/deb/teleport/amd64"
+  - apt download "teleport:amd64=$${FULL_VERSION}"
+  - FILENAME=$(ls)
+  - mv $${FILENAME} "/go/artifacts/deb/teleport/amd64/$(cat '/go/vars/full-version/v8').deb"
+  - Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/amd64/$(cat
+    '/go/vars/full-version/v8').deb"
+  - mkdir -pv "/go/artifacts/deb/teleport/arm"
+  - apt download "teleport:arm=$${FULL_VERSION}"
+  - FILENAME=$(ls)
+  - mv $${FILENAME} "/go/artifacts/deb/teleport/arm/$(cat '/go/vars/full-version/v8').deb"
+  - Downloaded "teleport:arm=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/arm/$(cat
+    '/go/vars/full-version/v8').deb"
+  - mkdir -pv "/go/artifacts/deb/teleport/arm64"
+  - apt download "teleport:arm64=$${FULL_VERSION}"
+  - FILENAME=$(ls)
+  - mv $${FILENAME} "/go/artifacts/deb/teleport/arm64/$(cat '/go/vars/full-version/v8').deb"
+  - Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/arm64/$(cat
+    '/go/vars/full-version/v8').deb"
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
@@ -8267,8 +8379,8 @@ steps:
   commands:
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-v8-amd64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/$(cat '/go/vars/full-version/v8')/teleport.deb"
-    /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/amd64/$(cat
+    '/go/vars/full-version/v8').deb" /go/build
   volumes:
   - name: dockersock
     path: /var/run
@@ -8282,8 +8394,8 @@ steps:
   commands:
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm" --tag "teleport-v8-arm"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/$(cat '/go/vars/full-version/v8')/teleport.deb"
-    /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm/$(cat
+    '/go/vars/full-version/v8').deb" /go/build
   volumes:
   - name: dockersock
     path: /var/run
@@ -8297,8 +8409,8 @@ steps:
   commands:
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-v8-arm64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/$(cat '/go/vars/full-version/v8')/teleport.deb"
-    /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm64/$(cat
+    '/go/vars/full-version/v8').deb" /go/build
   volumes:
   - name: dockersock
     path: /var/run
@@ -8557,6 +8669,7 @@ steps:
 - name: Download "teleport-ent" DEB artifact from APT
   image: ubuntu:20.04
   commands:
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - PACKAGE_NAME="teleport-ent"
   - PACKAGE_VERSION="$(cat '/go/vars/full-version/v8')"
   - apt update
@@ -8582,12 +8695,31 @@ steps:
     matching \"$${TRIMMED_VERSION}\"" && exit 1'
   - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
     cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\"..."
-  - mkdir -pv "/go/artifacts/deb/$(cat '/go/vars/full-version/v8')"
-  - cd "/go/artifacts/deb/$(cat '/go/vars/full-version/v8')"
-  - apt download $${PACKAGE_NAME}=$${FULL_VERSION}
-  - mv *.deb "/go/artifacts/deb/$(cat '/go/vars/full-version/v8')/teleport-ent.deb"
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
+    "amd64\", \"arm\", \"arm64"..."
+  - mkdir -pv "/tmp/apt-download"
+  - dpkg --add-architecture "amd64"
+  - dpkg --add-architecture "arm"
+  - dpkg --add-architecture "arm64"
+  - apt update &> /dev/null || true
+  - mkdir -pv "/go/artifacts/deb/teleport-ent/amd64"
+  - apt download "teleport-ent:amd64=$${FULL_VERSION}"
+  - FILENAME=$(ls)
+  - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/amd64/$(cat '/go/vars/full-version/v8').deb"
+  - Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/amd64/$(cat
+    '/go/vars/full-version/v8').deb"
+  - mkdir -pv "/go/artifacts/deb/teleport-ent/arm"
+  - apt download "teleport-ent:arm=$${FULL_VERSION}"
+  - FILENAME=$(ls)
+  - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/arm/$(cat '/go/vars/full-version/v8').deb"
+  - Downloaded "teleport-ent:arm=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/arm/$(cat
+    '/go/vars/full-version/v8').deb"
+  - mkdir -pv "/go/artifacts/deb/teleport-ent/arm64"
+  - apt download "teleport-ent:arm64=$${FULL_VERSION}"
+  - FILENAME=$(ls)
+  - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/arm64/$(cat '/go/vars/full-version/v8').deb"
+  - Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/arm64/$(cat
+    '/go/vars/full-version/v8').deb"
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
@@ -8597,8 +8729,8 @@ steps:
   commands:
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-ent-v8-amd64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/$(cat '/go/vars/full-version/v8')/teleport-ent.deb"
-    /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/amd64/$(cat
+    '/go/vars/full-version/v8').deb" /go/build
   volumes:
   - name: dockersock
     path: /var/run
@@ -8612,8 +8744,8 @@ steps:
   commands:
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm" --tag "teleport-ent-v8-arm"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/$(cat '/go/vars/full-version/v8')/teleport-ent.deb"
-    /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm/$(cat
+    '/go/vars/full-version/v8').deb" /go/build
   volumes:
   - name: dockersock
     path: /var/run
@@ -8627,8 +8759,8 @@ steps:
   commands:
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-ent-v8-arm64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/$(cat '/go/vars/full-version/v8')/teleport-ent.deb"
-    /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm64/$(cat
+    '/go/vars/full-version/v8').deb" /go/build
   volumes:
   - name: dockersock
     path: /var/run
@@ -8889,6 +9021,7 @@ steps:
 - name: Download "teleport-ent-fips" DEB artifact from APT
   image: ubuntu:20.04
   commands:
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - PACKAGE_NAME="teleport-ent-fips"
   - PACKAGE_VERSION="$(cat '/go/vars/full-version/v8')"
   - apt update
@@ -8914,12 +9047,17 @@ steps:
     matching \"$${TRIMMED_VERSION}\"" && exit 1'
   - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
     cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\"..."
-  - mkdir -pv "/go/artifacts/deb/$(cat '/go/vars/full-version/v8')"
-  - cd "/go/artifacts/deb/$(cat '/go/vars/full-version/v8')"
-  - apt download $${PACKAGE_NAME}=$${FULL_VERSION}
-  - mv *.deb "/go/artifacts/deb/$(cat '/go/vars/full-version/v8')/teleport-ent-fips.deb"
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
+    "amd64"..."
+  - mkdir -pv "/tmp/apt-download"
+  - dpkg --add-architecture "amd64"
+  - apt update &> /dev/null || true
+  - mkdir -pv "/go/artifacts/deb/teleport-ent-fips/amd64"
+  - apt download "teleport-ent-fips:amd64=$${FULL_VERSION}"
+  - FILENAME=$(ls)
+  - mv $${FILENAME} "/go/artifacts/deb/teleport-ent-fips/amd64/$(cat '/go/vars/full-version/v8').deb"
+  - Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
+    '/go/vars/full-version/v8').deb"
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
@@ -8929,8 +9067,8 @@ steps:
   commands:
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport-fips" --platform "linux/amd64" --tag "teleport-ent-fips-v8-amd64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/$(cat '/go/vars/full-version/v8')/teleport-ent-fips.deb"
-    /go/build
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
+    '/go/vars/full-version/v8').deb" /go/build
   volumes:
   - name: dockersock
     path: /var/run
@@ -9738,6 +9876,7 @@ steps:
 - name: Download "teleport" DEB artifact from APT
   image: ubuntu:20.04
   commands:
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - PACKAGE_NAME="teleport"
   - PACKAGE_VERSION="$DRONE_TAG"
   - apt update
@@ -9763,12 +9902,28 @@ steps:
     matching \"$${TRIMMED_VERSION}\"" && exit 1'
   - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
     cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\"..."
-  - mkdir -pv "/go/artifacts/deb/$DRONE_TAG"
-  - cd "/go/artifacts/deb/$DRONE_TAG"
-  - apt download $${PACKAGE_NAME}=$${FULL_VERSION}
-  - mv *.deb "/go/artifacts/deb/$DRONE_TAG/teleport.deb"
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
+    "amd64\", \"arm\", \"arm64"..."
+  - mkdir -pv "/tmp/apt-download"
+  - dpkg --add-architecture "amd64"
+  - dpkg --add-architecture "arm"
+  - dpkg --add-architecture "arm64"
+  - apt update &> /dev/null || true
+  - mkdir -pv "/go/artifacts/deb/teleport/amd64"
+  - apt download "teleport:amd64=$${FULL_VERSION}"
+  - FILENAME=$(ls)
+  - mv $${FILENAME} "/go/artifacts/deb/teleport/amd64/$DRONE_TAG.deb"
+  - Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/amd64/$DRONE_TAG.deb"
+  - mkdir -pv "/go/artifacts/deb/teleport/arm"
+  - apt download "teleport:arm=$${FULL_VERSION}"
+  - FILENAME=$(ls)
+  - mv $${FILENAME} "/go/artifacts/deb/teleport/arm/$DRONE_TAG.deb"
+  - Downloaded "teleport:arm=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/arm/$DRONE_TAG.deb"
+  - mkdir -pv "/go/artifacts/deb/teleport/arm64"
+  - apt download "teleport:arm64=$${FULL_VERSION}"
+  - FILENAME=$(ls)
+  - mv $${FILENAME} "/go/artifacts/deb/teleport/arm64/$DRONE_TAG.deb"
+  - Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/arm64/$DRONE_TAG.deb"
   depends_on:
   - Verify build is tagged
   - Check out code
@@ -9780,7 +9935,7 @@ steps:
   commands:
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-v10-amd64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/$DRONE_TAG/teleport.deb"
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/amd64/$DRONE_TAG.deb"
     /go/build
   volumes:
   - name: dockersock
@@ -9797,7 +9952,7 @@ steps:
   commands:
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm" --tag "teleport-v10-arm"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/$DRONE_TAG/teleport.deb"
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm/$DRONE_TAG.deb"
     /go/build
   volumes:
   - name: dockersock
@@ -9814,7 +9969,7 @@ steps:
   commands:
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-v10-arm64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/$DRONE_TAG/teleport.deb"
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm64/$DRONE_TAG.deb"
     /go/build
   volumes:
   - name: dockersock
@@ -10076,6 +10231,7 @@ steps:
 - name: Download "teleport-ent" DEB artifact from APT
   image: ubuntu:20.04
   commands:
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - PACKAGE_NAME="teleport-ent"
   - PACKAGE_VERSION="$DRONE_TAG"
   - apt update
@@ -10101,12 +10257,28 @@ steps:
     matching \"$${TRIMMED_VERSION}\"" && exit 1'
   - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
     cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\"..."
-  - mkdir -pv "/go/artifacts/deb/$DRONE_TAG"
-  - cd "/go/artifacts/deb/$DRONE_TAG"
-  - apt download $${PACKAGE_NAME}=$${FULL_VERSION}
-  - mv *.deb "/go/artifacts/deb/$DRONE_TAG/teleport-ent.deb"
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
+    "amd64\", \"arm\", \"arm64"..."
+  - mkdir -pv "/tmp/apt-download"
+  - dpkg --add-architecture "amd64"
+  - dpkg --add-architecture "arm"
+  - dpkg --add-architecture "arm64"
+  - apt update &> /dev/null || true
+  - mkdir -pv "/go/artifacts/deb/teleport-ent/amd64"
+  - apt download "teleport-ent:amd64=$${FULL_VERSION}"
+  - FILENAME=$(ls)
+  - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/amd64/$DRONE_TAG.deb"
+  - Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/amd64/$DRONE_TAG.deb"
+  - mkdir -pv "/go/artifacts/deb/teleport-ent/arm"
+  - apt download "teleport-ent:arm=$${FULL_VERSION}"
+  - FILENAME=$(ls)
+  - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/arm/$DRONE_TAG.deb"
+  - Downloaded "teleport-ent:arm=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/arm/$DRONE_TAG.deb"
+  - mkdir -pv "/go/artifacts/deb/teleport-ent/arm64"
+  - apt download "teleport-ent:arm64=$${FULL_VERSION}"
+  - FILENAME=$(ls)
+  - mv $${FILENAME} "/go/artifacts/deb/teleport-ent/arm64/$DRONE_TAG.deb"
+  - Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/arm64/$DRONE_TAG.deb"
   depends_on:
   - Verify build is tagged
   - Check out code
@@ -10118,7 +10290,7 @@ steps:
   commands:
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-ent-v10-amd64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/$DRONE_TAG/teleport-ent.deb"
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/amd64/$DRONE_TAG.deb"
     /go/build
   volumes:
   - name: dockersock
@@ -10135,7 +10307,7 @@ steps:
   commands:
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm" --tag "teleport-ent-v10-arm"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/$DRONE_TAG/teleport-ent.deb"
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm/$DRONE_TAG.deb"
     /go/build
   volumes:
   - name: dockersock
@@ -10152,7 +10324,7 @@ steps:
   commands:
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-ent-v10-arm64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/$DRONE_TAG/teleport-ent.deb"
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm64/$DRONE_TAG.deb"
     /go/build
   volumes:
   - name: dockersock
@@ -10417,6 +10589,7 @@ steps:
 - name: Download "teleport-ent-fips" DEB artifact from APT
   image: ubuntu:20.04
   commands:
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - PACKAGE_NAME="teleport-ent-fips"
   - PACKAGE_VERSION="$DRONE_TAG"
   - apt update
@@ -10442,12 +10615,16 @@ steps:
     matching \"$${TRIMMED_VERSION}\"" && exit 1'
   - FULL_VERSION=$(apt-cache madison $${PACKAGE_NAME} | grep $${TRIMMED_VERSION} |
     cut -d'|' -f 2 | tr -d ' ' | head -n 1)
-  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\"..."
-  - mkdir -pv "/go/artifacts/deb/$DRONE_TAG"
-  - cd "/go/artifacts/deb/$DRONE_TAG"
-  - apt download $${PACKAGE_NAME}=$${FULL_VERSION}
-  - mv *.deb "/go/artifacts/deb/$DRONE_TAG/teleport-ent-fips.deb"
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
+  - echo "Found APT package, downloading \"$${PACKAGE_NAME}=$${FULL_VERSION}\" for
+    "amd64"..."
+  - mkdir -pv "/tmp/apt-download"
+  - dpkg --add-architecture "amd64"
+  - apt update &> /dev/null || true
+  - mkdir -pv "/go/artifacts/deb/teleport-ent-fips/amd64"
+  - apt download "teleport-ent-fips:amd64=$${FULL_VERSION}"
+  - FILENAME=$(ls)
+  - mv $${FILENAME} "/go/artifacts/deb/teleport-ent-fips/amd64/$DRONE_TAG.deb"
+  - Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent-fips/amd64/$DRONE_TAG.deb"
   depends_on:
   - Verify build is tagged
   - Check out code
@@ -10459,7 +10636,7 @@ steps:
   commands:
   - mkdir -p "/go/build" && cd "/go/build"
   - docker build --target "teleport-fips" --platform "linux/amd64" --tag "teleport-ent-fips-v10-amd64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/$DRONE_TAG/teleport-ent-fips.deb"
+    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent-fips/amd64/$DRONE_TAG.deb"
     /go/build
   volumes:
   - name: dockersock
@@ -11682,6 +11859,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: cb7edefaaaac640a3d44f41df0c8bd09b92c39cfb9bca20e506441c3ebe554ea
+hmac: 3b8925a7e80e7de2b8e966613b4e9da3066aea62d061c695a3be2e9cb8a6a804
 
 ...
