@@ -102,9 +102,6 @@ type AccessPoint interface {
 	// GetCertAuthorities returns a list of cert authorities
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
-	// GetNodes returns a list of registered servers for this cluster.
-	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
-
 	// ConnectionDiagnosticTraceAppender adds a method to append traces into ConnectionDiagnostics.
 	services.ConnectionDiagnosticTraceAppender
 }

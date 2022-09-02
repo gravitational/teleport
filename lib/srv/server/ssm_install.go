@@ -73,7 +73,7 @@ func NewSSMInstaller(cfg SSMInstallerConfig) *SSMInstaller {
 
 // Run executes the SSM document and then blocks until the command has completed.
 func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
-	var ids []string
+	ids := make([]string, 0, len(req.Instances))
 	for _, inst := range req.Instances {
 		ids = append(ids, aws.StringValue(inst.InstanceId))
 	}
@@ -82,7 +82,7 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 	for k, v := range req.Params {
 		params[k] = []*string{aws.String(v)}
 	}
-	output, err := req.SSM.SendCommand(&ssm.SendCommandInput{
+	output, err := req.SSM.SendCommandWithContext(ctx, &ssm.SendCommandInput{
 		DocumentName: aws.String(req.DocumentName),
 		InstanceIds:  aws.StringSlice(ids),
 		Parameters:   params,
@@ -125,7 +125,7 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 		return trace.Wrap(err)
 	}
 
-	cmdOut, err := req.SSM.GetCommandInvocation(&ssm.GetCommandInvocationInput{
+	cmdOut, err := req.SSM.GetCommandInvocationWithContext(ctx, &ssm.GetCommandInvocationInput{
 		CommandId:  commandID,
 		InstanceId: instanceID,
 	})

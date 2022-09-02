@@ -18,6 +18,8 @@ package discovery
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -109,6 +111,22 @@ outer:
 	instances.Instances = filtered
 }
 
+func genInstancesLogStr(instances *server.EC2Instances) string {
+	var logInstances strings.Builder
+	for idx, inst := range instances.Instances {
+		if idx == 10 || idx == (len(instances.Instances)-1) {
+			logInstances.WriteString(aws.StringValue(inst.InstanceId))
+			break
+		}
+		logInstances.WriteString(aws.StringValue(inst.InstanceId) + ", ")
+	}
+	if len(instances.Instances) > 10 {
+		logInstances.WriteString(fmt.Sprintf("... + %d instance IDs trunksated", len(instances.Instances)-10))
+	}
+
+	return fmt.Sprintf("[%s]", logInstances.String())
+}
+
 func (s *Server) handleInstances(instances *server.EC2Instances) error {
 	client, err := s.Clients.GetAWSSSMClient(instances.Region)
 	if err != nil {
@@ -116,14 +134,11 @@ func (s *Server) handleInstances(instances *server.EC2Instances) error {
 	}
 	s.filterExistingNodes(instances)
 	if len(instances.Instances) == 0 {
-
 		return trace.NotFound("all fetched nodes already enrolled.")
 	}
-	instIDs := make([]string, len(instances.Instances))
-	for idx, inst := range instances.Instances {
-		instIDs[idx] = aws.StringValue(inst.InstanceId)
-	}
-	s.log.Debugf("Running Teleport installation on these instances: AccountID: %s, Instances: %v", instances.AccountID, instIDs)
+
+	s.log.Debugf("Running Teleport installation on these instances: AccountID: %s, Instances: [%s]",
+		instances.AccountID, genInstancesLogStr(instances))
 	req := server.SSMRunRequest{
 		DocumentName: instances.DocumentName,
 		SSM:          client,
@@ -140,11 +155,8 @@ func (s *Server) handleEC2Discovery() {
 	for {
 		select {
 		case instances := <-s.cloudWatcher.InstancesC:
-			instIDs := make([]string, len(instances.Instances))
-			for idx, inst := range instances.Instances {
-				instIDs[idx] = aws.StringValue(inst.InstanceId)
-			}
-			s.log.Debugf("EC2 instances discovered (AccountID: %s, Instances: %v), starting installation", instances.AccountID, instIDs)
+			s.log.Debugf("EC2 instances discovered (AccountID: %s, Instances: %v), starting installation",
+				instances.AccountID, genInstancesLogStr(&instances))
 			if err := s.handleInstances(&instances); err != nil {
 				if trace.IsNotFound(err) {
 					s.log.Debug("All discovered EC2 instances are already part of the cluster.")
