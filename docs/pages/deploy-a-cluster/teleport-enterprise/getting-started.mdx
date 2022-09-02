@@ -121,7 +121,8 @@ ssh_service:
 Start the Teleport service and confirm the service has started. After it has started you can get the Certificate Authority (CA) pin that has been generated.
 
 ```code
-$ sudo systemctl enable --now teleport
+$ sudo systemctl enable teleport
+$ sudo systemctl start teleport
 # confirm Teleport started
 $ sudo systemctl status teleport
 # after successful start retrieve the CA pin for using in the node
