@@ -303,9 +303,9 @@ func (s *ProxyServer) ServeTLS(listener net.Listener) error {
 
 func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	s.log.Debugf("Accepted TLS database connection from %v.", conn.RemoteAddr())
-	tlsConn, ok := conn.(*tls.Conn)
+	tlsConn, ok := conn.(utils.TLSConn)
 	if !ok {
-		return trace.BadParameter("expected *tls.Conn, got %T", conn)
+		return trace.BadParameter("expected utils.TLSConn, got %T", conn)
 	}
 	clientIP, err := utils.ClientIPFromConn(conn)
 	if err != nil {
@@ -580,7 +580,7 @@ func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 }
 
 // Authorize authorizes the provided client TLS connection.
-func (s *ProxyServer) Authorize(ctx context.Context, tlsConn *tls.Conn, params common.ConnectParams) (*common.ProxyContext, error) {
+func (s *ProxyServer) Authorize(ctx context.Context, tlsConn utils.TLSConn, params common.ConnectParams) (*common.ProxyContext, error) {
 	ctx, err := s.middleware.WrapContextWithUser(ctx, tlsConn)
 	if err != nil {
 		return nil, trace.Wrap(err)
