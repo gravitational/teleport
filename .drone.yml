@@ -5303,7 +5303,7 @@ steps:
 - name: Build teleport image "teleport-v10-amd64"
   image: docker
   commands:
-  - mkdir -p "/go/build" && cd "/go/build"
+  - mkdir -pv "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-v10-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/amd64/$(cat
     '/go/vars/full-version/v10').deb" /go/build
@@ -5318,7 +5318,7 @@ steps:
 - name: Build teleport image "teleport-v10-arm"
   image: docker
   commands:
-  - mkdir -p "/go/build" && cd "/go/build"
+  - mkdir -pv "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm" --tag "teleport-v10-arm"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm/$(cat
     '/go/vars/full-version/v10').deb" /go/build
@@ -5333,7 +5333,7 @@ steps:
 - name: Build teleport image "teleport-v10-arm64"
   image: docker
   commands:
-  - mkdir -p "/go/build" && cd "/go/build"
+  - mkdir -pv "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-v10-arm64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm64/$(cat
     '/go/vars/full-version/v10').deb" /go/build
@@ -5658,7 +5658,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v10-amd64"
   image: docker
   commands:
-  - mkdir -p "/go/build" && cd "/go/build"
+  - mkdir -pv "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-ent-v10-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/amd64/$(cat
     '/go/vars/full-version/v10').deb" /go/build
@@ -5673,7 +5673,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v10-arm"
   image: docker
   commands:
-  - mkdir -p "/go/build" && cd "/go/build"
+  - mkdir -pv "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm" --tag "teleport-ent-v10-arm"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm/$(cat
     '/go/vars/full-version/v10').deb" /go/build
@@ -5688,7 +5688,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v10-arm64"
   image: docker
   commands:
-  - mkdir -p "/go/build" && cd "/go/build"
+  - mkdir -pv "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-ent-v10-arm64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm64/$(cat
     '/go/vars/full-version/v10').deb" /go/build
@@ -6000,7 +6000,7 @@ steps:
 - name: Build teleport-ent-fips image "teleport-ent-fips-v10-amd64"
   image: docker
   commands:
-  - mkdir -p "/go/build" && cd "/go/build"
+  - mkdir -pv "/go/build" && cd "/go/build"
   - docker build --target "teleport-fips" --platform "linux/amd64" --tag "teleport-ent-fips-v10-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
     '/go/vars/full-version/v10').deb" /go/build
@@ -6137,7 +6137,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v10-amd64"
   image: docker
   commands:
-  - mkdir -p "/tmp/build" && cd "/tmp/build"
+  - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker build --target "''" --platform "linux/amd64" --tag "teleport-lab-v10-amd64"
     --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
     "BASE_IMAGE=teleport-v10-amd64" /tmp/build
@@ -6152,7 +6152,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v10-arm"
   image: docker
   commands:
-  - mkdir -p "/tmp/build" && cd "/tmp/build"
+  - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker build --target "''" --platform "linux/arm" --tag "teleport-lab-v10-arm"
     --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
     "BASE_IMAGE=teleport-v10-arm" /tmp/build
@@ -6167,7 +6167,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v10-arm64"
   image: docker
   commands:
-  - mkdir -p "/tmp/build" && cd "/tmp/build"
+  - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker build --target "''" --platform "linux/arm64" --tag "teleport-lab-v10-arm64"
     --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
     "BASE_IMAGE=teleport-v10-arm64" /tmp/build
@@ -6432,9 +6432,9 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v10-amd64"
   image: docker
   commands:
-  - mkdir -p "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker build --target "''" --platform "linux/amd64" --tag "teleport-operator-v10-amd64"
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
+    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" /go/src/github.com/gravitational/teleport
   volumes:
   - name: dockersock
     path: /var/run
@@ -6445,9 +6445,9 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v10-arm"
   image: docker
   commands:
-  - mkdir -p "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker build --target "''" --platform "linux/arm" --tag "teleport-operator-v10-arm"
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
+    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" /go/src/github.com/gravitational/teleport
   volumes:
   - name: dockersock
     path: /var/run
@@ -6458,9 +6458,9 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v10-arm64"
   image: docker
   commands:
-  - mkdir -p "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker build --target "''" --platform "linux/arm64" --tag "teleport-operator-v10-arm64"
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
+    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" /go/src/github.com/gravitational/teleport
   volumes:
   - name: dockersock
     path: /var/run
@@ -6857,7 +6857,7 @@ steps:
 - name: Build teleport image "teleport-v9-amd64"
   image: docker
   commands:
-  - mkdir -p "/go/build" && cd "/go/build"
+  - mkdir -pv "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-v9-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/amd64/$(cat
     '/go/vars/full-version/v9').deb" /go/build
@@ -6872,7 +6872,7 @@ steps:
 - name: Build teleport image "teleport-v9-arm"
   image: docker
   commands:
-  - mkdir -p "/go/build" && cd "/go/build"
+  - mkdir -pv "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm" --tag "teleport-v9-arm"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm/$(cat
     '/go/vars/full-version/v9').deb" /go/build
@@ -6887,7 +6887,7 @@ steps:
 - name: Build teleport image "teleport-v9-arm64"
   image: docker
   commands:
-  - mkdir -p "/go/build" && cd "/go/build"
+  - mkdir -pv "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-v9-arm64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm64/$(cat
     '/go/vars/full-version/v9').deb" /go/build
@@ -7212,7 +7212,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v9-amd64"
   image: docker
   commands:
-  - mkdir -p "/go/build" && cd "/go/build"
+  - mkdir -pv "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-ent-v9-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/amd64/$(cat
     '/go/vars/full-version/v9').deb" /go/build
@@ -7227,7 +7227,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v9-arm"
   image: docker
   commands:
-  - mkdir -p "/go/build" && cd "/go/build"
+  - mkdir -pv "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm" --tag "teleport-ent-v9-arm"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm/$(cat
     '/go/vars/full-version/v9').deb" /go/build
@@ -7242,7 +7242,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v9-arm64"
   image: docker
   commands:
-  - mkdir -p "/go/build" && cd "/go/build"
+  - mkdir -pv "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-ent-v9-arm64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm64/$(cat
     '/go/vars/full-version/v9').deb" /go/build
@@ -7553,7 +7553,7 @@ steps:
 - name: Build teleport-ent-fips image "teleport-ent-fips-v9-amd64"
   image: docker
   commands:
-  - mkdir -p "/go/build" && cd "/go/build"
+  - mkdir -pv "/go/build" && cd "/go/build"
   - docker build --target "teleport-fips" --platform "linux/amd64" --tag "teleport-ent-fips-v9-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
     '/go/vars/full-version/v9').deb" /go/build
@@ -7690,7 +7690,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v9-amd64"
   image: docker
   commands:
-  - mkdir -p "/tmp/build" && cd "/tmp/build"
+  - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker build --target "''" --platform "linux/amd64" --tag "teleport-lab-v9-amd64"
     --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
     "BASE_IMAGE=teleport-v9-amd64" /tmp/build
@@ -7705,7 +7705,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v9-arm"
   image: docker
   commands:
-  - mkdir -p "/tmp/build" && cd "/tmp/build"
+  - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker build --target "''" --platform "linux/arm" --tag "teleport-lab-v9-arm"
     --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
     "BASE_IMAGE=teleport-v9-arm" /tmp/build
@@ -7720,7 +7720,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v9-arm64"
   image: docker
   commands:
-  - mkdir -p "/tmp/build" && cd "/tmp/build"
+  - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker build --target "''" --platform "linux/arm64" --tag "teleport-lab-v9-arm64"
     --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
     "BASE_IMAGE=teleport-v9-arm64" /tmp/build
@@ -7984,9 +7984,9 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v9-amd64"
   image: docker
   commands:
-  - mkdir -p "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker build --target "''" --platform "linux/amd64" --tag "teleport-operator-v9-amd64"
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
+    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" /go/src/github.com/gravitational/teleport
   volumes:
   - name: dockersock
     path: /var/run
@@ -7997,9 +7997,9 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v9-arm"
   image: docker
   commands:
-  - mkdir -p "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker build --target "''" --platform "linux/arm" --tag "teleport-operator-v9-arm"
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
+    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" /go/src/github.com/gravitational/teleport
   volumes:
   - name: dockersock
     path: /var/run
@@ -8010,9 +8010,9 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v9-arm64"
   image: docker
   commands:
-  - mkdir -p "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker build --target "''" --platform "linux/arm64" --tag "teleport-operator-v9-arm64"
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
+    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" /go/src/github.com/gravitational/teleport
   volumes:
   - name: dockersock
     path: /var/run
@@ -8408,7 +8408,7 @@ steps:
 - name: Build teleport image "teleport-v8-amd64"
   image: docker
   commands:
-  - mkdir -p "/go/build" && cd "/go/build"
+  - mkdir -pv "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-v8-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/amd64/$(cat
     '/go/vars/full-version/v8').deb" /go/build
@@ -8423,7 +8423,7 @@ steps:
 - name: Build teleport image "teleport-v8-arm"
   image: docker
   commands:
-  - mkdir -p "/go/build" && cd "/go/build"
+  - mkdir -pv "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm" --tag "teleport-v8-arm"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm/$(cat
     '/go/vars/full-version/v8').deb" /go/build
@@ -8438,7 +8438,7 @@ steps:
 - name: Build teleport image "teleport-v8-arm64"
   image: docker
   commands:
-  - mkdir -p "/go/build" && cd "/go/build"
+  - mkdir -pv "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-v8-arm64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm64/$(cat
     '/go/vars/full-version/v8').deb" /go/build
@@ -8763,7 +8763,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v8-amd64"
   image: docker
   commands:
-  - mkdir -p "/go/build" && cd "/go/build"
+  - mkdir -pv "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-ent-v8-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/amd64/$(cat
     '/go/vars/full-version/v8').deb" /go/build
@@ -8778,7 +8778,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v8-arm"
   image: docker
   commands:
-  - mkdir -p "/go/build" && cd "/go/build"
+  - mkdir -pv "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm" --tag "teleport-ent-v8-arm"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm/$(cat
     '/go/vars/full-version/v8').deb" /go/build
@@ -8793,7 +8793,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v8-arm64"
   image: docker
   commands:
-  - mkdir -p "/go/build" && cd "/go/build"
+  - mkdir -pv "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-ent-v8-arm64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm64/$(cat
     '/go/vars/full-version/v8').deb" /go/build
@@ -9104,7 +9104,7 @@ steps:
 - name: Build teleport-ent-fips image "teleport-ent-fips-v8-amd64"
   image: docker
   commands:
-  - mkdir -p "/go/build" && cd "/go/build"
+  - mkdir -pv "/go/build" && cd "/go/build"
   - docker build --target "teleport-fips" --platform "linux/amd64" --tag "teleport-ent-fips-v8-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
     '/go/vars/full-version/v8').deb" /go/build
@@ -9241,7 +9241,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v8-amd64"
   image: docker
   commands:
-  - mkdir -p "/tmp/build" && cd "/tmp/build"
+  - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker build --target "''" --platform "linux/amd64" --tag "teleport-lab-v8-amd64"
     --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
     "BASE_IMAGE=teleport-v8-amd64" /tmp/build
@@ -9256,7 +9256,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v8-arm"
   image: docker
   commands:
-  - mkdir -p "/tmp/build" && cd "/tmp/build"
+  - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker build --target "''" --platform "linux/arm" --tag "teleport-lab-v8-arm"
     --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
     "BASE_IMAGE=teleport-v8-arm" /tmp/build
@@ -9271,7 +9271,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v8-arm64"
   image: docker
   commands:
-  - mkdir -p "/tmp/build" && cd "/tmp/build"
+  - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker build --target "''" --platform "linux/arm64" --tag "teleport-lab-v8-arm64"
     --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
     "BASE_IMAGE=teleport-v8-arm64" /tmp/build
@@ -9535,9 +9535,9 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v8-amd64"
   image: docker
   commands:
-  - mkdir -p "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker build --target "''" --platform "linux/amd64" --tag "teleport-operator-v8-amd64"
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
+    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" /go/src/github.com/gravitational/teleport
   volumes:
   - name: dockersock
     path: /var/run
@@ -9548,9 +9548,9 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v8-arm"
   image: docker
   commands:
-  - mkdir -p "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker build --target "''" --platform "linux/arm" --tag "teleport-operator-v8-arm"
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
+    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" /go/src/github.com/gravitational/teleport
   volumes:
   - name: dockersock
     path: /var/run
@@ -9561,9 +9561,9 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v8-arm64"
   image: docker
   commands:
-  - mkdir -p "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker build --target "''" --platform "linux/arm64" --tag "teleport-operator-v8-arm64"
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
+    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" /go/src/github.com/gravitational/teleport
   volumes:
   - name: dockersock
     path: /var/run
@@ -9977,7 +9977,7 @@ steps:
 - name: Build teleport image "teleport-v10-amd64"
   image: docker
   commands:
-  - mkdir -p "/go/build" && cd "/go/build"
+  - mkdir -pv "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-v10-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/amd64/$DRONE_TAG.deb"
     /go/build
@@ -9994,7 +9994,7 @@ steps:
 - name: Build teleport image "teleport-v10-arm"
   image: docker
   commands:
-  - mkdir -p "/go/build" && cd "/go/build"
+  - mkdir -pv "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm" --tag "teleport-v10-arm"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm/$DRONE_TAG.deb"
     /go/build
@@ -10011,7 +10011,7 @@ steps:
 - name: Build teleport image "teleport-v10-arm64"
   image: docker
   commands:
-  - mkdir -p "/go/build" && cd "/go/build"
+  - mkdir -pv "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-v10-arm64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm64/$DRONE_TAG.deb"
     /go/build
@@ -10337,7 +10337,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v10-amd64"
   image: docker
   commands:
-  - mkdir -p "/go/build" && cd "/go/build"
+  - mkdir -pv "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-ent-v10-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/amd64/$DRONE_TAG.deb"
     /go/build
@@ -10354,7 +10354,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v10-arm"
   image: docker
   commands:
-  - mkdir -p "/go/build" && cd "/go/build"
+  - mkdir -pv "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm" --tag "teleport-ent-v10-arm"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm/$DRONE_TAG.deb"
     /go/build
@@ -10371,7 +10371,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v10-arm64"
   image: docker
   commands:
-  - mkdir -p "/go/build" && cd "/go/build"
+  - mkdir -pv "/go/build" && cd "/go/build"
   - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-ent-v10-arm64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm64/$DRONE_TAG.deb"
     /go/build
@@ -10686,7 +10686,7 @@ steps:
 - name: Build teleport-ent-fips image "teleport-ent-fips-v10-amd64"
   image: docker
   commands:
-  - mkdir -p "/go/build" && cd "/go/build"
+  - mkdir -pv "/go/build" && cd "/go/build"
   - docker build --target "teleport-fips" --platform "linux/amd64" --tag "teleport-ent-fips-v10-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent-fips/amd64/$DRONE_TAG.deb"
     /go/build
@@ -10825,7 +10825,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v10-amd64"
   image: docker
   commands:
-  - mkdir -p "/tmp/build" && cd "/tmp/build"
+  - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker build --target "''" --platform "linux/amd64" --tag "teleport-lab-v10-amd64"
     --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
     "BASE_IMAGE=teleport-v10-amd64" /tmp/build
@@ -10842,7 +10842,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v10-arm"
   image: docker
   commands:
-  - mkdir -p "/tmp/build" && cd "/tmp/build"
+  - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker build --target "''" --platform "linux/arm" --tag "teleport-lab-v10-arm"
     --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
     "BASE_IMAGE=teleport-v10-arm" /tmp/build
@@ -10859,7 +10859,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v10-arm64"
   image: docker
   commands:
-  - mkdir -p "/tmp/build" && cd "/tmp/build"
+  - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker build --target "''" --platform "linux/arm64" --tag "teleport-lab-v10-arm64"
     --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
     "BASE_IMAGE=teleport-v10-arm64" /tmp/build
@@ -11126,9 +11126,9 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v10-amd64"
   image: docker
   commands:
-  - mkdir -p "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker build --target "''" --platform "linux/amd64" --tag "teleport-operator-v10-amd64"
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
+    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" /go/src/github.com/gravitational/teleport
   volumes:
   - name: dockersock
     path: /var/run
@@ -11141,9 +11141,9 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v10-arm"
   image: docker
   commands:
-  - mkdir -p "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker build --target "''" --platform "linux/arm" --tag "teleport-operator-v10-arm"
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
+    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" /go/src/github.com/gravitational/teleport
   volumes:
   - name: dockersock
     path: /var/run
@@ -11156,9 +11156,9 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v10-arm64"
   image: docker
   commands:
-  - mkdir -p "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker build --target "''" --platform "linux/arm64" --tag "teleport-operator-v10-arm64"
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
+    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" /go/src/github.com/gravitational/teleport
   volumes:
   - name: dockersock
     path: /var/run
@@ -11911,6 +11911,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 2e0de383e99d483b162bee5827e9017c48b9dff8bb9b93726a7277a826a9b181
+hmac: 761e704a31278917af213b11ec858bb80747ea334c6c6c43cbdbaa06c04a417b
 
 ...

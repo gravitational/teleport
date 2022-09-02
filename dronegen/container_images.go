@@ -490,15 +490,15 @@ func (p *product) createBuildStep(arch string, version *releaseVersion) (step, *
 		for _, buildArg := range p.DockerfileArgBuilder(arch) {
 			buildCommand += fmt.Sprintf(" --build-arg %q", buildArg)
 		}
-		buildCommand += " " + p.WorkingDirectory
 	}
+	buildCommand += " " + p.WorkingDirectory
 
 	step := step{
 		Name:    p.GetBuildStepName(arch, version),
 		Image:   "docker",
 		Volumes: dockerVolumeRefs(),
 		Commands: []string{
-			fmt.Sprintf("mkdir -p %q && cd %q", p.WorkingDirectory, p.WorkingDirectory),
+			fmt.Sprintf("mkdir -pv %q && cd %q", p.WorkingDirectory, p.WorkingDirectory),
 			buildCommand,
 		},
 	}
