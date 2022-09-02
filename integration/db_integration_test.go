@@ -861,7 +861,7 @@ func (p *databasePack) testAgentState(t *testing.T) {
 }
 
 // TestDatabaseAccessCassandraRootCluster tests a scenario where a user connects
-// to a Postgres database running in a root cluster.
+// to a Cassandra database running in a root cluster.
 func TestDatabaseAccessCassandraRootCluster(t *testing.T) {
 	pack := setupDatabaseTest(t)
 
@@ -888,7 +888,7 @@ func TestDatabaseAccessCassandraRootCluster(t *testing.T) {
 }
 
 // TestDatabaseAccessCassandraLeafCluster tests a scenario where a user connects
-// to a Postgres database running in a root cluster.
+// to a Cassandra database running in a root cluster.
 func TestDatabaseAccessCassandraLeafCluster(t *testing.T) {
 	pack := setupDatabaseTest(t)
 	pack.waitForLeaf(t)
