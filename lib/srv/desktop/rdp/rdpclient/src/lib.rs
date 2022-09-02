@@ -1469,6 +1469,7 @@ impl From<ServerCreateDriveRequest> for SharedDirectoryInfoRequest {
 pub struct SharedDirectoryInfoResponse {
     completion_id: u32,
     err_code: TdpErrCode,
+
     fso: FileSystemObject,
 }
 
@@ -1501,6 +1502,7 @@ pub struct FileSystemObject {
     last_modified: u64,
     size: u64,
     file_type: FileType,
+    is_empty: u8,
     path: UnixPath,
 }
 
@@ -1523,6 +1525,7 @@ pub struct CGOFileSystemObject {
     pub last_modified: u64,
     pub size: u64,
     pub file_type: FileType,
+    pub is_empty: u8,
     pub path: *const c_char,
 }
 
@@ -1538,6 +1541,7 @@ impl From<CGOFileSystemObject> for FileSystemObject {
                 last_modified: cgo_fso.last_modified,
                 size: cgo_fso.size,
                 file_type: cgo_fso.file_type,
+                is_empty: cgo_fso.is_empty,
                 path: UnixPath::from(from_go_string(cgo_fso.path)),
             }
         }
