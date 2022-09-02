@@ -202,10 +202,10 @@ func (c *testContext) startKubeService(t *testing.T) {
 // Close closes resources associated with the test context.
 func (c *testContext) Close() error {
 	// kubeServer closes the listener
-	kSErr := c.kubeServer.Close()
+	err := c.kubeServer.Close()
 	authCErr := c.authClient.Close()
 	authSErr := c.authServer.Close()
-	return trace.NewAggregate(kSErr, authCErr, authSErr)
+	return trace.NewAggregate(err, authCErr, authSErr)
 }
 
 // KubeServiceAddress returns the address of the kube service

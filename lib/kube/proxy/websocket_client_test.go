@@ -186,6 +186,9 @@ func (e *wsStreamExecutor) stream(conn *gwebsocket.Conn, options clientremotecom
 					// Once we receive an error from streamErr, we must stop processing.
 					// The server also stops the execution and closes the connection.
 					return
+				case streamResize:
+					errChan <- fmt.Errorf("stream resize is not supported")
+					return
 				}
 				if w == nil {
 					continue
@@ -269,7 +272,7 @@ func dial(rt http.RoundTripper, method string, url string) error {
 		}
 		return fmt.Errorf("unable to upgrade connection: %w", err)
 	}
-	// if request is successfull, ignore body payload and close.
+	// if request is successful, ignore body payload and close.
 	io.Copy(io.Discard, resp.Body)
 	resp.Body.Close()
 
