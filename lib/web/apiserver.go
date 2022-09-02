@@ -200,6 +200,10 @@ type Config struct {
 	// PublicProxyAddr is used to template the public proxy address
 	// into the installer script responses
 	PublicProxyAddr string
+
+	// ALPNHandler is the ALPN connection handler for handling upgraded ALPN
+	// connection through a HTTP upgrade call.
+	ALPNHandler ConnectionHandler
 }
 
 type APIHandler struct {
@@ -208,6 +212,9 @@ type APIHandler struct {
 	// appHandler is a http.Handler to forward requests to applications.
 	appHandler *app.Handler
 }
+
+// ConnectionHandler defines a function for serving incoming connections.
+type ConnectionHandler func(ctx context.Context, conn net.Conn) error
 
 // Check if this request should be forwarded to an application handler to
 // be handled by the UI and handle the request appropriately.
@@ -609,6 +616,9 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	h.GET("/webapi/sites/:site/diagnostics/connections/:connectionid", h.WithClusterAuth(h.getConnectionDiagnostic))
 	// Diagnose a Connection
 	h.POST("/webapi/sites/:site/diagnostics/connections", h.WithClusterAuth(h.diagnoseConnection))
+
+	// Connection upgrades.
+	h.GET("/webapi/connectionupgrade", httplib.MakeHandler(h.connectionUpgrade))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -725,6 +735,8 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	userContext.ConsumedAccessRequestID = c.session.GetConsumedAccessRequestID()
 
 	return userContext, nil
 }

@@ -145,7 +145,7 @@ func fido2Login(
 
 		// Does the device have a suitable credential?
 		const pin = ""
-		actualRPID, err := discoverRPID(dev, pin, rpID, appID, allowedCreds)
+		actualRPID, err := discoverRPID(dev, info, pin, rpID, appID, allowedCreds)
 		if err != nil {
 			log.Debugf("FIDO2: Device %v: filtered due to lack of allowed credential", info.path)
 			return false, nil
@@ -237,7 +237,7 @@ func fido2Login(
 	}, actualUser, nil
 }
 
-func discoverRPID(dev FIDODevice, pin, rpID, appID string, allowedCreds [][]byte) (string, error) {
+func discoverRPID(dev FIDODevice, info *deviceInfo, pin, rpID, appID string, allowedCreds [][]byte) (string, error) {
 	// The actual hash is not necessary here.
 	const cdh = "00000000000000000000000000000000"
 
@@ -248,8 +248,15 @@ func discoverRPID(dev FIDODevice, pin, rpID, appID string, allowedCreds [][]byte
 		if id == "" {
 			continue
 		}
-		if _, err := dev.Assertion(id, []byte(cdh), allowedCreds, pin, opts); err == nil {
+		switch _, err := dev.Assertion(id, []byte(cdh), allowedCreds, pin, opts); {
+		// Yubikey4 returns ErrUserPresenceRequired if the credential exists,
+		// despite the UP=false opts above.
+		case err == nil, errors.Is(err, libfido2.ErrUserPresenceRequired):
 			return id, nil
+		case errors.Is(err, libfido2.ErrNoCredentials):
+			// Device not registered for RPID=id, keep trying.
+		default:
+			log.WithError(err).Debugf("FIDO2: Device %v: attempt RPID = %v", info.path, id)
 		}
 	}
 	return "", libfido2.ErrNoCredentials
@@ -696,10 +703,14 @@ func withRetries(callback deviceCallbackFunc) deviceCallbackFunc {
 			if err == nil {
 				return err
 			}
-
-			// Important: errors mapped by go-libfido2 aren't returned as
-			// libfido2.Error, instead they have their own specialized (string-based)
-			// constants.
+			// Handle errors mapped by go-libfido2.
+			// ErrOperationDenied happens when fingerprint reading fails (UV=false).
+			if errors.Is(err, libfido2.ErrOperationDenied) {
+				fmt.Println("Gesture validation failed, make sure you use a registered fingerprint")
+				log.Debug("FIDO2: Retrying libfido2 error 'operation denied'")
+				continue
+			}
+			// Handle generic libfido2.Error instances.
 			var fidoErr libfido2.Error
 			if !errors.As(err, &fidoErr) {
 				return err
@@ -711,7 +722,9 @@ func withRetries(callback deviceCallbackFunc) deviceCallbackFunc {
 				const msg = "" +
 					"The user verification function in your security key is blocked. " +
 					"This is likely due to too many failed authentication attempts. " +
-					"Consult your manufacturer documentation for how to unblock your security key."
+					"Consult your manufacturer documentation for how to unblock your security key. " +
+					"Alternatively, you may unblock your device by using it in the Web UI."
+
 				return trace.Wrap(err, msg)
 			case 63: // FIDO_ERR_UV_INVALID, 0x3f
 				log.Debug("FIDO2: Retrying libfido2 error 63")

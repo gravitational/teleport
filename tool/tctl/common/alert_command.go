@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
+	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service"
 
 	"github.com/gravitational/kingpin"
@@ -39,6 +40,8 @@ type AlertCommand struct {
 
 	message string
 
+	labels string
+
 	verbose bool
 
 	alertList   *kingpin.CmdClause
@@ -52,9 +55,11 @@ func (c *AlertCommand) Initialize(app *kingpin.Application, config *service.Conf
 
 	c.alertList = alert.Command("list", "List cluster alerts").Alias("ls")
 	c.alertList.Flag("verbose", "Show detailed alert info").Short('v').BoolVar(&c.verbose)
+	c.alertList.Flag("labels", labelHelp).StringVar(&c.labels)
 
 	c.alertCreate = alert.Command("create", "Create cluster alerts").Hidden()
 	c.alertCreate.Arg("message", "Alert body message").Required().StringVar(&c.message)
+	c.alertCreate.Flag("labels", labelHelp).StringVar(&c.labels)
 }
 
 // TryRun takes the CLI command as an argument (like "alerts ls") and executes it.
@@ -71,8 +76,13 @@ func (c *AlertCommand) TryRun(ctx context.Context, cmd string, client auth.Clien
 }
 
 func (c *AlertCommand) List(ctx context.Context, client auth.ClientI) error {
+	labels, err := libclient.ParseLabelSpec(c.labels)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	alerts, err := client.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
-		// TODO(fspmarshall): support query parameters
+		Labels: labels,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -115,9 +125,17 @@ func (c *AlertCommand) List(ctx context.Context, client auth.ClientI) error {
 }
 
 func (c *AlertCommand) Create(ctx context.Context, client auth.ClientI) error {
+	labels, err := libclient.ParseLabelSpec(c.labels)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	alert, err := types.NewClusterAlert(uuid.New().String(), c.message)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	alert.Metadata.Labels = labels
+
 	return trace.Wrap(client.UpsertClusterAlert(ctx, alert))
 }

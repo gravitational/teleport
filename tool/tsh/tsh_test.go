@@ -1987,7 +1987,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{{
-			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase, types.RoleTrustedCluster, types.RoleNode},
+			Roles:   []types.SystemRole{types.RoleProxy, types.RoleDatabase, types.RoleTrustedCluster, types.RoleNode, types.RoleApp},
 			Expires: time.Now().Add(time.Minute),
 			Token:   staticToken,
 		}},
@@ -2110,6 +2110,13 @@ func setHomePath(path string) cliOption {
 func setIdentity(path string) cliOption {
 	return func(cf *CLIConf) error {
 		cf.IdentityFileIn = path
+		return nil
+	}
+}
+
+func setCmdRunner(cmdRunner func(*exec.Cmd) error) cliOption {
+	return func(cf *CLIConf) error {
+		cf.cmdRunner = cmdRunner
 		return nil
 	}
 }
