@@ -5238,14 +5238,14 @@ steps:
   - Find the latest available semver for v10
   - Wait for docker
 - name: Download "teleport" DEB artifact from APT
-  image: ubuntu:20.04
+  image: ubuntu:22.04
   commands:
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - PACKAGE_NAME="teleport"
   - PACKAGE_VERSION="$(cat '/go/vars/full-version/v10')"
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
   - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
@@ -5588,14 +5588,14 @@ steps:
   - Tag and push "public.ecr.aws/gravitational/teleport:10-arm" to ECR - production
   - Tag and push "public.ecr.aws/gravitational/teleport:10-arm64" to ECR - production
 - name: Download "teleport-ent" DEB artifact from APT
-  image: ubuntu:20.04
+  image: ubuntu:22.04
   commands:
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - PACKAGE_NAME="teleport-ent"
   - PACKAGE_VERSION="$(cat '/go/vars/full-version/v10')"
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
   - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
@@ -5941,14 +5941,14 @@ steps:
   - Tag and push "public.ecr.aws/gravitational/teleport-ent:10-arm" to ECR - production
   - Tag and push "public.ecr.aws/gravitational/teleport-ent:10-arm64" to ECR - production
 - name: Download "teleport-ent-fips" DEB artifact from APT
-  image: ubuntu:20.04
+  image: ubuntu:22.04
   commands:
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - PACKAGE_NAME="teleport-ent-fips"
   - PACKAGE_VERSION="$(cat '/go/vars/full-version/v10')"
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
   - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
@@ -6779,14 +6779,14 @@ steps:
   - Find the latest available semver for v9
   - Wait for docker
 - name: Download "teleport" DEB artifact from APT
-  image: ubuntu:20.04
+  image: ubuntu:22.04
   commands:
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - PACKAGE_NAME="teleport"
   - PACKAGE_VERSION="$(cat '/go/vars/full-version/v9')"
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
   - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
@@ -7129,14 +7129,14 @@ steps:
   - Tag and push "public.ecr.aws/gravitational/teleport:9-arm" to ECR - production
   - Tag and push "public.ecr.aws/gravitational/teleport:9-arm64" to ECR - production
 - name: Download "teleport-ent" DEB artifact from APT
-  image: ubuntu:20.04
+  image: ubuntu:22.04
   commands:
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - PACKAGE_NAME="teleport-ent"
   - PACKAGE_VERSION="$(cat '/go/vars/full-version/v9')"
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
   - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
@@ -7481,14 +7481,14 @@ steps:
   - Tag and push "public.ecr.aws/gravitational/teleport-ent:9-arm" to ECR - production
   - Tag and push "public.ecr.aws/gravitational/teleport-ent:9-arm64" to ECR - production
 - name: Download "teleport-ent-fips" DEB artifact from APT
-  image: ubuntu:20.04
+  image: ubuntu:22.04
   commands:
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - PACKAGE_NAME="teleport-ent-fips"
   - PACKAGE_VERSION="$(cat '/go/vars/full-version/v9')"
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
   - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
@@ -8317,14 +8317,14 @@ steps:
   - Find the latest available semver for v8
   - Wait for docker
 - name: Download "teleport" DEB artifact from APT
-  image: ubuntu:20.04
+  image: ubuntu:22.04
   commands:
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - PACKAGE_NAME="teleport"
   - PACKAGE_VERSION="$(cat '/go/vars/full-version/v8')"
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
   - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
@@ -8667,14 +8667,14 @@ steps:
   - Tag and push "public.ecr.aws/gravitational/teleport:8-arm" to ECR - production
   - Tag and push "public.ecr.aws/gravitational/teleport:8-arm64" to ECR - production
 - name: Download "teleport-ent" DEB artifact from APT
-  image: ubuntu:20.04
+  image: ubuntu:22.04
   commands:
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - PACKAGE_NAME="teleport-ent"
   - PACKAGE_VERSION="$(cat '/go/vars/full-version/v8')"
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
   - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
@@ -9019,14 +9019,14 @@ steps:
   - Tag and push "public.ecr.aws/gravitational/teleport-ent:8-arm" to ECR - production
   - Tag and push "public.ecr.aws/gravitational/teleport-ent:8-arm64" to ECR - production
 - name: Download "teleport-ent-fips" DEB artifact from APT
-  image: ubuntu:20.04
+  image: ubuntu:22.04
   commands:
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - PACKAGE_NAME="teleport-ent-fips"
   - PACKAGE_VERSION="$(cat '/go/vars/full-version/v8')"
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
   - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
@@ -9874,14 +9874,14 @@ steps:
   - Check if tag is prerelease
   - Wait for docker
 - name: Download "teleport" DEB artifact from APT
-  image: ubuntu:20.04
+  image: ubuntu:22.04
   commands:
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - PACKAGE_NAME="teleport"
   - PACKAGE_VERSION="$DRONE_TAG"
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
   - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
@@ -10229,14 +10229,14 @@ steps:
   - Tag and push "public.ecr.aws/gravitational/teleport:10-arm" to ECR - production
   - Tag and push "public.ecr.aws/gravitational/teleport:10-arm64" to ECR - production
 - name: Download "teleport-ent" DEB artifact from APT
-  image: ubuntu:20.04
+  image: ubuntu:22.04
   commands:
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - PACKAGE_NAME="teleport-ent"
   - PACKAGE_VERSION="$DRONE_TAG"
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
   - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
@@ -10587,14 +10587,14 @@ steps:
   - Tag and push "public.ecr.aws/gravitational/teleport-ent:10-arm" to ECR - production
   - Tag and push "public.ecr.aws/gravitational/teleport-ent:10-arm64" to ECR - production
 - name: Download "teleport-ent-fips" DEB artifact from APT
-  image: ubuntu:20.04
+  image: ubuntu:22.04
   commands:
-  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - PACKAGE_NAME="teleport-ent-fips"
   - PACKAGE_VERSION="$DRONE_TAG"
   - apt update
   - apt install --no-install-recommends -y ca-certificates curl
   - update-ca-certificates
+  - curl -Ls -o "/go/build/Dockerfile" "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
   - curl https://apt.releases.teleport.dev/gpg -o "/usr/share/keyrings/teleport-archive-keyring.asc"
   - . /etc/os-release
   - MAJOR_VERSION=$(echo $${PACKAGE_VERSION?} | cut -d'.' -f 1)
@@ -11859,6 +11859,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 3b8925a7e80e7de2b8e966613b4e9da3066aea62d061c695a3be2e9cb8a6a804
+hmac: 57afe7dd0dea2b8e1d56f3c617b147fe4bc0d152b48cd697fbe86d716eafdb0a
 
 ...

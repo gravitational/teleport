@@ -350,14 +350,15 @@ func teleportSetupStep(shellVersion, packageName, dockerfilePath, downloadURL st
 	sleepTime := 15    // 15 seconds
 
 	commands := []string{
-		// Download the dockerfile
-		fmt.Sprintf("curl -Ls -o %q %q", dockerfilePath, downloadURL),
 		// Setup the environment
 		fmt.Sprintf("PACKAGE_NAME=%q", packageName),
 		fmt.Sprintf("PACKAGE_VERSION=%q", shellVersion),
 		"apt update",
 		"apt install --no-install-recommends -y ca-certificates curl",
 		"update-ca-certificates",
+		// Download the dockerfile
+		fmt.Sprintf("curl -Ls -o %q %q", dockerfilePath, downloadURL),
+		// Add the Teleport APT repo
 		fmt.Sprintf("curl https://apt.releases.teleport.dev/gpg -o %q", keyPath),
 		". /etc/os-release",
 		// Per https://docs.drone.io/pipeline/environment/syntax/#common-problems I'm using '$$' here to ensure
@@ -416,7 +417,7 @@ func teleportSetupStep(shellVersion, packageName, dockerfilePath, downloadURL st
 
 	return step{
 		Name:     fmt.Sprintf("Download %q DEB artifact from APT", packageName),
-		Image:    "ubuntu:20.04",
+		Image:    "ubuntu:22.04",
 		Commands: commands,
 	}, archDestFileMap
 }
