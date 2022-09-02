@@ -3811,10 +3811,9 @@ func TestListConnectionsDiagnostic(t *testing.T) {
 
 	// Adding traces
 	diag.AppendTrace(&types.ConnectionDiagnosticTrace{
-		ID:        "some id",
-		TraceType: "rbac checks",
-		Status:    "some status",
-		Details:   "some details",
+		Type:    types.ConnectionDiagnosticTrace_RBAC_NODE,
+		Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+		Details: "some details",
 	})
 	diag.SetMessage("after update")
 	require.NoError(t, env.server.Auth().UpdateConnectionDiagnostic(ctx, diag))
@@ -3833,41 +3832,263 @@ func TestListConnectionsDiagnostic(t *testing.T) {
 	require.Equal(t, receivedConnectionDiagnostic.Traces[0].Details, "some details")
 }
 
-func TestDiagnoseConnection(t *testing.T) {
-	t.Parallel()
-
+func TestDiagnoseSSHConnection(t *testing.T) {
 	ctx := context.Background()
-	username := "someuser"
-	roleRWConnectionDiagnostic, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				types.NewRule(types.KindConnectionDiagnostic,
-					[]string{types.VerbRead, types.VerbCreate, types.VerbUpdate}),
-			},
-		},
-	})
+
+	osUser, err := user.Current()
 	require.NoError(t, err)
+
+	osUsername := osUser.Username
+	require.NotEmpty(t, osUsername)
+
+	roleWithFullAccess := func(username string, login string) []types.Role {
+		ret, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces: []string{apidefaults.Namespace},
+				NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				Rules: []types.Rule{
+					types.NewRule(types.KindConnectionDiagnostic, services.RW()),
+				},
+				Logins: []string{login},
+			},
+		})
+		require.NoError(t, err)
+		return []types.Role{ret}
+	}
+	require.NotNil(t, roleWithFullAccess)
+
+	rolesWithoutAccessToNode := func(username string, login string) []types.Role {
+		ret, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces: []string{apidefaults.Namespace},
+				NodeLabels: types.Labels{"forbidden": []string{"yes"}},
+				Rules: []types.Rule{
+					types.NewRule(types.KindConnectionDiagnostic, services.RW()),
+				},
+				Logins: []string{login},
+			},
+		})
+		require.NoError(t, err)
+		return []types.Role{ret}
+	}
+	require.NotNil(t, rolesWithoutAccessToNode)
+
+	roleWithPrincipal := func(username string, principal string) []types.Role {
+		ret, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV5{
+			Allow: types.RoleConditions{
+				Namespaces: []string{apidefaults.Namespace},
+				NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				Rules: []types.Rule{
+					types.NewRule(types.KindConnectionDiagnostic, services.RW()),
+				},
+				Logins: []string{principal},
+			},
+		})
+		require.NoError(t, err)
+		return []types.Role{ret}
+	}
+	require.NotNil(t, roleWithPrincipal)
 
 	env := newWebPack(t, 1)
-	clusterName := env.server.ClusterName()
-	pack := env.proxies[0].authPack(t, username, []types.Role{roleRWConnectionDiagnostic})
+	nodeName := env.node.GetInfo().GetHostname()
 
-	createConnectionEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "diagnostics", "connections")
+	for _, tt := range []struct {
+		name            string
+		teleportUser    string
+		roles           []types.Role
+		resourceName    string
+		nodeUser        string
+		stopNode        bool
+		expectedSuccess bool
+		expectedMessage string
+		expectedTraces  []types.ConnectionDiagnosticTrace
+	}{
+		{
+			name:            "success",
+			roles:           roleWithFullAccess("success", osUsername),
+			teleportUser:    "success",
+			resourceName:    nodeName,
+			nodeUser:        osUsername,
+			expectedSuccess: true,
+			expectedMessage: "success",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_NODE,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "You have access to the Node.",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "Node is alive and reachable.",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: "The requested principal is allowed.",
+				},
+				{
+					Type:    types.ConnectionDiagnosticTrace_NODE_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_SUCCESS,
+					Details: fmt.Sprintf("%q user exists in target node", osUsername),
+				},
+			},
+		},
+		{
+			name:            "node not found",
+			roles:           roleWithFullAccess("nodenotfound", osUsername),
+			teleportUser:    "nodenotfound",
+			resourceName:    "notanode",
+			nodeUser:        osUsername,
+			expectedSuccess: false,
+			expectedMessage: "failed",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: `Failed to connect to the Node. Ensure teleport service is running using "systemctl status teleport".`,
+					Error:   "Teleport proxy failed to connect to",
+				},
+			},
+		},
+		{
+			name:            "node not reachable",
+			teleportUser:    "nodenotreachable",
+			roles:           roleWithFullAccess("nodenotreachable", osUsername),
+			resourceName:    nodeName,
+			nodeUser:        osUsername,
+			stopNode:        true,
+			expectedSuccess: false,
+			expectedMessage: "failed",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_CONNECTIVITY,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: `Failed to connect to the Node. Ensure teleport service is running using "systemctl status teleport".`,
+					Error:   "Teleport proxy failed to connect to",
+				},
+			},
+		},
+		{
+			name:            "no access to node",
+			teleportUser:    "userwithoutaccess",
+			roles:           rolesWithoutAccessToNode("userwithoutaccess", osUsername),
+			resourceName:    nodeName,
+			nodeUser:        osUsername,
+			expectedSuccess: false,
+			expectedMessage: "failed",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_NODE,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: "You are not authorized to access this node. Ensure your role grants access by adding it to the 'node_labels' property.",
+					Error:   fmt.Sprintf("user userwithoutaccess@localhost is not authorized to login as %s@localhost: access to node denied", osUsername),
+				},
+			},
+		},
+		{
+			name:            "selected principal is not part of the allowed principals",
+			teleportUser:    "deniedprincipal",
+			roles:           roleWithFullAccess("deniedprincipal", "otherprincipal"),
+			resourceName:    nodeName,
+			nodeUser:        osUsername,
+			expectedSuccess: false,
+			expectedMessage: "failed",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: `Principal "` + osUsername + `" is not allowed by this certificate. Ensure your roles grants access by adding it to the 'login' property.`,
+					Error:   `ssh: principal "` + osUsername + `" not in the set of valid principals for given certificate: ["otherprincipal" "-teleport-internal-join"]`,
+				},
+			},
+		},
+		{
+			name:            "principal doesnt exist in target host",
+			teleportUser:    "principaldoesnotexist",
+			roles:           roleWithPrincipal("principaldoesnotexist", "nonvalidlinuxuser"),
+			resourceName:    nodeName,
+			nodeUser:        "nonvalidlinuxuser",
+			expectedSuccess: false,
+			expectedMessage: "failed",
+			expectedTraces: []types.ConnectionDiagnosticTrace{
+				{
+					Type:    types.ConnectionDiagnosticTrace_NODE_PRINCIPAL,
+					Status:  types.ConnectionDiagnosticTrace_FAILED,
+					Details: `Invalid user. Please ensure the principal "nonvalidlinuxuser" is a valid Linux login in the target node. Output from Node: Failed to launch: user: unknown user nonvalidlinuxuser.`,
+					Error:   "Process exited with status 255",
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			// if tt.name != "success" {
+			// 	return
+			// }
+			localEnv := env
 
-	resp, err := pack.clt.PostJSON(ctx, createConnectionEndpoint, conntest.TestConnectionRequest{
-		ResourceKind: "node",
-		ResourceName: "host1",
-		SSHPrincipal: username,
-	})
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.Code())
+			if tt.stopNode {
+				localEnv = newWebPack(t, 1)
+				require.NoError(t, localEnv.node.Close())
+			}
 
-	var receivedConnectionDiagnostic ui.ConnectionDiagnostic
-	require.NoError(t, json.Unmarshal(resp.Bytes(), &receivedConnectionDiagnostic))
+			clusterName := localEnv.server.ClusterName()
+			pack := localEnv.proxies[0].authPack(t, tt.teleportUser, tt.roles)
 
-	require.True(t, receivedConnectionDiagnostic.Success)
-	require.Equal(t, receivedConnectionDiagnostic.Message, "dry-run")
-	require.Len(t, receivedConnectionDiagnostic.Traces, 0)
+			createConnectionEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "diagnostics", "connections")
+
+			resp, err := pack.clt.PostJSON(ctx, createConnectionEndpoint, conntest.TestConnectionRequest{
+				ResourceKind: types.KindNode,
+				ResourceName: tt.resourceName,
+				SSHPrincipal: tt.nodeUser,
+				// Default is 30 seconds but since tests run locally, we can reduce this value to also improve test responsiveness
+				DialTimeout: time.Second,
+			})
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.Code())
+
+			var connectionDiagnostic ui.ConnectionDiagnostic
+			require.NoError(t, json.Unmarshal(resp.Bytes(), &connectionDiagnostic))
+
+			gotFailedTraces := 0
+			expectedFailedTraces := 0
+
+			t.Log(tt.name)
+			t.Log(connectionDiagnostic.Message, connectionDiagnostic.Success)
+			for i, trace := range connectionDiagnostic.Traces {
+				if trace.Status == types.ConnectionDiagnosticTrace_FAILED.String() {
+					gotFailedTraces++
+				}
+
+				t.Logf("%d status='%s' type='%s' details='%s' error='%s'\n", i, trace.Status, trace.TraceType, trace.Details, trace.Error)
+			}
+
+			require.Equal(t, tt.expectedSuccess, connectionDiagnostic.Success)
+			require.Equal(t, tt.expectedMessage, connectionDiagnostic.Message)
+
+			for _, expectedTrace := range tt.expectedTraces {
+				if expectedTrace.Status == types.ConnectionDiagnosticTrace_FAILED {
+					expectedFailedTraces++
+				}
+
+				foundTrace := false
+				for _, returnedTrace := range connectionDiagnostic.Traces {
+					if expectedTrace.Type.String() != returnedTrace.TraceType {
+						continue
+					}
+
+					foundTrace = true
+					require.Equal(t, returnedTrace.Status, expectedTrace.Status.String())
+					require.Equal(t, returnedTrace.Details, expectedTrace.Details)
+					require.Contains(t, returnedTrace.Error, expectedTrace.Error)
+				}
+
+				require.True(t, foundTrace, expectedTrace)
+			}
+
+			require.Equal(t, expectedFailedTraces, gotFailedTraces)
+		})
+	}
 }
 
 type authProviderMock struct {

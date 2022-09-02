@@ -149,6 +149,7 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindDatabase, RW()),
 				types.NewRule(types.KindLock, RW()),
 				types.NewRule(types.KindToken, RW()),
+				types.NewRule(types.KindConnectionDiagnostic, RW()),
 			},
 			JoinSessions: []*types.SessionJoinPolicy{
 				{
