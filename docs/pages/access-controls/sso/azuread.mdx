@@ -59,7 +59,7 @@ Before you get started you’ll need:
 
 8. For **Entity ID** and **Reply URL**, enter the same proxy URL.
 
-   For self-hosted deployments, the URL will be similar to `https://teleport.example.com:3080/v1/webapi/saml/acs`.
+   For self-hosted deployments, the URL will be similar to `https://teleport.example.com:3080/v1/webapi/saml/acs/connectorName`.
 
    For Teleport Cloud users, the URL will be similar to `https://mytenant.teleport.sh`.
 
@@ -227,7 +227,7 @@ kind: saml
 metadata:
   name: azure-saml
 spec:
-  acs: https://teleport.example.com/v1/webapi/saml/acs
+  acs: https://teleport.example.com/v1/webapi/saml/acs/azure-saml
   attributes_to_roles:
   - name: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups
     roles:
@@ -235,14 +235,14 @@ spec:
     - access
     - auditor
     value: '*'
-  audience: https://teleport.example.com/v1/webapi/saml/acs
+  audience: https://teleport.example.com/v1/webapi/saml/acs/azure-saml
   cert: ""
   display: Microsoft
   entity_descriptor: |
     <?xml ...
   entity_descriptor_url: ""
   issuer: https://sts.windows.net/your-id-here/
-  service_provider_issuer: https://teleport.example.com/v1/webapi/saml/acs
+  service_provider_issuer: https://teleport.example.com/v1/webapi/saml/acs/azure-saml
   signing_key_pair:
     cert: |
       -----BEGIN CERTIFICATE-----
@@ -263,7 +263,7 @@ kind: saml
 metadata:
   name: azure-saml
 spec:
-  acs: https://teleport.example.com/v1/webapi/saml/acs
+  acs: https://teleport.example.com/v1/webapi/saml/acs/azure-saml
   attributes_to_roles:
   - name: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups
     roles:
@@ -271,14 +271,14 @@ spec:
     - access
     - auditor
     value: '*'
-  audience: https://teleport.example.com/v1/webapi/saml/acs
+  audience: https://teleport.example.com/v1/webapi/saml/acs/azure-saml
   cert: ""
   display: Microsoft
   entity_descriptor: |
     <?xml ...
   entity_descriptor_url: ""
   issuer: https://sts.windows.net/your-id-here/
-  service_provider_issuer: https://teleport.example.com/v1/webapi/saml/acs
+  service_provider_issuer: https://teleport.example.com/v1/webapi/saml/acs/azure-saml
   signing_key_pair:
     cert: |
       -----BEGIN CERTIFICATE-----
@@ -307,7 +307,7 @@ kind: saml
 metadata:
   name: azure-saml
 spec:
-  acs: https://teleport.example.com/v1/webapi/saml/acs
+  acs: https://teleport.example.com/v1/webapi/saml/acs/azure-saml
   attributes_to_roles:
   - name: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups
     roles:
@@ -315,14 +315,14 @@ spec:
     - access
     - auditor
     value: '*'
-  audience: https://teleport.example.com/v1/webapi/saml/acs
+  audience: https://teleport.example.com/v1/webapi/saml/acs/azure-saml
   cert: ""
   display: Microsoft
   entity_descriptor: |
     <?xml ...
   entity_descriptor_url: ""
   issuer: https://sts.windows.net/your-id-here/
-  service_provider_issuer: https://teleport.example.com/v1/webapi/saml/acs
+  service_provider_issuer: https://teleport.example.com/v1/webapi/saml/acs/azure-saml
   assertion_key_pair:
     cert: |
       -----BEGIN CERTIFICATE-----
