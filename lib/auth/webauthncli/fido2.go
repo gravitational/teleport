@@ -145,7 +145,7 @@ func fido2Login(
 
 		// Does the device have a suitable credential?
 		const pin = ""
-		actualRPID, err := discoverRPID(dev, pin, rpID, appID, allowedCreds)
+		actualRPID, err := discoverRPID(dev, info, pin, rpID, appID, allowedCreds)
 		if err != nil {
 			log.Debugf("FIDO2: Device %v: filtered due to lack of allowed credential", info.path)
 			return false, nil
@@ -237,7 +237,7 @@ func fido2Login(
 	}, actualUser, nil
 }
 
-func discoverRPID(dev FIDODevice, pin, rpID, appID string, allowedCreds [][]byte) (string, error) {
+func discoverRPID(dev FIDODevice, info *deviceInfo, pin, rpID, appID string, allowedCreds [][]byte) (string, error) {
 	// The actual hash is not necessary here.
 	const cdh = "00000000000000000000000000000000"
 
@@ -248,8 +248,15 @@ func discoverRPID(dev FIDODevice, pin, rpID, appID string, allowedCreds [][]byte
 		if id == "" {
 			continue
 		}
-		if _, err := dev.Assertion(id, []byte(cdh), allowedCreds, pin, opts); err == nil {
+		switch _, err := dev.Assertion(id, []byte(cdh), allowedCreds, pin, opts); {
+		// Yubikey4 returns ErrUserPresenceRequired if the credential exists,
+		// despite the UP=false opts above.
+		case err == nil, errors.Is(err, libfido2.ErrUserPresenceRequired):
 			return id, nil
+		case errors.Is(err, libfido2.ErrNoCredentials):
+			// Device not registered for RPID=id, keep trying.
+		default:
+			log.WithError(err).Debugf("FIDO2: Device %v: attempt RPID = %v", info.path, id)
 		}
 	}
 	return "", libfido2.ErrNoCredentials
