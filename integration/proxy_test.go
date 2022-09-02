@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
@@ -434,8 +435,8 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			// Disconnect.
 			err = client.Close()
 			require.NoError(t, err)
-
 		})
+
 		t.Run("connect to leaf cluster via proxy", func(t *testing.T) {
 			client, err := mysql.MakeTestClient(common.TestClientConfig{
 				AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
@@ -459,6 +460,32 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			// Disconnect.
 			err = client.Close()
 			require.NoError(t, err)
+		})
+		t.Run("connect to main cluster via proxy using ping protocol", func(t *testing.T) {
+			pingProxy := mustStartALPNLocalProxy(t, pack.root.cluster.SSHProxy, alpncommon.ProtocolWithPing(alpncommon.ProtocolMySQL))
+			client, err := mysql.MakeTestClient(common.TestClientConfig{
+				AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+				AuthServer: pack.root.cluster.Process.GetAuthServer(),
+				Address:    pingProxy.GetAddr(),
+				Cluster:    pack.root.cluster.Secrets.SiteName,
+				Username:   pack.root.user.GetName(),
+				RouteToDatabase: tlsca.RouteToDatabase{
+					ServiceName: pack.root.mysqlService.Name,
+					Protocol:    pack.root.mysqlService.Protocol,
+					Username:    "root",
+				},
+			})
+			require.NoError(t, err)
+
+			// Execute a query.
+			result, err := client.Execute("select 1")
+			require.NoError(t, err)
+			require.Equal(t, mysql.TestQueryResponse, result)
+
+			// Disconnect.
+			err = client.Close()
+			require.NoError(t, err)
+
 		})
 	})
 
@@ -492,6 +519,25 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 				RouteToDatabase: tlsca.RouteToDatabase{
 					ServiceName: pack.leaf.postgresService.Name,
 					Protocol:    pack.leaf.postgresService.Protocol,
+					Username:    "postgres",
+					Database:    "test",
+				},
+			})
+			require.NoError(t, err)
+			mustRunPostgresQuery(t, client)
+			mustClosePostgresClient(t, client)
+		})
+		t.Run("connect to main cluster via proxy with ping protocol", func(t *testing.T) {
+			pingProxy := mustStartALPNLocalProxy(t, pack.root.cluster.SSHProxy, alpncommon.ProtocolWithPing(alpncommon.ProtocolPostgres))
+			client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
+				AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+				AuthServer: pack.root.cluster.Process.GetAuthServer(),
+				Address:    pingProxy.GetAddr(),
+				Cluster:    pack.root.cluster.Secrets.SiteName,
+				Username:   pack.root.user.GetName(),
+				RouteToDatabase: tlsca.RouteToDatabase{
+					ServiceName: pack.root.postgresService.Name,
+					Protocol:    pack.root.postgresService.Protocol,
 					Username:    "postgres",
 					Database:    "test",
 				},
@@ -549,6 +595,158 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			// Disconnect.
 			err = client.Disconnect(context.Background())
 			require.NoError(t, err)
+		})
+		t.Run("connect to main cluster via proxy with ping protocol", func(t *testing.T) {
+			pingProxy := mustStartALPNLocalProxy(t, pack.root.cluster.SSHProxy, alpncommon.ProtocolWithPing(alpncommon.ProtocolMongoDB))
+			client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
+				AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+				AuthServer: pack.root.cluster.Process.GetAuthServer(),
+				Address:    pingProxy.GetAddr(),
+				Cluster:    pack.root.cluster.Secrets.SiteName,
+				Username:   pack.root.user.GetName(),
+				RouteToDatabase: tlsca.RouteToDatabase{
+					ServiceName: pack.root.mongoService.Name,
+					Protocol:    pack.root.mongoService.Protocol,
+					Username:    "admin",
+				},
+			})
+			require.NoError(t, err)
+
+			// Execute a query.
+			_, err = client.Database("test").Collection("test").Find(context.Background(), bson.M{})
+			require.NoError(t, err)
+
+			// Disconnect.
+			err = client.Disconnect(context.Background())
+			require.NoError(t, err)
+		})
+	})
+
+	// Simulate situations where an AWS ALB is between client and the Teleport
+	// Proxy service, which drops ALPN along the way. The ALPN local proxy will
+	// need to make a connection upgrade first through a web API provided by
+	// the Proxy server and then tunnel the original ALPN/TLS routing traffic
+	// inside this tunnel.
+	t.Run("ALPN connection upgrade", func(t *testing.T) {
+		// Make a mock ALB which points to the Teleport Proxy Service. Then
+		// ALPN local proxies will point to this ALB instead.
+		albProxy := mustStartMockALBProxy(t, pack.root.cluster.Web)
+
+		// Test a protocol in the alpncommon.IsDBTLSProtocol list where
+		// the database client will perform a native TLS handshake.
+		//
+		// Packet layers:
+		// - HTTPS served by Teleport web server for connection upgrade
+		// - TLS routing with alpncommon.ProtocolMongoDB (no client cert)
+		// - TLS with client cert (provided by the database client)
+		// - MongoDB
+		t.Run("database client native TLS", func(t *testing.T) {
+			lp := mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
+				RemoteProxyAddr:         albProxy.Addr().String(),
+				Protocols:               []alpncommon.Protocol{alpncommon.ProtocolMongoDB},
+				ALPNConnUpgradeRequired: true,
+				InsecureSkipVerify:      true,
+			})
+			client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
+				AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+				AuthServer: pack.root.cluster.Process.GetAuthServer(),
+				Address:    lp.GetAddr(),
+				Cluster:    pack.root.cluster.Secrets.SiteName,
+				Username:   pack.root.user.GetName(),
+				RouteToDatabase: tlsca.RouteToDatabase{
+					ServiceName: pack.root.mongoService.Name,
+					Protocol:    pack.root.mongoService.Protocol,
+					Username:    "admin",
+				},
+			})
+			require.NoError(t, err)
+
+			// Execute a query.
+			_, err = client.Database("test").Collection("test").Find(context.Background(), bson.M{})
+			require.NoError(t, err)
+
+			// Disconnect.
+			require.NoError(t, client.Disconnect(context.Background()))
+		})
+
+		// Test the case where the database client cert is terminated within
+		// the database protocol.
+		//
+		// Packet layers:
+		// - HTTPS served by Teleport web server for connection upgrade
+		// - TLS routing with alpncommon.ProtocolMySQL (no client cert)
+		// - MySQL handshake then upgrade to TLS with Teleport issued client cert
+		// - MySQL protocol
+		t.Run("MySQL custom TLS", func(t *testing.T) {
+			lp := mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
+				RemoteProxyAddr:         albProxy.Addr().String(),
+				Protocols:               []alpncommon.Protocol{alpncommon.ProtocolMySQL},
+				ALPNConnUpgradeRequired: true,
+				InsecureSkipVerify:      true,
+			})
+			client, err := mysql.MakeTestClient(common.TestClientConfig{
+				AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+				AuthServer: pack.root.cluster.Process.GetAuthServer(),
+				Address:    lp.GetAddr(),
+				Cluster:    pack.root.cluster.Secrets.SiteName,
+				Username:   pack.root.user.GetName(),
+				RouteToDatabase: tlsca.RouteToDatabase{
+					ServiceName: pack.root.mysqlService.Name,
+					Protocol:    pack.root.mysqlService.Protocol,
+					Username:    "root",
+				},
+			})
+			require.NoError(t, err)
+
+			// Execute a query.
+			result, err := client.Execute("select 1")
+			require.NoError(t, err)
+			require.Equal(t, mysql.TestQueryResponse, result)
+
+			// Disconnect.
+			require.NoError(t, client.Close())
+		})
+
+		// Test the case where the client cert is terminated by Teleport and
+		// the database client sends data in plain database protocol.
+		//
+		// Packet layers:
+		// - HTTPS served by Teleport web server for connection upgrade
+		// - TLS routing with alpncommon.ProtocolMySQL (client cert provided by ALPN local proxy)
+		// - MySQL protocol
+		t.Run("authenticated tunnel", func(t *testing.T) {
+			routeToDatabase := tlsca.RouteToDatabase{
+				ServiceName: pack.root.mysqlService.Name,
+				Protocol:    pack.root.mysqlService.Protocol,
+				Username:    "root",
+			}
+			clientTLSConfig, err := common.MakeTestClientTLSConfig(common.TestClientConfig{
+				AuthClient:      pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
+				AuthServer:      pack.root.cluster.Process.GetAuthServer(),
+				Cluster:         pack.root.cluster.Secrets.SiteName,
+				Username:        pack.root.user.GetName(),
+				RouteToDatabase: routeToDatabase,
+			})
+			require.NoError(t, err)
+
+			lp := mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
+				RemoteProxyAddr:         albProxy.Addr().String(),
+				Protocols:               []alpncommon.Protocol{alpncommon.ProtocolMySQL},
+				ALPNConnUpgradeRequired: true,
+				InsecureSkipVerify:      true,
+				Certs:                   clientTLSConfig.Certificates,
+			})
+
+			client, err := mysql.MakeTestClientWithoutTLS(lp.GetAddr(), routeToDatabase)
+			require.NoError(t, err)
+
+			// Execute a query.
+			result, err := client.Execute("select 1")
+			require.NoError(t, err)
+			require.Equal(t, mysql.TestQueryResponse, result)
+
+			// Disconnect.
+			require.NoError(t, client.Close())
 		})
 	})
 }

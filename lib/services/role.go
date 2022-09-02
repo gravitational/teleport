@@ -150,6 +150,7 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindDatabase, RW()),
 				types.NewRule(types.KindLock, RW()),
 				types.NewRule(types.KindToken, RW()),
+				types.NewRule(types.KindConnectionDiagnostic, RW()),
 			},
 			JoinSessions: []*types.SessionJoinPolicy{
 				{
@@ -2132,6 +2133,18 @@ func (set RoleSet) PermitX11Forwarding() bool {
 		}
 	}
 	return false
+}
+
+// CanCopyFiles returns true if the role set has enabled remote file
+// operations via SCP or SFTP. Remote file operations are disabled if
+// one or more of the roles in the set has disabled it.
+func (set RoleSet) CanCopyFiles() bool {
+	for _, role := range set {
+		if !types.BoolDefaultTrue(role.GetOptions().SSHFileCopy) {
+			return false
+		}
+	}
+	return true
 }
 
 // CertificateFormat returns the most permissive certificate format in a

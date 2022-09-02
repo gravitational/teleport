@@ -30,11 +30,13 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -367,7 +369,7 @@ func TestInstaller(t *testing.T) {
 	user, err := CreateUser(srv.Auth(), "testuser")
 	require.NoError(t, err)
 
-	inst, err := types.NewInstallerV1("contents")
+	inst, err := types.NewInstallerV1(installers.InstallerScriptName, "contents")
 	require.NoError(t, err)
 	err = srv.Auth().SetInstaller(ctx, inst)
 	require.NoError(t, err)
@@ -380,21 +382,21 @@ func TestInstaller(t *testing.T) {
 		roles:  []string{"test-empty"},
 		assert: require.Error,
 		installerAction: func(c *Client) error {
-			_, err := c.GetInstaller(ctx)
+			_, err := c.GetInstaller(ctx, installers.InstallerScriptName)
 			return err
 		},
 	}, {
 		roles:  []string{"test-read"},
 		assert: require.NoError,
 		installerAction: func(c *Client) error {
-			_, err := c.GetInstaller(ctx)
+			_, err := c.GetInstaller(ctx, installers.InstallerScriptName)
 			return err
 		},
 	}, {
 		roles:  []string{"test-update"},
 		assert: require.NoError,
 		installerAction: func(c *Client) error {
-			inst, err := types.NewInstallerV1("new-contents")
+			inst, err := types.NewInstallerV1(installers.InstallerScriptName, "new-contents")
 			require.NoError(t, err)
 			return c.SetInstaller(ctx, inst)
 		},
@@ -402,7 +404,7 @@ func TestInstaller(t *testing.T) {
 		roles:  []string{"test-delete"},
 		assert: require.NoError,
 		installerAction: func(c *Client) error {
-			err := c.DeleteInstaller(ctx)
+			err := c.DeleteInstaller(ctx, installers.InstallerScriptName)
 			return err
 		},
 	}} {
@@ -1235,8 +1237,9 @@ func TestGenerateDatabaseCert(t *testing.T) {
 	}
 
 	// Generate CSR once for speed sake.
-	priv, _, err := native.GenerateKeyPair()
+	priv, err := native.GeneratePrivateKey()
 	require.NoError(t, err)
+
 	csr, err := tlsca.GenerateCertificateRequestPEM(pkix.Name{CommonName: "test"}, priv)
 	require.NoError(t, err)
 
@@ -1508,6 +1511,109 @@ func TestGetAndList_Nodes(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resp.Resources, 1)
 	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
+}
+
+// TestStreamSessionEvents_User ensures that when a user streams a session's events, it emits an audit event.
+func TestStreamSessionEvents_User(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	username := "user"
+	user, _, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// ignore the response as we don't want the events or the error (the session will not exist)
+	_, _ = clt.StreamSessionEvents(ctx, "44c6cea8-362f-11ea-83aa-125400432324", 0)
+
+	// we need to wait for a short period to ensure the event is returned
+	time.Sleep(500 * time.Millisecond)
+
+	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(
+		srv.Clock().Now().Add(-time.Hour),
+		srv.Clock().Now().Add(time.Hour),
+		defaults.Namespace,
+		[]string{events.SessionRecordingAccessEvent},
+		1,
+		types.EventOrderDescending,
+		"",
+	)
+	require.NoError(t, err)
+
+	event := searchEvents[0].(*apievents.SessionRecordingAccess)
+	require.Equal(t, username, event.User)
+}
+
+// TestStreamSessionEvents_Builtin ensures that when a builtin role streams a session's events, it does not emit
+// an audit event.
+func TestStreamSessionEvents_Builtin(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	identity := TestBuiltin(types.RoleProxy)
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// ignore the response as we don't want the events or the error (the session will not exist)
+	_, _ = clt.StreamSessionEvents(ctx, "44c6cea8-362f-11ea-83aa-125400432324", 0)
+
+	// we need to wait for a short period to ensure the event is returned
+	time.Sleep(500 * time.Millisecond)
+
+	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(
+		srv.Clock().Now().Add(-time.Hour),
+		srv.Clock().Now().Add(time.Hour),
+		defaults.Namespace,
+		[]string{events.SessionRecordingAccessEvent},
+		1,
+		types.EventOrderDescending,
+		"",
+	)
+	require.NoError(t, err)
+
+	require.Equal(t, 0, len(searchEvents))
+}
+
+// TestGetSessionEvents ensures that when a user streams a session's events, it emits an audit event.
+func TestGetSessionEvents(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestTLSServer(t)
+
+	username := "user"
+	user, _, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// ignore the response as we don't want the events or the error (the session will not exist)
+	_, _ = clt.GetSessionEvents(defaults.Namespace, "44c6cea8-362f-11ea-83aa-125400432324", 0, false)
+
+	// we need to wait for a short period to ensure the event is returned
+	time.Sleep(500 * time.Millisecond)
+
+	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(
+		srv.Clock().Now().Add(-time.Hour),
+		srv.Clock().Now().Add(time.Hour),
+		defaults.Namespace,
+		[]string{events.SessionRecordingAccessEvent},
+		1,
+		types.EventOrderDescending,
+		"",
+	)
+	require.NoError(t, err)
+
+	event := searchEvents[0].(*apievents.SessionRecordingAccess)
+	require.Equal(t, username, event.User)
 }
 
 // TestAPILockedOut tests Auth API when there are locks involved.
@@ -3375,7 +3481,6 @@ func TestListResources_WithRoles(t *testing.T) {
 	createRole := func(ctx context.Context, t *testing.T, srv *Server, name string, labels map[string]apiutils.Strings) {
 		role, err := types.NewRoleV3(name, types.RoleSpecV5{
 			Allow: types.RoleConditions{
-				Logins: []string{"root"},
 				NodeLabels: types.Labels{
 					"*": []string{types.Wildcard},
 				},

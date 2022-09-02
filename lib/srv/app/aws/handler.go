@@ -28,7 +28,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
-	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
@@ -214,7 +213,7 @@ func (s *SigningService) prepareSignedRequest(r *http.Request, re *endpoints.Res
 	}
 	rewriteHeaders(r, reqCopy)
 	// Sign the copy of the request.
-	signer := v4.NewSigner(s.getSigningCredentials(s.Session, sessionCtx))
+	signer := awsutils.NewSigner(s.getSigningCredentials(s.Session, sessionCtx), re.SigningName)
 	_, err = signer.Sign(reqCopy, bytes.NewReader(payload), re.SigningName, re.SigningRegion, s.Clock.Now())
 	if err != nil {
 		return nil, trace.Wrap(err)

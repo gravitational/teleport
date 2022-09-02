@@ -279,6 +279,7 @@ func (c *SessionContext) extendWebSession(ctx context.Context, req renewSessionR
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return session, nil
 }
 
