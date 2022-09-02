@@ -10,6 +10,7 @@ BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(LDFLAGS)' -trimpath
 CGOFLAG ?= CGO_ENABLED=1
 RELEASE_ENT = teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-bin
 BINARIES ?= $(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh $(BUILDDIR)/tbot
+CLOUD_DOCKERFILE ?= ../build.assets/charts/Dockerfile
 
 ifeq ("$(OS)","linux")
 # ARM builds need to specify the correct C compiler
@@ -201,6 +202,29 @@ clean:
 	rm -rf $(BUILDDIR)
 	-cargo clean
 	rm -rf *gz
+
+# make deploy-cloud - Produces a docker image and deploys to a cloud
+# tenant in the staging cluster.
+.PHONY: deploy-cloud
+deploy-cloud: $(WEBASSETS_BUILDDIR)/webassets
+	@echo "---> Building teleport binaries for deployment to cloud tenant."
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build -buildvcs=false -tags "webassets_embed" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+	@if [ "$(CLOUD_DOCKERFILE)" != "-" ]; then \
+		echo "---> Building tbot, tctl and tsh."; \
+		GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build -buildvcs=false -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl; \
+		GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build -buildvcs=false -o $(BUILDDIR)/tsh $(BUILDFLAGS) ../tool/tsh; \
+		GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build -buildvcs=false -o $(BUILDDIR)/tbot $(BUILDFLAGS) ../tool/tbot; \
+	else \
+		echo "---> Skipping tbot, tctl and tsh."; \
+	fi
+	@echo "---> Building docker image and deploying to cloud tenant."
+	BASE_DOCKERFILE=$(CLOUD_DOCKERFILE) ./scripts/deploy-cloud.sh
+
+# make deploy-cloud-login - Ensures access to all services required to deploy
+# an image to a cloud tenant in the staging cluster.
+.PHONY: deploy-cloud-login
+deploy-cloud-login:
+	./scripts/deploy-cloud-login.sh
 
 # make release - Produces a binary release tarball.
 .PHONY:
