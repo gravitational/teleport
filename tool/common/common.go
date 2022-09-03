@@ -42,14 +42,6 @@ func (e *ExitCodeError) Error() string {
 	return fmt.Sprintf("exit code %d", e.Code)
 }
 
-// Is implements the errors.Is interface.
-func (e *ExitCodeError) Is(target error) bool {
-	if inner, ok := target.(*ExitCodeError); ok {
-		return e.Code == inner.Code
-	}
-	return false
-}
-
 // SessionsCollection is a collection of session end events.
 type SessionsCollection struct {
 	SessionEvents []events.AuditEvent
