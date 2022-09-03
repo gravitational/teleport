@@ -21,6 +21,7 @@ import "teleport/legacy/types/types.proto";
 
 option go_package = "github.com/gravitational/teleport/api/client/proto";
 
+// TODO(nklaassen): Document me.
 message RegisterUsingIAMMethodRequest {
   // RegisterUsingTokenRequest holds registration parameters common to all
   // join methods.
