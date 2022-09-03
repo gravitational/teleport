@@ -877,7 +877,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 
 	// handle: help command, --help flag, version command, ...
 	if shouldTerminate != nil {
-		os.Exit(*shouldTerminate)
+		return trace.Wrap(&common.ExitCodeError{Code: *shouldTerminate})
 	}
 
 	cf.command = command
