@@ -95,7 +95,6 @@ func Run(commands []CLICommand) {
 	if err != nil {
 		var exitError *toolcommon.ExitCodeError
 		if errors.As(err, &exitError) {
-			fmt.Println("HERE: error as worked")
 			os.Exit(exitError.Code)
 		}
 		utils.FatalError(err)
