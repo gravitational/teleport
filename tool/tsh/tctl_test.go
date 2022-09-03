@@ -135,7 +135,7 @@ func TestRemoteTctlWithProfile(t *testing.T) {
 			desc:            "fails with untrusted certificate error without insecure mode",
 			commands:        []common.CLICommand{&common.StatusCommand{}},
 			args:            []string{"status"},
-			wantErrContains: "certificate is not trusted",
+			wantErrContains: "x509",
 		},
 		{
 			desc:     "success with insecure mode",
