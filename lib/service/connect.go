@@ -607,6 +607,9 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
 		})
 		if err != nil {
+			if utils.IsUntrustedCertErr(err) {
+				return nil, trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
+			}
 			return nil, trace.Wrap(err)
 		}
 
