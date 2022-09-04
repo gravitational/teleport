@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -25,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/service"
+	toolcommon "github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/tool/tctl/common"
 )
 
@@ -148,6 +150,8 @@ func TestRemoteTctlWithProfile(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			err := common.TryRun(tt.commands, tt.args)
 			if tt.wantErrContains != "" {
+				var exitError *toolcommon.ExitCodeError
+				require.True(t, errors.As(err, &exitError))
 				require.ErrorContains(t, err, tt.wantErrContains)
 				return
 			}
