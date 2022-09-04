@@ -162,7 +162,7 @@ func Run(commands []CLICommand) {
 	}
 
 	// configure all commands with Teleport configuration (they share 'cfg')
-	clientConfig, err := applyConfig(&ccf, cfg)
+	clientConfig, err := ApplyConfig(&ccf, cfg)
 	if err != nil {
 		utils.FatalError(err)
 	}
@@ -193,12 +193,12 @@ func Run(commands []CLICommand) {
 	}
 }
 
-// applyConfig takes configuration values from the config file and applies them
+// ApplyConfig takes configuration values from the config file and applies them
 // to 'service.Config' object.
 //
 // The returned authclient.Config has the credentials needed to dial the auth
 // server.
-func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, error) {
+func ApplyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, error) {
 	// --debug flag
 	if ccf.Debug {
 		cfg.Debug = ccf.Debug
