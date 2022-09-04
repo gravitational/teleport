@@ -226,6 +226,18 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 		}
 	}
 
+	if err = config.ApplyFileConfig(fileConf, cfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// --auth-server flag(-s)
+	if len(ccf.AuthServerAddr) != 0 {
+		cfg.AuthServers, err = utils.ParseAddrs(ccf.AuthServerAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// Config file should take precedence, if available.
 	if fileConf == nil && ccf.IdentityFilePath == "" {
 		// No config file or identity file.
@@ -239,17 +251,7 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 			return nil, trace.Wrap(err)
 		}
 	}
-	if err = config.ApplyFileConfig(fileConf, cfg); err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	// --auth-server flag(-s)
-	if len(ccf.AuthServerAddr) != 0 {
-		cfg.AuthServers, err = utils.ParseAddrs(ccf.AuthServerAddr)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
 	// If auth server is not provided on the command line or in file
 	// configuration, use the default.
 	if len(cfg.AuthServers) == 0 {
