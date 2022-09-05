@@ -32,7 +32,7 @@ This document describes the changes required for Teleport to identify the cluste
 
 ## Scope
 
-This RFD focuses only on AWS EKS clusters. Similar ideas will be explored in the future for GCP's GKE and Azure's AKS.
+This RFD focuses on AWS EKS and Azure AKS clusters. Similar ideas will be explored in the future for GCP's GKE.
 
 ## AWS EKS discovery
 
@@ -40,9 +40,9 @@ The following subsections will describe the details required for implementing EK
 
 ### Discovery
 
-The Kubernetes agent can auto-discover EKS-managed clusters in the AWS account it has credentials for by matching resource tags. For now, the discovery of connected clusters is out of the scope of this RFD.
+The discovery agent can auto-discover EKS-managed clusters in the AWS account it has credentials for by matching resource tags. For now, the discovery of connected clusters is out of the scope of this RFD.
 
-By default, auto-discovery is disabled and can be enabled by providing one or multiple resource matcher to the Kubernetes agent configuration.
+By default, auto-discovery is disabled and can be enabled by providing one or multiple resource matcher to the Discovery agent configuration.
 
 The agent requires access to [`eks:ListClusters`][listclusters] and [`eks:DescribeCluster`][descclusters] APIs to perform the cluster discovery and cluster details extraction.
 
@@ -51,19 +51,19 @@ The agent requires access to [`eks:ListClusters`][listclusters] and [`eks:Descri
 The Teleport configuration for automatic AWS EKS discovery will have the following structure:
 
 ```yaml
-kubernetes_service:
+discovery_service:
   enabled: yes
   aws:
   - regions: ["us-west-1"]
+    types: ["eks"]
     tags:
       "env": "prod"
 
   - regions: ["us-east-1", "us-east-2"]
+    types: ["eks"]
     tags:
       "*": "*"
 ```
-
-The resource matcher definition is similar to the one used by `db_service/aws`.
 
 #### IAM Permissions
 
@@ -117,7 +117,7 @@ spec:
 
 For security reasons, the agent does not create a new service account that provides a static token, such as the one used by the Kubeconfig method. Instead, the credentials used are valid for short periods and must be rotated when they are close to expiration. API access credentials are generated for a specific cluster and return the expiration time. This expiration time is defined in the IAM role definition, and when they expire, the agent cannot forward more requests to the Kubernetes clusters.
 
-If the process fails because the discovery agent does not have the necessary permissions, Teleports logs the error and retries on the next discovery cycle.
+If the process fails because the agent does not have the necessary permissions, Teleports logs the error and retries on the next discovery cycle.
 
 With this method, Teleport does not install any agents on the cluster but requires the Kubernetes API to be accessible to the Teleport discovery agent. This means clusters with private API endpoints must be accessible from the machine where the discovery agent is running.
 
@@ -139,7 +139,7 @@ As mentioned before, the [AWS IAM authenticator][awsiamauthenticator] has a data
 
 By default, the cluster creator and every member that shares his IAM role or federated user have immediate access to the cluster as `system:masters`. This rule is enforced by [AWS IAM authenticator][awsiamauthenticator] and cannot be seen or edited by manipulating `configmap/aws-auth` since it is hidden.
 
-If Teleport discovery shares the same IAM role as the cluster's creator, it immediately has full access to the cluster and no further action is necessary. This creates a limitation because EKS clusters must be created by users with the same IAM role as Teleport. If an EKS cluster is created by a different IAM role/federated user, Teleport does not have access to the cluster! For security purposes, it is not recommended to run Teleport with the user's role.
+If Teleport discovery shares the same IAM role as the cluster's creator, it immediately has full access to the cluster and no further action is necessary. This creates a limitation because EKS clusters must be created by users with the same IAM role as Teleport. If an EKS cluster is created by a different IAM role/federated user, Teleport does not have access to the cluster! For security purposes, it is not recommended running Teleport with the user's role.
 
 If the Teleport agent is running with a different IAM role, it is required that its IAM role is mapped into a Kubernetes RBAC role. This can be configured by appending an extra entry into `configmap/aws-auth`.
 
@@ -333,10 +333,15 @@ Teleport calls the Lambda once it discovers a new cluster. To invoke the Lambda 
 
 If AWS changes the cluster authentication method or Kubernetes introduces breaking changes to its APIs, the code in the Lambda function has to be updated.
 
+### Limitations
 
-### UX
+Teleport will only provide access to API and will not enroll databases or applications like Prometheus or Grafana that configurable in a situation where Teleport Agent is present in the cluster.
 
-#### `teleport kube configure`
+The IAM mapping between Teleport IAM Role and Kubernetes roles is a complex and tedious process that must happen per cluster. Without it, Teleport cannot enroll clusters. The AWS EKS team has a feature request to add an external API that allows configuring access to the cluster without manually editing the `configmap` ([aws/containers-roadmap#185](https://github.com/aws/containers-roadmap/issues/185)).
+
+## UX
+
+### `teleport kube configure`
 
 Teleport will provide a simple CLI program to simplify the cluster permissions management. It is responsible for creating the required RBAC permissions and assigning them to Teleport Role ARN by editing the `configmap/aws-auth`.
 
@@ -369,7 +374,21 @@ After the command finishes, the discovery agent can enroll the affected clusters
 
 This command will not run as a daemon and is solely used to setup the requirements for discovery service to work for active EKS clusters. 
 
-### Requirements
+## Security
+
+### AWS
+
+From a security perspective, the `eks:DescribeCluster` and `eks:ListClusters` methods do not give direct access to the cluster and only allow the callee to grab the endpoint and CA certificate.
+
+The credentials that grant access into the cluster are generated by [AWS IAM authenticator][awsiamauthenticator] and are short-lived. The TTL is defined by the IAM role's creator in AWS IAM console. After the expiration date, the token can no longer be used to access the cluster and is invalid.
+
+In order to Teleport to be able to connect to the cluster, its role must be present in `aws-auth` configmap with the desired group permissions. As described above, the permissions required for Teleport to operate in this mode do not give him the possibility to create or delete resources, that it can only happen via impersonation.
+
+### UX
+
+`teleport kube configure` should run against EKS clusters with `system:masters` permissions to create RBAC permissions and edit the `configmap/aws-auth` in the `kube-system` namespace. It is a security concern, but it is encouraged to run the command locally to prevent the leak of credentials that grant control of EKS clusters.
+
+## Requirements
 
 Requirements section describes required actions to be able to introduce dynamic registration of new clusters in Teleport cluster.
 
@@ -418,22 +437,6 @@ message KubernetesServerSpecV3 {
 `KubernetesServerV3` message will be added as a new field to the [`PaginatedResource`][paginatedresource] message, and the current `KubeService` field will be deprecated.
 
 With `KubernetesServerV3`, Teleport can create a different Kubernetes Server for each Kubernetes cluster available, and it's possible to create and stop Heartbeats independently without interrupting access to other Kubernetes clusters served by the same Kubernetes service.
-
-### Limitations
-
-Teleport will only provide access to API and will not enroll databases or applications like Prometheus or Grafana that configurable in a situation where Teleport Agent is present in the cluster.
-
-The IAM mapping between Teleport IAM Role and Kubernetes roles is a complex and tedious process that must happen per cluster. Without it, Teleport cannot enroll clusters. The AWS EKS team has a feature request to add an external API that allows configuring access to the cluster without manually editing the `configmap` ([aws/containers-roadmap#185](https://github.com/aws/containers-roadmap/issues/185)).
-
-## Security
-
-From a security perspective, the `eks:DescribeCluster` and `eks:ListClusters` methods do not give direct access to the cluster and only allow the callee to grab the endpoint and CA certificate.
-
-The credentials that grant access into the cluster are generated by [AWS IAM authenticator][awsiamauthenticator] and are short-lived. The TTL is defined by the IAM role's creator in AWS IAM console. After the expiration date, the token can no longer be used to access the cluster and is invalid.
-
-In order to Teleport to be able to connect to the cluster, its role must be present in `aws-auth` configmap with the desired group permissions. As described above, the permissions required for Teleport to operate in this mode do not give him the possibility to create or delete resources, that it can only happen via impersonation.
-
-`teleport kube configure` should run against EKS clusters with `system:masters` permissions to create RBAC permissions and edit the `configmap/aws-auth` in the `kube-system` namespace. It is a security concern, but it is encouraged to run the command locally to prevent the leak of credentials that grant control of EKS clusters.
 
 ## Future work
 
