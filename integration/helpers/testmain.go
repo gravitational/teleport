@@ -13,16 +13,31 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package integration
+package helpers
 
 import (
+	"os"
 	"testing"
+	"time"
 
-	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/teleport/common"
 )
 
-// TestMain will re-execute Teleport to run a command if "exec" is passed to
+// TestMainImplementation will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise, it will run tests as normal.
-func TestMain(m *testing.M) {
-	helpers.TestMainImplementation(m)
+func TestMainImplementation(m *testing.M) {
+	utils.InitLoggerForTests()
+	SetTestTimeouts(100 * time.Millisecond)
+	// If the test is re-executing itself, execute the command that comes over
+	// the pipe.
+	if srv.IsReexec() {
+		common.Run(common.Options{Args: os.Args[1:]})
+		return
+	}
+
+	// Otherwise run tests as normal.
+	code := m.Run()
+	os.Exit(code)
 }
