@@ -189,10 +189,10 @@ impl Client {
 
     fn handle_server_announce(&self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
         let req = ServerAnnounceRequest::decode(payload)?;
-        debug!("received RDP {:?}", req);
+        debug!("received RDP ServerAnnounceRequest: {:?}", req);
 
         let resp = ClientAnnounceReply::new(req);
-        debug!("sending RDP {:?}", resp);
+        debug!("sending RDP ClientAnnounceReply: {:?}", resp);
 
         let mut resp =
             self.add_headers_and_chunkify(PacketId::PAKID_CORE_CLIENTID_CONFIRM, resp.encode()?)?;
@@ -217,14 +217,14 @@ impl Client {
 
         let resp =
             ClientCoreCapabilityResponse::new_response(self.allow_directory_sharing).encode()?;
-        debug!("sending RDP {:?}", resp);
+        debug!("sending RDP ClientCoreCapabilityResponse: {:?}", resp);
         let resp = self.add_headers_and_chunkify(PacketId::PAKID_CORE_CLIENT_CAPABILITY, resp)?;
         Ok(resp)
     }
 
     fn handle_client_id_confirm(&mut self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
         let req = ServerClientIdConfirm::decode(payload)?;
-        debug!("received RDP {:?}", req);
+        debug!("received RDP ServerClientIdConfirm: {:?}", req);
 
         // The smartcard initialization sequence that contains this message happens once at session startup,
         // and once when login succeeds. We only need to announce the smartcard once.
@@ -364,7 +364,7 @@ impl Client {
     ) -> RdpResult<Vec<Vec<u8>>> {
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L207
         let rdp_req = ServerCreateDriveRequest::decode(device_io_request, payload)?;
-        debug!("received RDP: {:?}", rdp_req);
+        debug!("received RDP ServerCreateDriveRequest: {:?}", rdp_req);
 
         // Send a TDP Shared Directory Info Request
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L210
@@ -845,7 +845,10 @@ impl Client {
         mcs: &mut mcs::Client<S>,
     ) -> RdpResult<()> {
         self.push_active_device_id(req.device_list[0].device_id)?;
-        debug!("sending new drive for redirection over RDP: {:?}", req);
+        debug!(
+            "sending new drive for redirection over RDP, ClientDeviceListAnnounce: {:?}",
+            req
+        );
 
         let responses =
             self.add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE, req.encode()?)?;
