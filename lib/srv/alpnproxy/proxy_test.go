@@ -178,6 +178,27 @@ func TestProxyTLSDatabaseHandler(t *testing.T) {
 		mustReadFromConnection(t, tlsConn, databaseHandleResponse)
 		mustCloseConnection(t, conn)
 	})
+
+	t.Run("tls database connection wrapped with ALPN ping value", func(t *testing.T) {
+		baseConn, err := tls.Dial("tcp", suite.GetServerAddress(), &tls.Config{
+			NextProtos: []string{string(common.ProtocolWithPing(common.ProtocolMongoDB))},
+			RootCAs:    suite.GetCertPool(),
+			ServerName: "localhost",
+		})
+		require.NoError(t, err)
+
+		conn := NewPingConn(baseConn)
+		tlsConn := tls.Client(conn, &tls.Config{
+			Certificates: []tls.Certificate{
+				clientCert,
+			},
+			RootCAs:    suite.GetCertPool(),
+			ServerName: "localhost",
+		})
+
+		mustReadFromConnection(t, tlsConn, databaseHandleResponse)
+		mustCloseConnection(t, conn)
+	})
 }
 
 // TestProxyRouteToDatabase tests db connection with protocol registered without any handler.
@@ -502,6 +523,70 @@ func TestMatchMySQLConn(t *testing.T) {
 
 			err := fn(ctx, nil, connectionInfo)
 			require.NoError(t, err)
+		})
+	}
+}
+
+func TestProxyPingConnections(t *testing.T) {
+	dataWritten := "message ping connection"
+
+	suite := NewSuite(t)
+	clientCert := mustGenCertSignedWithCA(t, suite.ca,
+		withIdentity(tlsca.Identity{
+			Username: "test-user",
+			Groups:   []string{"test-group"},
+			RouteToDatabase: tlsca.RouteToDatabase{
+				ServiceName: "mongo-test-database",
+			},
+		}),
+	)
+	handlerFunc := func(_ context.Context, conn net.Conn) error {
+		defer conn.Close()
+		_, err := fmt.Fprint(conn, dataWritten)
+		require.NoError(t, err)
+		return nil
+	}
+
+	suite.router.Add(HandlerDecs{
+		MatchFunc: MatchByProtocolWithPing(common.ProtocolsWithPingSupport...),
+		Handler:   handlerFunc,
+	})
+	suite.router.AddDBTLSHandler(handlerFunc)
+	suite.Start(t)
+
+	for _, protocol := range common.ProtocolsWithPingSupport {
+		protocol := protocol
+		t.Run(string(protocol), func(t *testing.T) {
+			t.Parallel()
+
+			localProxyListener, err := net.Listen("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+
+			localProxyConfig := LocalProxyConfig{
+				RemoteProxyAddr:    suite.GetServerAddress(),
+				Protocols:          []common.Protocol{common.ProtocolWithPing(protocol), protocol},
+				Listener:           localProxyListener,
+				SNI:                "localhost",
+				ParentContext:      context.Background(),
+				InsecureSkipVerify: true,
+			}
+			mustStartLocalProxy(t, localProxyConfig)
+
+			conn, err := net.Dial("tcp", localProxyListener.Addr().String())
+			require.NoError(t, err)
+
+			if common.IsDBTLSProtocol(protocol) {
+				conn = tls.Client(conn, &tls.Config{
+					Certificates: []tls.Certificate{
+						clientCert,
+					},
+					RootCAs:    suite.GetCertPool(),
+					ServerName: "localhost",
+				})
+			}
+
+			mustReadFromConnection(t, conn, dataWritten)
+			mustCloseConnection(t, conn)
 		})
 	}
 }

@@ -789,6 +789,9 @@ type certRequest struct {
 	// generation indicates the number of times this certificate has been
 	// renewed.
 	generation uint64
+	// connectionDiagnosticID contains the ID of the ConnectionDiagnostic.
+	// The Node/Agent will append connection traces to this instance.
+	connectionDiagnosticID string
 }
 
 // check verifies the cert request is valid.
@@ -1084,28 +1087,29 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	}
 
 	params := services.UserCertParams{
-		CASigner:              caSigner,
-		PublicUserKey:         req.publicKey,
-		Username:              req.user.GetName(),
-		Impersonator:          req.impersonator,
-		AllowedLogins:         allowedLogins,
-		TTL:                   sessionTTL,
-		Roles:                 req.checker.RoleNames(),
-		CertificateFormat:     certificateFormat,
-		PermitPortForwarding:  req.checker.CanPortForward(),
-		PermitAgentForwarding: req.checker.CanForwardAgents(),
-		PermitX11Forwarding:   req.checker.PermitX11Forwarding(),
-		RouteToCluster:        req.routeToCluster,
-		Traits:                req.traits,
-		ActiveRequests:        req.activeRequests,
-		MFAVerified:           req.mfaVerified,
-		ClientIP:              req.clientIP,
-		DisallowReissue:       req.disallowReissue,
-		Renewable:             req.renewable,
-		Generation:            req.generation,
-		CertificateExtensions: req.checker.CertificateExtensions(),
-		AllowedResourceIDs:    requestedResourcesStr,
-		SourceIP:              req.sourceIP,
+		CASigner:               caSigner,
+		PublicUserKey:          req.publicKey,
+		Username:               req.user.GetName(),
+		Impersonator:           req.impersonator,
+		AllowedLogins:          allowedLogins,
+		TTL:                    sessionTTL,
+		Roles:                  req.checker.RoleNames(),
+		CertificateFormat:      certificateFormat,
+		PermitPortForwarding:   req.checker.CanPortForward(),
+		PermitAgentForwarding:  req.checker.CanForwardAgents(),
+		PermitX11Forwarding:    req.checker.PermitX11Forwarding(),
+		RouteToCluster:         req.routeToCluster,
+		Traits:                 req.traits,
+		ActiveRequests:         req.activeRequests,
+		MFAVerified:            req.mfaVerified,
+		ClientIP:               req.clientIP,
+		DisallowReissue:        req.disallowReissue,
+		Renewable:              req.renewable,
+		Generation:             req.generation,
+		CertificateExtensions:  req.checker.CertificateExtensions(),
+		AllowedResourceIDs:     requestedResourcesStr,
+		SourceIP:               req.sourceIP,
+		ConnectionDiagnosticID: req.connectionDiagnosticID,
 	}
 	sshCert, err := a.Authority.GenerateUserCert(params)
 	if err != nil {
@@ -1936,6 +1940,8 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 
 	// Keep preserving the login time.
 	sess.SetLoginTime(prevSession.GetLoginTime())
+
+	sess.SetConsumedAccessRequestID(req.AccessRequestID)
 
 	if err := a.upsertWebSession(ctx, req.User, sess); err != nil {
 		return nil, trace.Wrap(err)
