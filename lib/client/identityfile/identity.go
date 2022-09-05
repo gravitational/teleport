@@ -328,32 +328,11 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			return nil, trace.Wrap(err)
 		}
 	case FormatCassandra:
-		// Cassandra expects a JKS keystore file with the private key and certificate
-		// in it. The keystore file is password protected.
-		keystoreBuf, err := prepareCassandraKeystore(cfg)
+		out, err := writeCassandraFormat(cfg, writer)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		// Cassandra expects a JKS truststore file with the CA certificate in it.
-		// The truststore file is password protected.
-		truststoreBuf, err := prepareCassandraTruststore(cfg)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		certPath := cfg.OutputPath + ".keystore"
-		casPath := cfg.OutputPath + ".truststore"
-		filesWritten = append(filesWritten, certPath, casPath)
-		err = writer.WriteFile(certPath, keystoreBuf.Bytes(), identityfile.FilePermissions)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		err = writer.WriteFile(casPath, truststoreBuf.Bytes(), identityfile.FilePermissions)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		filesWritten = append(filesWritten, out...)
 
 	case FormatKubernetes:
 		filesWritten = append(filesWritten, cfg.OutputPath)
@@ -381,6 +360,35 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		return nil, trace.BadParameter("unsupported identity format: %q, use one of %s", cfg.Format, KnownFileFormats)
 	}
 	return filesWritten, nil
+}
+
+func writeCassandraFormat(cfg WriteConfig, writer ConfigWriter) ([]string, error) {
+	// Cassandra expects a JKS keystore file with the private key and certificate
+	// in it. The keystore file is password protected.
+	keystoreBuf, err := prepareCassandraKeystore(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Cassandra expects a JKS truststore file with the CA certificate in it.
+	// The truststore file is password protected.
+	truststoreBuf, err := prepareCassandraTruststore(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certPath := cfg.OutputPath + ".keystore"
+	casPath := cfg.OutputPath + ".truststore"
+	err = writer.WriteFile(certPath, keystoreBuf.Bytes(), identityfile.FilePermissions)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = writer.WriteFile(casPath, truststoreBuf.Bytes(), identityfile.FilePermissions)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return []string{certPath, casPath}, nil
 }
 
 func prepareCassandraTruststore(cfg WriteConfig) (*bytes.Buffer, error) {
