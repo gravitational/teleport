@@ -15,10 +15,13 @@
 package main
 
 // To run one of these pipelines locally:
-// # `drone exec` does not support `exec` or `kubernetes` pipelines
-// sed -i '' 's/type\: kubernetes/type\: docker/' .drone.yml && sed -i '' 's/type\: exec/type\: docker/' .drone.yml
 // # Drone requires certain variables to be set
 // export DRONE_REMOTE_URL="https://github.com/gravitational/teleport"
+// export DRONE_SOURCE_BRANCH="$(git branch --show-current)"
+// # `drone exec` does not support `exec` or `kubernetes` pipelines
+// sed -i '' 's/type\: kubernetes/type\: docker/' .drone.yml && sed -i '' 's/type\: exec/type\: docker/' .drone.yml
+// # Pull the current branch instead of v10
+// sed -i '' "s~git checkout -qf \"\$(cat '/go/vars/full-version/v10')\"~git checkout -qf \"${DRONE_SOURCE_BRANCH}\"~" .drone.yml
 // # `drone exec` does not properly map the workspace path. This creates a volume to be shared between steps
 // #  at the correct path
 // DOCKER_VOLUME_NAME="go"
@@ -454,7 +457,7 @@ func teleportSetupStep(shellVersion, packageName, dockerfilePath, downloadURL st
 	}
 
 	return step{
-		Name:     fmt.Sprintf("Download %q DEB artifact from APT", packageName),
+		Name:     fmt.Sprintf("Download %q Dockerfile and DEB artifacts from APT", packageName),
 		Image:    "ubuntu:22.04",
 		Commands: commands,
 	}, archDestFileMap
