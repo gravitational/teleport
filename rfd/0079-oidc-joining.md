@@ -243,7 +243,7 @@ TODO: A strategy for moving between SpecV2 and SpecV3
 
 ```yaml
 kind: token
-version: v2
+version: v3
 metadata:
   name: my-gcp-token
   expires: "3000-01-01T00:00:00Z"
