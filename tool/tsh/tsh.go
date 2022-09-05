@@ -24,6 +24,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path"
 	"path/filepath"
@@ -372,6 +373,10 @@ type CLIConf struct {
 	// command is the selected command (and subcommands) parsed from command
 	// line args. Note that this command does not contain the binary (e.g. tsh).
 	command string
+
+	// cmdRunner is a custom function to execute provided exec.Cmd. Mainly used
+	// in testing.
+	cmdRunner func(*exec.Cmd) error
 }
 
 // Stdout returns the stdout writer.
@@ -393,6 +398,14 @@ func (c *CLIConf) Stderr() io.Writer {
 // CommandWithBinary returns the current/selected command with the binary.
 func (c *CLIConf) CommandWithBinary() string {
 	return fmt.Sprintf("%s %s", teleport.ComponentTSH, c.command)
+}
+
+// RunCommand executes provided command.
+func (c *CLIConf) RunCommand(cmd *exec.Cmd) error {
+	if c.cmdRunner != nil {
+		return trace.Wrap(c.cmdRunner(cmd))
+	}
+	return trace.Wrap(cmd.Run())
 }
 
 type exitCodeError struct {
@@ -552,7 +565,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	ver := app.Command("version", "Print the version of your tsh binary")
 	ver.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	// ssh
-	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node")
+	// Use Interspersed(false) to forward all flags to ssh.
+	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node").Interspersed(false)
 	ssh.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	ssh.Arg("command", "Command to execute on a remote host").StringsVar(&cf.RemoteCommand)
 	app.Flag("jumphost", "SSH jumphost").Short('J').StringVar(&cf.ProxyJump)
@@ -579,7 +593,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	daemonStart.Flag("certs-dir", "Directory containing certs used to create secure gRPC connection with daemon service").StringVar(&cf.DaemonCertsDir)
 
 	// AWS.
-	aws := app.Command("aws", "Access AWS API.")
+	// Use Interspersed(false) to forward all flags to AWS CLI.
+	aws := app.Command("aws", "Access AWS API.").Interspersed(false)
 	aws.Arg("command", "AWS command and subcommands arguments that are going to be forwarded to AWS CLI.").StringsVar(&cf.AWSCommandArgs)
 	aws.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
 	aws.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").
@@ -1558,9 +1573,33 @@ func onLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	for _, warning := range resp.LicenseWarnings {
 		fmt.Fprintf(os.Stderr, "%s\n\n", warning)
 	}
+
+	// get any "on login" alerts
+	alerts, err := tc.GetClusterAlerts(cf.Context, types.GetClusterAlertsRequest{
+		Labels: map[string]string{
+			types.AlertOnLogin: "yes",
+		},
+	})
+	if err != nil && !trace.IsNotImplemented(err) {
+		return trace.Wrap(err)
+	}
+
+	types.SortClusterAlerts(alerts)
+
+	for _, alert := range alerts {
+		if err := alert.CheckMessage(); err != nil {
+			log.Warnf("Skipping invalid alert %q: %v", alert.Metadata.Name, err)
+		}
+		fmt.Fprintf(os.Stderr, "%s\n\n", alert.Spec.Message)
+	}
+	// NOTE: we currently print all alerts that are marked as `on-login`, because we
+	// don't use the alert API very heavily. If we start to make more use of it, we
+	// could probably add a separate `tsh alerts ls` command, and truncate the list
+	// with a message like "run 'tsh alerts ls' to view N additional alerts".
 
 	return nil
 }

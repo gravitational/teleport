@@ -897,9 +897,14 @@ func NewTeleport(cfg *Config, opts ...NewTeleportOption) (*TeleportProcess, erro
 	if imClient.IsAvailable(supervisor.ExitContext()) {
 		ec2Hostname, err := imClient.GetTagValue(supervisor.ExitContext(), types.EC2HostnameTag)
 		if err == nil {
-			if ec2Hostname != "" {
+			ec2Hostname = strings.ReplaceAll(ec2Hostname, " ", "_")
+			if utils.IsValidHostname(ec2Hostname) {
 				cfg.Log.Infof("Found %q tag in EC2 instance. Using %q as hostname.", types.EC2HostnameTag, ec2Hostname)
 				cfg.Hostname = ec2Hostname
+
+				// ec2Hostname exists but is not a valid hostname.
+			} else if ec2Hostname != "" {
+				cfg.Log.Infof("Found %q tag in EC2 instance, but %q is not a valid hostname.", types.EC2HostnameTag, ec2Hostname)
 			}
 		} else if !trace.IsNotFound(err) {
 			cfg.Log.Errorf("Unexpected error while looking for EC2 hostname: %v", err)
@@ -3397,6 +3402,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	// Register web proxy server
+	alpnHandlerForWeb := &alpnproxy.ConnectionHandlerWrapper{}
 	var webServer *http.Server
 	var webHandler *web.APIHandler
 	var minimalWebServer *http.Server
@@ -3436,6 +3442,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ClusterFeatures:  process.getClusterFeatures(),
 			ProxySettings:    proxySettings,
 			PublicProxyAddr:  process.proxyPublicAddr().Addr,
+			ALPNHandler:      alpnHandlerForWeb.HandleConnection,
 		}
 		webHandler, err = web.NewHandler(webConfig)
 		if err != nil {
@@ -3805,6 +3812,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		alpnTLSConfigForWeb := process.setupALPNTLSConfigForWeb(serverTLSConfig, accessPoint, clusterName)
+		alpnHandlerForWeb.Set(alpnServer.MakeConnectionHandler(alpnTLSConfigForWeb))
+
 		process.RegisterCriticalFunc("proxy.tls.alpn.sni.proxy", func() error {
 			log.Infof("Starting TLS ALPN SNI proxy server on %v.", listeners.alpn.Addr())
 			if err := alpnServer.Serve(process.ExitContext()); err != nil {
@@ -4017,10 +4028,6 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		tlsConfig.NextProtos = apiutils.Deduplicate(append(tlsConfig.NextProtos, acme.ALPNProto))
 	}
 
-	// Go 1.17 introduced strict ALPN https://golang.org/doc/go1.17#ALPN If a client protocol is not recognized
-	// the TLS handshake will fail.
-	tlsConfig.NextProtos = apiutils.Deduplicate(append(tlsConfig.NextProtos, alpncommon.ProtocolsToString(alpncommon.SupportedProtocols)...))
-
 	for _, pair := range process.Config.Proxy.KeyPairs {
 		process.Config.Log.Infof("Loading TLS certificate %v and key %v.", pair.Certificate, pair.PrivateKey)
 
@@ -4031,6 +4038,18 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		tlsConfig.Certificates = append(tlsConfig.Certificates, certificate)
 	}
 
+	setupTLSConfigALPNProtocols(tlsConfig)
+	setupTLSConfigClientCAsForCluster(tlsConfig, accessPoint, clusterName)
+	return tlsConfig, nil
+}
+
+func setupTLSConfigALPNProtocols(tlsConfig *tls.Config) {
+	// Go 1.17 introduced strict ALPN https://golang.org/doc/go1.17#ALPN If a client protocol is not recognized
+	// the TLS handshake will fail.
+	tlsConfig.NextProtos = apiutils.Deduplicate(append(tlsConfig.NextProtos, alpncommon.ProtocolsToString(alpncommon.SupportedProtocols)...))
+}
+
+func setupTLSConfigClientCAsForCluster(tlsConfig *tls.Config, accessPoint auth.ReadProxyAccessPoint, clusterName string) {
 	tlsConfig.GetConfigForClient = func(*tls.ClientHelloInfo) (*tls.Config, error) {
 		tlsClone := tlsConfig.Clone()
 
@@ -4056,10 +4075,18 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 
 		return tlsClone, nil
 	}
-	return tlsConfig, nil
 }
 
-func setupALPNRouter(listeners *proxyListeners, serverTLSConf *tls.Config, cfg *Config) *alpnproxy.Router {
+func (process *TeleportProcess) setupALPNTLSConfigForWeb(serverTLSConfig *tls.Config, accessPoint auth.ReadProxyAccessPoint, clusterName string) *tls.Config {
+	tlsConfig := utils.TLSConfig(process.Config.CipherSuites)
+	tlsConfig.Certificates = serverTLSConfig.Certificates
+
+	setupTLSConfigALPNProtocols(tlsConfig)
+	setupTLSConfigClientCAsForCluster(tlsConfig, accessPoint, clusterName)
+	return tlsConfig
+}
+
+func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg *Config) *alpnproxy.Router {
 	if listeners.web == nil || cfg.Proxy.DisableTLS || cfg.Proxy.DisableALPNSNIListener {
 		return nil
 	}
@@ -4107,7 +4134,7 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConf *tls.Config, cfg *
 	router.Add(alpnproxy.HandlerDecs{
 		MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolProxySSH),
 		Handler:   sshProxyListener.HandleConnection,
-		TLSConfig: serverTLSConf,
+		TLSConfig: serverTLSConfig,
 	})
 	listeners.ssh = sshProxyListener
 

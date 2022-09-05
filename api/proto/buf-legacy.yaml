@@ -5,6 +5,13 @@ deps:
 lint:
   use:
     - DEFAULT
+    - PACKAGE_NO_IMPORT_CYCLE
+    # Top-level types require comments.
+    # TODO(codingllama): Fix messages and enable linters below.
+    # - COMMENT_ENUM
+    # - COMMENT_MESSAGE
+    - COMMENT_RPC
+    - COMMENT_SERVICE
   except:
     # MINIMAL
     - PACKAGE_DIRECTORY_MATCH
