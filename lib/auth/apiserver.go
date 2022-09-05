@@ -500,6 +500,9 @@ type WebSessionReq struct {
 	// Switchback is a flag to indicate if user is wanting to switchback from an assumed role
 	// back to their default role.
 	Switchback bool `json:"switchback"`
+	// ReloadUser is a flag to indicate if user needs to be refetched from the backend
+	// to apply new user changes e.g. user traits were updated.
+	ReloadUser bool `json:"reload_user"`
 }
 
 func (s *APIServer) createWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
