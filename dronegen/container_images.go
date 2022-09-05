@@ -20,6 +20,8 @@ package main
 // export DRONE_SOURCE_BRANCH="$(git branch --show-current)"
 // # `drone exec` does not support `exec` or `kubernetes` pipelines
 // sed -i '' 's/type\: kubernetes/type\: docker/' .drone.yml && sed -i '' 's/type\: exec/type\: docker/' .drone.yml
+// # Drone has a bug where "workspace" is appended to "/drone/src". This fixes that by updating references
+// sed -i '' 's~/go/~/drone/src/go/~g' .drone.yml
 // # Pull the current branch instead of v10
 // sed -i '' "s~git checkout -qf \"\$(cat '/go/vars/full-version/v10')\"~git checkout -qf \"${DRONE_SOURCE_BRANCH}\"~" .drone.yml
 // # `drone exec` does not properly map the workspace path. This creates a volume to be shared between steps
@@ -616,11 +618,21 @@ func NewQuayContainerRepo(dockerUsername, dockerPassword string) *ContainerRepo 
 	}
 }
 
+// TODO revert these after more testing
+// func GetContainerRepos() []*ContainerRepo {
+// 	return []*ContainerRepo{
+// 		NewQuayContainerRepo("PRODUCTION_QUAYIO_DOCKER_USERNAME", "PRODUCTION_QUAYIO_DOCKER_PASSWORD"),
+// 		NewEcrContainerRepo("STAGING_TELEPORT_DRONE_USER_ECR_KEY", "STAGING_TELEPORT_DRONE_USER_ECR_SECRET", StagingRegistry, true),
+// 		NewEcrContainerRepo("PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY", "PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET", ProductionRegistry, false),
+// 	}
+// }
+
+// TEST VERSION
 func GetContainerRepos() []*ContainerRepo {
 	return []*ContainerRepo{
-		NewQuayContainerRepo("PRODUCTION_QUAYIO_DOCKER_USERNAME", "PRODUCTION_QUAYIO_DOCKER_PASSWORD"),
-		NewEcrContainerRepo("STAGING_TELEPORT_DRONE_USER_ECR_KEY", "STAGING_TELEPORT_DRONE_USER_ECR_SECRET", StagingRegistry, true),
-		NewEcrContainerRepo("PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY", "PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET", ProductionRegistry, false),
+		NewQuayContainerRepo("TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME", "TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD"),
+		NewEcrContainerRepo("TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY", "TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET", StagingRegistry, true),
+		NewEcrContainerRepo("TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY", "TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET", ProductionRegistry, false),
 	}
 }
 

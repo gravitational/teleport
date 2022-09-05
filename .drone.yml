@@ -34,7 +34,7 @@ steps:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: push-build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport11
@@ -139,7 +139,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: push-build-linux-386
 environment:
   BUILDBOX_VERSION: teleport11
@@ -244,7 +244,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: push-build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport11
@@ -353,7 +353,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: push-build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport11
@@ -458,7 +458,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: docker
+type: exec
 name: push-build-darwin-amd64
 trigger:
   event:
@@ -643,7 +643,7 @@ steps:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: push-build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport11
@@ -748,7 +748,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: push-build-linux-arm64
 environment:
   BUILDBOX_VERSION: teleport11
@@ -938,7 +938,7 @@ steps:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: build-linux-amd64-centos7
 environment:
   BUILDBOX_VERSION: teleport11
@@ -1098,7 +1098,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
   BUILDBOX_VERSION: teleport11
@@ -1257,7 +1257,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport11
@@ -1414,7 +1414,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport11
@@ -1571,7 +1571,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: build-linux-amd64-centos7-rpm
 trigger:
   event:
@@ -1755,7 +1755,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: build-linux-amd64-centos7-fips-rpm
 trigger:
   event:
@@ -1936,7 +1936,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: build-linux-amd64-deb
 trigger:
   event:
@@ -2106,7 +2106,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: build-linux-amd64-fips-deb
 trigger:
   event:
@@ -2273,7 +2273,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: build-linux-386
 environment:
   BUILDBOX_VERSION: teleport11
@@ -2430,7 +2430,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: build-linux-386-rpm
 trigger:
   event:
@@ -2614,7 +2614,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: build-linux-386-deb
 trigger:
   event:
@@ -2784,7 +2784,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: docker
+type: exec
 name: build-darwin-amd64
 trigger:
   event:
@@ -3032,7 +3032,7 @@ steps:
 ################################################
 
 kind: pipeline
-type: docker
+type: exec
 name: build-darwin-amd64-pkg
 trigger:
   event:
@@ -3221,7 +3221,7 @@ steps:
 ################################################
 
 kind: pipeline
-type: docker
+type: exec
 name: build-darwin-amd64-pkg-tsh
 trigger:
   event:
@@ -3410,7 +3410,7 @@ steps:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport11
@@ -3567,7 +3567,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: build-linux-arm64
 environment:
   BUILDBOX_VERSION: teleport11
@@ -3724,7 +3724,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: build-linux-arm64-deb
 trigger:
   event:
@@ -3894,7 +3894,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: build-linux-arm-deb
 trigger:
   event:
@@ -4064,7 +4064,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: build-linux-arm64-rpm
 trigger:
   event:
@@ -4248,7 +4248,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: build-linux-arm-rpm
 trigger:
   event:
@@ -4432,7 +4432,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport11
@@ -4797,7 +4797,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: build-buildboxes
 environment:
   BUILDBOX_VERSION: teleport11
@@ -4899,7 +4899,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: migrate-apt-new-repos
 trigger:
   event:
@@ -4927,7 +4927,7 @@ steps:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: publish-apt-new-repos
 trigger:
   event:
@@ -5042,7 +5042,7 @@ volumes:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: migrate-yum-new-repos
 trigger:
   event:
@@ -5070,7 +5070,7 @@ steps:
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: publish-yum-new-repos
 trigger:
   event:
@@ -5182,11 +5182,11 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:176
+# Generated at dronegen/container_images.go:178
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: teleport-container-images-current-version-cron
 environment:
   DEBIAN_FRONTEND: noninteractive
@@ -5233,7 +5233,7 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin
-  - git checkout -qf "fred/arm-container-images"
+  - git checkout -qf "$(cat '/go/vars/full-version/v10')"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -5369,9 +5369,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -5386,9 +5386,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -5403,9 +5403,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -5421,9 +5421,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -5444,9 +5444,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -5465,9 +5465,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -5486,9 +5486,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -5510,9 +5510,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -5535,9 +5535,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -5555,9 +5555,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -5575,9 +5575,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -5597,9 +5597,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -5739,9 +5739,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -5756,9 +5756,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -5773,9 +5773,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -5791,9 +5791,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -5814,9 +5814,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -5835,9 +5835,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -5856,9 +5856,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -5880,9 +5880,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -5906,9 +5906,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -5926,9 +5926,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -5947,9 +5947,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -5970,9 +5970,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -6056,9 +6056,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -6073,9 +6073,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -6094,9 +6094,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -6116,9 +6116,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -6138,9 +6138,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -6160,9 +6160,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -6235,9 +6235,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -6252,9 +6252,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -6269,9 +6269,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -6287,9 +6287,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -6310,9 +6310,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -6331,9 +6331,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -6352,9 +6352,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -6376,9 +6376,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -6402,9 +6402,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -6422,9 +6422,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -6443,9 +6443,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -6466,9 +6466,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -6539,9 +6539,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -6556,9 +6556,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -6573,9 +6573,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -6591,9 +6591,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -6614,9 +6614,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -6635,9 +6635,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -6656,9 +6656,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -6680,9 +6680,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -6706,9 +6706,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -6727,9 +6727,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -6748,9 +6748,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -6771,9 +6771,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -6799,11 +6799,11 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:176
+# Generated at dronegen/container_images.go:178
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: teleport-container-images-previous-version-1-cron
 environment:
   DEBIAN_FRONTEND: noninteractive
@@ -6985,9 +6985,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -7002,9 +7002,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -7019,9 +7019,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -7037,9 +7037,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -7060,9 +7060,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -7081,9 +7081,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -7102,9 +7102,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -7126,9 +7126,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -7151,9 +7151,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -7171,9 +7171,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -7191,9 +7191,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -7213,9 +7213,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -7355,9 +7355,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -7372,9 +7372,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -7389,9 +7389,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -7407,9 +7407,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -7430,9 +7430,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -7451,9 +7451,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -7472,9 +7472,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -7496,9 +7496,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -7522,9 +7522,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -7542,9 +7542,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -7563,9 +7563,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -7585,9 +7585,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -7671,9 +7671,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -7688,9 +7688,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -7709,9 +7709,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -7731,9 +7731,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -7753,9 +7753,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -7775,9 +7775,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -7850,9 +7850,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -7867,9 +7867,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -7884,9 +7884,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -7902,9 +7902,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -7925,9 +7925,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -7946,9 +7946,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -7967,9 +7967,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -7991,9 +7991,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -8017,9 +8017,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -8037,9 +8037,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -8058,9 +8058,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -8080,9 +8080,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -8153,9 +8153,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -8170,9 +8170,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -8187,9 +8187,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -8205,9 +8205,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -8228,9 +8228,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -8249,9 +8249,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -8270,9 +8270,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -8294,9 +8294,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -8320,9 +8320,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -8341,9 +8341,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -8362,9 +8362,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -8385,9 +8385,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -8412,11 +8412,11 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:176
+# Generated at dronegen/container_images.go:178
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: teleport-container-images-previous-version-2-cron
 environment:
   DEBIAN_FRONTEND: noninteractive
@@ -8598,9 +8598,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -8615,9 +8615,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -8632,9 +8632,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -8650,9 +8650,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -8673,9 +8673,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -8694,9 +8694,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -8715,9 +8715,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -8739,9 +8739,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -8764,9 +8764,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -8784,9 +8784,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -8804,9 +8804,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -8826,9 +8826,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -8968,9 +8968,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -8985,9 +8985,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -9002,9 +9002,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -9020,9 +9020,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -9043,9 +9043,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -9064,9 +9064,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -9085,9 +9085,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -9109,9 +9109,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -9135,9 +9135,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -9155,9 +9155,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -9176,9 +9176,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -9198,9 +9198,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -9284,9 +9284,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -9301,9 +9301,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -9322,9 +9322,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -9344,9 +9344,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -9366,9 +9366,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -9388,9 +9388,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -9463,9 +9463,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -9480,9 +9480,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -9497,9 +9497,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -9515,9 +9515,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -9538,9 +9538,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -9559,9 +9559,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -9580,9 +9580,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -9604,9 +9604,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -9630,9 +9630,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -9650,9 +9650,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -9671,9 +9671,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -9693,9 +9693,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -9766,9 +9766,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -9783,9 +9783,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -9800,9 +9800,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -9818,9 +9818,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -9841,9 +9841,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -9862,9 +9862,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -9883,9 +9883,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -9907,9 +9907,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -9933,9 +9933,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -9954,9 +9954,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -9975,9 +9975,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -9998,9 +9998,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -10025,11 +10025,11 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:176
+# Generated at dronegen/container_images.go:178
 ################################################
 
 kind: pipeline
-type: docker
+type: kubernetes
 name: teleport-container-images-drone-tag-promote
 environment:
   DEBIAN_FRONTEND: noninteractive
@@ -10232,9 +10232,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -10249,9 +10249,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -10266,9 +10266,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -10284,9 +10284,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -10307,9 +10307,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -10328,9 +10328,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -10349,9 +10349,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -10373,9 +10373,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -10398,9 +10398,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -10418,9 +10418,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -10438,9 +10438,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -10460,9 +10460,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -10604,9 +10604,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -10621,9 +10621,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -10638,9 +10638,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -10656,9 +10656,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -10679,9 +10679,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -10700,9 +10700,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -10721,9 +10721,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -10745,9 +10745,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -10771,9 +10771,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -10791,9 +10791,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -10812,9 +10812,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -10835,9 +10835,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -10924,9 +10924,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -10941,9 +10941,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -10962,9 +10962,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -10984,9 +10984,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -11006,9 +11006,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -11028,9 +11028,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -11109,9 +11109,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -11126,9 +11126,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -11143,9 +11143,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -11161,9 +11161,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -11184,9 +11184,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -11205,9 +11205,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -11226,9 +11226,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -11250,9 +11250,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -11276,9 +11276,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -11296,9 +11296,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -11317,9 +11317,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -11340,9 +11340,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -11419,9 +11419,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -11436,9 +11436,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -11453,9 +11453,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -11471,9 +11471,9 @@ steps:
   - docker logout "quay.io"
   environment:
     QUAY_PASSWORD:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD
     QUAY_USERNAME:
-      from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      from_secret: TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
@@ -11494,9 +11494,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -11515,9 +11515,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -11536,9 +11536,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -11560,9 +11560,9 @@ steps:
   - docker logout "146628656107.dkr.ecr.us-west-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: STAGING_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -11586,9 +11586,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -11607,9 +11607,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -11628,9 +11628,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -11651,9 +11651,9 @@ steps:
   - docker logout "public.ecr.aws"
   environment:
     AWS_ACCESS_KEY_ID:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY
     AWS_SECRET_ACCESS_KEY:
-      from_secret: PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
+      from_secret: TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET
   volumes:
   - name: dockersock
     path: /var/run
@@ -12153,6 +12153,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 33b6e25ed3ac67f70902a0388a62684975af051814b2b82cf9db5e3c8055f4f2
+hmac: ae19b0338b004a9de3643cd7c55f76f1b6434da954ca191964f2e61eafd0a55d
 
 ...
