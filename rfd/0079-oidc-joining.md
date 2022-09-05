@@ -54,8 +54,8 @@ Registration flow:
 5. The server will check the `kid` of the JWT header, and obtain the relevant JWK from the cache or from the specified issuers well-known JWKS endpoint. It will then use the JWK to validate the token has been signed by the issuer.
 6. Other key claims of the JWT will be validated:
   - Ensure the audience is correct (for providers where the audience can be customised, this should be the Teleport cluster name.)
-  - Ensure the Issued At Time (iat) is in the past.
-  - Ensure the Expiry Time (exp) is in the future.
+  - Ensure the Issued At Time (iat) is in the past (allowing 30 seconds of skew).
+  - Ensure the Expiry Time (exp) is in the future (allowing 30 seconds of skew).
 7. The user's [allow rules](#configuration) for the token will be evaluated against the claims, to ensure that the token is allowed to register with the Teleport cluster.
 8. Certificates will be generated for the client. In the case of bot certificates, they will be treated as non-renewable, to match the behaviour of IAM registration for bot certificates.
 
