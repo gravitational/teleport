@@ -120,6 +120,7 @@ pub enum NTSTATUS {
     STATUS_NOT_A_DIRECTORY = 0xC0000103,
     STATUS_NO_SUCH_FILE = 0xC000000F,
     STATUS_NOT_SUPPORTED = 0xC00000BB,
+    STATUS_DIRECTORY_NOT_EMPTY = 0xC0000101,
 }
 
 /// 2.4 File Information Classes [MS-FSCC]
@@ -206,3 +207,7 @@ pub const I8_SIZE: u32 = size_of::<i8>();
 pub const U8_SIZE: u32 = size_of::<u8>();
 pub const FILE_ATTR_SIZE: u32 = size_of::<flags::FileAttributes>();
 pub const BOOL_SIZE: u32 = size_of::<Boolean>();
+
+pub const TDP_FALSE: u8 = 0;
+#[allow(dead_code)]
+pub const TDP_TRUE: u8 = 1;
