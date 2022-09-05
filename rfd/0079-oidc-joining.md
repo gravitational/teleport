@@ -271,8 +271,6 @@ For GCP, we will map the [following JWT claims](https://cloud.google.com/compute
 - `google.compute_engine.instance_id`: instance_id
 - `google.compute_engine.zone`: zone
 
-To do this, we will need to change the structure of `ProvisionTokenSpecV2`, as the data under `Allow` is currently specifically designed around IAM joining. I suggest that we change this from `repeated TokenRule` to `repeated google.protobuf.Any`, and then [unmarshal it to a more specific message type](https://pkg.go.dev/google.golang.org/protobuf/types/known/anypb#hdr-Unmarshaling_an_Any) based on the value of `JoinMethod`. This will allow us more flexibility going forward as we introduce more joining methods, and avoid polluting a single message type with configuration values that apply to all joining methods.
-
 To ensure that we guide users to creating secure configurations, we will also ensure that at least one of the following fields is included in each allow block:
 
 - project_id
