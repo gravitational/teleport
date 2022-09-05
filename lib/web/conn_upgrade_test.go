@@ -87,7 +87,7 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 		go func() {
 			// serverConn will be hijacked.
 			w := newResponseWriterHijacker(nil, serverConn)
-			_, err = h.connectionUpgrade(w, r, nil)
+			_, err := h.connectionUpgrade(w, r, nil)
 			require.NoError(t, err)
 		}()
 
