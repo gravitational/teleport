@@ -275,6 +275,10 @@ message UserCertsRequest {
   // DropAccessRequests is an optional list of request IDs indicating requests
   // whose escalated privileges should be removed from the certificate.
   repeated string DropAccessRequests = 15 [(gogoproto.jsontag) = "drop_access_requests,omitempty"];
+
+  // ConnectionDiagnosticID is the ID of the ConnectionDiagnostic resource we should use to add
+  // traces as we pass certain checkpoints.
+  string ConnectionDiagnosticID = 16 [(gogoproto.jsontag) = "connection_diagnostic_id,omitempty"];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -2003,6 +2007,14 @@ message GetConnectionDiagnosticRequest {
   string Name = 1 [(gogoproto.jsontag) = "name"];
 }
 
+// AppendDiagnosticTraceRequest is a request to append a trace into a DiagnosticConnection.
+message AppendDiagnosticTraceRequest {
+  // Name is the name of the connection diagnostic.
+  string Name = 1 [(gogoproto.jsontag) = "name"];
+  // Trace is the ConnectionDiagnosticTrace to append into the DiagnosticConnection.
+  types.ConnectionDiagnosticTrace Trace = 2 [(gogoproto.jsontag) = "trace"];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -2489,6 +2501,8 @@ service AuthService {
   rpc UpdateConnectionDiagnostic(types.ConnectionDiagnosticV1) returns (google.protobuf.Empty);
   // GetConnectionDiagnostic reads a connection diagnostic.
   rpc GetConnectionDiagnostic(GetConnectionDiagnosticRequest) returns (types.ConnectionDiagnosticV1);
+  // AppendDiagnosticTrace appends a Trace to the ConnectionDiagnostic.
+  rpc AppendDiagnosticTrace(AppendDiagnosticTraceRequest) returns (types.ConnectionDiagnosticV1);
 
   // ChangeUserAuthentication allows a user to change their password and if enabled,
   // also adds a new MFA device. After successful invocation, a new web session is created as well
