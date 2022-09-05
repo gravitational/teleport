@@ -305,9 +305,11 @@ It is imperative that we validate the user's provided `allow` rules so that they
 
 #### MITM of the connection to the issuer
 
-In order to verify the JWT, we have to fetch the public key from the issuers's JWKS endpoint. If this connection is not secured (e.g HTTPS), it would be possible for a malicious actor to intercept the request and return a public key they've used to sign the JWT with.
+In order to verify the JWT, we have to fetch the public key from the issuers's JWKS endpoint. If this connection is not secured (e.g HTTP), it would be possible for a malicious actor to intercept the request and return a public key they've used to sign the JWT with.
 
 We should require that the configured issuer URL is HTTPS to mitigate this.
+
+Another potential mitigation would be to allow users to pin a certain certificate signature they expect Teleport to receive when connecting to the issuer. Whilst this is not particularly useful for GCP (since they rotate certificates on a regular basis), this could be useful if we support custom OIDC providers where the user controls the certificate used for the endpoint and would be able to rotate the pinned certificate in step with their issuer. As this is not useful for GCP, nor GHA, it is out of scope for the initial implementation.
 
 #### Vulnerabilities in JWT and JWT signing algorithms
 
