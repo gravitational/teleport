@@ -155,19 +155,12 @@ message ProvisionTokenSpecV2 {
 ```proto
 message ProvisionTokenSpecV3OIDCGoogle {
     message Rule {
-        message GoogleSubclaim {
-            message ComputeEngineSubclaim {
-                string ProjectID = 1 [ (gogoproto.jsontag) = "project_id,omitempty" ];
-                int64 ProjectNumber = 2 [ (gogoproto.jsontag) = "project_number,omitempty" ];
-                string InstanceID = 3 [ (gogoproto.jsontag) = "instance_id,omitempty" ];
-                string InstanceName = 4 [ (gogoproto.jsontag) = "instance_name,omitempty" ];
-                string Zone = 5 [ (gogoproto.jsontag) = "zone,omitempty" ];
-            }
-            ComputeEngineSubclaim ComputeEngine = 1
-                [ (gogoproto.jsontag) = "compute_engine,omitempty" ];
-        }
-        string Sub = 5 [ (gogoproto.jsontag) = "sub,omitempty" ];
-        GoogleSubclaim Google = 6 [ (gogoproto.jsontag) = "google,omitempty" ];
+        string Sub = 1 [ (gogoproto.jsontag) = "sub,omitempty" ];
+        string ProjectID = 2 [ (gogoproto.jsontag) = "project_id,omitempty" ];
+        int64 ProjectNumber = 3 [ (gogoproto.jsontag) = "project_number,omitempty" ];
+        string InstanceID = 4 [ (gogoproto.jsontag) = "instance_id,omitempty" ];
+        string InstanceName = 5 [ (gogoproto.jsontag) = "instance_name,omitempty" ];
+        string Zone = 6 [ (gogoproto.jsontag) = "zone,omitempty" ];
     }
     // Allow is a list of TokenRules, nodes using this token must match one
     // allow rule to use this token.
@@ -257,11 +250,12 @@ metadata:
 spec:
   roles: [Node]
   join_method: oidc-gcp
-  allow:
-  - project_id: "my-project"
-    instance_name: "an-instance"
-  - project_id: "my-project"
-    instance_name: "a-different-instance"
+  gcp:
+    allow:
+    - project_id: "my-project"
+      instance_name: "an-instance"
+    - project_id: "my-project"
+      instance_name: "a-different-instance"
 ```
 
 For GCP joining, they will set `join_method` to `oidc-gcp`.
