@@ -389,7 +389,7 @@ func prepareCassandraTruststore(cfg WriteConfig) (*bytes.Buffer, error) {
 		}
 	}
 
-	ts := keystore.New()
+	ks := keystore.New()
 	trustIn := keystore.TrustedCertificateEntry{
 		CreationTime: time.Now(),
 		Certificate: keystore.Certificate{
@@ -397,11 +397,11 @@ func prepareCassandraTruststore(cfg WriteConfig) (*bytes.Buffer, error) {
 			Content: caCerts,
 		},
 	}
-	if err := ts.SetTrustedCertificateEntry("cassandra", trustIn); err != nil {
+	if err := ks.SetTrustedCertificateEntry("cassandra", trustIn); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	var buff bytes.Buffer
-	if err := ts.Store(&buff, []byte(cfg.JKSPassword)); err != nil {
+	if err := ks.Store(&buff, []byte(cfg.JKSPassword)); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &buff, nil
@@ -411,7 +411,7 @@ func prepareCassandraKeystore(cfg WriteConfig) (*bytes.Buffer, error) {
 	certBlock, _ := pem.Decode(cfg.Key.TLSCert)
 	privBlock, _ := pem.Decode(cfg.Key.PrivateKeyPEM())
 
-	privKey, err := x509.ParsePKCS1PrivateKey(privBlock.Bytes)
+	privKey, err := x509.ParsePKCS8PrivateKey(privBlock.Bytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -432,11 +432,11 @@ func prepareCassandraKeystore(cfg WriteConfig) (*bytes.Buffer, error) {
 			},
 		},
 	}
-	if err := ks.SetPrivateKeyEntry("certificate", pkeIn, []byte(cfg.JKSPassword)); err != nil {
+	if err := ks.SetPrivateKeyEntry("certificate", pkeIn, []byte{}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	var buff bytes.Buffer
-	if err := ks.Store(&buff, []byte{}); err != nil {
+	if err := ks.Store(&buff, []byte(cfg.JKSPassword)); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &buff, nil
