@@ -18,134 +18,97 @@
 
 set -euo pipefail
 
-# require_curl checks if $CURL is set and exits with error
-# if it is empty
-require_curl() {
-  if [ -z "$CURL" ]; then
-    echo "This script requires either curl or wget in order to download files, please install one of these and try again."
-    exit 1
+# download uses curl or wget to download a teleport binary
+download() {
+  URL=$1
+  TMP_PATH=$2
+
+  echo "Downloading $URL"
+
+  if type curl &>/dev/null; then
+    $SUDO $CURL -o $TMP_PATH $URL
+  else
+    $SUDO $CURL -O $TMP_PATH $URL
   fi
 }
 
-# add Teleport repository key
-add_apt_key() {
-  GPG_URL="https://apt.releases.teleport.dev/gpg"
-  ASC_URL="https://deb.releases.teleport.dev/teleport-pubkey.asc"
-  KEY_URL=$GPG_URL
+install_via_dpkg() {
+  TEMP_DIR=$(mktemp -d -t teleport-XXXXXXXXXX)
 
-  # check if we it is necessary to use legacy .asc key
-  echo "version_id is $VERSION_ID"
-  case "$ID" in
-  ubuntu | pop | neon | zorin)
-    if ! expr "$VERSION_ID" : "2.*" >/dev/null; then
-      KEY_URL=$ASC_URL
-    fi
-    ;;
-  debian | raspbian)
-    if [ "$VERSION_ID" -lt 11 ]; then
-      KEY_URL=$ASC_URL
-    fi
-    ;;
-  linuxmint | parrot)
-    if [ "$VERSION_ID" -lt 5 ]; then
-      KEY_URL=$ASC_URL
-    fi
-    ;;
-  elementary)
-    if [ "$VERSION_ID" -lt 6 ]; then
-      KEY_URL=$ASC_URL
-    fi
+  ARCH_DPKG=$ARCH
+  case $ARCH in
+  386)
+    ARCH_DPKG="i386"
     ;;
   esac
 
-  echo "Downloading Teleport's public key..."
-  $SUDO $CURL $KEY_URL | $SUDO tee /usr/share/keyrings/teleport-archive-keyring.asc >/dev/null
-  $SUDO apt-get update
+  TELEPORT_FILENAME="teleport_${TELEPORT_VERSION}_${ARCH_DPKG}.deb"
+  URL="https://get.gravitational.com/${TELEPORT_FILENAME}"
+  download "${URL}" "${TEMP_DIR}/${TELEPORT_FILENAME}"
 
-  SRC="deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://deb.releases.teleport.dev/ stable main"
-  echo "$SRC" | $SUDO tee /etc/apt/sources.list.d/teleport.list >/dev/null
-}
+  TMP_CHECKSUM="${TEMP_DIR}/${TELEPORT_FILENAME}.sha256"
+  download "${URL}.sha256" $TMP_CHECKSUM
 
-install_via_apt() {
-  echo "Installing Teleport through apt-get"
-  require_curl
-  add_apt_key
+  cd $TEMP_DIR
+  $SUDO $SHA_COMMAND -c $TMP_CHECKSUM
+  cd -
 
-  $SUDO apt-get update
-  $SUDO apt-get install teleport
+  echo "Installing Teleport through dpkg"
+  $SUDO dpkg -i "${TEMP_DIR}/${TELEPORT_FILENAME}"
 }
 
 # installs the latest teleport via yum or dnf, if available
 install_via_yum() {
+  TEMP_DIR=$(mktemp -d -t teleport-XXXXXXXXXX)
+
+  ARCH_RPM=$ARCH
+  case $ARCH in
+  amd64)
+    ARCH_RPM="x86_64"
+    ;;
+  386)
+    ARCH_RPM="i386"
+    ;;
+  esac
+
+  TELEPORT_FILENAME="teleport-${TELEPORT_VERSION}-1.${ARCH_RPM}.rpm"
+  URL="https://get.gravitational.com/${TELEPORT_FILENAME}"
+  download "${URL}" "${TEMP_DIR}/${TELEPORT_FILENAME}"
+
+  TMP_CHECKSUM="${TEMP_DIR}/${TELEPORT_FILENAME}.sha256"
+  download "${URL}.sha256" $TMP_CHECKSUM
+
+  cd $TEMP_DIR
+  $SUDO $SHA_COMMAND -c $TMP_CHECKSUM
+  cd -
+
   if type dnf &>/dev/null; then
     echo "Installing Teleport through dnf"
-    $SUDO dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
-    $SUDO dnf install teleport -y
+    $SUDO dnf -y install "${TEMP_DIR}/${TELEPORT_FILENAME}"
   else
     echo "Installing Teleport through yum"
-    $SUDO yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
-    $SUDO yum install teleport -y
+    $SUDO yum -y localinstall "${TEMP_DIR}/${TELEPORT_FILENAME}"
   fi
 
 }
 
 # download .tar.gz file via curl/wget, unzip it and run the install sript
 install_via_curl() {
-  require_curl
-  ARCH=""
+  TEMP_DIR=$(mktemp -d -t teleport-XXXXXXXXXX)
 
-  if [[ -z "$TELEPORT_VERSION" ]]; then
-    echo "Please provide the version you want to in stall. E.g.: v10.1.9"
-    exit 1
-  fi
+  TELEPORT_FILENAME="teleport-v$TELEPORT_VERSION-linux-$ARCH-bin.tar.gz"
+  URL="https://get.gravitational.com/${TELEPORT_FILENAME}"
+  download "${URL}" "${TEMP_DIR}/${TELEPORT_FILENAME}"
 
-  # require sha256sum
-  if ! type sha256sum &>/dev/null; then
-    echo "This script requires sha256sum to validate the download checksum. Please install it and try again."
-    exit 1
-  fi
+  TMP_CHECKSUM="${TEMP_DIR}/${TELEPORT_FILENAME}.sha256"
+  download "${URL}.sha256" $TMP_CHECKSUM
 
-  # detect architecture
-  case $(uname -m) in
-  x86_64)
-    ARCH="amd64"
-    ;;
-  i386)
-    ARCH="386"
-    ;;
-  armv7l)
-    ARCH="arm"
-    ;;
-  aarch64)
-    ARCH="arm64"
-    ;;
-  **)
-    echo "Your system's architecture couldn't be determined. Please refer to the installation guide for more information:"
-    echo "https://goteleport.com/docs/installation/"
-    exit 1
-    ;;
-  esac
-
-  TELEPORT_FILE_NAME="teleport-$TELEPORT_VERSION-linux-$ARCH-bin.tar.gz"
-  TMP_PATH="/tmp/$TELEPORT_FILE_NAME"
-  TMP_CHECKSUM="/tmp/$TELEPORT_FILE_NAME.sha256"
-
-  echo "Downloading checksum..."
-  $CURL "https://get.gravitational.com/$TELEPORT_FILE_NAME.sha256" | $SUDO tee $TMP_CHECKSUM >/dev/null
-
-  echo "Downloading Teleport $TELEPORT_VERSION..."
-  if type curl &>/dev/null; then
-    $SUDO $CURL -o $TMP_PATH "https://get.gravitational.com/$TELEPORT_FILE_NAME"
-  else
-    $SUDO $CURL -O $TMP_PATH "https://get.gravitational.com/$TELEPORT_FILE_NAME"
-  fi
-
-  cd /tmp
-  $SUDO sha256sum -c $TMP_CHECKSUM
+  cd $TEMP_DIR
+  $SUDO $SHA_COMMAND -c $TMP_CHECKSUM
   cd -
 
-  $SUDO tar -xzf $TMP_PATH -C /tmp
-  $SUDO /tmp/teleport/install
+  $SUDO tar -xzf "${TEMP_DIR}/${TELEPORT_FILENAME}" -C $TEMP_DIR
+  $SUDO "$TEMP_DIR/teleport/install"
 }
 
 # wrap script in a function so a partial download
@@ -160,10 +123,10 @@ install_teleport() {
     exit 1
   fi
 
+  # check if can run as admin either by running as root or by
+  # having 'sudo' or 'doas' installed
   IS_ROOT=""
   SUDO=""
-  # check if can run as admin either by running as root or by
-  # having 'sudo' or 'doas' available
   if [ "$(id -u)" = 0 ]; then
     # running as root, no need for sudo/doas
     IS_ROOT="YES"
@@ -180,12 +143,27 @@ install_teleport() {
     exit 1
   fi
 
-  # set curl (curl | wget)
+  # require curl/wget
   CURL=""
   if type curl &>/dev/null; then
     CURL="curl -fL"
   elif type wget &>/dev/null; then
     CURL="wget -O-"
+  fi
+  if [ -z "$CURL" ]; then
+    echo "This script requires either curl or wget in order to download files, please install one of them and try again."
+    exit 1
+  fi
+
+  # require shasum/sha256sum
+  SHA_COMMAND=""
+  if type shasum &>/dev/null; then
+    SHA_COMMAND="shasum -a 256"
+  elif type sha256sum &>/dev/null; then
+    SHA_COMMAND="sha256sum"
+  else
+    echo "This script requires sha256sum or shasum to validate the download. Please install it and try again."
+    exit 1
   fi
 
   # detect distro
@@ -197,11 +175,34 @@ install_teleport() {
     . $OS_RELEASE
   fi
 
+  # detect architecture
+  ARCH=""
+  case $(uname -m) in
+  x86_64)
+    ARCH="amd64"
+    ;;
+  i386)
+    ARCH="386"
+    ;;
+  armv7l)
+    ARCH="arm"
+    ;;
+  aarch64)
+    ARCH="arm64"
+    ;;
+  **)
+    echo "Your system's architecture isn't oficially supported or couldn't be determined."
+    echo "Please refer to the installation guide for more information:"
+    echo "https://goteleport.com/docs/installation/"
+    exit 1
+    ;;
+  esac
+
   # select install method based on distribution
   # if ID is debian derivate, run apt-get
   case "$ID" in
   debian | ubuntu | kali | linuxmint | pop | raspbian | neon | zorin | parrot | elementary)
-    install_via_apt
+    install_via_dpkg
     ;;
   # if ID is amazon Linux 2/RHEL/etc, run yum
   centos | rhel | fedora | rocky | almalinux | xenenterprise | ol | scientific | amzn)
@@ -212,7 +213,7 @@ install_teleport() {
     # debian or rh/fedora derived distros using the ID_LIKE var
     case "$ID_LIKE" in
     ubuntu | debian)
-      install_via_apt
+      install_via_dpkg
       ;;
     "rhel fedora" | fedora | "centos rhel fedora")
       install_via_yum
@@ -220,13 +221,6 @@ install_teleport() {
     *)
       # if ID and ID_LIKE didn't return a supported distro, download through curl
       echo "There is no oficially supported package to your package manager. Downloading and installing Teleport via CURL."
-      TELEPORT_VERSION=""
-      if [ $# -ge 1 ] && [ -n "$1" ]; then
-        TELEPORT_VERSION=$1
-      else
-        echo "Please provide the version you want to in stall. E.g.: v10.1.9"
-        exit 1
-      fi
       install_via_curl
       ;;
     esac
@@ -236,4 +230,11 @@ install_teleport() {
   echo "$(teleport version) installed successfully!"
 }
 
-install_teleport $1
+TELEPORT_VERSION=""
+if [ $# -ge 1 ] && [ -n "$1" ]; then
+  TELEPORT_VERSION=$1
+else
+  echo "Please provide the version you want to in stall. E.g.: 10.1.9"
+  exit 1
+fi
+install_teleport
