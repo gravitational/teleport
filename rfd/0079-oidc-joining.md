@@ -244,6 +244,8 @@ the complexity of validation code, which is currently reliant on checking
 
 ##### Migration
 
+TODO: A strategy for moving between SpecV2 and SpecV3
+
 ##### Configuration for OIDC GCP
 
 ```yaml
@@ -356,7 +358,6 @@ OIDC Specifications:
 
 - [OpenID Connect Core](https://openid.net/specs/openid-connect-core-1_0.html)
 - [OpenID connect Discovery](https://openid.net/specs/openid-connect-discovery-1_0.html)
-
 
 Providers of Workload Identity. These are platforms we can support once OIDC joining is added:
 
