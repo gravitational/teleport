@@ -329,7 +329,7 @@ func (a *AuthCommand) GenerateKeys(ctx context.Context) error {
 func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI auth.ClientI) error {
 	switch a.outputFormat {
 	case identityfile.FormatDatabase, identityfile.FormatMongo, identityfile.FormatCockroach,
-		identityfile.FormatRedis, identityfile.FormatCassandra:
+		identityfile.FormatRedis, identityfile.FormatCassandra, identityfile.FormatScylla:
 		return a.generateDatabaseKeys(ctx, clusterAPI)
 	case identityfile.FormatSnowflake:
 		return a.generateSnowflakeKey(ctx, clusterAPI)
@@ -494,6 +494,7 @@ var mapIdentityFileFormatHelperTemplate = map[identityfile.Format]*template.Temp
 	identityfile.FormatRedis:     redisAuthSignTpl,
 	identityfile.FormatSnowflake: snowflakeAuthSignTpl,
 	identityfile.FormatCassandra: cassandraAuthSignTpl,
+	identityfile.FormatScylla:    scyllaAuthSignTpl,
 }
 
 func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output string, outputFormat identityfile.Format, jksPassword string) error {
@@ -581,18 +582,31 @@ To enable mutual TLS on your Cassandra server, add the following to your
 cassandra.yaml configuration file:
 
 client_encryption_options:
-    enabled: true
-    optional: false
-    keystore: /path/to/{{.output}}.keystore
-    keystore_password: "{{.jksPassword}}"
+   enabled: true
+   optional: false
+   keystore: /path/to/{{.output}}.keystore
+   keystore_password: "{{.jksPassword}}"
 
-    require_client_auth: true
-    truststore: /path/to/{{.output}}.truststore
-    truststore_password: "{{.jksPassword}}"
-    protocol: TLS
-    algorithm: SunX509
-    store_type: JKS
-    cipher_suites: [TLS_RSA_WITH_AES_256_CBC_SHA]
+   require_client_auth: true
+   truststore: /path/to/{{.output}}.truststore
+   truststore_password: "{{.jksPassword}}"
+   protocol: TLS
+   algorithm: SunX509
+   store_type: JKS
+   cipher_suites: [TLS_RSA_WITH_AES_256_CBC_SHA]
+`))
+
+	scyllaAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
+
+To enable mutual TLS on your Scylla server, add the following to your
+scylla.yaml configuration file:
+
+client_encryption_options:
+   enabled: true
+   certificate: /path/to/{{.output}}.crt
+   keyfile: /path/to/{{.output}}.key
+   truststore:  /path/to/{{.output}}.cas
+   require_client_auth: True
 `))
 )
 
@@ -866,7 +880,7 @@ func (a *AuthCommand) checkProxyAddr(clusterAPI auth.ClientI) error {
 // base64-encoded key, comment.
 // For example:
 //
-//    cert-authority AAA... type=user&clustername=cluster-a
+//	cert-authority AAA... type=user&clustername=cluster-a
 //
 // URL encoding is used to pass the CA type and cluster name into the comment field.
 func userCAFormat(ca types.CertAuthority, keyBytes []byte) (string, error) {
@@ -878,7 +892,7 @@ func userCAFormat(ca types.CertAuthority, keyBytes []byte) (string, error) {
 // authorized_hosts format, a space-separated list of: marker, hosts, key, and comment.
 // For example:
 //
-//    @cert-authority *.cluster-a ssh-rsa AAA... type=host
+//	@cert-authority *.cluster-a ssh-rsa AAA... type=host
 //
 // URL encoding is used to pass the CA type and allowed logins into the comment field.
 func hostCAFormat(ca types.CertAuthority, keyBytes []byte, client auth.ClientI) (string, error) {

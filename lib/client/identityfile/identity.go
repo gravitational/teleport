@@ -81,6 +81,9 @@ const (
 	// FormatCassandra produces CA and key pair in the format suitable for
 	// configuring a Cassandra database for mutual TLS.
 	FormatCassandra Format = "cassandra"
+	// FormatScylla produces CA and key pair in the format suitable for
+	// configuring a Scylla database for mutual TLS.
+	FormatScylla Format = "scylla"
 
 	// DefaultFormat is what Teleport uses by default
 	DefaultFormat = FormatFile
@@ -91,7 +94,7 @@ type FormatList []Format
 
 // KnownFileFormats is a list of all above formats.
 var KnownFileFormats = FormatList{FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase, FormatMongo,
-	FormatCockroach, FormatRedis, FormatSnowflake, FormatCassandra}
+	FormatCockroach, FormatRedis, FormatSnowflake, FormatCassandra, FormatScylla}
 
 // String returns human-readable version of FormatList, ex:
 // file, openssh, tls, kubernetes
@@ -232,7 +235,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 			return nil, trace.Wrap(err)
 		}
 
-	case FormatTLS, FormatDatabase, FormatCockroach, FormatRedis:
+	case FormatTLS, FormatDatabase, FormatCockroach, FormatRedis, FormatScylla:
 		keyPath := cfg.OutputPath + ".key"
 		certPath := cfg.OutputPath + ".crt"
 		casPath := cfg.OutputPath + ".cas"
