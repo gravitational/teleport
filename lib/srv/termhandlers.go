@@ -86,7 +86,7 @@ func (t *TermHandlers) HandlePTYReq(ctx context.Context, ch ssh.Channel, req *ss
 		}
 		scx.SetTerm(term)
 		scx.termAllocated = true
-		if term != nil && term.TTY() != nil {
+		if term.TTY() != nil {
 			scx.ttyName = term.TTY().Name()
 		}
 	}
