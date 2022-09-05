@@ -63,6 +63,7 @@ type wsStreamExecutor struct {
 	protocols []string
 	cacheBuff *bytes.Buffer
 	conn      *gwebsocket.Conn
+	mu        *sync.Mutex
 }
 
 // newWebSocketExecutor allows running exec commands via Websocket protocol.
@@ -75,6 +76,7 @@ func newWebSocketExecutor(config *rest.Config, method string, u *url.URL) (clien
 		url:       u.String(),
 		protocols: supportedProtocols,
 		cacheBuff: bytes.NewBuffer(nil),
+		mu:        &sync.Mutex{},
 	}, nil
 }
 
@@ -150,16 +152,20 @@ func (e *wsStreamExecutor) stream(conn *gwebsocket.Conn, options clientremotecom
 				if n == 0 {
 					continue
 				}
+				e.mu.Lock()
 				// we must cache the last sdtdin line because the server will resend it together
 				// with stdout/stderr streams.
 				e.cacheBuff.Write([]byte{streamStdin})
 				e.cacheBuff.Write(buf[0:n])
+
 				if err := conn.WriteMessage(gwebsocket.BinaryMessage, e.cacheBuff.Bytes()); err != nil {
+					e.mu.Unlock()
 					errChan <- err
 					return
 				}
 				// append the separator that the server will send
 				e.cacheBuff.Write([]byte(separator))
+				e.mu.Unlock()
 			}
 		}()
 	}
@@ -193,8 +199,10 @@ func (e *wsStreamExecutor) stream(conn *gwebsocket.Conn, options clientremotecom
 				if w == nil {
 					continue
 				}
+				e.mu.Lock()
 				// the stdout and stderr streams receive the last stdin input and we must trim it.
 				s := strings.Replace(string(buf[1:]), e.cacheBuff.String(), "", -1)
+				e.mu.Unlock()
 				_, err = w.Write([]byte(s))
 				if err != nil {
 					errChan <- err
@@ -211,7 +219,9 @@ func (e *wsStreamExecutor) stream(conn *gwebsocket.Conn, options clientremotecom
 				errChan <- err
 				return
 			}
+			e.mu.Lock()
 			e.cacheBuff.Reset()
+			e.mu.Unlock()
 
 		}
 	}()
