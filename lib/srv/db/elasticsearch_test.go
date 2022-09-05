@@ -173,7 +173,6 @@ func TestAuditElasticsearch(t *testing.T) {
 		dbConn, proxy, err = testCtx.elasticsearchClient(ctx, "alice", "Elasticsearch", "admin")
 		require.NoError(t, err)
 		resp, err := dbConn.Ping()
-
 		require.NoError(t, err)
 		require.False(t, resp.IsError())
 		waitForEvent(t, testCtx, libevents.DatabaseSessionStartCode)
