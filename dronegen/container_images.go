@@ -336,6 +336,31 @@ func NewTeleportOperatorProduct(cloneDirectory string) *product {
 		WorkingDirectory: cloneDirectory,
 		SupportedArchs:   []string{"amd64", "arm", "arm64"},
 		ImageNameBuilder: func(repo, tag string) string { return defaultImageTagBuilder(repo, name, tag) },
+		DockerfileArgBuilder: func(arch string) []string {
+			gccPackage := ""
+			switch arch {
+			case "x86_64":
+				fallthrough
+			case "amd64":
+				gccPackage = "gcc-x86_64-linux-gnu"
+			case "i686":
+				fallthrough
+			case "i386":
+				gccPackage = "gcc-multilib-i686-linux-gnu"
+			case "aarch64":
+				fallthrough
+			case "arm64":
+				gccPackage = "gcc-aarch64-linux-gnu"
+			// We may want to add additional arm ISAs in the future to support devices without hardware FPUs
+			case "armhf":
+			case "arm":
+				gccPackage = "gcc-arm-linux-gnueabihf"
+			}
+
+			return []string{
+				fmt.Sprintf("COMPILER_PACKAGE=%s", gccPackage),
+			}
+		},
 	}
 }
 
@@ -476,8 +501,11 @@ func (p *product) GetBuildStepName(arch string, version *releaseVersion) string 
 
 func (p *product) createBuildStep(arch string, version *releaseVersion) (step, *buildStepOutput) {
 	imageName := p.BuildLocalImageName(arch, version)
+	builderName := fmt.Sprintf("%s-builder", imageName)
 
-	buildCommand := "docker build"
+	buildCommand := "docker buildx build"
+	buildCommand += " --load"
+	buildCommand += fmt.Sprintf(" --builder %q", builderName)
 	if p.DockerfileTarget != "" {
 		buildCommand += fmt.Sprintf(" --target %q", p.DockerfileTarget)
 	}
@@ -495,9 +523,16 @@ func (p *product) createBuildStep(arch string, version *releaseVersion) (step, *
 		Name:    p.GetBuildStepName(arch, version),
 		Image:   "docker",
 		Volumes: dockerVolumeRefs(),
+		Environment: map[string]value{
+			"DOCKER_BUILDKIT": {
+				raw: "1",
+			},
+		},
 		Commands: []string{
 			fmt.Sprintf("mkdir -pv %q && cd %q", p.WorkingDirectory, p.WorkingDirectory),
+			fmt.Sprintf("docker buildx create --driver %q --name %q", "docker-container", builderName),
 			buildCommand,
+			fmt.Sprintf("docker buildx rm %q", builderName),
 		},
 	}
 

@@ -5304,9 +5304,14 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/build" && cd "/go/build"
-  - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-v10-amd64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/amd64/$(cat
-    '/go/vars/full-version/v10').deb" /go/build
+  - docker buildx create --driver "docker-container" --name "teleport-v10-amd64-builder"
+  - docker buildx build --load --builder "teleport-v10-amd64-builder" --target "teleport"
+    --platform "linux/amd64" --tag "teleport-v10-amd64" --file "/go/build/Dockerfile"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/amd64/$(cat '/go/vars/full-version/v10').deb"
+    /go/build
+  - docker buildx rm "teleport-v10-amd64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -5319,9 +5324,14 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/build" && cd "/go/build"
-  - docker build --target "teleport" --platform "linux/arm" --tag "teleport-v10-arm"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm/$(cat
-    '/go/vars/full-version/v10').deb" /go/build
+  - docker buildx create --driver "docker-container" --name "teleport-v10-arm-builder"
+  - docker buildx build --load --builder "teleport-v10-arm-builder" --target "teleport"
+    --platform "linux/arm" --tag "teleport-v10-arm" --file "/go/build/Dockerfile"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm/$(cat '/go/vars/full-version/v10').deb"
+    /go/build
+  - docker buildx rm "teleport-v10-arm-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -5334,9 +5344,14 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/build" && cd "/go/build"
-  - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-v10-arm64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm64/$(cat
-    '/go/vars/full-version/v10').deb" /go/build
+  - docker buildx create --driver "docker-container" --name "teleport-v10-arm64-builder"
+  - docker buildx build --load --builder "teleport-v10-arm64-builder" --target "teleport"
+    --platform "linux/arm64" --tag "teleport-v10-arm64" --file "/go/build/Dockerfile"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm64/$(cat '/go/vars/full-version/v10').deb"
+    /go/build
+  - docker buildx rm "teleport-v10-arm64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -5659,9 +5674,14 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/build" && cd "/go/build"
-  - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-ent-v10-amd64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/amd64/$(cat
-    '/go/vars/full-version/v10').deb" /go/build
+  - docker buildx create --driver "docker-container" --name "teleport-ent-v10-amd64-builder"
+  - docker buildx build --load --builder "teleport-ent-v10-amd64-builder" --target
+    "teleport" --platform "linux/amd64" --tag "teleport-ent-v10-amd64" --file "/go/build/Dockerfile"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/amd64/$(cat '/go/vars/full-version/v10').deb"
+    /go/build
+  - docker buildx rm "teleport-ent-v10-amd64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -5674,9 +5694,14 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/build" && cd "/go/build"
-  - docker build --target "teleport" --platform "linux/arm" --tag "teleport-ent-v10-arm"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm/$(cat
-    '/go/vars/full-version/v10').deb" /go/build
+  - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm-builder"
+  - docker buildx build --load --builder "teleport-ent-v10-arm-builder" --target "teleport"
+    --platform "linux/arm" --tag "teleport-ent-v10-arm" --file "/go/build/Dockerfile"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm/$(cat '/go/vars/full-version/v10').deb"
+    /go/build
+  - docker buildx rm "teleport-ent-v10-arm-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -5689,9 +5714,14 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/build" && cd "/go/build"
-  - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-ent-v10-arm64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm64/$(cat
-    '/go/vars/full-version/v10').deb" /go/build
+  - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm64-builder"
+  - docker buildx build --load --builder "teleport-ent-v10-arm64-builder" --target
+    "teleport" --platform "linux/arm64" --tag "teleport-ent-v10-arm64" --file "/go/build/Dockerfile"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm64/$(cat '/go/vars/full-version/v10').deb"
+    /go/build
+  - docker buildx rm "teleport-ent-v10-arm64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -6001,9 +6031,14 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/build" && cd "/go/build"
-  - docker build --target "teleport-fips" --platform "linux/amd64" --tag "teleport-ent-fips-v10-amd64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
+  - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v10-amd64-builder"
+  - docker buildx build --load --builder "teleport-ent-fips-v10-amd64-builder" --target
+    "teleport-fips" --platform "linux/amd64" --tag "teleport-ent-fips-v10-amd64" --file
+    "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
     '/go/vars/full-version/v10').deb" /go/build
+  - docker buildx rm "teleport-ent-fips-v10-amd64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -6138,8 +6173,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
-  - docker build --platform "linux/amd64" --tag "teleport-lab-v10-amd64" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
+  - docker buildx create --driver "docker-container" --name "teleport-lab-v10-amd64-builder"
+  - docker buildx build --load --builder "teleport-lab-v10-amd64-builder" --platform
+    "linux/amd64" --tag "teleport-lab-v10-amd64" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
     --build-arg "BASE_IMAGE=teleport-v10-amd64" /tmp/build
+  - docker buildx rm "teleport-lab-v10-amd64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -6152,8 +6192,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
-  - docker build --platform "linux/arm" --tag "teleport-lab-v10-arm" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
+  - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm-builder"
+  - docker buildx build --load --builder "teleport-lab-v10-arm-builder" --platform
+    "linux/arm" --tag "teleport-lab-v10-arm" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
     --build-arg "BASE_IMAGE=teleport-v10-arm" /tmp/build
+  - docker buildx rm "teleport-lab-v10-arm-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -6166,8 +6211,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
-  - docker build --platform "linux/arm64" --tag "teleport-lab-v10-arm64" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
+  - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm64-builder"
+  - docker buildx build --load --builder "teleport-lab-v10-arm64-builder" --platform
+    "linux/arm64" --tag "teleport-lab-v10-arm64" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
     --build-arg "BASE_IMAGE=teleport-v10-arm64" /tmp/build
+  - docker buildx rm "teleport-lab-v10-arm64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -6430,8 +6480,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
-  - docker build --platform "linux/amd64" --tag "teleport-operator-v10-amd64" --file
-    "/go/src/github.com/gravitational/teleport/operator/Dockerfile" /go/src/github.com/gravitational/teleport
+  - docker buildx create --driver "docker-container" --name "teleport-operator-v10-amd64-builder"
+  - docker buildx build --load --builder "teleport-operator-v10-amd64-builder" --platform
+    "linux/amd64" --tag "teleport-operator-v10-amd64" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
+    --build-arg "COMPILER_PACKAGE=gcc-x86_64-linux-gnu" /go/src/github.com/gravitational/teleport
+  - docker buildx rm "teleport-operator-v10-amd64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -6443,8 +6498,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
-  - docker build --platform "linux/arm" --tag "teleport-operator-v10-arm" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
-    /go/src/github.com/gravitational/teleport
+  - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm-builder"
+  - docker buildx build --load --builder "teleport-operator-v10-arm-builder" --platform
+    "linux/arm" --tag "teleport-operator-v10-arm" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
+    --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf" /go/src/github.com/gravitational/teleport
+  - docker buildx rm "teleport-operator-v10-arm-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -6456,8 +6516,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
-  - docker build --platform "linux/arm64" --tag "teleport-operator-v10-arm64" --file
-    "/go/src/github.com/gravitational/teleport/operator/Dockerfile" /go/src/github.com/gravitational/teleport
+  - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm64-builder"
+  - docker buildx build --load --builder "teleport-operator-v10-arm64-builder" --platform
+    "linux/arm64" --tag "teleport-operator-v10-arm64" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
+    --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu" /go/src/github.com/gravitational/teleport
+  - docker buildx rm "teleport-operator-v10-arm64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -6855,9 +6920,14 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/build" && cd "/go/build"
-  - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-v9-amd64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/amd64/$(cat
-    '/go/vars/full-version/v9').deb" /go/build
+  - docker buildx create --driver "docker-container" --name "teleport-v9-amd64-builder"
+  - docker buildx build --load --builder "teleport-v9-amd64-builder" --target "teleport"
+    --platform "linux/amd64" --tag "teleport-v9-amd64" --file "/go/build/Dockerfile"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/amd64/$(cat '/go/vars/full-version/v9').deb"
+    /go/build
+  - docker buildx rm "teleport-v9-amd64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -6870,9 +6940,14 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/build" && cd "/go/build"
-  - docker build --target "teleport" --platform "linux/arm" --tag "teleport-v9-arm"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm/$(cat
-    '/go/vars/full-version/v9').deb" /go/build
+  - docker buildx create --driver "docker-container" --name "teleport-v9-arm-builder"
+  - docker buildx build --load --builder "teleport-v9-arm-builder" --target "teleport"
+    --platform "linux/arm" --tag "teleport-v9-arm" --file "/go/build/Dockerfile" --build-arg
+    "DEB_PATH=/go/artifacts/deb/teleport/arm/$(cat '/go/vars/full-version/v9').deb"
+    /go/build
+  - docker buildx rm "teleport-v9-arm-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -6885,9 +6960,14 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/build" && cd "/go/build"
-  - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-v9-arm64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm64/$(cat
-    '/go/vars/full-version/v9').deb" /go/build
+  - docker buildx create --driver "docker-container" --name "teleport-v9-arm64-builder"
+  - docker buildx build --load --builder "teleport-v9-arm64-builder" --target "teleport"
+    --platform "linux/arm64" --tag "teleport-v9-arm64" --file "/go/build/Dockerfile"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm64/$(cat '/go/vars/full-version/v9').deb"
+    /go/build
+  - docker buildx rm "teleport-v9-arm64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -7210,9 +7290,14 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/build" && cd "/go/build"
-  - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-ent-v9-amd64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/amd64/$(cat
-    '/go/vars/full-version/v9').deb" /go/build
+  - docker buildx create --driver "docker-container" --name "teleport-ent-v9-amd64-builder"
+  - docker buildx build --load --builder "teleport-ent-v9-amd64-builder" --target
+    "teleport" --platform "linux/amd64" --tag "teleport-ent-v9-amd64" --file "/go/build/Dockerfile"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/amd64/$(cat '/go/vars/full-version/v9').deb"
+    /go/build
+  - docker buildx rm "teleport-ent-v9-amd64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -7225,9 +7310,14 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/build" && cd "/go/build"
-  - docker build --target "teleport" --platform "linux/arm" --tag "teleport-ent-v9-arm"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm/$(cat
-    '/go/vars/full-version/v9').deb" /go/build
+  - docker buildx create --driver "docker-container" --name "teleport-ent-v9-arm-builder"
+  - docker buildx build --load --builder "teleport-ent-v9-arm-builder" --target "teleport"
+    --platform "linux/arm" --tag "teleport-ent-v9-arm" --file "/go/build/Dockerfile"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm/$(cat '/go/vars/full-version/v9').deb"
+    /go/build
+  - docker buildx rm "teleport-ent-v9-arm-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -7240,9 +7330,14 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/build" && cd "/go/build"
-  - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-ent-v9-arm64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm64/$(cat
-    '/go/vars/full-version/v9').deb" /go/build
+  - docker buildx create --driver "docker-container" --name "teleport-ent-v9-arm64-builder"
+  - docker buildx build --load --builder "teleport-ent-v9-arm64-builder" --target
+    "teleport" --platform "linux/arm64" --tag "teleport-ent-v9-arm64" --file "/go/build/Dockerfile"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm64/$(cat '/go/vars/full-version/v9').deb"
+    /go/build
+  - docker buildx rm "teleport-ent-v9-arm64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -7551,9 +7646,14 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/build" && cd "/go/build"
-  - docker build --target "teleport-fips" --platform "linux/amd64" --tag "teleport-ent-fips-v9-amd64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
+  - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v9-amd64-builder"
+  - docker buildx build --load --builder "teleport-ent-fips-v9-amd64-builder" --target
+    "teleport-fips" --platform "linux/amd64" --tag "teleport-ent-fips-v9-amd64" --file
+    "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
     '/go/vars/full-version/v9').deb" /go/build
+  - docker buildx rm "teleport-ent-fips-v9-amd64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -7688,8 +7788,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
-  - docker build --platform "linux/amd64" --tag "teleport-lab-v9-amd64" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
+  - docker buildx create --driver "docker-container" --name "teleport-lab-v9-amd64-builder"
+  - docker buildx build --load --builder "teleport-lab-v9-amd64-builder" --platform
+    "linux/amd64" --tag "teleport-lab-v9-amd64" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
     --build-arg "BASE_IMAGE=teleport-v9-amd64" /tmp/build
+  - docker buildx rm "teleport-lab-v9-amd64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -7702,8 +7807,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
-  - docker build --platform "linux/arm" --tag "teleport-lab-v9-arm" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
+  - docker buildx create --driver "docker-container" --name "teleport-lab-v9-arm-builder"
+  - docker buildx build --load --builder "teleport-lab-v9-arm-builder" --platform
+    "linux/arm" --tag "teleport-lab-v9-arm" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
     --build-arg "BASE_IMAGE=teleport-v9-arm" /tmp/build
+  - docker buildx rm "teleport-lab-v9-arm-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -7716,8 +7826,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
-  - docker build --platform "linux/arm64" --tag "teleport-lab-v9-arm64" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
+  - docker buildx create --driver "docker-container" --name "teleport-lab-v9-arm64-builder"
+  - docker buildx build --load --builder "teleport-lab-v9-arm64-builder" --platform
+    "linux/arm64" --tag "teleport-lab-v9-arm64" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
     --build-arg "BASE_IMAGE=teleport-v9-arm64" /tmp/build
+  - docker buildx rm "teleport-lab-v9-arm64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -7979,8 +8094,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
-  - docker build --platform "linux/amd64" --tag "teleport-operator-v9-amd64" --file
-    "/go/src/github.com/gravitational/teleport/operator/Dockerfile" /go/src/github.com/gravitational/teleport
+  - docker buildx create --driver "docker-container" --name "teleport-operator-v9-amd64-builder"
+  - docker buildx build --load --builder "teleport-operator-v9-amd64-builder" --platform
+    "linux/amd64" --tag "teleport-operator-v9-amd64" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
+    --build-arg "COMPILER_PACKAGE=gcc-x86_64-linux-gnu" /go/src/github.com/gravitational/teleport
+  - docker buildx rm "teleport-operator-v9-amd64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -7992,8 +8112,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
-  - docker build --platform "linux/arm" --tag "teleport-operator-v9-arm" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
-    /go/src/github.com/gravitational/teleport
+  - docker buildx create --driver "docker-container" --name "teleport-operator-v9-arm-builder"
+  - docker buildx build --load --builder "teleport-operator-v9-arm-builder" --platform
+    "linux/arm" --tag "teleport-operator-v9-arm" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
+    --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf" /go/src/github.com/gravitational/teleport
+  - docker buildx rm "teleport-operator-v9-arm-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -8005,8 +8130,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
-  - docker build --platform "linux/arm64" --tag "teleport-operator-v9-arm64" --file
-    "/go/src/github.com/gravitational/teleport/operator/Dockerfile" /go/src/github.com/gravitational/teleport
+  - docker buildx create --driver "docker-container" --name "teleport-operator-v9-arm64-builder"
+  - docker buildx build --load --builder "teleport-operator-v9-arm64-builder" --platform
+    "linux/arm64" --tag "teleport-operator-v9-arm64" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
+    --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu" /go/src/github.com/gravitational/teleport
+  - docker buildx rm "teleport-operator-v9-arm64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -8403,9 +8533,14 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/build" && cd "/go/build"
-  - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-v8-amd64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/amd64/$(cat
-    '/go/vars/full-version/v8').deb" /go/build
+  - docker buildx create --driver "docker-container" --name "teleport-v8-amd64-builder"
+  - docker buildx build --load --builder "teleport-v8-amd64-builder" --target "teleport"
+    --platform "linux/amd64" --tag "teleport-v8-amd64" --file "/go/build/Dockerfile"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/amd64/$(cat '/go/vars/full-version/v8').deb"
+    /go/build
+  - docker buildx rm "teleport-v8-amd64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -8418,9 +8553,14 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/build" && cd "/go/build"
-  - docker build --target "teleport" --platform "linux/arm" --tag "teleport-v8-arm"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm/$(cat
-    '/go/vars/full-version/v8').deb" /go/build
+  - docker buildx create --driver "docker-container" --name "teleport-v8-arm-builder"
+  - docker buildx build --load --builder "teleport-v8-arm-builder" --target "teleport"
+    --platform "linux/arm" --tag "teleport-v8-arm" --file "/go/build/Dockerfile" --build-arg
+    "DEB_PATH=/go/artifacts/deb/teleport/arm/$(cat '/go/vars/full-version/v8').deb"
+    /go/build
+  - docker buildx rm "teleport-v8-arm-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -8433,9 +8573,14 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/build" && cd "/go/build"
-  - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-v8-arm64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm64/$(cat
-    '/go/vars/full-version/v8').deb" /go/build
+  - docker buildx create --driver "docker-container" --name "teleport-v8-arm64-builder"
+  - docker buildx build --load --builder "teleport-v8-arm64-builder" --target "teleport"
+    --platform "linux/arm64" --tag "teleport-v8-arm64" --file "/go/build/Dockerfile"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm64/$(cat '/go/vars/full-version/v8').deb"
+    /go/build
+  - docker buildx rm "teleport-v8-arm64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -8758,9 +8903,14 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/build" && cd "/go/build"
-  - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-ent-v8-amd64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/amd64/$(cat
-    '/go/vars/full-version/v8').deb" /go/build
+  - docker buildx create --driver "docker-container" --name "teleport-ent-v8-amd64-builder"
+  - docker buildx build --load --builder "teleport-ent-v8-amd64-builder" --target
+    "teleport" --platform "linux/amd64" --tag "teleport-ent-v8-amd64" --file "/go/build/Dockerfile"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/amd64/$(cat '/go/vars/full-version/v8').deb"
+    /go/build
+  - docker buildx rm "teleport-ent-v8-amd64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -8773,9 +8923,14 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/build" && cd "/go/build"
-  - docker build --target "teleport" --platform "linux/arm" --tag "teleport-ent-v8-arm"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm/$(cat
-    '/go/vars/full-version/v8').deb" /go/build
+  - docker buildx create --driver "docker-container" --name "teleport-ent-v8-arm-builder"
+  - docker buildx build --load --builder "teleport-ent-v8-arm-builder" --target "teleport"
+    --platform "linux/arm" --tag "teleport-ent-v8-arm" --file "/go/build/Dockerfile"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm/$(cat '/go/vars/full-version/v8').deb"
+    /go/build
+  - docker buildx rm "teleport-ent-v8-arm-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -8788,9 +8943,14 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/build" && cd "/go/build"
-  - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-ent-v8-arm64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm64/$(cat
-    '/go/vars/full-version/v8').deb" /go/build
+  - docker buildx create --driver "docker-container" --name "teleport-ent-v8-arm64-builder"
+  - docker buildx build --load --builder "teleport-ent-v8-arm64-builder" --target
+    "teleport" --platform "linux/arm64" --tag "teleport-ent-v8-arm64" --file "/go/build/Dockerfile"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm64/$(cat '/go/vars/full-version/v8').deb"
+    /go/build
+  - docker buildx rm "teleport-ent-v8-arm64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -9099,9 +9259,14 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/build" && cd "/go/build"
-  - docker build --target "teleport-fips" --platform "linux/amd64" --tag "teleport-ent-fips-v8-amd64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
+  - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v8-amd64-builder"
+  - docker buildx build --load --builder "teleport-ent-fips-v8-amd64-builder" --target
+    "teleport-fips" --platform "linux/amd64" --tag "teleport-ent-fips-v8-amd64" --file
+    "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
     '/go/vars/full-version/v8').deb" /go/build
+  - docker buildx rm "teleport-ent-fips-v8-amd64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -9236,8 +9401,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
-  - docker build --platform "linux/amd64" --tag "teleport-lab-v8-amd64" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
+  - docker buildx create --driver "docker-container" --name "teleport-lab-v8-amd64-builder"
+  - docker buildx build --load --builder "teleport-lab-v8-amd64-builder" --platform
+    "linux/amd64" --tag "teleport-lab-v8-amd64" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
     --build-arg "BASE_IMAGE=teleport-v8-amd64" /tmp/build
+  - docker buildx rm "teleport-lab-v8-amd64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -9250,8 +9420,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
-  - docker build --platform "linux/arm" --tag "teleport-lab-v8-arm" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
+  - docker buildx create --driver "docker-container" --name "teleport-lab-v8-arm-builder"
+  - docker buildx build --load --builder "teleport-lab-v8-arm-builder" --platform
+    "linux/arm" --tag "teleport-lab-v8-arm" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
     --build-arg "BASE_IMAGE=teleport-v8-arm" /tmp/build
+  - docker buildx rm "teleport-lab-v8-arm-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -9264,8 +9439,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
-  - docker build --platform "linux/arm64" --tag "teleport-lab-v8-arm64" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
+  - docker buildx create --driver "docker-container" --name "teleport-lab-v8-arm64-builder"
+  - docker buildx build --load --builder "teleport-lab-v8-arm64-builder" --platform
+    "linux/arm64" --tag "teleport-lab-v8-arm64" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
     --build-arg "BASE_IMAGE=teleport-v8-arm64" /tmp/build
+  - docker buildx rm "teleport-lab-v8-arm64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -9527,8 +9707,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
-  - docker build --platform "linux/amd64" --tag "teleport-operator-v8-amd64" --file
-    "/go/src/github.com/gravitational/teleport/operator/Dockerfile" /go/src/github.com/gravitational/teleport
+  - docker buildx create --driver "docker-container" --name "teleport-operator-v8-amd64-builder"
+  - docker buildx build --load --builder "teleport-operator-v8-amd64-builder" --platform
+    "linux/amd64" --tag "teleport-operator-v8-amd64" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
+    --build-arg "COMPILER_PACKAGE=gcc-x86_64-linux-gnu" /go/src/github.com/gravitational/teleport
+  - docker buildx rm "teleport-operator-v8-amd64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -9540,8 +9725,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
-  - docker build --platform "linux/arm" --tag "teleport-operator-v8-arm" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
-    /go/src/github.com/gravitational/teleport
+  - docker buildx create --driver "docker-container" --name "teleport-operator-v8-arm-builder"
+  - docker buildx build --load --builder "teleport-operator-v8-arm-builder" --platform
+    "linux/arm" --tag "teleport-operator-v8-arm" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
+    --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf" /go/src/github.com/gravitational/teleport
+  - docker buildx rm "teleport-operator-v8-arm-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -9553,8 +9743,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
-  - docker build --platform "linux/arm64" --tag "teleport-operator-v8-arm64" --file
-    "/go/src/github.com/gravitational/teleport/operator/Dockerfile" /go/src/github.com/gravitational/teleport
+  - docker buildx create --driver "docker-container" --name "teleport-operator-v8-arm64-builder"
+  - docker buildx build --load --builder "teleport-operator-v8-arm64-builder" --platform
+    "linux/arm64" --tag "teleport-operator-v8-arm64" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
+    --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu" /go/src/github.com/gravitational/teleport
+  - docker buildx rm "teleport-operator-v8-arm64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -9969,9 +10164,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/build" && cd "/go/build"
-  - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-v10-amd64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/amd64/$DRONE_TAG.deb"
-    /go/build
+  - docker buildx create --driver "docker-container" --name "teleport-v10-amd64-builder"
+  - docker buildx build --load --builder "teleport-v10-amd64-builder" --target "teleport"
+    --platform "linux/amd64" --tag "teleport-v10-amd64" --file "/go/build/Dockerfile"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/amd64/$DRONE_TAG.deb" /go/build
+  - docker buildx rm "teleport-v10-amd64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -9986,9 +10185,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/build" && cd "/go/build"
-  - docker build --target "teleport" --platform "linux/arm" --tag "teleport-v10-arm"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm/$DRONE_TAG.deb"
-    /go/build
+  - docker buildx create --driver "docker-container" --name "teleport-v10-arm-builder"
+  - docker buildx build --load --builder "teleport-v10-arm-builder" --target "teleport"
+    --platform "linux/arm" --tag "teleport-v10-arm" --file "/go/build/Dockerfile"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm/$DRONE_TAG.deb" /go/build
+  - docker buildx rm "teleport-v10-arm-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -10003,9 +10206,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/build" && cd "/go/build"
-  - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-v10-arm64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm64/$DRONE_TAG.deb"
-    /go/build
+  - docker buildx create --driver "docker-container" --name "teleport-v10-arm64-builder"
+  - docker buildx build --load --builder "teleport-v10-arm64-builder" --target "teleport"
+    --platform "linux/arm64" --tag "teleport-v10-arm64" --file "/go/build/Dockerfile"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm64/$DRONE_TAG.deb" /go/build
+  - docker buildx rm "teleport-v10-arm64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -10329,9 +10536,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/build" && cd "/go/build"
-  - docker build --target "teleport" --platform "linux/amd64" --tag "teleport-ent-v10-amd64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/amd64/$DRONE_TAG.deb"
-    /go/build
+  - docker buildx create --driver "docker-container" --name "teleport-ent-v10-amd64-builder"
+  - docker buildx build --load --builder "teleport-ent-v10-amd64-builder" --target
+    "teleport" --platform "linux/amd64" --tag "teleport-ent-v10-amd64" --file "/go/build/Dockerfile"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/amd64/$DRONE_TAG.deb" /go/build
+  - docker buildx rm "teleport-ent-v10-amd64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -10346,9 +10557,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/build" && cd "/go/build"
-  - docker build --target "teleport" --platform "linux/arm" --tag "teleport-ent-v10-arm"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm/$DRONE_TAG.deb"
-    /go/build
+  - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm-builder"
+  - docker buildx build --load --builder "teleport-ent-v10-arm-builder" --target "teleport"
+    --platform "linux/arm" --tag "teleport-ent-v10-arm" --file "/go/build/Dockerfile"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm/$DRONE_TAG.deb" /go/build
+  - docker buildx rm "teleport-ent-v10-arm-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -10363,9 +10578,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/build" && cd "/go/build"
-  - docker build --target "teleport" --platform "linux/arm64" --tag "teleport-ent-v10-arm64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm64/$DRONE_TAG.deb"
-    /go/build
+  - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm64-builder"
+  - docker buildx build --load --builder "teleport-ent-v10-arm64-builder" --target
+    "teleport" --platform "linux/arm64" --tag "teleport-ent-v10-arm64" --file "/go/build/Dockerfile"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm64/$DRONE_TAG.deb" /go/build
+  - docker buildx rm "teleport-ent-v10-arm64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -10678,9 +10897,14 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/build" && cd "/go/build"
-  - docker build --target "teleport-fips" --platform "linux/amd64" --tag "teleport-ent-fips-v10-amd64"
-    --file "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent-fips/amd64/$DRONE_TAG.deb"
+  - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v10-amd64-builder"
+  - docker buildx build --load --builder "teleport-ent-fips-v10-amd64-builder" --target
+    "teleport-fips" --platform "linux/amd64" --tag "teleport-ent-fips-v10-amd64" --file
+    "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent-fips/amd64/$DRONE_TAG.deb"
     /go/build
+  - docker buildx rm "teleport-ent-fips-v10-amd64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -10817,8 +11041,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
-  - docker build --platform "linux/amd64" --tag "teleport-lab-v10-amd64" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
+  - docker buildx create --driver "docker-container" --name "teleport-lab-v10-amd64-builder"
+  - docker buildx build --load --builder "teleport-lab-v10-amd64-builder" --platform
+    "linux/amd64" --tag "teleport-lab-v10-amd64" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
     --build-arg "BASE_IMAGE=teleport-v10-amd64" /tmp/build
+  - docker buildx rm "teleport-lab-v10-amd64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -10833,8 +11062,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
-  - docker build --platform "linux/arm" --tag "teleport-lab-v10-arm" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
+  - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm-builder"
+  - docker buildx build --load --builder "teleport-lab-v10-arm-builder" --platform
+    "linux/arm" --tag "teleport-lab-v10-arm" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
     --build-arg "BASE_IMAGE=teleport-v10-arm" /tmp/build
+  - docker buildx rm "teleport-lab-v10-arm-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -10849,8 +11083,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
-  - docker build --platform "linux/arm64" --tag "teleport-lab-v10-arm64" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
+  - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm64-builder"
+  - docker buildx build --load --builder "teleport-lab-v10-arm64-builder" --platform
+    "linux/arm64" --tag "teleport-lab-v10-arm64" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
     --build-arg "BASE_IMAGE=teleport-v10-arm64" /tmp/build
+  - docker buildx rm "teleport-lab-v10-arm64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -11115,8 +11354,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
-  - docker build --platform "linux/amd64" --tag "teleport-operator-v10-amd64" --file
-    "/go/src/github.com/gravitational/teleport/operator/Dockerfile" /go/src/github.com/gravitational/teleport
+  - docker buildx create --driver "docker-container" --name "teleport-operator-v10-amd64-builder"
+  - docker buildx build --load --builder "teleport-operator-v10-amd64-builder" --platform
+    "linux/amd64" --tag "teleport-operator-v10-amd64" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
+    --build-arg "COMPILER_PACKAGE=gcc-x86_64-linux-gnu" /go/src/github.com/gravitational/teleport
+  - docker buildx rm "teleport-operator-v10-amd64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -11130,8 +11374,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
-  - docker build --platform "linux/arm" --tag "teleport-operator-v10-arm" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
-    /go/src/github.com/gravitational/teleport
+  - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm-builder"
+  - docker buildx build --load --builder "teleport-operator-v10-arm-builder" --platform
+    "linux/arm" --tag "teleport-operator-v10-arm" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
+    --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf" /go/src/github.com/gravitational/teleport
+  - docker buildx rm "teleport-operator-v10-arm-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -11145,8 +11394,13 @@ steps:
   image: docker
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
-  - docker build --platform "linux/arm64" --tag "teleport-operator-v10-arm64" --file
-    "/go/src/github.com/gravitational/teleport/operator/Dockerfile" /go/src/github.com/gravitational/teleport
+  - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm64-builder"
+  - docker buildx build --load --builder "teleport-operator-v10-arm64-builder" --platform
+    "linux/arm64" --tag "teleport-operator-v10-arm64" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
+    --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu" /go/src/github.com/gravitational/teleport
+  - docker buildx rm "teleport-operator-v10-arm64-builder"
+  environment:
+    DOCKER_BUILDKIT: "1"
   volumes:
   - name: dockersock
     path: /var/run
@@ -11899,6 +12153,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 6aac62febbc44ce7006ded0715f601f1dd4ba155dd583d463e658a9264ceae0a
+hmac: 862538568d0b8b539876a63a9923af0ad09667eaab0f539eea70f374b38b8659
 
 ...
