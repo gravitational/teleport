@@ -2809,6 +2809,20 @@ func (c *Client) UpdateConnectionDiagnostic(ctx context.Context, connectionDiagn
 	return trail.FromGRPC(err)
 }
 
+// AppendDiagnosticTrace adds a new trace for the given ConnectionDiagnostic.
+func (c *Client) AppendDiagnosticTrace(ctx context.Context, name string, t *types.ConnectionDiagnosticTrace) (types.ConnectionDiagnostic, error) {
+	req := &proto.AppendDiagnosticTraceRequest{
+		Name:  name,
+		Trace: t,
+	}
+	connectionDiagnostic, err := c.grpc.AppendDiagnosticTrace(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return connectionDiagnostic, nil
+}
+
 // GetClusterAlerts loads matching cluster alerts.
 func (c *Client) GetClusterAlerts(ctx context.Context, query types.GetClusterAlertsRequest) ([]types.ClusterAlert, error) {
 	rsp, err := c.grpc.GetClusterAlerts(ctx, &query, c.callOpts...)
