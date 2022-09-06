@@ -55,23 +55,24 @@ spec:
     rules:
       - resources: [host_cert]
         verbs: [create]
-        where: ends_with(host_cert.principals, ".foo.example.com")
+        where: all_end_with(host_cert.principals, ".foo.example.com")
 ```
 
 This involves:
 1. Adding new comparison functions to better match against DNS names. Minimally,
-   we'll add an `ends_with(inputs, suffix)`, but may consider a regex or glob
-   matcher. The latter may have problematic quoting and escaping requirements
-   that may not be worth solving in the underlying `predicate` library, so we'll
-   avoid implementing regex matchers until a meaningful use-case exists.
+   we'll add `all_end_with(inputs, suffix)` and `all_equal(inputs, value)`, but
+   may consider additional matchers in the future if there's demand. Methods
+   like regexes may have problematic quoting and escaping requirements that may
+   not be worth solving in the underlying `predicate` library, so we'll avoid
+   implementing these until a meaningful use-case exists.
 
 2. Ensuring these functions support lists of strings (or building separate
    functions specifically for matching against `[]string`).
 
-   For example, a hypothetical `ends_with(principals, ".example.com")` should 
-   AND the result for each input principal. Luckily this does not require any
-   changes to the underlying library, and we can confine this behavior to only
-   new functions to avoid impact to existing rules.
+   For example, a hypothetical `all_end_with(host_cert.principals, ".example.com")`
+   should AND the result for each input principal. Luckily this does not require
+   any changes to the underlying library, and we can confine this behavior to
+   only new functions to avoid impact to existing rules.
 
 3. Evaluating `where` clauses in [`GenerateHostCert()`]. As these are not
    proper Teleport resources, the `predicate` context doesn't include any
@@ -196,3 +197,13 @@ renewals are today.
 
 Open questions: bots still renew all certs at startup. Do we maintain that
 behavior for these? If not, how do we know when to renew certs next?
+
+## Future Considerations
+
+* Improved IP address support:
+  * Automatically include client IP address as an allowed certificate principal
+* Further predicate enhancements:
+  * Set operations to better support "any of the following allowed values"
+* Audit logging:
+  * Consider writing audit log events for failed `GenerateHostCert()` calls
+  * Consider an audit event predicate action?
