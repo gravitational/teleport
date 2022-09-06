@@ -62,6 +62,8 @@ RUN yum groupinstall -y 'Development Tools' && \
     # used by our Makefile
     which \
     zip \
+    # required by PIV integration
+    pcsc-lite-devel \  
     # required by libbpf
     zlib-static && \
     yum clean all
