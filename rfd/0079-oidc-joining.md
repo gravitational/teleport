@@ -85,12 +85,7 @@ Whilst out of scope for an initial implementation, we should eventually allow th
 
 #### Configuration
 
-In order to introduce support for OIDC joining, we will need to introduce a V3
-of the `ProvisionTokenSpec`. This allows us to segregate the configuration for
-each provider as currently the EC2 and IAM options are intermingled, and as we
-introduce Google, GitHub and more, this configuration will grow more and more
-complicated. This complexity makes it more difficult for a user to determine
-which fields are relevant when configuring support for a provider.
+In order to introduce support for OIDC joining, we will need to introduce a V3 of the `ProvisionTokenSpec`. This allows us to segregate the configuration for each provider as currently the EC2 and IAM options are intermingled, and as we introduce Google, GitHub and more, this configuration will grow more and more complicated. This complexity makes it more difficult for a user to determine which fields are relevant when configuring support for a provider.
 
 For example, `ProvisionTokenSpecV2` with fields added to support Google:
 
@@ -233,12 +228,7 @@ message ProvisionTokenSpecV3 {
 }
 ```
 
-The new schema introduces some duplication of fields between the IAM and EC2
-configuration (e.g `AWSAccount`), but does make it clearer which fields belong
-to EC2 and IAM configuration without the user being reliant on reading the
-documentation of the fields. This has the additional benefit of also reducing
-the complexity of validation code, which is currently reliant on checking
-`JoinMethod` to determine which fields are allowed to be set.
+The new schema introduces some duplication of fields between the IAM and EC2 configuration (e.g `AWSAccount`), but does make it clearer which fields belong to EC2 and IAM configuration without the user being reliant on reading the documentation of the fields. This has the additional benefit of also reducing the complexity of validation code, which is currently reliant on checking `JoinMethod` to determine which fields are allowed to be set.
 
 ##### Migration
 
