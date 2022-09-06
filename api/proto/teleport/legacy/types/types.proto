@@ -993,6 +993,113 @@ message ProvisionTokenSpecV2 {
   ];
 }
 
+// ProvisionTokenV3 specifies provisioning token
+message ProvisionTokenV3 {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+
+  // Kind is a resource kind
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // SubKind is an optional resource sub kind, used in some resources
+  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // Version is version
+  string Version = 3 [(gogoproto.jsontag) = "version"];
+  // Metadata is resource metadata
+  Metadata Metadata = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "metadata"
+  ];
+  // Spec is a provisioning token V3 spec
+  ProvisionTokenSpecV3 Spec = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// ProvisionTokenV3List is a list of provisioning tokens.
+message ProvisionTokenV3List {
+  // ProvisionTokens is a list of provisioning tokens.
+  repeated ProvisionTokenV3 ProvisionTokens = 1;
+}
+
+message ProvisionTokenSpecV3 {
+  // Roles is a list of roles associated with the token,
+  // that will be converted to metadata in the SSH and X509
+  // certificates issued to the user of the token
+  repeated string Roles = 1 [
+    (gogoproto.jsontag) = "roles",
+    (gogoproto.casttype) = "SystemRole"
+  ];
+  // JoinMethod is the joining method required in order to use this token.
+  // Supported joining methods include "token", "ec2", and "iam".
+  string JoinMethod = 2 [
+    (gogoproto.jsontag) = "join_method",
+    (gogoproto.casttype) = "JoinMethod"
+  ];
+  // BotName is the name of the bot this token grants access to, if any
+  string BotName = 3 [(gogoproto.jsontag) = "bot_name,omitempty"];
+  // SuggestedLabels is a set of labels that resources should set when using this token to enroll
+  // themselves in the cluster
+  wrappers.LabelValues SuggestedLabels = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "suggested_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+  oneof ProviderConfiguration {
+    ProvisionTokenSpecV3OIDCGoogle OIDCGCP = 5 [(gogoproto.jsontag) = "oidc_gcp,omitempty"];
+    ProvisionTokenSpecV3AWSIAM IAM = 6 [(gogoproto.jsontag) = "aws_iam,omitempty"];
+    ProvisionTokenSpecV3AWSEC2 EC2 = 7 [(gogoproto.jsontag) = "aws_ec2,omitempty"];
+  }
+}
+
+message ProvisionTokenSpecV3OIDCGoogle {
+  message Rule {
+    string Sub = 1 [(gogoproto.jsontag) = "sub,omitempty"];
+    string ProjectID = 2 [(gogoproto.jsontag) = "project_id,omitempty"];
+    int64 ProjectNumber = 3 [(gogoproto.jsontag) = "project_number,omitempty"];
+    string InstanceID = 4 [(gogoproto.jsontag) = "instance_id,omitempty"];
+    string InstanceName = 5 [(gogoproto.jsontag) = "instance_name,omitempty"];
+    string Zone = 6 [(gogoproto.jsontag) = "zone,omitempty"];
+  }
+  // Allow is a list of TokenRules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+}
+
+message ProvisionTokenSpecV3AWSEC2 {
+  message Rule {
+    // AWSAccount is the AWS account ID.
+    string AWSAccount = 1 [(gogoproto.jsontag) = "aws_account,omitempty"];
+    // AWSRegions is a list of AWS regions a node is allowed to join from.
+    repeated string AWSRegions = 2 [(gogoproto.jsontag) = "aws_regions,omitempty"];
+    // AWSRole is the the ARN of the AWS role that the auth server will assume
+    // in order to call the ec2 API.
+    string AWSRole = 3 [(gogoproto.jsontag) = "aws_role,omitempty"];
+  }
+  // Allow is a list of TokenRules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+  // AWSIIDTTL is the TTL to use for AWS EC2 Instance Identity Documents used
+  // to join the cluster with this token.
+  int64 AWSIIDTTL = 2 [
+    (gogoproto.jsontag) = "aws_iid_ttl,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
+}
+
+message ProvisionTokenSpecV3AWSIAM {
+  message Rule {
+    // AWSAccount is the AWS account ID.
+    string AWSAccount = 1 [(gogoproto.jsontag) = "aws_account,omitempty"];
+    // AWSARN is used for the IAM join method, the AWS identity of joining nodes
+    // must match this ARN. Supports wildcards "*" and "?".
+    string AWSARN = 2 [(gogoproto.jsontag) = "aws_arn,omitempty"];
+  }
+  // Allow is a list of TokenRules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+}
+
 // StaticTokensV2 implements the StaticTokens interface.
 message StaticTokensV2 {
   option (gogoproto.goproto_stringer) = false;
