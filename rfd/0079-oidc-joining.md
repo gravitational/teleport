@@ -78,6 +78,11 @@ We should keep in mind the following considerations:
 
 We will implement this cache in-memory, as the data set is relatively small and it's cheap for us to repopulate this after a service restart.
 
+Whilst out of scope for an initial implementation, we should eventually allow the user to tweak the behaviour of the cache:
+
+- Custom rate limit for refreshing the JWKS, for cases where the user is aware of a specific rate limit that could be abused to deny them service.
+- Custom timeout for the request made to the OIDC well-known endpoint and JWKS endpoint, to allow the user to reduce the likelihood of resource exhaustion.
+
 #### Configuration
 
 In order to introduce support for OIDC joining, we will need to introduce a V3
