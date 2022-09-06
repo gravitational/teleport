@@ -1026,18 +1026,20 @@ func (s *TLSSuite) TestReverseTunnelsCRUD(c *check.C) {
 }
 
 func (s *TLSSuite) TestUsersCRUD(c *check.C) {
+	ctx := context.Background()
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
 
-	err = clt.UpsertPassword("user1", []byte("some pass"))
+	usr, err := types.NewUser("user1")
 	c.Assert(err, check.IsNil)
+	c.Assert(clt.CreateUser(ctx, usr), check.IsNil)
 
 	users, err := clt.GetUsers(false)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(users), check.Equals, 1)
 	c.Assert(users[0].GetName(), check.Equals, "user1")
 
-	c.Assert(clt.DeleteUser(context.TODO(), "user1"), check.IsNil)
+	c.Assert(clt.DeleteUser(ctx, "user1"), check.IsNil)
 
 	users, err = clt.GetUsers(false)
 	c.Assert(err, check.IsNil)
@@ -1069,7 +1071,7 @@ func (s *TLSSuite) TestPasswordCRUD(c *check.C) {
 	err = clt.CheckPassword("user1", pass, "123456")
 	c.Assert(err, check.NotNil)
 
-	err = clt.UpsertPassword("user1", pass)
+	err = s.server.Auth().UpsertPassword("user1", pass)
 	c.Assert(err, check.IsNil)
 
 	dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
@@ -1172,7 +1174,7 @@ func makeSessionRecording(sessionID string, serverID string) (io.Reader, error) 
 
 	hdr := &tar.Header{
 		Name: fmt.Sprintf("%v-0.events.gz", sessionID),
-		Mode: 0600,
+		Mode: 0o600,
 		Size: int64(zbuf.Len()),
 	}
 	err = tw.WriteHeader(hdr)
@@ -1288,7 +1290,7 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 
 	// emit two events: "one" and "two" for this session, and event "three"
 	// for some other session
-	err = os.MkdirAll(filepath.Join(uploadDir, "upload", "sessions", apidefaults.Namespace), 0755)
+	err = os.MkdirAll(filepath.Join(uploadDir, "upload", "sessions", apidefaults.Namespace), 0o755)
 	c.Assert(err, check.IsNil)
 	forwarder, err := events.NewForwarder(events.ForwarderConfig{
 		Namespace:      apidefaults.Namespace,
@@ -1412,6 +1414,8 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 }
 
 func (s *TLSSuite) TestOTPCRUD(c *check.C) {
+	ctx := context.Background()
+
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
 
@@ -1421,11 +1425,10 @@ func (s *TLSSuite) TestOTPCRUD(c *check.C) {
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
 	// upsert a password and totp secret
-	err = clt.UpsertPassword("user1", pass)
+	err = s.server.Auth().UpsertPassword("user1", pass)
 	c.Assert(err, check.IsNil)
 	dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
 	c.Assert(err, check.IsNil)
-	ctx := context.Background()
 	err = s.server.Auth().UpsertMFADevice(ctx, user, dev)
 	c.Assert(err, check.IsNil)
 
@@ -1484,7 +1487,7 @@ func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 	_, err = proxy.AuthenticateWebUser(ctx, req)
 	fixtures.ExpectAccessDenied(c, err)
 
-	err = clt.UpsertPassword(user, pass)
+	err = s.server.Auth().UpsertPassword(user, pass)
 	c.Assert(err, check.IsNil)
 
 	// success with password set up
@@ -1546,7 +1549,7 @@ func (s *TLSSuite) TestWebSessionWithApprovedAccessRequestAndSwitchback(c *check
 		},
 	}
 
-	err = clt.UpsertPassword(user, pass)
+	err = s.server.Auth().UpsertPassword(user, pass)
 	c.Assert(err, check.IsNil)
 
 	ws, err := proxy.AuthenticateWebUser(ctx, req)
@@ -2619,7 +2622,7 @@ func (s *TLSSuite) TestLoginAttempts(c *check.C) {
 	proxy, err := s.server.NewClient(TestBuiltin(types.RoleProxy))
 	c.Assert(err, check.IsNil)
 
-	err = clt.UpsertPassword(user, pass)
+	err = s.server.Auth().UpsertPassword(user, pass)
 	c.Assert(err, check.IsNil)
 
 	req := AuthenticateUserRequest{
@@ -2712,7 +2715,7 @@ func (s *TLSSuite) TestLoginNoLocalAuth(c *check.C) {
 	c.Assert(err, check.IsNil)
 	_, _, err = CreateUserAndRole(clt, user, []string{user})
 	c.Assert(err, check.IsNil)
-	err = clt.UpsertPassword(user, pass)
+	err = s.server.Auth().UpsertPassword(user, pass)
 	c.Assert(err, check.IsNil)
 
 	// Set auth preference to disallow local auth.

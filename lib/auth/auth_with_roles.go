@@ -271,7 +271,6 @@ func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, tracker type
 		return nil, trace.Wrap(err)
 	}
 	return tracker, nil
-
 }
 
 func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles []types.Role, tracker types.SessionTracker) bool {
@@ -1547,13 +1546,6 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertToken(ctx, token)
-}
-
-func (a *ServerWithRoles) UpsertPassword(user string, password []byte) error {
-	if err := a.currentUserAction(user); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.UpsertPassword(user, password)
 }
 
 // ChangePassword updates users password based on the old password.
