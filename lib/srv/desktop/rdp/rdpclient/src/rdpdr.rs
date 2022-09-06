@@ -143,8 +143,9 @@ impl Client {
     }
     /// Reads raw RDP messages sent on the rdpdr virtual channel and replies as necessary.
     pub fn read_and_create_reply(&mut self, payload: tpkt::Payload) -> RdpResult<Vec<Vec<u8>>> {
+        debug!("received RDPDR tpkt::Payload: {:?}", payload); // TODO(isaiah): here for building tests, delete when testing is compeleted
         if let Some(mut payload) = self.vchan.read(payload)? {
-            debug!("received RDPDR payload: {:?}", payload); // TODO(isaiah): here for building tests, delete when testing is compeleted
+            debug!("read into RDPDR rdpclient::Payload: {:?}", payload); // TODO(isaiah): here for building tests, delete when testing is compeleted
             let header = SharedHeader::decode(&mut payload)?;
             debug!("decoded to RDPDR SharedHeader: {:?}", header); // TODO(isaiah): here for building tests, delete when testing is compeleted
             if let Component::RDPDR_CTYP_PRN = header.component {
@@ -4280,4 +4281,20 @@ mod tests {
         assert_eq!(packet_id0, &PacketId::PAKID_CORE_CLIENTID_CONFIRM);
         assert_eq!(packet_id1, &PacketId::PAKID_CORE_CLIENT_NAME);
     }
+
+    // #[test]
+    // fn test_handle_server_announce_full() {
+    //     let mut c = client();
+    //     assert_eq!(
+    //         c.read_and_create_reply(tpkt::Payload::Raw(server_announce_payload(0)))
+    //             .unwrap(),
+    //         vec![
+    //             vec![12, 0, 0, 0, 3, 0, 0, 0, 114, 68, 67, 67, 1, 0, 12, 0, 3, 0, 0, 0],
+    //             vec![
+    //                 25, 0, 0, 0, 3, 0, 0, 0, 114, 68, 78, 67, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0,
+    //                 116, 101, 108, 101, 112, 111, 114, 116, 0
+    //             ]
+    //         ]
+    //     )
+    // }
 }
