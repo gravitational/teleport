@@ -1643,6 +1643,61 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	require.Len(t, certRequests(sess2.GetTLSCert()), 0)
 }
 
+func TestExtendWebSessionWithReloadUser(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	tt := setupAuthContext(ctx, t)
+
+	clt, err := tt.server.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	user := "user2"
+	pass := []byte("abc123")
+
+	newUser, _, err := CreateUserAndRole(clt, user, nil)
+	require.NoError(t, err)
+	require.Empty(t, newUser.GetTraits())
+
+	proxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+
+	// Create user authn creds and web session.
+	req := AuthenticateUserRequest{
+		Username: user,
+		Pass: &PassCreds{
+			Password: pass,
+		},
+	}
+	err = tt.server.Auth().UpsertPassword(user, pass)
+	require.NoError(t, err)
+	ws, err := proxy.AuthenticateWebUser(ctx, req)
+	require.NoError(t, err)
+	web, err := tt.server.NewClientFromWebSession(ws)
+	require.NoError(t, err)
+
+	// Update some traits.
+	newUser.SetLogins([]string{"apple", "banana"})
+	newUser.SetDatabaseUsers([]string{"llama", "alpaca"})
+	require.NoError(t, clt.UpdateUser(ctx, newUser))
+
+	// Renew session with the updated traits.
+	sess1, err := web.ExtendWebSession(ctx, WebSessionReq{
+		User:          user,
+		PrevSessionID: ws.GetName(),
+		ReloadUser:    true,
+	})
+	require.NoError(t, err)
+
+	// Check traits has been updated to latest.
+	sshcert, err := sshutils.ParseCertificate(sess1.GetPub())
+	require.NoError(t, err)
+	traits, err := services.ExtractTraitsFromCert(sshcert)
+	require.NoError(t, err)
+	require.Equal(t, traits[constants.TraitLogins], []string{"apple", "banana"})
+	require.Equal(t, traits[constants.TraitDBUsers], []string{"llama", "alpaca"})
+}
+
 // TestGetCertAuthority tests certificate authority permissions
 func TestGetCertAuthority(t *testing.T) {
 	t.Parallel()
