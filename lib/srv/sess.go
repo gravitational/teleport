@@ -1307,9 +1307,16 @@ func (s *session) heartbeat(ctx context.Context, scx *ServerContext) {
 				ID:        s.id,
 				Parties:   &partyList,
 			})
-			if err != nil {
+
+			switch {
+			case trace.IsNotFound(err):
+				s.log.Warnf("Aborting heartbeat for non-existent session %v ", s.id)
+				return
+			case err != nil:
 				s.log.Warnf("Unable to update session %v as active: %v", s.id, err)
 			}
+		case <-ctx.Done():
+			return
 		case <-s.stopC:
 			return
 		}
