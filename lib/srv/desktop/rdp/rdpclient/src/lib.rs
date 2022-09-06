@@ -1867,5 +1867,9 @@ extern "C" {
     ) -> CGOErrCode;
 }
 
+trait Encode {
+    fn encode(&self) -> RdpResult<Vec<u8>>;
+}
+
 /// Payload is a generic type used to represent raw incoming RDP messages for parsing.
 pub(crate) type Payload = Cursor<Vec<u8>>;
