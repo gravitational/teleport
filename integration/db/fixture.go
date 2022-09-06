@@ -37,11 +37,6 @@ type DatabasePack struct {
 	clock clockwork.Clock
 }
 
-func (dbPack *DatabasePack) StartDatabases(t *testing.T) {
-	dbPack.Root.StartDatabaseServices(t, dbPack.clock)
-	dbPack.Leaf.StartDatabaseServices(t, dbPack.clock)
-}
-
 type databaseClusterPack struct {
 	Cluster         *helpers.TeleInstance
 	User            types.User
@@ -158,7 +153,7 @@ type testOptions struct {
 	nodeName      string
 }
 
-type testOptionFunc func(*testOptions)
+type TestOptionFunc func(*testOptions)
 
 func (o *testOptions) setDefaultIfNotSet() {
 	if o.clock == nil {
@@ -172,37 +167,37 @@ func (o *testOptions) setDefaultIfNotSet() {
 	}
 }
 
-func WithClock(clock clockwork.Clock) testOptionFunc {
+func WithClock(clock clockwork.Clock) TestOptionFunc {
 	return func(o *testOptions) {
 		o.clock = clock
 	}
 }
 
-func WithNodeName(nodeName string) testOptionFunc {
+func WithNodeName(nodeName string) TestOptionFunc {
 	return func(o *testOptions) {
 		o.nodeName = nodeName
 	}
 }
 
-func WithListenerSetupDatabaseTest(fn helpers.InstanceListenerSetupFunc) testOptionFunc {
+func WithListenerSetupDatabaseTest(fn helpers.InstanceListenerSetupFunc) TestOptionFunc {
 	return func(o *testOptions) {
 		o.listenerSetup = fn
 	}
 }
 
-func WithRootConfig(fn func(*service.Config)) testOptionFunc {
+func WithRootConfig(fn func(*service.Config)) TestOptionFunc {
 	return func(o *testOptions) {
 		o.rootConfig = fn
 	}
 }
 
-func WithLeafConfig(fn func(*service.Config)) testOptionFunc {
+func WithLeafConfig(fn func(*service.Config)) TestOptionFunc {
 	return func(o *testOptions) {
 		o.leafConfig = fn
 	}
 }
 
-func SetupDatabaseTest(t *testing.T, options ...testOptionFunc) *DatabasePack {
+func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 	var opts testOptions
 	for _, opt := range options {
 		opt(&opts)
@@ -368,6 +363,11 @@ func (p *DatabasePack) WaitForLeaf(t *testing.T) {
 			t.Fatal("Leaf cluster access point is unavailable.")
 		}
 	}
+}
+
+func (p *DatabasePack) StartDatabases(t *testing.T) {
+	p.Root.StartDatabaseServices(t, p.clock)
+	p.Leaf.StartDatabaseServices(t, p.clock)
 }
 
 // databaseAgentStartParams parameters used to configure a database agent.
