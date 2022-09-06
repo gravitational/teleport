@@ -34,15 +34,6 @@ type EnvReqParams struct {
 
 // WinChangeReqParams specifies parameters for window changes
 type WinChangeReqParams struct {
-	// From RFC 4254 Section 6.7. - these values are sent when using ssh.Session.WindowChange
-	Columns uint32
-	Rows    uint32
-	Width   uint32
-	Height  uint32
-
-	// DELETE IN 12.0
-	// TODO(tross): needed for backward compatibility with sending the sshutils.WindowChangeRequest
-	// directly instead of leveraging ssh.Session.WindowChange
 	W   uint32
 	H   uint32
 	Wpx uint32
