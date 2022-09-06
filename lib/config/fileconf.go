@@ -445,6 +445,12 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	matchers := make([]AWSEC2Matcher, 0, len(conf.Discovery.AWSMatchers))
 
 	for _, matcher := range conf.Discovery.AWSMatchers {
+		for _, serviceType := range matcher.Matcher.Types {
+			if serviceType != "ec2" {
+				return trace.BadParameter("currently only EC2 is supported by the discovery service")
+			}
+		}
+
 		if matcher.InstallParams == nil {
 			matcher.InstallParams = &InstallParams{
 				JoinParams: JoinParams{
