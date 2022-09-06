@@ -294,6 +294,10 @@ const (
 	// the proxy is recording sessions or not.
 	RecordingProxyReqType = "recording-proxy@teleport.com"
 
+	// ClusterDetailsReqType is the name of a global request which returns cluster details like
+	// if the proxy is recording sessions or not and if FIPS mode is enabled.
+	ClusterDetailsReqType = "cluster-details@teleport.com"
+
 	// JSON means JSON serialization format
 	JSON = "json"
 
