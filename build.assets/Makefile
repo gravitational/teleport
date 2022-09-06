@@ -24,16 +24,16 @@ ARCH ?= amd64
 BUILDBOX_VERSION ?= teleport11
 
 # NOTE: Windows Drone scripts hardcode $GOLANG_VERSION rather than drawing it
-#       from here at build time, so any changes here must be reflected in 
+#       from here at build time, so any changes here must be reflected in
 #       `dronegen/windows.go`
 GOLANG_VERSION ?= go1.18.3
 
 # NOTE: Windows Drone scripts hardcode $NODE_VERSION rather than drawing it
-#       from here at build time, so any changes here must be reflected in 
+#       from here at build time, so any changes here must be reflected in
 #       `dronegen/windows.go`
 NODE_VERSION ?= 16.13.2
 
-RUST_VERSION ?= 1.58.1 # don't bump this without checking GLIBC compatibility
+RUST_VERSION ?= 1.63.0 # don't bump this without checking GLIBC compatibility
 BORINGCRYPTO_RUNTIME=$(GOLANG_VERSION)b7
 LIBBPF_VERSION ?= 0.7.0-teleport
 
