@@ -5286,20 +5286,23 @@ steps:
   - apt download "teleport:amd64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/amd64/$(cat '/go/vars/full-version/v10').deb"
+  - echo "Downloaded \"teleport:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/amd64/$(cat
+    '/go/vars/full-version/v10').deb\""
   - mkdir -pv "/go/artifacts/deb/teleport/arm"
   - apt download "teleport:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm/$(cat '/go/vars/full-version/v10').deb"
+  - echo "Downloaded \"teleport:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm/$(cat
+    '/go/vars/full-version/v10').deb\""
   - mkdir -pv "/go/artifacts/deb/teleport/arm64"
   - apt download "teleport:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm64/$(cat '/go/vars/full-version/v10').deb"
+  - echo "Downloaded \"teleport:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm64/$(cat
+    '/go/vars/full-version/v10').deb\""
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -5311,7 +5314,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-v10-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag "teleport-v10-amd64" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/amd64/$(cat '/go/vars/full-version/v10').deb"
     /go/build
   - docker buildx rm "teleport-v10-amd64-builder"
   environment:
@@ -5331,7 +5334,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-v10-arm-builder"
   - docker buildx build --load --builder "teleport-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "teleport-v10-arm" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm/$(cat '/go/vars/full-version/v10').deb"
     /go/build
   - docker buildx rm "teleport-v10-arm-builder"
   environment:
@@ -5351,7 +5354,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-v10-arm64-builder"
   - docker buildx build --load --builder "teleport-v10-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag "teleport-v10-arm64" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm64/$(cat '/go/vars/full-version/v10').deb"
     /go/build
   - docker buildx rm "teleport-v10-arm64-builder"
   environment:
@@ -5650,20 +5653,23 @@ steps:
   - apt download "teleport-ent:amd64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/amd64/$(cat '/go/vars/full-version/v10').deb"
+  - echo "Downloaded \"teleport-ent:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/amd64/$(cat
+    '/go/vars/full-version/v10').deb\""
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm"
   - apt download "teleport-ent:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm/$(cat '/go/vars/full-version/v10').deb"
+  - echo "Downloaded \"teleport-ent:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm/$(cat
+    '/go/vars/full-version/v10').deb\""
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm64"
   - apt download "teleport-ent:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm64/$(cat '/go/vars/full-version/v10').deb"
+  - echo "Downloaded \"teleport-ent:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm64/$(cat
+    '/go/vars/full-version/v10').deb\""
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -5675,7 +5681,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-ent-v10-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag "teleport-ent-v10-amd64" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/amd64/$(cat '/go/vars/full-version/v10').deb"
     /go/build
   - docker buildx rm "teleport-ent-v10-amd64-builder"
   environment:
@@ -5695,7 +5701,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm-builder"
   - docker buildx build --load --builder "teleport-ent-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "teleport-ent-v10-arm" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm/$(cat '/go/vars/full-version/v10').deb"
     /go/build
   - docker buildx rm "teleport-ent-v10-arm-builder"
   environment:
@@ -5715,7 +5721,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm64-builder"
   - docker buildx build --load --builder "teleport-ent-v10-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag "teleport-ent-v10-arm64" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm64/$(cat '/go/vars/full-version/v10').deb"
     /go/build
   - docker buildx rm "teleport-ent-v10-arm64-builder"
   environment:
@@ -6015,8 +6021,9 @@ steps:
   - apt download "teleport-ent-fips:amd64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent-fips:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent-fips/amd64/$(cat '/go/vars/full-version/v10').deb"
+  - echo "Downloaded \"teleport-ent-fips:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
+    '/go/vars/full-version/v10').deb\""
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -6028,8 +6035,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-ent-fips-v10-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag "teleport-ent-fips-v10-amd64" --file
-    "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb"
-    /go/build
+    "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
+    '/go/vars/full-version/v10').deb" /go/build
   - docker buildx rm "teleport-ent-fips-v10-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -6879,20 +6886,23 @@ steps:
   - apt download "teleport:amd64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/amd64/$(cat '/go/vars/full-version/v10').deb"
+  - echo "Downloaded \"teleport:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/amd64/$(cat
+    '/go/vars/full-version/v10').deb\""
   - mkdir -pv "/go/artifacts/deb/teleport/arm"
   - apt download "teleport:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm/$(cat '/go/vars/full-version/v10').deb"
+  - echo "Downloaded \"teleport:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm/$(cat
+    '/go/vars/full-version/v10').deb\""
   - mkdir -pv "/go/artifacts/deb/teleport/arm64"
   - apt download "teleport:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm64/$(cat '/go/vars/full-version/v10').deb"
+  - echo "Downloaded \"teleport:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm64/$(cat
+    '/go/vars/full-version/v10').deb\""
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -6904,7 +6914,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-v10-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag "teleport-v10-amd64" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/amd64/$(cat '/go/vars/full-version/v10').deb"
     /go/build
   - docker buildx rm "teleport-v10-amd64-builder"
   environment:
@@ -6924,7 +6934,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-v10-arm-builder"
   - docker buildx build --load --builder "teleport-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "teleport-v10-arm" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm/$(cat '/go/vars/full-version/v10').deb"
     /go/build
   - docker buildx rm "teleport-v10-arm-builder"
   environment:
@@ -6944,7 +6954,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-v10-arm64-builder"
   - docker buildx build --load --builder "teleport-v10-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag "teleport-v10-arm64" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm64/$(cat '/go/vars/full-version/v10').deb"
     /go/build
   - docker buildx rm "teleport-v10-arm64-builder"
   environment:
@@ -7243,20 +7253,23 @@ steps:
   - apt download "teleport-ent:amd64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/amd64/$(cat '/go/vars/full-version/v10').deb"
+  - echo "Downloaded \"teleport-ent:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/amd64/$(cat
+    '/go/vars/full-version/v10').deb\""
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm"
   - apt download "teleport-ent:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm/$(cat '/go/vars/full-version/v10').deb"
+  - echo "Downloaded \"teleport-ent:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm/$(cat
+    '/go/vars/full-version/v10').deb\""
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm64"
   - apt download "teleport-ent:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm64/$(cat '/go/vars/full-version/v10').deb"
+  - echo "Downloaded \"teleport-ent:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm64/$(cat
+    '/go/vars/full-version/v10').deb\""
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -7268,7 +7281,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-ent-v10-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag "teleport-ent-v10-amd64" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/amd64/$(cat '/go/vars/full-version/v10').deb"
     /go/build
   - docker buildx rm "teleport-ent-v10-amd64-builder"
   environment:
@@ -7288,7 +7301,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm-builder"
   - docker buildx build --load --builder "teleport-ent-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "teleport-ent-v10-arm" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm/$(cat '/go/vars/full-version/v10').deb"
     /go/build
   - docker buildx rm "teleport-ent-v10-arm-builder"
   environment:
@@ -7308,7 +7321,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm64-builder"
   - docker buildx build --load --builder "teleport-ent-v10-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag "teleport-ent-v10-arm64" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm64/$(cat '/go/vars/full-version/v10').deb"
     /go/build
   - docker buildx rm "teleport-ent-v10-arm64-builder"
   environment:
@@ -7608,8 +7621,9 @@ steps:
   - apt download "teleport-ent-fips:amd64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent-fips:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent-fips/amd64/$(cat '/go/vars/full-version/v10').deb"
+  - echo "Downloaded \"teleport-ent-fips:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
+    '/go/vars/full-version/v10').deb\""
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -7621,8 +7635,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-ent-fips-v10-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag "teleport-ent-fips-v10-amd64" --file
-    "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb"
-    /go/build
+    "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
+    '/go/vars/full-version/v10').deb" /go/build
   - docker buildx rm "teleport-ent-fips-v10-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -8471,20 +8485,23 @@ steps:
   - apt download "teleport:amd64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/amd64/$(cat '/go/vars/full-version/v9').deb"
+  - echo "Downloaded \"teleport:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/amd64/$(cat
+    '/go/vars/full-version/v9').deb\""
   - mkdir -pv "/go/artifacts/deb/teleport/arm"
   - apt download "teleport:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm/$(cat '/go/vars/full-version/v9').deb"
+  - echo "Downloaded \"teleport:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm/$(cat
+    '/go/vars/full-version/v9').deb\""
   - mkdir -pv "/go/artifacts/deb/teleport/arm64"
   - apt download "teleport:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm64/$(cat '/go/vars/full-version/v9').deb"
+  - echo "Downloaded \"teleport:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm64/$(cat
+    '/go/vars/full-version/v9').deb\""
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -8496,7 +8513,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-v9-amd64-builder"
   - docker buildx build --load --builder "teleport-v9-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag "teleport-v9-amd64" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/amd64/$(cat '/go/vars/full-version/v9').deb"
     /go/build
   - docker buildx rm "teleport-v9-amd64-builder"
   environment:
@@ -8516,7 +8533,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-v9-arm-builder"
   - docker buildx build --load --builder "teleport-v9-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "teleport-v9-arm" --file "/go/build/Dockerfile" --build-arg
-    "DEB_PATH=/go/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb" /go/build
+    "DEB_PATH=/go/artifacts/deb/teleport/arm/$(cat '/go/vars/full-version/v9').deb"
+    /go/build
   - docker buildx rm "teleport-v9-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -8535,7 +8553,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-v9-arm64-builder"
   - docker buildx build --load --builder "teleport-v9-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag "teleport-v9-arm64" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm64/$(cat '/go/vars/full-version/v9').deb"
     /go/build
   - docker buildx rm "teleport-v9-arm64-builder"
   environment:
@@ -8834,20 +8852,23 @@ steps:
   - apt download "teleport-ent:amd64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/amd64/$(cat '/go/vars/full-version/v9').deb"
+  - echo "Downloaded \"teleport-ent:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/amd64/$(cat
+    '/go/vars/full-version/v9').deb\""
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm"
   - apt download "teleport-ent:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm/$(cat '/go/vars/full-version/v9').deb"
+  - echo "Downloaded \"teleport-ent:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm/$(cat
+    '/go/vars/full-version/v9').deb\""
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm64"
   - apt download "teleport-ent:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm64/$(cat '/go/vars/full-version/v9').deb"
+  - echo "Downloaded \"teleport-ent:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm64/$(cat
+    '/go/vars/full-version/v9').deb\""
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -8859,7 +8880,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-ent-v9-amd64-builder"
   - docker buildx build --load --builder "teleport-ent-v9-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag "teleport-ent-v9-amd64" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/amd64/$(cat '/go/vars/full-version/v9').deb"
     /go/build
   - docker buildx rm "teleport-ent-v9-amd64-builder"
   environment:
@@ -8879,7 +8900,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-ent-v9-arm-builder"
   - docker buildx build --load --builder "teleport-ent-v9-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "teleport-ent-v9-arm" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm/$(cat '/go/vars/full-version/v9').deb"
     /go/build
   - docker buildx rm "teleport-ent-v9-arm-builder"
   environment:
@@ -8899,7 +8920,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-ent-v9-arm64-builder"
   - docker buildx build --load --builder "teleport-ent-v9-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag "teleport-ent-v9-arm64" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm64/$(cat '/go/vars/full-version/v9').deb"
     /go/build
   - docker buildx rm "teleport-ent-v9-arm64-builder"
   environment:
@@ -9198,8 +9219,9 @@ steps:
   - apt download "teleport-ent-fips:amd64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent-fips:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent-fips/amd64/$(cat '/go/vars/full-version/v9').deb"
+  - echo "Downloaded \"teleport-ent-fips:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
+    '/go/vars/full-version/v9').deb\""
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -9211,8 +9233,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v9-amd64-builder"
   - docker buildx build --load --builder "teleport-ent-fips-v9-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag "teleport-ent-fips-v9-amd64" --file
-    "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb"
-    /go/build
+    "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
+    '/go/vars/full-version/v9').deb" /go/build
   - docker buildx rm "teleport-ent-fips-v9-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -10060,20 +10082,23 @@ steps:
   - apt download "teleport:amd64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/amd64/$(cat '/go/vars/full-version/v8').deb"
+  - echo "Downloaded \"teleport:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/amd64/$(cat
+    '/go/vars/full-version/v8').deb\""
   - mkdir -pv "/go/artifacts/deb/teleport/arm"
   - apt download "teleport:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm/$(cat '/go/vars/full-version/v8').deb"
+  - echo "Downloaded \"teleport:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm/$(cat
+    '/go/vars/full-version/v8').deb\""
   - mkdir -pv "/go/artifacts/deb/teleport/arm64"
   - apt download "teleport:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm64/$(cat '/go/vars/full-version/v8').deb"
+  - echo "Downloaded \"teleport:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm64/$(cat
+    '/go/vars/full-version/v8').deb\""
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
@@ -10085,7 +10110,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-v8-amd64-builder"
   - docker buildx build --load --builder "teleport-v8-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag "teleport-v8-amd64" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/amd64/$(cat '/go/vars/full-version/v8').deb"
     /go/build
   - docker buildx rm "teleport-v8-amd64-builder"
   environment:
@@ -10105,7 +10130,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-v8-arm-builder"
   - docker buildx build --load --builder "teleport-v8-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "teleport-v8-arm" --file "/go/build/Dockerfile" --build-arg
-    "DEB_PATH=/go/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb" /go/build
+    "DEB_PATH=/go/artifacts/deb/teleport/arm/$(cat '/go/vars/full-version/v8').deb"
+    /go/build
   - docker buildx rm "teleport-v8-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -10124,7 +10150,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-v8-arm64-builder"
   - docker buildx build --load --builder "teleport-v8-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag "teleport-v8-arm64" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm64/$(cat '/go/vars/full-version/v8').deb"
     /go/build
   - docker buildx rm "teleport-v8-arm64-builder"
   environment:
@@ -10423,20 +10449,23 @@ steps:
   - apt download "teleport-ent:amd64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/amd64/$(cat '/go/vars/full-version/v8').deb"
+  - echo "Downloaded \"teleport-ent:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/amd64/$(cat
+    '/go/vars/full-version/v8').deb\""
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm"
   - apt download "teleport-ent:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm/$(cat '/go/vars/full-version/v8').deb"
+  - echo "Downloaded \"teleport-ent:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm/$(cat
+    '/go/vars/full-version/v8').deb\""
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm64"
   - apt download "teleport-ent:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm64/$(cat '/go/vars/full-version/v8').deb"
+  - echo "Downloaded \"teleport-ent:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm64/$(cat
+    '/go/vars/full-version/v8').deb\""
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
@@ -10448,7 +10477,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-ent-v8-amd64-builder"
   - docker buildx build --load --builder "teleport-ent-v8-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag "teleport-ent-v8-amd64" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/amd64/$(cat '/go/vars/full-version/v8').deb"
     /go/build
   - docker buildx rm "teleport-ent-v8-amd64-builder"
   environment:
@@ -10468,7 +10497,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-ent-v8-arm-builder"
   - docker buildx build --load --builder "teleport-ent-v8-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "teleport-ent-v8-arm" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm/$(cat '/go/vars/full-version/v8').deb"
     /go/build
   - docker buildx rm "teleport-ent-v8-arm-builder"
   environment:
@@ -10488,7 +10517,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-ent-v8-arm64-builder"
   - docker buildx build --load --builder "teleport-ent-v8-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag "teleport-ent-v8-arm64" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb"
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm64/$(cat '/go/vars/full-version/v8').deb"
     /go/build
   - docker buildx rm "teleport-ent-v8-arm64-builder"
   environment:
@@ -10787,8 +10816,9 @@ steps:
   - apt download "teleport-ent-fips:amd64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent-fips:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent-fips/amd64/$(cat '/go/vars/full-version/v8').deb"
+  - echo "Downloaded \"teleport-ent-fips:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
+    '/go/vars/full-version/v8').deb\""
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
@@ -10800,8 +10830,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v8-amd64-builder"
   - docker buildx build --load --builder "teleport-ent-fips-v8-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag "teleport-ent-fips-v8-amd64" --file
-    "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb"
-    /go/build
+    "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
+    '/go/vars/full-version/v8').deb" /go/build
   - docker buildx rm "teleport-ent-fips-v8-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -11659,20 +11689,20 @@ steps:
   - apt download "teleport:amd64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/amd64/$DRONE_TAG.deb"
+  - echo "Downloaded \"teleport:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/amd64/$DRONE_TAG.deb\""
   - mkdir -pv "/go/artifacts/deb/teleport/arm"
   - apt download "teleport:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm/$DRONE_TAG.deb"
+  - echo "Downloaded \"teleport:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm/$DRONE_TAG.deb\""
   - mkdir -pv "/go/artifacts/deb/teleport/arm64"
   - apt download "teleport:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm64/$DRONE_TAG.deb"
+  - echo "Downloaded \"teleport:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm64/$DRONE_TAG.deb\""
   depends_on:
   - Verify build is tagged
   - Check if tag is prerelease
@@ -11685,8 +11715,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-v10-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag "teleport-v10-amd64" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb"
-    /go/build
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/amd64/$DRONE_TAG.deb" /go/build
   - docker buildx rm "teleport-v10-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -11706,8 +11735,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-v10-arm-builder"
   - docker buildx build --load --builder "teleport-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "teleport-v10-arm" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb"
-    /go/build
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm/$DRONE_TAG.deb" /go/build
   - docker buildx rm "teleport-v10-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -11727,8 +11755,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-v10-arm64-builder"
   - docker buildx build --load --builder "teleport-v10-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag "teleport-v10-arm64" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb"
-    /go/build
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport/arm64/$DRONE_TAG.deb" /go/build
   - docker buildx rm "teleport-v10-arm64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -12027,20 +12054,20 @@ steps:
   - apt download "teleport-ent:amd64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/amd64/$DRONE_TAG.deb"
+  - echo "Downloaded \"teleport-ent:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/amd64/$DRONE_TAG.deb\""
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm"
   - apt download "teleport-ent:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm/$DRONE_TAG.deb"
+  - echo "Downloaded \"teleport-ent:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm/$DRONE_TAG.deb\""
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm64"
   - apt download "teleport-ent:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm64/$DRONE_TAG.deb"
+  - echo "Downloaded \"teleport-ent:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm64/$DRONE_TAG.deb\""
   depends_on:
   - Verify build is tagged
   - Check if tag is prerelease
@@ -12053,8 +12080,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-ent-v10-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag "teleport-ent-v10-amd64" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb"
-    /go/build
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/amd64/$DRONE_TAG.deb" /go/build
   - docker buildx rm "teleport-ent-v10-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -12074,8 +12100,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm-builder"
   - docker buildx build --load --builder "teleport-ent-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "teleport-ent-v10-arm" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb"
-    /go/build
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm/$DRONE_TAG.deb" /go/build
   - docker buildx rm "teleport-ent-v10-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -12095,8 +12120,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm64-builder"
   - docker buildx build --load --builder "teleport-ent-v10-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag "teleport-ent-v10-arm64" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb"
-    /go/build
+    --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent/arm64/$DRONE_TAG.deb" /go/build
   - docker buildx rm "teleport-ent-v10-arm64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -12396,8 +12420,8 @@ steps:
   - apt download "teleport-ent-fips:amd64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
-  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent-fips:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb\""
+  - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent-fips/amd64/$DRONE_TAG.deb"
+  - echo "Downloaded \"teleport-ent-fips:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent-fips/amd64/$DRONE_TAG.deb\""
   depends_on:
   - Verify build is tagged
   - Check if tag is prerelease
@@ -12410,7 +12434,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-ent-fips-v10-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag "teleport-ent-fips-v10-amd64" --file
-    "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb"
+    "/go/build/Dockerfile" --build-arg "DEB_PATH=/go/artifacts/deb/teleport-ent-fips/amd64/$DRONE_TAG.deb"
     /go/build
   - docker buildx rm "teleport-ent-fips-v10-amd64-builder"
   environment:
@@ -13645,6 +13669,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 9455d268a95d92f9eae794571706882de472cb5c57a05483fd4ec7cd39b4c101
+hmac: d201ce211a4a09c94384625bf6b4be46cb6bceabbdd25929439231a535e4722e
 
 ...
