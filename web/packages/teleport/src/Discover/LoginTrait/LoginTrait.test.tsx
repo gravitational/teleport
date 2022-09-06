@@ -37,8 +37,8 @@ describe('login trait comp behavior', () => {
       <ContextProvider ctx={ctx}>
         <LoginTrait
           agentMeta={mockedNodeMeta}
-          updateAgentMeta={null}
-          nextStep={null}
+          updateAgentMeta={() => null}
+          nextStep={() => null}
         />
       </ContextProvider>
     </MemoryRouter>
@@ -61,13 +61,16 @@ describe('login trait comp behavior', () => {
   });
 
   test('add a new login with existing logins', async () => {
-    jest.spyOn(userSvc, 'fetchUser').mockResolvedValue({
+    const user = {
       ...mockUser,
       traits: {
         ...mockUser.traits,
         logins: ['apple', 'banana'],
       },
-    });
+    };
+
+    jest.spyOn(userSvc, 'fetchUser').mockResolvedValue(user);
+    jest.spyOn(userSvc, 'updateUser').mockResolvedValue(null);
 
     render(<Component />);
 
@@ -88,6 +91,12 @@ describe('login trait comp behavior', () => {
     expect(screen.getByLabelText('apple')).toBeChecked();
     expect(screen.getByLabelText('banana')).toBeChecked();
     expect(screen.getByLabelText('carrot')).toBeChecked();
+
+    fireEvent.click(screen.getByText(/next/i));
+    expect(userSvc.updateUser).toHaveBeenCalledWith({
+      ...user,
+      traits: { ...user.traits, logins: [...user.traits.logins, 'carrot'] },
+    });
   });
 });
 
