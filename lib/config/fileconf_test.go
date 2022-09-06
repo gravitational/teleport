@@ -24,15 +24,16 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
 )
 
 // minimalConfigFile is a minimal subset of a teleport config file that can be
@@ -476,6 +477,94 @@ func TestAuthenticationConfig_Parse_nilU2F(t *testing.T) {
 
 	_, webErr := cap.GetWebauthn()
 	require.NoError(t, webErr, "unexpected webauthn error")
+}
+
+func TestAuthenticationConfig_RequireSessionMFA(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		desc                 string
+		mutate               func(cfgMap)
+		expectError          bool
+		expectRequireMFAType types.RequireMFAType
+	}{
+		{
+			desc: "RequireSessionMFA invalid",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"require_session_mfa": "unknown",
+				}
+			},
+			expectError: true,
+		}, {
+			desc: "RequireSessionMFA empty",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{}
+			},
+			expectRequireMFAType: types.RequireMFAType_OFF,
+		}, {
+			desc: "RequireSessionMFA true",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"require_session_mfa": true,
+				}
+			},
+			expectRequireMFAType: types.RequireMFAType_SESSION,
+		}, {
+			desc: "RequireSessionMFA false",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"require_session_mfa": false,
+				}
+			},
+			expectRequireMFAType: types.RequireMFAType_OFF,
+		}, {
+			desc: "RequireSessionMFA true string",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"require_session_mfa": "yes",
+				}
+			},
+			expectRequireMFAType: types.RequireMFAType_SESSION,
+		}, {
+			desc: "RequireSessionMFA false string",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"require_session_mfa": "off",
+				}
+			},
+			expectRequireMFAType: types.RequireMFAType_OFF,
+		}, {
+			desc: "RequireSessionMFA hardware_key",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"require_session_mfa": types.RequireMFATypeHardwareKeyString,
+				}
+			},
+			expectRequireMFAType: types.RequireMFAType_SESSION_AND_HARDWARE_KEY,
+		}, {
+			desc: "RequireSessionMFA hardware_key",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"require_session_mfa": types.RequireMFATypeHardwareKeyTouchString,
+				}
+			},
+			expectRequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			text := bytes.NewBuffer(editConfig(t, tt.mutate))
+			cfg, err := ReadConfig(text)
+			if tt.expectError {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(cfg.Auth.Authentication.RequireMFAType, tt.expectRequireMFAType))
+		})
+	}
 }
 
 // TestSSHSection tests the config parser for the SSH config block

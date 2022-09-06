@@ -814,14 +814,19 @@ func (r *RequireMFAType) decode(val interface{}) error {
 			*r = RequireMFAType_SESSION_AND_HARDWARE_KEY
 		case RequireMFATypeHardwareKeyTouchString:
 			*r = RequireMFAType_HARDWARE_KEY_TOUCH
+		case "":
+			// default to off
+			*r = RequireMFAType_OFF
 		default:
+			// try parsing as a boolean
 			switch strings.ToLower(v) {
 			case "yes", "yeah", "y", "true", "1", "on":
 				*r = RequireMFAType_SESSION
 			case "no", "nope", "n", "false", "0", "off":
 				*r = RequireMFAType_OFF
+			default:
+				return trace.BadParameter("RequireMFAType invalid value %v", val)
 			}
-			return trace.BadParameter("RequireMFAType invalid value %v", val)
 		}
 	case bool:
 		if v {
