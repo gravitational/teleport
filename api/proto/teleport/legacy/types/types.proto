@@ -18,7 +18,7 @@ package types;
 
 import "gogoproto/gogo.proto";
 import "google/protobuf/timestamp.proto";
-import "teleport/legacy/types/keys/keys.proto";
+import "teleport/attestation/v1/attestation.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
 option go_package = "github.com/gravitational/teleport/api/types";
@@ -3205,7 +3205,7 @@ message OIDCAuthRequest {
   string ProxyAddress = 16 [(gogoproto.jsontag) = "proxy_address,omitempty"];
 
   // attestation_request is a request to attest the given public key.
-  keys.AttestationRequest attestation_request = 17;
+  teleport.attestation.v1.AttestationRequest attestation_request = 17;
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -3338,7 +3338,7 @@ message SAMLAuthRequest {
   SAMLConnectorSpecV2 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
 
   // attestation_request is a request to attest the given public key.
-  keys.AttestationRequest attestation_request = 16;
+  teleport.attestation.v1.AttestationRequest attestation_request = 16;
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
@@ -3453,7 +3453,7 @@ message GithubAuthRequest {
   // ConnectorSpec is embedded connector spec for use in test flow.
   GithubConnectorSpecV3 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
   // attestation_request is a request to attest the given public key.
-  keys.AttestationRequest attestation_request = 16;
+  teleport.attestation.v1.AttestationRequest attestation_request = 16;
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.

@@ -1252,7 +1252,7 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 		Compatibility:      req.Compatibility,
 		RouteToCluster:     req.RouteToCluster,
 		KubernetesCluster:  req.KubernetesCluster,
-		AttestationRequest: req.AttestationRequest,
+		AttestationRequest: req.AttestationRequest.ToProto(),
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create Github auth request.")
@@ -1358,7 +1358,7 @@ func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 		RouteToCluster:     req.RouteToCluster,
 		KubernetesCluster:  req.KubernetesCluster,
 		ProxyAddress:       r.Host,
-		AttestationRequest: req.AttestationRequest,
+		AttestationRequest: req.AttestationRequest.ToProto(),
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create OIDC auth request.")

@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api"
+	attestation "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
@@ -197,8 +198,8 @@ func (y *YubiKeyPrivateKey) GetAttestationRequest() (*AttestationRequest, error)
 	}
 
 	return &AttestationRequest{
-		AttestationRequest: &AttestationRequest_YubikeyAttestationRequest{
-			YubikeyAttestationRequest: &YubiKeyAttestationRequest{
+		AttestationRequest: &attestation.AttestationRequest_YubikeyAttestationRequest{
+			YubikeyAttestationRequest: &attestation.YubiKeyAttestationRequest{
 				SlotCert:        slotCert.Raw,
 				AttestationCert: attCert.Raw,
 			},

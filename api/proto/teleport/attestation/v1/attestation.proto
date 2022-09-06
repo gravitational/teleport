@@ -14,9 +14,13 @@
 
 syntax = "proto3";
 
-package keys;
+package teleport.attestation.v1;
 
-option go_package = "github.com/gravitational/teleport/api/utils/keys";
+import "gogoproto/gogo.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1";
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.unmarshaler_all) = true;
 
 // AttestationRequest is a request to attest an attestation request.
 message AttestationRequest {

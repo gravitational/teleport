@@ -78,7 +78,7 @@ func (h *Handler) samlSSOConsole(w http.ResponseWriter, r *http.Request, p httpr
 		Compatibility:      req.Compatibility,
 		RouteToCluster:     req.RouteToCluster,
 		KubernetesCluster:  req.KubernetesCluster,
-		AttestationRequest: req.AttestationRequest,
+		AttestationRequest: req.AttestationRequest.ToProto(),
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create SAML auth request.")
