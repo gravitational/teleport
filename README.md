@@ -111,10 +111,10 @@ In a production environment, Teleport must run as `root`. For testing or non-pro
 
 If you wish to deploy Teleport inside a Docker container:
 ```
-# This command will pull the Teleport container image for version 6
-$ docker pull quay.io/gravitational/teleport:6
+# This command will pull the Teleport container image for version 8
+docker pull public.ecr.aws/gravitational/teleport:8
 ```
-View latest tags on [Quay.io | gravitational/teleport](https://quay.io/repository/gravitational/teleport?tab=tags)
+View latest tags on [Amazon ECR Public | gravitational/teleport](https://gallery.ecr.aws/gravitational/teleport)
 
 ### For Local Testing and Development
 
