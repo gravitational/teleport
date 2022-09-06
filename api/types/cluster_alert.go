@@ -26,8 +26,11 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// matchStrictLabel is a fairly conservative allowed charset for labels.
-var matchStrictLabel = regexp.MustCompile(`^[a-z0-9\.\-\/]+$`).MatchString
+// matchAlertLabelKey is a fairly conservative allowed charset for label keys.
+var matchAlertLabelKey = regexp.MustCompile(`^[a-z0-9\.\-\/]+$`).MatchString
+
+// matchAlertLabelVal is a slightly more permissive matcher for label values.
+var matchAlertLabelVal = regexp.MustCompile(`^[a-z0-9\.\-_\/:|]+$`).MatchString
 
 const validLinkDestination = "goteleport.com"
 
@@ -135,11 +138,11 @@ func (c *ClusterAlert) CheckAndSetDefaults() error {
 	}
 
 	for key, val := range c.Metadata.Labels {
-		if !matchStrictLabel(key) {
+		if !matchAlertLabelKey(key) {
 			return trace.BadParameter("invalid alert label key: %q", key)
 		}
 		// for links, we relax the conditions on label values
-		if key != AlertLink && !matchStrictLabel(val) {
+		if key != AlertLink && !matchAlertLabelVal(val) {
 			return trace.BadParameter("invalid alert label value: %q", val)
 		}
 
