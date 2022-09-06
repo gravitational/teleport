@@ -26,6 +26,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -633,7 +634,7 @@ func TestDiscoveryConfig(t *testing.T) {
 								TokenName: defaults.IAMInviteTokenName,
 								Method:    types.JoinMethodIAM,
 							},
-							ScriptName: defaults.InstallerScriptName,
+							ScriptName: installers.InstallerScriptName,
 						},
 						SSM: AWSSSM{DocumentName: defaults.AWSInstallerDocument},
 					},
@@ -730,7 +731,7 @@ func TestDiscoveryConfig(t *testing.T) {
 								TokenName: defaults.IAMInviteTokenName,
 								Method:    types.JoinMethodIAM,
 							},
-							ScriptName: defaults.InstallerScriptName,
+							ScriptName: installers.InstallerScriptName,
 						},
 					},
 				},

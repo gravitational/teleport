@@ -37,11 +37,11 @@ type mockSSMClient struct {
 	invokeOutput  *ssm.GetCommandInvocationOutput
 }
 
-func (sm *mockSSMClient) SendCommand(input *ssm.SendCommandInput) (*ssm.SendCommandOutput, error) {
+func (sm *mockSSMClient) SendCommandWithContext(_ context.Context, input *ssm.SendCommandInput, _ ...request.Option) (*ssm.SendCommandOutput, error) {
 	return sm.commandOutput, nil
 }
 
-func (sm *mockSSMClient) GetCommandInvocation(input *ssm.GetCommandInvocationInput) (*ssm.GetCommandInvocationOutput, error) {
+func (sm *mockSSMClient) GetCommandInvocationWithContext(_ context.Context, input *ssm.GetCommandInvocationInput, _ ...request.Option) (*ssm.GetCommandInvocationOutput, error) {
 	return sm.invokeOutput, nil
 }
 
@@ -154,8 +154,9 @@ func TestSSMInstaller(t *testing.T) {
 		// an event once completed
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
 			inst := NewSSMInstaller(tc.conf)
-			err := inst.Run(context.Background(), tc.req)
+			err := inst.Run(ctx, tc.req)
 			require.NoError(t, err)
 
 			emitter := inst.Emitter.(*mockEmitter)
