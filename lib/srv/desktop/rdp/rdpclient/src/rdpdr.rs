@@ -167,16 +167,16 @@ impl Client {
                 PacketId::PAKID_CORE_SERVER_ANNOUNCE => {
                     let req = ServerAnnounceRequest::decode(&mut payload)?;
                     debug!("received RDP ServerAnnounceRequest: {:?}", req);
-                    let replies = self.handle_server_announce(req)?;
-                    debug!("sending RDP: {:?}", replies);
-                    let mut encoded_replies: Vec<Vec<u8>> = vec![];
-                    for (message, id) in replies {
-                        encoded_replies.append(&mut self.add_headers_and_chunkify(id, message)?);
+                    let responses = self.handle_server_announce(req)?;
+                    debug!("sending RDP: {:?}", responses);
+                    let mut encoded_responses: Vec<Vec<u8>> = vec![];
+                    for (message, id) in responses {
+                        encoded_responses.append(&mut self.add_headers_and_chunkify(id, message)?);
                     }
                     if self.test_debug_logs {
-                        debug!("sending RDP raw: {:?}", encoded_replies);
+                        debug!("sending RDP raw: {:?}", encoded_responses);
                     }
-                    return Ok(encoded_replies);
+                    return Ok(encoded_responses);
                 }
 
                 _ => {
@@ -4195,21 +4195,6 @@ mod tests {
         assert_eq!(to_windows_time(1000), 116444736010000000);
     }
 
-    fn server_announce_full_payload() -> tpkt::Payload {
-        let mut p = Payload::new(vec![
-            2, 240, 128, 104, 0, 1, 3, 236, 240, 20, 12, 0, 0, 0, 3, 0, 0, 0, 114, 68, 110, 73, 1,
-            0, 13, 0, 3, 0, 0, 0,
-        ]);
-        p.set_position(10);
-        tpkt::Payload::Raw(p)
-    }
-
-    fn server_announce_read_payload(pos: u64) -> Payload {
-        let mut p = Payload::new(vec![114, 68, 110, 73, 1, 0, 13, 0, 3, 0, 0, 0]);
-        p.set_position(pos);
-        p
-    }
-
     fn client() -> Client {
         Client::new(Config {
             cert_der: vec![],
@@ -4243,79 +4228,37 @@ mod tests {
         })
     }
 
-    #[test]
-    fn test_shared_header_server_announce_decode() {
-        let mut payload = server_announce_read_payload(0);
-        let sh = SharedHeader::decode(&mut payload).unwrap();
-        assert_eq!(
-            sh,
-            SharedHeader {
-                component: Component::RDPDR_CTYP_CORE,
-                packet_id: PacketId::PAKID_CORE_SERVER_ANNOUNCE
-            }
-        )
+    fn create_payload(v: Vec<u8>, pos: u64) -> tpkt::Payload {
+        let mut p = Payload::new(v);
+        p.set_position(pos);
+        tpkt::Payload::Raw(p)
     }
 
     #[test]
-    fn test_server_announce_request_decode() {
-        let mut payload = server_announce_read_payload(4);
-        let req = ServerAnnounceRequest::decode(&mut payload).unwrap();
-        assert_eq!(
-            req,
-            ServerAnnounceRequest {
-                version_major: 1,
-                version_minor: 13,
-                client_id: 3
-            },
-        )
-    }
-
-    #[test]
-    fn test_handle_server_announce() {
-        let c = client();
-        let req = ServerAnnounceRequest {
-            version_major: 1,
-            version_minor: 13,
-            client_id: 3,
-        };
-        let replies = c.handle_server_announce(req).unwrap();
-        let (message0, packet_id0) = &replies[0];
-        let (message1, packet_id1) = &replies[1];
-        let message0 = message0.downcast_ref::<ClientAnnounceReply>().unwrap();
-        let message1 = message1.downcast_ref::<ClientNameRequest>().unwrap();
-
-        assert_eq!(
-            message0,
-            &ClientAnnounceReply {
-                version_major: 1,
-                version_minor: 12,
-                client_id: 3
-            }
-        );
-        assert_eq!(
-            message1,
-            &ClientNameRequest {
-                unicode_flag: ClientNameRequestUnicodeFlag::Ascii,
-                computer_name: CString::new("teleport").unwrap(),
-            }
-        );
-        assert_eq!(packet_id0, &PacketId::PAKID_CORE_CLIENTID_CONFIRM);
-        assert_eq!(packet_id1, &PacketId::PAKID_CORE_CLIENT_NAME);
-    }
-
-    #[test]
-    fn test_handle_server_announce_full() {
+    fn test_server_announce() {
         let mut c = client();
-        assert_eq!(
-            c.read_and_create_reply(server_announce_full_payload())
-                .unwrap(),
+        // Incoming payload of:
+        // SharedHeader { component: RDPDR_CTYP_CORE, packet_id: PAKID_CORE_SERVER_CAPABILITY }
+        // ServerCoreCapabilityRequest { num_capabilities: 5, padding: 0, capabilities: [CapabilitySet { header: CapabilityHeader { cap_type: CAP_GENERAL_TYPE, length: 44, version: 2 }, data: General(GeneralCapabilitySet { os_type: 2, os_version: 0, protocol_major_version: 1, protocol_minor_version: 13, io_code_1: 65535, io_code_2: 0, extended_pdu: 7, extra_flags_1: 0, extra_flags_2: 0, special_type_device_cap: 2 }) }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_PRINTER_TYPE, length: 8, version: 1 }, data: Printer }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_PORT_TYPE, length: 8, version: 1 }, data: Port }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_DRIVE_TYPE, length: 8, version: 2 }, data: Drive }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_SMARTCARD_TYPE, length: 8, version: 1 }, data: Smartcard }] }
+        let payload = create_payload(
             vec![
-                vec![12, 0, 0, 0, 3, 0, 0, 0, 114, 68, 67, 67, 1, 0, 12, 0, 3, 0, 0, 0],
-                vec![
-                    25, 0, 0, 0, 3, 0, 0, 0, 114, 68, 78, 67, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0,
-                    116, 101, 108, 101, 112, 111, 114, 116, 0
-                ]
-            ]
-        )
+                2, 240, 128, 104, 0, 1, 3, 236, 240, 20, 12, 0, 0, 0, 3, 0, 0, 0, 114, 68, 110, 73,
+                1, 0, 13, 0, 3, 0, 0, 0,
+            ],
+            10,
+        );
+
+        // responses as a Vec<(Box<dyn Encode>, PacketId)>:
+        // [(ClientIdMessage { version_major: 1, version_minor: 12, client_id: 3 }, PAKID_CORE_CLIENTID_CONFIRM), (ClientNameRequest { unicode_flag: Ascii, computer_name: "teleport" }, PAKID_CORE_CLIENT_NAME)]
+        let encoded_responses = vec![
+            vec![
+                12, 0, 0, 0, 3, 0, 0, 0, 114, 68, 67, 67, 1, 0, 12, 0, 3, 0, 0, 0,
+            ],
+            vec![
+                25, 0, 0, 0, 3, 0, 0, 0, 114, 68, 78, 67, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 116,
+                101, 108, 101, 112, 111, 114, 116, 0,
+            ],
+        ];
+        assert_eq!(c.read_and_create_reply(payload).unwrap(), encoded_responses)
     }
 }

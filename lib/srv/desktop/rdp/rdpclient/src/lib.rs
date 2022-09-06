@@ -48,8 +48,6 @@ extern crate log;
 #[macro_use]
 extern crate num_derive;
 
-use downcast_rs::impl_downcast;
-use downcast_rs::Downcast;
 use errors::try_error;
 use libc::{fd_set, select, FD_SET};
 use rand::Rng;
@@ -1876,10 +1874,9 @@ extern "C" {
     ) -> CGOErrCode;
 }
 
-trait Encode: std::fmt::Debug + Downcast {
+trait Encode: std::fmt::Debug {
     fn encode(&self) -> RdpResult<Vec<u8>>;
 }
-impl_downcast!(Encode);
 
 /// Payload is a generic type used to represent raw incoming RDP messages for parsing.
 pub(crate) type Payload = Cursor<Vec<u8>>;
