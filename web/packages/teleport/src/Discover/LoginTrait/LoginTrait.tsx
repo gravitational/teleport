@@ -124,7 +124,7 @@ export function LoginTrait({
               <CheckboxWrapper key={index} className="disabled">
                 <CheckboxInput
                   type="checkbox"
-                  name={id}
+                  name={login}
                   id={id}
                   defaultChecked
                 />
@@ -138,7 +138,7 @@ export function LoginTrait({
               <CheckboxWrapper key={index}>
                 <CheckboxInput
                   type="checkbox"
-                  name={id}
+                  name={login}
                   id={id}
                   ref={el => (inputRefs.current[index] = el)}
                   defaultChecked

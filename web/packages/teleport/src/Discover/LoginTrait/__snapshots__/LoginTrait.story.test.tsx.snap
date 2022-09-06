@@ -536,7 +536,7 @@ exports[`empty state with static logins 1`] = `
         checked=""
         class="c6"
         id="ubunutu0"
-        name="ubunutu0"
+        name="ubunutu"
         type="checkbox"
       />
       <label
@@ -553,7 +553,7 @@ exports[`empty state with static logins 1`] = `
         checked=""
         class="c6"
         id="debian1"
-        name="debian1"
+        name="debian"
         type="checkbox"
       />
       <label
@@ -1112,7 +1112,7 @@ exports[`loaded with static state 1`] = `
         checked=""
         class="c6"
         id="ubunutu0"
-        name="ubunutu0"
+        name="ubunutu"
         type="checkbox"
       />
       <label
@@ -1129,7 +1129,7 @@ exports[`loaded with static state 1`] = `
         checked=""
         class="c6"
         id="debian1"
-        name="debian1"
+        name="debian"
         type="checkbox"
       />
       <label
@@ -1146,7 +1146,7 @@ exports[`loaded with static state 1`] = `
         checked=""
         class="c6"
         id="root0"
-        name="root0"
+        name="root"
         type="checkbox"
       />
       <label
@@ -1163,7 +1163,7 @@ exports[`loaded with static state 1`] = `
         checked=""
         class="c6"
         id="llama1"
-        name="llama1"
+        name="llama"
         type="checkbox"
       />
       <label
@@ -1180,7 +1180,7 @@ exports[`loaded with static state 1`] = `
         checked=""
         class="c6"
         id="george_washington_really_long_name_testing2"
-        name="george_washington_really_long_name_testing2"
+        name="george_washington_really_long_name_testing"
         type="checkbox"
       />
       <label
