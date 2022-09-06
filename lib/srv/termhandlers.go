@@ -86,6 +86,9 @@ func (t *TermHandlers) HandlePTYReq(ctx context.Context, ch ssh.Channel, req *ss
 		}
 		scx.SetTerm(term)
 		scx.termAllocated = true
+		if term.TTY() != nil {
+			scx.ttyName = term.TTY().Name()
+		}
 	}
 	if err := term.SetWinSize(ctx, *params); err != nil {
 		scx.Errorf("Failed setting window size: %v", err)
