@@ -66,8 +66,8 @@ export function Main(props: State) {
   }
 
   function updateOnboardDiscover() {
-    const { hasResource } = localStorage.getOnboardDiscover();
-    localStorage.setOnboardDiscover({ hasResource, notified: true });
+    const discover = localStorage.getOnboardDiscover();
+    localStorage.setOnboardDiscover({ ...discover, notified: true });
   }
 
   // render feature routes

@@ -43,6 +43,7 @@ export function useTestConnection({ ctx, props }: Props) {
 
   function runConnectionDiagnostic(login: string) {
     const meta = props.agentMeta as NodeMeta;
+    setDiagnosis(null);
     run(() =>
       ctx.agentService
         .createConnectionDiagnostic({

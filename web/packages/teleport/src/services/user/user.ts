@@ -69,7 +69,7 @@ const service = {
   },
 
   applyUserTraits() {
-    return session.renewSession({ updateUserTraits: true });
+    return session.renewSession({ reloadUser: true });
   },
 
   checkUserHasAccessToRegisteredResource(): Promise<boolean> {

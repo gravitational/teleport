@@ -59,11 +59,7 @@ export function TestConnection({
         Testing in-progress
       </TextIcon>
     );
-  }
-
-  let diagnosisStateBorderColor = 'transparent';
-  if (attempt.status === 'failed' || (diagnosis && !diagnosis.success)) {
-    diagnosisStateBorderColor = 'danger';
+  } else if (attempt.status === 'failed' || (diagnosis && !diagnosis.success)) {
     $diagnosisStateComponent = (
       <TextIcon>
         <Icons.Warning ml={1} color="danger" />
@@ -71,7 +67,6 @@ export function TestConnection({
       </TextIcon>
     );
   } else if (attempt.status === 'success' && diagnosis?.success) {
-    diagnosisStateBorderColor = 'success';
     $diagnosisStateComponent = (
       <TextIcon>
         <Icons.CircleCheck ml={1} color="success" />
@@ -108,41 +103,6 @@ export function TestConnection({
         <Text typography="subtitle1" mb={3}>
           Verify that the server is accessible
         </Text>
-        {showDiagnosisOutput && (
-          <Box
-            bg="rgba(255, 255, 255, 0.05)"
-            p={3}
-            borderRadius={3}
-            border={2}
-            borderColor={diagnosisStateBorderColor}
-          >
-            {attempt.status === 'failed' &&
-              `Failed to Start Testing: ${attempt.statusText}`}
-            {attempt.status === 'success' && (
-              <Box>
-                {diagnosis.traces.map(t => {
-                  if (t.status === 'failed') {
-                    return (
-                      <>
-                        <TextIcon>
-                          <Icons.Warning mr={1} color="danger" />
-                          {t.details}
-                        </TextIcon>
-                        <Box mt={2}>{t.error}</Box>
-                      </>
-                    );
-                  }
-                  return (
-                    <TextIcon>
-                      <Icons.CircleCheck mr={1} color="success" />
-                      {t.details}
-                    </TextIcon>
-                  );
-                })}
-              </Box>
-            )}
-          </Box>
-        )}
         <Flex alignItems="center" mt={3}>
           <ButtonSecondary
             width="200px"
@@ -153,6 +113,46 @@ export function TestConnection({
           </ButtonSecondary>
           <Box ml={4}>{$diagnosisStateComponent}</Box>
         </Flex>
+        {showDiagnosisOutput && (
+          <Box mt={3}>
+            {attempt.status === 'failed' &&
+              `Encountered Error: ${attempt.statusText}`}
+            {attempt.status === 'success' && (
+              <Box>
+                {diagnosis.traces.map((trace, index) => {
+                  if (trace.status === 'failed') {
+                    return (
+                      <>
+                        <TextIcon>
+                          <Icons.CircleCross mr={1} color="danger" />
+                          {trace.details}
+                        </TextIcon>
+                        <Box mt={2}>{trace.error}</Box>
+                      </>
+                    );
+                  }
+                  if (trace.status === 'success') {
+                    return (
+                      <TextIcon key={index}>
+                        <Icons.CircleCheck mr={1} color="success" />
+                        {trace.details}
+                      </TextIcon>
+                    );
+                  }
+
+                  // For whatever reason the status is not the value
+                  // of failed or success.
+                  return (
+                    <TextIcon key={index}>
+                      <Icons.Question mr={1} />
+                      {trace.details}
+                    </TextIcon>
+                  );
+                })}
+              </Box>
+            )}
+          </Box>
+        )}
       </StyledBox>
       <StyledBox>
         <Text bold>Step 3</Text>

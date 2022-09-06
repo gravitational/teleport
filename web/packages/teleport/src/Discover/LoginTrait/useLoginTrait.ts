@@ -30,6 +30,10 @@ export function useLoginTrait({ ctx, props }: Props) {
   const [dynamicLogins, setDynamicLogins] = useState<string[]>([]);
 
   useEffect(() => {
+    fetchLoginTraits();
+  }, []);
+
+  function fetchLoginTraits() {
     run(() =>
       ctx.userService.fetchUser(ctx.storeUser.getUsername()).then(user => {
         setUser(user);
@@ -46,7 +50,7 @@ export function useLoginTrait({ ctx, props }: Props) {
         setDynamicLogins(userDefinedLogins);
       })
     );
-  }, []);
+  }
 
   async function nextStep(logins: string[]) {
     // Currently, fetching user for user traits does not
@@ -86,6 +90,7 @@ export function useLoginTrait({ ctx, props }: Props) {
     dynamicLogins,
     staticLogins,
     addLogin,
+    fetchLoginTraits,
   };
 }
 

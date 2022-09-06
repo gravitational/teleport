@@ -14,19 +14,50 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import styled from 'styled-components';
+import { useLocation } from 'react-router';
 import { NavLink } from 'react-router-dom';
 
-import { ButtonPrimary, Box } from 'design';
+import { ButtonPrimary, Box, Text, Flex } from 'design';
 import { OpenBox, Person } from 'design/Icon';
 import TopNavUserMenu from 'design/TopNav/TopNavUserMenu';
 import { MenuItemIcon, MenuItem } from 'design/Menu';
 
+import history from 'teleport/services/history';
 import cfg from 'teleport/config';
 import { NavItem } from 'teleport/stores/storeNav';
+import localStorage from 'teleport/services/localStorage';
 
 export function UserMenuNav({ navItems, username, logout }: Props) {
-  const [open, setOpen] = React.useState(false);
+  const { pathname } = useLocation();
+  const [open, setOpen] = useState(false);
+
+  const discover = localStorage.getOnboardDiscover();
+
+  // viewingXXX flags to determine what view the user is
+  // currently on to determine where the checkmark icon
+  // on the dropdown items should be rendered.
+  const viewingDiscover = pathname === cfg.routes.discover;
+  const viewingUserMenu =
+    !viewingDiscover && navItems.some(n => pathname.startsWith(n.getLink()));
+  const viewingResources = !viewingUserMenu && !viewingDiscover;
+
+  const firstTimeDiscoverVisit =
+    discover && !discover.hasResource && !discover.hasVisited;
+  const showDiscoverAlertBubble = !viewingDiscover && firstTimeDiscoverVisit;
+  const isFirstTimeDiscoverVisited = viewingDiscover && firstTimeDiscoverVisit;
+
+  useEffect(() => {
+    if (isFirstTimeDiscoverVisited) {
+      const discover = localStorage.getOnboardDiscover();
+      localStorage.setOnboardDiscover({
+        ...discover,
+        hasVisited: true,
+      });
+    }
+  }, [isFirstTimeDiscoverVisited]);
+
   const menuItemProps = {
     onClick: closeMenu,
     py: 2,
@@ -34,12 +65,22 @@ export function UserMenuNav({ navItems, username, logout }: Props) {
     exact: true,
   };
 
-  const $userMenuItems = navItems.map((item, index) => (
-    <MenuItem {...menuItemProps} key={index} to={item.getLink()}>
-      <MenuItemIcon as={item.Icon} mr="2" />
-      {item.title}
-    </MenuItem>
-  ));
+  const $userMenuItems = navItems.map((item, index) => {
+    const menuPath = item.getLink();
+    return (
+      <MenuItem {...menuItemProps} key={index} to={menuPath}>
+        <FlexedMenuItemIcon as={item.Icon} />
+        <FlexSpaceBetween>
+          <Text>{item.title}</Text>
+          {/* Using 'startsWith' to account for routes that have sub paths eg:
+              - main path: /web/account
+              - sub paths: /web/account/password, /web/account/twofactor
+          */}
+          {pathname.startsWith(menuPath) && <Checkmark />}
+        </FlexSpaceBetween>
+      </MenuItem>
+    );
+  });
 
   function showMenu() {
     setOpen(true);
@@ -54,6 +95,15 @@ export function UserMenuNav({ navItems, username, logout }: Props) {
     logout();
   }
 
+  function handleClickDiscover() {
+    if (firstTimeDiscoverVisit) {
+      localStorage.setOnboardDiscover({ ...discover, hasVisited: true });
+    }
+
+    history.push(cfg.routes.discover);
+    closeMenu();
+  }
+
   return (
     <TopNavUserMenu
       menuListCss={menuListCss}
@@ -63,12 +113,27 @@ export function UserMenuNav({ navItems, username, logout }: Props) {
       user={username}
     >
       <MenuItem {...menuItemProps} to={cfg.routes.root}>
-        <MenuItemIcon as={Person} mr="2" />
-        Browse Resources
+        <BorderedFlexedMenuItemIcon as={Person} />
+        <FlexSpaceBetween>
+          <Text>Browse Resources</Text>
+          {viewingResources && <Checkmark />}
+        </FlexSpaceBetween>
       </MenuItem>
-      <MenuItem {...menuItemProps} to={cfg.routes.discover}>
-        <MenuItemIcon as={OpenBox} mr="2" />
-        Manage Access
+      <MenuItem py={2} onClick={handleClickDiscover}>
+        <div
+          css={`
+            position: relative;
+          `}
+        >
+          <BorderedFlexedMenuItemIcon as={OpenBox} />
+          {showDiscoverAlertBubble && (
+            <AlertBubble data-testid="alert-bubble" />
+          )}
+        </div>
+        <FlexSpaceBetween>
+          <Text>Manage Access</Text>
+          {viewingDiscover && <Checkmark />}
+        </FlexSpaceBetween>
       </MenuItem>
       <Box
         my={2}
@@ -86,8 +151,49 @@ export function UserMenuNav({ navItems, username, logout }: Props) {
   );
 }
 
+const Checkmark = () => <StyledCheckmark data-testid="checkmark" />;
+const StyledCheckmark = styled(Text)(
+  props => `
+  color: ${props.theme.colors.success};
+  font-size: ${props.theme.fontSizes[6]}${'px'};
+
+  :before {
+    content: '✓';
+  }
+`
+);
+
 const menuListCss = () => `
-  width: 250px;
+  width: 220px;
+`;
+
+const FlexedMenuItemIcon = styled(MenuItemIcon)`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`;
+
+const BorderedFlexedMenuItemIcon = styled(FlexedMenuItemIcon)`
+  background: #f1eeee;
+  border-radius: 4px;
+  padding: 3px;
+  width: 18px;
+  height: 18px;
+`;
+
+const AlertBubble = styled.div`
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: ${({ theme }) => theme.colors.danger};
+  border-radius: 100%;
+  top: -2px;
+  right: 6px;
+`;
+
+const FlexSpaceBetween = styled(Flex)`
+  width: 100%;
+  justify-content: space-between;
 `;
 
 type Props = {

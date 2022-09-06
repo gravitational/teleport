@@ -18,11 +18,10 @@ import type { ConnectionDiagnostic, ConnectionDiagnosticTrace } from './types';
 
 export function makeConnectionDiagnostic(json: any): ConnectionDiagnostic {
   json = json || {};
-  const { id, labels, success, message, traces } = json;
+  const { id, success, message, traces } = json;
 
   return {
     id,
-    labels: labels ? labels : [],
     success,
     message,
     traces: makeTraces(traces),
@@ -35,9 +34,8 @@ function makeTraces(traces: any): ConnectionDiagnosticTrace[] {
   }
 
   return traces.map(t => ({
-    id: t.id,
     traceType: t.trace_type,
-    status: t.status,
+    status: t.status?.toLowerCase(),
     details: t.details,
     error: t.error,
   }));

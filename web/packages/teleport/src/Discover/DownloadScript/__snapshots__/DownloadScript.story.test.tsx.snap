@@ -1,29 +1,151 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`failed 1`] = `
-.c3 {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 2px;
-  box-sizing: border-box;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
-  margin: 0 0 24px 0;
-  min-height: 40px;
-  padding: 8px 16px;
-  overflow: auto;
-  word-break: break-word;
-  line-height: 1.5;
-  background: #f50057;
-  color: #FFFFFF;
-}
-
-.c3 a {
-  color: #FFFFFF;
-}
-
 .c0 {
   box-sizing: border-box;
+}
+
+.c9 {
+  box-sizing: border-box;
+  margin-top: 24px;
+}
+
+.c7 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: none;
+  text-transform: none;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-left: 8px;
+}
+
+.c7:active {
+  opacity: 0.56;
+}
+
+.c7:hover,
+.c7:focus {
+  background: none;
+  text-decoration: underline;
+}
+
+.c7:disabled {
+  background: none;
+  color: rgba(255,255,255,0.3);
+}
+
+.c10 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-right: 16px;
+  width: 165px;
+}
+
+.c10:active {
+  opacity: 0.56;
+}
+
+.c10:hover,
+.c10:focus {
+  background: #651FFF;
+}
+
+.c10:active {
+  background: #354AA4;
+}
+
+.c10:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c11 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-top: 16px;
+  width: 165px;
+}
+
+.c11:active {
+  opacity: 0.56;
+}
+
+.c11:hover,
+.c11:focus {
+  background: #2C3A73;
+}
+
+.c11:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c6 {
+  display: inline-block;
+  transition: color 0.3s;
+  margin-left: 4px;
+  color: #f50057;
 }
 
 .c1 {
@@ -41,6 +163,45 @@ exports[`failed 1`] = `
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 32px;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 16px;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.c5 .icon {
+  margin-right: 8px;
+}
+
+.c8 {
+  color: #03a9f4;
+  font-weight: normal;
+  padding-left: 0;
+  font-size: inherit;
+  min-height: auto;
+}
+
+.c3 {
+  box-sizing: border-box;
+  padding: 16px;
+  height: auto;
+  border-radius: 8px;
+  max-width: 800px;
+  background-color: rgba(255,255,255,0.05);
+  border: 2px solid #f50057;
 }
 
 <div
@@ -61,9 +222,52 @@ exports[`failed 1`] = `
   </div>
   <div
     class="c3"
-    kind="danger"
+    height="auto"
   >
-    some error message
+    <div
+      class="c4"
+    >
+      Command
+    </div>
+    <div
+      class="c5"
+    >
+      <span
+        class="c6 icon icon-warning "
+        color="danger"
+      />
+      Encountered Error: 
+      some error message
+    </div>
+    <button
+      class="c7 c8"
+      kind="text"
+    >
+      Refetch a command
+    </button>
+  </div>
+  <div
+    class="c9"
+  >
+    
+    <button
+      class="c10"
+      disabled=""
+      kind="primary"
+      width="165px"
+    >
+      Next
+    </button>
+    <a
+      class="c11"
+      href="/web"
+      kind="secondary"
+      mt="3"
+      theme="[object Object]"
+      width="165px"
+    >
+      Exit
+    </a>
   </div>
 </div>
 `;
@@ -152,7 +356,7 @@ exports[`polling error state 1`] = `
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
-  margin-left: 8px;
+  margin-left: 4px;
 }
 
 .c11:active {
@@ -327,21 +531,22 @@ exports[`polling error state 1`] = `
   margin-right: 8px;
 }
 
+.c12 {
+  color: #03a9f4;
+  font-weight: normal;
+  padding-left: 0;
+  font-size: inherit;
+  min-height: auto;
+}
+
 .c3 {
   box-sizing: border-box;
   padding: 16px;
+  height: auto;
   border-radius: 8px;
   max-width: 800px;
   background-color: rgba(255,255,255,0.05);
   border: 2px solid #f50057;
-}
-
-.c12 {
-  color: #03a9f4;
-  font-weight: normal;
-  padding-left: 2px;
-  font-size: inherit;
-  min-height: auto;
 }
 
 .c14 {
@@ -367,6 +572,7 @@ exports[`polling error state 1`] = `
   </div>
   <div
     class="c3"
+    height="auto"
   >
     <div
       class="c4"
@@ -660,6 +866,7 @@ exports[`polling state 1`] = `
 .c3 {
   box-sizing: border-box;
   padding: 16px;
+  height: auto;
   border-radius: 8px;
   max-width: 800px;
   background-color: rgba(255,255,255,0.05);
@@ -697,6 +904,7 @@ exports[`polling state 1`] = `
   </div>
   <div
     class="c3"
+    height="auto"
   >
     <div
       class="c4"
@@ -975,6 +1183,7 @@ exports[`polling success state 1`] = `
 .c3 {
   box-sizing: border-box;
   padding: 16px;
+  height: auto;
   border-radius: 8px;
   max-width: 800px;
   background-color: rgba(255,255,255,0.05);
@@ -999,6 +1208,7 @@ exports[`polling success state 1`] = `
   </div>
   <div
     class="c3"
+    height="auto"
   >
     <div
       class="c4"

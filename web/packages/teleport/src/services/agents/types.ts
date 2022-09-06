@@ -67,8 +67,6 @@ export type AgentIdKind =
 export type ConnectionDiagnostic = {
   // id is the identifier of the connection diagnostic.
   id: string;
-  // labels is a map of static and dynamic labels associated with the connection diagnostic.
-  labels: AgentLabel[];
   // success is whether the connection was successful
   success: boolean;
   // message is the diagnostic summary
@@ -79,7 +77,6 @@ export type ConnectionDiagnostic = {
 
 // ConnectionDiagnosticTrace describes a trace of a connection diagnostic
 export type ConnectionDiagnosticTrace = {
-  id: string;
   traceType: string;
   status: 'success' | 'failed';
   details: string;

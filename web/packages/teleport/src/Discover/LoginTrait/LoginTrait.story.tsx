@@ -77,4 +77,5 @@ const props: State = {
   staticLogins: ['ubunutu', 'debian'],
   nextStep: () => null,
   addLogin: () => null,
+  fetchLoginTraits: () => null,
 };

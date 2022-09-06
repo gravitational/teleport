@@ -16,9 +16,8 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Text, Box, Indicator, ButtonText } from 'design';
+import { Text, Box, Indicator } from 'design';
 import * as Icons from 'design/Icon';
-import { Danger } from 'design/Alert';
 
 import cfg from 'teleport/config';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
@@ -26,7 +25,13 @@ import useTeleport from 'teleport/useTeleport';
 
 import { AgentStepProps } from '../types';
 
-import { Header, HeaderSubtitle, ActionButtons, TextIcon } from '../Shared';
+import {
+  Header,
+  HeaderSubtitle,
+  ActionButtons,
+  TextIcon,
+  ButtonBlueText,
+} from '../Shared';
 
 import { useDownloadScript } from './useDownloadScript';
 
@@ -55,22 +60,36 @@ export function DownloadScript({
         add. <br />
         Run the following command on the server you want to add.
       </HeaderSubtitle>
-      {attempt.status === 'failed' && <Danger>{attempt.statusText}</Danger>}
-      {attempt.status === 'processing' && (
-        <Box textAlign="center" m={10}>
-          <Indicator />
-        </Box>
-      )}
-      {attempt.status === 'success' && (
-        <>
-          <ScriptBox p={3} borderRadius={3} pollState={pollState}>
-            <Text bold>Command</Text>
+      <ScriptBox
+        p={3}
+        borderRadius={3}
+        pollState={attempt.status === 'failed' ? 'error' : pollState}
+        height={attempt.status === 'processing' ? '144px' : 'auto'}
+      >
+        <Text bold>Command</Text>
+        {attempt.status === 'processing' && (
+          <Box textAlign="center" height="108px">
+            <Indicator />
+          </Box>
+        )}
+        {attempt.status === 'failed' && (
+          <>
+            <TextIcon mt={2} mb={3}>
+              <Icons.Warning ml={1} color="danger" />
+              Encountered Error: {attempt.statusText}
+            </TextIcon>
+            <ButtonBlueText ml={2} onClick={regenerateScriptAndRepoll}>
+              Refetch a command
+            </ButtonBlueText>
+          </>
+        )}
+        {attempt.status === 'success' && (
+          <>
             <TextSelectCopy
               text={createBashCommand(joinToken.id)}
               mt={2}
               mb={1}
             />
-
             {pollState === 'polling' && (
               <TextIcon
                 css={`
@@ -90,51 +109,22 @@ export function DownloadScript({
               </TextIcon>
             )}
             {pollState === 'error' && (
-              <Box>
-                <TextIcon>
-                  <Icons.Warning ml={1} color="danger" />
-                  We could not detect the server you were trying to add{' '}
-                  <ButtonText
-                    ml={2}
-                    onClick={regenerateScriptAndRepoll}
-                    css={`
-                      color: ${({ theme }) => theme.colors.link};
-                      font-weight: normal;
-                      padding-left: 2px;
-                      font-size: inherit;
-                      min-height: auto;
-                    `}
-                  >
-                    Generate a new command
-                  </ButtonText>
-                </TextIcon>
-                <Text bold mt={4}>
-                  Possible reasons
-                </Text>
-                <ul
-                  css={`
-                    margin-top: 6px;
-                    margin-bottom: 0;
-                  `}
-                >
-                  <li>
-                    The command was not run on the server you were trying to add
-                  </li>
-                  <li>
-                    The Teleport SSH Service could not join this Teleport
-                    cluster. Check the logs for errors by running <br />
-                    `journalctl status teleport`
-                  </li>
-                </ul>
-              </Box>
+              <TimeoutError
+                regenerateScriptAndRepoll={regenerateScriptAndRepoll}
+              />
             )}
-          </ScriptBox>
-          <ActionButtons
-            onProceed={nextStep}
-            disableProceed={pollState === 'error' || pollState === 'polling'}
-          />
-        </>
-      )}
+          </>
+        )}
+      </ScriptBox>
+      <ActionButtons
+        onProceed={nextStep}
+        disableProceed={
+          pollState === 'error' ||
+          pollState === 'polling' ||
+          attempt.status === 'processing' ||
+          attempt.status === 'failed'
+        }
+      />
     </Box>
   );
 }
@@ -174,3 +164,37 @@ const ScriptBox = styled(Box)`
       }
     }};
 `;
+
+const TimeoutError = ({
+  regenerateScriptAndRepoll,
+}: {
+  regenerateScriptAndRepoll(): void;
+}) => {
+  return (
+    <Box>
+      <TextIcon>
+        <Icons.Warning ml={1} color="danger" />
+        We could not detect the server you were trying to add{' '}
+        <ButtonBlueText ml={1} onClick={regenerateScriptAndRepoll}>
+          Generate a new command
+        </ButtonBlueText>
+      </TextIcon>
+      <Text bold mt={4}>
+        Possible reasons
+      </Text>
+      <ul
+        css={`
+          margin-top: 6px;
+          margin-bottom: 0;
+        `}
+      >
+        <li>The command was not run on the server you were trying to add</li>
+        <li>
+          The Teleport SSH Service could not join this Teleport cluster. Check
+          the logs for errors by running <br />
+          `journalctl status teleport`
+        </li>
+      </ul>
+    </Box>
+  );
+};

@@ -18,7 +18,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { NavLink } from 'react-router-dom';
 
-import { Text, ButtonPrimary, Box } from 'design';
+import { Text, ButtonPrimary, Box, ButtonText } from 'design';
 import { ButtonSecondary } from 'design/Button';
 
 import cfg from 'teleport/config';
@@ -91,4 +91,12 @@ export const TextBox = styled(Box)`
   border-radius: 8px;
   background-color: ${p => p.theme.colors.primary.light};
   padding: 24px;
+`;
+
+export const ButtonBlueText = styled(ButtonText)`
+  color: ${({ theme }) => theme.colors.link};
+  font-weight: normal;
+  padding-left: 0;
+  font-size: inherit;
+  min-height: auto;
 `;
