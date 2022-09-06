@@ -4075,16 +4075,35 @@ message ConnectionDiagnosticSpecV1 {
 
 // ConnectionDiagnosticTrace describes a trace of a connection diagnostic
 message ConnectionDiagnosticTrace {
-  // ID contains a unique identifier for this trace.
-  string ID = 1 [(gogoproto.jsontag) = "id"];
   // TraceType is an identification of the checkpoint.
-  string TraceType = 2 [(gogoproto.jsontag) = "trace_type"];
-  // Status describes whether this was a success or a failure.
-  string Status = 3 [(gogoproto.jsontag) = "status"];
+  enum TraceType {
+    TRACE_TYPE_UNSPECIFIED = 0;
+    // UNKNOWN_ERROR is used when we don't know the error.
+    // It's not always possible to offer guidance based on the received error.
+    // This trace type should be used when the error is too generic given the context we
+    // have.
+    UNKNOWN_ERROR = 1;
+    // RBAC_NODE is for RBAC checks for the node.
+    RBAC_NODE = 2;
+    // CONNECTIVITY is for network connectivity checks.
+    CONNECTIVITY = 3;
+    // RBAC_PRINCIPAL is used when checking if the principal is allowed per RBAC rules.
+    RBAC_PRINCIPAL = 4;
+    // NODE_PRINCIPAL is used when checking if the Node has the requested principal.
+    NODE_PRINCIPAL = 5;
+  }
+  TraceType Type = 1 [(gogoproto.jsontag) = "type"];
+  // StatusType describes whether this was a success or a failure.
+  enum StatusType {
+    STATUS_UNSPECIFIED = 0;
+    SUCCESS = 1;
+    FAILED = 2;
+  }
+  StatusType Status = 2 [(gogoproto.jsontag) = "status"];
   // Details contains a User friendly message of the check's result.
-  string Details = 4 [(gogoproto.jsontag) = "details"];
+  string Details = 3 [(gogoproto.jsontag) = "details"];
   // Error contains the low level error message in case of a failure.
-  string Error = 5 [(gogoproto.jsontag) = "error"];
+  string Error = 4 [(gogoproto.jsontag) = "error"];
 }
 
 // AlertSeverity represents how problematic/urgent an alert is, and is used to assist
