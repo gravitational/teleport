@@ -452,7 +452,7 @@ func teleportSetupStep(shellVersion, packageName, dockerfilePath, downloadURL st
 	for _, arch := range archs {
 		archDir := path.Join("/go/artifacts/deb/", packageName, arch)
 		// Example: `/go/artifacts/deb/teleport-ent/arm64/v10.1.4.deb`
-		destPath := path.Join(archDir, fmt.Sprintf("%s.deb", shellVersion))
+		destPath := path.Join(archDir, "$${PACKAGE_VERSION}.deb")
 
 		archDestFileMap[arch] = destPath
 
@@ -468,7 +468,7 @@ func teleportSetupStep(shellVersion, packageName, dockerfilePath, downloadURL st
 			fmt.Sprintf("apt download %q", fullPackageName),
 			"FILENAME=$(ls)", // This will only return the download file as it is the only file in that directory
 			"echo \"Downloaded file \\\"$${FILENAME}\\\"\"",
-			fmt.Sprintf("mv $${FILENAME} %q", destPath),
+			fmt.Sprintf("mv \"$${FILENAME}\" %q", destPath),
 			fmt.Sprintf("echo \"Downloaded \\\"%s\\\" to \\\"%s\\\"\"", fullPackageName, destPath),
 		}...)
 	}
