@@ -516,7 +516,7 @@ func (p *DatabasePack) testMongoLeafCluster(t *testing.T) {
 // trusted cluster setup.
 func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(time.Now())
-	pack := SetupDatabaseTest(t, withClock(clock))
+	pack := SetupDatabaseTest(t, WithClock(clock))
 	pack.WaitForLeaf(t)
 
 	var (
@@ -594,7 +594,7 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 // with localhost and successfully establish reverse tunnel connection.
 func TestDatabaseAccessUnspecifiedHostname(t *testing.T) {
 	pack := SetupDatabaseTest(t,
-		withNodeName("0.0.0.0"),
+		WithNodeName("0.0.0.0"),
 	)
 
 	// Connect to the database service in root cluster.

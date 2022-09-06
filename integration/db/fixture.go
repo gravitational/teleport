@@ -3,6 +3,8 @@ package db
 import (
 	"context"
 	"fmt"
+	"net"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -35,6 +37,11 @@ type DatabasePack struct {
 	clock clockwork.Clock
 }
 
+func (dbPack *DatabasePack) StartDatabases(t *testing.T) {
+	dbPack.Root.StartDatabaseServices(t, dbPack.clock)
+	dbPack.Leaf.StartDatabaseServices(t, dbPack.clock)
+}
+
 type databaseClusterPack struct {
 	Cluster         *helpers.TeleInstance
 	User            types.User
@@ -50,7 +57,97 @@ type databaseClusterPack struct {
 	MongoService    service.Database
 	mongoAddr       string
 	mongo           *mongodb.TestServer
-	fds             []service.FileDescriptor
+	name            string
+}
+
+func mustListen(t *testing.T) (net.Listener, string) {
+	t.Helper()
+	listener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { listener.Close() })
+
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	require.NoError(t, err)
+	return listener, net.JoinHostPort("localhost", port)
+}
+
+func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clockwork.Clock) {
+	var err error
+
+	var postgresListener, mysqlListener, mongoListener net.Listener
+
+	postgresListener, pack.postgresAddr = mustListen(t)
+	pack.PostgresService = service.Database{
+		Name:     fmt.Sprintf("%s-postgres", pack.name),
+		Protocol: defaults.ProtocolPostgres,
+		URI:      pack.postgresAddr,
+	}
+
+	mysqlListener, pack.mysqlAddr = mustListen(t)
+	pack.MysqlService = service.Database{
+		Name:     fmt.Sprintf("%s-mysql", pack.name),
+		Protocol: defaults.ProtocolMySQL,
+		URI:      pack.mysqlAddr,
+	}
+
+	mongoListener, pack.mongoAddr = mustListen(t)
+	pack.MongoService = service.Database{
+		Name:     fmt.Sprintf("%s-mongo", pack.name),
+		Protocol: defaults.ProtocolMongoDB,
+		URI:      pack.mongoAddr,
+	}
+
+	conf := service.MakeDefaultConfig()
+	conf.DataDir = filepath.Join(t.TempDir(), pack.name)
+	conf.SetToken("static-token-value")
+	conf.AuthServers = []utils.NetAddr{
+		{
+			AddrNetwork: "tcp",
+			Addr:        pack.Cluster.Web,
+		},
+	}
+	conf.Databases.Enabled = true
+	conf.Databases.Databases = []service.Database{
+		pack.PostgresService,
+		pack.MysqlService,
+		pack.MongoService,
+	}
+	conf.Clock = clock
+	conf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	pack.dbProcess, pack.dbAuthClient, err = pack.Cluster.StartDatabase(conf)
+	require.NoError(t, err)
+
+	t.Cleanup(func() { require.NoError(t, pack.dbProcess.Close()) })
+
+	// Create and start test Postgres in the leaf cluster.
+	pack.postgres, err = postgres.NewTestServer(common.TestServerConfig{
+		AuthClient: pack.dbAuthClient,
+		Name:       pack.PostgresService.Name,
+		Listener:   postgresListener,
+	})
+	require.NoError(t, err)
+	go pack.postgres.Serve()
+	t.Cleanup(func() { pack.postgres.Close() })
+
+	// Create and start test MySQL in the leaf cluster.
+	pack.mysql, err = mysql.NewTestServer(common.TestServerConfig{
+		AuthClient: pack.dbAuthClient,
+		Name:       pack.MysqlService.Name,
+		Listener:   mysqlListener,
+	})
+	require.NoError(t, err)
+	go pack.mysql.Serve()
+	t.Cleanup(func() { pack.mysql.Close() })
+
+	// Create and start test Mongo in the leaf cluster.
+	pack.mongo, err = mongodb.NewTestServer(common.TestServerConfig{
+		AuthClient: pack.dbAuthClient,
+		Name:       pack.MongoService.Name,
+		Listener:   mongoListener,
+	})
+	require.NoError(t, err)
+	go pack.mongo.Serve()
+	t.Cleanup(func() { pack.mongo.Close() })
 }
 
 type testOptions struct {
@@ -75,13 +172,13 @@ func (o *testOptions) setDefaultIfNotSet() {
 	}
 }
 
-func withClock(clock clockwork.Clock) testOptionFunc {
+func WithClock(clock clockwork.Clock) testOptionFunc {
 	return func(o *testOptions) {
 		o.clock = clock
 	}
 }
 
-func withNodeName(nodeName string) testOptionFunc {
+func WithNodeName(nodeName string) testOptionFunc {
 	return func(o *testOptions) {
 		o.nodeName = nodeName
 	}
@@ -105,14 +202,6 @@ func WithLeafConfig(fn func(*service.Config)) testOptionFunc {
 	}
 }
 
-func newDatabaseClusterPack(t *testing.T) databaseClusterPack {
-	pack := databaseClusterPack{}
-	pack.postgresAddr = helpers.NewListenerOn(t, "localhost", service.ListenerProxyPostgres, &pack.fds)
-	pack.mysqlAddr = helpers.NewListenerOn(t, "localhost", service.ListenerProxyMySQL, &pack.fds)
-	pack.mongoAddr = helpers.NewListenerOn(t, "localhost", service.ListenerProxyMongo, &pack.fds)
-	return pack
-}
-
 func SetupDatabaseTest(t *testing.T, options ...testOptionFunc) *DatabasePack {
 	var opts testOptions
 	for _, opt := range options {
@@ -132,8 +221,8 @@ func SetupDatabaseTest(t *testing.T, options ...testOptionFunc) *DatabasePack {
 
 	p := &DatabasePack{
 		clock: opts.clock,
-		Root:  newDatabaseClusterPack(t),
-		Leaf:  newDatabaseClusterPack(t),
+		Root:  databaseClusterPack{name: "root"},
+		Leaf:  databaseClusterPack{name: "leaf"},
 	}
 
 	// Create root cluster.
@@ -144,7 +233,6 @@ func SetupDatabaseTest(t *testing.T, options ...testOptionFunc) *DatabasePack {
 		Priv:        privateKey,
 		Pub:         publicKey,
 		Log:         log,
-		Fds:         p.Root.fds,
 	}
 	rootCfg.Listeners = opts.listenerSetup(t, &rootCfg.Fds)
 	p.Root.Cluster = helpers.NewInstance(t, rootCfg)
@@ -157,7 +245,6 @@ func SetupDatabaseTest(t *testing.T, options ...testOptionFunc) *DatabasePack {
 		Priv:        privateKey,
 		Pub:         publicKey,
 		Log:         log,
-		Fds:         p.Leaf.fds,
 	}
 	leafCfg.Listeners = opts.listenerSetup(t, &leafCfg.Fds)
 	p.Leaf.Cluster = helpers.NewInstance(t, leafCfg)
@@ -222,154 +309,8 @@ func SetupDatabaseTest(t *testing.T, options ...testOptionFunc) *DatabasePack {
 	err = p.Leaf.Cluster.Process.GetAuthServer().UpsertCertAuthority(ca)
 	require.NoError(t, err)
 
-	// Create and start database services in the root cluster.
-	p.Root.PostgresService = service.Database{
-		Name:     "root-postgres",
-		Protocol: defaults.ProtocolPostgres,
-		URI:      p.Root.postgresAddr,
-	}
-	p.Root.MysqlService = service.Database{
-		Name:     "root-mysql",
-		Protocol: defaults.ProtocolMySQL,
-		URI:      p.Root.mysqlAddr,
-	}
-	p.Root.MongoService = service.Database{
-		Name:     "root-mongo",
-		Protocol: defaults.ProtocolMongoDB,
-		URI:      p.Root.mongoAddr,
-	}
-	rdConf := service.MakeDefaultConfig()
-	rdConf.DataDir = t.TempDir()
-	rdConf.SetToken("static-token-value")
-	rdConf.AuthServers = []utils.NetAddr{
-		{
-			AddrNetwork: "tcp",
-			Addr:        p.Root.Cluster.Web,
-		},
-	}
-	rdConf.Databases.Enabled = true
-	rdConf.Databases.Databases = []service.Database{
-		p.Root.PostgresService,
-		p.Root.MysqlService,
-		p.Root.MongoService,
-	}
-	rdConf.Clock = p.clock
-	rdConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	p.Root.dbProcess, p.Root.dbAuthClient, err = p.Root.Cluster.StartDatabase(rdConf)
-	require.NoError(t, err)
-
-	t.Cleanup(func() { require.NoError(t, p.Root.dbProcess.Close()) })
-
-	// Create and start database services in the leaf cluster.
-	p.Leaf.PostgresService = service.Database{
-		Name:     "leaf-postgres",
-		Protocol: defaults.ProtocolPostgres,
-		URI:      p.Leaf.postgresAddr,
-	}
-	p.Leaf.MysqlService = service.Database{
-		Name:     "leaf-mysql",
-		Protocol: defaults.ProtocolMySQL,
-		URI:      p.Leaf.mysqlAddr,
-	}
-	p.Leaf.MongoService = service.Database{
-		Name:     "leaf-mongo",
-		Protocol: defaults.ProtocolMongoDB,
-		URI:      p.Leaf.mongoAddr,
-	}
-	ldConf := service.MakeDefaultConfig()
-	ldConf.DataDir = t.TempDir()
-	ldConf.SetToken("static-token-value")
-	ldConf.AuthServers = []utils.NetAddr{
-		{
-			AddrNetwork: "tcp",
-			Addr:        p.Leaf.Cluster.Web,
-		},
-	}
-	ldConf.Databases.Enabled = true
-	ldConf.Databases.Databases = []service.Database{
-		p.Leaf.PostgresService,
-		p.Leaf.MysqlService,
-		p.Leaf.MongoService,
-	}
-	ldConf.Clock = p.clock
-	ldConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	p.Leaf.dbProcess, p.Leaf.dbAuthClient, err = p.Leaf.Cluster.StartDatabase(ldConf)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		p.Leaf.dbProcess.Close()
-	})
-
-	// Create and start test Postgres in the root cluster.
-	p.Root.postgres, err = postgres.NewTestServer(common.TestServerConfig{
-		AuthClient: p.Root.dbAuthClient,
-		Name:       p.Root.PostgresService.Name,
-		Address:    p.Root.postgresAddr,
-	})
-	require.NoError(t, err)
-	go p.Root.postgres.Serve()
-	t.Cleanup(func() {
-		p.Root.postgres.Close()
-	})
-
-	// Create and start test MySQL in the root cluster.
-	p.Root.mysql, err = mysql.NewTestServer(common.TestServerConfig{
-		AuthClient: p.Root.dbAuthClient,
-		Name:       p.Root.MysqlService.Name,
-		Address:    p.Root.mysqlAddr,
-	})
-	require.NoError(t, err)
-	go p.Root.mysql.Serve()
-	t.Cleanup(func() {
-		p.Root.mysql.Close()
-	})
-
-	// Create and start test Mongo in the root cluster.
-	p.Root.mongo, err = mongodb.NewTestServer(common.TestServerConfig{
-		AuthClient: p.Root.dbAuthClient,
-		Name:       p.Root.MongoService.Name,
-		Address:    p.Root.mongoAddr,
-	})
-	require.NoError(t, err)
-	go p.Root.mongo.Serve()
-	t.Cleanup(func() {
-		p.Root.mongo.Close()
-	})
-
-	// Create and start test Postgres in the leaf cluster.
-	p.Leaf.postgres, err = postgres.NewTestServer(common.TestServerConfig{
-		AuthClient: p.Leaf.dbAuthClient,
-		Name:       p.Leaf.PostgresService.Name,
-		Address:    p.Leaf.postgresAddr,
-	})
-	require.NoError(t, err)
-	go p.Leaf.postgres.Serve()
-	t.Cleanup(func() {
-		p.Leaf.postgres.Close()
-	})
-
-	// Create and start test MySQL in the leaf cluster.
-	p.Leaf.mysql, err = mysql.NewTestServer(common.TestServerConfig{
-		AuthClient: p.Leaf.dbAuthClient,
-		Name:       p.Leaf.MysqlService.Name,
-		Address:    p.Leaf.mysqlAddr,
-	})
-	require.NoError(t, err)
-	go p.Leaf.mysql.Serve()
-	t.Cleanup(func() {
-		p.Leaf.mysql.Close()
-	})
-
-	// Create and start test Mongo in the leaf cluster.
-	p.Leaf.mongo, err = mongodb.NewTestServer(common.TestServerConfig{
-		AuthClient: p.Leaf.dbAuthClient,
-		Name:       p.Leaf.MongoService.Name,
-		Address:    p.Leaf.mongoAddr,
-	})
-	require.NoError(t, err)
-	go p.Leaf.mongo.Serve()
-	t.Cleanup(func() {
-		p.Leaf.mongo.Close()
-	})
+	// Start database service and test servers in the clusters
+	p.StartDatabases(t)
 
 	return p
 }
