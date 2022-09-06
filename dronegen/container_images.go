@@ -281,7 +281,6 @@ type product struct {
 
 func NewTeleportProduct(isEnterprise, isFips bool, version *releaseVersion) *product {
 	workingDirectory := "/go/build"
-	dockerfile := path.Join(workingDirectory, "Dockerfile")
 	downloadURL := "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
 	name := "teleport"
 	dockerfileTarget := "teleport"
@@ -297,11 +296,11 @@ func NewTeleportProduct(isEnterprise, isFips bool, version *releaseVersion) *pro
 		supportedArches = append(supportedArches, "arm", "arm64")
 	}
 
-	setupStep, debPaths := teleportSetupStep(version.ShellVersion, name, dockerfile, downloadURL, supportedArches)
+	setupStep, debPaths, dockerfilePath := teleportSetupStep(version.ShellVersion, name, workingDirectory, downloadURL, supportedArches)
 
 	return &product{
 		Name:             name,
-		DockerfilePath:   dockerfile,
+		DockerfilePath:   dockerfilePath,
 		WorkingDirectory: workingDirectory,
 		DockerfileTarget: dockerfileTarget,
 		SupportedArchs:   supportedArches,
@@ -388,11 +387,12 @@ func defaultImageTagBuilder(repo, name, tag string) string {
 	return fmt.Sprintf("%s%s:%s", repo, name, tag)
 }
 
-func teleportSetupStep(shellVersion, packageName, dockerfilePath, downloadURL string, archs []string) (step, map[string]string) {
+func teleportSetupStep(shellVersion, packageName, workingPath, downloadURL string, archs []string) (step, map[string]string, string) {
 	keyPath := "/usr/share/keyrings/teleport-archive-keyring.asc"
 	downloadDirectory := "/tmp/apt-download"
 	timeout := 30 * 60 // 30 minutes in seconds
 	sleepTime := 15    // 15 seconds
+	dockerfilePath := path.Join(workingPath, "Dockerfile")
 
 	commands := []string{
 		// Setup the environment
@@ -450,7 +450,7 @@ func teleportSetupStep(shellVersion, packageName, dockerfilePath, downloadURL st
 
 	archDestFileMap := make(map[string]string, len(archs))
 	for _, arch := range archs {
-		archDir := path.Join("/go/artifacts/deb/", packageName, arch)
+		archDir := path.Join(workingPath, "/artifacts/deb/", packageName, arch)
 		// Example: `/go/artifacts/deb/teleport-ent/arm64/v10.1.4.deb`
 		destPath := path.Join(archDir, fmt.Sprintf("%s.deb", shellVersion))
 
@@ -477,7 +477,7 @@ func teleportSetupStep(shellVersion, packageName, dockerfilePath, downloadURL st
 		Name:     fmt.Sprintf("Download %q Dockerfile and DEB artifacts from APT", packageName),
 		Image:    "ubuntu:22.04",
 		Commands: commands,
-	}, archDestFileMap
+	}, archDestFileMap, dockerfilePath
 }
 
 func (p *product) BuildLocalImageName(arch string, version *releaseVersion) string {
