@@ -22,8 +22,8 @@ use crate::errors::{
     invalid_data_error, not_implemented_error, rejected_by_server_error, try_error, NTSTATUS_OK,
     SPECIAL_NO_RESPONSE,
 };
+use crate::util;
 use crate::vchan;
-use crate::{util, Encode};
 use crate::{
     FileSystemObject, FileType, Payload, SharedDirectoryAcknowledge, SharedDirectoryCreateRequest,
     SharedDirectoryCreateResponse, SharedDirectoryDeleteRequest, SharedDirectoryDeleteResponse,
@@ -163,75 +163,62 @@ impl Client {
                 warn!("got {:?} RDPDR header from RDP server, ignoring because we're not redirecting any printers", header);
                 return Ok(vec![]);
             }
-            match header.packet_id {
+
+            let responses = match header.packet_id {
                 PacketId::PAKID_CORE_SERVER_ANNOUNCE => {
-                    let req = ServerAnnounceRequest::decode(&mut payload)?;
-                    debug!("received RDP ServerAnnounceRequest: {:?}", req);
-                    let responses = self.handle_server_announce(req)?;
-                    debug!("sending RDP: {:?}", responses);
-                    let mut encoded_responses: Vec<Vec<u8>> = vec![];
-                    for (message, id) in responses {
-                        encoded_responses.append(&mut self.add_headers_and_chunkify(id, message)?);
-                    }
-                    if self.test_debug_logs {
-                        debug!("sending RDP raw: {:?}", encoded_responses);
-                    }
-                    return Ok(encoded_responses);
+                    self.handle_server_announce(&mut payload)?
                 }
-
+                PacketId::PAKID_CORE_SERVER_CAPABILITY => {
+                    self.handle_server_capability(&mut payload)?
+                }
+                PacketId::PAKID_CORE_CLIENTID_CONFIRM => {
+                    self.handle_client_id_confirm(&mut payload)?
+                }
+                PacketId::PAKID_CORE_DEVICE_REPLY => self.handle_device_reply(&mut payload)?,
+                // Device IO request is where communication with the smartcard and shared drive actually happens.
+                // Everything up to this point was negotiation (and smartcard device registration).
+                PacketId::PAKID_CORE_DEVICE_IOREQUEST => {
+                    self.handle_device_io_request(&mut payload)?
+                }
                 _ => {
-                    let responses = match header.packet_id {
-                        PacketId::PAKID_CORE_SERVER_CAPABILITY => {
-                            self.handle_server_capability(&mut payload)?
-                        }
-                        PacketId::PAKID_CORE_CLIENTID_CONFIRM => {
-                            self.handle_client_id_confirm(&mut payload)?
-                        }
-                        PacketId::PAKID_CORE_DEVICE_REPLY => {
-                            self.handle_device_reply(&mut payload)?
-                        }
-                        // Device IO request is where communication with the smartcard and shared drive actually happens.
-                        // Everything up to this point was negotiation (and smartcard device registration).
-                        PacketId::PAKID_CORE_DEVICE_IOREQUEST => {
-                            self.handle_device_io_request(&mut payload)?
-                        }
-                        _ => {
-                            // We don't implement the full set of messages.
-                            error!(
-                                "RDPDR packets {:?} are not implemented yet, ignoring",
-                                header.packet_id
-                            );
-                            vec![]
-                        }
-                    };
-
-                    return Ok(responses);
+                    // We don't implement the full set of messages.
+                    error!(
+                        "RDPDR packets {:?} are not implemented yet, ignoring",
+                        header.packet_id
+                    );
+                    vec![]
                 }
-            }
+            };
+
+            return Ok(responses);
         }
         Ok(vec![])
     }
 
-    fn handle_server_announce(
-        &self,
-        req: ServerAnnounceRequest,
-    ) -> RdpResult<Vec<(Box<dyn Encode>, PacketId)>> {
-        let client_announce_reply = ClientAnnounceReply::new(req);
+    fn handle_server_announce(&self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
+        let req = ServerAnnounceRequest::decode(payload)?;
+        debug!("received RDP ServerAnnounceRequest {:?}", req);
+
+        let resp = ClientAnnounceReply::new(req);
+        debug!("sending RDP ClientAnnounceReply {:?}", resp);
+
+        let mut resp =
+            self.add_headers_and_chunkify(PacketId::PAKID_CORE_CLIENTID_CONFIRM, resp.encode()?)?;
+
         let client_name_request = ClientNameRequest::new(
             ClientNameRequestUnicodeFlag::Ascii,
             CString::new(DIRECTORY_SHARE_CLIENT_NAME.to_string()).unwrap(),
         );
 
-        Ok(vec![
-            (
-                Box::new(client_announce_reply),
-                PacketId::PAKID_CORE_CLIENTID_CONFIRM,
-            ),
-            (
-                Box::new(client_name_request),
-                PacketId::PAKID_CORE_CLIENT_NAME,
-            ),
-        ])
+        debug!("sending RDP {:?}", client_name_request);
+
+        let mut client_name_response = self.add_headers_and_chunkify(
+            PacketId::PAKID_CORE_CLIENT_NAME,
+            client_name_request.encode()?,
+        )?;
+        resp.append(&mut client_name_response);
+
+        Ok(resp)
     }
 
     fn handle_server_capability(&self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
@@ -241,8 +228,7 @@ impl Client {
         let resp =
             ClientCoreCapabilityResponse::new_response(self.allow_directory_sharing).encode()?;
         debug!("sending RDP ClientCoreCapabilityResponse: {:?}", resp);
-        let resp =
-            self.add_headers_and_chunkify_original(PacketId::PAKID_CORE_CLIENT_CAPABILITY, resp)?;
+        let resp = self.add_headers_and_chunkify(PacketId::PAKID_CORE_CLIENT_CAPABILITY, resp)?;
         Ok(resp)
     }
 
@@ -256,17 +242,11 @@ impl Client {
             self.push_active_device_id(SCARD_DEVICE_ID)?;
             let resp = ClientDeviceListAnnounceRequest::new_smartcard(SCARD_DEVICE_ID);
             debug!("sending RDP {:?}", resp);
-            self.add_headers_and_chunkify_original(
-                PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE,
-                resp.encode()?,
-            )?
+            self.add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE, resp.encode()?)?
         } else {
             let resp = ClientDeviceListAnnounceRequest::new_empty();
             debug!("sending RDP {:?}", resp);
-            self.add_headers_and_chunkify_original(
-                PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE,
-                resp.encode()?,
-            )?
+            self.add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE, resp.encode()?)?
         };
         Ok(resp)
     }
@@ -383,10 +363,8 @@ impl Client {
             DeviceControlResponse::new(&ioctl, NTSTATUS::STATUS_SUCCESS.to_u32().unwrap(), vec![])
         };
         debug!("sending RDP: {:?}", resp);
-        let resp = self.add_headers_and_chunkify_original(
-            PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
-            resp.encode()?,
-        )?;
+        let resp = self
+            .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
         Ok(resp)
     }
 
@@ -891,10 +869,8 @@ impl Client {
             req
         );
 
-        let responses = self.add_headers_and_chunkify_original(
-            PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE,
-            req.encode()?,
-        )?;
+        let responses =
+            self.add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE, req.encode()?)?;
         let chan = &CHANNEL_NAME.to_string();
         for resp in responses {
             mcs.write(chan, resp)?;
@@ -1079,10 +1055,8 @@ impl Client {
     ) -> RdpResult<Vec<Vec<u8>>> {
         let resp = DeviceCreateResponse::new(req, io_status, new_file_id);
         debug!("sending RDP: {:?}", resp);
-        let resp = self.add_headers_and_chunkify_original(
-            PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
-            resp.encode()?,
-        )?;
+        let resp = self
+            .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
         Ok(resp)
     }
 
@@ -1094,10 +1068,8 @@ impl Client {
     ) -> RdpResult<Vec<Vec<u8>>> {
         let resp = ClientDriveQueryInformationResponse::new(req, file, io_status)?;
         debug!("sending RDP: {:?}", resp);
-        let resp = self.add_headers_and_chunkify_original(
-            PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
-            resp.encode()?,
-        )?;
+        let resp = self
+            .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
         Ok(resp)
     }
 
@@ -1108,10 +1080,8 @@ impl Client {
     ) -> RdpResult<Vec<Vec<u8>>> {
         let resp = DeviceCloseResponse::new(req, io_status);
         debug!("sending RDP: {:?}", resp);
-        let resp = self.add_headers_and_chunkify_original(
-            PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
-            resp.encode()?,
-        )?;
+        let resp = self
+            .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
         Ok(resp)
     }
 
@@ -1123,10 +1093,8 @@ impl Client {
     ) -> RdpResult<Vec<Vec<u8>>> {
         let resp = ClientDriveQueryDirectoryResponse::new(device_io_request, io_status, buffer)?;
         debug!("sending RDP: {:?}", resp);
-        let resp = self.add_headers_and_chunkify_original(
-            PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
-            resp.encode()?,
-        )?;
+        let resp = self
+            .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
         Ok(resp)
     }
 
@@ -1224,10 +1192,8 @@ impl Client {
         let resp =
             ClientDriveQueryVolumeInformationResponse::new(device_io_request, io_status, buffer)?;
         debug!("sending RDP: {:?}", resp);
-        let resp = self.add_headers_and_chunkify_original(
-            PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
-            resp.encode()?,
-        )?;
+        let resp = self
+            .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
         Ok(resp)
     }
 
@@ -1239,10 +1205,8 @@ impl Client {
     ) -> RdpResult<Vec<Vec<u8>>> {
         let resp = DeviceReadResponse::new(&req, io_status, data);
         debug!("sending RDP: {:?}", resp);
-        let resp = self.add_headers_and_chunkify_original(
-            PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
-            resp.encode()?,
-        )?;
+        let resp = self
+            .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
         Ok(resp)
     }
 
@@ -1254,10 +1218,8 @@ impl Client {
     ) -> RdpResult<Vec<Vec<u8>>> {
         let resp = DeviceWriteResponse::new(&req, io_status, length);
         debug!("sending RDP: {:?}", resp);
-        let resp = self.add_headers_and_chunkify_original(
-            PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
-            resp.encode()?,
-        )?;
+        let resp = self
+            .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
         Ok(resp)
     }
 
@@ -1268,10 +1230,8 @@ impl Client {
     ) -> RdpResult<Vec<Vec<u8>>> {
         let resp = ClientDriveSetInformationResponse::new(req, io_status);
         debug!("sending RDP: {:?}", resp);
-        let resp = self.add_headers_and_chunkify_original(
-            PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
-            resp.encode()?,
-        )?;
+        let resp = self
+            .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
         Ok(resp)
     }
 
@@ -1547,23 +1507,10 @@ impl Client {
         self.prep_set_info_response(&rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL)
     }
 
-    /// add_headers_and_chunkify takes an Encode ready to be sent over a virtual channel (message),
-    /// adds on the Shared Header based the passed packet_id, adds the appropriate (virtual) Channel PDU Header,
-    /// and splits the entire payload into chunks if the payload exceeds the maximum size.
-    fn add_headers_and_chunkify(
-        &self,
-        packet_id: PacketId,
-        message: Box<dyn Encode>,
-    ) -> RdpResult<Vec<Vec<u8>>> {
-        let mut inner = SharedHeader::new(Component::RDPDR_CTYP_CORE, packet_id).encode()?;
-        inner.extend_from_slice(&message.encode()?);
-        self.vchan.add_header_and_chunkify(None, inner)
-    }
-
     /// add_headers_and_chunkify takes an encoded PDU ready to be sent over a virtual channel (payload),
     /// adds on the Shared Header based the passed packet_id, adds the appropriate (virtual) Channel PDU Header,
     /// and splits the entire payload into chunks if the payload exceeds the maximum size.
-    fn add_headers_and_chunkify_original(
+    fn add_headers_and_chunkify(
         &self,
         packet_id: PacketId,
         payload: Vec<u8>,
@@ -1798,22 +1745,20 @@ impl ClientIdMessage {
         }
     }
 
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
-        Ok(Self {
-            version_major: payload.read_u16::<LittleEndian>()?,
-            version_minor: payload.read_u16::<LittleEndian>()?,
-            client_id: payload.read_u32::<LittleEndian>()?,
-        })
-    }
-}
-
-impl Encode for ClientIdMessage {
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
         w.write_u16::<LittleEndian>(self.version_major)?;
         w.write_u16::<LittleEndian>(self.version_minor)?;
         w.write_u32::<LittleEndian>(self.client_id)?;
         Ok(w)
+    }
+
+    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+        Ok(Self {
+            version_major: payload.read_u16::<LittleEndian>()?,
+            version_minor: payload.read_u16::<LittleEndian>()?,
+            client_id: payload.read_u32::<LittleEndian>()?,
+        })
     }
 }
 
@@ -2165,9 +2110,7 @@ impl ClientNameRequest {
             computer_name,
         }
     }
-}
 
-impl Encode for ClientNameRequest {
     fn encode(&self) -> RdpResult<Vec<u8>> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.unicode_flag.clone() as u32)?;
