@@ -87,6 +87,8 @@ type Config struct {
 	ResourceMatchers []services.ResourceMatcher
 	// AWSMatchers is a list of AWS databases matchers.
 	AWSMatchers []services.AWSMatcher
+	// AzureMatchers is a list of Azure databases matchers.
+	AzureMatchers []services.AzureMatcher
 	// Databases is a list of proxied databases from static configuration.
 	Databases types.Databases
 	// CloudLabels is a service that imports labels from a cloud provider. The labels are shared
@@ -897,7 +899,7 @@ func fetchMySQLVersion(ctx context.Context, database types.Database) error {
 	}
 
 	// Try to extract the engine version for AWS metadata labels.
-	if database.IsRDS() {
+	if database.IsRDS() || database.IsAzure() {
 		version := services.GetMySQLEngineVersion(database.GetMetadata().Labels)
 		if version != "" {
 			database.SetMySQLServerVersion(version)
