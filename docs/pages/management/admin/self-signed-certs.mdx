@@ -100,8 +100,9 @@ certs, then `tctl` will not trust the certificate from the proxy and you will ge
 untrusted or invalid certificates, unless `--insecure` is also passed to `tctl`.
 
 ## Self-Signed Certs: `tsh`
-When running `tsh login`, you need to pass `--insecure` to login when the proxy service is using
-self-signed certs.
+When running `tsh`, you must specify the Teleport Proxy Service address for `tsh` to connect to.
+If the Teleport Proxy Service is using self-signed certs, then `tsh` will not trust the proxy's certificate.
+In order to use `tsh` in this case, you need to use the `--insecure` flag.
 
 ## Configuring Certificates Properly
 
