@@ -289,11 +289,11 @@ type ServerContext struct {
 	// time this context was created.
 	SessionRecordingConfig types.SessionRecordingConfig
 
-	// RemoteClient holds a SSH client to a remote server. Only used by the
+	// RemoteClient holds an SSH client to a remote server. Only used by the
 	// recording proxy.
 	RemoteClient *tracessh.Client
 
-	// RemoteSession holds a SSH session to a remote server. Only used by the
+	// RemoteSession holds an SSH session to a remote server. Only used by the
 	// recording proxy.
 	RemoteSession *tracessh.Session
 
@@ -301,11 +301,11 @@ type ServerContext struct {
 	clientLastActive time.Time
 
 	// disconnectExpiredCert is set to time when/if the certificate should
-	// be disconnected, set to empty if no disconect is necessary
+	// be disconnected, set to empty if no disconnect is necessary
 	disconnectExpiredCert time.Time
 
 	// clientIdleTimeout is set to the timeout on
-	// on client inactivity, set to 0 if not setup
+	// client inactivity, set to 0 if not setup
 	clientIdleTimeout time.Duration
 
 	// cancelContext signals closure to all outstanding operations
@@ -318,6 +318,9 @@ type ServerContext struct {
 	// to be tracked because the terminal is set to nil after it's "taken" in the
 	// session. Terminals can be allocated for both "exec" or "session" requests.
 	termAllocated bool
+
+	// ttyName is the name of the TTY used for a session, ex: /dev/pts/0
+	ttyName string
 
 	// request is the request that was issued by the client
 	request *ssh.Request
@@ -337,7 +340,7 @@ type ServerContext struct {
 	ChannelType string
 
 	// SrcAddr is the source address of the request. This the originator IP
-	// address and port in a SSH "direct-tcpip" request. This value is only
+	// address and port in an SSH "direct-tcpip" request. This value is only
 	// populated for port forwarding requests.
 	SrcAddr string
 
@@ -1027,6 +1030,8 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		Login:                 c.Identity.Login,
 		Roles:                 roleNames,
 		Terminal:              c.termAllocated || command == "",
+		TerminalName:          c.ttyName,
+		ClientAddress:         c.ServerConn.RemoteAddr().String(),
 		RequestType:           requestType,
 		PermitUserEnvironment: c.srv.PermitUserEnvironment(),
 		Environment:           buildEnvironment(c),
