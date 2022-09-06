@@ -5182,7 +5182,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:193
+# Generated at dronegen/container_images.go:194
 ################################################
 
 kind: pipeline
@@ -5434,8 +5434,8 @@ steps:
   - Tag and push "quay.io/gravitational/teleport:10-amd64" to Quay
   - Tag and push "quay.io/gravitational/teleport:10-arm" to Quay
   - Tag and push "quay.io/gravitational/teleport:10-arm64" to Quay
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-amd64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...port:10-$TIMESTAMP-amd64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -5455,8 +5455,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-amd64"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...leport:10-$TIMESTAMP-arm" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -5476,8 +5476,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-arm"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...port:10-$TIMESTAMP-arm64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -5497,7 +5497,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-arm64"
-- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us...l/teleport:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -5520,12 +5520,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-amd64"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm64"
-    to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...port:10-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...leport:10-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...port:10-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/gravitational/teleport:10-amd64" to ECR - production
   image: docker
   commands:
@@ -5804,8 +5801,8 @@ steps:
   - Tag and push "quay.io/gravitational/teleport-ent:10-amd64" to Quay
   - Tag and push "quay.io/gravitational/teleport-ent:10-arm" to Quay
   - Tag and push "quay.io/gravitational/teleport-ent:10-arm64" to Quay
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-amd64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...-ent:10-$TIMESTAMP-amd64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -5825,8 +5822,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v10-amd64"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...rt-ent:10-$TIMESTAMP-arm" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -5846,8 +5843,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v10-arm"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...-ent:10-$TIMESTAMP-arm64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -5867,7 +5864,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v10-arm64"
-- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us...leport-ent:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -5890,12 +5887,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-amd64"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm64"
-    to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...-ent:10-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...rt-ent:10-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...-ent:10-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/gravitational/teleport-ent:10-amd64" to ECR -
     production
   image: docker
@@ -6084,8 +6078,8 @@ steps:
     path: /var/run
   depends_on:
   - Tag and push "quay.io/gravitational/teleport-ent:10-fips-amd64" to Quay
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-fips-amd64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...0-$TIMESTAMP-fips-amd64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -6105,7 +6099,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent-fips image "teleport-ent-fips-v10-amd64"
-- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-fips"
+- name: Create manifest and push "146628656107.dkr.ecr.us-...-ent:10-$TIMESTAMP-fips"
     to ECR - staging
   image: docker
   commands:
@@ -6126,10 +6120,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-fips-amd64"
-    to ECR - staging
-- name: Tag and push "public.ecr.aws/gravitational/teleport-ent:10-fips-amd64" to
-    ECR - production
+  - Tag and push "146628656107.dkr.ecr.us-...0-$TIMESTAMP-fips-amd64" to ECR - staging
+- name: Tag and push "public.ecr.aws/gravitat...leport-ent:10-fips-amd64" to ECR -
+    production
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -6170,8 +6163,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "public.ecr.aws/gravitational/teleport-ent:10-fips-amd64" to ECR
-    - production
+  - Tag and push "public.ecr.aws/gravitat...leport-ent:10-fips-amd64" to ECR - production
 - name: Build teleport-lab image "teleport-lab-v10-amd64"
   image: docker
   commands:
@@ -6300,8 +6292,8 @@ steps:
   - Tag and push "quay.io/gravitational/teleport-lab:10-amd64" to Quay
   - Tag and push "quay.io/gravitational/teleport-lab:10-arm" to Quay
   - Tag and push "quay.io/gravitational/teleport-lab:10-arm64" to Quay
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-amd64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...-lab:10-$TIMESTAMP-amd64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -6321,8 +6313,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-amd64"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...rt-lab:10-$TIMESTAMP-arm" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -6342,8 +6334,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-arm"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...-lab:10-$TIMESTAMP-arm64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -6363,7 +6355,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-arm64"
-- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us...leport-lab:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -6386,12 +6378,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-amd64"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm64"
-    to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...-lab:10-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...rt-lab:10-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...-lab:10-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/gravitational/teleport-lab:10-amd64" to ECR -
     production
   image: docker
@@ -6604,8 +6593,8 @@ steps:
   - Tag and push "quay.io/gravitational/teleport-operator:10-amd64" to Quay
   - Tag and push "quay.io/gravitational/teleport-operator:10-arm" to Quay
   - Tag and push "quay.io/gravitational/teleport-operator:10-arm64" to Quay
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:10-$TIMESTAMP-amd64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...tor:10-$TIMESTAMP-amd64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -6625,8 +6614,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v10-amd64"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:10-$TIMESTAMP-arm"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...rator:10-$TIMESTAMP-arm" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -6646,8 +6635,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v10-arm"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:10-$TIMESTAMP-arm64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...tor:10-$TIMESTAMP-arm64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -6667,7 +6656,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v10-arm64"
-- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:10-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us-...-operator:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -6690,14 +6679,11 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:10-$TIMESTAMP-amd64"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:10-$TIMESTAMP-arm"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:10-$TIMESTAMP-arm64"
-    to ECR - staging
-- name: Tag and push "public.ecr.aws/gravitational/teleport-operator:10-amd64" to
-    ECR - production
+  - Tag and push "146628656107.dkr.ecr.us-...tor:10-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us-...rator:10-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us-...tor:10-$TIMESTAMP-arm64" to ECR - staging
+- name: Tag and push "public.ecr.aws/gravitat...leport-operator:10-amd64" to ECR -
+    production
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -6717,8 +6703,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v10-amd64"
-- name: Tag and push "public.ecr.aws/gravitational/teleport-operator:10-arm" to ECR
-    - production
+- name: Tag and push "public.ecr.aws/gravitat...teleport-operator:10-arm" to ECR -
+    production
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -6738,8 +6724,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v10-arm"
-- name: Tag and push "public.ecr.aws/gravitational/teleport-operator:10-arm64" to
-    ECR - production
+- name: Tag and push "public.ecr.aws/gravitat...leport-operator:10-arm64" to ECR -
+    production
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -6781,12 +6767,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "public.ecr.aws/gravitational/teleport-operator:10-amd64" to ECR
-    - production
-  - Tag and push "public.ecr.aws/gravitational/teleport-operator:10-arm" to ECR -
-    production
-  - Tag and push "public.ecr.aws/gravitational/teleport-operator:10-arm64" to ECR
-    - production
+  - Tag and push "public.ecr.aws/gravitat...leport-operator:10-amd64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitat...teleport-operator:10-arm" to ECR - production
+  - Tag and push "public.ecr.aws/gravitat...leport-operator:10-arm64" to ECR - production
 services:
 - name: Start Docker
   image: docker:dind
@@ -6802,7 +6785,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:193
+# Generated at dronegen/container_images.go:194
 ################################################
 
 kind: pipeline
@@ -7051,8 +7034,8 @@ steps:
   - Tag and push "quay.io/gravitational/teleport:10-amd64" to Quay
   - Tag and push "quay.io/gravitational/teleport:10-arm" to Quay
   - Tag and push "quay.io/gravitational/teleport:10-arm64" to Quay
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-amd64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...port:10-$TIMESTAMP-amd64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -7072,8 +7055,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-amd64"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...leport:10-$TIMESTAMP-arm" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -7093,8 +7076,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-arm"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...port:10-$TIMESTAMP-arm64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -7114,7 +7097,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-arm64"
-- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us...l/teleport:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -7137,12 +7120,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-amd64"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm64"
-    to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...port:10-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...leport:10-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...port:10-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/gravitational/teleport:10-amd64" to ECR - production
   image: docker
   commands:
@@ -7421,8 +7401,8 @@ steps:
   - Tag and push "quay.io/gravitational/teleport-ent:10-amd64" to Quay
   - Tag and push "quay.io/gravitational/teleport-ent:10-arm" to Quay
   - Tag and push "quay.io/gravitational/teleport-ent:10-arm64" to Quay
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-amd64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...-ent:10-$TIMESTAMP-amd64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -7442,8 +7422,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v10-amd64"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...rt-ent:10-$TIMESTAMP-arm" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -7463,8 +7443,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v10-arm"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...-ent:10-$TIMESTAMP-arm64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -7484,7 +7464,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v10-arm64"
-- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us...leport-ent:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -7507,12 +7487,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-amd64"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm64"
-    to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...-ent:10-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...rt-ent:10-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...-ent:10-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/gravitational/teleport-ent:10-amd64" to ECR -
     production
   image: docker
@@ -7701,8 +7678,8 @@ steps:
     path: /var/run
   depends_on:
   - Tag and push "quay.io/gravitational/teleport-ent:10-fips-amd64" to Quay
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-fips-amd64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...0-$TIMESTAMP-fips-amd64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -7722,7 +7699,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent-fips image "teleport-ent-fips-v10-amd64"
-- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-fips"
+- name: Create manifest and push "146628656107.dkr.ecr.us-...-ent:10-$TIMESTAMP-fips"
     to ECR - staging
   image: docker
   commands:
@@ -7743,10 +7720,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-fips-amd64"
-    to ECR - staging
-- name: Tag and push "public.ecr.aws/gravitational/teleport-ent:10-fips-amd64" to
-    ECR - production
+  - Tag and push "146628656107.dkr.ecr.us-...0-$TIMESTAMP-fips-amd64" to ECR - staging
+- name: Tag and push "public.ecr.aws/gravitat...leport-ent:10-fips-amd64" to ECR -
+    production
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -7787,8 +7763,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "public.ecr.aws/gravitational/teleport-ent:10-fips-amd64" to ECR
-    - production
+  - Tag and push "public.ecr.aws/gravitat...leport-ent:10-fips-amd64" to ECR - production
 - name: Build teleport-lab image "teleport-lab-v10-amd64"
   image: docker
   commands:
@@ -7917,8 +7892,8 @@ steps:
   - Tag and push "quay.io/gravitational/teleport-lab:10-amd64" to Quay
   - Tag and push "quay.io/gravitational/teleport-lab:10-arm" to Quay
   - Tag and push "quay.io/gravitational/teleport-lab:10-arm64" to Quay
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-amd64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...-lab:10-$TIMESTAMP-amd64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -7938,8 +7913,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-amd64"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...rt-lab:10-$TIMESTAMP-arm" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -7959,8 +7934,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-arm"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...-lab:10-$TIMESTAMP-arm64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -7980,7 +7955,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-arm64"
-- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us...leport-lab:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -8003,12 +7978,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-amd64"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm64"
-    to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...-lab:10-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...rt-lab:10-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...-lab:10-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/gravitational/teleport-lab:10-amd64" to ECR -
     production
   image: docker
@@ -8221,8 +8193,8 @@ steps:
   - Tag and push "quay.io/gravitational/teleport-operator:10-amd64" to Quay
   - Tag and push "quay.io/gravitational/teleport-operator:10-arm" to Quay
   - Tag and push "quay.io/gravitational/teleport-operator:10-arm64" to Quay
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:10-$TIMESTAMP-amd64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...tor:10-$TIMESTAMP-amd64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -8242,8 +8214,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v10-amd64"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:10-$TIMESTAMP-arm"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...rator:10-$TIMESTAMP-arm" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -8263,8 +8235,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v10-arm"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:10-$TIMESTAMP-arm64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...tor:10-$TIMESTAMP-arm64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -8284,7 +8256,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v10-arm64"
-- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:10-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us-...-operator:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -8307,14 +8279,11 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:10-$TIMESTAMP-amd64"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:10-$TIMESTAMP-arm"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:10-$TIMESTAMP-arm64"
-    to ECR - staging
-- name: Tag and push "public.ecr.aws/gravitational/teleport-operator:10-amd64" to
-    ECR - production
+  - Tag and push "146628656107.dkr.ecr.us-...tor:10-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us-...rator:10-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us-...tor:10-$TIMESTAMP-arm64" to ECR - staging
+- name: Tag and push "public.ecr.aws/gravitat...leport-operator:10-amd64" to ECR -
+    production
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -8334,8 +8303,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v10-amd64"
-- name: Tag and push "public.ecr.aws/gravitational/teleport-operator:10-arm" to ECR
-    - production
+- name: Tag and push "public.ecr.aws/gravitat...teleport-operator:10-arm" to ECR -
+    production
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -8355,8 +8324,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v10-arm"
-- name: Tag and push "public.ecr.aws/gravitational/teleport-operator:10-arm64" to
-    ECR - production
+- name: Tag and push "public.ecr.aws/gravitat...leport-operator:10-arm64" to ECR -
+    production
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -8398,12 +8367,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "public.ecr.aws/gravitational/teleport-operator:10-amd64" to ECR
-    - production
-  - Tag and push "public.ecr.aws/gravitational/teleport-operator:10-arm" to ECR -
-    production
-  - Tag and push "public.ecr.aws/gravitational/teleport-operator:10-arm64" to ECR
-    - production
+  - Tag and push "public.ecr.aws/gravitat...leport-operator:10-amd64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitat...teleport-operator:10-arm" to ECR - production
+  - Tag and push "public.ecr.aws/gravitat...leport-operator:10-arm64" to ECR - production
 services:
 - name: Start Docker
   image: docker:dind
@@ -8419,7 +8385,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:193
+# Generated at dronegen/container_images.go:194
 ################################################
 
 kind: pipeline
@@ -8667,8 +8633,8 @@ steps:
   - Tag and push "quay.io/gravitational/teleport:9-amd64" to Quay
   - Tag and push "quay.io/gravitational/teleport:9-arm" to Quay
   - Tag and push "quay.io/gravitational/teleport:9-arm64" to Quay
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:9-$TIMESTAMP-amd64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...port:9-$TIMESTAMP-amd64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -8688,8 +8654,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v9-amd64"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:9-$TIMESTAMP-arm"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...leport:9-$TIMESTAMP-arm" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -8709,8 +8675,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v9-arm"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:9-$TIMESTAMP-arm64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...port:9-$TIMESTAMP-arm64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -8730,7 +8696,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v9-arm64"
-- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:9-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us-...l/teleport:9-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -8753,12 +8719,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:9-$TIMESTAMP-amd64"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:9-$TIMESTAMP-arm"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:9-$TIMESTAMP-arm64"
-    to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us-...port:9-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us-...leport:9-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us-...port:9-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/gravitational/teleport:9-amd64" to ECR - production
   image: docker
   commands:
@@ -9037,8 +9000,8 @@ steps:
   - Tag and push "quay.io/gravitational/teleport-ent:9-amd64" to Quay
   - Tag and push "quay.io/gravitational/teleport-ent:9-arm" to Quay
   - Tag and push "quay.io/gravitational/teleport-ent:9-arm64" to Quay
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-$TIMESTAMP-amd64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...-ent:9-$TIMESTAMP-amd64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -9058,8 +9021,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v9-amd64"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-$TIMESTAMP-arm"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...rt-ent:9-$TIMESTAMP-arm" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -9079,8 +9042,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v9-arm"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-$TIMESTAMP-arm64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...-ent:9-$TIMESTAMP-arm64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -9100,7 +9063,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v9-arm64"
-- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us-...leport-ent:9-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -9123,12 +9086,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-$TIMESTAMP-amd64"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-$TIMESTAMP-arm"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-$TIMESTAMP-arm64"
-    to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us-...-ent:9-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us-...rt-ent:9-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us-...-ent:9-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/gravitational/teleport-ent:9-amd64" to ECR -
     production
   image: docker
@@ -9316,8 +9276,8 @@ steps:
     path: /var/run
   depends_on:
   - Tag and push "quay.io/gravitational/teleport-ent:9-fips-amd64" to Quay
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-$TIMESTAMP-fips-amd64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...:9-$TIMESTAMP-fips-amd64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -9337,7 +9297,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent-fips image "teleport-ent-fips-v9-amd64"
-- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-$TIMESTAMP-fips"
+- name: Create manifest and push "146628656107.dkr.ecr.us...rt-ent:9-$TIMESTAMP-fips"
     to ECR - staging
   image: docker
   commands:
@@ -9358,10 +9318,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:9-$TIMESTAMP-fips-amd64"
-    to ECR - staging
-- name: Tag and push "public.ecr.aws/gravitational/teleport-ent:9-fips-amd64" to ECR
-    - production
+  - Tag and push "146628656107.dkr.ecr.us...:9-$TIMESTAMP-fips-amd64" to ECR - staging
+- name: Tag and push "public.ecr.aws/gravitati...leport-ent:9-fips-amd64" to ECR -
+    production
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -9402,8 +9361,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "public.ecr.aws/gravitational/teleport-ent:9-fips-amd64" to ECR -
-    production
+  - Tag and push "public.ecr.aws/gravitati...leport-ent:9-fips-amd64" to ECR - production
 - name: Build teleport-lab image "teleport-lab-v9-amd64"
   image: docker
   commands:
@@ -9532,8 +9490,8 @@ steps:
   - Tag and push "quay.io/gravitational/teleport-lab:9-amd64" to Quay
   - Tag and push "quay.io/gravitational/teleport-lab:9-arm" to Quay
   - Tag and push "quay.io/gravitational/teleport-lab:9-arm64" to Quay
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:9-$TIMESTAMP-amd64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...-lab:9-$TIMESTAMP-amd64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -9553,8 +9511,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v9-amd64"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:9-$TIMESTAMP-arm"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...rt-lab:9-$TIMESTAMP-arm" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -9574,8 +9532,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v9-arm"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:9-$TIMESTAMP-arm64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...-lab:9-$TIMESTAMP-arm64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -9595,7 +9553,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v9-arm64"
-- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:9-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us-...leport-lab:9-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -9618,12 +9576,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:9-$TIMESTAMP-amd64"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:9-$TIMESTAMP-arm"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:9-$TIMESTAMP-arm64"
-    to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us-...-lab:9-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us-...rt-lab:9-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us-...-lab:9-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/gravitational/teleport-lab:9-amd64" to ECR -
     production
   image: docker
@@ -9835,8 +9790,8 @@ steps:
   - Tag and push "quay.io/gravitational/teleport-operator:9-amd64" to Quay
   - Tag and push "quay.io/gravitational/teleport-operator:9-arm" to Quay
   - Tag and push "quay.io/gravitational/teleport-operator:9-arm64" to Quay
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:9-$TIMESTAMP-amd64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...rator:9-$TIMESTAMP-amd64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -9856,8 +9811,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v9-amd64"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:9-$TIMESTAMP-arm"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...perator:9-$TIMESTAMP-arm" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -9877,8 +9832,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v9-arm"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:9-$TIMESTAMP-arm64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...rator:9-$TIMESTAMP-arm64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -9898,7 +9853,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v9-arm64"
-- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:9-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us...rt-operator:9-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -9921,14 +9876,11 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:9-$TIMESTAMP-amd64"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:9-$TIMESTAMP-arm"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:9-$TIMESTAMP-arm64"
-    to ECR - staging
-- name: Tag and push "public.ecr.aws/gravitational/teleport-operator:9-amd64" to ECR
-    - production
+  - Tag and push "146628656107.dkr.ecr.us...rator:9-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...perator:9-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...rator:9-$TIMESTAMP-arm64" to ECR - staging
+- name: Tag and push "public.ecr.aws/gravitati...leport-operator:9-amd64" to ECR -
+    production
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -9948,8 +9900,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v9-amd64"
-- name: Tag and push "public.ecr.aws/gravitational/teleport-operator:9-arm" to ECR
-    - production
+- name: Tag and push "public.ecr.aws/gravitati...teleport-operator:9-arm" to ECR -
+    production
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -9969,8 +9921,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v9-arm"
-- name: Tag and push "public.ecr.aws/gravitational/teleport-operator:9-arm64" to ECR
-    - production
+- name: Tag and push "public.ecr.aws/gravitati...leport-operator:9-arm64" to ECR -
+    production
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -10012,11 +9964,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "public.ecr.aws/gravitational/teleport-operator:9-amd64" to ECR -
-    production
-  - Tag and push "public.ecr.aws/gravitational/teleport-operator:9-arm" to ECR - production
-  - Tag and push "public.ecr.aws/gravitational/teleport-operator:9-arm64" to ECR -
-    production
+  - Tag and push "public.ecr.aws/gravitati...leport-operator:9-amd64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitati...teleport-operator:9-arm" to ECR - production
+  - Tag and push "public.ecr.aws/gravitati...leport-operator:9-arm64" to ECR - production
 services:
 - name: Start Docker
   image: docker:dind
@@ -10032,7 +9982,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:193
+# Generated at dronegen/container_images.go:194
 ################################################
 
 kind: pipeline
@@ -10280,8 +10230,8 @@ steps:
   - Tag and push "quay.io/gravitational/teleport:8-amd64" to Quay
   - Tag and push "quay.io/gravitational/teleport:8-arm" to Quay
   - Tag and push "quay.io/gravitational/teleport:8-arm64" to Quay
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:8-$TIMESTAMP-amd64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...port:8-$TIMESTAMP-amd64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -10301,8 +10251,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v8-amd64"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:8-$TIMESTAMP-arm"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...leport:8-$TIMESTAMP-arm" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -10322,8 +10272,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v8-arm"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:8-$TIMESTAMP-arm64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...port:8-$TIMESTAMP-arm64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -10343,7 +10293,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v8-arm64"
-- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:8-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us-...l/teleport:8-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -10366,12 +10316,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:8-$TIMESTAMP-amd64"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:8-$TIMESTAMP-arm"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:8-$TIMESTAMP-arm64"
-    to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us-...port:8-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us-...leport:8-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us-...port:8-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/gravitational/teleport:8-amd64" to ECR - production
   image: docker
   commands:
@@ -10650,8 +10597,8 @@ steps:
   - Tag and push "quay.io/gravitational/teleport-ent:8-amd64" to Quay
   - Tag and push "quay.io/gravitational/teleport-ent:8-arm" to Quay
   - Tag and push "quay.io/gravitational/teleport-ent:8-arm64" to Quay
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-$TIMESTAMP-amd64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...-ent:8-$TIMESTAMP-amd64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -10671,8 +10618,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v8-amd64"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-$TIMESTAMP-arm"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...rt-ent:8-$TIMESTAMP-arm" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -10692,8 +10639,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v8-arm"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-$TIMESTAMP-arm64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...-ent:8-$TIMESTAMP-arm64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -10713,7 +10660,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v8-arm64"
-- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us-...leport-ent:8-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -10736,12 +10683,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-$TIMESTAMP-amd64"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-$TIMESTAMP-arm"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-$TIMESTAMP-arm64"
-    to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us-...-ent:8-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us-...rt-ent:8-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us-...-ent:8-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/gravitational/teleport-ent:8-amd64" to ECR -
     production
   image: docker
@@ -10929,8 +10873,8 @@ steps:
     path: /var/run
   depends_on:
   - Tag and push "quay.io/gravitational/teleport-ent:8-fips-amd64" to Quay
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-$TIMESTAMP-fips-amd64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...:8-$TIMESTAMP-fips-amd64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -10950,7 +10894,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent-fips image "teleport-ent-fips-v8-amd64"
-- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-$TIMESTAMP-fips"
+- name: Create manifest and push "146628656107.dkr.ecr.us...rt-ent:8-$TIMESTAMP-fips"
     to ECR - staging
   image: docker
   commands:
@@ -10971,10 +10915,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:8-$TIMESTAMP-fips-amd64"
-    to ECR - staging
-- name: Tag and push "public.ecr.aws/gravitational/teleport-ent:8-fips-amd64" to ECR
-    - production
+  - Tag and push "146628656107.dkr.ecr.us...:8-$TIMESTAMP-fips-amd64" to ECR - staging
+- name: Tag and push "public.ecr.aws/gravitati...leport-ent:8-fips-amd64" to ECR -
+    production
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -11015,8 +10958,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "public.ecr.aws/gravitational/teleport-ent:8-fips-amd64" to ECR -
-    production
+  - Tag and push "public.ecr.aws/gravitati...leport-ent:8-fips-amd64" to ECR - production
 - name: Build teleport-lab image "teleport-lab-v8-amd64"
   image: docker
   commands:
@@ -11145,8 +11087,8 @@ steps:
   - Tag and push "quay.io/gravitational/teleport-lab:8-amd64" to Quay
   - Tag and push "quay.io/gravitational/teleport-lab:8-arm" to Quay
   - Tag and push "quay.io/gravitational/teleport-lab:8-arm64" to Quay
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:8-$TIMESTAMP-amd64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...-lab:8-$TIMESTAMP-amd64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -11166,8 +11108,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v8-amd64"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:8-$TIMESTAMP-arm"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...rt-lab:8-$TIMESTAMP-arm" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -11187,8 +11129,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v8-arm"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:8-$TIMESTAMP-arm64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...-lab:8-$TIMESTAMP-arm64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -11208,7 +11150,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v8-arm64"
-- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:8-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us-...leport-lab:8-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -11231,12 +11173,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:8-$TIMESTAMP-amd64"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:8-$TIMESTAMP-arm"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:8-$TIMESTAMP-arm64"
-    to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us-...-lab:8-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us-...rt-lab:8-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us-...-lab:8-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/gravitational/teleport-lab:8-amd64" to ECR -
     production
   image: docker
@@ -11448,8 +11387,8 @@ steps:
   - Tag and push "quay.io/gravitational/teleport-operator:8-amd64" to Quay
   - Tag and push "quay.io/gravitational/teleport-operator:8-arm" to Quay
   - Tag and push "quay.io/gravitational/teleport-operator:8-arm64" to Quay
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:8-$TIMESTAMP-amd64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...rator:8-$TIMESTAMP-amd64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -11469,8 +11408,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v8-amd64"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:8-$TIMESTAMP-arm"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...perator:8-$TIMESTAMP-arm" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -11490,8 +11429,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v8-arm"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:8-$TIMESTAMP-arm64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...rator:8-$TIMESTAMP-arm64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -11511,7 +11450,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v8-arm64"
-- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:8-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us...rt-operator:8-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -11534,14 +11473,11 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:8-$TIMESTAMP-amd64"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:8-$TIMESTAMP-arm"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:8-$TIMESTAMP-arm64"
-    to ECR - staging
-- name: Tag and push "public.ecr.aws/gravitational/teleport-operator:8-amd64" to ECR
-    - production
+  - Tag and push "146628656107.dkr.ecr.us...rator:8-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...perator:8-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...rator:8-$TIMESTAMP-arm64" to ECR - staging
+- name: Tag and push "public.ecr.aws/gravitati...leport-operator:8-amd64" to ECR -
+    production
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -11561,8 +11497,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v8-amd64"
-- name: Tag and push "public.ecr.aws/gravitational/teleport-operator:8-arm" to ECR
-    - production
+- name: Tag and push "public.ecr.aws/gravitati...teleport-operator:8-arm" to ECR -
+    production
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -11582,8 +11518,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v8-arm"
-- name: Tag and push "public.ecr.aws/gravitational/teleport-operator:8-arm64" to ECR
-    - production
+- name: Tag and push "public.ecr.aws/gravitati...leport-operator:8-arm64" to ECR -
+    production
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -11625,11 +11561,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "public.ecr.aws/gravitational/teleport-operator:8-amd64" to ECR -
-    production
-  - Tag and push "public.ecr.aws/gravitational/teleport-operator:8-arm" to ECR - production
-  - Tag and push "public.ecr.aws/gravitational/teleport-operator:8-arm64" to ECR -
-    production
+  - Tag and push "public.ecr.aws/gravitati...leport-operator:8-amd64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitati...teleport-operator:8-arm" to ECR - production
+  - Tag and push "public.ecr.aws/gravitati...leport-operator:8-arm64" to ECR - production
 services:
 - name: Start Docker
   image: docker:dind
@@ -11645,7 +11579,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:193
+# Generated at dronegen/container_images.go:194
 ################################################
 
 kind: pipeline
@@ -11914,8 +11848,8 @@ steps:
   - Tag and push "quay.io/gravitational/teleport:10-amd64" to Quay
   - Tag and push "quay.io/gravitational/teleport:10-arm" to Quay
   - Tag and push "quay.io/gravitational/teleport:10-arm64" to Quay
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-amd64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...port:10-$TIMESTAMP-amd64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -11935,8 +11869,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-amd64"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...leport:10-$TIMESTAMP-arm" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -11956,8 +11890,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-arm"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...port:10-$TIMESTAMP-arm64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -11977,7 +11911,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-arm64"
-- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us...l/teleport:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -12000,12 +11934,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-amd64"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport:10-$TIMESTAMP-arm64"
-    to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...port:10-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...leport:10-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...port:10-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/gravitational/teleport:10-amd64" to ECR - production
   image: docker
   commands:
@@ -12286,8 +12217,8 @@ steps:
   - Tag and push "quay.io/gravitational/teleport-ent:10-amd64" to Quay
   - Tag and push "quay.io/gravitational/teleport-ent:10-arm" to Quay
   - Tag and push "quay.io/gravitational/teleport-ent:10-arm64" to Quay
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-amd64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...-ent:10-$TIMESTAMP-amd64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -12307,8 +12238,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v10-amd64"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...rt-ent:10-$TIMESTAMP-arm" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -12328,8 +12259,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v10-arm"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...-ent:10-$TIMESTAMP-arm64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -12349,7 +12280,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v10-arm64"
-- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us...leport-ent:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -12372,12 +12303,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-amd64"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-arm64"
-    to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...-ent:10-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...rt-ent:10-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...-ent:10-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/gravitational/teleport-ent:10-amd64" to ECR -
     production
   image: docker
@@ -12569,8 +12497,8 @@ steps:
     path: /var/run
   depends_on:
   - Tag and push "quay.io/gravitational/teleport-ent:10-fips-amd64" to Quay
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-fips-amd64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...0-$TIMESTAMP-fips-amd64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -12590,7 +12518,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent-fips image "teleport-ent-fips-v10-amd64"
-- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-fips"
+- name: Create manifest and push "146628656107.dkr.ecr.us-...-ent:10-$TIMESTAMP-fips"
     to ECR - staging
   image: docker
   commands:
@@ -12611,10 +12539,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-ent:10-$TIMESTAMP-fips-amd64"
-    to ECR - staging
-- name: Tag and push "public.ecr.aws/gravitational/teleport-ent:10-fips-amd64" to
-    ECR - production
+  - Tag and push "146628656107.dkr.ecr.us-...0-$TIMESTAMP-fips-amd64" to ECR - staging
+- name: Tag and push "public.ecr.aws/gravitat...leport-ent:10-fips-amd64" to ECR -
+    production
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -12655,8 +12582,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "public.ecr.aws/gravitational/teleport-ent:10-fips-amd64" to ECR
-    - production
+  - Tag and push "public.ecr.aws/gravitat...leport-ent:10-fips-amd64" to ECR - production
 - name: Build teleport-lab image "teleport-lab-v10-amd64"
   image: docker
   commands:
@@ -12791,8 +12717,8 @@ steps:
   - Tag and push "quay.io/gravitational/teleport-lab:10-amd64" to Quay
   - Tag and push "quay.io/gravitational/teleport-lab:10-arm" to Quay
   - Tag and push "quay.io/gravitational/teleport-lab:10-arm64" to Quay
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-amd64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...-lab:10-$TIMESTAMP-amd64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -12812,8 +12738,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-amd64"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...rt-lab:10-$TIMESTAMP-arm" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -12833,8 +12759,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-arm"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us...-lab:10-$TIMESTAMP-arm64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -12854,7 +12780,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-arm64"
-- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us...leport-lab:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -12877,12 +12803,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-amd64"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-lab:10-$TIMESTAMP-arm64"
-    to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...-lab:10-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...rt-lab:10-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us...-lab:10-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/gravitational/teleport-lab:10-amd64" to ECR -
     production
   image: docker
@@ -13101,8 +13024,8 @@ steps:
   - Tag and push "quay.io/gravitational/teleport-operator:10-amd64" to Quay
   - Tag and push "quay.io/gravitational/teleport-operator:10-arm" to Quay
   - Tag and push "quay.io/gravitational/teleport-operator:10-arm64" to Quay
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:10-$TIMESTAMP-amd64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...tor:10-$TIMESTAMP-amd64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -13122,8 +13045,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v10-amd64"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:10-$TIMESTAMP-arm"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...rator:10-$TIMESTAMP-arm" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -13143,8 +13066,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v10-arm"
-- name: Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:10-$TIMESTAMP-arm64"
-    to ECR - staging
+- name: Tag and push "146628656107.dkr.ecr.us-...tor:10-$TIMESTAMP-arm64" to ECR -
+    staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -13164,7 +13087,7 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v10-arm64"
-- name: Create manifest and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:10-$TIMESTAMP"
+- name: Create manifest and push "146628656107.dkr.ecr.us-...-operator:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
@@ -13187,14 +13110,11 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:10-$TIMESTAMP-amd64"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:10-$TIMESTAMP-arm"
-    to ECR - staging
-  - Tag and push "146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-operator:10-$TIMESTAMP-arm64"
-    to ECR - staging
-- name: Tag and push "public.ecr.aws/gravitational/teleport-operator:10-amd64" to
-    ECR - production
+  - Tag and push "146628656107.dkr.ecr.us-...tor:10-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us-...rator:10-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "146628656107.dkr.ecr.us-...tor:10-$TIMESTAMP-arm64" to ECR - staging
+- name: Tag and push "public.ecr.aws/gravitat...leport-operator:10-amd64" to ECR -
+    production
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -13214,8 +13134,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v10-amd64"
-- name: Tag and push "public.ecr.aws/gravitational/teleport-operator:10-arm" to ECR
-    - production
+- name: Tag and push "public.ecr.aws/gravitat...teleport-operator:10-arm" to ECR -
+    production
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -13235,8 +13155,8 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v10-arm"
-- name: Tag and push "public.ecr.aws/gravitational/teleport-operator:10-arm64" to
-    ECR - production
+- name: Tag and push "public.ecr.aws/gravitat...leport-operator:10-arm64" to ECR -
+    production
   image: docker
   commands:
   - apk add --no-cache aws-cli
@@ -13278,12 +13198,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "public.ecr.aws/gravitational/teleport-operator:10-amd64" to ECR
-    - production
-  - Tag and push "public.ecr.aws/gravitational/teleport-operator:10-arm" to ECR -
-    production
-  - Tag and push "public.ecr.aws/gravitational/teleport-operator:10-arm64" to ECR
-    - production
+  - Tag and push "public.ecr.aws/gravitat...leport-operator:10-amd64" to ECR - production
+  - Tag and push "public.ecr.aws/gravitat...teleport-operator:10-arm" to ECR - production
+  - Tag and push "public.ecr.aws/gravitat...leport-operator:10-arm64" to ECR - production
 services:
 - name: Start Docker
   image: docker:dind
@@ -13773,6 +13690,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: d35b31980ed3bb681de86a343f4de03eeae8c611c4aac34d5c391eb2d483b2e9
+hmac: cc6fa8ddd93fad304808fbe4ce1efd1de3047d519565ec7d047f62bb063c74b8
 
 ...

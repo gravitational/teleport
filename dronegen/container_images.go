@@ -34,6 +34,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"path"
 	"strings"
 )
@@ -707,9 +708,10 @@ type pushStepOutput struct {
 func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput) (step, *pushStepOutput) {
 	imageName := buildStepDetails.Product.ImageNameBuilder(cr.BuildImageRepo(), cr.BuildImageTag(buildStepDetails.Version.MajorVersion))
 	archImageName := fmt.Sprintf("%s-%s", imageName, buildStepDetails.BuiltImageArch)
+	abbreviatedArchImageName := abbreviateString(archImageName, 50)
 
 	step := step{
-		Name:        fmt.Sprintf("Tag and push %q to %s", archImageName, cr.Name),
+		Name:        fmt.Sprintf("Tag and push %q to %s", abbreviatedArchImageName, cr.Name),
 		Image:       "docker",
 		Volumes:     dockerVolumeRefs(),
 		Environment: cr.Environment,
@@ -735,6 +737,7 @@ func (cr *ContainerRepo) createAndPushManifestStep(pushStepDetails []*pushStepOu
 	}
 
 	manifestName := pushStepDetails[0].BaseImageName
+	abbreviatedManifestName := abbreviateString(manifestName, 50)
 
 	manifestCommandArgs := make([]string, 0, len(pushStepDetails))
 	pushStepNames := make([]string, 0, len(pushStepDetails))
@@ -744,7 +747,7 @@ func (cr *ContainerRepo) createAndPushManifestStep(pushStepDetails []*pushStepOu
 	}
 
 	return step{
-		Name:        fmt.Sprintf("Create manifest and push %q to %s", manifestName, cr.Name),
+		Name:        fmt.Sprintf("Create manifest and push %q to %s", abbreviatedManifestName, cr.Name),
 		Image:       "docker",
 		Volumes:     dockerVolumeRefs(),
 		Environment: cr.Environment,
@@ -754,4 +757,20 @@ func (cr *ContainerRepo) createAndPushManifestStep(pushStepDetails []*pushStepOu
 		}),
 		DependsOn: pushStepNames,
 	}
+}
+
+// Drone has a 100 character limit for step names. This can be used to reduce the length.
+// Ex. abbreviatedString("abcdefg", 5) -> "a...g"
+func abbreviateString(s string, maxLength int) string {
+	if len(s) <= maxLength {
+		return s
+	}
+
+	ellipsis := "..."
+	trimLength := len(s) + len(ellipsis) - maxLength
+	middlePos := int(math.Floor(float64(len(s)) / 2.0))
+	leftEndingPos := middlePos - int(math.Floor(float64(trimLength)/2.0))
+	rightStartingPos := middlePos + int(math.Ceil(float64(trimLength)/2.0))
+
+	return s[0:leftEndingPos] + ellipsis + s[rightStartingPos:]
 }
