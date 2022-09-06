@@ -5186,7 +5186,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:198
+# Generated at dronegen/container_images.go:204
 ################################################
 
 kind: pipeline
@@ -5194,6 +5194,8 @@ type: kubernetes
 name: teleport-container-images-current-version-Test trigger on push
 environment:
   DEBIAN_FRONTEND: noninteractive
+  DRONE_RESOURCE_REQUEST_CPU: "8000"
+  DRONE_RESOURCE_REQUEST_MEMORY: 8Gi
 trigger:
   event:
     include:
@@ -6793,7 +6795,7 @@ resources:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:198
+# Generated at dronegen/container_images.go:204
 ################################################
 
 kind: pipeline
@@ -6801,6 +6803,8 @@ type: kubernetes
 name: teleport-container-images-current-version-cron
 environment:
   DEBIAN_FRONTEND: noninteractive
+  DRONE_RESOURCE_REQUEST_CPU: "8000"
+  DRONE_RESOURCE_REQUEST_MEMORY: 8Gi
 trigger:
   cron:
     include:
@@ -8397,7 +8401,7 @@ resources:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:198
+# Generated at dronegen/container_images.go:204
 ################################################
 
 kind: pipeline
@@ -8405,6 +8409,8 @@ type: kubernetes
 name: teleport-container-images-previous-version-1-cron
 environment:
   DEBIAN_FRONTEND: noninteractive
+  DRONE_RESOURCE_REQUEST_CPU: "8000"
+  DRONE_RESOURCE_REQUEST_MEMORY: 8Gi
 trigger:
   cron:
     include:
@@ -9998,7 +10004,7 @@ resources:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:198
+# Generated at dronegen/container_images.go:204
 ################################################
 
 kind: pipeline
@@ -10006,6 +10012,8 @@ type: kubernetes
 name: teleport-container-images-previous-version-2-cron
 environment:
   DEBIAN_FRONTEND: noninteractive
+  DRONE_RESOURCE_REQUEST_CPU: "8000"
+  DRONE_RESOURCE_REQUEST_MEMORY: 8Gi
 trigger:
   cron:
     include:
@@ -11599,7 +11607,7 @@ resources:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:198
+# Generated at dronegen/container_images.go:204
 ################################################
 
 kind: pipeline
@@ -11607,6 +11615,8 @@ type: kubernetes
 name: teleport-container-images-drone-tag-promote
 environment:
   DEBIAN_FRONTEND: noninteractive
+  DRONE_RESOURCE_REQUEST_CPU: "8000"
+  DRONE_RESOURCE_REQUEST_MEMORY: 8Gi
 trigger:
   event:
     include:
@@ -13689,6 +13699,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 85851bf323c022b27199eb1456abd8f98ff8c4c409ca9df8867b2c01d59947d5
+hmac: 40844db75ac99c6c164e3e06e63511fdd3e2bfe21c963c689bc9a79cdcfe68d1
 
 ...

@@ -176,6 +176,12 @@ func (ti *TriggerInfo) buildPipelines() []pipeline {
 			CPU:    8000,
 			Memory: "8Gi",
 		}
+		pipeline.Environment["DRONE_RESOURCE_REQUEST_CPU"] = value{
+			raw: "8000",
+		}
+		pipeline.Environment["DRONE_RESOURCE_REQUEST_MEMORY"] = value{
+			raw: "8Gi",
+		}
 
 		pipelines = append(pipelines, pipeline)
 	}
