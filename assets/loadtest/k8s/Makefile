@@ -3,7 +3,7 @@ CERT_MANAGER_VERSION ?= 1.6.0
 SOAK_TEST_DURATION ?= 30m
 BACKEND ?= etcd
 USE_CERT_MANAGER ?= yes
-TELEPORT_IMAGE ?= quay.io/gravitational/teleport-ent:8.0.0
+TELEPORT_IMAGE ?= public.ecr.aws/gravitational/teleport-ent:8.0.0
 
 # performs initialization needed for cluster
 # 1) generates etcd certs
