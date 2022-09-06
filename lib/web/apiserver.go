@@ -200,6 +200,10 @@ type Config struct {
 	// PublicProxyAddr is used to template the public proxy address
 	// into the installer script responses
 	PublicProxyAddr string
+
+	// ALPNHandler is the ALPN connection handler for handling upgraded ALPN
+	// connection through a HTTP upgrade call.
+	ALPNHandler ConnectionHandler
 }
 
 type APIHandler struct {
@@ -208,6 +212,9 @@ type APIHandler struct {
 	// appHandler is a http.Handler to forward requests to applications.
 	appHandler *app.Handler
 }
+
+// ConnectionHandler defines a function for serving incoming connections.
+type ConnectionHandler func(ctx context.Context, conn net.Conn) error
 
 // Check if this request should be forwarded to an application handler to
 // be handled by the UI and handle the request appropriately.
@@ -609,6 +616,9 @@ func (h *Handler) bindDefaultEndpoints(challengeLimiter *limiter.RateLimiter) {
 	h.GET("/webapi/sites/:site/diagnostics/connections/:connectionid", h.WithClusterAuth(h.getConnectionDiagnostic))
 	// Diagnose a Connection
 	h.POST("/webapi/sites/:site/diagnostics/connections", h.WithClusterAuth(h.diagnoseConnection))
+
+	// Connection upgrades.
+	h.GET("/webapi/connectionupgrade", httplib.MakeHandler(h.connectionUpgrade))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -725,6 +735,8 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	userContext.ConsumedAccessRequestID = c.session.GetConsumedAccessRequestID()
 
 	return userContext, nil
 }
@@ -1731,13 +1743,17 @@ type renewSessionRequest struct {
 	AccessRequestID string `json:"requestId"`
 	// Switchback indicates switching back to default roles when creating new session.
 	Switchback bool `json:"switchback"`
+	// ReloadUser is a flag to indicate if user needs to be refetched from the backend
+	// to apply new user changes e.g. user traits were updated.
+	ReloadUser bool `json:"reloadUser"`
 }
 
 // renewSession updates this existing session with a new session.
 //
 // Depending on request fields sent in for extension, the new session creation can vary depending on:
-//   - requestId (opt): appends roles approved from access request to currently assigned roles or,
-//   - switchback (opt): roles stacked with assuming approved access requests, will revert to user's default roles
+//   - AccessRequestID (opt): appends roles approved from access request to currently assigned roles or,
+//   - Switchback (opt): roles stacked with assuming approved access requests, will revert to user's default roles
+//   - ReloadUser (opt): similar to default but updates user related data (e.g login traits) by retrieving it from the backend
 //   - default (none set): create new session with currently assigned roles
 func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	req := renewSessionRequest{}
@@ -1745,11 +1761,11 @@ func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params ht
 		return nil, trace.Wrap(err)
 	}
 
-	if req.AccessRequestID != "" && req.Switchback {
-		return nil, trace.BadParameter("Failed to renew session: fields 'AccessRequestID' and 'Switchback' cannot be both set")
+	if req.AccessRequestID != "" && req.Switchback || req.AccessRequestID != "" && req.ReloadUser || req.Switchback && req.ReloadUser {
+		return nil, trace.BadParameter("failed to renew session: only one field can be set")
 	}
 
-	newSession, err := ctx.extendWebSession(r.Context(), req.AccessRequestID, req.Switchback)
+	newSession, err := ctx.extendWebSession(r.Context(), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
