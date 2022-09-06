@@ -62,6 +62,20 @@ pair issued by "tctl auth sign --format=db".
   --labels=env=aws
 Starts a database server that proxies Aurora MySQL database running in AWS
 region us-west-1 which only allows access to users with the role "env=aws".`
+
+	systemdInstallExamples = `
+  > teleport install systemd
+  Generates a systemd unit file with the default configuration and outputs it to the terminal.
+
+  > teleport install systemd \
+    --fd-limit=8192 \
+    --env-file=/etc/default/teleport \
+    --pid-file=/run/teleport.pid \
+    --teleport-path=/usr/local/bin/teleport \
+    --output=/etc/systemd/system/teleport.service
+  Generates a systemd unit file teleport.service using the provided flags and 
+  places it in the given system configuration directory.
+`
 )
 
 var (
