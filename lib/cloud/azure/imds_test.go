@@ -22,6 +22,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -119,6 +120,50 @@ func TestSelectVersion(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, tc.expectedVersion, version)
+			}
+		})
+	}
+}
+
+func TestParseMetadataClientError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		code        int
+		body        []byte
+		wantErr     func(error) bool
+		wantMessage string
+	}{
+		{
+			name: "ok",
+			code: http.StatusOK,
+		},
+		{
+			name:        "error message",
+			code:        http.StatusNotFound,
+			body:        []byte(`{"error": "test message"}`),
+			wantErr:     trace.IsNotFound,
+			wantMessage: "test message",
+		},
+		{
+			name:    "non-JSON response",
+			code:    http.StatusNotFound,
+			body:    []byte("<html>some html junk</html>"),
+			wantErr: trace.IsNotFound,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := parseMetadataClientError(tc.code, tc.body)
+			if tc.wantErr == nil {
+				require.NoError(t, err)
+				return
+			}
+
+			require.True(t, tc.wantErr(err))
+			if tc.wantMessage != "" {
+				require.Contains(t, err.Error(), tc.wantMessage)
 			}
 		})
 	}

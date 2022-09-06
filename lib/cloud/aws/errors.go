@@ -71,8 +71,8 @@ func ConvertIAMError(err error) error {
 	return ConvertRequestFailureError(err)
 }
 
-// ParseMetadataClientError converts a failed instance metadata service call to a trace error.
-func ParseMetadataClientError(err error) error {
+// parseMetadataClientError converts a failed instance metadata service call to a trace error.
+func parseMetadataClientError(err error) error {
 	var httpError interface{ HTTPStatusCode() int }
 	if errors.As(err, &httpError) {
 		return trace.ReadError(httpError.HTTPStatusCode(), nil)

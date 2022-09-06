@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
@@ -78,9 +77,6 @@ var ec2ResourceIDRE = regexp.MustCompile("^i-[0-9a-f]{8,}$")
 
 // IsAvailable checks if instance metadata is available.
 func (client *InstanceMetadataClient) IsAvailable(ctx context.Context) bool {
-	ctx, cancel := context.WithTimeout(ctx, 250*time.Millisecond)
-	defer cancel()
-
 	// try to retrieve the instance id of our EC2 instance
 	id, err := client.getMetadata(ctx, "instance-id")
 	return err == nil && ec2ResourceIDRE.MatchString(id)
@@ -90,7 +86,7 @@ func (client *InstanceMetadataClient) IsAvailable(ctx context.Context) bool {
 func (client *InstanceMetadataClient) getMetadata(ctx context.Context, path string) (string, error) {
 	output, err := client.c.GetMetadata(ctx, &imds.GetMetadataInput{Path: path})
 	if err != nil {
-		return "", trace.Wrap(ParseMetadataClientError(err))
+		return "", trace.Wrap(parseMetadataClientError(err))
 	}
 	defer output.Content.Close()
 	body, err := utils.ReadAtMost(output.Content, metadataReadLimit)

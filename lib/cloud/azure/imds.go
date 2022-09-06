@@ -18,7 +18,6 @@ package azure
 import (
 	"context"
 	"net/http"
-	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
@@ -82,8 +81,8 @@ func (client *InstanceMetadataClient) selectVersion(ctx context.Context) error {
 	return nil
 }
 
-// get gets the raw metadata from a specified path.
-func (client *InstanceMetadataClient) get(ctx context.Context, route string) ([]byte, error) {
+// getRawMetadata gets the raw metadata from a specified path.
+func (client *InstanceMetadataClient) getRawMetadata(ctx context.Context, route string) ([]byte, error) {
 	httpClient := &http.Client{Transport: &http.Transport{Proxy: nil}}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.baseURL+route, nil)
 	if err != nil {
@@ -109,7 +108,7 @@ func (client *InstanceMetadataClient) get(ctx context.Context, route string) ([]
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, trace.ReadError(resp.StatusCode, body)
+		return nil, parseMetadataClientError(resp.StatusCode, body)
 	}
 	return body, nil
 }
@@ -119,7 +118,7 @@ func (client *InstanceMetadataClient) getVersions(ctx context.Context) ([]string
 	versions := struct {
 		APIVersions []string `json:"apiVersions"`
 	}{}
-	body, err := client.get(ctx, "/versions")
+	body, err := client.getRawMetadata(ctx, "/versions")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -134,8 +133,6 @@ func (client *InstanceMetadataClient) IsAvailable(ctx context.Context) bool {
 	if client.apiVersion != "" {
 		return true
 	}
-	ctx, cancel := context.WithTimeout(ctx, 250*time.Millisecond)
-	defer cancel()
 
 	err := client.selectVersion(ctx)
 	return err == nil
@@ -151,7 +148,7 @@ func (client *InstanceMetadataClient) GetTags(ctx context.Context) (map[string]s
 		Name  string `json:"name"`
 		Value string `json:"value"`
 	}{}
-	body, err := client.get(ctx, "/instance/compute/tagsList")
+	body, err := client.getRawMetadata(ctx, "/instance/compute/tagsList")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -186,6 +183,7 @@ func selectVersion(versions []string, minimumVersion string) (string, error) {
 	if len(versions) == 0 {
 		return "", trace.BadParameter("No versions provided")
 	}
+	// Versions are in ascending order.
 	targetVersion := versions[len(versions)-1]
 	if targetVersion < minimumVersion {
 		return "", trace.NotImplemented("Tags not supported (requires minimum api version %v)", minimumVersion)
