@@ -157,7 +157,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 
-	user, password, err := e.getInitialUserAndPassword(ctx, sessionCtx)
+	// TODO Fail here if we can't get Azure Token.
+	username, password, err := e.getInitialUserAndPassword(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

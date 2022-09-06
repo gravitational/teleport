@@ -319,6 +319,16 @@ func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, sessionCtx *Session
 		RootCAs: x509.NewCertPool(),
 	}
 
+	// TODO move to a function
+	if defaults.ProtocolRedis == sessionCtx.Database.GetProtocol() &&
+		sessionCtx.Database.IsAzure() {
+		systemPool, err := x509.SystemCertPool()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsConfig.RootCAs = systemPool
+	}
+
 	switch sessionCtx.Database.GetProtocol() {
 	case defaults.ProtocolMongoDB, defaults.ProtocolRedis:
 		// Mongo and Redis are using custom URI schema.
