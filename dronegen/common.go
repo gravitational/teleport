@@ -262,17 +262,11 @@ func waitForDockerStep() step {
 	}
 }
 
-func verifyValidPromoteRunSteps(checkoutPath, commit string, isParallelismEnabled bool) []step {
+func verifyValidPromoteRunSteps() []step {
 	tagStep := verifyTaggedStep()
-	cloneStep := cloneRepoStep(checkoutPath, commit)
-	verifyStep := verifyNotPrereleaseStep(checkoutPath)
+	verifyStep := verifyNotPrereleaseStep()
 
-	if isParallelismEnabled {
-		cloneStep.DependsOn = []string{tagStep.Name}
-		verifyStep.DependsOn = []string{cloneStep.Name}
-	}
-
-	return []step{tagStep, cloneStep, verifyStep}
+	return []step{tagStep, verifyStep}
 }
 
 func verifyTaggedStep() step {
@@ -294,13 +288,15 @@ func cloneRepoStep(clonePath, commit string) step {
 	}
 }
 
-func verifyNotPrereleaseStep(checkoutPath string) step {
+func verifyNotPrereleaseStep() step {
+	clonePath := "/tmp/repo"
 	return step{
 		Name:  "Check if tag is prerelease",
 		Image: "golang:1.18-alpine",
-		Commands: []string{
-			fmt.Sprintf("cd %q", path.Join(checkoutPath, "build.assets", "tooling")),
+		Commands: append(
+			cloneRepoCommands(clonePath, "${DRONE_TAG}"),
+			fmt.Sprintf("cd %q", path.Join(clonePath, "build.assets", "tooling")),
 			"go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)",
-		},
+		),
 	}
 }

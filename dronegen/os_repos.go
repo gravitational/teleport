@@ -198,7 +198,10 @@ func (optpb *OsPackageToolPipelineBuilder) buildPromoteOsPackagePipeline() pipel
 	p.Trigger = triggerPromote
 	p.Trigger.Repo.Include = []string{"gravitational/teleport"}
 
-	setupSteps := verifyValidPromoteRunSteps(checkoutPath, commitName, true)
+	setupSteps := append(
+		verifyValidPromoteRunSteps(),
+		cloneRepoStep(checkoutPath, commitName),
+	)
 
 	setupStepNames := make([]string, 0, len(setupSteps))
 	for _, setupStep := range setupSteps {

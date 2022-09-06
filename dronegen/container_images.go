@@ -89,7 +89,6 @@ func NewTestTrigger(triggerBranch, testMajorVersion string) *TriggerInfo {
 func NewPromoteTrigger(branchMajorVersion string) *TriggerInfo {
 	promoteTrigger := triggerPromote
 	promoteTrigger.Target.Include = append(promoteTrigger.Target.Include, "promote-docker")
-	checkoutPath := "/go/src/github.com/gravitational/teleport"
 
 	return &TriggerInfo{
 		Trigger: promoteTrigger,
@@ -101,7 +100,7 @@ func NewPromoteTrigger(branchMajorVersion string) *TriggerInfo {
 				RelativeVersionName: "drone-tag",
 			},
 		},
-		SetupSteps: verifyValidPromoteRunSteps(checkoutPath, "$DRONE_TAG", true),
+		SetupSteps: verifyValidPromoteRunSteps(),
 	}
 }
 
