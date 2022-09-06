@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -138,7 +139,7 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 		if cfg.IgnoreHTTPProxy {
 			contextDialer = client.NewDirectDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
 		} else {
-			contextDialer = client.NewDialer(cfg.KeepAlivePeriod, cfg.DialTimeout)
+			contextDialer = client.NewDialer(cfg.Context, cfg.KeepAlivePeriod, cfg.DialTimeout)
 		}
 		dialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
@@ -194,7 +195,12 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 
 	clientParams := append(
 		[]roundtrip.ClientParam{
-			roundtrip.HTTPClient(&http.Client{Transport: otelhttp.NewTransport(transport)}),
+			roundtrip.HTTPClient(&http.Client{
+				Transport: otelhttp.NewTransport(
+					transport,
+					otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
+				),
+			}),
 			roundtrip.SanitizerEnabled(true),
 		},
 		params...,
@@ -944,21 +950,6 @@ func (c *Client) GetU2FAppID() (string, error) {
 	return appid, nil
 }
 
-// UpsertPassword updates web access password for the user
-func (c *Client) UpsertPassword(user string, password []byte) error {
-	_, err := c.PostJSON(
-		context.TODO(),
-		c.Endpoint("users", user, "web", "password"),
-		upsertPasswordReq{
-			Password: string(password),
-		})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 // UpsertUser user updates user entry.
 func (c *Client) UpsertUser(user types.User) error {
 	data, err := services.MarshalUser(user)
@@ -1082,12 +1073,12 @@ func (c *Client) GenerateKeyPair(pass string) ([]byte, []byte, error) {
 	return kp.PrivKey, []byte(kp.PubKey), err
 }
 
-// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
+// GenerateHostCert takes the public key in the Open SSH “authorized_keys“
 // plain text format, signs it using Host Certificate Authority private key and returns the
 // resulting certificate.
 func (c *Client) GenerateHostCert(
-	key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error) {
-
+	key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration,
+) ([]byte, error) {
 	out, err := c.PostJSON(context.TODO(), c.Endpoint("ca", "host", "certs"),
 		generateHostCertReq{
 			Key:         key,
@@ -1741,9 +1732,6 @@ type WebService interface {
 
 // IdentityService manages identities and users
 type IdentityService interface {
-	// UpsertPassword updates web access password for the user
-	UpsertPassword(user string, password []byte) error
-
 	// UpsertOIDCConnector updates or creates OIDC connector
 	UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error
 
