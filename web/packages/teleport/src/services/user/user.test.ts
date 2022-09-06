@@ -156,6 +156,13 @@ test('undefined values in context response gives proper default values', async (
         create: false,
         remove: false,
       },
+      connectionDiagnostic: {
+        list: false,
+        read: false,
+        edit: false,
+        create: false,
+        remove: false,
+      },
       clipboardSharingEnabled: true,
       desktopSessionRecordingEnabled: true,
       directorySharingEnabled: true,
@@ -187,6 +194,20 @@ test('fetch users, null response values gives empty array', async () => {
 
   response = await user.fetchUsers();
   expect(response).toStrictEqual([
-    { authType: '', isLocal: false, name: '', roles: [] },
+    {
+      authType: '',
+      isLocal: false,
+      name: '',
+      roles: [],
+      traits: {
+        awsRoleArns: [],
+        databaseNames: [],
+        databaseUsers: [],
+        kubeGroups: [],
+        kubeUsers: [],
+        logins: [],
+        windowsLogins: [],
+      },
+    },
   ]);
 });

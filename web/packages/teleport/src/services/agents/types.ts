@@ -49,3 +49,46 @@ export type SortType = {
 };
 
 export type SortDir = 'ASC' | 'DESC';
+
+// AgentIdKind are the same id constants used to mark the type of
+// resource in the backend.
+//
+// These consts are expected for various resource requests:
+//   - search based access requests
+//   - diagnose connection requests
+export type AgentIdKind =
+  | 'node'
+  | 'app'
+  | 'db'
+  | 'kube_cluster'
+  | 'windows_desktop';
+
+// ConnectionDiagnostic describes a connection diagnostic.
+export type ConnectionDiagnostic = {
+  // id is the identifier of the connection diagnostic.
+  id: string;
+  // success is whether the connection was successful
+  success: boolean;
+  // message is the diagnostic summary
+  message: string;
+  // traces contains multiple checkpoints results
+  traces: ConnectionDiagnosticTrace[];
+};
+
+// ConnectionDiagnosticTrace describes a trace of a connection diagnostic
+export type ConnectionDiagnosticTrace = {
+  traceType: string;
+  status: 'success' | 'failed';
+  details: string;
+  error?: string;
+};
+
+// ConnectionDiagnosticRequest contains
+// - the identification of the resource kind and resource name to test
+// - additional paramenters which depend on the actual kind of resource to test
+// As an example, for SSH Node it also includes the User/Principal that will be used to login
+export type ConnectionDiagnosticRequest = {
+  resourceKind: AgentIdKind; //`json:"resource_kind"`
+  resourceName: string; //`json:"resource_name"`
+  sshPrincipal: string; //`json:"ssh_principal"`
+};

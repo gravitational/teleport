@@ -18,7 +18,8 @@ import { useEffect, useState } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import TeleportContext from 'teleport/teleportContext';
-import { JoinToken } from 'teleport/services/joinToken';
+
+import type { JoinToken } from 'teleport/services/joinToken';
 
 export default function useAddDatabase(ctx: TeleportContext) {
   const { attempt, run } = useAttempt('processing');

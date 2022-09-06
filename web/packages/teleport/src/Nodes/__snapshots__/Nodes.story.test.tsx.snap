@@ -1,6 +1,15 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`empty state 1`] = `
+.c4 {
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 56px;
+  padding-top: 32px;
+  width: 100%;
+}
+
 .c5 {
   box-sizing: border-box;
   max-width: 600px;
@@ -124,18 +133,6 @@ exports[`empty state 1`] = `
   color: #FFFFFF;
 }
 
-.c4 {
-  box-sizing: border-box;
-  margin-left: auto;
-  margin-right: auto;
-  padding: 56px;
-  padding-top: 32px;
-  width: 100%;
-  background-color: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
-  border-radius: 8px;
-}
-
 .c7 {
   display: block;
   outline: none;
@@ -172,7 +169,6 @@ exports[`empty state 1`] = `
   padding: 56px;
   padding-top: 32px;
   width: 100%;
-  background-color: #222C59;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -266,14 +262,19 @@ exports[`empty state 1`] = `
         <div
           class="c10"
         >
-          <button
-            class="c11"
-            kind="primary"
-            width="224px"
+          <a
+            href="/web/discover"
+            style="text-decoration: none;"
           >
-            Add 
-            server
-          </button>
+            <button
+              class="c11"
+              kind="primary"
+              width="224px"
+            >
+              Add 
+              server
+            </button>
+          </a>
           <a
             class="c12"
             href="https://goteleport.com/docs/server-access/getting-started/"
@@ -1745,15 +1746,20 @@ exports[`loaded 1`] = `
           placeholder="login@host:port"
         />
       </div>
-      <button
-        class="c7"
-        kind="primary"
-        title=""
-        width="240px"
+      <a
+        href="/web/discover"
+        style="text-decoration: none;"
       >
-        Add 
-        server
-      </button>
+        <button
+          class="c7"
+          kind="primary"
+          title=""
+          width="240px"
+        >
+          Add 
+          server
+        </button>
+      </a>
     </div>
   </div>
   <form
@@ -2196,7 +2202,6 @@ exports[`readonly empty state 1`] = `
   margin-right: auto;
   padding: 56px;
   color: rgba(255,255,255,0.87);
-  background-color: #222C59;
   text-align: center;
   border-radius: 12px;
 }

@@ -79,6 +79,8 @@ module.exports = {
         'newlines-between': 'always-and-inside-groups',
       },
     ],
+    'no-unused-vars': 'off', // disabled to allow the typescript one to take over and avoid errors in reporting
+    '@typescript-eslint/no-unused-vars': ['error'],
     // <TODO> Enable these rules after fixing all existing issues
     '@typescript-eslint/no-use-before-define': 0,
     '@typescript-eslint/indent': 0,

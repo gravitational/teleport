@@ -17,4 +17,5 @@ limitations under the License.
 import JoinTokenService from './joinToken';
 
 export * from './types';
+export { INTERNAL_RESOURCE_ID_LABEL_KEY } from './makeJoinToken';
 export default JoinTokenService;

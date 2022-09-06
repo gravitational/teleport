@@ -15,3 +15,4 @@
  */
 
 export * from './types';
+export { agentService } from './agents';

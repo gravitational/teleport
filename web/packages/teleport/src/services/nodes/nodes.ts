@@ -24,17 +24,20 @@ import makeNode from './makeNode';
 class NodeService {
   fetchNodes(
     clusterId?: string,
-    params?: UrlResourcesParams
+    params?: UrlResourcesParams,
+    signal?: AbortSignal
   ): Promise<AgentResponse<Node>> {
-    return api.get(cfg.getClusterNodesUrl(clusterId, params)).then(json => {
-      const items = json?.items || [];
+    return api
+      .get(cfg.getClusterNodesUrl(clusterId, params), signal)
+      .then(json => {
+        const items = json?.items || [];
 
-      return {
-        agents: items.map(makeNode),
-        startKey: json?.startKey,
-        totalCount: json?.totalCount,
-      };
-    });
+        return {
+          agents: items.map(makeNode),
+          startKey: json?.startKey,
+          totalCount: json?.totalCount,
+        };
+      });
   }
 }
 

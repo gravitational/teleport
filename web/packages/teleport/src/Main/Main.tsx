@@ -26,6 +26,10 @@ import cfg from 'teleport/config';
 import SideNav from 'teleport/SideNav';
 import TopBar from 'teleport/TopBar';
 import getFeatures from 'teleport/features';
+import localStorage from 'teleport/services/localStorage';
+import history from 'teleport/services/history';
+
+import { OnboardDiscover } from './OnboardDiscover';
 
 import useMain, { State } from './useMain';
 
@@ -37,6 +41,7 @@ export default function Container() {
 
 export function Main(props: State) {
   const { status, statusText, ctx } = props;
+  const [showOnboardDiscover, setShowOnboardDiscover] = React.useState(true);
 
   if (status === 'failed') {
     return <Failed message={statusText} />;
@@ -48,6 +53,21 @@ export function Main(props: State) {
         <Indicator />
       </StyledIndicator>
     );
+  }
+
+  function handleOnboard() {
+    updateOnboardDiscover();
+    history.push(cfg.routes.discover);
+  }
+
+  function handleOnClose() {
+    updateOnboardDiscover();
+    setShowOnboardDiscover(false);
+  }
+
+  function updateOnboardDiscover() {
+    const discover = localStorage.getOnboardDiscover();
+    localStorage.setOnboardDiscover({ ...discover, notified: true });
   }
 
   // render feature routes
@@ -70,23 +90,30 @@ export function Main(props: State) {
     ctx.storeNav.getSideItems()[0]?.getLink(cfg.proxyCluster) ||
     cfg.routes.support;
 
+  const onboard = localStorage.getOnboardDiscover();
+  const requiresOnboarding =
+    onboard && !onboard.hasResource && !onboard.notified;
+
   return (
     <>
       <RouterDOM.Switch>
         <Redirect exact={true} from={cfg.routes.root} to={indexRoute} />
       </RouterDOM.Switch>
-      <StyledMain>
+      <MainContainer>
         <SideNav />
         <HorizontalSplit>
           <TopBar />
           <Switch>{$features}</Switch>
         </HorizontalSplit>
-      </StyledMain>
+      </MainContainer>
+      {requiresOnboarding && showOnboardDiscover && (
+        <OnboardDiscover onClose={handleOnClose} onOnboard={handleOnboard} />
+      )}
     </>
   );
 }
 
-export const StyledMain = styled.div`
+export const MainContainer = styled.div`
   width: 100%;
   height: 100%;
   display: flex;
@@ -95,7 +122,7 @@ export const StyledMain = styled.div`
   min-width: 1000px;
 `;
 
-const HorizontalSplit = styled.div`
+export const HorizontalSplit = styled.div`
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -105,7 +132,7 @@ const HorizontalSplit = styled.div`
   min-width: 0;
 `;
 
-const StyledIndicator = styled(HorizontalSplit)`
+export const StyledIndicator = styled(HorizontalSplit)`
   align-items: center;
   justify-content: center;
 `;

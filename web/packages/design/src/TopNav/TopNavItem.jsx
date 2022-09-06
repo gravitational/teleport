@@ -38,8 +38,7 @@ const TopNavItem = styled.button`
   position: relative;
   text-decoration: none;
 
-  &:hover,
-  &:focus {
+  &:hover {
     background: ${props =>
       props.active
         ? props.theme.colors.primary.light

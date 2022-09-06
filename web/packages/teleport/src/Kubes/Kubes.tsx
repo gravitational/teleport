@@ -76,7 +76,6 @@ export function Kubes(props: State) {
         <FeatureHeaderTitle>Kubernetes</FeatureHeaderTitle>
         {attempt.status === 'success' && !hasNoKubes && (
           <AgentButtonAdd
-            onClick={() => setShowAddKube(true)}
             agent="kubernetes"
             beginsWithVowel={false}
             isLeafCluster={isLeafCluster}
@@ -121,7 +120,6 @@ export function Kubes(props: State) {
         <Empty
           clusterId={clusterId}
           canCreate={canCreate && !isLeafCluster}
-          onClick={() => setShowAddKube(true)}
           emptyStateInfo={emptyStateInfo}
         />
       )}

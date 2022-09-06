@@ -1,0 +1,1227 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`empty state 1`] = `
+.c0 {
+  box-sizing: border-box;
+  max-width: 700px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+}
+
+.c11 {
+  box-sizing: border-box;
+  margin-top: 24px;
+}
+
+.c7 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: none;
+  text-transform: none;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-top: 8px;
+}
+
+.c7:active {
+  opacity: 0.56;
+}
+
+.c7:hover,
+.c7:focus {
+  background: none;
+  text-decoration: underline;
+}
+
+.c7:disabled {
+  background: none;
+  color: rgba(255,255,255,0.3);
+}
+
+.c12 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-right: 16px;
+  width: 165px;
+}
+
+.c12:active {
+  opacity: 0.56;
+}
+
+.c12:hover,
+.c12:focus {
+  background: #651FFF;
+}
+
+.c12:active {
+  background: #354AA4;
+}
+
+.c12:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c13 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-top: 16px;
+  width: 165px;
+}
+
+.c13:active {
+  opacity: 0.56;
+}
+
+.c13:hover,
+.c13:focus {
+  background: #2C3A73;
+}
+
+.c13:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c9 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 18px;
+  margin: 0px;
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 32px;
+}
+
+.c3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+  margin-bottom: 8px;
+}
+
+.c5 {
+  box-sizing: border-box;
+  display: flex;
+  padding: 8px;
+  margin-bottom: 4px;
+  width: 300px;
+  align-items: center;
+  border: 1px solid #222C59;
+  border-radius: 8px;
+}
+
+.c5.disabled {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  font-style: italic;
+  overflow: visible;
+}
+
+.c8 {
+  line-height: normal;
+  padding-left: 4px;
+}
+
+.c10 {
+  font-weight: bold;
+  letter-spacing: 4px;
+}
+
+.c10:after {
+  content: ' ';
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+    font-size="18px"
+  >
+    Set Up Access
+  </div>
+  <div
+    class="c2"
+  >
+    Select the OS users you will use to connect to server.
+  </div>
+  <div
+    class="c3"
+  >
+    Select OS Users
+  </div>
+  <div
+    class="c4"
+  >
+    <div
+      class="c5"
+    >
+      <div
+        class="c6"
+      >
+        No OS users added
+      </div>
+    </div>
+    <button
+      class="c7 c8"
+      kind="text"
+    >
+      <span
+        class="c9 icon icon-add c10"
+        color="light"
+      />
+      Add new OS User
+    </button>
+  </div>
+  <div
+    class="c11"
+  >
+    
+    <button
+      class="c12"
+      disabled=""
+      kind="primary"
+      width="165px"
+    >
+      Next
+    </button>
+    <a
+      class="c13"
+      href="/web"
+      kind="secondary"
+      mt="3"
+      theme="[object Object]"
+      width="165px"
+    >
+      Exit
+    </a>
+  </div>
+</div>
+`;
+
+exports[`empty state with static logins 1`] = `
+.c0 {
+  box-sizing: border-box;
+  max-width: 700px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+}
+
+.c12 {
+  box-sizing: border-box;
+  margin-top: 24px;
+}
+
+.c8 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: none;
+  text-transform: none;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-top: 8px;
+}
+
+.c8:active {
+  opacity: 0.56;
+}
+
+.c8:hover,
+.c8:focus {
+  background: none;
+  text-decoration: underline;
+}
+
+.c8:disabled {
+  background: none;
+  color: rgba(255,255,255,0.3);
+}
+
+.c13 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-right: 16px;
+  width: 165px;
+}
+
+.c13:active {
+  opacity: 0.56;
+}
+
+.c13:hover,
+.c13:focus {
+  background: #651FFF;
+}
+
+.c13:active {
+  background: #354AA4;
+}
+
+.c13:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c14 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-top: 16px;
+  width: 165px;
+}
+
+.c14:active {
+  opacity: 0.56;
+}
+
+.c14:hover,
+.c14:focus {
+  background: #2C3A73;
+}
+
+.c14:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c10 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 18px;
+  margin: 0px;
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 32px;
+}
+
+.c3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+  margin-bottom: 8px;
+}
+
+.c5 {
+  box-sizing: border-box;
+  display: flex;
+  padding: 8px;
+  margin-bottom: 4px;
+  width: 300px;
+  align-items: center;
+  border: 1px solid #222C59;
+  border-radius: 8px;
+}
+
+.c5.disabled {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.c6 {
+  margin-right: 10px;
+  accent-color: #512FC9;
+}
+
+.c6:hover {
+  cursor: pointer;
+}
+
+.c7 {
+  width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.c9 {
+  line-height: normal;
+  padding-left: 4px;
+}
+
+.c11 {
+  font-weight: bold;
+  letter-spacing: 4px;
+}
+
+.c11:after {
+  content: ' ';
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+    font-size="18px"
+  >
+    Set Up Access
+  </div>
+  <div
+    class="c2"
+  >
+    Select the OS users you will use to connect to server.
+  </div>
+  <div
+    class="c3"
+  >
+    Select OS Users
+  </div>
+  <div
+    class="c4"
+  >
+    <div
+      class="c5 disabled"
+    >
+      <input
+        checked=""
+        class="c6"
+        id="ubunutu0"
+        name="ubunutu0"
+        type="checkbox"
+      />
+      <label
+        class="c7"
+        for="ubunutu0"
+      >
+        ubunutu
+      </label>
+    </div>
+    <div
+      class="c5 disabled"
+    >
+      <input
+        checked=""
+        class="c6"
+        id="debian1"
+        name="debian1"
+        type="checkbox"
+      />
+      <label
+        class="c7"
+        for="debian1"
+      >
+        debian
+      </label>
+    </div>
+    <button
+      class="c8 c9"
+      kind="text"
+    >
+      <span
+        class="c10 icon icon-add c11"
+        color="light"
+      />
+      Add new OS User
+    </button>
+  </div>
+  <div
+    class="c12"
+  >
+    
+    <button
+      class="c13"
+      kind="primary"
+      width="165px"
+    >
+      Next
+    </button>
+    <a
+      class="c14"
+      href="/web"
+      kind="secondary"
+      mt="3"
+      theme="[object Object]"
+      width="165px"
+    >
+      Exit
+    </a>
+  </div>
+</div>
+`;
+
+exports[`failed 1`] = `
+.c0 {
+  box-sizing: border-box;
+  max-width: 700px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+}
+
+.c9 {
+  box-sizing: border-box;
+  margin-top: 24px;
+}
+
+.c7 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: none;
+  text-transform: none;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-left: 4px;
+}
+
+.c7:active {
+  opacity: 0.56;
+}
+
+.c7:hover,
+.c7:focus {
+  background: none;
+  text-decoration: underline;
+}
+
+.c7:disabled {
+  background: none;
+  color: rgba(255,255,255,0.3);
+}
+
+.c10 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-right: 16px;
+  width: 165px;
+}
+
+.c10:active {
+  opacity: 0.56;
+}
+
+.c10:hover,
+.c10:focus {
+  background: #651FFF;
+}
+
+.c10:active {
+  background: #354AA4;
+}
+
+.c10:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c11 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-top: 16px;
+  width: 165px;
+}
+
+.c11:active {
+  opacity: 0.56;
+}
+
+.c11:hover,
+.c11:focus {
+  background: #2C3A73;
+}
+
+.c11:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c6 {
+  display: inline-block;
+  transition: color 0.3s;
+  margin-left: 4px;
+  margin-right: 8px;
+  color: #f50057;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 18px;
+  margin: 0px;
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 32px;
+}
+
+.c3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+  margin-bottom: 8px;
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 16px;
+  margin-bottom: 16px;
+}
+
+.c8 {
+  color: #03a9f4;
+  font-weight: normal;
+  padding-left: 0;
+  font-size: inherit;
+  min-height: auto;
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+    font-size="18px"
+  >
+    Set Up Access
+  </div>
+  <div
+    class="c2"
+  >
+    Select the OS users you will use to connect to server.
+  </div>
+  <div
+    class="c3"
+  >
+    Select OS Users
+  </div>
+  <div
+    class="c4"
+  >
+    <div
+      class="c5"
+    >
+      <span
+        class="c6 icon icon-warning "
+        color="danger"
+      />
+      Encountered Error: 
+      some error message
+    </div>
+    <button
+      class="c7 c8"
+      kind="text"
+    >
+      Refetch OS Users
+    </button>
+  </div>
+  <div
+    class="c9"
+  >
+    
+    <button
+      class="c10"
+      disabled=""
+      kind="primary"
+      width="165px"
+    >
+      Next
+    </button>
+    <a
+      class="c11"
+      href="/web"
+      kind="secondary"
+      mt="3"
+      theme="[object Object]"
+      width="165px"
+    >
+      Exit
+    </a>
+  </div>
+</div>
+`;
+
+exports[`loaded with static state 1`] = `
+.c0 {
+  box-sizing: border-box;
+  max-width: 700px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+}
+
+.c12 {
+  box-sizing: border-box;
+  margin-top: 24px;
+}
+
+.c8 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: none;
+  text-transform: none;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-top: 8px;
+}
+
+.c8:active {
+  opacity: 0.56;
+}
+
+.c8:hover,
+.c8:focus {
+  background: none;
+  text-decoration: underline;
+}
+
+.c8:disabled {
+  background: none;
+  color: rgba(255,255,255,0.3);
+}
+
+.c13 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-right: 16px;
+  width: 165px;
+}
+
+.c13:active {
+  opacity: 0.56;
+}
+
+.c13:hover,
+.c13:focus {
+  background: #651FFF;
+}
+
+.c13:active {
+  background: #354AA4;
+}
+
+.c13:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c14 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-top: 16px;
+  width: 165px;
+}
+
+.c14:active {
+  opacity: 0.56;
+}
+
+.c14:hover,
+.c14:focus {
+  background: #2C3A73;
+}
+
+.c14:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c10 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 18px;
+  margin: 0px;
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 32px;
+}
+
+.c3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+  margin-bottom: 8px;
+}
+
+.c5 {
+  box-sizing: border-box;
+  display: flex;
+  padding: 8px;
+  margin-bottom: 4px;
+  width: 300px;
+  align-items: center;
+  border: 1px solid #222C59;
+  border-radius: 8px;
+}
+
+.c5.disabled {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.c6 {
+  margin-right: 10px;
+  accent-color: #512FC9;
+}
+
+.c6:hover {
+  cursor: pointer;
+}
+
+.c7 {
+  width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.c9 {
+  line-height: normal;
+  padding-left: 4px;
+}
+
+.c11 {
+  font-weight: bold;
+  letter-spacing: 4px;
+}
+
+.c11:after {
+  content: ' ';
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+    font-size="18px"
+  >
+    Set Up Access
+  </div>
+  <div
+    class="c2"
+  >
+    Select the OS users you will use to connect to server.
+  </div>
+  <div
+    class="c3"
+  >
+    Select OS Users
+  </div>
+  <div
+    class="c4"
+  >
+    <div
+      class="c5 disabled"
+    >
+      <input
+        checked=""
+        class="c6"
+        id="ubunutu0"
+        name="ubunutu0"
+        type="checkbox"
+      />
+      <label
+        class="c7"
+        for="ubunutu0"
+      >
+        ubunutu
+      </label>
+    </div>
+    <div
+      class="c5 disabled"
+    >
+      <input
+        checked=""
+        class="c6"
+        id="debian1"
+        name="debian1"
+        type="checkbox"
+      />
+      <label
+        class="c7"
+        for="debian1"
+      >
+        debian
+      </label>
+    </div>
+    <div
+      class="c5"
+    >
+      <input
+        checked=""
+        class="c6"
+        id="root0"
+        name="root0"
+        type="checkbox"
+      />
+      <label
+        class="c7"
+        for="root0"
+      >
+        root
+      </label>
+    </div>
+    <div
+      class="c5"
+    >
+      <input
+        checked=""
+        class="c6"
+        id="llama1"
+        name="llama1"
+        type="checkbox"
+      />
+      <label
+        class="c7"
+        for="llama1"
+      >
+        llama
+      </label>
+    </div>
+    <div
+      class="c5"
+    >
+      <input
+        checked=""
+        class="c6"
+        id="george_washington_really_long_name_testing2"
+        name="george_washington_really_long_name_testing2"
+        type="checkbox"
+      />
+      <label
+        class="c7"
+        for="george_washington_really_long_name_testing2"
+      >
+        george_washington_really_long_name_testing
+      </label>
+    </div>
+    <button
+      class="c8 c9"
+      kind="text"
+    >
+      <span
+        class="c10 icon icon-add c11"
+        color="light"
+      />
+      Add new OS User
+    </button>
+  </div>
+  <div
+    class="c12"
+  >
+    
+    <button
+      class="c13"
+      kind="primary"
+      width="165px"
+    >
+      Next
+    </button>
+    <a
+      class="c14"
+      href="/web"
+      kind="secondary"
+      mt="3"
+      theme="[object Object]"
+      width="165px"
+    >
+      Exit
+    </a>
+  </div>
+</div>
+`;

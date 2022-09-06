@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 
 import { Nodes } from './Nodes';
 import { State } from './useNodes';
@@ -25,34 +26,46 @@ export default {
   excludeStories: ['props'],
 };
 
-export const Loaded = () => <Nodes {...props} />;
+export const Loaded = () => (
+  <MemoryRouter>
+    <Nodes {...props} />
+  </MemoryRouter>
+);
 
 export const Empty = () => (
-  <Nodes
-    {...props}
-    results={{ nodes: [], totalCount: 0 }}
-    isSearchEmpty={true}
-  />
+  <MemoryRouter>
+    <Nodes
+      {...props}
+      results={{ nodes: [], totalCount: 0 }}
+      isSearchEmpty={true}
+    />
+  </MemoryRouter>
 );
 
 export const EmptyReadOnly = () => (
-  <Nodes
-    {...props}
-    results={{ nodes: [], totalCount: 0 }}
-    isSearchEmpty={true}
-    canCreate={false}
-  />
+  <MemoryRouter>
+    <Nodes
+      {...props}
+      results={{ nodes: [], totalCount: 0 }}
+      isSearchEmpty={true}
+      canCreate={false}
+    />
+  </MemoryRouter>
 );
 
 export const Loading = () => (
-  <Nodes {...props} attempt={{ status: 'processing' }} />
+  <MemoryRouter>
+    <Nodes {...props} attempt={{ status: 'processing' }} />
+  </MemoryRouter>
 );
 
 export const Failed = () => (
-  <Nodes
-    {...props}
-    attempt={{ status: 'failed', statusText: 'some error message' }}
-  />
+  <MemoryRouter>
+    <Nodes
+      {...props}
+      attempt={{ status: 'failed', statusText: 'some error message' }}
+    />
+  </MemoryRouter>
 );
 
 const props: State = {
@@ -66,9 +79,6 @@ const props: State = {
   attempt: { status: 'success' },
   getNodeLoginOptions: () => [{ login: 'root', url: 'fd' }],
   startSshSession: () => null,
-  isAddNodeVisible: false,
-  hideAddNode: () => null,
-  showAddNode: () => null,
   clusterId: 'im-a-cluster',
   fetchNext: () => null,
   fetchPrev: () => null,

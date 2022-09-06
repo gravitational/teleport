@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 
 import { AuthType } from 'teleport/services/user';
 
@@ -27,30 +28,42 @@ export default {
   excludeStories: ['props'],
 };
 
-export const Loaded = () => <Kubes {...props} />;
+export const Loaded = () => (
+  <MemoryRouter>
+    <Kubes {...props} />
+  </MemoryRouter>
+);
 
 export const Empty = () => (
-  <Kubes {...props} results={{ kubes: [] }} isSearchEmpty={true} />
+  <MemoryRouter>
+    <Kubes {...props} results={{ kubes: [] }} isSearchEmpty={true} />
+  </MemoryRouter>
 );
 
 export const EmptyReadOnly = () => (
-  <Kubes
-    {...props}
-    results={{ kubes: [] }}
-    canCreate={false}
-    isSearchEmpty={true}
-  />
+  <MemoryRouter>
+    <Kubes
+      {...props}
+      results={{ kubes: [] }}
+      canCreate={false}
+      isSearchEmpty={true}
+    />
+  </MemoryRouter>
 );
 
 export const Loading = () => (
-  <Kubes {...props} attempt={{ status: 'processing' }} />
+  <MemoryRouter>
+    <Kubes {...props} attempt={{ status: 'processing' }} />
+  </MemoryRouter>
 );
 
 export const Failed = () => (
-  <Kubes
-    {...props}
-    attempt={{ status: 'failed', statusText: 'server error' }}
-  />
+  <MemoryRouter>
+    <Kubes
+      {...props}
+      attempt={{ status: 'failed', statusText: 'server error' }}
+    />
+  </MemoryRouter>
 );
 
 export const props: State = {

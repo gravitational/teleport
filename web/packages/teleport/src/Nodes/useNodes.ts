@@ -38,7 +38,6 @@ export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
   const { search, pathname } = useLocation();
   const [startKeys, setStartKeys] = useState<string[]>([]);
   const { attempt, setAttempt } = useAttempt('processing');
-  const [isAddNodeVisible, setIsAddNodeVisible] = useState(false);
   const canCreate = ctx.storeUser.getTokenAccess().create;
   const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
   const [params, setParams] = useState<ResourceUrlQueryParams>({
@@ -154,15 +153,6 @@ export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
       });
   };
 
-  const hideAddNode = () => {
-    setIsAddNodeVisible(false);
-    fetchNodes();
-  };
-
-  const showAddNode = () => {
-    setIsAddNodeVisible(true);
-  };
-
   const onLabelClick = (label: AgentLabel) =>
     labelClick(label, params, setParams, pathname, replaceHistory);
 
@@ -171,11 +161,8 @@ export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
     attempt,
     getNodeLoginOptions,
     startSshSession,
-    isAddNodeVisible,
     isLeafCluster,
     clusterId,
-    hideAddNode,
-    showAddNode,
     results,
     fetchNext,
     fetchPrev,

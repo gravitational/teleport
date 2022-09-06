@@ -60,6 +60,7 @@ export const ArrowUp = makeFontIcon('ArrowUp', 'icon-chevron-up');
 export const AlarmRing = makeFontIcon('AlarmRing', 'icon-alarm-ringing');
 export const BagDollar = makeFontIcon('BagDollar', 'icon-bag-dollar');
 export const BitBucket = makeFontIcon('Bitbucket', 'icon-bitbucket');
+export const OpenBox = makeFontIcon('OpenBox', 'icon-box');
 export const Bubble = makeFontIcon('Bubble', 'icon-bubble');
 export const Camera = makeFontIcon('Camera', 'icon-camera');
 export const CardView = makeFontIcon('CardView', 'icon-th-large');

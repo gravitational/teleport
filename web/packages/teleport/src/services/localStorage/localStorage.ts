@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { BearerToken } from 'teleport/services/websession';
+import { OnboardDiscover } from 'teleport/services/user';
 
 import { KeysEnum } from './types';
 
@@ -62,6 +63,21 @@ const storage = {
   getLastActive() {
     const time = Number(window.localStorage.getItem(KeysEnum.LAST_ACTIVE));
     return time ? time : 0;
+  },
+
+  // setOnboardDiscover persists states used to determine if a user should
+  // be onboarded to use the discovery wizard or not. User should only
+  // be onboarded once upon login.
+  setOnboardDiscover(d: OnboardDiscover) {
+    window.localStorage.setItem(KeysEnum.DISCOVER, JSON.stringify(d));
+  },
+
+  getOnboardDiscover(): OnboardDiscover {
+    const item = window.localStorage.getItem(KeysEnum.DISCOVER);
+    if (item) {
+      return JSON.parse(item);
+    }
+    return null;
   },
 
   broadcast(messageType, messageBody) {

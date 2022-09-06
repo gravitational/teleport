@@ -17,6 +17,7 @@
 export type RenewSessionRequest = {
   requestId?: string;
   switchback?: boolean;
+  reloadUser?: boolean;
 };
 
 export type BearerToken = {

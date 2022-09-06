@@ -16,7 +16,7 @@ limitations under the License.
 
 import cfg from 'teleport/config';
 
-import { StoreNav, StoreUserContext, defaultNavState } from './stores';
+import { StoreNav, StoreUserContext } from './stores';
 import * as types from './types';
 import AuditService from './services/audit';
 import RecordingsService from './services/recordings';
@@ -31,6 +31,8 @@ import KubeService from './services/kube';
 import DatabaseService from './services/databases';
 import desktopService from './services/desktops';
 import MfaService from './services/mfa';
+import { agentService } from './services/agents';
+import localStorage from './services/localStorage';
 
 class TeleportContext implements types.Context {
   // stores
@@ -56,12 +58,29 @@ class TeleportContext implements types.Context {
   mfaService = new MfaService();
   isEnterprise = cfg.isEnterprise;
 
-  init() {
-    return userService.fetchUserContext().then(user => {
-      this.storeNav.setState(defaultNavState);
-      this.storeUser.setState(user);
-      this.features = [];
+  agentService = agentService;
+
+  // init fetches data required for initial rendering of components.
+  // The caller of this function provides the try/catch
+  // block.
+  async init(features: types.Feature[]) {
+    const user = await userService.fetchUserContext();
+    this.storeUser.setState(user);
+    features.forEach(f => {
+      if (f.isAvailable(this)) {
+        f.register(this);
+      }
     });
+
+    if (
+      this.storeUser.hasPrereqAccessToAddAgents() &&
+      this.storeUser.hasAccessToQueryAgent() &&
+      !localStorage.getOnboardDiscover()
+    ) {
+      const hasResource =
+        await userService.checkUserHasAccessToRegisteredResource();
+      localStorage.setOnboardDiscover({ hasResource });
+    }
   }
 
   getFeatureFlags() {
