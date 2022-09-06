@@ -247,9 +247,9 @@ func (s *Server) checkUserRoleConstraint(ctx context.Context, user types.User, r
 
 	localUsersWithPermissionToUpsertRole := make(map[string]struct{})
 	for _, u := range allUsers {
-		var is_local_user = u.GetCreatedBy().Connector == nil
+		var isLocalUser = u.GetCreatedBy().Connector == nil
 
-		if is_local_user {
+		if isLocalUser {
 			for _, r := range u.GetRoles() {
 				if _, ok := rolesWithUpsertRolesRule[r]; ok {
 					localUsersWithPermissionToUpsertRole[u.GetName()] = struct{}{}
