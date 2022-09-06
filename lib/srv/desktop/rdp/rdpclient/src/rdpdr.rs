@@ -148,14 +148,19 @@ impl Client {
         mcs: &mut mcs::Client<S>,
     ) -> RdpResult<()> {
         if let Some(mut payload) = self.vchan.read(payload)? {
+            debug!("received RDPDR payload: {:?}", payload); // TODO(isaiah): here for building tests, delete when testing is compeleted
             let header = SharedHeader::decode(&mut payload)?;
+            debug!("decoded to RDPDR SharedHeader: {:?}", header); // TODO(isaiah): here for building tests, delete when testing is compeleted
             if let Component::RDPDR_CTYP_PRN = header.component {
                 warn!("got {:?} RDPDR header from RDP server, ignoring because we're not redirecting any printers", header);
                 return Ok(());
             }
             match header.packet_id {
                 PacketId::PAKID_CORE_SERVER_ANNOUNCE => {
-                    let replies = self.handle_server_announce(&mut payload)?;
+                    let req = ServerAnnounceRequest::decode(&mut payload)?;
+                    debug!("received RDP ServerAnnounceRequest: {:?}", req);
+                    let replies = self.handle_server_announce(req)?;
+                    debug!("sending RDP: {:?}", replies);
                     let chan = &CHANNEL_NAME.to_string();
                     for (message, id) in replies {
                         let encoded_replies = self.add_headers_and_chunkify(id, message)?;
@@ -203,17 +208,9 @@ impl Client {
 
     fn handle_server_announce(
         &self,
-        payload: &mut Payload,
+        req: ServerAnnounceRequest,
     ) -> RdpResult<Vec<(Box<dyn Encode>, PacketId)>> {
-        let req = ServerAnnounceRequest::decode(payload)?;
-        debug!("received RDP ServerAnnounceRequest: {:?}", req);
-
         let client_announce_reply = ClientAnnounceReply::new(req);
-        debug!(
-            "sending RDP ClientAnnounceReply: {:?}",
-            client_announce_reply
-        );
-
         let client_name_request = ClientNameRequest::new(
             ClientNameRequestUnicodeFlag::Ascii,
             CString::new(DIRECTORY_SHARE_CLIENT_NAME.to_string()).unwrap(),
@@ -1787,6 +1784,7 @@ impl ClientIdMessage {
     }
 
     fn decode(payload: &mut Payload) -> RdpResult<Self> {
+        debug!("decoding ClientIdMessage | ServerAnnounceRequest | ClientAnnounceReply | ServerClientIdConfirm from payload: {:?}", payload); // TODO(isaiah): here for building tests, delete when testing is compeleted
         Ok(Self {
             version_major: payload.read_u16::<LittleEndian>()?,
             version_minor: payload.read_u16::<LittleEndian>()?,

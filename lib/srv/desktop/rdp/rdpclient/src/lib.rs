@@ -1867,7 +1867,7 @@ extern "C" {
     ) -> CGOErrCode;
 }
 
-trait Encode {
+trait Encode: std::fmt::Debug {
     fn encode(&self) -> RdpResult<Vec<u8>>;
 }
 
