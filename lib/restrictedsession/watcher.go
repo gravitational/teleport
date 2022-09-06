@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -69,7 +70,7 @@ type RestrictionsWatcher struct {
 	resetC chan struct{}
 
 	// retry is used to manage backoff logic for watches
-	retry utils.Retry
+	retry retryutils.Retry
 
 	wg       sync.WaitGroup
 	cancelFn context.CancelFunc
