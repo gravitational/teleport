@@ -243,6 +243,10 @@ spec:
           readOnly: true
         - mountPath: /var/lib/teleport
           name: "data"
+{{- if .Values.extraVolumeMounts }}
+  {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
+{{- end }}
+
 {{ end }}
       volumes:
 {{- if .Values.enterprise }}
