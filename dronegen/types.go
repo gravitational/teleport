@@ -27,20 +27,23 @@ import (
 type pipeline struct {
 	comment string
 
-	Kind        string            `yaml:"kind"`
-	Type        string            `yaml:"type"`
-	Name        string            `yaml:"name"`
-	Environment map[string]value  `yaml:"environment,omitempty"`
-	Trigger     trigger           `yaml:"trigger"`
-	Workspace   workspace         `yaml:"workspace,omitempty"`
-	Platform    platform          `yaml:"platform,omitempty"`
-	Clone       clone             `yaml:"clone,omitempty"`
-	DependsOn   []string          `yaml:"depends_on,omitempty"`
-	Concurrency concurrency       `yaml:"concurrency,omitempty"`
-	Steps       []step            `yaml:"steps"`
-	Services    []service         `yaml:"services,omitempty"`
-	Volumes     []volume          `yaml:"volumes,omitempty"`
-	Resources   pipelineResources `yaml:"resources,omitempty"`
+	Kind        string           `yaml:"kind"`
+	Type        string           `yaml:"type"`
+	Name        string           `yaml:"name"`
+	Environment map[string]value `yaml:"environment,omitempty"`
+	Trigger     trigger          `yaml:"trigger"`
+	Workspace   workspace        `yaml:"workspace,omitempty"`
+	Platform    platform         `yaml:"platform,omitempty"`
+	Clone       clone            `yaml:"clone,omitempty"`
+	DependsOn   []string         `yaml:"depends_on,omitempty"`
+	Concurrency concurrency      `yaml:"concurrency,omitempty"`
+	Steps       []step           `yaml:"steps"`
+	Services    []service        `yaml:"services,omitempty"`
+	Volumes     []volume         `yaml:"volumes,omitempty"`
+	// This is currently overriden by the Drone policy config
+	// See https://github.com/gravitational/ops/blob/main/drone/drone-runner-kube-policy-configmap.yaml
+	// for details
+	Resources pipelineResources `yaml:"resources,omitempty"`
 }
 
 func newKubePipeline(name string) pipeline {

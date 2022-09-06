@@ -171,17 +171,6 @@ func (ti *TriggerInfo) buildPipelines() []pipeline {
 		pipeline := teleportVersion.buildVersionPipeline(ti.SetupSteps)
 		pipeline.Name += "-" + ti.Name
 		pipeline.Trigger = ti.Trigger
-		// Limits are fairly arbitrary
-		pipeline.Resources.Requests = resourceSet{
-			CPU:    8000,
-			Memory: "8Gi",
-		}
-		pipeline.Environment["DRONE_RESOURCE_REQUEST_CPU"] = value{
-			raw: "8000",
-		}
-		pipeline.Environment["DRONE_RESOURCE_REQUEST_MEMORY"] = value{
-			raw: "8Gi",
-		}
 
 		pipelines = append(pipelines, pipeline)
 	}
