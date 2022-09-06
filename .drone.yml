@@ -5287,22 +5287,22 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/amd64/$(cat
-    '/go/vars/full-version/v10').deb\""
+  - echo Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/amd64/$(cat
+    '/go/vars/full-version/v10').deb"
   - mkdir -pv "/go/artifacts/deb/teleport/arm"
   - apt download "teleport:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm/$(cat
-    '/go/vars/full-version/v10').deb\""
+  - echo Downloaded "teleport:armhf=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/arm/$(cat
+    '/go/vars/full-version/v10').deb"
   - mkdir -pv "/go/artifacts/deb/teleport/arm64"
   - apt download "teleport:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm64/$(cat
-    '/go/vars/full-version/v10').deb\""
+  - echo Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/arm64/$(cat
+    '/go/vars/full-version/v10').deb"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -5654,22 +5654,22 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/amd64/$(cat
-    '/go/vars/full-version/v10').deb\""
+  - echo Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/amd64/$(cat
+    '/go/vars/full-version/v10').deb"
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm"
   - apt download "teleport-ent:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm/$(cat
-    '/go/vars/full-version/v10').deb\""
+  - echo Downloaded "teleport-ent:armhf=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/arm/$(cat
+    '/go/vars/full-version/v10').deb"
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm64"
   - apt download "teleport-ent:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm64/$(cat
-    '/go/vars/full-version/v10').deb\""
+  - echo Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/arm64/$(cat
+    '/go/vars/full-version/v10').deb"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -6022,8 +6022,8 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent-fips:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
-    '/go/vars/full-version/v10').deb\""
+  - echo Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
+    '/go/vars/full-version/v10').deb"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -6887,22 +6887,22 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/amd64/$(cat
-    '/go/vars/full-version/v10').deb\""
+  - echo Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/amd64/$(cat
+    '/go/vars/full-version/v10').deb"
   - mkdir -pv "/go/artifacts/deb/teleport/arm"
   - apt download "teleport:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm/$(cat
-    '/go/vars/full-version/v10').deb\""
+  - echo Downloaded "teleport:armhf=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/arm/$(cat
+    '/go/vars/full-version/v10').deb"
   - mkdir -pv "/go/artifacts/deb/teleport/arm64"
   - apt download "teleport:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm64/$(cat
-    '/go/vars/full-version/v10').deb\""
+  - echo Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/arm64/$(cat
+    '/go/vars/full-version/v10').deb"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -7254,22 +7254,22 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/amd64/$(cat
-    '/go/vars/full-version/v10').deb\""
+  - echo Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/amd64/$(cat
+    '/go/vars/full-version/v10').deb"
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm"
   - apt download "teleport-ent:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm/$(cat
-    '/go/vars/full-version/v10').deb\""
+  - echo Downloaded "teleport-ent:armhf=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/arm/$(cat
+    '/go/vars/full-version/v10').deb"
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm64"
   - apt download "teleport-ent:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm64/$(cat
-    '/go/vars/full-version/v10').deb\""
+  - echo Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/arm64/$(cat
+    '/go/vars/full-version/v10').deb"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -7622,8 +7622,8 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent-fips:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
-    '/go/vars/full-version/v10').deb\""
+  - echo Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
+    '/go/vars/full-version/v10').deb"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -8486,22 +8486,22 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/amd64/$(cat
-    '/go/vars/full-version/v9').deb\""
+  - echo Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/amd64/$(cat
+    '/go/vars/full-version/v9').deb"
   - mkdir -pv "/go/artifacts/deb/teleport/arm"
   - apt download "teleport:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm/$(cat
-    '/go/vars/full-version/v9').deb\""
+  - echo Downloaded "teleport:armhf=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/arm/$(cat
+    '/go/vars/full-version/v9').deb"
   - mkdir -pv "/go/artifacts/deb/teleport/arm64"
   - apt download "teleport:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm64/$(cat
-    '/go/vars/full-version/v9').deb\""
+  - echo Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/arm64/$(cat
+    '/go/vars/full-version/v9').deb"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -8853,22 +8853,22 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/amd64/$(cat
-    '/go/vars/full-version/v9').deb\""
+  - echo Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/amd64/$(cat
+    '/go/vars/full-version/v9').deb"
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm"
   - apt download "teleport-ent:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm/$(cat
-    '/go/vars/full-version/v9').deb\""
+  - echo Downloaded "teleport-ent:armhf=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/arm/$(cat
+    '/go/vars/full-version/v9').deb"
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm64"
   - apt download "teleport-ent:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm64/$(cat
-    '/go/vars/full-version/v9').deb\""
+  - echo Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/arm64/$(cat
+    '/go/vars/full-version/v9').deb"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -9220,8 +9220,8 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent-fips:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
-    '/go/vars/full-version/v9').deb\""
+  - echo Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
+    '/go/vars/full-version/v9').deb"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -10083,22 +10083,22 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/amd64/$(cat
-    '/go/vars/full-version/v8').deb\""
+  - echo Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/amd64/$(cat
+    '/go/vars/full-version/v8').deb"
   - mkdir -pv "/go/artifacts/deb/teleport/arm"
   - apt download "teleport:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm/$(cat
-    '/go/vars/full-version/v8').deb\""
+  - echo Downloaded "teleport:armhf=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/arm/$(cat
+    '/go/vars/full-version/v8').deb"
   - mkdir -pv "/go/artifacts/deb/teleport/arm64"
   - apt download "teleport:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm64/$(cat
-    '/go/vars/full-version/v8').deb\""
+  - echo Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/arm64/$(cat
+    '/go/vars/full-version/v8').deb"
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
@@ -10450,22 +10450,22 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/amd64/$(cat
-    '/go/vars/full-version/v8').deb\""
+  - echo Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/amd64/$(cat
+    '/go/vars/full-version/v8').deb"
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm"
   - apt download "teleport-ent:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm/$(cat
-    '/go/vars/full-version/v8').deb\""
+  - echo Downloaded "teleport-ent:armhf=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/arm/$(cat
+    '/go/vars/full-version/v8').deb"
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm64"
   - apt download "teleport-ent:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm64/$(cat
-    '/go/vars/full-version/v8').deb\""
+  - echo Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/arm64/$(cat
+    '/go/vars/full-version/v8').deb"
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
@@ -10817,8 +10817,8 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent-fips:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
-    '/go/vars/full-version/v8').deb\""
+  - echo Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent-fips/amd64/$(cat
+    '/go/vars/full-version/v8').deb"
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
@@ -11690,19 +11690,19 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/amd64/$DRONE_TAG.deb\""
+  - echo Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/amd64/$DRONE_TAG.deb"
   - mkdir -pv "/go/artifacts/deb/teleport/arm"
   - apt download "teleport:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm/$DRONE_TAG.deb\""
+  - echo Downloaded "teleport:armhf=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/arm/$DRONE_TAG.deb"
   - mkdir -pv "/go/artifacts/deb/teleport/arm64"
   - apt download "teleport:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport/arm64/$DRONE_TAG.deb\""
+  - echo Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport/arm64/$DRONE_TAG.deb"
   depends_on:
   - Verify build is tagged
   - Check if tag is prerelease
@@ -12055,19 +12055,19 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/amd64/$DRONE_TAG.deb\""
+  - echo Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/amd64/$DRONE_TAG.deb"
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm"
   - apt download "teleport-ent:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:armhf=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm/$DRONE_TAG.deb\""
+  - echo Downloaded "teleport-ent:armhf=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/arm/$DRONE_TAG.deb"
   - mkdir -pv "/go/artifacts/deb/teleport-ent/arm64"
   - apt download "teleport-ent:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent:arm64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent/arm64/$DRONE_TAG.deb\""
+  - echo Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent/arm64/$DRONE_TAG.deb"
   depends_on:
   - Verify build is tagged
   - Check if tag is prerelease
@@ -12421,7 +12421,7 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb"
-  - echo "Downloaded \"teleport-ent-fips:amd64=$${FULL_VERSION}\" to \"/go/artifacts/deb/teleport-ent-fips/amd64/$DRONE_TAG.deb\""
+  - echo Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/artifacts/deb/teleport-ent-fips/amd64/$DRONE_TAG.deb"
   depends_on:
   - Verify build is tagged
   - Check if tag is prerelease
@@ -13669,6 +13669,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: bd1b6d40cea26da9d9ae16c4cb22ed0296ac302e841708dca7aed9a0d31dec66
+hmac: d59fa19dfb6261ab35e1931be037f498d05bd0318e72e7a1d9ce0044f8f968eb
 
 ...
