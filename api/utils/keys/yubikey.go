@@ -286,7 +286,6 @@ func (y *yubiKey) getPrivateKey(ctx context.Context, slot piv.Slot) (*YubiKeyPri
 // it's been used. The yubiKey PIV module itself takes some additional time to handle closed
 // connections, so we use a retry loop to give the PIV module time to close prior connections.
 func (y *yubiKey) open(ctx context.Context) (yk *piv.YubiKey, err error) {
-	// Backoff for up to 9.5 seconds
 	linearRetry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		First: time.Millisecond * 50,
 		Step:  time.Millisecond * 50,
@@ -296,7 +295,11 @@ func (y *yubiKey) open(ctx context.Context) (yk *piv.YubiKey, err error) {
 		return nil, trace.Wrap(err)
 	}
 
-	err = linearRetry.For(ctx, func() error {
+	// Backoff and retry for up to 10 seconds
+	retryCtx, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+
+	err = linearRetry.For(retryCtx, func() error {
 		yk, err = piv.Open(y.card)
 		if err != nil && !isRetryError(err) {
 			return retryutils.PermanentRetryError(err)
