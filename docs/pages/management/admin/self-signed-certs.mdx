@@ -36,11 +36,11 @@ the Teleport Proxy Service endpoint and the proxy service is using self-signed c
 to be run with the `--insecure` flag to disable verification of the
 proxy's TLS certificate. This is the case when:
 - The Teleport config file `auth_servers` setting is set to the proxy endpoint:
-    - `auth_servers: ["tele.example.com:443"]` or
-    - `auth_servers: ["tele.example.com:3080"]`
+  - `auth_servers: ["tele.example.com:443"]` or
+  - `auth_servers: ["tele.example.com:3080"]`
 - Teleport is started with the `--auth-server` flag pointing to the proxy endpoint:
-    - `teleport [app | db] start --auth-server=tele.example.com:443` or
-    - `teleport [app | db] start --auth-server=tele.example.com:3080`
+  - `teleport [app | db] start --auth-server=tele.example.com:443` or
+  - `teleport [app | db] start --auth-server=tele.example.com:3080`
 
 The way you make your Teleport service run with TLS certificate verification disabled depends on how you are
 running it - via `teleport` directly from the cli, or via helm chart, or via systemd:
