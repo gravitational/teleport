@@ -19,8 +19,6 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
-
-	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 // Types to mirror the YAML fields of the drone config.
@@ -29,19 +27,20 @@ import (
 type pipeline struct {
 	comment string
 
-	Kind        string           `yaml:"kind"`
-	Type        string           `yaml:"type"`
-	Name        string           `yaml:"name"`
-	Environment map[string]value `yaml:"environment,omitempty"`
-	Trigger     trigger          `yaml:"trigger"`
-	Workspace   workspace        `yaml:"workspace,omitempty"`
-	Platform    platform         `yaml:"platform,omitempty"`
-	Clone       clone            `yaml:"clone,omitempty"`
-	DependsOn   []string         `yaml:"depends_on,omitempty"`
-	Concurrency concurrency      `yaml:"concurrency,omitempty"`
-	Steps       []step           `yaml:"steps"`
-	Services    []service        `yaml:"services,omitempty"`
-	Volumes     []volume         `yaml:"volumes,omitempty"`
+	Kind        string            `yaml:"kind"`
+	Type        string            `yaml:"type"`
+	Name        string            `yaml:"name"`
+	Environment map[string]value  `yaml:"environment,omitempty"`
+	Trigger     trigger           `yaml:"trigger"`
+	Workspace   workspace         `yaml:"workspace,omitempty"`
+	Platform    platform          `yaml:"platform,omitempty"`
+	Clone       clone             `yaml:"clone,omitempty"`
+	DependsOn   []string          `yaml:"depends_on,omitempty"`
+	Concurrency concurrency       `yaml:"concurrency,omitempty"`
+	Steps       []step            `yaml:"steps"`
+	Services    []service         `yaml:"services,omitempty"`
+	Volumes     []volume          `yaml:"volumes,omitempty"`
+	Resources   pipelineResources `yaml:"resources,omitempty"`
 }
 
 func newKubePipeline(name string) pipeline {
@@ -161,17 +160,16 @@ type volumeRef struct {
 }
 
 type step struct {
-	Name        string              `yaml:"name"`
-	Image       string              `yaml:"image,omitempty"`
-	Commands    []string            `yaml:"commands,omitempty"`
-	Environment map[string]value    `yaml:"environment,omitempty"`
-	Volumes     []volumeRef         `yaml:"volumes,omitempty"`
-	Settings    map[string]value    `yaml:"settings,omitempty"`
-	Template    []string            `yaml:"template,omitempty"`
-	When        *condition          `yaml:"when,omitempty"`
-	Failure     string              `yaml:"failure,omitempty"`
-	Resources   *containerResources `yaml:"resources,omitempty"`
-	DependsOn   []string            `yaml:"depends_on,omitempty"`
+	Name        string           `yaml:"name"`
+	Image       string           `yaml:"image,omitempty"`
+	Commands    []string         `yaml:"commands,omitempty"`
+	Environment map[string]value `yaml:"environment,omitempty"`
+	Volumes     []volumeRef      `yaml:"volumes,omitempty"`
+	Settings    map[string]value `yaml:"settings,omitempty"`
+	Template    []string         `yaml:"template,omitempty"`
+	When        *condition       `yaml:"when,omitempty"`
+	Failure     string           `yaml:"failure,omitempty"`
+	DependsOn   []string         `yaml:"depends_on,omitempty"`
 }
 
 type condition struct {
@@ -215,10 +213,8 @@ func (v *value) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return errors.New("can't unmarshal the value as either string or from_secret reference")
 }
 
-type containerResources struct {
-	Limits *resourceSet `yaml:"limits,omitempty"`
-	// Not currently supported
-	// Requests *resourceSet `yaml:"requests,omitempty"`
+type pipelineResources struct {
+	Requests resourceSet `yaml:"requests,omitempty"`
 }
 
 type resourceSet struct {
@@ -227,30 +223,6 @@ type resourceSet struct {
 	// https://docs.drone.io/pipeline/kubernetes/syntax/steps/#resources
 	// CPU    *resourceQuantity `yaml:"cpu,omitempty"`
 
-	CPU    float64           `yaml:"cpu,omitempty"`
-	Memory *resourceQuantity `yaml:"memory,omitempty"`
-}
-
-// This is a workaround to get resource.Quantity to unmarshal correctly
-type resourceQuantity resource.Quantity
-
-func (rq *resourceQuantity) MarshalYAML() (interface{}, error) {
-	return ((*resource.Quantity)(rq)).String(), nil
-}
-
-func (rq *resourceQuantity) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var value string
-	if err := unmarshal(&value); err != nil {
-		return errors.New("failed to unmarshal the value into a string")
-	}
-
-	parsedValue, err := resource.ParseQuantity(value)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal string %q into resource quantity", value)
-	}
-
-	q := ((*resource.Quantity)(rq))
-	q.Add(parsedValue)
-
-	return nil
+	CPU    float64 `yaml:"cpu,omitempty"`
+	Memory string  `yaml:"memory,omitempty"`
 }

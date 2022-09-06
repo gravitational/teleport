@@ -5186,7 +5186,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:193
+# Generated at dronegen/container_images.go:198
 ################################################
 
 kind: pipeline
@@ -6784,12 +6784,16 @@ services:
 volumes:
 - name: dockersock
   temp: {}
+resources:
+  requests:
+    cpu: 8000
+    memory: 8Gi
 
 ---
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:193
+# Generated at dronegen/container_images.go:198
 ################################################
 
 kind: pipeline
@@ -8384,12 +8388,16 @@ services:
 volumes:
 - name: dockersock
   temp: {}
+resources:
+  requests:
+    cpu: 8000
+    memory: 8Gi
 
 ---
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:193
+# Generated at dronegen/container_images.go:198
 ################################################
 
 kind: pipeline
@@ -9981,12 +9989,16 @@ services:
 volumes:
 - name: dockersock
   temp: {}
+resources:
+  requests:
+    cpu: 8000
+    memory: 8Gi
 
 ---
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:193
+# Generated at dronegen/container_images.go:198
 ################################################
 
 kind: pipeline
@@ -11578,12 +11590,16 @@ services:
 volumes:
 - name: dockersock
   temp: {}
+resources:
+  requests:
+    cpu: 8000
+    memory: 8Gi
 
 ---
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:193
+# Generated at dronegen/container_images.go:198
 ################################################
 
 kind: pipeline
@@ -13190,6 +13206,10 @@ services:
 volumes:
 - name: dockersock
   temp: {}
+resources:
+  requests:
+    cpu: 8000
+    memory: 8Gi
 
 ---
 kind: pipeline
@@ -13669,6 +13689,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 18eed57722f2d2992382b144aec3e6b1a6ce856c7d11507137bbbafc6edda07a
+hmac: 85851bf323c022b27199eb1456abd8f98ff8c4c409ca9df8867b2c01d59947d5
 
 ...
