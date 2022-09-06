@@ -50,6 +50,9 @@ func buildContainerImagePipelines() []pipeline {
 	triggers := []*TriggerInfo{
 		NewPromoteTrigger(branchMajorVersion),
 		NewCronTrigger(latestMajorVersions),
+
+		// TODO remove after testing
+		NewTestTrigger("fred/arm-container-images", branchMajorVersion),
 	}
 
 	pipelines := make([]pipeline, 0, len(triggers))
@@ -68,6 +71,18 @@ type TriggerInfo struct {
 	Name              string
 	SupportedVersions []*releaseVersion
 	SetupSteps        []step
+}
+
+func NewTestTrigger(triggerBranch, testMajorVersion string) *TriggerInfo {
+	baseTrigger := NewCronTrigger([]string{testMajorVersion})
+	baseTrigger.Name = "Test trigger on push"
+	baseTrigger.Trigger = trigger{
+		Repo:   triggerRef{Include: []string{"gravitational/teleport"}},
+		Event:  triggerRef{Include: []string{"push"}},
+		Branch: triggerRef{Include: []string{triggerBranch}},
+	}
+
+	return baseTrigger
 }
 
 func NewPromoteTrigger(branchMajorVersion string) *TriggerInfo {
