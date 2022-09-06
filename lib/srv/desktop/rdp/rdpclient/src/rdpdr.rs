@@ -142,18 +142,14 @@ impl Client {
         }
     }
     /// Reads raw RDP messages sent on the rdpdr virtual channel and replies as necessary.
-    pub fn read_and_reply<S: Read + Write>(
-        &mut self,
-        payload: tpkt::Payload,
-        mcs: &mut mcs::Client<S>,
-    ) -> RdpResult<()> {
+    pub fn read_and_create_reply(&mut self, payload: tpkt::Payload) -> RdpResult<Vec<Vec<u8>>> {
         if let Some(mut payload) = self.vchan.read(payload)? {
             debug!("received RDPDR payload: {:?}", payload); // TODO(isaiah): here for building tests, delete when testing is compeleted
             let header = SharedHeader::decode(&mut payload)?;
             debug!("decoded to RDPDR SharedHeader: {:?}", header); // TODO(isaiah): here for building tests, delete when testing is compeleted
             if let Component::RDPDR_CTYP_PRN = header.component {
                 warn!("got {:?} RDPDR header from RDP server, ignoring because we're not redirecting any printers", header);
-                return Ok(());
+                return Ok(vec![]);
             }
             match header.packet_id {
                 PacketId::PAKID_CORE_SERVER_ANNOUNCE => {
@@ -161,13 +157,12 @@ impl Client {
                     debug!("received RDP ServerAnnounceRequest: {:?}", req);
                     let replies = self.handle_server_announce(req)?;
                     debug!("sending RDP: {:?}", replies);
-                    let chan = &CHANNEL_NAME.to_string();
+                    let mut encoded_replies: Vec<Vec<u8>> = vec![];
                     for (message, id) in replies {
-                        let encoded_replies = self.add_headers_and_chunkify(id, message)?;
-                        for reply in encoded_replies {
-                            mcs.write(chan, reply)?;
-                        }
+                        encoded_replies.append(&mut self.add_headers_and_chunkify(id, message)?);
                     }
+                    debug!("sending RDP raw: {:?}", encoded_replies); // TODO(isaiah): here for building tests, delete when testing is compeleted
+                    return Ok(encoded_replies);
                 }
 
                 _ => {
@@ -196,14 +191,11 @@ impl Client {
                         }
                     };
 
-                    let chan = &CHANNEL_NAME.to_string();
-                    for resp in responses {
-                        mcs.write(chan, resp)?;
-                    }
+                    return Ok(responses);
                 }
             }
         }
-        Ok(())
+        Ok(vec![])
     }
 
     fn handle_server_announce(

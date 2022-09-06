@@ -633,7 +633,14 @@ impl<S: Read + Write> RdpClient<S> {
         // name.
         match channel_name.as_str() {
             "global" => self.global.read(message, &mut self.mcs, callback),
-            rdpdr::CHANNEL_NAME => self.rdpdr.read_and_reply(message, &mut self.mcs),
+            rdpdr::CHANNEL_NAME => {
+                let responses = self.rdpdr.read_and_create_reply(message)?;
+                let chan = &rdpdr::CHANNEL_NAME.to_string();
+                for resp in responses {
+                    self.mcs.write(chan, resp)?;
+                }
+                Ok(())
+            }
             cliprdr::CHANNEL_NAME => match self.cliprdr {
                 Some(ref mut clip) => clip.read_and_reply(message, &mut self.mcs),
                 None => Ok(()),
