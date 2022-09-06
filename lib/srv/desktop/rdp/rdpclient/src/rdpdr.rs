@@ -1730,7 +1730,7 @@ impl FileCache {
 /// This header is present at the beginning of every message in sent over the rdpdr virtual channel.
 /// The purpose of this header is to describe the type of the message.
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/29d4108f-8163-4a67-8271-e48c4b9c2a7c
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 struct SharedHeader {
     component: Component,
     packet_id: PacketId,
@@ -1767,7 +1767,7 @@ type ServerAnnounceRequest = ClientIdMessage;
 type ClientAnnounceReply = ClientIdMessage;
 type ServerClientIdConfirm = ClientIdMessage;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 struct ClientIdMessage {
     version_major: u16,
     version_minor: u16,
@@ -2127,7 +2127,7 @@ impl ServerDeviceAnnounceResponse {
     }
 }
 
-#[derive(Debug, Clone, ToPrimitive)]
+#[derive(Debug, Clone, ToPrimitive, PartialEq)]
 #[repr(u32)]
 #[allow(non_camel_case_types)]
 #[allow(dead_code)]
@@ -2138,7 +2138,7 @@ enum ClientNameRequestUnicodeFlag {
 
 /// 2.2.2.4 Client Name Request (DR_CORE_CLIENT_NAME_REQ)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/902497f1-3b1c-4aee-95f8-1668f9b7b7d2
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ClientNameRequest {
     unicode_flag: ClientNameRequestUnicodeFlag,
     computer_name: CString,
@@ -4179,5 +4179,104 @@ mod tests {
         // https://www.silisoftware.com/tools/date.php?inputdate=1655246166&inputformat=unix
         assert_eq!(to_windows_time(1655246166 * 1000), 132997197660000000);
         assert_eq!(to_windows_time(1000), 116444736010000000);
+    }
+
+    fn server_announce_payload(pos: u64) -> Payload {
+        let mut p = Payload::new(vec![114, 68, 110, 73, 1, 0, 13, 0, 3, 0, 0, 0]);
+        p.set_position(pos);
+        p
+    }
+
+    fn client() -> Client {
+        Client::new(Config {
+            cert_der: vec![],
+            key_der: vec![],
+            pin: "".to_string(),
+            allow_directory_sharing: true,
+            tdp_sd_acknowledge: Box::new(
+                move |mut _ack: SharedDirectoryAcknowledge| -> RdpResult<()> { Ok(()) },
+            ),
+            tdp_sd_info_request: Box::new(
+                move |_req: SharedDirectoryInfoRequest| -> RdpResult<()> { Ok(()) },
+            ),
+            tdp_sd_create_request: Box::new(
+                move |_req: SharedDirectoryCreateRequest| -> RdpResult<()> { Ok(()) },
+            ),
+            tdp_sd_delete_request: Box::new(
+                move |_req: SharedDirectoryDeleteRequest| -> RdpResult<()> { Ok(()) },
+            ),
+            tdp_sd_list_request: Box::new(
+                move |_req: SharedDirectoryListRequest| -> RdpResult<()> { Ok(()) },
+            ),
+            tdp_sd_read_request: Box::new(
+                move |_req: SharedDirectoryReadRequest| -> RdpResult<()> { Ok(()) },
+            ),
+            tdp_sd_write_request: Box::new(
+                move |_req: SharedDirectoryWriteRequest| -> RdpResult<()> { Ok(()) },
+            ),
+            tdp_sd_move_request: Box::new(
+                move |_req: SharedDirectoryMoveRequest| -> RdpResult<()> { Ok(()) },
+            ),
+        })
+    }
+
+    #[test]
+    fn test_shared_header_server_announce_decode() {
+        let mut payload = server_announce_payload(0);
+        let sh = SharedHeader::decode(&mut payload).unwrap();
+        assert_eq!(
+            sh,
+            SharedHeader {
+                component: Component::RDPDR_CTYP_CORE,
+                packet_id: PacketId::PAKID_CORE_SERVER_ANNOUNCE
+            }
+        )
+    }
+
+    #[test]
+    fn test_server_announce_request_decode() {
+        let mut payload = server_announce_payload(4);
+        let req = ServerAnnounceRequest::decode(&mut payload).unwrap();
+        assert_eq!(
+            req,
+            ServerAnnounceRequest {
+                version_major: 1,
+                version_minor: 13,
+                client_id: 3
+            },
+        )
+    }
+
+    #[test]
+    fn test_handle_server_announce() {
+        let c = client();
+        let req = ServerAnnounceRequest {
+            version_major: 1,
+            version_minor: 13,
+            client_id: 3,
+        };
+        let replies = c.handle_server_announce(req).unwrap();
+        let (message0, packet_id0) = &replies[0];
+        let (message1, packet_id1) = &replies[1];
+        let message0 = message0.downcast_ref::<ClientAnnounceReply>().unwrap();
+        let message1 = message1.downcast_ref::<ClientNameRequest>().unwrap();
+
+        assert_eq!(
+            message0,
+            &ClientAnnounceReply {
+                version_major: 1,
+                version_minor: 12,
+                client_id: 3
+            }
+        );
+        assert_eq!(
+            message1,
+            &ClientNameRequest {
+                unicode_flag: ClientNameRequestUnicodeFlag::Ascii,
+                computer_name: CString::new("teleport").unwrap(),
+            }
+        );
+        assert_eq!(packet_id0, &PacketId::PAKID_CORE_CLIENTID_CONFIRM);
+        assert_eq!(packet_id1, &PacketId::PAKID_CORE_CLIENT_NAME);
     }
 }
