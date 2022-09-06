@@ -5212,6 +5212,10 @@ clone:
   disable: true
 steps:
 - name: Find the latest available semver for v10
+  resources:
+    requests:
+      cpu: 1234
+      memory: 1234Mi
   image: golang:1.18
   commands:
   - mkdir -pv "/tmp/teleport"
@@ -13699,6 +13703,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 40844db75ac99c6c164e3e06e63511fdd3e2bfe21c963c689bc9a79cdcfe68d1
+hmac: 520ab4e6fb4a6983f5bfa586b7ec6bd7bf4d7fa9ae58512932d52c1607c959ef
 
 ...
