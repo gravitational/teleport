@@ -20,6 +20,7 @@ import "gogoproto/gogo.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
+import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
 option go_package = "github.com/gravitational/teleport/api/types/events";
@@ -2678,6 +2679,12 @@ message LockCreate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // Target describes the set of interactions that the lock applies to
+  types.LockTarget Target = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "target"
+  ];
 }
 
 // LockDelete is emitted when a lock is deleted
@@ -2944,6 +2951,7 @@ message OneOf {
     events.SFTP SFTP = 91;
     events.UpgradeWindowStartUpdate UpgradeWindowStartUpdate = 92;
     events.AppSessionEnd AppSessionEnd = 93;
+    events.SessionRecordingAccess SessionRecordingAccess = 94;
   }
 }
 
@@ -3638,6 +3646,25 @@ message UpgradeWindowStartUpdate {
   ];
   // UpgradeWindowStartMetadata contains upgrade window related metadata.
   UpgradeWindowStartMetadata UpgradeWindowStart = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// SessionRecordingAccess is emitted when a session recording is accessed, allowing
+// session views to be included in the audit log
+message SessionRecordingAccess {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionID is the ID of the session.
+  string SessionID = 2 [(gogoproto.jsontag) = "sid"];
+  // UserMetadata is a common user event metadata.
+  UserMetadata UserMetadata = 3 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""

@@ -243,6 +243,8 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext) error {
 // UserKeyAuth implements SSH client authentication using public keys and is
 // called by the server every time the client connects.
 func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+	ctx := context.Background()
+
 	fingerprint := fmt.Sprintf("%v %v", key.Type(), sshutils.Fingerprint(key))
 
 	// create a new logging entry with info specific to this login attempt
@@ -272,9 +274,28 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	}
 	teleportUser := cert.KeyId
 
+	connectionDiagnosticID := cert.Extensions[teleport.CertExtensionConnectionDiagnosticID]
+
 	// only failed attempts are logged right now
 	recordFailedLogin := func(err error) {
 		failedLoginCount.Inc()
+
+		message := fmt.Sprintf("Principal %q is not allowed by this certificate. Ensure your roles grants access by adding it to the 'login' property.", conn.User())
+		traceType := types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL
+
+		if trace.IsAccessDenied(err) {
+			message = "You are not authorized to access this node. Ensure your role grants access by adding it to the 'node_labels' property."
+			traceType = types.ConnectionDiagnosticTrace_RBAC_NODE
+		}
+
+		if err := h.maybeAppendDiagnosticTrace(ctx, connectionDiagnosticID,
+			traceType,
+			message,
+			err,
+		); err != nil {
+			h.log.WithError(err).Warn("Failed to append Trace to ConnectionDiagnostic.")
+		}
+
 		if err := h.c.Emitter.EmitAuditEvent(h.c.Server.Context(), &apievents.AuthAttempt{
 			Metadata: apievents.Metadata{
 				Type: events.AuthAttemptEvent,
@@ -311,6 +332,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		},
 		FIPS: h.c.FIPS,
 	}
+
 	permissions, err := certChecker.Authenticate(conn, key)
 	if err != nil {
 		certificateMismatchCount.Inc()
@@ -356,7 +378,42 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		return nil, trace.Wrap(err)
 	}
 
+	if err := h.maybeAppendDiagnosticTrace(ctx, connectionDiagnosticID,
+		types.ConnectionDiagnosticTrace_RBAC_NODE,
+		"You have access to the Node.",
+		nil,
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := h.maybeAppendDiagnosticTrace(ctx, connectionDiagnosticID,
+		types.ConnectionDiagnosticTrace_CONNECTIVITY,
+		"Node is alive and reachable.",
+		nil,
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := h.maybeAppendDiagnosticTrace(ctx, connectionDiagnosticID,
+		types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
+		"The requested principal is allowed.",
+		nil,
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return permissions, nil
+}
+
+func (h *AuthHandlers) maybeAppendDiagnosticTrace(ctx context.Context, connectionDiagnosticID string, traceType types.ConnectionDiagnosticTrace_TraceType, message string, traceError error) error {
+	if connectionDiagnosticID == "" {
+		return nil
+	}
+
+	connectionTrace := types.NewTraceDiagnosticConnection(traceType, message, traceError)
+
+	_, err := h.c.AccessPoint.AppendDiagnosticTrace(ctx, connectionDiagnosticID, connectionTrace)
+	return trace.Wrap(err)
 }
 
 // HostKeyAuth implements host key verification and is called by the client

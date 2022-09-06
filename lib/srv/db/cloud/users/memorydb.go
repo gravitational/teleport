@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	libaws "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 	libsecrets "github.com/gravitational/teleport/lib/srv/db/secrets"
 	libutils "github.com/gravitational/teleport/lib/utils"
 )
@@ -138,7 +139,7 @@ func (f *memoryDBFetcher) getUsersForRegion(ctx context.Context, region string, 
 	getFunc := func(ctx context.Context) (interface{}, error) {
 		users := []*memorydb.User{}
 		var nextToken *string
-		for pageNum := 0; pageNum < maxPages; pageNum++ {
+		for pageNum := 0; pageNum < common.MaxPages; pageNum++ {
 			output, err := client.DescribeUsersWithContext(ctx, &memorydb.DescribeUsersInput{
 				NextToken: nextToken,
 			})
@@ -236,6 +237,3 @@ func (r *memoryDBUserResource) ModifyUserPassword(ctx context.Context, oldPasswo
 	}
 	return nil
 }
-
-// maxPages is the maximum number of pages to iterate over when fetching cloud resources.
-const maxPages = 10

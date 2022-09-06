@@ -1,6 +1,6 @@
 # Changelog
 
-## 10.1.7
+## 10.1.9
 
 This release of Teleport contains multiple improvements and bug fixes.
 
@@ -15,6 +15,8 @@ This release of Teleport contains multiple improvements and bug fixes.
 * Fixed issue with inability to add webauthn devices in Web UI when local auth is disabled. [#15776](https://github.com/gravitational/teleport/pull/15776)
 * Fixed issue with SAML login failing in some scenarios. [#15886](https://github.com/gravitational/teleport/pull/15886)
 * Fixed issue with Firestore backend pagination. [#13756](https://github.com/gravitational/teleport/pull/13756)
+* Fixed issue with unescaped path parameter causing failure on initial direct access to proxied application. [#15908](https://github.com/gravitational/teleport/pull/15908)
+* Fixed issue with Github connector's deprecated `teams_to_logins` field always being marshaled. [#15933](https://github.com/gravitational/teleport/pull/15933)
 * Added ability for reverse tunnel agents to join over reverse tunnel port without exposing web UI. [#13598](https://github.com/gravitational/teleport/pull/13598)
 * Added `ssh_file_copy` role option allowing to disable scp and SFTP file copying. [#15853](https://github.com/gravitational/teleport/pull/15853)
 * Added ability to disable local auth in teleport-cluster Helm chart. [#15595](https://github.com/gravitational/teleport/pull/15595)
@@ -1528,7 +1530,7 @@ Other updates:
 
 * We now provide local user management via `https://[cluster-url]/web/users`, providing the ability to easily edit, reset and delete local users.
 * Teleport Node & App Install scripts. This is currently an Enterprise-only feature that provides customers with an easy 'auto-magic' installer script. Enterprise customers can enable this feature by modifying the 'token' resource. See note above.
-* We've added a Waiting Room for customers using Access Workflows. [Docs](https://goteleport.com/teleport/docs/enterprise/workflow/#adding-a-reason-to-access-workflows)
+* We've added a Waiting Room for customers using Access Workflows. [Docs](./docs/pages/access-controls/access-request-plugins/index.mdx)
 
 ##### Signed RPM and Releases
 
@@ -1790,12 +1792,12 @@ Teleport's Web UI now exposes Teleport’s Audit log, letting auditors and admin
 
 ##### Teleport Plugins
 
-Teleport 4.3 introduces four new plugins that work out of the box with [Approval Workflow](https://gravitational.com/teleport/docs/enterprise/workflow/?utm_source=github&utm_medium=changelog&utm_campaign=4_3). These plugins allow you to automatically support role escalation with commonly used third party services. The built-in plugins are listed below.
+Teleport 4.3 introduces four new plugins that work out of the box with [Approval Workflow](./docs/pages/access-controls/access-request-plugins/index.mdx). These plugins allow you to automatically support role escalation with commonly used third party services. The built-in plugins are listed below.
 
-*   [PagerDuty](https://gravitational.com/teleport/docs/enterprise/workflow/ssh_approval_pagerduty/?utm_source=github&utm_medium=changelog&utm_campaign=4_3)
-*   [Jira Server](https://gravitational.com/teleport/docs/enterprise/workflow/ssh_approval_jira_server/?utm_source=github&utm_medium=changelog&utm_campaign=4_3) and [Jira Cloud](https://gravitational.com/teleport/docs/enterprise/workflow/ssh_approval_jira_cloud/?utm_source=github&utm_medium=changelog&utm_campaign=4_3)
-*   [Slack](https://gravitational.com/teleport/docs/enterprise/workflow/ssh_approval_slack/?utm_source=github&utm_medium=changelog&utm_campaign=4_3)
-*   [Mattermost](https://gravitational.com/teleport/docs/enterprise/workflow/ssh_approval_mattermost/?utm_source=github&utm_medium=changelog&utm_campaign=4_3)
+*   [PagerDuty](./docs/pages/access-controls/access-request-plugins/ssh-approval-pagerduty.mdx)
+*   [Jira Server](./docs/pages/access-controls/access-request-plugins/ssh-approval-jira-server.mdx) and [Jira Cloud](./docs/pages/access-controls/access-request-plugins/ssh-approval-jira-cloud.mdx)
+*   [Slack](./docs/pages/access-controls/access-request-plugins/ssh-approval-slack.mdx)
+*   [Mattermost](./docs/pages/access-controls/access-request-plugins/ssh-approval-mattermost.mdx)
 
 #### Improvements
 
@@ -1826,7 +1828,7 @@ Teleport 4.3 introduces four new plugins that work out of the box with [Approval
 #### Documentation
 
 *   [Moved SSO under Enterprise Section](https://gravitational.com/teleport/docs/enterprise/sso/ssh_sso/)
-*   [Documented Teleport Plugins](https://gravitational.com/teleport/docs/enterprise/workflow/)
+*   [Documented Teleport Plugins](./docs/pages/access-controls/access-request-plugins/index.mdx)
 *   [Documented Kubernetes Role Mapping](https://gravitational.com/teleport/docs/kubernetes_ssh/#kubernetes-groups-and-users)
 
 #### Upgrade Notes
@@ -1989,8 +1991,8 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 
 * Alpha: Enhanced Session Recording lets you know what's really happening during a Teleport Session. [#2948](https://github.com/gravitational/teleport/issues/2948)
 * Alpha: Workflows API lets admins escalate RBAC roles in response to user requests. [Read the docs](./docs/pages/access-controls/access-requests.mdx). [#3006](https://github.com/gravitational/teleport/issues/3006)
-* Beta: Teleport provides HA Support using Firestore and Google Cloud Storage using Google Cloud Platform. [Read the docs](./docs/pages/setup/deployments/gcp.mdx). [#2821](https://github.com/gravitational/teleport/pull/2821)
-* Remote tctl execution is now possible. [Read the docs](./docs/pages/setup/reference/cli.mdx#tctl). [#1525](https://github.com/gravitational/teleport/issues/1525) [#2991](https://github.com/gravitational/teleport/issues/2991)
+* Beta: Teleport provides HA Support using Firestore and Google Cloud Storage using Google Cloud Platform. [Read the docs](./docs/pages/deploy-a-cluster/deployments/gcp.mdx). [#2821](https://github.com/gravitational/teleport/pull/2821)
+* Remote tctl execution is now possible. [Read the docs](./docs/pages/reference/cli.mdx#tctl). [#1525](https://github.com/gravitational/teleport/issues/1525) [#2991](https://github.com/gravitational/teleport/issues/2991)
 
 ### Fixes
 
@@ -1998,8 +2000,8 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 
 ### Documentation
 
-* Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](./docs/pages/setup/admin/trustedclusters.mdx).
-* Documented Teleport FedRAMP & FIPS Support. [FedRAMP & FIPS documentation](./docs/pages/enterprise/fedramp.mdx).
+* Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](./docs/pages/management/admin/trustedclusters.mdx).
+* Documented Teleport FedRAMP & FIPS Support. [FedRAMP & FIPS documentation](./docs/pages/access-controls/compliance-frameworks/fedramp.mdx).
 
 ## 4.1.11
 
@@ -2230,7 +2232,7 @@ With this release of Teleport, we have built out the foundation to help Teleport
 
 ### Improvements
 
-* Teleport now support 10,000 remote connections to a single Teleport cluster. [Using our recommend hardware setup.](./docs/pages/setup/operations/scaling.mdx#hardware-recommendations)
+* Teleport now support 10,000 remote connections to a single Teleport cluster. [Using our recommend hardware setup.](./docs/pages/management/operations/scaling.mdx#hardware-recommendations)
 * Added ability to delete node using `tctl rm`. [#2685](https://github.com/gravitational/teleport/pull/2685)
 * Output of `tsh ls` is now sorted by node name. [#2534](https://github.com/gravitational/teleport/pull/2534)
 
