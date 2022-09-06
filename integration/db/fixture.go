@@ -341,9 +341,12 @@ func (p *DatabasePack) WaitForLeaf(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
 	for {
 		select {
-		case <-time.Tick(500 * time.Millisecond):
+		case <-ticker.C:
 			servers, err := accessPoint.GetDatabaseServers(ctx, apidefaults.Namespace)
 			if err != nil {
 				// Use root logger as we need a configured logger instance and the root cluster have one.
