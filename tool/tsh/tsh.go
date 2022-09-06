@@ -305,6 +305,8 @@ type CLIConf struct {
 	overrideStdout io.Writer
 	// overrideStderr allows to switch standard error source for resource command. Used in tests.
 	overrideStderr io.Writer
+	// overrideStdin allows to switch standard in source for resource command. Used in tests.
+	overrideStdin io.Reader
 
 	// mockSSOLogin used in tests to override sso login handler in teleport client.
 	mockSSOLogin client.SSOLoginFunc
@@ -393,6 +395,14 @@ func (c *CLIConf) Stderr() io.Writer {
 		return c.overrideStderr
 	}
 	return os.Stderr
+}
+
+// Stdin returns the stdin reader.
+func (c *CLIConf) Stdin() io.Reader {
+	if c.overrideStdin != nil {
+		return c.overrideStdin
+	}
+	return os.Stdin
 }
 
 // CommandWithBinary returns the current/selected command with the binary.
