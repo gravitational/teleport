@@ -20,6 +20,7 @@ import "google/protobuf/timestamp.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/wrappers.proto";
 
+import "github.com/gravitational/teleport/api/types/types.proto";
 import "github.com/gravitational/teleport/api/types/wrappers/wrappers.proto";
 
 option (gogoproto.marshaler_all) = true;
@@ -1779,6 +1780,9 @@ message LockCreate {
     // User is a common user event metadata
     UserMetadata User = 3
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // Target describes the set of interactions that the lock applies to
+    types.LockTarget Target = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "target" ];
 }
 
 // LockDelete is emitted when a lock is deleted
