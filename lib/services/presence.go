@@ -214,13 +214,28 @@ type Presence interface {
 	KeepAliveServer(ctx context.Context, h types.KeepAlive) error
 
 	// GetKubeServices returns a list of registered kubernetes services.
+	// DELETE IN 13.0. Deprecated, use GetKubernetesServers.
 	GetKubeServices(context.Context) ([]types.Server, error)
 
 	// DeleteKubeService deletes a named kubernetes service.
+	// DELETE IN 13.0. Deprecated, use DeleteKubernetesServer.
 	DeleteKubeService(ctx context.Context, name string) error
 
 	// DeleteAllKubeServices deletes all registered kubernetes services.
+	// DELETE IN 13.0. Deprecated, use DeleteAllKubernetesServers.
 	DeleteAllKubeServices(context.Context) error
+
+	// GetKubernetesServers returns a list of registered kubernetes servers.
+	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
+
+	// DeleteKubernetesServer deletes a named kubernetes servers.
+	DeleteKubernetesServer(ctx context.Context, hostID, name string) error
+
+	// DeleteAllKubernetesServers deletes all registered kubernetes servers.
+	DeleteAllKubernetesServers(context.Context) error
+
+	// UpsertKubernetesServer registers an kubernetes server.
+	UpsertKubernetesServer(context.Context, types.KubeServer) (*types.KeepAlive, error)
 
 	// GetWindowsDesktopServices returns all registered Windows desktop services.
 	GetWindowsDesktopServices(context.Context) ([]types.WindowsDesktopService, error)

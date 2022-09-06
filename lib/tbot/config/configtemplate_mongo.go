@@ -69,12 +69,17 @@ func (t *TemplateMongo) Render(ctx context.Context, bot Bot, currentIdentity *id
 		return trace.Wrap(err)
 	}
 
+	key, err := newClientKey(currentIdentity, dbCAs)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	cfg := identityfile.WriteConfig{
 		OutputPath: t.Prefix,
 		Writer: &BotConfigWriter{
 			dest: dest,
 		},
-		Key:    newClientKey(currentIdentity, dbCAs),
+		Key:    key,
 		Format: identityfile.FormatMongo,
 
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.

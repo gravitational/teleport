@@ -21,6 +21,7 @@ import (
 	"io"
 	"os"
 	"testing"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -28,7 +29,9 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
@@ -274,8 +277,8 @@ func TestPortsParsing(t *testing.T) {
 	// parse invalid spec:
 	spec = []string{"foo", "bar"}
 	ports, err = ParsePortForwardSpec(spec)
-	require.Nil(t, ports)
-	require.ErrorContains(t, err, "Invalid port forwarding spec:")
+	require.Empty(t, ports)
+	require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 }
 
 func TestDynamicPortsParsing(t *testing.T) {
@@ -418,6 +421,42 @@ func TestWebProxyHostPort(t *testing.T) {
 			gotHost, gotPort := c.WebProxyHostPort()
 			require.Equal(t, tt.wantHost, gotHost)
 			require.Equal(t, tt.wantPort, gotPort)
+		})
+	}
+}
+
+func TestGetKubeTLSServerName(t *testing.T) {
+	tests := []struct {
+		name          string
+		kubeProxyAddr string
+		want          string
+	}{
+		{
+			name:          "ipv4 format, API domain should be used",
+			kubeProxyAddr: "127.0.0.1",
+			want:          "kube.teleport.cluster.local",
+		},
+		{
+			name:          "empty host, API domain should be used",
+			kubeProxyAddr: "",
+			want:          "kube.teleport.cluster.local",
+		},
+		{
+			name:          "ipv4 unspecified, API domain should be used ",
+			kubeProxyAddr: "0.0.0.0",
+			want:          "kube.teleport.cluster.local",
+		},
+		{
+			name:          "valid hostname",
+			kubeProxyAddr: "example.com",
+			want:          "kube.example.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := GetKubeTLSServerName(tt.kubeProxyAddr)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -749,6 +788,78 @@ func TestFormatConnectToProxyErr(t *testing.T) {
 				require.True(t, isTraceErr)
 				require.Contains(t, traceErr.Messages, tt.wantUserMessage)
 			}
+		})
+	}
+}
+
+func TestGetDesktopEventWebURL(t *testing.T) {
+	initDate := time.Date(2021, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	tt := []struct {
+		name      string
+		proxyHost string
+		cluster   string
+		sid       session.ID
+		events    []events.EventFields
+		expected  string
+	}{
+		{
+			name:     "nil events",
+			events:   nil,
+			expected: "",
+		},
+		{
+			name:     "empty events",
+			events:   make([]events.EventFields, 0),
+			expected: "",
+		},
+		{
+			name:      "two events, 1000 ms duration",
+			proxyHost: "host",
+			cluster:   "cluster",
+			sid:       "session_id",
+			events: []events.EventFields{
+				{
+					"time": initDate,
+				},
+				{
+					"time": initDate.Add(1000 * time.Millisecond),
+				},
+			},
+			expected: "https://host/web/cluster/cluster/session/session_id?recordingType=desktop&durationMs=1000",
+		},
+		{
+			name:      "multiple events",
+			proxyHost: "host",
+			cluster:   "cluster",
+			sid:       "session_id",
+			events: []events.EventFields{
+				{
+					"time": initDate,
+				},
+				{
+					"time": initDate.Add(10 * time.Millisecond),
+				},
+				{
+					"time": initDate.Add(20 * time.Millisecond),
+				},
+				{
+					"time": initDate.Add(30 * time.Millisecond),
+				},
+				{
+					"time": initDate.Add(40 * time.Millisecond),
+				},
+				{
+					"time": initDate.Add(50 * time.Millisecond),
+				},
+			},
+			expected: "https://host/web/cluster/cluster/session/session_id?recordingType=desktop&durationMs=50",
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, getDesktopEventWebURL(tc.proxyHost, tc.cluster, &tc.sid, tc.events))
 		})
 	}
 }

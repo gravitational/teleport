@@ -544,7 +544,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 
 			// Test device was registered.
 			if validReq.NewMFARegisterResponse != nil {
-				devs, err := srv.Auth().Identity.GetMFADevices(ctx, username, false /* without secrets*/)
+				devs, err := srv.Auth().Services.GetMFADevices(ctx, username, false /* without secrets*/)
 				require.NoError(t, err)
 				require.Len(t, devs, 1)
 

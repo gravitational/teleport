@@ -1,6 +1,6 @@
 ---
 authors: Zac Bergquist (zac.bergquist@goteleport.com), Tim Buckley (tim@goteleport.com)
-state: draft
+state: implemented (v9.0.0-v10.1.0)
 ---
 
 # RFD 56 - Teleport Cert Renewal Bot
@@ -207,17 +207,9 @@ machine.
 
 #### Locking
 
-Bot locking is functionally identical to user locking as bots are just
-specialized users. We will provide a helper command to automatically add the
-`bot-` prefix to the underlying user account:
-
-```
-$ tctl bots lock example
-# ... is functionally equivalent to this:
-$ tctl lock --user=bot-example
-```
-
-A similar helper will be provided for unlocking, `tctl bots unlock ...`
+Bot locking will re-use the
+[existing locking system](https://github.com/gravitational/teleport/blob/master/rfd/0009-locking.md)
+that can be used for users. This is because a Bot is just a specialized user.
 
 #### Impersonation
 
@@ -449,7 +441,7 @@ The bot will be implemented as a standalone tool (ie under `tool/tbot`) and
 _not_ as a service that runs in a `teleport` process.
 
 The bulk of the new logic (parsing configuration, writing certificates to a
-destination, etc.) will be implemented in a new `renew` package, which will
+destination, etc.) will be implemented in a new `lib/tbot` package, which will
 enable us to start with a standalone bot, and incorporate this functionality
 into other parts of Teleport (ie database access) in the future.
 

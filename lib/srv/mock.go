@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -37,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
-	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -177,11 +177,6 @@ func (m *mockServer) GetAccessPoint() AccessPoint {
 	return m.auth
 }
 
-// GetSessionServer returns a session server.
-func (m *mockServer) GetSessionServer() rsession.Service {
-	return rsession.NewDiscardSessionServer()
-}
-
 // GetDataDir returns data directory of the server
 func (m *mockServer) GetDataDir() string {
 	return "testDataDir"
@@ -223,6 +218,10 @@ func (m *mockServer) GetInfo() types.Server {
 			Version:   teleport.Version,
 		},
 	}
+}
+
+func (m *mockServer) TargetMetadata() apievents.ServerMetadata {
+	return apievents.ServerMetadata{}
 }
 
 // UseTunnel used to determine if this node has connected to this cluster

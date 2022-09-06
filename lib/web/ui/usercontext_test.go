@@ -97,6 +97,7 @@ func TestNewUserContext(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.ACL.Tokens, denied))
 	require.Empty(t, cmp.Diff(userContext.ACL.Nodes, denied))
 	require.Empty(t, cmp.Diff(userContext.ACL.AccessRequests, denied))
+	require.Empty(t, cmp.Diff(userContext.ACL.ConnectionDiagnostic, denied))
 	require.Empty(t, cmp.Diff(userContext.ACL.Desktops, allowed))
 	require.Empty(t, cmp.Diff(userContext.ACL.WindowsLogins, []string{"a", "b", "d"}))
 	require.Empty(t, cmp.Diff(userContext.AccessStrategy, accessStrategy{

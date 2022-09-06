@@ -329,7 +329,7 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 
 	conf := service.MakeDefaultConfig()
 	conf.AuthServers = append(conf.AuthServers, *authAddr)
-	conf.Token = "token"
+	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
 
 	conf.Auth.Enabled = false
@@ -341,6 +341,7 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 	conf.Proxy.SSHAddr.Addr = proxy.SSHProxy
 	conf.Proxy.WebAddr.Addr = proxy.Web
 	conf.Proxy.PeerAddr.Addr = net.JoinHostPort(Loopback, helpers.NewPortStr())
+	conf.Proxy.PeerPublicAddr = conf.Proxy.PeerAddr
 	conf.Proxy.PublicAddrs = append(conf.Proxy.PublicAddrs, utils.FromAddr(p.lb.Addr()))
 	conf.Proxy.DisableWebInterface = true
 	conf.FileDescriptors = proxy.Fds
@@ -372,7 +373,7 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 
 	conf := service.MakeDefaultConfig()
 	conf.AuthServers = append(conf.AuthServers, utils.FromAddr(p.lb.Addr()))
-	conf.Token = "token"
+	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
 
 	conf.Auth.Enabled = false
@@ -408,7 +409,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 
 	conf := service.MakeDefaultConfig()
 	conf.AuthServers = append(conf.AuthServers, utils.FromAddr(p.lb.Addr()))
-	conf.Token = "token"
+	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
 
 	conf.Auth.Enabled = false
@@ -423,7 +424,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 		},
 	}
 
-	_, role, err := auth.CreateUserAndRole(p.auth.Process.GetAuthServer(), p.username, nil)
+	_, role, err := auth.CreateUserAndRole(p.auth.Process.GetAuthServer(), p.username, []string{p.username})
 	require.NoError(t, err)
 
 	role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})

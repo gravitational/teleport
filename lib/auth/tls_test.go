@@ -1115,15 +1115,16 @@ func TestUsersCRUD(t *testing.T) {
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
 
-	err = clt.UpsertPassword("user1", []byte("some pass"))
+	usr, err := types.NewUser("user1")
 	require.NoError(t, err)
+	require.NoError(t, clt.CreateUser(ctx, usr))
 
 	users, err := clt.GetUsers(false)
 	require.NoError(t, err)
 	require.Equal(t, len(users), 1)
 	require.Equal(t, users[0].GetName(), "user1")
 
-	require.NoError(t, clt.DeleteUser(context.TODO(), "user1"))
+	require.NoError(t, clt.DeleteUser(ctx, "user1"))
 
 	users, err = clt.GetUsers(false)
 	require.NoError(t, err)
@@ -1165,7 +1166,7 @@ func TestPasswordCRUD(t *testing.T) {
 	err = clt.CheckPassword("user1", pass, "123456")
 	require.Error(t, err)
 
-	err = clt.UpsertPassword("user1", pass)
+	err = tt.server.Auth().UpsertPassword("user1", pass)
 	require.NoError(t, err)
 
 	dev, err := services.NewTOTPDevice("otp", otpSecret, tt.clock.Now())
@@ -1210,7 +1211,7 @@ func TestOTPCRUD(t *testing.T) {
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
 	// upsert a password and totp secret
-	err = clt.UpsertPassword("user1", pass)
+	err = tt.server.Auth().UpsertPassword("user1", pass)
 	require.NoError(t, err)
 	dev, err := services.NewTOTPDevice("otp", otpSecret, tt.clock.Now())
 	require.NoError(t, err)
@@ -1274,14 +1275,14 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 		},
 	}
 	// authentication attempt fails with no password set up
-	_, err = proxy.AuthenticateWebUser(req)
+	_, err = proxy.AuthenticateWebUser(ctx, req)
 	require.True(t, trace.IsAccessDenied(err))
 
-	err = clt.UpsertPassword(user, pass)
+	err = tt.server.Auth().UpsertPassword(user, pass)
 	require.NoError(t, err)
 
 	// success with password set up
-	ws, err := proxy.AuthenticateWebUser(req)
+	ws, err := proxy.AuthenticateWebUser(ctx, req)
 	require.NoError(t, err)
 	require.NotEqual(t, ws, "")
 
@@ -1357,7 +1358,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	requestableRoleName := "requestable"
 	user, err := CreateUserRoleAndRequestable(clt, username, requestableRoleName)
 	require.NoError(t, err)
-	err = clt.UpsertPassword(username, password)
+	err = tt.server.Auth().UpsertPassword(username, password)
 	require.NoError(t, err)
 
 	// Set search_as_roles, user can request this role only with a resource
@@ -1390,7 +1391,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	// Create a web session and client for the user.
 	proxyClient, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
-	baseWebSession, err := proxyClient.AuthenticateWebUser(AuthenticateUserRequest{
+	baseWebSession, err := proxyClient.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: username,
 		Pass: &PassCreds{
 			Password: password,
@@ -1557,17 +1558,17 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 		},
 	}
 
-	err = clt.UpsertPassword(user, pass)
+	err = tt.server.Auth().UpsertPassword(user, pass)
 	require.NoError(t, err)
 
-	ws, err := proxy.AuthenticateWebUser(req)
+	ws, err := proxy.AuthenticateWebUser(ctx, req)
 	require.NoError(t, err)
 
 	web, err := tt.server.NewClientFromWebSession(ws)
 	require.NoError(t, err)
 
 	initialRole := newUser.GetRoles()[0]
-	initialSession, err := web.GetWebSessionInfo(context.TODO(), user, ws.GetName())
+	initialSession, err := web.GetWebSessionInfo(ctx, user, ws.GetName())
 	require.NoError(t, err)
 
 	// Create a approved access request.
@@ -1578,10 +1579,10 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	accessReq.SetAccessExpiry(tt.clock.Now().Add(time.Minute * 10))
 	accessReq.SetState(types.RequestState_APPROVED)
 
-	err = clt.CreateAccessRequest(context.Background(), accessReq)
+	err = clt.CreateAccessRequest(ctx, accessReq)
 	require.NoError(t, err)
 
-	sess1, err := web.ExtendWebSession(context.TODO(), WebSessionReq{
+	sess1, err := web.ExtendWebSession(ctx, WebSessionReq{
 		User:            user,
 		PrevSessionID:   ws.GetName(),
 		AccessRequestID: accessReq.GetMetadata().Name,
@@ -1623,7 +1624,7 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	require.Empty(t, cmp.Diff(certRequests(sess1.GetTLSCert()), []string{accessReq.GetName()}))
 
 	// Test switch back to default role and expiry.
-	sess2, err := web.ExtendWebSession(context.TODO(), WebSessionReq{
+	sess2, err := web.ExtendWebSession(ctx, WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
 		Switchback:    true,
@@ -1640,6 +1641,61 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	require.Empty(t, cmp.Diff(roles, []string{initialRole}))
 
 	require.Len(t, certRequests(sess2.GetTLSCert()), 0)
+}
+
+func TestExtendWebSessionWithReloadUser(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	tt := setupAuthContext(ctx, t)
+
+	clt, err := tt.server.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	user := "user2"
+	pass := []byte("abc123")
+
+	newUser, _, err := CreateUserAndRole(clt, user, nil)
+	require.NoError(t, err)
+	require.Empty(t, newUser.GetTraits())
+
+	proxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+
+	// Create user authn creds and web session.
+	req := AuthenticateUserRequest{
+		Username: user,
+		Pass: &PassCreds{
+			Password: pass,
+		},
+	}
+	err = tt.server.Auth().UpsertPassword(user, pass)
+	require.NoError(t, err)
+	ws, err := proxy.AuthenticateWebUser(ctx, req)
+	require.NoError(t, err)
+	web, err := tt.server.NewClientFromWebSession(ws)
+	require.NoError(t, err)
+
+	// Update some traits.
+	newUser.SetLogins([]string{"apple", "banana"})
+	newUser.SetDatabaseUsers([]string{"llama", "alpaca"})
+	require.NoError(t, clt.UpdateUser(ctx, newUser))
+
+	// Renew session with the updated traits.
+	sess1, err := web.ExtendWebSession(ctx, WebSessionReq{
+		User:          user,
+		PrevSessionID: ws.GetName(),
+		ReloadUser:    true,
+	})
+	require.NoError(t, err)
+
+	// Check traits has been updated to latest.
+	sshcert, err := sshutils.ParseCertificate(sess1.GetPub())
+	require.NoError(t, err)
+	traits, err := services.ExtractTraitsFromCert(sshcert)
+	require.NoError(t, err)
+	require.Equal(t, traits[constants.TraitLogins], []string{"apple", "banana"})
+	require.Equal(t, traits[constants.TraitDBUsers], []string{"llama", "alpaca"})
 }
 
 // TestGetCertAuthority tests certificate authority permissions
@@ -2308,7 +2364,7 @@ func TestCertificateFormat(t *testing.T) {
 		require.NoError(t, err)
 
 		// authentication attempt fails with password auth only
-		re, err := proxyClient.AuthenticateSSHUser(AuthenticateSSHRequest{
+		re, err := proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 			AuthenticateUserRequest: AuthenticateUserRequest{
 				Username: user.GetName(),
 				Pass: &PassCreds{
@@ -2408,21 +2464,21 @@ func TestAuthenticateWebUserOTP(t *testing.T) {
 	require.NoError(t, err)
 
 	// authentication attempt fails with wrong password
-	_, err = proxy.AuthenticateWebUser(AuthenticateUserRequest{
+	_, err = proxy.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: user,
 		OTP:      &OTPCreds{Password: []byte("wrong123"), Token: validToken},
 	})
 	require.True(t, trace.IsAccessDenied(err))
 
 	// authentication attempt fails with wrong otp
-	_, err = proxy.AuthenticateWebUser(AuthenticateUserRequest{
+	_, err = proxy.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: user,
 		OTP:      &OTPCreds{Password: pass, Token: "wrong123"},
 	})
 	require.True(t, trace.IsAccessDenied(err))
 
 	// authentication attempt fails with password auth only
-	_, err = proxy.AuthenticateWebUser(AuthenticateUserRequest{
+	_, err = proxy.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: user,
 		Pass: &PassCreds{
 			Password: pass,
@@ -2431,7 +2487,7 @@ func TestAuthenticateWebUserOTP(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// authentication succeeds
-	ws, err := proxy.AuthenticateWebUser(AuthenticateUserRequest{
+	ws, err := proxy.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: user,
 		OTP:      &OTPCreds{Password: pass, Token: validToken},
 	})
@@ -2470,7 +2526,7 @@ func TestLoginAttempts(t *testing.T) {
 	proxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 
-	err = clt.UpsertPassword(user, pass)
+	err = tt.server.Auth().UpsertPassword(user, pass)
 	require.NoError(t, err)
 
 	req := AuthenticateUserRequest{
@@ -2480,7 +2536,7 @@ func TestLoginAttempts(t *testing.T) {
 		},
 	}
 	// authentication attempt fails with bad password
-	_, err = proxy.AuthenticateWebUser(req)
+	_, err = proxy.AuthenticateWebUser(ctx, req)
 	require.True(t, trace.IsAccessDenied(err))
 
 	// creates first failed login attempt
@@ -2490,7 +2546,7 @@ func TestLoginAttempts(t *testing.T) {
 
 	// try second time with wrong pass
 	req.Pass.Password = pass
-	_, err = proxy.AuthenticateWebUser(req)
+	_, err = proxy.AuthenticateWebUser(ctx, req)
 	require.NoError(t, err)
 
 	// clears all failed attempts after success
@@ -2571,7 +2627,7 @@ func TestLoginNoLocalAuth(t *testing.T) {
 	require.NoError(t, err)
 	_, _, err = CreateUserAndRole(clt, user, []string{user})
 	require.NoError(t, err)
-	err = clt.UpsertPassword(user, pass)
+	err = tt.server.Auth().UpsertPassword(user, pass)
 	require.NoError(t, err)
 
 	// Set auth preference to disallow local auth.
@@ -2583,7 +2639,7 @@ func TestLoginNoLocalAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	// Make sure access is denied for web login.
-	_, err = tt.server.Auth().AuthenticateWebUser(AuthenticateUserRequest{
+	_, err = tt.server.Auth().AuthenticateWebUser(ctx, AuthenticateUserRequest{
 		Username: user,
 		Pass: &PassCreds{
 			Password: pass,
@@ -2594,7 +2650,7 @@ func TestLoginNoLocalAuth(t *testing.T) {
 	// Make sure access is denied for SSH login.
 	_, pub, err := native.GenerateKeyPair()
 	require.NoError(t, err)
-	_, err = tt.server.Auth().AuthenticateSSHUser(AuthenticateSSHRequest{
+	_, err = tt.server.Auth().AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
 			Username: user,
 			Pass: &PassCreds{
@@ -2895,6 +2951,62 @@ func TestRegisterCAPath(t *testing.T) {
 		Clock:                tt.clock,
 	})
 	require.NoError(t, err)
+}
+
+// TestClusterAlertAccessControls verifies expected behaviors of cluster alert
+// access controls.
+func TestClusterAlertAccessControls(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tt := setupAuthContext(ctx, t)
+
+	alert1, err := types.NewClusterAlert("alert-1", "some msg")
+	require.NoError(t, err)
+
+	alert2, err := types.NewClusterAlert("alert-2", "other msg")
+	require.NoError(t, err)
+
+	// set one of the two alerts to be viewable by all users
+	alert2.Metadata.Labels = map[string]string{
+		types.AlertPermitAll: "yes",
+	}
+
+	adminClt, err := tt.server.NewClient(TestBuiltin(types.RoleAdmin))
+	require.NoError(t, err)
+	defer adminClt.Close()
+
+	err = adminClt.UpsertClusterAlert(ctx, alert1)
+	require.NoError(t, err)
+
+	err = adminClt.UpsertClusterAlert(ctx, alert2)
+	require.NoError(t, err)
+
+	// verify that admin client can see all alerts
+	alerts, err := adminClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
+	require.NoError(t, err)
+	require.Len(t, alerts, 2)
+
+	// verify that some other client with no alert-specific permissions can
+	// see the "permit-all" subset of alerts (using role node here, but any
+	// role with no special provisions for alerts should be equivalent)
+	otherClt, err := tt.server.NewClient(TestBuiltin(types.RoleNode))
+	require.NoError(t, err)
+	defer otherClt.Close()
+
+	alerts, err = otherClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
+	require.NoError(t, err)
+	require.Len(t, alerts, 1)
+
+	// verify that we still reject unauthenticated clients
+	nopClt, err := tt.server.NewClient(TestBuiltin(types.RoleNop))
+	require.NoError(t, err)
+	defer nopClt.Close()
+
+	_, err = nopClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
+	require.True(t, trace.IsAccessDenied(err))
 }
 
 // TestEventsNodePresence tests streaming node presence API -
@@ -3238,7 +3350,7 @@ func TestEventsClusterConfig(t *testing.T) {
 	err = tt.server.Auth().SetClusterName(clusterName)
 	require.NoError(t, err)
 
-	clusterNameResource, err = tt.server.Auth().ClusterConfiguration.GetClusterName()
+	clusterNameResource, err = tt.server.Auth().GetClusterName()
 	require.NoError(t, err)
 	suite.ExpectResource(t, w, 3*time.Second, clusterNameResource)
 }

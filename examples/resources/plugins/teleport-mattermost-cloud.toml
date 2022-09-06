@@ -5,7 +5,7 @@ identity = "/var/lib/teleport/plugins/mattermost/auth.pem"   # Identity file pat
 
 [mattermost]
 url = "https://mattermost.example.com" # Mattermost Server URL
-team = "team-name"                     # Mattermsot team in which the channel resides.
+team = "team-name"                     # Mattermost team in which the channel resides.
 channel = "channel-name"               # Mattermost Channel name to post requests to
 token = "api-token"                    # Mattermost Bot OAuth token
 secret = "signing-secret-value"        # Mattermost API signing Secret

@@ -71,6 +71,20 @@ func NewKubernetesClusterV3FromLegacyCluster(namespace string, cluster *Kubernet
 	return k, nil
 }
 
+// NewKubernetesClusterV3 creates a new Kubernetes cluster resource.
+func NewKubernetesClusterV3(meta Metadata, spec KubernetesClusterSpecV3) (*KubernetesClusterV3, error) {
+	k := &KubernetesClusterV3{
+		Metadata: meta,
+		Spec:     spec,
+	}
+
+	if err := k.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return k, nil
+}
+
 // GetVersion returns the resource version.
 func (k *KubernetesClusterV3) GetVersion() string {
 	return k.Version

@@ -71,6 +71,8 @@ var (
 	)
 )
 
+var ErrNodeFileCopyingNotPermitted = trace.AccessDenied("node does not allow file copying via SCP or SFTP")
+
 func init() {
 	prometheus.MustRegister(serverTX)
 	prometheus.MustRegister(serverRX)
@@ -101,6 +103,9 @@ type AccessPoint interface {
 
 	// GetCertAuthorities returns a list of cert authorities
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+
+	// ConnectionDiagnosticTraceAppender adds a method to append traces into ConnectionDiagnostics.
+	services.ConnectionDiagnosticTraceAppender
 }
 
 // Server is regular or forwarding SSH server.
@@ -131,9 +136,6 @@ type Server interface {
 
 	// GetAccessPoint returns an AccessPoint for this cluster.
 	GetAccessPoint() AccessPoint
-
-	// GetSessionServer returns a session server.
-	GetSessionServer() rsession.Service
 
 	// GetDataDir returns data directory of the server
 	GetDataDir() string
@@ -173,6 +175,9 @@ type Server interface {
 	// GetHostUser returns the HostUsers instance being used to manage
 	// host user provisioning
 	GetHostUsers() HostUsers
+
+	// TargetMetadata returns metadata about the session target node.
+	TargetMetadata() apievents.ServerMetadata
 }
 
 // IdentityContext holds all identity information associated with the user
@@ -284,23 +289,23 @@ type ServerContext struct {
 	// time this context was created.
 	SessionRecordingConfig types.SessionRecordingConfig
 
-	// RemoteClient holds a SSH client to a remote server. Only used by the
+	// RemoteClient holds an SSH client to a remote server. Only used by the
 	// recording proxy.
 	RemoteClient *tracessh.Client
 
-	// RemoteSession holds a SSH session to a remote server. Only used by the
+	// RemoteSession holds an SSH session to a remote server. Only used by the
 	// recording proxy.
-	RemoteSession *ssh.Session
+	RemoteSession *tracessh.Session
 
 	// clientLastActive records the last time there was activity from the client
 	clientLastActive time.Time
 
 	// disconnectExpiredCert is set to time when/if the certificate should
-	// be disconnected, set to empty if no disconect is necessary
+	// be disconnected, set to empty if no disconnect is necessary
 	disconnectExpiredCert time.Time
 
 	// clientIdleTimeout is set to the timeout on
-	// on client inactivity, set to 0 if not setup
+	// client inactivity, set to 0 if not setup
 	clientIdleTimeout time.Duration
 
 	// cancelContext signals closure to all outstanding operations
@@ -313,6 +318,9 @@ type ServerContext struct {
 	// to be tracked because the terminal is set to nil after it's "taken" in the
 	// session. Terminals can be allocated for both "exec" or "session" requests.
 	termAllocated bool
+
+	// ttyName is the name of the TTY used for a session, ex: /dev/pts/0
+	ttyName string
 
 	// request is the request that was issued by the client
 	request *ssh.Request
@@ -332,7 +340,7 @@ type ServerContext struct {
 	ChannelType string
 
 	// SrcAddr is the source address of the request. This the originator IP
-	// address and port in a SSH "direct-tcpip" request. This value is only
+	// address and port in an SSH "direct-tcpip" request. This value is only
 	// populated for port forwarding requests.
 	SrcAddr string
 
@@ -340,6 +348,10 @@ type ServerContext struct {
 	// port to connect to in a "direct-tcpip" request. This value is only
 	// populated for port forwarding requests.
 	DstAddr string
+
+	// allowFileCopying controls if remote file operations via SCP/SFTP are allowed
+	// by the server.
+	AllowFileCopying bool
 
 	// x11rdy{r,w} is used to signal from the child process to the
 	// parent process when X11 forwarding is set up.
@@ -627,6 +639,25 @@ func (c *ServerContext) getSession() *session {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.session
+}
+
+func (c *ServerContext) SetAllowFileCopying(allow bool) {
+	c.AllowFileCopying = allow
+}
+
+// CheckFileCopyingAllowed returns an error if remote file operations via
+// SCP or SFTP are not allowed by the user's role or the node's config.
+func (c *ServerContext) CheckFileCopyingAllowed() error {
+	// Check if remote file operations are disabled for this node.
+	if !c.AllowFileCopying {
+		return ErrNodeFileCopyingNotPermitted
+	}
+	// Check if the user's RBAC role allows remote file operations.
+	if !c.Identity.AccessChecker.CanCopyFiles() {
+		return errRoleFileCopyingNotPermitted
+	}
+
+	return nil
 }
 
 // OpenXServerListener opens a new XServer unix listener.
@@ -999,6 +1030,8 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		Login:                 c.Identity.Login,
 		Roles:                 roleNames,
 		Terminal:              c.termAllocated || command == "",
+		TerminalName:          c.ttyName,
+		ClientAddress:         c.ServerConn.RemoteAddr().String(),
 		RequestType:           requestType,
 		PermitUserEnvironment: c.srv.PermitUserEnvironment(),
 		Environment:           buildEnvironment(c),

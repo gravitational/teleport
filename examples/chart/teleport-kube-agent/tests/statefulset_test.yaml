@@ -6,6 +6,8 @@ tests:
   - it: creates a StatefulSet
     values:
       - ../.lint/stateful.yaml
+    elease:
+      isupgrade: true
     asserts:
       - isKind:
           of: StatefulSet
@@ -197,7 +199,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: quay.io/gravitational/teleport:8.3.4
+          value: public.ecr.aws/gravitational/teleport:8.3.4
       - matchSnapshot:
           path: spec.template.spec
 
@@ -240,6 +242,20 @@ tests:
         - name: HTTPS_PROXY
           value: "http://username:password@my.proxy.host:3128"
     asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TELEPORT_REPLICA_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KUBE_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
       - contains:
           path: spec.template.spec.containers[0].env
           content:
@@ -315,6 +331,10 @@ tests:
           path: spec.template.spec
 
   - it: should not add emptyDir for data when using StatefulSet
+    release:
+      isupgrade: true
+    set:
+      unitTestUpgrade: true
     values:
       - ../.lint/stateful.yaml
     asserts:
@@ -338,19 +358,45 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
-  - it: should add volumeClaimTemplate for data volume when using StatefulSet
+  - it: should add volumeClaimTemplate for data volume when using StatefulSet and action is an Upgrade
     values:
       - ../.lint/stateful.yaml
+    set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    release:
+      isupgrade: true
     asserts:
       - isNotNull:
           path: spec.volumeClaimTemplates[0].spec
       - matchSnapshot:
           path: spec.template.spec
 
-  - it: should set storage.storageClassName when set in values
+  - it: should add volumeClaimTemplate for data volume when using StatefulSet and is Fresh Install
     values:
       - ../.lint/stateful.yaml
     set:
+       # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+       # https://github.com/helm/helm/issues/8137
+       unitTestUpgrade: true
+    release:
+      isupgrade: false
+    asserts:
+      - isNotNull:
+          path: spec.volumeClaimTemplates
+      - matchSnapshot: {}
+
+  - it: should set storage.storageClassName when set in values and action is an Upgrade
+    values:
+      - ../.lint/stateful.yaml
+    release:
+      isupgrade: true
+    set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+
       storage:
         storageClassName: helm-lint-storage-class
     asserts:
@@ -360,18 +406,78 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
-  - it: should set storage.requests when set in values
+  - it: should set storage.requests when set in values and action is an Upgrade
     values:
       - ../.lint/stateful.yaml
+    release:
+      isupgrade: true
     set:
       storage:
         requests: 256Mi
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value 
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
     asserts:
       - equal:
           path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
           value: 256Mi
       - matchSnapshot:
           path: spec.template.spec
+
+  - it: should mount tls.existingCASecretName and set environment when set in values
+    values:
+      - ../.lint/existing-tls-secret-with-ca.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls-ca
+            secret:
+              secretName: helm-lint-existing-tls-secret-ca
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls-ca
+            name: teleport-tls-ca
+            readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSL_CERT_FILE
+            value: /etc/teleport-tls-ca/ca.pem
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should mount tls.existingCASecretName and set extra environment when set in values
+    values:
+      - ../.lint/existing-tls-secret-with-ca.yaml
+      - ../.lint/extra-env.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls-ca
+            secret:
+              secretName: helm-lint-existing-tls-secret-ca
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls-ca
+            name: teleport-tls-ca
+            readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSL_CERT_FILE
+            value: /etc/teleport-tls-ca/ca.pem
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HTTPS_PROXY
+            value: http://username:password@my.proxy.host:3128
+      - matchSnapshot:
+          path: spec.template.spec
+
 
   - it: should set serviceAccountName when set in values
     values:
@@ -406,5 +512,72 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].readinessProbe.timeoutSeconds
           value: 5
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should install Statefulset when storage is disabled and mode is a Fresh Install
+    release:
+      isupgrade: false
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      storage: 
+        enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TELEPORT_REPLICA_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KUBE_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: RELEASE-NAME-teleport-data
+      - isNull:
+          path: spec.volumeClaimTemplates
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should generate Statefulset when storage is disabled and mode is a Upgrade
+    release:
+      isupgrade: true
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      unitTestUpgrade: false
+      storage: 
+        enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TELEPORT_REPLICA_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KUBE_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: RELEASE-NAME-teleport-data
+      - isNull:
+          path: spec.volumeClaimTemplates
       - matchSnapshot:
           path: spec.template.spec

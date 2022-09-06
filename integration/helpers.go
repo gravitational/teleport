@@ -17,17 +17,28 @@ limitations under the License.
 package integration
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
 	"os/exec"
 	"os/user"
+	"path/filepath"
 	"strings"
+	"testing"
+	"time"
 
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client"
+	libclient "github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
 
@@ -110,33 +121,22 @@ func externalSSHCommand(o commandOptions) (*exec.Cmd, error) {
 // createAgent creates a SSH agent with the passed in private key and
 // certificate that can be used in tests. This is useful so tests don't
 // clobber your system agent.
-func createAgent(me *user.User, privateKeyByte []byte, certificateBytes []byte) (*teleagent.AgentServer, string, string, error) {
+func createAgent(me *user.User, key *client.Key) (*teleagent.AgentServer, string, string, error) {
 	// create a path to the unix socket
 	sockDirName := "int-test"
 	sockName := "agent.sock"
 
-	// transform the key and certificate bytes into something the agent can understand
-	publicKey, _, _, _, err := ssh.ParseAuthorizedKey(certificateBytes)
+	agentKey, err := key.AsAgentKey()
 	if err != nil {
 		return nil, "", "", trace.Wrap(err)
-	}
-	privateKey, err := ssh.ParseRawPrivateKey(privateKeyByte)
-	if err != nil {
-		return nil, "", "", trace.Wrap(err)
-	}
-	agentKey := agent.AddedKey{
-		PrivateKey:       privateKey,
-		Certificate:      publicKey.(*ssh.Certificate),
-		Comment:          "",
-		LifetimeSecs:     0,
-		ConfirmBeforeUse: false,
 	}
 
-	// create a (unstarted) agent and add the key to it
+	// create a (unstarted) agent and add the agent key(s) to it
 	keyring := agent.NewKeyring()
 	if err := keyring.Add(agentKey); err != nil {
 		return nil, "", "", trace.Wrap(err)
 	}
+
 	teleAgent := teleagent.NewServer(func() (teleagent.Agent, error) {
 		return teleagent.NopCloser(keyring), nil
 	})
@@ -186,4 +186,33 @@ func getLocalIP() (string, error) {
 		}
 	}
 	return "", trace.NotFound("No non-loopback local IP address found")
+}
+
+func MustCreateUserIdentityFile(t *testing.T, tc *helpers.TeleInstance, username string, ttl time.Duration) string {
+	key, err := libclient.GenerateRSAKey()
+	require.NoError(t, err)
+	key.ClusterName = tc.Secrets.SiteName
+
+	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCerts(
+		key.MarshalSSHPublicKey(), username, ttl,
+		constants.CertificateFormatStandard,
+		tc.Secrets.SiteName, "",
+	)
+	require.NoError(t, err)
+
+	key.Cert = sshCert
+	key.TLSCert = tlsCert
+
+	hostCAs, err := tc.Process.GetAuthServer().GetCertAuthorities(context.Background(), types.HostCA, false)
+	require.NoError(t, err)
+	key.TrustedCA = auth.AuthoritiesToTrustedCerts(hostCAs)
+
+	idPath := filepath.Join(t.TempDir(), "user_identity")
+	_, err = identityfile.Write(identityfile.WriteConfig{
+		OutputPath: idPath,
+		Key:        key,
+		Format:     identityfile.FormatFile,
+	})
+	require.NoError(t, err)
+	return idPath
 }

@@ -88,6 +88,11 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
 			collections[resourceKind] = &sessionRecordingConfig{watch: watch, Cache: c}
+		case types.KindInstaller:
+			if c.ClusterConfig == nil {
+				return nil, trace.BadParameter("missing parameter ClusterConfig")
+			}
+			collections[resourceKind] = &installerConfig{watch: watch, Cache: c}
 		case types.KindUser:
 			if c.Users == nil {
 				return nil, trace.BadParameter("missing parameter Users")
@@ -176,6 +181,11 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
 			collections[resourceKind] = &kubeService{watch: watch, Cache: c}
+		case types.KindKubeServer:
+			if c.Presence == nil {
+				return nil, trace.BadParameter("missing parameter Presence")
+			}
+			collections[resourceKind] = &kubeServer{watch: watch, Cache: c}
 		case types.KindDatabaseServer:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
@@ -1850,6 +1860,7 @@ func (r *webToken) watchKind() types.WatchKind {
 	return r.watch
 }
 
+// DELETE in 13.0
 type kubeService struct {
 	*Cache
 	watch types.WatchKind
@@ -1908,6 +1919,72 @@ func (c *kubeService) processEvent(ctx context.Context, event types.Event) error
 }
 
 func (c *kubeService) watchKind() types.WatchKind {
+	return c.watch
+}
+
+type kubeServer struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (c *kubeServer) erase(ctx context.Context) error {
+	if err := c.presenceCache.DeleteAllKubernetesServers(ctx); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (c *kubeServer) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	resources, err := c.Presence.GetKubernetesServers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return func(ctx context.Context) error {
+		if err := c.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, resource := range resources {
+			if _, err := c.presenceCache.UpsertKubernetesServer(ctx, resource); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}, nil
+}
+
+func (c *kubeServer) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+
+		err := c.presenceCache.DeleteKubernetesServer(
+			ctx,
+			event.Resource.GetMetadata().Description, // Cache passes host ID via description field.
+			event.Resource.GetName(),
+		)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				c.Warningf("Failed to delete resource %v.", err)
+				return trace.Wrap(err)
+			}
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.KubeServer)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		if _, err := c.presenceCache.UpsertKubernetesServer(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		c.Warningf("Skipping unsupported event type %v.", event.Type)
+	}
+	return nil
+}
+
+func (c *kubeServer) watchKind() types.WatchKind {
 	return c.watch
 }
 
@@ -2180,6 +2257,66 @@ func (c *sessionRecordingConfig) processEvent(ctx context.Context, event types.E
 }
 
 func (c *sessionRecordingConfig) watchKind() types.WatchKind {
+	return c.watch
+}
+
+type installerConfig struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (c *installerConfig) erase(ctx context.Context) error {
+	if err := c.clusterConfigCache.DeleteAllInstallers(ctx); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (c *installerConfig) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	resources, err := c.ClusterConfig.GetInstallers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return func(ctx context.Context) error {
+		if err := c.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		for _, res := range resources {
+			if err := c.clusterConfigCache.SetInstaller(ctx, res); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}, nil
+}
+
+func (c *installerConfig) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		err := c.clusterConfigCache.DeleteInstaller(ctx, event.Resource.GetName())
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				c.Warningf("Failed to delete resource %v.", err)
+				return trace.Wrap(err)
+			}
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.Installer)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		if err := c.clusterConfigCache.SetInstaller(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		c.Warningf("Skipping unsupported event type %v.", event.Type)
+	}
+	return nil
+}
+
+func (c *installerConfig) watchKind() types.WatchKind {
 	return c.watch
 }
 
