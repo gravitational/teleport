@@ -77,11 +77,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-const (
-	Host     = helpers.Host
-	Loopback = helpers.Loopback
-)
-
 type integrationTestSuite struct {
 	helpers.Fixture
 }
