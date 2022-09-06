@@ -68,26 +68,33 @@ func TestUserConstraints(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// create and insert roles
+	// create and insert users
 	user1, err := types.NewUser("user-1")
 	require.NoError(t, err)
 	user1.SetRoles([]string{testRoles[0].Name})
-
 	err = p.a.CreateUser(ctx, user1)
 	require.NoError(t, err)
 
 	user2, err := types.NewUser("user-2")
 	require.NoError(t, err)
 	user2.SetRoles([]string{testRoles[0].Name})
-
 	err = p.a.CreateUser(ctx, user2)
 	require.NoError(t, err)
 
 	user3, err := types.NewUser("user-3")
 	require.NoError(t, err)
 	user2.SetRoles([]string{testRoles[1].Name})
-
 	err = p.a.CreateUser(ctx, user3)
+	require.NoError(t, err)
+
+	userSSO, err := types.NewUser("user-sso")
+	require.NoError(t, err)
+	userSSO.SetRoles([]string{testRoles[0].Name})
+
+	userSSO.SetCreatedBy(types.CreatedBy{
+		Connector: &types.ConnectorRef{Type: "oidc", ID: "google"},
+	})
+	err = p.a.CreateUser(ctx, userSSO)
 	require.NoError(t, err)
 
 	// remove test-role-1 role from user-2.
@@ -98,8 +105,8 @@ func TestUserConstraints(t *testing.T) {
 	require.NoError(t, err)
 
 	// remove test-role-1 role from user-1.
-	// the operation will fail because user-1 is the only user left with the
-	// permission to upsert roles.
+	// the operation will fail because user-1 is the only local user left with the
+	// permission to upsert roles. Note that user-sso is not taken into consideration.
 	user1.SetRoles([]string{})
 	err = p.a.UpdateUser(ctx, user1)
 	require.Error(t, err)
@@ -112,7 +119,7 @@ func TestUserConstraints(t *testing.T) {
 	require.NoError(t, err)
 
 	// delete user-1.
-	// the operation will fail because user-1 is the only user left with the
+	// the operation will fail because user-1 is the only local user left with the
 	// permission to upsert roles.
 	err = p.a.DeleteUser(ctx, user1.GetName())
 	require.Error(t, err)
