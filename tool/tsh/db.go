@@ -481,7 +481,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 		host, port = tc.PostgresProxyHostPort()
 	case defaults.ProtocolMySQL:
 		host, port = tc.MySQLProxyHostPort()
-	case defaults.ProtocolMongoDB, defaults.ProtocolRedis, defaults.ProtocolSnowflake:
+	case defaults.ProtocolMongoDB, defaults.ProtocolRedis, defaults.ProtocolSnowflake, defaults.ProtocolElasticsearch:
 		host, port = tc.WebProxyHostPort()
 	default:
 		return trace.BadParameter(dbCmdUnsupportedDBProtocol,
@@ -562,9 +562,9 @@ func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *clien
 		return []dbcmd.ConnectCommandFunc{}, nil
 	}
 
-	// Snowflake only works in the local tunnel mode.
+	// Some protocols (Snowflake, Elasticsearch) only works in the local tunnel mode.
 	localProxyTunnel := cf.LocalProxyTunnel
-	if db.Protocol == defaults.ProtocolSnowflake {
+	if db.Protocol == defaults.ProtocolSnowflake || db.Protocol == defaults.ProtocolElasticsearch {
 		localProxyTunnel = true
 	}
 
