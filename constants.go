@@ -252,6 +252,9 @@ const (
 	// ComponentInstance is an abstract component common to all services.
 	ComponentInstance = "instance"
 
+	// ComponentVersionControl is the component common to all version control operations.
+	ComponentVersionControl = "version-control"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 
@@ -455,6 +458,9 @@ const (
 	// CertExtensionAllowedResources lists the resources which this certificate
 	// should be allowed to access
 	CertExtensionAllowedResources = "teleport-allowed-resources"
+	// CertExtensionConnectionDiagnosticID contains the ID of the ConnectionDiagnostic.
+	// The Node/Agent will append connection traces to this diagnostic instance.
+	CertExtensionConnectionDiagnosticID = "teleport-connection-diagnostic-id"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag

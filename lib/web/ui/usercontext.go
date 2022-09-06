@@ -22,7 +22,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/desktop"
 )
 
 type access struct {
@@ -114,6 +113,9 @@ type UserContext struct {
 	AccessStrategy accessStrategy `json:"accessStrategy"`
 	// AccessCapabilities defines allowable access request rules defined in a user's roles.
 	AccessCapabilities AccessCapabilities `json:"accessCapabilities"`
+	// ConsumedAccessRequestID is the request ID of the access request from which the assumed role was
+	// obtained
+	ConsumedAccessRequestID string `json:"accessRequestId,omitempty"`
 }
 
 func getWindowsDesktopLogins(roleSet services.RoleSet) []string {
@@ -231,8 +233,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		ConnectionDiagnostic:    cnDiagnosticAccess,
 		Clipboard:               clipboard,
 		DesktopSessionRecording: desktopSessionRecording,
-		// AllowDirectorySharing() ensures this setting is modulated by build flag while in development
-		DirectorySharing: directorySharing && desktop.AllowDirectorySharing(),
+		DirectorySharing:        directorySharing,
 	}
 
 	// local user
