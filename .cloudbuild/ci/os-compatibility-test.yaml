@@ -10,7 +10,7 @@ steps:
     entrypoint: "/bin/bash"
     args: 
       - '-c'
-      - 'make -j$$(nproc) build/tctl build/tsh build/tbot build/teleport'  
+      - 'make build/tctl build/tsh build/tbot build/teleport'  
     timeout: 10m
     env:
       - GOCACHE=/tmp/gocache

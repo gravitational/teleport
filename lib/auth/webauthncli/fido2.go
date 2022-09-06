@@ -703,10 +703,14 @@ func withRetries(callback deviceCallbackFunc) deviceCallbackFunc {
 			if err == nil {
 				return err
 			}
-
-			// Important: errors mapped by go-libfido2 aren't returned as
-			// libfido2.Error, instead they have their own specialized (string-based)
-			// constants.
+			// Handle errors mapped by go-libfido2.
+			// ErrOperationDenied happens when fingerprint reading fails (UV=false).
+			if errors.Is(err, libfido2.ErrOperationDenied) {
+				fmt.Println("Gesture validation failed, make sure you use a registered fingerprint")
+				log.Debug("FIDO2: Retrying libfido2 error 'operation denied'")
+				continue
+			}
+			// Handle generic libfido2.Error instances.
 			var fidoErr libfido2.Error
 			if !errors.As(err, &fidoErr) {
 				return err
@@ -718,7 +722,9 @@ func withRetries(callback deviceCallbackFunc) deviceCallbackFunc {
 				const msg = "" +
 					"The user verification function in your security key is blocked. " +
 					"This is likely due to too many failed authentication attempts. " +
-					"Consult your manufacturer documentation for how to unblock your security key."
+					"Consult your manufacturer documentation for how to unblock your security key. " +
+					"Alternatively, you may unblock your device by using it in the Web UI."
+
 				return trace.Wrap(err, msg)
 			case 63: // FIDO_ERR_UV_INVALID, 0x3f
 				log.Debug("FIDO2: Retrying libfido2 error 63")
