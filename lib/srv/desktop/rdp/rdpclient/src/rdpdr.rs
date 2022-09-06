@@ -89,6 +89,9 @@ pub struct Client {
     pending_sd_read_resp_handlers: HashMap<u32, SharedDirectoryReadResponseHandler>,
     pending_sd_write_resp_handlers: HashMap<u32, SharedDirectoryWriteResponseHandler>,
     pending_sd_move_resp_handlers: HashMap<u32, SharedDirectoryMoveResponseHandler>,
+
+    // TODO(isaiah): delete this once first round of testing is implemented
+    test_debug_logs: bool,
 }
 
 pub struct Config {
@@ -139,15 +142,23 @@ impl Client {
             pending_sd_read_resp_handlers: HashMap::new(),
             pending_sd_write_resp_handlers: HashMap::new(),
             pending_sd_move_resp_handlers: HashMap::new(),
+
+            test_debug_logs: false, // Note to reviewers: this should be false in any PRs
         }
     }
     /// Reads raw RDP messages sent on the rdpdr virtual channel and replies as necessary.
     pub fn read_and_create_reply(&mut self, payload: tpkt::Payload) -> RdpResult<Vec<Vec<u8>>> {
-        debug!("received RDPDR tpkt::Payload: {:?}", payload); // TODO(isaiah): here for building tests, delete when testing is compeleted
+        if self.test_debug_logs {
+            debug!("received RDPDR tpkt::Payload: {:?}", payload);
+        }
         if let Some(mut payload) = self.vchan.read(payload)? {
-            debug!("read into RDPDR rdpclient::Payload: {:?}", payload); // TODO(isaiah): here for building tests, delete when testing is compeleted
+            if self.test_debug_logs {
+                debug!("read into RDPDR rdpclient::Payload: {:?}", payload);
+            }
             let header = SharedHeader::decode(&mut payload)?;
-            debug!("decoded to RDPDR SharedHeader: {:?}", header); // TODO(isaiah): here for building tests, delete when testing is compeleted
+            if self.test_debug_logs {
+                debug!("decoded to RDPDR SharedHeader: {:?}", header);
+            }
             if let Component::RDPDR_CTYP_PRN = header.component {
                 warn!("got {:?} RDPDR header from RDP server, ignoring because we're not redirecting any printers", header);
                 return Ok(vec![]);
@@ -162,7 +173,9 @@ impl Client {
                     for (message, id) in replies {
                         encoded_replies.append(&mut self.add_headers_and_chunkify(id, message)?);
                     }
-                    debug!("sending RDP raw: {:?}", encoded_replies); // TODO(isaiah): here for building tests, delete when testing is compeleted
+                    if self.test_debug_logs {
+                        debug!("sending RDP raw: {:?}", encoded_replies);
+                    }
                     return Ok(encoded_replies);
                 }
 
@@ -1786,7 +1799,6 @@ impl ClientIdMessage {
     }
 
     fn decode(payload: &mut Payload) -> RdpResult<Self> {
-        debug!("decoding ClientIdMessage | ServerAnnounceRequest | ClientAnnounceReply | ServerClientIdConfirm from payload: {:?}", payload); // TODO(isaiah): here for building tests, delete when testing is compeleted
         Ok(Self {
             version_major: payload.read_u16::<LittleEndian>()?,
             version_minor: payload.read_u16::<LittleEndian>()?,
@@ -4183,7 +4195,16 @@ mod tests {
         assert_eq!(to_windows_time(1000), 116444736010000000);
     }
 
-    fn server_announce_payload(pos: u64) -> Payload {
+    fn server_announce_full_payload() -> tpkt::Payload {
+        let mut p = Payload::new(vec![
+            2, 240, 128, 104, 0, 1, 3, 236, 240, 20, 12, 0, 0, 0, 3, 0, 0, 0, 114, 68, 110, 73, 1,
+            0, 13, 0, 3, 0, 0, 0,
+        ]);
+        p.set_position(10);
+        tpkt::Payload::Raw(p)
+    }
+
+    fn server_announce_read_payload(pos: u64) -> Payload {
         let mut p = Payload::new(vec![114, 68, 110, 73, 1, 0, 13, 0, 3, 0, 0, 0]);
         p.set_position(pos);
         p
@@ -4224,7 +4245,7 @@ mod tests {
 
     #[test]
     fn test_shared_header_server_announce_decode() {
-        let mut payload = server_announce_payload(0);
+        let mut payload = server_announce_read_payload(0);
         let sh = SharedHeader::decode(&mut payload).unwrap();
         assert_eq!(
             sh,
@@ -4237,7 +4258,7 @@ mod tests {
 
     #[test]
     fn test_server_announce_request_decode() {
-        let mut payload = server_announce_payload(4);
+        let mut payload = server_announce_read_payload(4);
         let req = ServerAnnounceRequest::decode(&mut payload).unwrap();
         assert_eq!(
             req,
@@ -4282,19 +4303,19 @@ mod tests {
         assert_eq!(packet_id1, &PacketId::PAKID_CORE_CLIENT_NAME);
     }
 
-    // #[test]
-    // fn test_handle_server_announce_full() {
-    //     let mut c = client();
-    //     assert_eq!(
-    //         c.read_and_create_reply(tpkt::Payload::Raw(server_announce_payload(0)))
-    //             .unwrap(),
-    //         vec![
-    //             vec![12, 0, 0, 0, 3, 0, 0, 0, 114, 68, 67, 67, 1, 0, 12, 0, 3, 0, 0, 0],
-    //             vec![
-    //                 25, 0, 0, 0, 3, 0, 0, 0, 114, 68, 78, 67, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0,
-    //                 116, 101, 108, 101, 112, 111, 114, 116, 0
-    //             ]
-    //         ]
-    //     )
-    // }
+    #[test]
+    fn test_handle_server_announce_full() {
+        let mut c = client();
+        assert_eq!(
+            c.read_and_create_reply(server_announce_full_payload())
+                .unwrap(),
+            vec![
+                vec![12, 0, 0, 0, 3, 0, 0, 0, 114, 68, 67, 67, 1, 0, 12, 0, 3, 0, 0, 0],
+                vec![
+                    25, 0, 0, 0, 3, 0, 0, 0, 114, 68, 78, 67, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0,
+                    116, 101, 108, 101, 112, 111, 114, 116, 0
+                ]
+            ]
+        )
+    }
 }
