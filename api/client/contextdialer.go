@@ -94,8 +94,12 @@ func NewDialer(ctx context.Context, keepAlivePeriod, dialTimeout time.Duration) 
 func NewProxyDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration, discoveryAddr string, insecure bool) ContextDialer {
 	dialer := newTunnelDialer(ssh, keepAlivePeriod, dialTimeout)
 	return ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
-		tunnelAddr, err := webclient.GetTunnelAddr(
-			&webclient.Config{Context: ctx, ProxyAddr: discoveryAddr, Insecure: insecure})
+		resp, err := webclient.Find(&webclient.Config{Context: ctx, ProxyAddr: discoveryAddr, Insecure: insecure})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		tunnelAddr, err := resp.Proxy.TunnelAddr()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -129,11 +133,19 @@ func newTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Dur
 // through the SSH reverse tunnel on the proxy.
 func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration, discoveryAddr string, insecure bool) ContextDialer {
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
-		tunnelAddr, err := webclient.GetTunnelAddr(
-			&webclient.Config{Context: ctx, ProxyAddr: discoveryAddr, Insecure: insecure})
+		resp, err := webclient.Find(&webclient.Config{Context: ctx, ProxyAddr: discoveryAddr, Insecure: insecure})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		if !resp.Proxy.TLSRoutingEnabled {
+			return nil, trace.NotImplemented("unable to dial - TLS Routing is disabled")
+		}
+
+		tunnelAddr, err := resp.Proxy.TunnelAddr()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		dialer := &net.Dialer{
 			Timeout:   dialTimeout,
 			KeepAlive: keepAlivePeriod,
@@ -175,9 +187,13 @@ func sshConnect(ctx context.Context, conn net.Conn, ssh ssh.ClientConfig, dialTi
 
 	// Build a net.Conn over the tunnel. Make this an exclusive connection:
 	// close the net.Conn as well as the channel upon close.
-	conn, _, err = sshutils.ConnectProxyTransport(sconn.Conn, &sshutils.DialReq{
-		Address: constants.RemoteAuthServer,
-	}, true)
+	conn, _, err = sshutils.ConnectProxyTransport(
+		sconn.Conn,
+		&sshutils.DialReq{
+			Address: constants.RemoteAuthServer,
+		},
+		true,
+	)
 	if err != nil {
 		return nil, trace.NewAggregate(err, sconn.Close())
 	}

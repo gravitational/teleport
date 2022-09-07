@@ -20,26 +20,28 @@ limitations under the License.
 // mux, _ := multiplexer.New(Config{Listener: listener})
 // mux.SSH() // returns listener getting SSH connections
 // mux.TLS() // returns listener getting TLS connections
-//
 package multiplexer
 
 import (
 	"bufio"
-	"bytes"
 	"context"
+	"crypto/subtle"
 	"io"
 	"net"
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Config is a multiplexer config
@@ -168,6 +170,9 @@ func (m *Mux) Wait() {
 // Serve is a blocking function that serves on the listening socket
 // and accepts requests. Every request is served in a separate goroutine
 func (m *Mux) Serve() error {
+
+	tracer := tracing.DefaultProvider().Tracer("mux")
+
 	defer m.waitCancel()
 	for {
 		conn, err := m.Listener.Accept()
@@ -176,7 +181,11 @@ func (m *Mux) Serve() error {
 				tcpConn.SetKeepAlive(true)
 				tcpConn.SetKeepAlivePeriod(3 * time.Minute)
 			}
-			go m.detectAndForward(conn)
+			ctx, span := tracer.Start(m.context, "mux/Serve")
+			go func() {
+				m.detectAndForward(ctx, conn)
+				span.End()
+			}()
 			continue
 		}
 		if utils.IsUseOfClosedNetworkError(err) {
@@ -212,13 +221,19 @@ func (m *Mux) protocolListener(proto Protocol) *Listener {
 // registered protocol listener (SSH, TLS, DB). Connections for a
 // protocol without a registered protocol listener are closed. This
 // method is called as a goroutine by Serve for each connection.
-func (m *Mux) detectAndForward(conn net.Conn) {
+func (m *Mux) detectAndForward(ctx context.Context, conn net.Conn) {
+	tracer := tracing.DefaultProvider().Tracer("mux")
+	ctx, span := tracer.Start(ctx, "mux/detectAndForward")
+	defer span.End()
+
 	err := conn.SetReadDeadline(m.Clock.Now().Add(m.ReadDeadline))
 	if err != nil {
 		m.Warning(err.Error())
 		conn.Close()
 		return
 	}
+
+	span.AddEvent("detect protocol")
 	connWrapper, err := detect(conn, m.EnableProxyProtocol)
 	if err != nil {
 		if trace.Unwrap(err) != io.EOF {
@@ -234,6 +249,7 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 		return
 	}
 
+	span.AddEvent("getting listener for protocol", oteltrace.WithAttributes(attribute.String("protocol", connWrapper.protocol.String())))
 	listener := m.protocolListener(connWrapper.protocol)
 	if listener == nil {
 		if connWrapper.protocol == ProtoHTTP {
@@ -244,7 +260,8 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 		return
 	}
 
-	listener.HandleConnection(m.context, connWrapper)
+	span.AddEvent("handling connection")
+	listener.HandleConnection(ctx, connWrapper)
 }
 
 func detect(conn net.Conn, enableProxyProtocol bool) (*Conn, error) {
@@ -366,7 +383,7 @@ var (
 	postgresCancelRequest = []byte{0x0, 0x0, 0x0, 0x10, 0x4, 0xd2, 0x16, 0x2e}
 )
 
-var httpMethods = [...][]byte{
+var httpMethods = [][]byte{
 	[]byte("GET"),
 	[]byte("POST"),
 	[]byte("PUT"),
@@ -382,11 +399,16 @@ var httpMethods = [...][]byte{
 // the use of an HTTP method.
 func isHTTP(in []byte) bool {
 	for _, verb := range httpMethods {
-		if bytes.HasPrefix(in, verb) {
+		if hasPrefix(in, verb) {
 			return true
 		}
 	}
 	return false
+}
+
+// hasPrefix tests whether the byte slice s begins with prefix.
+func hasPrefix(s, prefix []byte) bool {
+	return len(s) >= len(prefix) && subtle.ConstantTimeCompare(s[0:len(prefix)], prefix) == 1
 }
 
 // detectProto tries to determine the network protocol used from the first
@@ -400,9 +422,9 @@ func detectProto(r *bufio.Reader) (Protocol, error) {
 	}
 
 	switch {
-	case bytes.HasPrefix(in, proxyPrefix):
+	case hasPrefix(in, proxyPrefix):
 		return ProtoProxy, nil
-	case bytes.HasPrefix(in, proxyV2Prefix[:8]):
+	case hasPrefix(in, proxyV2Prefix[:8]):
 		// if the first 8 bytes matches the first 8 bytes of the proxy
 		// protocol v2 magic bytes, read more of the connection so we can
 		// ensure all magic bytes match
@@ -410,26 +432,26 @@ func detectProto(r *bufio.Reader) (Protocol, error) {
 		if err != nil {
 			return ProtoUnknown, trace.Wrap(err, "failed to peek connection")
 		}
-		if bytes.HasPrefix(in, proxyV2Prefix) {
+		if hasPrefix(in, proxyV2Prefix) {
 			return ProtoProxyV2, nil
 		}
-	case bytes.HasPrefix(in, proxyHelloPrefix[:8]):
+	case hasPrefix(in, proxyHelloPrefix[:8]):
 		// Support for SSH connections opened with the ProxyHelloSignature for
 		// Teleport to Teleport connections.
 		in, err = r.Peek(len(proxyHelloPrefix))
 		if err != nil {
 			return ProtoUnknown, trace.Wrap(err, "failed to peek connection")
 		}
-		if bytes.HasPrefix(in, proxyHelloPrefix) {
+		if hasPrefix(in, proxyHelloPrefix) {
 			return ProtoSSH, nil
 		}
-	case bytes.HasPrefix(in, sshPrefix):
+	case hasPrefix(in, sshPrefix):
 		return ProtoSSH, nil
-	case bytes.HasPrefix(in, tlsPrefix):
+	case hasPrefix(in, tlsPrefix):
 		return ProtoTLS, nil
 	case isHTTP(in):
 		return ProtoHTTP, nil
-	case bytes.HasPrefix(in, postgresSSLRequest), bytes.HasPrefix(in, postgresCancelRequest):
+	case hasPrefix(in, postgresSSLRequest), hasPrefix(in, postgresCancelRequest):
 		return ProtoPostgres, nil
 	}
 

@@ -25,11 +25,13 @@ import (
 	"net"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/webclient"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -37,10 +39,6 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
-
-	"github.com/gravitational/trace"
-
-	"github.com/sirupsen/logrus"
 )
 
 // NewTunnelAuthDialer creates a new instance of TunnelAuthDialer
@@ -80,31 +78,29 @@ type TunnelAuthDialer struct {
 
 // DialContext dials auth server via SSH tunnel
 func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Conn, error) {
+	ctx, span := tracing.DefaultProvider().Tracer("tunnelAuthDialer").Start(ctx, "TunnelAuthDialer/DialContext")
+	defer span.End()
+
 	// Connect to the reverse tunnel server.
 	opts := []proxy.DialerOptionFunc{
 		proxy.WithInsecureSkipTLSVerify(t.InsecureSkipTLSVerify),
 	}
 
-	addr, err := t.Resolver(ctx)
+	addr, tlsRouting, err := t.Resolver(ctx)
 	if err != nil {
 		t.Log.Errorf("Failed to resolve tunnel address %v", err)
 		return nil, trace.Wrap(err)
 	}
 
 	// Check if t.ProxyAddr is ProxyWebPort and remote Proxy supports TLS ALPNSNIListener.
-	resp, err := webclient.Find(
-		&webclient.Config{Context: ctx, ProxyAddr: addr.Addr, Insecure: t.InsecureSkipTLSVerify})
-	if err != nil {
-		// If TLS Routing is disabled the address is the proxy reverse tunnel
-		// address thus the ping call will always fail.
-		t.Log.Debugf("Failed to ping web proxy %q addr: %v", addr.Addr, err)
-	} else if resp.Proxy.TLSRoutingEnabled {
+	if tlsRouting {
 		opts = append(opts, proxy.WithALPNDialer(&tls.Config{
 			NextProtos: []string{alpncommon.ProtocolReverseTunnel},
 		}))
 	}
 
 	dialer := proxy.DialerFromEnvironment(addr.Addr, opts...)
+	span.AddEvent("dialing...")
 	sconn, err := dialer.Dial(ctx, addr.AddrNetwork, addr.Addr, t.ClientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -112,6 +108,7 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 
 	// Build a net.Conn over the tunnel. Make this an exclusive connection:
 	// close the net.Conn as well as the channel upon close.
+	span.AddEvent("connecting to proxy transport")
 	conn, _, err := sshutils.ConnectProxyTransport(sconn.Conn, &sshutils.DialReq{
 		Address: RemoteAuthServer,
 	}, true)

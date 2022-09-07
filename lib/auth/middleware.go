@@ -248,7 +248,7 @@ func (t *TLSServer) Serve() error {
 	go func() {
 		errC <- t.grpcServer.server.Serve(t.mux.HTTP2())
 	}()
-	errors := []error{}
+	var errors []error
 	for i := 0; i < 2; i++ {
 		errors = append(errors, <-errC)
 	}
@@ -278,7 +278,7 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 	// certificate authorities.
 	// TODO(klizhentas) drop connections of the TLS cert authorities
 	// that are not trusted
-	pool, totalSubjectsLen, err := DefaultClientCertPool(t.cfg.AccessPoint, clusterName)
+	pool, totalSubjectsLen, err := DefaultClientCertPool(info.Context(), t.cfg.AccessPoint, clusterName)
 	if err != nil {
 		var ourClusterName string
 		if clusterName, err := t.cfg.AccessPoint.GetClusterName(); err == nil {
@@ -591,10 +591,6 @@ func extractAdditionalSystemRoles(roles []string) types.SystemRoles {
 
 // ServeHTTP serves HTTP requests
 func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	baseContext := r.Context()
-	if baseContext == nil {
-		baseContext = context.TODO()
-	}
 	if r.TLS == nil {
 		trace.WriteError(w, trace.AccessDenied("missing authentication"))
 		return
@@ -606,7 +602,7 @@ func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// determine authenticated user based on the request parameters
-	requestWithContext := r.WithContext(context.WithValue(baseContext, ContextUser, user))
+	requestWithContext := r.WithContext(context.WithValue(r.Context(), ContextUser, user))
 	a.Handler.ServeHTTP(w, requestWithContext)
 }
 
@@ -632,12 +628,11 @@ func (a *Middleware) WrapContextWithUser(ctx context.Context, conn utils.TLSConn
 // In addition, it returns the total length of all subjects added to the cert pool, allowing
 // the caller to validate that the pool doesn't exceed the maximum 2-byte length prefix before
 // using it.
-func ClientCertPool(client AccessCache, clusterName string, caTypes ...types.CertAuthType) (*x509.CertPool, int64, error) {
+func ClientCertPool(ctx context.Context, client AccessCache, clusterName string, caTypes ...types.CertAuthType) (*x509.CertPool, int64, error) {
 	if len(caTypes) == 0 {
 		return nil, 0, trace.BadParameter("at least one CA type is required")
 	}
 
-	ctx := context.TODO()
 	pool := x509.NewCertPool()
 	var authorities []types.CertAuthority
 	if clusterName == "" {
@@ -681,6 +676,6 @@ func ClientCertPool(client AccessCache, clusterName string, caTypes ...types.Cer
 }
 
 // DefaultClientCertPool returns default trusted x509 certificate authority pool.
-func DefaultClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, int64, error) {
-	return ClientCertPool(client, clusterName, types.HostCA, types.UserCA)
+func DefaultClientCertPool(ctx context.Context, client AccessCache, clusterName string) (*x509.CertPool, int64, error) {
+	return ClientCertPool(ctx, client, clusterName, types.HostCA, types.UserCA)
 }
