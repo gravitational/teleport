@@ -305,7 +305,7 @@ type (
 
 // authConnect connects to the Teleport Auth Server directly.
 func authConnect(ctx context.Context, params connectParams) (*Client, error) {
-	dialer := NewDialer(params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
+	dialer := NewDialer(ctx, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as an auth server", params.addr)
@@ -2273,6 +2273,50 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditC
 	return resp, nil
 }
 
+// GetInstaller gets all installer script resources
+func (c *Client) GetInstallers(ctx context.Context) ([]types.Installer, error) {
+	resp, err := c.grpc.GetInstallers(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	installers := make([]types.Installer, len(resp.Installers))
+	for i, inst := range resp.Installers {
+		installers[i] = inst
+	}
+	return installers, nil
+}
+
+// GetInstaller gets the cluster installer resource
+func (c *Client) GetInstaller(ctx context.Context, name string) (types.Installer, error) {
+	resp, err := c.grpc.GetInstaller(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// SetInstaller sets the cluster installer resource
+func (c *Client) SetInstaller(ctx context.Context, inst types.Installer) error {
+	instV1, ok := inst.(*types.InstallerV1)
+	if !ok {
+		return trace.BadParameter("invalid type %T", inst)
+	}
+	_, err := c.grpc.SetInstaller(ctx, instV1, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteInstaller deletes the cluster installer resource
+func (c *Client) DeleteInstaller(ctx context.Context, name string) error {
+	_, err := c.grpc.DeleteInstaller(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteAllInstallers deletes all the installer resources.
+func (c *Client) DeleteAllInstallers(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllInstallers(ctx, &empty.Empty{}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // GetLock gets a lock by name.
 func (c *Client) GetLock(ctx context.Context, name string) (types.Lock, error) {
 	if name == "" {
@@ -2912,5 +2956,46 @@ func (c *Client) CreateConnectionDiagnostic(ctx context.Context, connectionDiagn
 		return trace.BadParameter("invalid type %T", connectionDiagnostic)
 	}
 	_, err := c.grpc.CreateConnectionDiagnostic(ctx, connectionDiagnosticV1, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// UpdateConnectionDiagnostic updates a connection diagnostic.
+func (c *Client) UpdateConnectionDiagnostic(ctx context.Context, connectionDiagnostic types.ConnectionDiagnostic) error {
+	connectionDiagnosticV1, ok := connectionDiagnostic.(*types.ConnectionDiagnosticV1)
+	if !ok {
+		return trace.BadParameter("invalid type %T", connectionDiagnostic)
+	}
+	_, err := c.grpc.UpdateConnectionDiagnostic(ctx, connectionDiagnosticV1, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// AppendDiagnosticTrace adds a new trace for the given ConnectionDiagnostic.
+func (c *Client) AppendDiagnosticTrace(ctx context.Context, name string, t *types.ConnectionDiagnosticTrace) (types.ConnectionDiagnostic, error) {
+	req := &proto.AppendDiagnosticTraceRequest{
+		Name:  name,
+		Trace: t,
+	}
+	connectionDiagnostic, err := c.grpc.AppendDiagnosticTrace(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return connectionDiagnostic, nil
+}
+
+// GetClusterAlerts loads matching cluster alerts.
+func (c *Client) GetClusterAlerts(ctx context.Context, query types.GetClusterAlertsRequest) ([]types.ClusterAlert, error) {
+	rsp, err := c.grpc.GetClusterAlerts(ctx, &query, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return rsp.Alerts, nil
+}
+
+// UpsertClusterAlert creates a cluster alert.
+func (c *Client) UpsertClusterAlert(ctx context.Context, alert types.ClusterAlert) error {
+	_, err := c.grpc.UpsertClusterAlert(ctx, &proto.UpsertClusterAlertRequest{
+		Alert: alert,
+	}, c.callOpts...)
 	return trail.FromGRPC(err)
 }

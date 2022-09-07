@@ -41,7 +41,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integration"
 	"github.com/gravitational/teleport/integration/helpers"
 	resourcesv2 "github.com/gravitational/teleport/operator/apis/resources/v2"
 	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
@@ -53,7 +52,7 @@ func fastEventually(t *testing.T, condition func() bool) {
 }
 
 func clientForTeleport(t *testing.T, teleportServer *helpers.TeleInstance, userName string) auth.ClientI {
-	identityFilePath := integration.MustCreateUserIdentityFile(t, teleportServer, userName, time.Hour)
+	identityFilePath := helpers.MustCreateUserIdentityFile(t, teleportServer, userName, time.Hour)
 	id, err := identityfile.ReadFile(identityFilePath)
 	require.NoError(t, err)
 	addr, err := utils.ParseAddr(teleportServer.Auth)
@@ -80,7 +79,8 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 	teleportServer := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
-		NodeName:    integration.Loopback,
+		NodeName:    helpers.Loopback,
+		Log:         logrus.StandardLogger(),
 	})
 
 	rcConf := service.MakeDefaultConfig()
@@ -199,4 +199,45 @@ func validRandomResourceName(prefix string) string {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
 	return prefix + string(b)
+}
+
+type testSetup struct {
+	tClient   auth.ClientI
+	k8sClient kclient.Client
+	namespace *core.Namespace
+}
+
+func setupKubernetesAndTeleport(t *testing.T) testSetup {
+	teleportServer, operatorName := defaultTeleportServiceConfig(t)
+
+	require.NoError(t, teleportServer.Start())
+
+	tClient := clientForTeleport(t, teleportServer, operatorName)
+	k8sClient := startKubernetesOperator(t, tClient)
+
+	ns := createNamespaceForTest(t, k8sClient)
+
+	t.Cleanup(func() {
+		err := tClient.Close()
+		require.NoError(t, err)
+		err = teleportServer.StopAll()
+		require.NoError(t, err)
+	})
+	return testSetup{tClient: tClient, k8sClient: k8sClient, namespace: ns}
+}
+
+func teleportCreateDummyRole(ctx context.Context, t *testing.T, roleName string, tClient auth.ClientI) {
+	// The role is created in Teleport
+	tRole, err := types.NewRole(roleName, types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Logins: []string{"a", "b"},
+		},
+	})
+	require.NoError(t, err)
+	metadata := tRole.GetMetadata()
+	metadata.Labels = map[string]string{types.OriginLabel: types.OriginKubernetes}
+	tRole.SetMetadata(metadata)
+
+	err = tClient.UpsertRole(ctx, tRole)
+	require.NoError(t, err)
 }

@@ -103,7 +103,8 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 		// clear assertion ID
 		assertionID = ""
 
-		if role == types.RoleInstance && connectErr != nil && strings.Contains(connectErr.Error(), auth.TokenExpiredOrNotFound) {
+		switch {
+		case role == types.RoleInstance && connectErr != nil && strings.Contains(connectErr.Error(), auth.TokenExpiredOrNotFound):
 			process.log.Infof("Token too old for direct instance cert request, will attempt to use system role assertions.")
 			id, assertionErr := process.assertSystemRoles()
 			if assertionErr == nil {
@@ -111,7 +112,9 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 			} else {
 				process.log.Errorf("Failed to perform system role assertions: %v", assertionErr)
 			}
-		} else if connectErr != nil {
+		case role == types.RoleNode && connectErr != nil && strings.Contains(connectErr.Error(), auth.TokenExpiredOrNotFound):
+			process.log.Error("Can not join the cluster as node, the token expired or not found. Regenerate the token and try again.")
+		case connectErr != nil:
 			process.log.Errorf("%v failed to establish connection to cluster: %v.", role, connectErr)
 		}
 
@@ -571,7 +574,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		}
 	} else {
 		// Auth server is remote, so we need a provisioning token.
-		if process.Config.Token == "" {
+		if !process.Config.HasToken() {
 			return nil, trace.BadParameter("%v must join a cluster and needs a provisioning token", role)
 		}
 
@@ -582,8 +585,13 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			return nil, trace.Wrap(err)
 		}
 
+		token, err := process.Config.Token()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		certs, err := auth.Register(auth.RegisterParams{
-			Token:                process.Config.Token,
+			Token:                token,
 			ID:                   id,
 			Servers:              process.Config.AuthServers,
 			AdditionalPrincipals: additionalPrincipals,
@@ -599,6 +607,9 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
 		})
 		if err != nil {
+			if utils.IsUntrustedCertErr(err) {
+				return nil, trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
+			}
 			return nil, trace.Wrap(err)
 		}
 
@@ -1063,19 +1074,17 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 	tunnelClient, err := process.newClientThroughTunnel(authServers, tlsConfig, sshClientConfig)
 	if err != nil {
 		process.log.Errorf("Node failed to establish connection to Teleport Proxy. We have tried the following endpoints:")
-		// Can't errors.As directErr in the "x509: certificate is valid for x but not y" error case, as only message field is set
-		if trace.IsConnectionProblem(directErr) && strings.Contains(directErr.Error(), "x509: certificate is valid for") {
-			directErr = trace.Wrap(directErr, "Your proxy certificate is not trusted or expired."+
-				" Please update the certificate or follow this guide for self-signed certs: https://goteleport.com/docs/setup/admin/self-signed-certs")
-		}
 		process.log.Errorf("- connecting to auth server directly: %v", directErr)
 		if trace.IsConnectionProblem(err) && strings.Contains(err.Error(), "connection refused") {
 			err = trace.Wrap(err, "This is the alternative port we tried and it's not configured.")
 		}
 		process.log.Errorf("- connecting to auth server through tunnel: %v", err)
-		return nil, trace.WrapWithMessage(
-			trace.NewAggregate(directErr, err),
-			trace.Errorf("Failed to connect to Auth Server directly or over tunnel, no methods remaining."))
+		collectedErrs := trace.NewAggregate(directErr, err)
+		if utils.IsUntrustedCertErr(collectedErrs) {
+			collectedErrs = trace.WrapWithMessage(collectedErrs, utils.SelfSignedCertsMsg)
+		}
+		return nil, trace.WrapWithMessage(collectedErrs,
+			"Failed to connect to Auth Server directly or over tunnel, no methods remaining.")
 	}
 
 	logger.Debug("Connected to Auth Server through tunnel.")

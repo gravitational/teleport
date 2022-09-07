@@ -67,6 +67,28 @@ func TestMakeDatabaseConfig(t *testing.T) {
 		require.ElementsMatch(t, flags.RedshiftDiscoveryRegions, databases.AWSMatchers[0].Regions)
 	})
 
+	t.Run("AzureMySQLAutoDiscovery", func(t *testing.T) {
+		flags := DatabaseSampleFlags{
+			AzureMySQLDiscoveryRegions: []string{"eastus", "eastus2"},
+		}
+
+		databases := generateAndParseConfig(t, flags)
+		require.Len(t, databases.AzureMatchers, 1)
+		require.ElementsMatch(t, []string{"mysql"}, databases.AzureMatchers[0].Types)
+		require.ElementsMatch(t, flags.AzureMySQLDiscoveryRegions, databases.AzureMatchers[0].Regions)
+	})
+
+	t.Run("AzurePostgresAutoDiscovery", func(t *testing.T) {
+		flags := DatabaseSampleFlags{
+			AzurePostgresDiscoveryRegions: []string{"eastus", "eastus2"},
+		}
+
+		databases := generateAndParseConfig(t, flags)
+		require.Len(t, databases.AzureMatchers, 1)
+		require.ElementsMatch(t, []string{"postgres"}, databases.AzureMatchers[0].Types)
+		require.ElementsMatch(t, flags.AzurePostgresDiscoveryRegions, databases.AzureMatchers[0].Regions)
+	})
+
 	t.Run("StaticDatabase", func(t *testing.T) {
 		flags := DatabaseSampleFlags{
 			StaticDatabaseName:           "sample",

@@ -67,7 +67,7 @@ const (
 	EventNamespace = "namespace"
 
 	// SessionPrintEvent event happens every time a write occurs to
-	// temirnal I/O during a session
+	// terminal I/O during a session
 	SessionPrintEvent = "print"
 
 	// SessionPrintEventBytes says how many bytes have been written into the session
@@ -543,6 +543,9 @@ const (
 	// UpgradeWindowStartUpdateEvent is emitted when the upgrade window start time
 	// is updated. Used only for teleport cloud.
 	UpgradeWindowStartUpdateEvent = "upgradewindowstart.update"
+
+	// SessionRecordingAccessEvent is emitted when a session recording is accessed
+	SessionRecordingAccessEvent = "session.recording.access"
 
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent

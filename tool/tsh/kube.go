@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"net/url"
 	"os"
 	"sort"
@@ -30,7 +29,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -131,7 +129,9 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 	}
 
 	meta, err := c.getSessionMeta(cf.Context, tc)
-	if err != nil {
+	if trace.IsNotFound(err) {
+		return trace.NotFound("Failed to find session %q. The ID may be incorrect.", c.session)
+	} else if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -170,7 +170,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 			}
 
 			// Cache the new cert on disk for reuse.
-			if _, err := tc.LocalAgent().AddKey(k); err != nil {
+			if err := tc.LocalAgent().AddKey(k); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -198,6 +198,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	tlsConfig.InsecureSkipVerify = cf.InsecureSkipVerify
 	session, err := client.NewKubeSession(cf.Context, tc, meta, tc.KubeProxyAddr, kubeStatus.tlsServerName, types.SessionParticipantMode(c.mode), tlsConfig)
 	if err != nil {
 		return trace.Wrap(err)
@@ -614,7 +615,7 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 	}
 
 	// Cache the new cert on disk for reuse.
-	if _, err := tc.LocalAgent().AddKey(k); err != nil {
+	if err := tc.LocalAgent().AddKey(k); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -632,11 +633,18 @@ func (c *kubeCredentialsCommand) writeResponse(key *client.Key, kubeClusterName 
 	if time.Until(expiry) > time.Minute {
 		expiry = expiry.Add(-1 * time.Minute)
 	}
+
+	// TODO (Joerger): Create a custom k8s Auth Provider or Exec Provider to use non-rsa
+	// private keys for kube credentials (if possible)
+	rsaKeyPEM, err := key.PrivateKey.RSAPrivateKeyPEM()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	resp := &clientauthentication.ExecCredential{
 		Status: &clientauthentication.ExecCredentialStatus{
 			ExpirationTimestamp:   &metav1.Time{Time: expiry},
 			ClientCertificateData: string(key.KubeTLSCerts[kubeClusterName]),
-			ClientKeyData:         string(key.Priv),
+			ClientKeyData:         string(rsaKeyPEM),
 		},
 	}
 	data, err := runtime.Encode(kubeCodecs.LegacyCodec(kubeGroupVersion), resp)
@@ -1009,30 +1017,11 @@ func fetchKubeStatus(ctx context.Context, tc *client.TeleportClient) (*kubernete
 	}
 
 	if tc.TLSRoutingEnabled {
-		kubeStatus.tlsServerName = getKubeTLSServerName(tc)
+		k8host, _ := tc.KubeProxyHostPort()
+		kubeStatus.tlsServerName = client.GetKubeTLSServerName(k8host)
 	}
 
 	return kubeStatus, nil
-}
-
-// getKubeTLSServerName returns k8s server name used in KUBECONFIG to leverage TLS Routing.
-func getKubeTLSServerName(tc *client.TeleportClient) string {
-	k8host, _ := tc.KubeProxyHostPort()
-
-	isIPFormat := net.ParseIP(k8host) != nil
-	if k8host == "" || isIPFormat {
-		// If proxy is configured without public_addr set the ServerName to the 'kube.teleport.cluster.local' value.
-		// The k8s server name needs to be a valid hostname but when public_addr is missing from proxy settings
-		// the web_listen_addr is used thus webHost will contain local proxy IP address like: 0.0.0.0 or 127.0.0.1
-		// TODO(smallinsky) UPGRADE IN 10.0. Switch to KubeTeleportProxyALPNPrefix instead.
-		return addSubdomainPrefix(constants.APIDomain, constants.KubeSNIPrefix)
-	}
-	// TODO(smallinsky) UPGRADE IN 10.0. Switch to KubeTeleportProxyALPNPrefix instead.
-	return addSubdomainPrefix(k8host, constants.KubeSNIPrefix)
-}
-
-func addSubdomainPrefix(domain, prefix string) string {
-	return fmt.Sprintf("%s%s", prefix, domain)
 }
 
 // buildKubeConfigUpdate returns a kubeconfig.Values suitable for updating the user's kubeconfig

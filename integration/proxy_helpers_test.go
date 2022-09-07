@@ -19,6 +19,8 @@ package integration
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509/pkix"
 	"encoding/json"
 	"net"
 	"net/http"
@@ -33,11 +35,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
@@ -171,7 +175,7 @@ func (p *ProxySuite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname strin
 		tconf.Console = nil
 		tconf.Log = utils.NewLoggerForTests()
 		tconf.Hostname = tunnelNodeHostname
-		tconf.Token = "token"
+		tconf.SetToken("token")
 		tconf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
@@ -470,20 +474,38 @@ func mustCreateKubeConfigFile(t *testing.T, config clientcmdapi.Config) string {
 	return configPath
 }
 
-func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpncommon.Protocol) *alpnproxy.LocalProxy {
+func mustCreateListener(t *testing.T) net.Listener {
 	listener, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 
-	address, err := utils.ParseAddr(addr)
-	require.NoError(t, err)
-	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
+	t.Cleanup(func() {
+		listener.Close()
+	})
+	return listener
+}
+
+func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpncommon.Protocol) *alpnproxy.LocalProxy {
+	return mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:    addr,
 		Protocols:          []alpncommon.Protocol{protocol},
 		InsecureSkipVerify: true,
-		Listener:           listener,
-		ParentContext:      context.Background(),
-		SNI:                address.Host(),
 	})
+}
+
+func mustStartALPNLocalProxyWithConfig(t *testing.T, config alpnproxy.LocalProxyConfig) *alpnproxy.LocalProxy {
+	if config.Listener == nil {
+		config.Listener = mustCreateListener(t)
+	}
+	if config.SNI == "" {
+		address, err := utils.ParseAddr(config.RemoteProxyAddr)
+		require.NoError(t, err)
+		config.SNI = address.Host()
+	}
+	if config.ParentContext == nil {
+		config.ParentContext = context.TODO()
+	}
+
+	lp, err := alpnproxy.NewLocalProxy(config)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		lp.Close()
@@ -499,7 +521,7 @@ func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpncommon.Prot
 func makeNodeConfig(nodeName, authAddr string) *service.Config {
 	nodeConfig := service.MakeDefaultConfig()
 	nodeConfig.Hostname = nodeName
-	nodeConfig.Token = "token"
+	nodeConfig.SetToken("token")
 	nodeConfig.AuthServers = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
@@ -511,4 +533,72 @@ func makeNodeConfig(nodeName, authAddr string) *service.Config {
 	nodeConfig.SSH.Enabled = true
 	nodeConfig.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	return nodeConfig
+}
+
+func mustCreateSelfSignedCert(t *testing.T) tls.Certificate {
+	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
+		CommonName: "localhost",
+	}, []string{"localhost"}, defaults.CATTL)
+	require.NoError(t, err)
+
+	cert, err := tls.X509KeyPair(caCert, caKey)
+	require.NoError(t, err)
+	return cert
+}
+
+// mockAWSALBProxy is a mock proxy server that simulates an AWS application
+// load balancer where ALPN is not supported. Note that this mock does not
+// actually balance traffic.
+type mockAWSALBProxy struct {
+	net.Listener
+	proxyAddr string
+	cert      tls.Certificate
+}
+
+func (m *mockAWSALBProxy) serve(ctx context.Context, t *testing.T) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		conn, err := m.Accept()
+		if err != nil {
+			if utils.IsOKNetworkError(err) {
+				return
+			}
+			require.NoError(t, err)
+			return
+		}
+
+		go func() {
+			// Handshake with incoming client and drops ALPN.
+			downstreamConn := tls.Server(conn, &tls.Config{
+				Certificates: []tls.Certificate{m.cert},
+			})
+			require.NoError(t, downstreamConn.HandshakeContext(ctx))
+
+			// Make a connection to the proxy server with ALPN protos.
+			upstreamConn, err := tls.Dial("tcp", m.proxyAddr, &tls.Config{
+				InsecureSkipVerify: true,
+			})
+			require.NoError(t, err)
+
+			utils.ProxyConn(ctx, downstreamConn, upstreamConn)
+		}()
+	}
+}
+
+func mustStartMockALBProxy(t *testing.T, proxyAddr string) *mockAWSALBProxy {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	m := &mockAWSALBProxy{
+		proxyAddr: proxyAddr,
+		Listener:  mustCreateListener(t),
+		cert:      mustCreateSelfSignedCert(t),
+	}
+	go m.serve(ctx, t)
+	return m
 }
