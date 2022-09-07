@@ -89,7 +89,8 @@ To run a full test suite locally, you will need
   tar xzvf bats.tar.gz
   sudo mkdir /usr/local/libexec
   sudo chown $USER /usr/local/libexec
-  ./install.sh /usr/local
+  cd bats-core-1.2.1
+  sudo ./install.sh /usr/local
   cd ../
   rm -rf bats-core-1.2.1 bats.tar.gz
   ```
