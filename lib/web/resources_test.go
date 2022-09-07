@@ -101,12 +101,10 @@ version: v3
 	item, err := ui.NewResourceItem(githubConn)
 	require.NoError(t, err)
 
-	require.Equal(t, &ui.ResourceItem{
-		ID:      "github:githubName",
-		Kind:    types.KindGithubConnector,
-		Name:    "githubName",
-		Content: contents,
-	}, item)
+	require.Equal(t, "github:githubName", item.ID)
+	require.Equal(t, types.KindGithubConnector, item.Kind)
+	require.Equal(t, "githubName", item.Name)
+	require.YAMLEq(t, contents, item.Content)
 }
 
 func TestNewResourceItemRole(t *testing.T) {
