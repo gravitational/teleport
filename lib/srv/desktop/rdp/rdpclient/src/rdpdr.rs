@@ -4137,6 +4137,7 @@ type SharedDirectoryMoveResponseHandler =
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::PayloadOut;
 
     #[test]
     fn test_to_windows_time() {
@@ -4185,60 +4186,100 @@ mod tests {
         tpkt::Payload::Raw(p)
     }
 
+    fn test_payload(c: &mut Client, payload_in: Vec<u8>, payload_out: PayloadOut) {
+        let payload_in = create_payload(payload_in, 10);
+        assert_eq!(c.read_and_create_reply(payload_in).unwrap(), payload_out)
+    }
+
     #[test]
-    fn test_server_announce() {
+    /// Incoming payload of:
+    /// SharedHeader { component: RDPDR_CTYP_CORE, packet_id: PAKID_CORE_SERVER_ANNOUNCE }
+    /// ServerAnnounceRequest { version_major: 1, version_minor: 13, client_id: 3 }
+    ///
+    /// Response payload of:
+    /// ClientAnnounceReply ClientIdMessage { version_major: 1, version_minor: 12, client_id: 3 }
+    /// ClientNameRequest { unicode_flag: Ascii, computer_name: "teleport" }
+    fn handle_server_announce() {
         let mut c = client();
-        // Incoming payload of:
-        // SharedHeader { component: RDPDR_CTYP_CORE, packet_id: PAKID_CORE_SERVER_ANNOUNCE }
-        // ServerAnnounceRequest { version_major: 1, version_minor: 13, client_id: 3 }
-        let payload = create_payload(
+        test_payload(
+            &mut c,
             vec![
                 2, 240, 128, 104, 0, 1, 3, 236, 240, 20, 12, 0, 0, 0, 3, 0, 0, 0, 114, 68, 110, 73,
                 1, 0, 13, 0, 3, 0, 0, 0,
             ],
-            10,
+            vec![
+                vec![
+                    12, 0, 0, 0, 3, 0, 0, 0, 114, 68, 67, 67, 1, 0, 12, 0, 3, 0, 0, 0,
+                ],
+                vec![
+                    25, 0, 0, 0, 3, 0, 0, 0, 114, 68, 78, 67, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0,
+                    116, 101, 108, 101, 112, 111, 114, 116, 0,
+                ],
+            ],
         );
-
-        // Response payload of:
-        // ClientAnnounceReply ClientIdMessage { version_major: 1, version_minor: 12, client_id: 3 }
-        // ClientNameRequest { unicode_flag: Ascii, computer_name: "teleport" }
-        let encoded_responses = vec![
-            vec![
-                12, 0, 0, 0, 3, 0, 0, 0, 114, 68, 67, 67, 1, 0, 12, 0, 3, 0, 0, 0,
-            ],
-            vec![
-                25, 0, 0, 0, 3, 0, 0, 0, 114, 68, 78, 67, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 116,
-                101, 108, 101, 112, 111, 114, 116, 0,
-            ],
-        ];
-
-        assert_eq!(c.read_and_create_reply(payload).unwrap(), encoded_responses)
     }
 
     #[test]
-    fn test_server_capability() {
+    /// Incoming payload of:
+    /// SharedHeader { component: RDPDR_CTYP_CORE, packet_id: PAKID_CORE_SERVER_CAPABILITY }
+    /// ServerCoreCapabilityRequest { num_capabilities: 5, padding: 0, capabilities: [CapabilitySet { header: CapabilityHeader { cap_type: CAP_GENERAL_TYPE, length: 44, version: 2 }, data: General(GeneralCapabilitySet { os_type: 2, os_version: 0, protocol_major_version: 1, protocol_minor_version: 13, io_code_1: 65535, io_code_2: 0, extended_pdu: 7, extra_flags_1: 0, extra_flags_2: 0, special_type_device_cap: 2 }) }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_PRINTER_TYPE, length: 8, version: 1 }, data: Printer }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_PORT_TYPE, length: 8, version: 1 }, data: Port }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_DRIVE_TYPE, length: 8, version: 2 }, data: Drive }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_SMARTCARD_TYPE, length: 8, version: 1 }, data: Smartcard }] }
+    ///
+    /// Response payload of:
+    /// ClientCoreCapabilityResponse { num_capabilities: 3, padding: 0, capabilities: [CapabilitySet { header: CapabilityHeader { cap_type: CAP_GENERAL_TYPE, length: 44, version: 2 }, data: General(GeneralCapabilitySet { os_type: 0, os_version: 0, protocol_major_version: 1, protocol_minor_version: 12, io_code_1: 32767, io_code_2: 0, extended_pdu: 3, extra_flags_1: 0, extra_flags_2: 0, special_type_device_cap: 1 }) }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_SMARTCARD_TYPE, length: 8, version: 1 }, data: Smartcard }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_DRIVE_TYPE, length: 8, version: 2 }, data: Drive }] }
+    fn handle_server_capability() {
         let mut c = client();
-        // Incoming payload of:
-        // SharedHeader { component: RDPDR_CTYP_CORE, packet_id: PAKID_CORE_SERVER_CAPABILITY }
-        // ServerCoreCapabilityRequest { num_capabilities: 5, padding: 0, capabilities: [CapabilitySet { header: CapabilityHeader { cap_type: CAP_GENERAL_TYPE, length: 44, version: 2 }, data: General(GeneralCapabilitySet { os_type: 2, os_version: 0, protocol_major_version: 1, protocol_minor_version: 13, io_code_1: 65535, io_code_2: 0, extended_pdu: 7, extra_flags_1: 0, extra_flags_2: 0, special_type_device_cap: 2 }) }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_PRINTER_TYPE, length: 8, version: 1 }, data: Printer }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_PORT_TYPE, length: 8, version: 1 }, data: Port }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_DRIVE_TYPE, length: 8, version: 2 }, data: Drive }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_SMARTCARD_TYPE, length: 8, version: 1 }, data: Smartcard }] }
-        let payload = create_payload(
+        test_payload(
+            &mut c,
             vec![
                 2, 240, 128, 104, 0, 1, 3, 236, 240, 92, 84, 0, 0, 0, 3, 0, 0, 0, 114, 68, 80, 83,
                 5, 0, 0, 0, 1, 0, 44, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 13, 0, 255, 255,
                 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 8, 0, 1, 0,
                 0, 0, 3, 0, 8, 0, 1, 0, 0, 0, 4, 0, 8, 0, 2, 0, 0, 0, 5, 0, 8, 0, 1, 0, 0, 0,
             ],
-            10,
+            vec![vec![
+                68, 0, 0, 0, 3, 0, 0, 0, 114, 68, 80, 67, 3, 0, 0, 0, 1, 0, 44, 0, 2, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 1, 0, 12, 0, 255, 127, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 1, 0, 0, 0, 5, 0, 8, 0, 1, 0, 0, 0, 4, 0, 8, 0, 2, 0, 0, 0,
+            ]],
         );
+    }
 
-        // Response payload of:
-        // ClientCoreCapabilityResponse { num_capabilities: 3, padding: 0, capabilities: [CapabilitySet { header: CapabilityHeader { cap_type: CAP_GENERAL_TYPE, length: 44, version: 2 }, data: General(GeneralCapabilitySet { os_type: 0, os_version: 0, protocol_major_version: 1, protocol_minor_version: 12, io_code_1: 32767, io_code_2: 0, extended_pdu: 3, extra_flags_1: 0, extra_flags_2: 0, special_type_device_cap: 1 }) }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_SMARTCARD_TYPE, length: 8, version: 1 }, data: Smartcard }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_DRIVE_TYPE, length: 8, version: 2 }, data: Drive }] }
-        let encoded_responses = vec![vec![
-            68, 0, 0, 0, 3, 0, 0, 0, 114, 68, 80, 67, 3, 0, 0, 0, 1, 0, 44, 0, 2, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 1, 0, 12, 0, 255, 127, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 1, 0, 0, 0, 5, 0, 8, 0, 1, 0, 0, 0, 4, 0, 8, 0, 2, 0, 0, 0,
-        ]];
+    #[test]
+    /// Incoming payload of:
+    /// SharedHeader { component: RDPDR_CTYP_CORE, packet_id: PAKID_CORE_CLIENTID_CONFIRM }
+    /// ServerClientIdConfirm { version_major: 1, version_minor: 13, client_id: 3 }
+    ///
+    /// Response payload of:
+    /// ClientDeviceListAnnounceRequest { device_count: 1, device_list: [DeviceAnnounceHeader { device_type: RDPDR_DTYP_SMARTCARD, device_id: 1, preferred_dos_name: "SCARD", device_data_length: 0, device_data: [] }] }
+    fn test_handle_client_id_confirm() {
+        let mut c = client();
+        test_payload(
+            &mut c,
+            vec![
+                2, 240, 128, 104, 0, 1, 3, 236, 240, 20, 12, 0, 0, 0, 3, 0, 0, 0, 114, 68, 67, 67,
+                1, 0, 13, 0, 3, 0, 0, 0,
+            ],
+            vec![vec![
+                28, 0, 0, 0, 3, 0, 0, 0, 114, 68, 65, 68, 1, 0, 0, 0, 32, 0, 0, 0, 1, 0, 0, 0, 83,
+                67, 65, 82, 68, 0, 0, 0, 0, 0, 0, 0,
+            ]],
+        );
+    }
 
-        assert_eq!(c.read_and_create_reply(payload).unwrap(), encoded_responses)
+    #[test]
+    /// Incoming payload of:
+    /// SharedHeader { component: RDPDR_CTYP_CORE, packet_id: PAKID_CORE_DEVICE_REPLY }
+    /// ServerDeviceAnnounceResponse { device_id: 1, result_code: 0 }
+    fn test_handle_device_reply() {
+        let mut c = client();
+        c.push_active_device_id(SCARD_DEVICE_ID).unwrap();
+        test_payload(
+            &mut c,
+            vec![
+                2, 240, 128, 104, 0, 1, 3, 236, 240, 20, 12, 0, 0, 0, 3, 0, 0, 0, 114, 68, 114,
+                100, 1, 0, 0, 0, 0, 0, 0, 0,
+            ],
+            vec![],
+        );
     }
 }
