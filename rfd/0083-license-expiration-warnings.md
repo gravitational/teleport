@@ -146,7 +146,7 @@ License warnings can piggyback on the cluster alert endpoint `ServerWithRoles.Ge
 
 On startup and every 1 hour afterwards the auth server will check the license and generate a license warning if applicable, or clear license warning alerts if they are no longer needed.
 
-These license warning alerts will need to be auth server specific so the host id will need to be added to the cluster alert spec to allow this.
+These license warning alerts will need to be auth server specific so the host id will need to be added to the cluster alert spec to allow this. The cluster alert spec may also need to be modified to add a bool for wether an alert is allowed to be dismissed.
 
 ## Security considerations
 If your license expired, you can’t disable or snooze the warning.
