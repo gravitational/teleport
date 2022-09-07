@@ -169,15 +169,20 @@ impl Client {
                     self.handle_server_announce(&mut payload)?
                 }
                 PacketId::PAKID_CORE_SERVER_CAPABILITY => {
-                    if self.test_debug_logs {
-                        debug!("got PAKID_CORE_SERVER_CAPABILITY");
-                    }
                     self.handle_server_capability(&mut payload)?
                 }
                 PacketId::PAKID_CORE_CLIENTID_CONFIRM => {
+                    if self.test_debug_logs {
+                        debug!("got PAKID_CORE_CLIENTID_CONFIRM");
+                    }
                     self.handle_client_id_confirm(&mut payload)?
                 }
-                PacketId::PAKID_CORE_DEVICE_REPLY => self.handle_device_reply(&mut payload)?,
+                PacketId::PAKID_CORE_DEVICE_REPLY => {
+                    if self.test_debug_logs {
+                        debug!("got PAKID_CORE_DEVICE_REPLY");
+                    }
+                    self.handle_device_reply(&mut payload)?
+                }
                 // Device IO request is where communication with the smartcard and shared drive actually happens.
                 // Everything up to this point was negotiation (and smartcard device registration).
                 PacketId::PAKID_CORE_DEVICE_IOREQUEST => {
@@ -4227,7 +4232,7 @@ mod tests {
         );
 
         // Response payload of:
-        // ClientCoreCapabilityResponse: [3, 0, 0, 0, 1, 0, 44, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 12, 0, 255, 127, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 5, 0, 8, 0, 1, 0, 0, 0, 4, 0, 8, 0, 2, 0, 0, 0]
+        // ClientCoreCapabilityResponse { num_capabilities: 3, padding: 0, capabilities: [CapabilitySet { header: CapabilityHeader { cap_type: CAP_GENERAL_TYPE, length: 44, version: 2 }, data: General(GeneralCapabilitySet { os_type: 0, os_version: 0, protocol_major_version: 1, protocol_minor_version: 12, io_code_1: 32767, io_code_2: 0, extended_pdu: 3, extra_flags_1: 0, extra_flags_2: 0, special_type_device_cap: 1 }) }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_SMARTCARD_TYPE, length: 8, version: 1 }, data: Smartcard }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_DRIVE_TYPE, length: 8, version: 2 }, data: Drive }] }
         let encoded_responses = vec![vec![
             68, 0, 0, 0, 3, 0, 0, 0, 114, 68, 80, 67, 3, 0, 0, 0, 1, 0, 44, 0, 2, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 1, 0, 12, 0, 255, 127, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0,
