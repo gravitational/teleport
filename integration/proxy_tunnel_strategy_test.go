@@ -397,7 +397,13 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 		require.Fail(t, "database already initialized")
 	}
 
-	dbAddr := net.JoinHostPort(Host, helpers.NewPortStr())
+	dbListener, err := net.Listen("tcp", net.JoinHostPort(Host, "0"))
+	require.NoError(t, err)
+
+	_, portStr, err := net.SplitHostPort(dbListener.Addr().String())
+	require.NoError(t, err)
+
+	dbAddr := net.JoinHostPort(Host, portStr)
 
 	// setup database service
 	db := helpers.NewInstance(t, helpers.InstanceConfig{
@@ -460,7 +466,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 	postgresDB, err := postgres.NewTestServer(common.TestServerConfig{
 		AuthClient: client,
 		Name:       p.cluster + "-postgres",
-		Address:    dbAddr,
+		Listener:   dbListener,
 	})
 	require.NoError(t, err)
 	go postgresDB.Serve()

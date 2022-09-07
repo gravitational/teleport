@@ -18,6 +18,7 @@ package client
 
 import (
 	"bufio"
+	"context"
 	"encoding/pem"
 	"fmt"
 	"io"
@@ -26,8 +27,11 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gofrs/flock"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -563,7 +567,7 @@ func (fs *fsLocalNonSessionKeyStore) publicKeyPath(idx KeyIndex) string {
 	return keypaths.PublicKeyPath(fs.KeyDir, idx.ProxyHost, idx.Username)
 }
 
-//  appCertPath returns the TLS certificate path for the given KeyIndex and app name.
+// appCertPath returns the TLS certificate path for the given KeyIndex and app name.
 func (fs *fsLocalNonSessionKeyStore) appCertPath(idx KeyIndex, appname string) string {
 	return keypaths.AppCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, appname)
 }
@@ -578,8 +582,29 @@ func (fs *fsLocalNonSessionKeyStore) kubeCertPath(idx KeyIndex, kubename string)
 	return keypaths.KubeCertPath(fs.KeyDir, idx.ProxyHost, idx.Username, idx.ClusterName, kubename)
 }
 
+// acquireFileLock is trying to lock the file, until it's successful or timeout is exceeded.
+// File will be created if it doesn't exist.
+func acquireFileLock(filePath string, timeout time.Duration) (func() error, error) {
+	fileLock := flock.New(filePath)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	if _, err := fileLock.TryLockContext(ctx, 10*time.Millisecond); err != nil {
+		return nil, err
+	}
+
+	return fileLock.Unlock, nil
+}
+
 // AddKnownHostKeys adds a new entry to `known_hosts` file.
 func (fs *fsLocalNonSessionKeyStore) AddKnownHostKeys(hostname, proxyHost string, hostKeys []ssh.PublicKey) (retErr error) {
+	// We're trying to serialize our writes to the 'known_hosts' file to avoid corruption, since there
+	// are cases when multiple tsh instances will try to write to it.
+	unlock, err := acquireFileLock(fs.knownHostsPath(), 5*time.Second)
+	if err != nil {
+		return trace.WrapWithMessage(err, "could not acquire lock for the `known_hosts` file")
+	}
+	defer utils.StoreErrorOf(unlock, &retErr)
+
 	fp, err := os.OpenFile(fs.knownHostsPath(), os.O_CREATE|os.O_RDWR, 0640)
 	if err != nil {
 		return trace.ConvertSystemError(err)
@@ -669,7 +694,13 @@ func matchesWildcard(hostname, pattern string) bool {
 }
 
 // GetKnownHostKeys returns all known public keys from `known_hosts`.
-func (fs *fsLocalNonSessionKeyStore) GetKnownHostKeys(hostname string) ([]ssh.PublicKey, error) {
+func (fs *fsLocalNonSessionKeyStore) GetKnownHostKeys(hostname string) (keys []ssh.PublicKey, retErr error) {
+	unlock, err := acquireFileLock(fs.knownHostsPath(), 5*time.Second)
+	if err != nil {
+		return nil, trace.WrapWithMessage(err, "could not acquire lock for the `known_hosts` file")
+	}
+	defer utils.StoreErrorOf(unlock, &retErr)
+
 	bytes, err := os.ReadFile(fs.knownHostsPath())
 	if err != nil {
 		if os.IsNotExist(err) {

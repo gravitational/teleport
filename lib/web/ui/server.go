@@ -161,7 +161,38 @@ type ConnectionDiagnostic struct {
 	// Message is the diagnostic summary
 	Message string `json:"message"`
 	// Traces contains multiple checkpoints results
-	Traces []*types.ConnectionDiagnosticTrace `json:"traces"`
+	Traces []ConnectionDiagnosticTraceUI `json:"traces,omitempty"`
+}
+
+// ConnectionDiagnosticTraceUI describes a connection diagnostic trace using a UI representation.
+// This is required in order to have a more friendly representation of the enum fields - TraceType and Status.
+// They are converted into string instead of using the numbers (as they are represented in gRPC).
+type ConnectionDiagnosticTraceUI struct {
+	// TraceType as string
+	TraceType string `json:"traceType,omitempty"`
+	// Status as string
+	Status string `json:"status,omitempty"`
+	// Details of the trace
+	Details string `json:"details,omitempty"`
+	// Error in case of failure
+	Error string `json:"error,omitempty"`
+}
+
+// ConnectionDiagnosticTraceUIFromTypes converts a list of ConnectionDiagnosticTrace into its format for HTTP API.
+// This is mostly copying things around and converting the enum into a string value.
+func ConnectionDiagnosticTraceUIFromTypes(traces []*types.ConnectionDiagnosticTrace) []ConnectionDiagnosticTraceUI {
+	ret := make([]ConnectionDiagnosticTraceUI, 0)
+
+	for _, t := range traces {
+		ret = append(ret, ConnectionDiagnosticTraceUI{
+			TraceType: t.Type.String(),
+			Status:    t.Status.String(),
+			Details:   t.Details,
+			Error:     t.Error,
+		})
+	}
+
+	return ret
 }
 
 // Database describes a database server.
