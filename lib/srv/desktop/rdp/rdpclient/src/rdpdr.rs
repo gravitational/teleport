@@ -197,10 +197,10 @@ impl Client {
 
     fn handle_server_announce(&self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
         let req = ServerAnnounceRequest::decode(payload)?;
-        debug!("received RDP ServerAnnounceRequest {:?}", req);
+        debug!("received RDP ServerAnnounceRequest: {:?}", req);
 
         let resp = ClientAnnounceReply::new(req);
-        debug!("sending RDP ClientAnnounceReply {:?}", resp);
+        debug!("sending RDP ClientAnnounceReply: {:?}", resp);
 
         let mut resp =
             self.add_headers_and_chunkify(PacketId::PAKID_CORE_CLIENTID_CONFIRM, resp.encode()?)?;
@@ -4181,8 +4181,8 @@ mod tests {
     fn test_server_announce() {
         let mut c = client();
         // Incoming payload of:
-        // SharedHeader { component: RDPDR_CTYP_CORE, packet_id: PAKID_CORE_SERVER_CAPABILITY }
-        // ServerCoreCapabilityRequest { num_capabilities: 5, padding: 0, capabilities: [CapabilitySet { header: CapabilityHeader { cap_type: CAP_GENERAL_TYPE, length: 44, version: 2 }, data: General(GeneralCapabilitySet { os_type: 2, os_version: 0, protocol_major_version: 1, protocol_minor_version: 13, io_code_1: 65535, io_code_2: 0, extended_pdu: 7, extra_flags_1: 0, extra_flags_2: 0, special_type_device_cap: 2 }) }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_PRINTER_TYPE, length: 8, version: 1 }, data: Printer }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_PORT_TYPE, length: 8, version: 1 }, data: Port }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_DRIVE_TYPE, length: 8, version: 2 }, data: Drive }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_SMARTCARD_TYPE, length: 8, version: 1 }, data: Smartcard }] }
+        // SharedHeader { component: RDPDR_CTYP_CORE, packet_id: PAKID_CORE_SERVER_ANNOUNCE }
+        // ServerAnnounceRequest { version_major: 1, version_minor: 13, client_id: 3 }
         let payload = create_payload(
             vec![
                 2, 240, 128, 104, 0, 1, 3, 236, 240, 20, 12, 0, 0, 0, 3, 0, 0, 0, 114, 68, 110, 73,
@@ -4191,8 +4191,9 @@ mod tests {
             10,
         );
 
-        // responses as a Vec<(Box<dyn Encode>, PacketId)>:
-        // [(ClientIdMessage { version_major: 1, version_minor: 12, client_id: 3 }, PAKID_CORE_CLIENTID_CONFIRM), (ClientNameRequest { unicode_flag: Ascii, computer_name: "teleport" }, PAKID_CORE_CLIENT_NAME)]
+        // response payload of:
+        // ClientAnnounceReply ClientIdMessage { version_major: 1, version_minor: 12, client_id: 3 }
+        // ClientNameRequest { unicode_flag: Ascii, computer_name: "teleport" }
         let encoded_responses = vec![
             vec![
                 12, 0, 0, 0, 3, 0, 0, 0, 114, 68, 67, 67, 1, 0, 12, 0, 3, 0, 0, 0,
