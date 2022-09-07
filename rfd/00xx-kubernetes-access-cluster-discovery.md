@@ -342,11 +342,11 @@ The IAM mapping between Teleport IAM Role and Kubernetes roles is a complex and 
 
 ## Azure AKS discovery
 
-The following subsections will describe the details required for implementing EKS auto-discovery.
+The following subsections will describe the details required for implementing AKS auto-discovery.
 
 ### Discovery
 
-The discovery agent can auto-discover AKS-managed clusters, similar to the process described in the AWS discovery section using the endpoint [`Microsoft.ContainerService/managedClusters`][listclustersaks].
+The discovery agent can auto-discover AKS-managed clusters, similarly to the process described in the AWS discovery section using the endpoint [`Microsoft.ContainerService/managedClusters`][listclustersaks].
 
 The agent will call the endpoint at regular intervals and manage the differences between iterations.
 
@@ -401,21 +401,199 @@ The watch mechanism is similar to the one described earlier but the endpoint tha
 
 This section defines the AKS credentials generation (authentication) and the authorization required for Teleport to setup the cluster.
 
+Azure AKS clusters have three different configuration options to manage access to the cluster.
+
+- **Kubernetes Local Accounts** (*default*)
+
+Under this mode, access to the cluster happens via Kubernetes local accounts. During the cluster provisioning process, these accounts are created, and the access credentials are available via
+
+- `ListClusterUserCredentials`: returns credentials for cluster user.
+- `ListClusterAdminCredentials`: returns credentials for cluster admin.
+- `ListClusterMonitoringUserCredentials`: returns credentials with monitoring access.
+
+Credentials returned are used to authenticate directly into the Kubernetes API and are the same for any user that calls any of the `ListCluster*Credentials` methods. The credentials returned are non-auditable.
+
+The diagram below represents the authentication and authorization flow when a cluster starts with local accounts.
+
+```mermaid
+flowchart LR
+  subgraph TOP[ ]
+    direction LR
+    subgraph B1[Authentication]
+        direction BT
+      LOCAL_ACCOUNT[Local Accounts]
+    end
+    subgraph B2[Authorization]
+        direction BT
+        Kubernetes_RBAC[Kubernetes RBAC]
+    end
+  end
+  A[API\n Request] --> B1
+  B2 --> B[Kubernetes\n API server]
+  B1 --> B2
+```
+
+- **Active Directory with Kubernetes RBAC**
+
+When deploying an AKS cluster with this configuration mode, Azure allows the user's identity or directory group membership to be the authentication principal. The process happens via an OpenID Connect layer that validates the user credentials and returns the user principals (`user_id` and `group_ids`) used by Kubernetes RBAC for authorization. 
+
+By default, even with Active Directory enabled, administrator local accounts exist. `ListClusterAdminCredentials` returns non-auditable admin credentials that allow anyone with access to the endpoint to be a cluster admin. Calls to `ListClusterUserCredentials` and `ListClusterMonitoringUserCredentials` do not return any credentials, instead it returns a kubeconfig with an exec authentication method. 
+
+The diagram below represents the authentication and authorization flow when a cluster has AD enabled.
+
+```mermaid
+flowchart LR
+  subgraph TOP[ ]
+    direction LR
+    subgraph B1[Authentication]
+        direction BT
+      Authentication<-->AAD[Active\nDirectory]
+      Authentication<-.->LOCAL[Local\n Account]
+    end
+    subgraph B2[Authorization]
+        direction BT
+       Kubernetes_RBAC[Kubernetes RBAC]
+    end
+  end
+  A[API\n Request] --> B1
+  B2 --> B[Kubernetes\n API server]
+  B1 --> B2
+```
+
+The local accounts line is dashed because administrators can disable them by editing the cluster. To happen, they must create an AD group and assign that group admin privileges.
+
+To create an Azure AD group:
+
+```bash
+az ad group create --display-name AKSAdminGroup --mail-nickname AKSAdminGroup
+```
+
+To add members to the admin group execute the following command:
+
+```bash
+az ad group member add \
+     --group AKSAdminGroup \
+     --member-id {memberID}
+```
+
+Create or update the cluster while specifying the admin group for the cluster:
+
+```bash
+az aks create/update -g {resourceGroup} -n {clusterName} \
+    --enable-aad \
+    --aad-admin-group-object-ids {adminGroupID} \
+    --disable-local-accounts # optional (disable local accounts)
+```
+
+The last command creates the following `ClusterRoleBinding` in the Kubernetes cluster:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: aks-cluster-admin-binding-aad
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name:  {adminGroupID} 
+```
+
+If fine-grained policy/access is required, operators can define them by creating new Azure groups and mapping them into Kubernetes RBAC policies. These objects must exist in the cluster to grant access, otherwise user's actions are denied.
+
+- **Active Directory with Azure RBAC** (*recommended*)
+
+When deploying an AKS cluster with this mode, Azure extends the authorization to be configured at Azure Group level permissions. It enables authorization control to happen centrally and is applicable to multiple clusters. 
+
+As in the previous case, by default, local accounts are created and accessible and, for security reasons, should be disabled.
+
+The following diagram represents the authentication and authorization flow when a cluster has active directory enabled and Azure RBAC.
+
+```mermaid
+
+flowchart LR
+  subgraph TOP[ ]
+    direction LR
+    subgraph B1[Authentication]
+        direction BT
+      Authentication<-->AAD[Active\nDirectory]
+      Authentication<-.->LOCAL[Local\n Account]
+    end
+    subgraph B2[Authorization]
+        direction BT
+       Authorization <-->Kubernetes_RBAC[Kubernetes RBAC]
+       Authorization <-->Azure_RBAC[Azure RBAC]
+    end
+  end
+  A[API\n Request] --> B1
+  B2 --> B[Kubernetes\n API server]
+  B1 --> B2
+```
+
+To create a cluster with the AD, Azure RBAC, and no local accounts run the following command:
+
+```bash
+az aks create/update -g {resourceGroup} -n {clusterName} \
+    --enable-aad \
+    --enable-azure-rbac \
+    --aad-admin-group-object-ids {adminGroupID} \
+    --disable-local-accounts # optional (disable local accounts)
+```
+
+To specify a Kubernetes Policy for a user/group create the following Azure RBAC role definition:
+
+```json
+{
+    "Name": "Read Pods",
+    "Description": "Read Pods.",
+    "Actions": [
+
+],
+    "NotActions": [],
+    "DataActions": [
+      "Microsoft.ContainerService/managedClusters/pods/read",
+    ],
+    "NotDataActions": [],
+    "assignableScopes": [
+        "/subscriptions/{subscription_id}" // allows access to any cluster within the subscription.
+        // "/subscriptions/{subscription_id}/resourceGroups/{resource_group}/providers/Microsoft.ContainerService/managedClusters/" // limits access to a certain resource group
+        // "/subscriptions/{subscription_id}/resourceGroups/{resource_group}/providers/Microsoft.ContainerService/managedClusters/{cluster_name}" // limits access to a certain cluster
+    ]
+}
+```
+
+```bash
+az role definition create --role-definition @config.json
+```
+
+To assign the role into a service principal execute the following command:
+
+```bash
+az role assignment create \
+    --assignee {assignee_id} \ # can be app id or any user id.
+    --role "Read Pods" \
+    --scope "/subscriptions/{subscription_id}" # the scope can be limited
+```
+
 ### Authentication
 
 Azure has several options to authenticate against an AKS cluster depending on the Kubernetes cluster version and whether the Azure Active Directory integration is enabled or not.
 
-For Kubernetes clusters after `v1.22` with Active directory integration enabled, Azure forces the authentication to happen via a short-lived token. In this case, Teleport grants its access to the Kubernetes API by a Bearer token generated by calling [`AAD/Token`][aadtoken] endpoint with the cluster's `TenantID` and a fixed `Scope` with a value equal to [`6dae42f8-4368-4678-94ff-3960e28e3630`](https://github.com/Azure/kubelogin#exec-plugin-format).
+For Kubernetes clusters after version `v1.22` with Active directory integration enabled, Azure forces the authentication to happen via a short-lived token. In this case, Teleport grants its access to the Kubernetes API by a Bearer token generated by calling [`AAD/Token`][aadtoken] endpoint with the cluster's `TenantID` and a fixed `Scope` with a value equal to [`6dae42f8-4368-4678-94ff-3960e28e3630`](https://github.com/Azure/kubelogin#exec-plugin-format).
 
-For the other cases, Teleport will extract credentials by calling [`aks:ListClusterUserCredentials`][listclusterusercredentials] endpoint. This endpoint returns a `kubeconfig` that, after parsing, contains the user credentials to access the cluster API. This endpoint can be called for exec-based access clusters and returns a `kubeconfig` with the exec call.
+For clusters without Active directory integration, Teleport will extract credentials by calling [`aks:ListClusterUserCredentials`][listclusterusercredentials] endpoint. This endpoint returns a `kubeconfig` that, after parsing, contains the user credentials to access the cluster API. It is possible to call this endpoint from clusters with AD enabled, but it returns a `kubeconfig` with the exec call.
 
-### Authorization
+### Teleport Authorization
+
+#### Phase 1: Active Directory and Azure RBAC enabled
 
 If the Azure AKS cluster has Azure AD and Azure RBAC enabled, the Azure Role definition grants access to the Kubernetes cluster. 
 It means that when both features are enabled, Azure users, groups, or service principals inherit Kubernetes Cluster access from their Role without requiring the specification of Kubernetes RBAC policies. Azure RBAC allows specification of [rules](https://docs.microsoft.com/en-us/azure/role-based-access-control/resource-provider-operations#microsoftcontainerservice) that work as Kubernetes RBAC policies.
 
 AKS provides several built-in Azure RBAC roles, but we recommend that users create a custom role with the minimal permissions that Teleport Kubernetes Agent requires.
-
 
 ```json
 {
@@ -440,13 +618,13 @@ AKS provides several built-in Azure RBAC roles, but we recommend that users crea
 }
 ```
 
-To create the Azure RBAC role, execute the following command:
+The next command creates the Azure RBAC role:
 
 ```bash
 az role definition create --role-definition @config.json
 ```
 
-To assign the role into a service principal, the following command has to be executed.
+The following command assigns the role to a service principal:
 
 ```bash
 az role assignment create \
@@ -457,12 +635,195 @@ az role assignment create \
 
 At this point, the assignee has access to AD-enabled AKS clusters within the specified subscription.
 
-For clusters without AD enabled or, if enabled, without Azure RBAC integration, operators have to manually create the RBAC policies, per cluster, and bind them into the user/app principal. A detailed guide can be found [here](https://docs.microsoft.com/en-us/azure/aks/azure-ad-integration-cli#create-kubernetes-rbac-binding). If under these conditions, Teleport will extract credentials by calling [`aks:ListClusterUserCredentials`][listclusterusercredentials]. The call returns a `kubeconfig` file populated with Cluster CA and authentication details.
+#### Phase 2: Kubernetes Local Accounts
+
+For clusters without AD enabled, Teleport will use the credentials provided by [`aks:ListClusterUserCredentials`][listclusterusercredentials]. The call returns a `kubeconfig` file populated with Cluster CA and authentication details.
+
+Access to this API requires the following role permissions:
+
+```json
+
+    "permissions": [
+      {
+        "actions": [
+          "Microsoft.ContainerService/managedClusters/read",
+          "Microsoft.ContainerService/managedClusters/listClusterUserCredential/action",
+        ],
+        "dataActions": [],
+        "notActions": [],
+        "notDataActions": []
+      }
+    ]      
+```
+
+
+#### Phase 3: Active Directory enabled without Azure RBAC
+
+For clusters with AD enabled but without Azure RBAC integration, operators must manually create the RBAC policies and bind them into the user/app principal. A detailed guide is available [here](https://docs.microsoft.com/en-us/azure/aks/azure-ad-integration-cli#create-kubernetes-rbac-binding).
+
+To simplify the process, Teleport can create RBAC policies using less secure APIs, but the process depends on whether the cluster has local accounts enabled.
+
+The first step, which is independent of local account existences, is to check if the Teleport already has access to the cluster. The access may exist because the operators have manually created the role or because the Teleport has configured it in the past. If authorized, the agent enrolls the cluster.
+
+Otherwise, if the agent doesn't have access, it can take the following actions.
+
+##### Enabled Local Accounts
+
+If local accounts option is enabled, Azure created admin credentials during the cluster provision. If the agent has access to [`aks:ListClusterAdminCredentials`][listclusteradmincredentials] then it could use them to create the Teleport RBAC `ClusterRole` and create a `ClusterRoleBinding` that binds the cluster role into Teleport's `group_id`.
+
+The agent will create the following objects with the available cluster admin credentials:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: teleport-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - users
+  - groups
+  - serviceaccounts
+  verbs:
+  - impersonate
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+- apiGroups:
+  - "authorization.k8s.io"
+  resources:
+  - selfsubjectaccessreviews
+  - selfsubjectrulesreviews
+  verbs:
+  - create
+```
+
+
+```yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: teleport-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: teleport-role
+subjects:
+- kind: Group
+  name: {teleportGroupID} # we can find it by querying Azure auth provider.
+  apiGroup: rbac.authorization.k8s.io
+```
+
+If operation was successful, Teleport has the minimum required permissions to access and enroll the cluster.
+
+Access to this API requires the following role permissions:
+
+```json
+
+    "permissions": [
+      {
+        "actions": [
+          "Microsoft.ContainerService/managedClusters/read",
+          "Microsoft.ContainerService/managedClusters/listClusterAdminCredential/action",
+        ],
+        "dataActions": [],
+        "notActions": [],
+        "notDataActions": []
+      }
+    ]      
+```
+
+
+If access to [`aks:ListClusterAdminCredentials`][listclusteradmincredentials] is unauthorized by an RBAC policy, the Disabled Local accounts method can be used as a fallback.
+
+##### Disabled Local accounts
+
+Teleport, under these conditions, has no way to grant access to the cluster because [`aks:ListClusterAdminCredentials`][listclusteradmincredentials] and [`aks:ListClusterUserCredentials`][listclusterusercredentials] both return `exec` kubeconfigs and the agent's role mapping does not exist yet.
+
+Since direct access is unavailable, Teleport can delegate in Azure the responsibility of creating the `ClusterRole` and `ClusterRoleBinding`. This operation can happen if the agent has access to the `aks:Command` API. It allows you to run indiscriminate commands on the cluster and, as such, would allow the creation of `ClusterRole` and `ClusterRoleBinding`.
+
+Once the agent creates the command request, AKS provisions a new POD with admin permissions and executes the specified command. The pod already has `kustomize`, `helm`, and `kubectl` binaries installed. If the target cluster does not have a node, then the pod won't start until a node exists.
+
+As an example:
+
+```bash
+az aks command invoke \
+  --resource-group myResourceGroup \
+  --name myAKSCluster \
+  --command "cat <<EOF | kubectl apply -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: teleport-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - users
+  - groups
+  - serviceaccounts
+  verbs:
+  - impersonate
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - selfsubjectaccessreviews
+  - selfsubjectrulesreviews
+  verbs:
+  - create
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: teleport-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: teleport-role
+subjects:
+- kind: Group
+  name: {teleportGroupID} # we can find it by querying Azure auth provider.
+  apiGroup: rbac.authorization.k8s.io
+EOF" 
+```
+
+The usage of this API should only happen in the last resource because the command scope cannot be limited and virtually anything is liable to be executed.
+
+Access to this API requires the following role permissions:
+
+```json
+
+    "permissions": [
+      {
+        "actions": [
+          "Microsoft.ContainerService/managedClusters/read",
+          "Microsoft.ContainerService/managedClusters/runcommand/action",
+          "Microsoft.ContainerService/managedclusters/commandResults/read"
+        ],
+        "dataActions": [],
+        "notActions": [],
+        "notDataActions": []
+      }
+    ]      
+```
+
+If Teleport cannot create access, it will log an error and will not enroll the cluster.
 
 ### Limitations
 
-Azure AKS clusters with AD or RBAC integrations disabled require manual actions in order to grant access to the user/role. These actions involve creating a Kubernetes RBAC policy in the cluster and binding them to the principal and must exist in each cluster to enroll. To extract the full potential of AKS auto-discovery, we recommend that both options are enabled and that Kubernetes access is controlled via Azure RBAC allowing Teleport role to specify multiple cluster/subscription access rules.
+In cases where Active Directory or Azure RBAC options are disabled and the Teleport RBAC permissions (if AD is enabled) don't exist, the agent uses insecure APIs to create access. It requires the usage of APIs that expose long lived admin credentials or methods that allow to run commands in the cluster as an administrator and where command scope limits do not exist.
 
+To extract the full potential of AKS auto-discovery, we recommend that AD and AZ RBAC are enabled. 
 
 ## UX
 
@@ -513,9 +874,12 @@ In order to Teleport to be able to connect to the cluster, its role must be pres
 
 Access to AKS clusters is not immediately granted by [`Microsoft.ContainerService/managedClusters`][listclustersaks], and depending on the cluster version and integration type, access details are pulled from different sources.
 
-If AD and Azure RBAC are enabled, the authentication details are short-lived and must be revalidated each time their TTL is about to expire. The call to [`AAD/Token`][aadtoken] returns the expiration time of the credentials. After the expiration time is reached, the token no longer allows access to the cluster. Each cluster has a different authentication token and does not grant access to any other cluster.
+If AD is enabled, the authentication details are short-lived and must be revalidated each time their TTL is about to expire. The call to [`AAD/Token`][aadtoken] returns the expiration time of the credentials. After their expiration time reaches, the token no longer grants access to the cluster. Each cluster has a different authentication token.
 
-Clusters without AD or Azure RBAC enabled, access requires local Kubernetes accounts and credentials are long-lived and not managed by Teleport. This means that the certificate key pair and the automatic token returned by [`aks:ListClusterUserCredentials`][listclusterusercredentials] only require revalidation if revoked or if the cluster CA authority changes. From a security perspective, it is highly recommended not to use this authentication method because the credentials are valid for long periods of time and can be compromised.
+In clusters without AD or Azure RBAC enabled, the access requires either permanent local Kubernetes accounts whose credentials are long-lived, the usage of insecure APIs like `aks:Command` or extracting the admin credentials from [`aks:ListClusterAdminCredentials`][listclusteradmincredentials]. 
+The only method to revoke access to the certificate key pair and the automatic token returned by `aks:ListCluster*Credentials` is to rotate cluster CA authority. On the other hand, `aks:Command` allows the execution of arbitrary commands in the cluster with the administrator role. It is a security concern because any attacker that escalates privileges to the agent's role can execute destructive commands without limits because `aks:Command` does not allow you to validate the commands executed.
+
+From a security perspective, it is highly recommended use Azure Active Directory and Azure RBAC enabled for any cluster.
 
 ### UX
 
@@ -589,10 +953,10 @@ Expand the discovery service and `teleport kube configure` to support GCP and AZ
 [serverv2]: https://github.com/gravitational/teleport/blob/7d5b73eda3caf13717a647264032ef983f997c39/api/types/types.proto#L468
 [paginatedresource]:https://github.com/gravitational/teleport/blob/d3e33465380de070dd3ec8347c9967c1b1257582/api/client/proto/authservice.proto#L1539
 [blockpodaccess]: https://aws.github.io/aws-eks-best-practices/security/docs/iam/
-#restrict-access-to-the-instance-profile-assigned-to-the-worker-node
 [listclustersaks]:https://docs.microsoft.com/en-us/azure/templates/microsoft.containerservice/managedclusters?pivots=deployment-language-bicep
 [aadtoken]:https://docs.microsoft.com/en-us/azure/databricks/dev-tools/api/latest/aad/app-aad-token
 [listclusterusercredentials]:https://docs.microsoft.com/en-us/rest/api/aks/managed-clusters/list-cluster-user-credentials?tabs=HTTP
+[listclusteradmincredentials]:https://docs.microsoft.com/en-us/rest/api/aks/managed-clusters/list-cluster-admin-credentials?tabs=HTTP
 
 1. https://goteleport.com/docs/kubernetes-access/guides/standalone-teleport/#step-12-generate-a-kubeconfig
 2. https://docs.aws.amazon.com/eks/latest/APIReference/API_ListClusters.html
