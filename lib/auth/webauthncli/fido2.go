@@ -106,6 +106,7 @@ func fido2Login(
 	// Presence of any allowed credential is interpreted as the user identity
 	// being partially established, aka non-passwordless.
 	passwordless := len(allowedCreds) == 0
+	log.Debugf("FIDO2: assertion: passwordless=%v, uv=%v", passwordless, uv)
 
 	// Prepare challenge data for the device.
 	ccdJSON, err := json.Marshal(&CollectedClientData{
@@ -144,7 +145,7 @@ func fido2Login(
 
 		// Does the device have a suitable credential?
 		const pin = ""
-		actualRPID, err := discoverRPID(dev, pin, rpID, appID, allowedCreds)
+		actualRPID, err := discoverRPID(dev, info, pin, rpID, appID, allowedCreds)
 		if err != nil {
 			log.Debugf("FIDO2: Device %v: filtered due to lack of allowed credential", info.path)
 			return false, nil
@@ -236,7 +237,7 @@ func fido2Login(
 	}, actualUser, nil
 }
 
-func discoverRPID(dev FIDODevice, pin, rpID, appID string, allowedCreds [][]byte) (string, error) {
+func discoverRPID(dev FIDODevice, info *deviceInfo, pin, rpID, appID string, allowedCreds [][]byte) (string, error) {
 	// The actual hash is not necessary here.
 	const cdh = "00000000000000000000000000000000"
 
@@ -247,8 +248,15 @@ func discoverRPID(dev FIDODevice, pin, rpID, appID string, allowedCreds [][]byte
 		if id == "" {
 			continue
 		}
-		if _, err := dev.Assertion(id, []byte(cdh), allowedCreds, pin, opts); err == nil {
+		switch _, err := dev.Assertion(id, []byte(cdh), allowedCreds, pin, opts); {
+		// Yubikey4 returns ErrUserPresenceRequired if the credential exists,
+		// despite the UP=false opts above.
+		case err == nil, errors.Is(err, libfido2.ErrUserPresenceRequired):
 			return id, nil
+		case errors.Is(err, libfido2.ErrNoCredentials):
+			// Device not registered for RPID=id, keep trying.
+		default:
+			log.WithError(err).Debugf("FIDO2: Device %v: attempt RPID = %v", info.path, id)
 		}
 	}
 	return "", libfido2.ErrNoCredentials
@@ -280,14 +288,14 @@ func pickAssertion(
 	}
 
 	// Prepare credentials and show picker.
-	creds := make([]*Credential, len(assertions))
-	credToAssertion := make(map[*Credential]*libfido2.Assertion)
+	creds := make([]*CredentialInfo, len(assertions))
+	credToAssertion := make(map[*CredentialInfo]*libfido2.Assertion)
 	for i, assertion := range assertions {
-		cred := &Credential{
+		cred := &CredentialInfo{
 			ID: assertion.CredentialID,
-			User: User{
-				ID:   assertion.User.ID,
-				Name: assertion.User.Name,
+			User: UserInfo{
+				UserHandle: assertion.User.ID,
+				Name:       assertion.User.Name,
 			},
 		}
 		credToAssertion[cred] = assertion
@@ -323,6 +331,7 @@ func fido2Register(
 	}
 
 	rrk := cc.Response.AuthenticatorSelection.RequireResidentKey != nil && *cc.Response.AuthenticatorSelection.RequireResidentKey
+	log.Debugf("FIDO2: registration: resident key=%v", rrk)
 	if rrk {
 		// Be more pedantic with resident keys, some of this info gets recorded with
 		// the credential.
@@ -387,8 +396,14 @@ func fido2Register(
 
 	filter := func(dev FIDODevice, info *deviceInfo) (bool, error) {
 		switch {
-		case (plat && !info.plat) || (rrk && !info.rk) || (uv && !info.uvCapable()):
-			log.Debugf("FIDO2: Device %v: filtered due to options", info.path)
+		case plat && !info.plat:
+			log.Debugf("FIDO2: Device %v: filtered due to plat mismatch (requested %v, device %v)", info.path, plat, info.plat)
+			return false, nil
+		case rrk && !info.rk:
+			log.Debugf("FIDO2: Device %v: filtered due to lack of resident keys", info.path)
+			return false, nil
+		case uv && !info.uvCapable():
+			log.Debugf("FIDO2: Device %v: filtered due to lack of UV", info.path)
 			return false, nil
 		case len(excludeList) == 0:
 			return true, nil
@@ -528,19 +543,26 @@ type deviceCallbackFunc func(dev FIDODevice, info *deviceInfo, pin string) error
 // (RegisterPrompt happens to match the minimal interface required.)
 type runPrompt RegisterPrompt
 
+// errNoSuitableDevices is used internally to loop over findSuitableDevices.
+var errNoSuitableDevices = errors.New("no suitable devices found")
+
 func runOnFIDO2Devices(
 	ctx context.Context,
 	prompt runPrompt,
 	filter deviceFilterFunc,
 	deviceCallback deviceCallbackFunc) error {
+	cb := withRetries(deviceCallback)
+
 	// Do we have readily available devices?
 	knownPaths := make(map[string]struct{}) // filled by findSuitableDevices*
 	prompted := false
 	devices, err := findSuitableDevices(filter, knownPaths)
-	if err != nil {
+	if errors.Is(err, errNoSuitableDevices) {
 		// No readily available devices means we need to prompt, otherwise the
 		// user gets no feedback whatsoever.
-		prompt.PromptTouch()
+		if err := prompt.PromptTouch(); err != nil {
+			return trace.Wrap(err)
+		}
 		prompted = true
 
 		devices, err = findSuitableDevicesOrTimeout(ctx, filter, knownPaths)
@@ -550,9 +572,12 @@ func runOnFIDO2Devices(
 	}
 
 	if !prompted {
-		prompt.PromptTouch() // about to select
+		// about to select
+		if err := prompt.PromptTouch(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
-	dev, requiresPIN, err := selectDevice(ctx, "" /* pin */, devices, deviceCallback)
+	dev, requiresPIN, err := selectDevice(ctx, "" /* pin */, devices, cb)
 	switch {
 	case err != nil:
 		return trace.Wrap(err)
@@ -571,11 +596,13 @@ func runOnFIDO2Devices(
 	}
 
 	// Prompt a second touch after reading the PIN.
-	prompt.PromptTouch()
+	if err := prompt.PromptTouch(); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Run the callback again with the informed PIN.
 	// selectDevice is used since it correctly deals with cancellation.
-	_, _, err = selectDevice(ctx, pin, []deviceWithInfo{dev}, deviceCallback)
+	_, _, err = selectDevice(ctx, pin, []deviceWithInfo{dev}, cb)
 	return trace.Wrap(err)
 }
 
@@ -585,11 +612,15 @@ func findSuitableDevicesOrTimeout(
 	defer ticker.Stop()
 
 	for {
-		devices, err := findSuitableDevices(filter, knownPaths)
-		if err == nil {
+		switch devices, err := findSuitableDevices(filter, knownPaths); {
+		case err == nil:
 			return devices, nil
+		case errors.Is(err, errNoSuitableDevices):
+			// OK, carry on until we find a device or timeout.
+		default:
+			// Unexpected, abort.
+			return nil, trace.Wrap(err)
 		}
-		log.WithError(err).Debug("FIDO2: Selecting devices")
 
 		select {
 		case <-ctx.Done():
@@ -623,6 +654,11 @@ func findSuitableDevices(filter deviceFilterFunc, knownPaths map[string]struct{}
 		for i := 0; i < infoAttempts; i++ {
 			info, err = dev.Info()
 			switch {
+			case errors.Is(err, libfido2.ErrNotFIDO2):
+				// Use an empty info and carry on.
+				// A FIDO/U2F device has no capabilities beyond MFA
+				// registrations/assertions.
+				info = &libfido2.DeviceInfo{}
 			case errors.Is(err, libfido2.ErrTX):
 				// Happens occasionally, give the device a short grace period and retry.
 				time.Sleep(1 * time.Millisecond)
@@ -649,11 +685,55 @@ func findSuitableDevices(filter deviceFilterFunc, knownPaths map[string]struct{}
 
 	l := len(devs)
 	if l == 0 {
-		return nil, errors.New("no suitable devices found")
+		return nil, errNoSuitableDevices
 	}
 	log.Debugf("FIDO2: Found %v suitable devices", l)
 
 	return devs, nil
+}
+
+// withRetries wraps callback with retries and error handling for commonly seen
+// errors.
+func withRetries(callback deviceCallbackFunc) deviceCallbackFunc {
+	return func(dev FIDODevice, info *deviceInfo, pin string) error {
+		const maxRetries = 3
+		var err error
+		for i := 0; i < maxRetries; i++ {
+			err = callback(dev, info, pin)
+			if err == nil {
+				return err
+			}
+			// Handle errors mapped by go-libfido2.
+			// ErrOperationDenied happens when fingerprint reading fails (UV=false).
+			if errors.Is(err, libfido2.ErrOperationDenied) {
+				fmt.Println("Gesture validation failed, make sure you use a registered fingerprint")
+				log.Debug("FIDO2: Retrying libfido2 error 'operation denied'")
+				continue
+			}
+			// Handle generic libfido2.Error instances.
+			var fidoErr libfido2.Error
+			if !errors.As(err, &fidoErr) {
+				return err
+			}
+
+			// See https://github.com/Yubico/libfido2/blob/main/src/fido/err.h#L32.
+			switch fidoErr.Code {
+			case 60: // FIDO_ERR_UV_BLOCKED, 0x3c
+				const msg = "" +
+					"The user verification function in your security key is blocked. " +
+					"This is likely due to too many failed authentication attempts. " +
+					"Consult your manufacturer documentation for how to unblock your security key. " +
+					"Alternatively, you may unblock your device by using it in the Web UI."
+
+				return trace.Wrap(err, msg)
+			case 63: // FIDO_ERR_UV_INVALID, 0x3f
+				log.Debug("FIDO2: Retrying libfido2 error 63")
+				continue
+			}
+		}
+
+		return fmt.Errorf("max retry attempts reached: %w", err)
+	}
 }
 
 func selectDevice(

@@ -1,7 +1,9 @@
+.version: &version "11.0.0-dev"
+
 name: teleport-kube-agent
 apiVersion: v2
-version: "11.0.0-dev"
-appVersion: "11.0.0-dev"
+version: *version
+appVersion: *version
 description: Teleport provides a secure SSH and Kubernetes remote access solution that doesn't get in the way.
 icon: https://goteleport.com/images/logos/logo-teleport-square.svg
 keywords:

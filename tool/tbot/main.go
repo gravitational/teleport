@@ -60,7 +60,7 @@ func Run(args []string, stdout io.Writer) error {
 	versionCmd := app.Command("version", "Print the version of your tbot binary")
 
 	startCmd := app.Command("start", "Starts the renewal bot, writing certificates to the data dir at a set interval.")
-	startCmd.Flag("auth-server", "Address of the Teleport Auth Server (On-Prem installs) or Proxy Server (Cloud installs).").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
+	startCmd.Flag("auth-server", "Address of the Teleport Auth Server or Proxy Server.").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
 	startCmd.Flag("token", "A bot join token, if attempting to onboard a new bot; used on first connect.").Envar(tokenEnvVar).StringVar(&cf.Token)
 	startCmd.Flag("ca-pin", "CA pin to validate the Teleport Auth Server; used on first connect.").StringsVar(&cf.CAPins)
 	startCmd.Flag("data-dir", "Directory to store internal bot data. Access to this directory should be limited.").StringVar(&cf.DataDir)
@@ -109,6 +109,10 @@ func Run(args []string, stdout io.Writer) error {
 		"Arguments to `tsh proxy ...`; prefix with `-- ` to ensure flags are passed correctly.",
 	))
 
+	kubeCmd := app.Command("kube", "Kubernetes helpers").Hidden()
+	kubeCredentialsCmd := kubeCmd.Command("credentials", "Get credentials for kubectl access").Hidden()
+	kubeCredentialsCmd.Flag("destination-dir", "The destination directory with which to generate Kubernetes credentials").Required().StringVar(&cf.DestinationDir)
+
 	utils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
 	if err != nil {
@@ -150,6 +154,8 @@ func Run(args []string, stdout io.Writer) error {
 		err = onDBCommand(botConfig, &cf)
 	case proxyCmd.FullCommand():
 		err = onProxyCommand(botConfig, &cf)
+	case kubeCredentialsCmd.FullCommand():
+		err = onKubeCredentialsCommand(botConfig, &cf)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)
@@ -229,7 +235,7 @@ func handleSignals(log logrus.FieldLogger, reload chan struct{}, cancel context.
 	for signal := range signals {
 		switch signal {
 		case syscall.SIGINT:
-			log.Info("Received interrupt, cancelling...")
+			log.Info("Received interrupt, canceling...")
 			cancel()
 			return
 		case syscall.SIGHUP, syscall.SIGUSR1:

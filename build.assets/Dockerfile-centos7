@@ -129,6 +129,8 @@ RUN yum groupinstall -y 'Development Tools' && \
     # used by our Makefile
     which \
     zip \
+    # required by PIV integration
+    pcsc-lite-devel \
     # required by libbpf
     zlib-static && \
     yum clean all
@@ -170,8 +172,7 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --pr
     rustup --version && \
     cargo --version && \
     rustc --version && \
-    rustup component add --toolchain $RUST_VERSION-x86_64-unknown-linux-gnu rustfmt clippy && \
-    cargo install cbindgen
+    rustup component add --toolchain $RUST_VERSION-x86_64-unknown-linux-gnu rustfmt clippy
 
 # Do a quick switch back to root and copy/setup libfido2 binaries.
 # Do this last to take better advantage of the multi-stage build.
@@ -206,6 +207,5 @@ RUN cd / && curl -L https://s3.amazonaws.com/clientbuilds.gravitational.io/go/ce
 # Copy libbpf into the final image.
 COPY --from=libbpf /opt/libbpf/usr /usr
 
-USER ci
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380

@@ -28,9 +28,9 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -44,7 +44,7 @@ type IAMConfig struct {
 	// AccessPoint is a caching client connected to the Auth Server.
 	AccessPoint auth.DatabaseAccessPoint
 	// Clients is an interface for retrieving cloud clients.
-	Clients common.CloudClients
+	Clients cloud.Clients
 	// HostID is the host identified where this agent is running.
 	// DELETE IN 11.0.
 	HostID string
@@ -61,7 +61,7 @@ func (c *IAMConfig) Check() error {
 		return trace.BadParameter("missing AccessPoint")
 	}
 	if c.Clients == nil {
-		c.Clients = common.NewCloudClients()
+		c.Clients = cloud.NewClients()
 	}
 	if c.HostID == "" {
 		return trace.BadParameter("missing HostID")
@@ -217,6 +217,10 @@ func (c *IAM) getPolicyName() (string, error) {
 func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 	configurator, err := c.getAWSConfigurator(ctx, task.database)
 	if err != nil {
+		if trace.Unwrap(err) == credentials.ErrNoValidProvidersFoundInChain {
+			c.log.Warnf("No AWS credentials provider. Skipping IAM task for database %v.", task.database.GetName())
+			return nil
+		}
 		return trace.Wrap(err)
 	}
 
@@ -277,7 +281,7 @@ func (c *IAM) deleteOldPolicy(ctx context.Context) {
 	identity, err := c.getAWSIdentity(ctx)
 	if err != nil {
 		if trace.Unwrap(err) == credentials.ErrNoValidProvidersFoundInChain {
-			c.log.Debug("No credentials provider. Skipping delete old policy.")
+			c.log.Debug("No AWS credentials provider. Skipping delete old policy.")
 			return
 		}
 		c.log.WithError(err).Error("Failed to get AWS identity.")
@@ -304,13 +308,13 @@ func (c *IAM) deleteOldPolicy(ctx context.Context) {
 				PolicyName: aws.String(policyName),
 				RoleName:   aws.String(identity.GetName()),
 			})
-			return common.ConvertError(err)
+			return awslib.ConvertIAMError(err)
 		case awslib.User:
 			_, err := iamClient.GetUserPolicyWithContext(ctx, &iam.GetUserPolicyInput{
 				PolicyName: aws.String(policyName),
 				UserName:   aws.String(identity.GetName()),
 			})
-			return common.ConvertError(err)
+			return awslib.ConvertIAMError(err)
 		default:
 			return trace.BadParameter("can only fetch policies for roles or users, got %v", identity)
 		}
@@ -346,7 +350,7 @@ func (c *IAM) deleteOldPolicy(ctx context.Context) {
 		})
 	}
 
-	if err != nil && !trace.IsNotFound(common.ConvertError(err)) {
+	if err != nil && !trace.IsNotFound(awslib.ConvertIAMError(err)) {
 		c.log.WithError(err).Errorf("Failed to delete inline policy %q for %v. It is recommended to remove this policy since it is no longer required.", oldPolicyName, identity)
 	}
 }

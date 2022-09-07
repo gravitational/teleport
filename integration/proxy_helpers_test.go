@@ -19,6 +19,8 @@ package integration
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509/pkix"
 	"encoding/json"
 	"net"
 	"net/http"
@@ -28,30 +30,26 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/breaker"
-	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/trace"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/clientcmd"
-	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
-
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth"
-	libclient "github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/stretchr/testify/require"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
 type ProxySuite struct {
@@ -69,8 +67,8 @@ type proxySuiteOptions struct {
 	rootClusterNodeName string
 	leafClusterNodeName string
 
-	rootClusterPorts *helpers.InstancePorts
-	leafClusterPorts *helpers.InstancePorts
+	rootClusterListeners helpers.InstanceListenerSetupFunc
+	leafClusterListeners helpers.InstanceListenerSetupFunc
 
 	rootTrustedSecretFunc func(suite *ProxySuite) []*helpers.InstanceSecrets
 	leafTrustedFunc       func(suite *ProxySuite) []*helpers.InstanceSecrets
@@ -84,33 +82,35 @@ type proxySuiteOptions struct {
 
 func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 	options := proxySuiteOptions{
-		rootClusterNodeName: Host,
-		leafClusterNodeName: Host,
-		rootClusterPorts:    helpers.SingleProxyPortSetup(),
-		leafClusterPorts:    helpers.SingleProxyPortSetup(),
+		rootClusterNodeName:  Host,
+		leafClusterNodeName:  Host,
+		rootClusterListeners: helpers.SingleProxyPortSetupOn(Host),
+		leafClusterListeners: helpers.SingleProxyPortSetupOn(Host),
 	}
 	for _, opt := range opts {
 		opt(&options)
 	}
 
-	rc := helpers.NewInstance(helpers.InstanceConfig{
+	rCfg := helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    options.rootClusterNodeName,
 		Log:         utils.NewLoggerForTests(),
-		Ports:       options.rootClusterPorts,
-	})
+	}
+	rCfg.Listeners = options.rootClusterListeners(t, &rCfg.Fds)
+	rc := helpers.NewInstance(t, rCfg)
 
 	// Create leaf cluster.
-	lc := helpers.NewInstance(helpers.InstanceConfig{
+	lCfg := helpers.InstanceConfig{
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    options.leafClusterNodeName,
 		Priv:        rc.Secrets.PrivKey,
 		Pub:         rc.Secrets.PubKey,
 		Log:         utils.NewLoggerForTests(),
-		Ports:       options.leafClusterPorts,
-	})
+	}
+	lCfg.Listeners = options.leafClusterListeners(t, &lCfg.Fds)
+	lc := helpers.NewInstance(t, lCfg)
 	suite := &ProxySuite{
 		root: rc,
 		leaf: lc,
@@ -175,11 +175,11 @@ func (p *ProxySuite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname strin
 		tconf.Console = nil
 		tconf.Log = utils.NewLoggerForTests()
 		tconf.Hostname = tunnelNodeHostname
-		tconf.Token = "token"
+		tconf.SetToken("token")
 		tconf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
-				Addr:        net.JoinHostPort(Loopback, p.leaf.GetPortWeb()),
+				Addr:        p.leaf.Web,
 			},
 		}
 		tconf.Auth.Enabled = false
@@ -284,15 +284,15 @@ func withLeafClusterNodeName(nodeName string) proxySuiteOptionsFunc {
 	}
 }
 
-func withRootClusterPorts(ports *helpers.InstancePorts) proxySuiteOptionsFunc {
+func withRootClusterListeners(fn helpers.InstanceListenerSetupFunc) proxySuiteOptionsFunc {
 	return func(options *proxySuiteOptions) {
-		options.rootClusterPorts = ports
+		options.rootClusterListeners = fn
 	}
 }
 
-func withLeafClusterPorts(ports *helpers.InstancePorts) proxySuiteOptionsFunc {
+func withLeafClusterListeners(fn helpers.InstanceListenerSetupFunc) proxySuiteOptionsFunc {
 	return func(options *proxySuiteOptions) {
-		options.leafClusterPorts = ports
+		options.leafClusterListeners = fn
 	}
 }
 
@@ -315,11 +315,11 @@ func rootClusterStandardConfig(t *testing.T) func(suite *ProxySuite) *service.Co
 		config.Auth.Preference.SetSecondFactor("off")
 		config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		config.Proxy.Enabled = true
-		config.Proxy.WebAddr.Addr = net.JoinHostPort(rc.Hostname, rc.GetPortWeb())
+		config.Proxy.WebAddr.Addr = rc.Web
 		config.Proxy.DisableWebService = false
 		config.Proxy.DisableWebInterface = true
 		config.SSH.Enabled = true
-		config.SSH.Addr.Addr = net.JoinHostPort(rc.Hostname, rc.GetPortSSH())
+		config.SSH.Addr.Addr = rc.SSH
 		config.SSH.Labels = map[string]string{"env": "integration"}
 		config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		return config
@@ -335,11 +335,11 @@ func leafClusterStandardConfig(t *testing.T) func(suite *ProxySuite) *service.Co
 		config.Auth.Preference.SetSecondFactor("off")
 		config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		config.Proxy.Enabled = true
-		config.Proxy.WebAddr.Addr = net.JoinHostPort(lc.Hostname, lc.GetPortWeb())
+		config.Proxy.WebAddr.Addr = lc.Web
 		config.Proxy.DisableWebService = false
 		config.Proxy.DisableWebInterface = true
 		config.SSH.Enabled = true
-		config.SSH.Addr.Addr = net.JoinHostPort(lc.Hostname, lc.GetPortSSH())
+		config.SSH.Addr.Addr = lc.SSH
 		config.SSH.Labels = map[string]string{"env": "integration"}
 		config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		return config
@@ -474,20 +474,38 @@ func mustCreateKubeConfigFile(t *testing.T, config clientcmdapi.Config) string {
 	return configPath
 }
 
-func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpncommon.Protocol) *alpnproxy.LocalProxy {
+func mustCreateListener(t *testing.T) net.Listener {
 	listener, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 
-	address, err := utils.ParseAddr(addr)
-	require.NoError(t, err)
-	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
+	t.Cleanup(func() {
+		listener.Close()
+	})
+	return listener
+}
+
+func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpncommon.Protocol) *alpnproxy.LocalProxy {
+	return mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:    addr,
 		Protocols:          []alpncommon.Protocol{protocol},
 		InsecureSkipVerify: true,
-		Listener:           listener,
-		ParentContext:      context.Background(),
-		SNI:                address.Host(),
 	})
+}
+
+func mustStartALPNLocalProxyWithConfig(t *testing.T, config alpnproxy.LocalProxyConfig) *alpnproxy.LocalProxy {
+	if config.Listener == nil {
+		config.Listener = mustCreateListener(t)
+	}
+	if config.SNI == "" {
+		address, err := utils.ParseAddr(config.RemoteProxyAddr)
+		require.NoError(t, err)
+		config.SNI = address.Host()
+	}
+	if config.ParentContext == nil {
+		config.ParentContext = context.TODO()
+	}
+
+	lp, err := alpnproxy.NewLocalProxy(config)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		lp.Close()
@@ -503,7 +521,7 @@ func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpncommon.Prot
 func makeNodeConfig(nodeName, authAddr string) *service.Config {
 	nodeConfig := service.MakeDefaultConfig()
 	nodeConfig.Hostname = nodeName
-	nodeConfig.Token = "token"
+	nodeConfig.SetToken("token")
 	nodeConfig.AuthServers = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
@@ -517,31 +535,70 @@ func makeNodeConfig(nodeName, authAddr string) *service.Config {
 	return nodeConfig
 }
 
-func mustCreateUserIdentityFile(t *testing.T, tc *helpers.TeleInstance, username string, ttl time.Duration) string {
-	key, err := libclient.NewKey()
-	require.NoError(t, err)
-	key.ClusterName = tc.Secrets.SiteName
-
-	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCerts(
-		key.Pub, username, ttl,
-		constants.CertificateFormatStandard,
-		tc.Secrets.SiteName, "",
-	)
+func mustCreateSelfSignedCert(t *testing.T) tls.Certificate {
+	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
+		CommonName: "localhost",
+	}, []string{"localhost"}, defaults.CATTL)
 	require.NoError(t, err)
 
-	key.Cert = sshCert
-	key.TLSCert = tlsCert
-
-	hostCAs, err := tc.Process.GetAuthServer().GetCertAuthorities(context.Background(), types.HostCA, false)
+	cert, err := tls.X509KeyPair(caCert, caKey)
 	require.NoError(t, err)
-	key.TrustedCA = auth.AuthoritiesToTrustedCerts(hostCAs)
+	return cert
+}
 
-	idPath := filepath.Join(t.TempDir(), "user_identity")
-	_, err = identityfile.Write(identityfile.WriteConfig{
-		OutputPath: idPath,
-		Key:        key,
-		Format:     identityfile.FormatFile,
-	})
-	require.NoError(t, err)
-	return idPath
+// mockAWSALBProxy is a mock proxy server that simulates an AWS application
+// load balancer where ALPN is not supported. Note that this mock does not
+// actually balance traffic.
+type mockAWSALBProxy struct {
+	net.Listener
+	proxyAddr string
+	cert      tls.Certificate
+}
+
+func (m *mockAWSALBProxy) serve(ctx context.Context, t *testing.T) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		conn, err := m.Accept()
+		if err != nil {
+			if utils.IsOKNetworkError(err) {
+				return
+			}
+			require.NoError(t, err)
+			return
+		}
+
+		go func() {
+			// Handshake with incoming client and drops ALPN.
+			downstreamConn := tls.Server(conn, &tls.Config{
+				Certificates: []tls.Certificate{m.cert},
+			})
+			require.NoError(t, downstreamConn.HandshakeContext(ctx))
+
+			// Make a connection to the proxy server with ALPN protos.
+			upstreamConn, err := tls.Dial("tcp", m.proxyAddr, &tls.Config{
+				InsecureSkipVerify: true,
+			})
+			require.NoError(t, err)
+
+			utils.ProxyConn(ctx, downstreamConn, upstreamConn)
+		}()
+	}
+}
+
+func mustStartMockALBProxy(t *testing.T, proxyAddr string) *mockAWSALBProxy {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	m := &mockAWSALBProxy{
+		proxyAddr: proxyAddr,
+		Listener:  mustCreateListener(t),
+		cert:      mustCreateSelfSignedCert(t),
+	}
+	go m.serve(ctx, t)
+	return m
 }

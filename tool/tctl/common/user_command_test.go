@@ -15,9 +15,14 @@
 package common
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -53,6 +58,123 @@ func TestTrimDurationSuffix(t *testing.T) {
 		t.Run(tt.comment, func(t *testing.T) {
 			fmt := trimDurationZeroSuffix(tt.ts)
 			require.Equal(t, fmt, tt.wantFmt)
+		})
+	}
+}
+
+func TestUserUpdate(t *testing.T) {
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: mustGetFreeLocalListenerAddr(t),
+			},
+		},
+	}
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+	ctx := context.Background()
+	client := getAuthClient(ctx, t, fileConfig)
+
+	baseUser, err := types.NewUser("test-user")
+	require.NoError(t, err)
+
+	tests := []struct {
+		name         string
+		args         []string
+		wantRoles    []string
+		wantTraits   map[string][]string
+		errorChecker func(error) bool
+	}{
+		{
+			name:         "no args",
+			errorChecker: trace.IsBadParameter,
+		},
+		{
+			name:      "new roles",
+			args:      []string{"--set-roles", "editor,access"},
+			wantRoles: []string{"editor", "access"},
+		},
+		{
+			name:         "nonexistant roles",
+			args:         []string{"--set-roles", "editor,access,fake"},
+			errorChecker: trace.IsNotFound,
+		},
+		{
+			name: "new logins",
+			args: []string{"--set-logins", "l1,l2,l3"},
+			wantTraits: map[string][]string{
+				constants.TraitLogins: {"l1", "l2", "l3"},
+			},
+		},
+		{
+			name: "new windows logins",
+			args: []string{"--set-windows-logins", "w1,w2,w3"},
+			wantTraits: map[string][]string{
+				constants.TraitWindowsLogins: {"w1", "w2", "w3"},
+			},
+		},
+		{
+			name: "new kube users",
+			args: []string{"--set-kubernetes-users", "k1,k2,k3"},
+			wantTraits: map[string][]string{
+				constants.TraitKubeUsers: {"k1", "k2", "k3"},
+			},
+		},
+		{
+			name: "new kube groups",
+			args: []string{"--set-kubernetes-groups", "k4,k5,k6"},
+			wantTraits: map[string][]string{
+				constants.TraitKubeGroups: {"k4", "k5", "k6"},
+			},
+		},
+		{
+			name: "new db users",
+			args: []string{"--set-db-users", "d1,d2,d3"},
+			wantTraits: map[string][]string{
+				constants.TraitDBUsers: {"d1", "d2", "d3"},
+			},
+		},
+		{
+			name: "new db names",
+			args: []string{"--set-db-names", "d4,d5,d6"},
+			wantTraits: map[string][]string{
+				constants.TraitDBNames: {"d4", "d5", "d6"},
+			},
+		},
+		{
+			name: "new AWS role ARNs",
+			args: []string{"--set-aws-role-arns", "a1,a2,a3"},
+			wantTraits: map[string][]string{
+				constants.TraitAWSRoleARNs: {"a1", "a2", "a3"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			require.NoError(t, client.UpsertUser(baseUser))
+			args := append([]string{"update"}, tc.args...)
+			args = append(args, "test-user")
+			err := runUserCommand(t, fileConfig, args)
+			if tc.errorChecker != nil {
+				require.True(t, tc.errorChecker(err), err)
+				return
+			}
+
+			require.NoError(t, err)
+			updatedUser, err := client.GetUser("test-user", false)
+			require.NoError(t, err)
+
+			if len(tc.wantRoles) > 0 {
+				require.Equal(t, tc.wantRoles, updatedUser.GetRoles())
+			}
+
+			for trait, values := range tc.wantTraits {
+				require.Equal(t, values, updatedUser.GetTraits()[trait])
+			}
 		})
 	}
 }

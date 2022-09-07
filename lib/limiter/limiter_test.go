@@ -21,15 +21,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/oxy/ratelimit"
+
 	"github.com/mailgun/timetools"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/peer"
-
-	"github.com/gravitational/oxy/ratelimit"
-	"github.com/gravitational/teleport/lib/utils"
-
-	. "gopkg.in/check.v1"
 )
 
 func TestMain(m *testing.M) {
@@ -37,26 +36,19 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestLimiter(t *testing.T) { TestingT(t) }
-
-type LimiterSuite struct {
-}
-
-var _ = Suite(&LimiterSuite{})
-
-func (s *LimiterSuite) TestConnectionsLimiter(c *C) {
+func TestConnectionsLimiter(t *testing.T) {
 	limiter, err := NewLimiter(
 		Config{
 			MaxConnections: 0,
 		},
 	)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
-		c.Assert(limiter.AcquireConnection("token1"), IsNil)
+		require.NoError(t, limiter.AcquireConnection("token1"))
 	}
 	for i := 0; i < 5; i++ {
-		c.Assert(limiter.AcquireConnection("token2"), IsNil)
+		require.NoError(t, limiter.AcquireConnection("token2"))
 	}
 
 	for i := 0; i < 10; i++ {
@@ -71,33 +63,33 @@ func (s *LimiterSuite) TestConnectionsLimiter(c *C) {
 			MaxConnections: 5,
 		},
 	)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
 	for i := 0; i < 5; i++ {
-		c.Assert(limiter.AcquireConnection("token1"), IsNil)
+		require.NoError(t, limiter.AcquireConnection("token1"))
 	}
 
 	for i := 0; i < 5; i++ {
-		c.Assert(limiter.AcquireConnection("token2"), IsNil)
+		require.NoError(t, limiter.AcquireConnection("token2"))
 	}
 	for i := 0; i < 5; i++ {
-		c.Assert(limiter.AcquireConnection("token2"), NotNil)
+		require.Error(t, limiter.AcquireConnection("token2"))
 	}
 
 	for i := 0; i < 10; i++ {
 		limiter.ReleaseConnection("token1")
-		c.Assert(limiter.AcquireConnection("token1"), IsNil)
+		require.NoError(t, limiter.AcquireConnection("token1"))
 	}
 
 	for i := 0; i < 5; i++ {
 		limiter.ReleaseConnection("token2")
 	}
 	for i := 0; i < 5; i++ {
-		c.Assert(limiter.AcquireConnection("token2"), IsNil)
+		require.NoError(t, limiter.AcquireConnection("token2"))
 	}
 }
 
-func (s *LimiterSuite) TestRateLimiter(c *C) {
+func TestRateLimiter(t *testing.T) {
 	// TODO: this test fails
 	clock := &timetools.FreezedTime{
 		CurrentTime: time.Date(2016, 6, 5, 4, 3, 2, 1, time.UTC),
@@ -119,28 +111,28 @@ func (s *LimiterSuite) TestRateLimiter(c *C) {
 				},
 			},
 		})
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
 	for i := 0; i < 20; i++ {
-		c.Assert(limiter.RegisterRequest("token1"), IsNil)
+		require.NoError(t, limiter.RegisterRequest("token1"))
 	}
 	for i := 0; i < 20; i++ {
-		c.Assert(limiter.RegisterRequest("token2"), IsNil)
+		require.NoError(t, limiter.RegisterRequest("token2"))
 	}
 
-	c.Assert(limiter.RegisterRequest("token1"), NotNil)
+	require.Error(t, limiter.RegisterRequest("token1"))
 
 	clock.Sleep(10 * time.Millisecond)
 	for i := 0; i < 10; i++ {
-		c.Assert(limiter.RegisterRequest("token1"), IsNil)
+		require.NoError(t, limiter.RegisterRequest("token1"))
 	}
-	c.Assert(limiter.RegisterRequest("token1"), NotNil)
+	require.Error(t, limiter.RegisterRequest("token1"))
 
 	clock.Sleep(10 * time.Millisecond)
 	for i := 0; i < 10; i++ {
-		c.Assert(limiter.RegisterRequest("token1"), IsNil)
+		require.NoError(t, limiter.RegisterRequest("token1"))
 	}
-	c.Assert(limiter.RegisterRequest("token1"), NotNil)
+	require.Error(t, limiter.RegisterRequest("token1"))
 
 	clock.Sleep(10 * time.Millisecond)
 	// the second rate is full
@@ -151,11 +143,11 @@ func (s *LimiterSuite) TestRateLimiter(c *C) {
 			break
 		}
 	}
-	c.Assert(err, NotNil)
+	require.Error(t, err)
 
 	clock.Sleep(10 * time.Millisecond)
 	// Now the second rate has free space
-	c.Assert(limiter.RegisterRequest("token1"), IsNil)
+	require.NoError(t, limiter.RegisterRequest("token1"))
 	err = nil
 	for i := 0; i < 15; i++ {
 		err = limiter.RegisterRequest("token1")
@@ -163,10 +155,10 @@ func (s *LimiterSuite) TestRateLimiter(c *C) {
 			break
 		}
 	}
-	c.Assert(err, NotNil)
+	require.Error(t, err)
 }
 
-func (s *LimiterSuite) TestCustomRate(c *C) {
+func TestCustomRate(t *testing.T) {
 	clock := &timetools.FreezedTime{
 		CurrentTime: time.Date(2016, 6, 5, 4, 3, 2, 1, time.UTC),
 	}
@@ -183,23 +175,23 @@ func (s *LimiterSuite) TestCustomRate(c *C) {
 				},
 			},
 		})
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
 	customRate := ratelimit.NewRateSet()
 	err = customRate.Add(time.Minute, 1, 5)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
 	// Max out custom rate.
 	for i := 0; i < 5; i++ {
-		c.Assert(limiter.RegisterRequestWithCustomRate("token1", customRate), IsNil)
+		require.NoError(t, limiter.RegisterRequestWithCustomRate("token1", customRate))
 	}
 
 	// Test rate limit exceeded with custom rate.
-	c.Assert(limiter.RegisterRequestWithCustomRate("token1", customRate), NotNil)
+	require.Error(t, limiter.RegisterRequestWithCustomRate("token1", customRate))
 
 	// Test default rate still works.
 	for i := 0; i < 20; i++ {
-		c.Assert(limiter.RegisterRequest("token1"), IsNil)
+		require.NoError(t, limiter.RegisterRequest("token1"))
 	}
 }
 
@@ -239,7 +231,7 @@ func TestLimiter_UnaryServerInterceptor(t *testing.T) {
 	_, err = unaryInterceptor(ctx, req, serverInfo, handler)
 	require.NoError(t, err)
 
-	// should eventually fail, not testing the limiter behaviour here
+	// should eventually fail, not testing the limiter behavior here
 	for i := 0; i < 10; i++ {
 		_, err = unaryInterceptor(ctx, req, serverInfo, handler)
 		if err != nil {
@@ -261,7 +253,7 @@ func TestLimiter_UnaryServerInterceptor(t *testing.T) {
 	_, err = unaryInterceptor(ctx, req, serverInfo, handler)
 	require.NoError(t, err)
 
-	// should eventually fail, not testing the limiter behaviour here
+	// should eventually fail, not testing the limiter behavior here
 	for i := 0; i < 10; i++ {
 		_, err = unaryInterceptor(ctx, req, serverInfo, handler)
 		if err != nil {
@@ -304,7 +296,7 @@ func TestLimiter_StreamServerInterceptor(t *testing.T) {
 	err = limiter.StreamServerInterceptor(nil, ss, info, handler)
 	require.NoError(t, err)
 
-	// should eventually fail, not testing the limiter behaviour here
+	// should eventually fail, not testing the limiter behavior here
 	for i := 0; i < 10; i++ {
 		err = limiter.StreamServerInterceptor(nil, ss, info, handler)
 		if err != nil {

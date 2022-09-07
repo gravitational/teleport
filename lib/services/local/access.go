@@ -69,7 +69,7 @@ func (s *AccessService) GetRoles(ctx context.Context) ([]types.Role, error) {
 }
 
 // CreateRole creates a role on the backend.
-func (s *AccessService) CreateRole(role types.Role) error {
+func (s *AccessService) CreateRole(ctx context.Context, role types.Role) error {
 	err := services.ValidateRoleName(role)
 	if err != nil {
 		return trace.Wrap(err)
@@ -86,7 +86,7 @@ func (s *AccessService) CreateRole(role types.Role) error {
 		Expires: role.Expiry(),
 	}
 
-	_, err = s.Create(context.TODO(), item)
+	_, err = s.Create(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}

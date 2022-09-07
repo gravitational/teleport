@@ -42,6 +42,7 @@ func TestMain(m *testing.M) {
 // TestLinear tests retry logic
 func TestLinear(t *testing.T) {
 	t.Parallel()
+
 	r, err := NewLinear(LinearConfig{
 		Step: time.Second,
 		Max:  3 * time.Second,
@@ -61,8 +62,9 @@ func TestLinear(t *testing.T) {
 }
 
 func TestHostUUIDIdempotent(t *testing.T) {
-	// call twice, get same result
 	t.Parallel()
+
+	// call twice, get same result
 	dir := t.TempDir()
 	id, err := ReadOrMakeHostUUID(dir)
 	require.Len(t, id, 36)
@@ -73,8 +75,9 @@ func TestHostUUIDIdempotent(t *testing.T) {
 }
 
 func TestHostUUIDBadLocation(t *testing.T) {
-	// call with a read-only dir, make sure to get an error
 	t.Parallel()
+
+	// call with a read-only dir, make sure to get an error
 	id, err := ReadOrMakeHostUUID("/bad-location")
 	require.Equal(t, id, "")
 	require.Error(t, err)
@@ -82,8 +85,9 @@ func TestHostUUIDBadLocation(t *testing.T) {
 }
 
 func TestHostUUIDIgnoreWhitespace(t *testing.T) {
-	// newlines are getting ignored
 	t.Parallel()
+
+	// newlines are getting ignored
 	dir := t.TempDir()
 	id := fmt.Sprintf("%s\n", uuid.NewString())
 	err := os.WriteFile(filepath.Join(dir, HostUUIDFile), []byte(id), 0666)
@@ -94,8 +98,9 @@ func TestHostUUIDIgnoreWhitespace(t *testing.T) {
 }
 
 func TestHostUUIDRegenerateEmpty(t *testing.T) {
-	// empty UUID in file is regenerated
 	t.Parallel()
+
+	// empty UUID in file is regenerated
 	dir := t.TempDir()
 	err := os.WriteFile(filepath.Join(dir, HostUUIDFile), nil, 0666)
 	require.NoError(t, err)
@@ -105,6 +110,8 @@ func TestHostUUIDRegenerateEmpty(t *testing.T) {
 }
 
 func TestSelfSignedCert(t *testing.T) {
+	t.Parallel()
+
 	creds, err := GenerateSelfSignedCert([]string{"example.com"})
 	require.NoError(t, err)
 	require.NotNil(t, creds)
@@ -114,6 +121,7 @@ func TestSelfSignedCert(t *testing.T) {
 
 func TestRandomDuration(t *testing.T) {
 	t.Parallel()
+
 	expectedMin := time.Duration(0)
 	expectedMax := time.Second * 10
 	for i := 0; i < 50; i++ {
@@ -125,6 +133,7 @@ func TestRandomDuration(t *testing.T) {
 
 func TestRemoveFromSlice(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name     string
 		slice    []string
@@ -147,6 +156,7 @@ func TestRemoveFromSlice(t *testing.T) {
 // TestVersions tests versions compatibility checking
 func TestVersions(t *testing.T) {
 	t.Parallel()
+
 	type tc struct {
 		info      string
 		client    string
@@ -177,6 +187,7 @@ func TestVersions(t *testing.T) {
 // TestClickableURL tests clickable URL conversions
 func TestClickableURL(t *testing.T) {
 	t.Parallel()
+
 	testCases := []struct {
 		info string
 		in   string
@@ -199,6 +210,7 @@ func TestClickableURL(t *testing.T) {
 // TestParseAdvertiseAddr tests parsing of advertise address
 func TestParseAdvertiseAddr(t *testing.T) {
 	t.Parallel()
+
 	type tc struct {
 		info string
 		in   string
@@ -242,6 +254,7 @@ func TestParseAdvertiseAddr(t *testing.T) {
 // with regular expression compatible value
 func TestGlobToRegexp(t *testing.T) {
 	t.Parallel()
+
 	testCases := []struct {
 		comment string
 		in      string
@@ -276,9 +289,60 @@ func TestGlobToRegexp(t *testing.T) {
 	}
 }
 
+func TestIsValidHostname(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		hostname string
+		assert   require.BoolAssertionFunc
+	}{
+		{
+			name:     "normal hostname",
+			hostname: "some-host-1.example.com",
+			assert:   require.True,
+		},
+		{
+			name:     "one component",
+			hostname: "example",
+			assert:   require.True,
+		},
+		{
+			name:     "empty",
+			hostname: "",
+			assert:   require.False,
+		},
+		{
+			name:     "invalid characters",
+			hostname: "some spaces.example.com",
+			assert:   require.False,
+		},
+		{
+			name:     "empty label",
+			hostname: "somewhere..example.com",
+			assert:   require.False,
+		},
+		{
+			name:     "label too long",
+			hostname: strings.Repeat("x", 64) + ".example.com",
+			assert:   require.False,
+		},
+		{
+			name:     "hostname too long",
+			hostname: strings.Repeat("x.", 256) + ".example.com",
+			assert:   require.False,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.assert(t, IsValidHostname(tc.hostname))
+		})
+	}
+}
+
 // TestReplaceRegexp tests regexp-style replacement of values
 func TestReplaceRegexp(t *testing.T) {
 	t.Parallel()
+
 	testCases := []struct {
 		comment string
 		expr    string
@@ -381,6 +445,7 @@ func TestReplaceRegexp(t *testing.T) {
 // TestContainsExpansion tests whether string contains expansion value
 func TestContainsExpansion(t *testing.T) {
 	t.Parallel()
+
 	testCases := []struct {
 		comment  string
 		val      string
@@ -428,6 +493,7 @@ func TestContainsExpansion(t *testing.T) {
 // TestMarshalYAML tests marshal/unmarshal of elements
 func TestMarshalYAML(t *testing.T) {
 	t.Parallel()
+
 	type kv struct {
 		Key string
 	}
@@ -485,6 +551,7 @@ func TestMarshalYAML(t *testing.T) {
 // TestReadToken tests reading token from file and as is
 func TestTryReadValueAsFile(t *testing.T) {
 	t.Parallel()
+
 	tok, err := TryReadValueAsFile("token")
 	require.Equal(t, "token", tok)
 	require.NoError(t, err)
@@ -504,6 +571,8 @@ func TestTryReadValueAsFile(t *testing.T) {
 
 // TestStringsSet makes sure that nil slice returns empty set (less error prone)
 func TestStringsSet(t *testing.T) {
+	t.Parallel()
+
 	out := StringsSet(nil)
 	require.Len(t, out, 0)
 	require.NotNil(t, out)
@@ -512,6 +581,7 @@ func TestStringsSet(t *testing.T) {
 // TestRepeatReader tests repeat reader
 func TestRepeatReader(t *testing.T) {
 	t.Parallel()
+
 	type tc struct {
 		name     string
 		repeat   byte
@@ -549,6 +619,7 @@ func TestRepeatReader(t *testing.T) {
 
 func TestReadAtMost(t *testing.T) {
 	t.Parallel()
+
 	testCases := []struct {
 		name  string
 		limit int64

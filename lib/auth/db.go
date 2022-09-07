@@ -185,7 +185,7 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	}
 
 	// Generate the TLS certificate.
-	ca, err := s.Trust.GetCertAuthority(ctx, types.CertAuthID{
+	ca, err := s.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       caType,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
@@ -229,7 +229,7 @@ func (s *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ca, err := s.Trust.GetCertAuthority(ctx, types.CertAuthID{
+	ca, err := s.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.DatabaseCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)

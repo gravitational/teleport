@@ -1,5 +1,5 @@
 /*
-Copyright 2020-2021 Gravitational, Inc.
+Copyright 2020-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,13 +29,11 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
 	"net/url"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -54,10 +52,14 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/app"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/oxy/forward"
@@ -84,6 +86,7 @@ func TestAppAccess(t *testing.T) {
 	t.Run("TestAppAccessNoHeaderOverrides", pack.appAccessNoHeaderOverrides)
 	t.Run("TestAppAuditEvents", pack.appAuditEvents)
 	t.Run("TestAppInvalidateAppSessionsOnLogout", pack.appInvalidateAppSessionsOnLogout)
+	t.Run("TestAppAccessTCP", pack.appAccessTCP)
 
 	// This test should go last because it stops/starts app servers.
 	t.Run("TestAppServersHA", pack.appServersHA)
@@ -176,6 +179,43 @@ func (p *pack) appAccessWebsockets(t *testing.T) {
 	}
 }
 
+// appAccessTCP tests proxying of plain TCP applications through app access.
+func (p *pack) appAccessTCP(t *testing.T) {
+	pack := setup(t)
+
+	tests := []struct {
+		description string
+		address     string
+		outMessage  string
+	}{
+		{
+			description: "TCP app in root cluster",
+			address:     pack.startLocalProxy(t, pack.rootTCPPublicAddr, pack.rootAppClusterName),
+			outMessage:  pack.rootTCPMessage,
+		},
+		{
+			description: "TCP app in leaf cluster",
+			address:     pack.startLocalProxy(t, pack.leafTCPPublicAddr, pack.leafAppClusterName),
+			outMessage:  pack.leafTCPMessage,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.description, func(t *testing.T) {
+			conn, err := net.Dial("tcp", test.address)
+			require.NoError(t, err)
+
+			buf := make([]byte, 1024)
+			n, err := conn.Read(buf)
+			require.NoError(t, err)
+
+			resp := strings.TrimSpace(string(buf[:n]))
+			require.Equal(t, test.outMessage, resp)
+		})
+	}
+}
+
+// appAccessClientCert tests mutual TLS authentication flow with application
 // access typically used in CLI by curl and other clients.
 func (p *pack) appAccessClientCert(t *testing.T) {
 	tests := []struct {
@@ -326,6 +366,20 @@ func (p *pack) appAccessJWT(t *testing.T) {
 
 	// Verify JWT token.
 	verifyJWT(t, p, token, p.jwtAppURI)
+
+	// Connect to websocket application that dumps the upgrade request.
+	wsCookie := p.createAppSession(t, p.wsHeaderAppPublicAddr, p.wsHeaderAppClusterName)
+	body, err := p.makeWebsocketRequest(wsCookie, "/")
+	require.NoError(t, err)
+
+	// Parse the upgrade request the websocket application received.
+	req, err := http.ReadRequest(bufio.NewReader(strings.NewReader(body)))
+	require.NoError(t, err)
+
+	// Extract JWT token from header and verify it.
+	wsToken := req.Header.Get(teleport.AppJWTHeader)
+	require.NotEmpty(t, wsToken, "websocket upgrade request doesn't contain JWT header")
+	verifyJWT(t, p, wsToken, p.wsHeaderAppURI)
 }
 
 func verifyJWT(t *testing.T, pack *pack, token, appURI string) {
@@ -712,6 +766,11 @@ type pack struct {
 	rootWSSMessage    string
 	rootWSSAppURI     string
 
+	rootTCPAppName    string
+	rootTCPPublicAddr string
+	rootTCPMessage    string
+	rootTCPAppURI     string
+
 	jwtAppName        string
 	jwtAppPublicAddr  string
 	jwtAppClusterName string
@@ -738,10 +797,20 @@ type pack struct {
 	leafWSSMessage    string
 	leafWSSAppURI     string
 
+	leafTCPAppName    string
+	leafTCPPublicAddr string
+	leafTCPMessage    string
+	leafTCPAppURI     string
+
 	headerAppName        string
 	headerAppPublicAddr  string
 	headerAppClusterName string
 	headerAppURI         string
+
+	wsHeaderAppName        string
+	wsHeaderAppPublicAddr  string
+	wsHeaderAppClusterName string
+	wsHeaderAppURI         string
 
 	flushAppName        string
 	flushAppPublicAddr  string
@@ -750,10 +819,10 @@ type pack struct {
 }
 
 type appTestOptions struct {
-	extraRootApps    []service.App
-	extraLeafApps    []service.App
-	rootClusterPorts *helpers.InstancePorts
-	leafClusterPorts *helpers.InstancePorts
+	extraRootApps        []service.App
+	extraLeafApps        []service.App
+	rootClusterListeners helpers.InstanceListenerSetupFunc
+	leafClusterListeners helpers.InstanceListenerSetupFunc
 
 	rootConfig func(config *service.Config)
 	leafConfig func(config *service.Config)
@@ -762,6 +831,29 @@ type appTestOptions struct {
 // setup configures all clusters and servers needed for a test.
 func setup(t *testing.T) *pack {
 	return setupWithOptions(t, appTestOptions{})
+}
+
+// newTCPServer starts accepting TCP connections and serving them using the
+// provided handler. Handlers are expected to close client connections.
+// Returns the TCP listener.
+func newTCPServer(t *testing.T, handleConn func(net.Conn)) net.Listener {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err == nil {
+				go handleConn(conn)
+			}
+			if err != nil && !utils.IsOKNetworkError(err) {
+				t.Error(err)
+				return
+			}
+		}
+	}()
+
+	return listener
 }
 
 // setupWithOptions configures app access test with custom options.
@@ -789,6 +881,10 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		rootWSSPublicAddr: "wss-01.example.com",
 		rootWSSMessage:    uuid.New().String(),
 
+		rootTCPAppName:    "tcp-01",
+		rootTCPPublicAddr: "tcp-01.example.com",
+		rootTCPMessage:    uuid.New().String(),
+
 		leafAppName:        "app-02",
 		leafAppPublicAddr:  "app-02.example.com",
 		leafAppClusterName: "leaf.example.com",
@@ -802,6 +898,10 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		leafWSSPublicAddr: "wss-02.example.com",
 		leafWSSMessage:    uuid.New().String(),
 
+		leafTCPAppName:    "tcp-02",
+		leafTCPPublicAddr: "tcp-02.example.com",
+		leafTCPMessage:    uuid.New().String(),
+
 		jwtAppName:        "app-03",
 		jwtAppPublicAddr:  "app-03.example.com",
 		jwtAppClusterName: "example.com",
@@ -809,6 +909,10 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		headerAppName:        "app-04",
 		headerAppPublicAddr:  "app-04.example.com",
 		headerAppClusterName: "example.com",
+
+		wsHeaderAppName:        "ws-header",
+		wsHeaderAppPublicAddr:  "ws-header.example.com",
+		wsHeaderAppClusterName: "example.com",
 
 		flushAppName:        "app-05",
 		flushAppPublicAddr:  "app-05.example.com",
@@ -821,7 +925,6 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 				ReadBufferSize:  1024,
 				WriteBufferSize: 1024,
 			}
-
 			conn, err := upgrader.Upgrade(w, r, nil)
 			require.NoError(t, err)
 			handler(conn)
@@ -845,6 +948,13 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		conn.Close()
 	}))
 	t.Cleanup(rootWSSServer.Close)
+	// Plain TCP application in root cluster (tcp://).
+	rootTCPServer := newTCPServer(t, func(c net.Conn) {
+		c.Write([]byte(p.rootTCPMessage))
+		c.Close()
+	})
+	t.Cleanup(func() { rootTCPServer.Close() })
+	// HTTP server in leaf cluster.
 	leafServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, p.leafMessage)
 	}))
@@ -861,10 +971,27 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		conn.Close()
 	}))
 	t.Cleanup(leafWSSServer.Close)
+	// Plain TCP application in leaf cluster (tcp://).
+	leafTCPServer := newTCPServer(t, func(c net.Conn) {
+		c.Write([]byte(p.leafTCPMessage))
+		c.Close()
+	})
+	t.Cleanup(func() { leafTCPServer.Close() })
+	// JWT server writes generated JWT token in the response.
 	jwtServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, r.Header.Get(teleport.AppJWTHeader))
 	}))
 	t.Cleanup(jwtServer.Close)
+	// Websocket header server dumps initial HTTP upgrade request in the response.
+	wsHeaderServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := (&websocket.Upgrader{}).Upgrade(w, r, nil)
+		require.NoError(t, err)
+		reqDump, err := httputil.DumpRequest(r, false)
+		require.NoError(t, err)
+		require.NoError(t, conn.WriteMessage(websocket.BinaryMessage, reqDump))
+		require.NoError(t, conn.Close())
+	}))
+	t.Cleanup(wsHeaderServer.Close)
 	headerServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		for _, headerName := range forwardedHeaderNames {
 			fmt.Fprintln(w, r.Header.Get(headerName))
@@ -899,11 +1026,14 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	p.rootAppURI = rootServer.URL
 	p.rootWSAppURI = rootWSServer.URL
 	p.rootWSSAppURI = rootWSSServer.URL
+	p.rootTCPAppURI = fmt.Sprintf("tcp://%v", rootTCPServer.Addr().String())
 	p.leafAppURI = leafServer.URL
 	p.leafWSAppURI = leafWSServer.URL
 	p.leafWSSAppURI = leafWSSServer.URL
+	p.leafTCPAppURI = fmt.Sprintf("tcp://%v", leafTCPServer.Addr().String())
 	p.jwtAppURI = jwtServer.URL
 	p.headerAppURI = headerServer.URL
+	p.wsHeaderAppURI = wsHeaderServer.URL
 	p.flushAppURI = flushServer.URL
 	p.dumperAppURI = dumperServer.URL
 
@@ -911,26 +1041,32 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	require.NoError(t, err)
 
 	// Create a new Teleport instance with passed in configuration.
-	p.rootCluster = helpers.NewInstance(helpers.InstanceConfig{
+	rootCfg := helpers.InstanceConfig{
 		ClusterName: "example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
 		Log:         log,
-		Ports:       opts.rootClusterPorts,
-	})
+	}
+	if opts.rootClusterListeners != nil {
+		rootCfg.Listeners = opts.rootClusterListeners(t, &rootCfg.Fds)
+	}
+	p.rootCluster = helpers.NewInstance(t, rootCfg)
 
 	// Create a new Teleport instance with passed in configuration.
-	p.leafCluster = helpers.NewInstance(helpers.InstanceConfig{
+	leafCfg := helpers.InstanceConfig{
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
 		Log:         log,
-		Ports:       opts.leafClusterPorts,
-	})
+	}
+	if opts.leafClusterListeners != nil {
+		leafCfg.Listeners = opts.leafClusterListeners(t, &leafCfg.Fds)
+	}
+	p.leafCluster = helpers.NewInstance(t, leafCfg)
 
 	rcConf := service.MakeDefaultConfig()
 	rcConf.Console = nil
@@ -1034,7 +1170,7 @@ func (p *pack) initWebSession(t *testing.T) {
 	// Create POST request to create session.
 	u := url.URL{
 		Scheme: "https",
-		Host:   net.JoinHostPort(Loopback, p.rootCluster.GetPortWeb()),
+		Host:   p.rootCluster.Web,
 		Path:   "/v1/webapi/sessions/web",
 	}
 	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewBuffer(csReq))
@@ -1090,7 +1226,7 @@ func (p *pack) initTeleportClient(t *testing.T) {
 		Login:   p.user.GetName(),
 		Cluster: p.rootCluster.Secrets.SiteName,
 		Host:    Loopback,
-		Port:    p.rootCluster.GetPortSSHInt(),
+		Port:    helpers.Port(t, p.rootCluster.SSH),
 	}, *creds)
 	require.NoError(t, err)
 
@@ -1124,7 +1260,7 @@ func (p *pack) createAppSession(t *testing.T, publicAddr, clusterName string) st
 func (p *pack) makeWebapiRequest(method, endpoint string, payload []byte) (int, []byte, error) {
 	u := url.URL{
 		Scheme: "https",
-		Host:   net.JoinHostPort(Loopback, p.rootCluster.GetPortWeb()),
+		Host:   p.rootCluster.Web,
 		Path:   fmt.Sprintf("/v1/webapi/%s", endpoint),
 	}
 
@@ -1178,6 +1314,29 @@ func (p *pack) initCertPool(t *testing.T) {
 	require.NoError(t, err)
 
 	p.rootCertPool = pool
+}
+
+// startLocalProxy starts a local ALPN proxy for the specified application.
+func (p *pack) startLocalProxy(t *testing.T, publicAddr, clusterName string) string {
+	tlsConfig := p.makeTLSConfig(t, publicAddr, clusterName)
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	proxy, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
+		RemoteProxyAddr:    p.rootCluster.Web,
+		Protocols:          []alpncommon.Protocol{alpncommon.ProtocolTCP},
+		InsecureSkipVerify: true,
+		Listener:           listener,
+		ParentContext:      context.Background(),
+		Certs:              tlsConfig.Certificates,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { proxy.Close() })
+
+	go proxy.Start(context.Background())
+
+	return proxy.GetAddr()
 }
 
 // makeTLSConfig returns TLS config suitable for making an app access request.
@@ -1287,7 +1446,7 @@ func (p *pack) makeWebsocketRequest(sessionCookie, endpoint string) (string, err
 	dialer.TLSClientConfig = &tls.Config{
 		InsecureSkipVerify: true,
 	}
-	conn, resp, err := dialer.Dial(fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, p.rootCluster.GetPortWeb()), endpoint), header)
+	conn, resp, err := dialer.Dial(fmt.Sprintf("wss://%s%s", p.rootCluster.Web, endpoint), header)
 	if err != nil {
 		return "", err
 	}
@@ -1306,7 +1465,7 @@ func (p *pack) makeWebsocketRequest(sessionCookie, endpoint string) (string, err
 func (p *pack) assembleRootProxyURL(endpoint string) string {
 	u := url.URL{
 		Scheme: "https",
-		Host:   net.JoinHostPort(Loopback, p.rootCluster.GetPortWeb()),
+		Host:   p.rootCluster.Web,
 		Path:   endpoint,
 	}
 	return u.String()
@@ -1377,11 +1536,11 @@ func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 		raConf.Console = nil
 		raConf.Log = log
 		raConf.DataDir = t.TempDir()
-		raConf.Token = "static-token-value"
+		raConf.SetToken("static-token-value")
 		raConf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
-				Addr:        net.JoinHostPort(Loopback, p.rootCluster.GetPortWeb()),
+				Addr:        p.rootCluster.Web,
 			},
 		}
 		raConf.Auth.Enabled = false
@@ -1406,6 +1565,11 @@ func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 				PublicAddr: p.rootWSSPublicAddr,
 			},
 			{
+				Name:       p.rootTCPAppName,
+				URI:        p.rootTCPAppURI,
+				PublicAddr: p.rootTCPPublicAddr,
+			},
+			{
 				Name:       p.jwtAppName,
 				URI:        p.jwtAppURI,
 				PublicAddr: p.jwtAppPublicAddr,
@@ -1414,6 +1578,11 @@ func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 				Name:       p.headerAppName,
 				URI:        p.headerAppURI,
 				PublicAddr: p.headerAppPublicAddr,
+			},
+			{
+				Name:       p.wsHeaderAppName,
+				URI:        p.wsHeaderAppURI,
+				PublicAddr: p.wsHeaderAppPublicAddr,
 			},
 			{
 				Name:       p.flushAppName,
@@ -1506,11 +1675,11 @@ func (p *pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 		laConf.Console = nil
 		laConf.Log = log
 		laConf.DataDir = t.TempDir()
-		laConf.Token = "static-token-value"
+		laConf.SetToken("static-token-value")
 		laConf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
-				Addr:        net.JoinHostPort(Loopback, p.leafCluster.GetPortWeb()),
+				Addr:        p.leafCluster.Web,
 			},
 		}
 		laConf.Auth.Enabled = false
@@ -1533,6 +1702,11 @@ func (p *pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 				Name:       p.leafWSSAppName,
 				URI:        p.leafWSSAppURI,
 				PublicAddr: p.leafWSSPublicAddr,
+			},
+			{
+				Name:       p.leafTCPAppName,
+				URI:        p.leafTCPAppURI,
+				PublicAddr: p.leafTCPPublicAddr,
 			},
 			{
 				Name:       "dumper-leaf",

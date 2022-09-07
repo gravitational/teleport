@@ -29,14 +29,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise it will run tests as normal.
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
+
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
 	if IsReexec() {
@@ -50,7 +52,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestOSCommandPrep(t *testing.T) {
-	srv := newMockServer(t)
+	srv := NewMockServer(t)
 	scx := newExecServerContext(t, srv)
 
 	usr, err := user.Current()
@@ -133,7 +135,7 @@ func TestOSCommandPrep(t *testing.T) {
 // TestContinue tests if the process hangs if a continue signal is not sent
 // and makes sure the process continues once it has been sent.
 func TestContinue(t *testing.T) {
-	srv := newMockServer(t)
+	srv := NewMockServer(t)
 	scx := newExecServerContext(t, srv)
 
 	// Configure Session Context to re-exec "ls".

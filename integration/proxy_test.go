@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
@@ -48,43 +49,45 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+
+	dbhelpers "github.com/gravitational/teleport/integration/db"
 )
 
 // TestALPNSNIProxyMultiCluster tests SSH connection in multi-cluster setup with.
 func TestALPNSNIProxyMultiCluster(t *testing.T) {
 	testCase := []struct {
 		name                      string
-		mainClusterPortSetup      *helpers.InstancePorts
-		secondClusterPortSetup    *helpers.InstancePorts
+		mainClusterPortSetup      helpers.InstanceListenerSetupFunc
+		secondClusterPortSetup    helpers.InstanceListenerSetupFunc
 		disableALPNListenerOnRoot bool
 		disableALPNListenerOnLeaf bool
 	}{
 		{
 			name:                      "StandardAndOnePortSetupMasterALPNDisabled",
-			mainClusterPortSetup:      helpers.StandardPortSetup(),
-			secondClusterPortSetup:    helpers.SingleProxyPortSetup(),
+			mainClusterPortSetup:      helpers.StandardListenerSetup,
+			secondClusterPortSetup:    helpers.SingleProxyPortSetup,
 			disableALPNListenerOnRoot: true,
 		},
 		{
 			name:                   "StandardAndOnePortSetup",
-			mainClusterPortSetup:   helpers.StandardPortSetup(),
-			secondClusterPortSetup: helpers.SingleProxyPortSetup(),
+			mainClusterPortSetup:   helpers.StandardListenerSetup,
+			secondClusterPortSetup: helpers.SingleProxyPortSetup,
 		},
 		{
 			name:                   "TwoClusterOnePortSetup",
-			mainClusterPortSetup:   helpers.SingleProxyPortSetup(),
-			secondClusterPortSetup: helpers.SingleProxyPortSetup(),
+			mainClusterPortSetup:   helpers.SingleProxyPortSetup,
+			secondClusterPortSetup: helpers.SingleProxyPortSetup,
 		},
 		{
-			name:                      "OnePortAndStandardPortSetupLeafALPNDisabled",
-			mainClusterPortSetup:      helpers.SingleProxyPortSetup(),
-			secondClusterPortSetup:    helpers.StandardPortSetup(),
+			name:                      "OnePortAndStandardListenerSetupLeafALPNDisabled",
+			mainClusterPortSetup:      helpers.SingleProxyPortSetup,
+			secondClusterPortSetup:    helpers.StandardListenerSetup,
 			disableALPNListenerOnLeaf: true,
 		},
 		{
-			name:                   "OnePortAndStandardPortSetup",
-			mainClusterPortSetup:   helpers.SingleProxyPortSetup(),
-			secondClusterPortSetup: helpers.StandardPortSetup(),
+			name:                   "OnePortAndStandardListenerSetup",
+			mainClusterPortSetup:   helpers.SingleProxyPortSetup,
+			secondClusterPortSetup: helpers.StandardListenerSetup,
 		},
 	}
 
@@ -102,8 +105,8 @@ func TestALPNSNIProxyMultiCluster(t *testing.T) {
 				withLeafClusterConfig(leafClusterStandardConfig(t), func(config *service.Config) {
 					config.Proxy.DisableALPNSNIListener = tc.disableALPNListenerOnLeaf
 				}),
-				withRootClusterPorts(tc.mainClusterPortSetup),
-				withLeafClusterPorts(tc.secondClusterPortSetup),
+				withRootClusterListeners(tc.mainClusterPortSetup),
+				withLeafClusterListeners(tc.secondClusterPortSetup),
 				withRootAndLeafClusterRoles(createTestRole(username)),
 				withStandardRoleMapping(),
 			)
@@ -112,14 +115,14 @@ func TestALPNSNIProxyMultiCluster(t *testing.T) {
 				Login:   username,
 				Cluster: suite.root.Secrets.SiteName,
 				Host:    Loopback,
-				Port:    suite.root.GetPortSSHInt(),
+				Port:    helpers.Port(t, suite.root.SSH),
 			})
 			// Run command in leaf.
 			suite.mustConnectToClusterAndRunSSHCommand(t, helpers.ClientConfig{
 				Login:   username,
 				Cluster: suite.leaf.Secrets.SiteName,
 				Host:    Loopback,
-				Port:    suite.leaf.GetPortSSHInt(),
+				Port:    helpers.Port(t, suite.leaf.SSH),
 			})
 		})
 	}
@@ -128,38 +131,38 @@ func TestALPNSNIProxyMultiCluster(t *testing.T) {
 // TestALPNSNIProxyTrustedClusterNode tests ssh connection to a trusted cluster node.
 func TestALPNSNIProxyTrustedClusterNode(t *testing.T) {
 	testCase := []struct {
-		name                      string
-		mainClusterPortSetup      *helpers.InstancePorts
-		secondClusterPortSetup    *helpers.InstancePorts
-		disableALPNListenerOnRoot bool
-		disableALPNListenerOnLeaf bool
+		name                       string
+		mainClusterListenerSetup   helpers.InstanceListenerSetupFunc
+		secondClusterListenerSetup helpers.InstanceListenerSetupFunc
+		disableALPNListenerOnRoot  bool
+		disableALPNListenerOnLeaf  bool
 	}{
 		{
-			name:                      "StandardAndOnePortSetupMasterALPNDisabled",
-			mainClusterPortSetup:      helpers.StandardPortSetup(),
-			secondClusterPortSetup:    helpers.SingleProxyPortSetup(),
-			disableALPNListenerOnRoot: true,
+			name:                       "StandardAndOnePortSetupMasterALPNDisabled",
+			mainClusterListenerSetup:   helpers.StandardListenerSetup,
+			secondClusterListenerSetup: helpers.SingleProxyPortSetup,
+			disableALPNListenerOnRoot:  true,
 		},
 		{
-			name:                   "StandardAndOnePortSetup",
-			mainClusterPortSetup:   helpers.StandardPortSetup(),
-			secondClusterPortSetup: helpers.SingleProxyPortSetup(),
+			name:                       "StandardAndOnePortSetup",
+			mainClusterListenerSetup:   helpers.StandardListenerSetup,
+			secondClusterListenerSetup: helpers.SingleProxyPortSetup,
 		},
 		{
-			name:                   "TwoClusterOnePortSetup",
-			mainClusterPortSetup:   helpers.SingleProxyPortSetup(),
-			secondClusterPortSetup: helpers.SingleProxyPortSetup(),
+			name:                       "TwoClusterOnePortSetup",
+			mainClusterListenerSetup:   helpers.SingleProxyPortSetup,
+			secondClusterListenerSetup: helpers.SingleProxyPortSetup,
 		},
 		{
-			name:                      "OnePortAndStandardPortSetupLeafALPNDisabled",
-			mainClusterPortSetup:      helpers.SingleProxyPortSetup(),
-			secondClusterPortSetup:    helpers.StandardPortSetup(),
-			disableALPNListenerOnLeaf: true,
+			name:                       "OnePortAndStandardListenerSetupLeafALPNDisabled",
+			mainClusterListenerSetup:   helpers.SingleProxyPortSetup,
+			secondClusterListenerSetup: helpers.StandardListenerSetup,
+			disableALPNListenerOnLeaf:  true,
 		},
 		{
-			name:                   "OnePortAndStandardPortSetup",
-			mainClusterPortSetup:   helpers.SingleProxyPortSetup(),
-			secondClusterPortSetup: helpers.StandardPortSetup(),
+			name:                       "OnePortAndStandardListenerSetup",
+			mainClusterListenerSetup:   helpers.SingleProxyPortSetup,
+			secondClusterListenerSetup: helpers.StandardListenerSetup,
 		},
 	}
 	for _, tc := range testCase {
@@ -172,8 +175,8 @@ func TestALPNSNIProxyTrustedClusterNode(t *testing.T) {
 			suite := newProxySuite(t,
 				withRootClusterConfig(rootClusterStandardConfig(t)),
 				withLeafClusterConfig(leafClusterStandardConfig(t)),
-				withRootClusterPorts(tc.mainClusterPortSetup),
-				withLeafClusterPorts(tc.secondClusterPortSetup),
+				withRootClusterListeners(tc.mainClusterListenerSetup),
+				withLeafClusterListeners(tc.secondClusterListenerSetup),
 				withRootClusterRoles(newRole(t, "maindevs", username)),
 				withLeafClusterRoles(newRole(t, "auxdevs", username)),
 				withRootAndLeafTrustedClusterReset(),
@@ -189,7 +192,7 @@ func TestALPNSNIProxyTrustedClusterNode(t *testing.T) {
 				Login:   username,
 				Cluster: suite.leaf.Secrets.SiteName,
 				Host:    Loopback,
-				Port:    suite.leaf.GetPortSSHInt(),
+				Port:    helpers.Port(t, suite.leaf.SSH),
 			})
 
 			// Try and connect to a node in the Aux cluster from the Root cluster using
@@ -217,8 +220,11 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 	t.Setenv("http_proxy", u.Host)
 
 	username := mustGetCurrentUser(t).Username
-	// httpproxy won't proxy when target address is localhost, so use this instead.
-	addr, err := getLocalIP()
+
+	// We need to use the non-loopback address for our Teleport cluster, as the
+	// Go HTTP library will recognize requests to the loopback address and
+	// refuse to use the HTTP proxy, which will invalidate the test.
+	addr, err := helpers.GetLocalIP()
 	require.NoError(t, err)
 
 	suite := newProxySuite(t,
@@ -226,8 +232,8 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 		withLeafClusterConfig(leafClusterStandardConfig(t)),
 		withRootClusterNodeName(addr),
 		withLeafClusterNodeName(addr),
-		withRootClusterPorts(helpers.SingleProxyPortSetup()),
-		withLeafClusterPorts(helpers.SingleProxyPortSetup()),
+		withRootClusterListeners(helpers.SingleProxyPortSetupOn(addr)),
+		withLeafClusterListeners(helpers.SingleProxyPortSetupOn(addr)),
 		withRootAndLeafClusterRoles(createTestRole(username)),
 		withStandardRoleMapping(),
 	)
@@ -255,8 +261,11 @@ func TestMultiPortHTTPSProxy(t *testing.T) {
 	t.Setenv("http_proxy", u.Host)
 
 	username := mustGetCurrentUser(t).Username
-	// httpproxy won't proxy when target address is localhost, so use this instead.
-	addr, err := getLocalIP()
+
+	// We need to use the non-loopback address for our Teleport cluster, as the
+	// Go HTTP library will recognize requests to the loopback address and
+	// refuse to use the HTTP proxy, which will invalidate the test.
+	addr, err := helpers.GetLocalIP()
 	require.NoError(t, err)
 
 	suite := newProxySuite(t,
@@ -264,8 +273,8 @@ func TestMultiPortHTTPSProxy(t *testing.T) {
 		withLeafClusterConfig(leafClusterStandardConfig(t)),
 		withRootClusterNodeName(addr),
 		withLeafClusterNodeName(addr),
-		withRootClusterPorts(helpers.StandardPortSetup()),
-		withLeafClusterPorts(helpers.StandardPortSetup()),
+		withRootClusterListeners(helpers.SingleProxyPortSetupOn(addr)),
+		withLeafClusterListeners(helpers.SingleProxyPortSetupOn(addr)),
 		withRootAndLeafClusterRoles(createTestRole(username)),
 		withStandardRoleMapping(),
 	)
@@ -280,7 +289,7 @@ func TestMultiPortHTTPSProxy(t *testing.T) {
 }
 
 // TestAlpnSniProxyKube tests Kubernetes access with custom Kube API mock where traffic is forwarded via
-//SNI ALPN proxy service to Kubernetes service based on TLS SNI value.
+// SNI ALPN proxy service to Kubernetes service based on TLS SNI value.
 func TestALPNSNIProxyKube(t *testing.T) {
 	const (
 		localK8SNI = "kube.teleport.cluster.local"
@@ -392,29 +401,29 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 // TestALPNSNIProxyDatabaseAccess test DB connection forwarded through local SNI ALPN proxy where
 // DB protocol is wrapped into TLS and forwarded to proxy ALPN SNI service and routed to appropriate db service.
 func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
-	pack := setupDatabaseTest(t,
-		withPortSetupDatabaseTest(helpers.SingleProxyPortSetup),
-		withLeafConfig(func(config *service.Config) {
+	pack := dbhelpers.SetupDatabaseTest(t,
+		dbhelpers.WithListenerSetupDatabaseTest(helpers.SingleProxyPortSetup),
+		dbhelpers.WithLeafConfig(func(config *service.Config) {
 			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
-		withRootConfig(func(config *service.Config) {
+		dbhelpers.WithRootConfig(func(config *service.Config) {
 			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
 	)
-	pack.waitForLeaf(t)
+	pack.WaitForLeaf(t)
 
 	t.Run("mysql", func(t *testing.T) {
-		lp := mustStartALPNLocalProxy(t, pack.root.cluster.GetProxyAddr(), alpncommon.ProtocolMySQL)
+		lp := mustStartALPNLocalProxy(t, pack.Root.Cluster.SSHProxy, alpncommon.ProtocolMySQL)
 		t.Run("connect to main cluster via proxy", func(t *testing.T) {
 			client, err := mysql.MakeTestClient(common.TestClientConfig{
-				AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
-				AuthServer: pack.root.cluster.Process.GetAuthServer(),
+				AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
+				AuthServer: pack.Root.Cluster.Process.GetAuthServer(),
 				Address:    lp.GetAddr(),
-				Cluster:    pack.root.cluster.Secrets.SiteName,
-				Username:   pack.root.user.GetName(),
+				Cluster:    pack.Root.Cluster.Secrets.SiteName,
+				Username:   pack.Root.User.GetName(),
 				RouteToDatabase: tlsca.RouteToDatabase{
-					ServiceName: pack.root.mysqlService.Name,
-					Protocol:    pack.root.mysqlService.Protocol,
+					ServiceName: pack.Root.MysqlService.Name,
+					Protocol:    pack.Root.MysqlService.Protocol,
 					Username:    "root",
 				},
 			})
@@ -428,18 +437,18 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			// Disconnect.
 			err = client.Close()
 			require.NoError(t, err)
-
 		})
+
 		t.Run("connect to leaf cluster via proxy", func(t *testing.T) {
 			client, err := mysql.MakeTestClient(common.TestClientConfig{
-				AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
-				AuthServer: pack.root.cluster.Process.GetAuthServer(),
+				AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
+				AuthServer: pack.Root.Cluster.Process.GetAuthServer(),
 				Address:    lp.GetAddr(),
-				Cluster:    pack.leaf.cluster.Secrets.SiteName,
-				Username:   pack.root.user.GetName(),
+				Cluster:    pack.Leaf.Cluster.Secrets.SiteName,
+				Username:   pack.Root.User.GetName(),
 				RouteToDatabase: tlsca.RouteToDatabase{
-					ServiceName: pack.leaf.mysqlService.Name,
-					Protocol:    pack.leaf.mysqlService.Protocol,
+					ServiceName: pack.Leaf.MysqlService.Name,
+					Protocol:    pack.Leaf.MysqlService.Protocol,
 					Username:    "root",
 				},
 			})
@@ -453,21 +462,47 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			// Disconnect.
 			err = client.Close()
 			require.NoError(t, err)
+		})
+		t.Run("connect to main cluster via proxy using ping protocol", func(t *testing.T) {
+			pingProxy := mustStartALPNLocalProxy(t, pack.Root.Cluster.SSHProxy, alpncommon.ProtocolWithPing(alpncommon.ProtocolMySQL))
+			client, err := mysql.MakeTestClient(common.TestClientConfig{
+				AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
+				AuthServer: pack.Root.Cluster.Process.GetAuthServer(),
+				Address:    pingProxy.GetAddr(),
+				Cluster:    pack.Root.Cluster.Secrets.SiteName,
+				Username:   pack.Root.User.GetName(),
+				RouteToDatabase: tlsca.RouteToDatabase{
+					ServiceName: pack.Root.MysqlService.Name,
+					Protocol:    pack.Root.MysqlService.Protocol,
+					Username:    "root",
+				},
+			})
+			require.NoError(t, err)
+
+			// Execute a query.
+			result, err := client.Execute("select 1")
+			require.NoError(t, err)
+			require.Equal(t, mysql.TestQueryResponse, result)
+
+			// Disconnect.
+			err = client.Close()
+			require.NoError(t, err)
+
 		})
 	})
 
 	t.Run("postgres", func(t *testing.T) {
-		lp := mustStartALPNLocalProxy(t, pack.root.cluster.GetProxyAddr(), alpncommon.ProtocolPostgres)
+		lp := mustStartALPNLocalProxy(t, pack.Root.Cluster.SSHProxy, alpncommon.ProtocolPostgres)
 		t.Run("connect to main cluster via proxy", func(t *testing.T) {
 			client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
-				AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
-				AuthServer: pack.root.cluster.Process.GetAuthServer(),
+				AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
+				AuthServer: pack.Root.Cluster.Process.GetAuthServer(),
 				Address:    lp.GetAddr(),
-				Cluster:    pack.root.cluster.Secrets.SiteName,
-				Username:   pack.root.user.GetName(),
+				Cluster:    pack.Root.Cluster.Secrets.SiteName,
+				Username:   pack.Root.User.GetName(),
 				RouteToDatabase: tlsca.RouteToDatabase{
-					ServiceName: pack.root.postgresService.Name,
-					Protocol:    pack.root.postgresService.Protocol,
+					ServiceName: pack.Root.PostgresService.Name,
+					Protocol:    pack.Root.PostgresService.Protocol,
 					Username:    "postgres",
 					Database:    "test",
 				},
@@ -478,14 +513,33 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 		})
 		t.Run("connect to leaf cluster via proxy", func(t *testing.T) {
 			client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
-				AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
-				AuthServer: pack.root.cluster.Process.GetAuthServer(),
+				AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
+				AuthServer: pack.Root.Cluster.Process.GetAuthServer(),
 				Address:    lp.GetAddr(),
-				Cluster:    pack.leaf.cluster.Secrets.SiteName,
-				Username:   pack.root.user.GetName(),
+				Cluster:    pack.Leaf.Cluster.Secrets.SiteName,
+				Username:   pack.Root.User.GetName(),
 				RouteToDatabase: tlsca.RouteToDatabase{
-					ServiceName: pack.leaf.postgresService.Name,
-					Protocol:    pack.leaf.postgresService.Protocol,
+					ServiceName: pack.Leaf.PostgresService.Name,
+					Protocol:    pack.Leaf.PostgresService.Protocol,
+					Username:    "postgres",
+					Database:    "test",
+				},
+			})
+			require.NoError(t, err)
+			mustRunPostgresQuery(t, client)
+			mustClosePostgresClient(t, client)
+		})
+		t.Run("connect to main cluster via proxy with ping protocol", func(t *testing.T) {
+			pingProxy := mustStartALPNLocalProxy(t, pack.Root.Cluster.SSHProxy, alpncommon.ProtocolWithPing(alpncommon.ProtocolPostgres))
+			client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
+				AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
+				AuthServer: pack.Root.Cluster.Process.GetAuthServer(),
+				Address:    pingProxy.GetAddr(),
+				Cluster:    pack.Root.Cluster.Secrets.SiteName,
+				Username:   pack.Root.User.GetName(),
+				RouteToDatabase: tlsca.RouteToDatabase{
+					ServiceName: pack.Root.PostgresService.Name,
+					Protocol:    pack.Root.PostgresService.Protocol,
 					Username:    "postgres",
 					Database:    "test",
 				},
@@ -497,17 +551,17 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 	})
 
 	t.Run("mongo", func(t *testing.T) {
-		lp := mustStartALPNLocalProxy(t, pack.root.cluster.GetProxyAddr(), alpncommon.ProtocolMongoDB)
+		lp := mustStartALPNLocalProxy(t, pack.Root.Cluster.SSHProxy, alpncommon.ProtocolMongoDB)
 		t.Run("connect to main cluster via proxy", func(t *testing.T) {
 			client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
-				AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
-				AuthServer: pack.root.cluster.Process.GetAuthServer(),
+				AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
+				AuthServer: pack.Root.Cluster.Process.GetAuthServer(),
 				Address:    lp.GetAddr(),
-				Cluster:    pack.root.cluster.Secrets.SiteName,
-				Username:   pack.root.user.GetName(),
+				Cluster:    pack.Root.Cluster.Secrets.SiteName,
+				Username:   pack.Root.User.GetName(),
 				RouteToDatabase: tlsca.RouteToDatabase{
-					ServiceName: pack.root.mongoService.Name,
-					Protocol:    pack.root.mongoService.Protocol,
+					ServiceName: pack.Root.MongoService.Name,
+					Protocol:    pack.Root.MongoService.Protocol,
 					Username:    "admin",
 				},
 			})
@@ -523,14 +577,38 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 		})
 		t.Run("connect to leaf cluster via proxy", func(t *testing.T) {
 			client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
-				AuthClient: pack.root.cluster.GetSiteAPI(pack.root.cluster.Secrets.SiteName),
-				AuthServer: pack.root.cluster.Process.GetAuthServer(),
+				AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
+				AuthServer: pack.Root.Cluster.Process.GetAuthServer(),
 				Address:    lp.GetAddr(),
-				Cluster:    pack.leaf.cluster.Secrets.SiteName,
-				Username:   pack.root.user.GetName(),
+				Cluster:    pack.Leaf.Cluster.Secrets.SiteName,
+				Username:   pack.Root.User.GetName(),
 				RouteToDatabase: tlsca.RouteToDatabase{
-					ServiceName: pack.leaf.mongoService.Name,
-					Protocol:    pack.leaf.mongoService.Protocol,
+					ServiceName: pack.Leaf.MongoService.Name,
+					Protocol:    pack.Leaf.MongoService.Protocol,
+					Username:    "admin",
+				},
+			})
+			require.NoError(t, err)
+
+			// Execute a query.
+			_, err = client.Database("test").Collection("test").Find(context.Background(), bson.M{})
+			require.NoError(t, err)
+
+			// Disconnect.
+			err = client.Disconnect(context.Background())
+			require.NoError(t, err)
+		})
+		t.Run("connect to main cluster via proxy with ping protocol", func(t *testing.T) {
+			pingProxy := mustStartALPNLocalProxy(t, pack.Root.Cluster.SSHProxy, alpncommon.ProtocolWithPing(alpncommon.ProtocolMongoDB))
+			client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
+				AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
+				AuthServer: pack.Root.Cluster.Process.GetAuthServer(),
+				Address:    pingProxy.GetAddr(),
+				Cluster:    pack.Root.Cluster.Secrets.SiteName,
+				Username:   pack.Root.User.GetName(),
+				RouteToDatabase: tlsca.RouteToDatabase{
+					ServiceName: pack.Root.MongoService.Name,
+					Protocol:    pack.Root.MongoService.Protocol,
 					Username:    "admin",
 				},
 			})
@@ -545,13 +623,141 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			require.NoError(t, err)
 		})
 	})
+
+	// Simulate situations where an AWS ALB is between client and the Teleport
+	// Proxy service, which drops ALPN along the way. The ALPN local proxy will
+	// need to make a connection upgrade first through a web API provided by
+	// the Proxy server and then tunnel the original ALPN/TLS routing traffic
+	// inside this tunnel.
+	t.Run("ALPN connection upgrade", func(t *testing.T) {
+		// Make a mock ALB which points to the Teleport Proxy Service. Then
+		// ALPN local proxies will point to this ALB instead.
+		albProxy := mustStartMockALBProxy(t, pack.Root.Cluster.Web)
+
+		// Test a protocol in the alpncommon.IsDBTLSProtocol list where
+		// the database client will perform a native TLS handshake.
+		//
+		// Packet layers:
+		// - HTTPS served by Teleport web server for connection upgrade
+		// - TLS routing with alpncommon.ProtocolMongoDB (no client cert)
+		// - TLS with client cert (provided by the database client)
+		// - MongoDB
+		t.Run("database client native TLS", func(t *testing.T) {
+			lp := mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
+				RemoteProxyAddr:         albProxy.Addr().String(),
+				Protocols:               []alpncommon.Protocol{alpncommon.ProtocolMongoDB},
+				ALPNConnUpgradeRequired: true,
+				InsecureSkipVerify:      true,
+			})
+			client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
+				AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
+				AuthServer: pack.Root.Cluster.Process.GetAuthServer(),
+				Address:    lp.GetAddr(),
+				Cluster:    pack.Root.Cluster.Secrets.SiteName,
+				Username:   pack.Root.User.GetName(),
+				RouteToDatabase: tlsca.RouteToDatabase{
+					ServiceName: pack.Root.MongoService.Name,
+					Protocol:    pack.Root.MongoService.Protocol,
+					Username:    "admin",
+				},
+			})
+			require.NoError(t, err)
+
+			// Execute a query.
+			_, err = client.Database("test").Collection("test").Find(context.Background(), bson.M{})
+			require.NoError(t, err)
+
+			// Disconnect.
+			require.NoError(t, client.Disconnect(context.Background()))
+		})
+
+		// Test the case where the database client cert is terminated within
+		// the database protocol.
+		//
+		// Packet layers:
+		// - HTTPS served by Teleport web server for connection upgrade
+		// - TLS routing with alpncommon.ProtocolMySQL (no client cert)
+		// - MySQL handshake then upgrade to TLS with Teleport issued client cert
+		// - MySQL protocol
+		t.Run("MySQL custom TLS", func(t *testing.T) {
+			lp := mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
+				RemoteProxyAddr:         albProxy.Addr().String(),
+				Protocols:               []alpncommon.Protocol{alpncommon.ProtocolMySQL},
+				ALPNConnUpgradeRequired: true,
+				InsecureSkipVerify:      true,
+			})
+			client, err := mysql.MakeTestClient(common.TestClientConfig{
+				AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
+				AuthServer: pack.Root.Cluster.Process.GetAuthServer(),
+				Address:    lp.GetAddr(),
+				Cluster:    pack.Root.Cluster.Secrets.SiteName,
+				Username:   pack.Root.User.GetName(),
+				RouteToDatabase: tlsca.RouteToDatabase{
+					ServiceName: pack.Root.MysqlService.Name,
+					Protocol:    pack.Root.MysqlService.Protocol,
+					Username:    "root",
+				},
+			})
+			require.NoError(t, err)
+
+			// Execute a query.
+			result, err := client.Execute("select 1")
+			require.NoError(t, err)
+			require.Equal(t, mysql.TestQueryResponse, result)
+
+			// Disconnect.
+			require.NoError(t, client.Close())
+		})
+
+		// Test the case where the client cert is terminated by Teleport and
+		// the database client sends data in plain database protocol.
+		//
+		// Packet layers:
+		// - HTTPS served by Teleport web server for connection upgrade
+		// - TLS routing with alpncommon.ProtocolMySQL (client cert provided by ALPN local proxy)
+		// - MySQL protocol
+		t.Run("authenticated tunnel", func(t *testing.T) {
+			routeToDatabase := tlsca.RouteToDatabase{
+				ServiceName: pack.Root.MysqlService.Name,
+				Protocol:    pack.Root.MysqlService.Protocol,
+				Username:    "root",
+			}
+			clientTLSConfig, err := common.MakeTestClientTLSConfig(common.TestClientConfig{
+				AuthClient:      pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
+				AuthServer:      pack.Root.Cluster.Process.GetAuthServer(),
+				Cluster:         pack.Root.Cluster.Secrets.SiteName,
+				Username:        pack.Root.User.GetName(),
+				RouteToDatabase: routeToDatabase,
+			})
+			require.NoError(t, err)
+
+			lp := mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
+				RemoteProxyAddr:         albProxy.Addr().String(),
+				Protocols:               []alpncommon.Protocol{alpncommon.ProtocolMySQL},
+				ALPNConnUpgradeRequired: true,
+				InsecureSkipVerify:      true,
+				Certs:                   clientTLSConfig.Certificates,
+			})
+
+			client, err := mysql.MakeTestClientWithoutTLS(lp.GetAddr(), routeToDatabase)
+			require.NoError(t, err)
+
+			// Execute a query.
+			result, err := client.Execute("select 1")
+			require.NoError(t, err)
+			require.Equal(t, mysql.TestQueryResponse, result)
+
+			// Disconnect.
+			require.NoError(t, client.Close())
+		})
+	})
 }
 
 // TestALPNSNIProxyAppAccess tests application access via ALPN SNI proxy service.
 func TestALPNSNIProxyAppAccess(t *testing.T) {
 	pack := setupWithOptions(t, appTestOptions{
-		rootClusterPorts: helpers.SingleProxyPortSetup(),
-		leafClusterPorts: helpers.SingleProxyPortSetup(),
+		rootClusterListeners: helpers.SingleProxyPortSetup,
+		leafClusterListeners: helpers.SingleProxyPortSetup,
 		rootConfig: func(config *service.Config) {
 			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		},
@@ -582,8 +788,8 @@ func TestALPNProxyRootLeafAuthDial(t *testing.T) {
 	suite := newProxySuite(t,
 		withRootClusterConfig(rootClusterStandardConfig(t)),
 		withLeafClusterConfig(leafClusterStandardConfig(t)),
-		withRootClusterPorts(helpers.SingleProxyPortSetup()),
-		withLeafClusterPorts(helpers.SingleProxyPortSetup()),
+		withRootClusterListeners(helpers.SingleProxyPortSetup),
+		withLeafClusterListeners(helpers.SingleProxyPortSetup),
 		withRootClusterRoles(newRole(t, "rootdevs", username)),
 		withLeafClusterRoles(newRole(t, "leafdevs", username)),
 		withRootAndLeafTrustedClusterReset(),
@@ -625,13 +831,14 @@ func TestALPNProxyAuthClientConnectWithUserIdentity(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
-	rc := helpers.NewInstance(helpers.InstanceConfig{
+	cfg := helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Loopback,
 		Log:         utils.NewLoggerForTests(),
-		Ports:       helpers.SingleProxyPortSetup(),
-	})
+	}
+	cfg.Listeners = helpers.SingleProxyPortSetup(t, &cfg.Fds)
+	rc := helpers.NewInstance(t, cfg)
 
 	rcConf := service.MakeDefaultConfig()
 	rcConf.DataDir = t.TempDir()
@@ -653,13 +860,13 @@ func TestALPNProxyAuthClientConnectWithUserIdentity(t *testing.T) {
 	require.NoError(t, err)
 	defer rc.StopAll()
 
-	identityFilePath := mustCreateUserIdentityFile(t, rc, username, time.Hour)
+	identityFilePath := helpers.MustCreateUserIdentityFile(t, rc, username, time.Hour)
 
 	identity := client.LoadIdentityFile(identityFilePath)
 	require.NoError(t, err)
 
 	tc, err := client.New(context.Background(), client.Config{
-		Addrs:                    []string{rc.GetWebAddr()},
+		Addrs:                    []string{rc.Web},
 		Credentials:              []client.Credentials{identity},
 		InsecureAddressDiscovery: true,
 	})
@@ -679,15 +886,16 @@ func TestALPNProxyDialProxySSHWithoutInsecureMode(t *testing.T) {
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	rc := helpers.NewInstance(helpers.InstanceConfig{
+	rootCfg := helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Loopback,
 		Priv:        privateKey,
 		Pub:         publicKey,
 		Log:         utils.NewLoggerForTests(),
-		Ports:       helpers.StandardPortSetup(),
-	})
+	}
+	rootCfg.Listeners = helpers.StandardListenerSetup(t, &rootCfg.Fds)
+	rc := helpers.NewInstance(t, rootCfg)
 	username := mustGetCurrentUser(t).Username
 	rc.AddUser(username, []string{username})
 
@@ -744,16 +952,20 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
-	addr, err := getLocalIP()
+	// We need to use the non-loopback address for our Teleport cluster, as the
+	// Go HTTP library will recognize requests to the loopback address and
+	// refuse to use the HTTP proxy, which will invalidate the test.
+	addr, err := helpers.GetLocalIP()
 	require.NoError(t, err)
 
-	rc := helpers.NewInstance(helpers.InstanceConfig{
+	instanceCfg := helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    addr,
 		Log:         utils.NewLoggerForTests(),
-		Ports:       helpers.SingleProxyPortSetup(),
-	})
+	}
+	instanceCfg.Listeners = helpers.SingleProxyPortSetupOn(addr)(t, &instanceCfg.Fds)
+	rc := helpers.NewInstance(t, instanceCfg)
 	username := mustGetCurrentUser(t).Username
 	rc.AddUser(username, []string{username})
 
@@ -785,7 +997,7 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 	t.Setenv("http_proxy", u.Host)
 	t.Setenv("no_proxy", addr)
 
-	rcProxyAddr := net.JoinHostPort(addr, rc.GetPortWeb())
+	rcProxyAddr := rc.Web
 
 	// Start the node, due to no_proxy=127.0.0.1 env variable the connection established
 	// to the proxy should not go through the http_proxy server.
@@ -817,16 +1029,25 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
-	rcAddr, err := getLocalIP()
+	log := utils.NewLoggerForTests()
+
+	// We need to use the non-loopback address for our Teleport cluster, as the
+	// Go HTTP library will recognize requests to the loopback address and
+	// refuse to use the HTTP proxy, which will invalidate the test.
+	rcAddr, err := helpers.GetLocalIP()
 	require.NoError(t, err)
 
-	rc := helpers.NewInstance(helpers.InstanceConfig{
+	log.Info("Creating Teleport instance...")
+	cfg := helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    rcAddr,
-		Log:         utils.NewLoggerForTests(),
-		Ports:       helpers.SingleProxyPortSetup(),
-	})
+		Log:         log,
+	}
+	cfg.Listeners = helpers.SingleProxyPortSetupOn(rcAddr)(t, &cfg.Fds)
+	rc := helpers.NewInstance(t, cfg)
+	log.Info("Teleport root cluster instance created")
+
 	username := mustGetCurrentUser(t).Username
 	rc.AddUser(username, []string{username})
 
@@ -840,9 +1061,13 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	rcConf.SSH.Enabled = false
 	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
+	log.Infof("Root cluster config: %#v", rcConf)
+
+	log.Info("Creating Root cluster...")
 	err = rc.CreateEx(t, nil, rcConf)
 	require.NoError(t, err)
 
+	log.Info("Starting Root Cluster...")
 	err = rc.Start()
 	require.NoError(t, err)
 	defer rc.StopAll()
@@ -854,6 +1079,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	validPass := "open sesame"
 
 	// Create and start http_proxy server.
+	log.Info("Creating HTTP Proxy server...")
 	ph := &helpers.ProxyHandler{}
 	authorizer := helpers.NewProxyAuthorizer(ph, map[string]string{validUser: validPass})
 	ts := httptest.NewServer(authorizer)
@@ -861,8 +1087,9 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 
 	proxyURL, err := url.Parse(ts.URL)
 	require.NoError(t, err)
+	log.Infof("HTTP Proxy server running on %s", proxyURL)
 
-	rcProxyAddr := net.JoinHostPort(rcAddr, rc.GetPortWeb())
+	rcProxyAddr := net.JoinHostPort(rcAddr, helpers.PortStr(t, rc.Web))
 
 	// proxy url is just the host with no auth credentials
 	t.Setenv("http_proxy", proxyURL.Host)
