@@ -310,22 +310,55 @@ In cases where WebUI access is needed or desired, cluster admins should only app
 
 ### UX
 
-#### Hardware key connected
+#### Hardware key login
 
-Unlike normal Teleport login sessions, hardware key login sessions will only be functional so long as the hardware key is connected. If a user attempts to use the Teleport client with the key unplugged, they will get an error:
+When possible, hardware key login will not be any different from the normal login flow. However, in some cases, additional user intervention will be required. Below are some examples along with the resulting UX.
+
+Note: Teleport Connect will need custom solutions for these edge cases, such as tsh-initiated callbacks.
+ 
+##### Initial login fails due to an unmet private key policy
+
+```
+> tsh login --user=dev
+Enter password for Teleport user dev:
+Tap any security key
+Initial login failed due to an unmet private key policy, "hardware_key".
+Re-initiaiting login with YubiKey generated private key...
+Enter password for Teleport user dev:
+Tap any security key
+```
+
+Note: this should only occur when a user's role determines it's private key policy requirement, and the user does not have an existing login session which meets the required policy (expired or active).
+
+##### User's YubiKey not connected during login
+
+```
+> tsh login --user=dev
+Cluster "root" requires a YubiKey generated private key to login, but there
+is no YubiKey connected. Please insert a YubiKey to re-initiate login...
+// tsh polls the PIV library until the user connects a YubiKey (30 second timeout) or the user cancels
+Re-initiaiting login with YubiKey generated private key.
+Enter password for Teleport user dev:
+Tap any security key
+```
+
+##### User's Yubikey not connected during a request
 
 ```
 > tsh ls
-ERROR: Please reconnect the hardware key you used to login (yubikey <serial_number>), or re-login.
+Please insert the YubiKey used during login (serial number XXXXXX) to continue...
+// tsh polls the PIV library until the user connects a YubiKey (30 second timeout) or the user cancels
 ```
 
-#### Touch requirement
+##### Touch requirement
 
 If `private_key_policy: hardware_key_touch` is required for a user, then Teleport client requests will require touch (cached for 15 seconds). This will be handled by a touch prompt similar to the one used for MFA.
 
 ```
-> tsh ls
-Tap your security key
+> tsh login --user=dev
+Tap your YubiKey
+Enter password for Teleport user dev:
+Tap any security key
 ```
 
 ### Additional considerations
