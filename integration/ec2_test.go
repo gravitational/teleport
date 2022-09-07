@@ -24,6 +24,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -36,15 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 )
 
 func newSilentLogger() utils.Logger {
@@ -56,7 +56,7 @@ func newSilentLogger() utils.Logger {
 
 func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinMethod types.JoinMethod) *service.Config {
 	config := service.MakeDefaultConfig()
-	config.Token = tokenName
+	config.SetToken(tokenName)
 	config.JoinMethod = joinMethod
 	config.SSH.Enabled = true
 	config.SSH.Addr.Addr = helpers.NewListener(t, service.ListenerNodeSSH, &config.FileDescriptors)
@@ -72,7 +72,7 @@ func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinM
 func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinMethod types.JoinMethod) *service.Config {
 	config := service.MakeDefaultConfig()
 	config.Version = defaults.TeleportConfigVersionV2
-	config.Token = tokenName
+	config.SetToken(tokenName)
 	config.JoinMethod = joinMethod
 	config.SSH.Enabled = false
 	config.Auth.Enabled = false
@@ -197,13 +197,8 @@ func TestEC2NodeJoin(t *testing.T) {
 	require.NoError(t, nodeSvc.Start())
 	t.Cleanup(func() { require.NoError(t, nodeSvc.Close()) })
 
-	eventCh := make(chan service.Event, 1)
-	nodeSvc.WaitForEvent(nodeSvc.ExitContext(), service.TeleportReadyEvent, eventCh)
-	select {
-	case <-eventCh:
-	case <-time.After(10 * time.Second):
-		t.Fatal("timeout waiting for node readiness")
-	}
+	_, err = nodeSvc.WaitForEventTimeout(10*time.Second, service.TeleportReadyEvent)
+	require.NoError(t, err, "timeout waiting for node readiness")
 
 	// the node should eventually join the cluster and heartbeat
 	require.Eventually(t, func() bool {
@@ -382,7 +377,7 @@ func TestEC2Labels(t *testing.T) {
 	var nodes []types.Server
 	var apps []types.AppServer
 	var databases []types.DatabaseServer
-	var kubes []types.Server
+	var kubes []types.KubeServer
 
 	// Wait for everything to come online.
 	require.Eventually(t, func() bool {
@@ -393,7 +388,7 @@ func TestEC2Labels(t *testing.T) {
 		require.NoError(t, err)
 		databases, err = authServer.GetDatabaseServers(ctx, tconf.SSH.Namespace)
 		require.NoError(t, err)
-		kubes, err = authServer.GetKubeServices(ctx)
+		kubes, err = authServer.GetKubernetesServers(ctx)
 		require.NoError(t, err)
 		return len(nodes) == 1 && len(apps) == 1 && len(databases) == 1 && len(kubes) == 1
 	}, 10*time.Second, time.Second)
@@ -420,7 +415,7 @@ func TestEC2Labels(t *testing.T) {
 		kubeClusters := helpers.GetKubeClusters(t, authServer)
 		require.Len(t, kubeClusters, 1)
 		kube := kubeClusters[0]
-		_, kubeHasLabel := kube.StaticLabels[tagName]
+		_, kubeHasLabel := kube.GetStaticLabels()[tagName]
 		return nodeHasLabel && appHasLabel && dbHasLabel && kubeHasLabel
 	}, 10*time.Second, time.Second)
 }
@@ -462,19 +457,5 @@ func TestEC2Hostname(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, proc.Start())
 	t.Cleanup(func() { require.NoError(t, proc.Close()) })
-
-	ctx := context.Background()
-	authServer := proc.GetAuthServer()
-	var node types.Server
-	require.Eventually(t, func() bool {
-		nodes, err := authServer.GetNodes(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
-		if len(nodes) == 1 {
-			node = nodes[0]
-			return true
-		}
-		return false
-	}, 10*time.Second, time.Second)
-
-	require.Equal(t, teleportHostname, node.GetHostname())
+	require.Equal(t, teleportHostname, proc.Config.Hostname)
 }

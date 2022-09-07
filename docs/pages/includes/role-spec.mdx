@@ -39,9 +39,9 @@ spec:
     # valid values are "strict" or "best_effort"
     lock: strict
     # enterprise-only request_access field is either 'always' or 'reason'. If set to always, it instructs
-    # tsh or the web UI clients to always create an access request on login. If it is
+    # tsh or the web UI clients to always create an Access Request on login. If it is
     # set to 'reason', the user will be required to indicate why they are
-    # generating the access request.
+    # generating the Access Request.
     request_access: reason
     # the `request_prompt` field can be used to tell the user what should
     # be supplied in the request reason field.
@@ -176,7 +176,7 @@ spec:
         contains(user.spec.traits["group"], impersonate_user.metadata.labels["group"])
 
     # review_requests allows a user holding this role
-    # to approve or deny access requests
+    # to approve or deny Access Requests
     review_requests:
       roles: ['dbadmin']
 
@@ -208,7 +208,7 @@ spec:
           # generates a role name from the value capture
           roles: ['$1-admin']
 
-      # Teleport can attach annotations to pending access requests. these
+      # Teleport can attach annotations to pending Access Requests. these
       # annotations may be literals, or be variable interpolation expressions,
       # effectively creating a means for propagating selected claims from an
       # external identity provider to the plugin system.
@@ -262,8 +262,8 @@ spec:
     # trusted_cluster    - trusted cluster resource
     # remote_cluster     - remote cluster resource
     #
-    # access_request     - access request resource
-    # access_plugin_data - allows modifying access request plugin data
+    # access_request     - Access Request resource
+    # access_plugin_data - allows modifying Access Request plugin data
     #
     # session            - session playback records
     # ssh_session        - an active SSH session

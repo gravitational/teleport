@@ -28,11 +28,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // printShutdownStatus prints running services until shut down
@@ -52,7 +52,6 @@ func (process *TeleportProcess) printShutdownStatus(ctx context.Context) {
 // WaitForSignals waits for system signals and processes them.
 // Should not be called twice by the process.
 func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
-
 	sigC := make(chan os.Signal, 1024)
 	// Note: SIGKILL can't be trapped.
 	signal.Notify(sigC,
@@ -64,9 +63,12 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 		syscall.SIGHUP,  // graceful restart procedure
 		syscall.SIGCHLD, // collect child status
 	)
+	defer signal.Stop(sigC)
 
 	serviceErrorsC := make(chan Event, 10)
-	process.WaitForEvent(ctx, ServiceExitedWithErrorEvent, serviceErrorsC)
+	eventCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	process.ListenForEvents(eventCtx, ServiceExitedWithErrorEvent, serviceErrorsC)
 
 	// Block until a signal is received or handler got an error.
 	// Notice how this handler is serialized - it will only receive

@@ -41,6 +41,7 @@ func onDaemonStart(cf *CLIConf) error {
 
 	err := teleterm.Serve(ctx, teleterm.Config{
 		HomeDir:            homeDir,
+		CertsDir:           cf.DaemonCertsDir,
 		Addr:               cf.DaemonAddr,
 		InsecureSkipVerify: cf.InsecureSkipVerify,
 	})

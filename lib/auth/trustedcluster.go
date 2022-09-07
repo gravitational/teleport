@@ -24,8 +24,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
@@ -35,10 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/trace"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // UpsertTrustedCluster creates or toggles a Trusted Cluster relationship.
@@ -50,7 +51,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 	var existingCluster types.TrustedCluster
 	if trustedCluster.GetName() != "" {
 		var err error
-		if existingCluster, err = a.Presence.GetTrustedCluster(ctx, trustedCluster.GetName()); err == nil {
+		if existingCluster, err = a.GetTrustedCluster(ctx, trustedCluster.GetName()); err == nil {
 			exists = true
 		}
 	}
@@ -141,7 +142,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 		}
 	}
 
-	tc, err := a.Presence.UpsertTrustedCluster(ctx, trustedCluster)
+	tc, err := a.Services.UpsertTrustedCluster(ctx, trustedCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -210,7 +211,7 @@ func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
 		}
 	}
 
-	if err := a.Presence.DeleteTrustedCluster(ctx, name); err != nil {
+	if err := a.Services.DeleteTrustedCluster(ctx, name); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -326,7 +327,7 @@ func (a *Server) addCertAuthorities(trustedCluster types.TrustedCluster, remoteC
 func (a *Server) DeleteRemoteCluster(clusterName string) error {
 	// To make sure remote cluster exists - to protect against random
 	// clusterName requests (e.g. when clusterName is set to local cluster name)
-	_, err := a.Presence.GetRemoteCluster(clusterName)
+	_, err := a.GetRemoteCluster(clusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -354,14 +355,14 @@ func (a *Server) DeleteRemoteCluster(clusterName string) error {
 			return trace.Wrap(err)
 		}
 	}
-	return a.Presence.DeleteRemoteCluster(clusterName)
+	return a.Services.DeleteRemoteCluster(clusterName)
 }
 
 // GetRemoteCluster returns remote cluster by name
 func (a *Server) GetRemoteCluster(clusterName string) (types.RemoteCluster, error) {
 	// To make sure remote cluster exists - to protect against random
 	// clusterName requests (e.g. when clusterName is set to local cluster name)
-	remoteCluster, err := a.Presence.GetRemoteCluster(clusterName)
+	remoteCluster, err := a.Services.GetRemoteCluster(clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -440,7 +441,7 @@ func (a *Server) updateRemoteClusterStatus(remoteCluster types.RemoteCluster) er
 func (a *Server) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
 	// To make sure remote cluster exists - to protect against random
 	// clusterName requests (e.g. when clusterName is set to local cluster name)
-	remoteClusters, err := a.Presence.GetRemoteClusters(opts...)
+	remoteClusters, err := a.Services.GetRemoteClusters(opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -623,7 +624,7 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *Valida
 		tr.TLSClientConfig = tlsConfig
 
 		insecureWebClient := &http.Client{
-			Transport: otelhttp.NewTransport(tr),
+			Transport: otelhttp.NewTransport(tr, otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter)),
 		}
 		opts = append(opts, roundtrip.HTTPClient(insecureWebClient))
 	}

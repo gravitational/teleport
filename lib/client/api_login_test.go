@@ -26,6 +26,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jonboulle/clockwork"
+	"github.com/pquerna/otp/totp"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -41,24 +48,10 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
-
-	"github.com/google/uuid"
-	"github.com/jonboulle/clockwork"
-	"github.com/pquerna/otp/totp"
-	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestTeleportClient_Login_local(t *testing.T) {
-	// Silence logging during this test.
-	lvl := log.GetLevel()
-	t.Cleanup(func() {
-		log.SetOutput(os.Stderr)
-		log.SetLevel(lvl)
-	})
-	log.SetOutput(io.Discard)
-	log.SetLevel(log.PanicLevel)
+	silenceLogger(t)
 
 	clock := clockwork.NewFakeClockAt(time.Now())
 	sa := newStandaloneTeleport(t, clock)
@@ -134,7 +127,12 @@ func TestTeleportClient_Login_local(t *testing.T) {
 		case got != pin:
 			return nil, errors.New("invalid PIN")
 		}
-		prompt.PromptTouch() // Realistically, this would happen too.
+
+		// Realistically, this would happen too.
+		if err := prompt.PromptTouch(); err != nil {
+			return nil, err
+		}
+
 		return solveWebauthn(ctx, origin, assertion, prompt)
 	}
 
@@ -316,7 +314,8 @@ func TestTeleportClient_PromptMFAChallenge(t *testing.T) {
 			promptCalled := false
 			*client.PromptMFAStandalone = func(
 				gotCtx context.Context, gotChallenge *proto.MFAAuthenticateChallenge, gotProxy string,
-				gotOpts *client.PromptMFAChallengeOpts) (*proto.MFAAuthenticateResponse, error) {
+				gotOpts *client.PromptMFAChallengeOpts,
+			) (*proto.MFAAuthenticateResponse, error) {
 				promptCalled = true
 				assert.Equal(t, ctx, gotCtx, "ctx mismatch")
 				assert.Equal(t, challenge, gotChallenge, "challenge mismatch")
@@ -449,7 +448,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg = service.MakeDefaultConfig()
 	cfg.DataDir = t.TempDir()
 	cfg.Hostname = "localhost"
-	cfg.Token = staticToken
+	cfg.SetToken(staticToken)
 	cfg.Clock = clock
 	cfg.Console = console
 	cfg.Log = logger
@@ -485,13 +484,19 @@ func startAndWait(t *testing.T, cfg *service.Config, eventName string) *service.
 	require.NoError(t, err)
 	require.NoError(t, instance.Start())
 
-	eventC := make(chan service.Event, 1)
-	instance.WaitForEvent(instance.ExitContext(), eventName, eventC)
-	select {
-	case <-eventC:
-	case <-time.After(30 * time.Second):
-		t.Fatal("Timed out waiting for teleport")
-	}
+	_, err = instance.WaitForEventTimeout(30*time.Second, eventName)
+	require.NoError(t, err, "timed out waiting for teleport")
 
 	return instance
+}
+
+// silenceLogger silences logger during testing.
+func silenceLogger(t *testing.T) {
+	lvl := log.GetLevel()
+	t.Cleanup(func() {
+		log.SetOutput(os.Stderr)
+		log.SetLevel(lvl)
+	})
+	log.SetOutput(io.Discard)
+	log.SetLevel(log.PanicLevel)
 }

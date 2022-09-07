@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -269,7 +270,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 // NewServer creates and returns a reverse tunnel server which is fully
 // initialized but hasn't been started yet
 func NewServer(cfg Config) (Server, error) {
-	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -289,10 +290,11 @@ func NewServer(cfg Config) (Server, error) {
 	proxyWatcher, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: cfg.Component,
-			Client:    cfg.LocalAuthClient,
+			Client:    cfg.LocalAccessPoint,
 			Log:       cfg.Log,
 		},
-		ProxiesC: make(chan []types.Server, 10),
+		ProxiesC:    make(chan []types.Server, 10),
+		ProxyGetter: cfg.LocalAccessPoint,
 	})
 	if err != nil {
 		cancel()

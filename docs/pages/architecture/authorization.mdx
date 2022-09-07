@@ -52,7 +52,7 @@ that this cluster trusts. In this case, Teleport activates [trusted cluster mapp
 Local interactive users have a record in Teleport's backend with credentials.
 
 A cluster administrator have to create account entries for every Teleport user with
-[`tctl users add`](../setup/reference/cli.mdx) or API call.
+[`tctl users add`](../reference/cli.mdx) or API call.
 
 Every local Teleport User must be associated with a list of one or more roles.
 This list is called "role mappings".
@@ -353,7 +353,7 @@ or rejections are required:
 spec:
   allow:
     # review_requests allows a user holding this role
-    # to approve or deny access requests
+    # to approve or deny Access Requests
     review_requests:
       roles: ['dbadmin']
 
@@ -373,8 +373,8 @@ spec:
 ## Next steps
 
 - [Access Control Reference](../access-controls/reference.mdx).
-- [Teleport Predicate Language](../setup/reference/predicate-language.mdx).
-- [Access Requests Guides](../enterprise/workflow/index.mdx)
+- [Teleport Predicate Language](../reference/predicate-language.mdx).
+- [Access Requests Guides](../access-controls/access-requests.mdx)
 - [Architecture Overview](overview.mdx)
 - [Teleport Auth](authentication.mdx)
 - [Teleport Nodes](nodes.mdx)

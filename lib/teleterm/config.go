@@ -15,7 +15,6 @@
 package teleterm
 
 import (
-	"fmt"
 	"os"
 	"syscall"
 
@@ -32,6 +31,8 @@ type Config struct {
 	ShutdownSignals []os.Signal
 	// HomeDir is the directory to store cluster profiles
 	HomeDir string
+	// Directory containing certs used to create secure gRPC connection with daemon service
+	CertsDir string
 	// InsecureSkipVerify is an option to skip HTTPS cert check
 	InsecureSkipVerify bool
 }
@@ -42,8 +43,12 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing home directory")
 	}
 
+	if c.CertsDir == "" {
+		return trace.BadParameter("missing certs directory")
+	}
+
 	if c.Addr == "" {
-		c.Addr = fmt.Sprintf("unix://%v/tshd.socket", c.HomeDir)
+		return trace.BadParameter("missing network address")
 	}
 
 	addr, err := utils.ParseAddr(c.Addr)
@@ -51,8 +56,8 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if addr.Network() != "unix" {
-		return trace.BadParameter("only unix sockets are supported")
+	if !(addr.Network() == "unix" || addr.Network() == "tcp") {
+		return trace.BadParameter("network address should start with unix:// or tcp:// or be empty (tcp:// is used in that case)")
 	}
 
 	if len(c.ShutdownSignals) == 0 {

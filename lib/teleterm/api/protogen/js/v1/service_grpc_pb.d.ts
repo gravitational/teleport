@@ -6,14 +6,13 @@
 
 import * as grpc from "grpc";
 import * as v1_service_pb from "../v1/service_pb";
-import * as google_protobuf_empty_pb from "google-protobuf/google/protobuf/empty_pb";
+import * as v1_app_pb from "../v1/app_pb";
+import * as v1_auth_settings_pb from "../v1/auth_settings_pb";
 import * as v1_cluster_pb from "../v1/cluster_pb";
 import * as v1_database_pb from "../v1/database_pb";
 import * as v1_gateway_pb from "../v1/gateway_pb";
 import * as v1_kube_pb from "../v1/kube_pb";
-import * as v1_app_pb from "../v1/app_pb";
 import * as v1_server_pb from "../v1/server_pb";
-import * as v1_auth_settings_pb from "../v1/auth_settings_pb";
 
 interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedServiceImplementation> {
     listRootClusters: ITerminalServiceService_IListRootClusters;
@@ -34,6 +33,7 @@ interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedSer
     getAuthSettings: ITerminalServiceService_IGetAuthSettings;
     getCluster: ITerminalServiceService_IGetCluster;
     login: ITerminalServiceService_ILogin;
+    loginPasswordless: ITerminalServiceService_ILoginPasswordless;
     logout: ITerminalServiceService_ILogout;
 }
 
@@ -199,6 +199,15 @@ interface ITerminalServiceService_ILogin extends grpc.MethodDefinition<v1_servic
     responseSerialize: grpc.serialize<v1_service_pb.EmptyResponse>;
     responseDeserialize: grpc.deserialize<v1_service_pb.EmptyResponse>;
 }
+interface ITerminalServiceService_ILoginPasswordless extends grpc.MethodDefinition<v1_service_pb.LoginPasswordlessRequest, v1_service_pb.LoginPasswordlessResponse> {
+    path: "/teleport.terminal.v1.TerminalService/LoginPasswordless";
+    requestStream: true;
+    responseStream: true;
+    requestSerialize: grpc.serialize<v1_service_pb.LoginPasswordlessRequest>;
+    requestDeserialize: grpc.deserialize<v1_service_pb.LoginPasswordlessRequest>;
+    responseSerialize: grpc.serialize<v1_service_pb.LoginPasswordlessResponse>;
+    responseDeserialize: grpc.deserialize<v1_service_pb.LoginPasswordlessResponse>;
+}
 interface ITerminalServiceService_ILogout extends grpc.MethodDefinition<v1_service_pb.LogoutRequest, v1_service_pb.EmptyResponse> {
     path: "/teleport.terminal.v1.TerminalService/Logout";
     requestStream: false;
@@ -230,6 +239,7 @@ export interface ITerminalServiceServer {
     getAuthSettings: grpc.handleUnaryCall<v1_service_pb.GetAuthSettingsRequest, v1_auth_settings_pb.AuthSettings>;
     getCluster: grpc.handleUnaryCall<v1_service_pb.GetClusterRequest, v1_cluster_pb.Cluster>;
     login: grpc.handleUnaryCall<v1_service_pb.LoginRequest, v1_service_pb.EmptyResponse>;
+    loginPasswordless: grpc.handleBidiStreamingCall<v1_service_pb.LoginPasswordlessRequest, v1_service_pb.LoginPasswordlessResponse>;
     logout: grpc.handleUnaryCall<v1_service_pb.LogoutRequest, v1_service_pb.EmptyResponse>;
 }
 
@@ -288,6 +298,9 @@ export interface ITerminalServiceClient {
     login(request: v1_service_pb.LoginRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     login(request: v1_service_pb.LoginRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     login(request: v1_service_pb.LoginRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    loginPasswordless(): grpc.ClientDuplexStream<v1_service_pb.LoginPasswordlessRequest, v1_service_pb.LoginPasswordlessResponse>;
+    loginPasswordless(options: Partial<grpc.CallOptions>): grpc.ClientDuplexStream<v1_service_pb.LoginPasswordlessRequest, v1_service_pb.LoginPasswordlessResponse>;
+    loginPasswordless(metadata: grpc.Metadata, options?: Partial<grpc.CallOptions>): grpc.ClientDuplexStream<v1_service_pb.LoginPasswordlessRequest, v1_service_pb.LoginPasswordlessResponse>;
     logout(request: v1_service_pb.LogoutRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     logout(request: v1_service_pb.LogoutRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     logout(request: v1_service_pb.LogoutRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
@@ -349,6 +362,8 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
     public login(request: v1_service_pb.LoginRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     public login(request: v1_service_pb.LoginRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     public login(request: v1_service_pb.LoginRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
+    public loginPasswordless(options?: Partial<grpc.CallOptions>): grpc.ClientDuplexStream<v1_service_pb.LoginPasswordlessRequest, v1_service_pb.LoginPasswordlessResponse>;
+    public loginPasswordless(metadata?: grpc.Metadata, options?: Partial<grpc.CallOptions>): grpc.ClientDuplexStream<v1_service_pb.LoginPasswordlessRequest, v1_service_pb.LoginPasswordlessResponse>;
     public logout(request: v1_service_pb.LogoutRequest, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     public logout(request: v1_service_pb.LogoutRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     public logout(request: v1_service_pb.LogoutRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;

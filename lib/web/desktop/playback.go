@@ -33,6 +33,11 @@ import (
 	"golang.org/x/net/websocket"
 )
 
+const (
+	minPlaybackSpeed = 0.25
+	maxPlaybackSpeed = 16
+)
+
 // Player manages the playback of a recorded desktop session.
 // It streams events from the audit log to the browser over
 // a websocket connection.
@@ -43,6 +48,7 @@ type Player struct {
 	mu        sync.Mutex
 	cond      *sync.Cond
 	playState playbackState
+	playSpeed float32
 
 	log logrus.FieldLogger
 	sID string
@@ -68,6 +74,7 @@ func NewPlayer(sID string, ws *websocket.Conn, streamer Streamer, log logrus.Fie
 		playState: playStatePlaying,
 		log:       log,
 		sID:       sID,
+		playSpeed: 1.0,
 	}
 	p.cond = sync.NewCond(&p.mu)
 	return p
@@ -107,6 +114,9 @@ const (
 	// actionPlayPause toggles the playback state
 	// between playing and paused
 	actionPlayPause = playbackAction("play/pause")
+
+	// actionSpeed sets the playback speed
+	actionSpeed = playbackAction("speed")
 )
 
 // actionMessage is a message passed from the playback client
@@ -115,6 +125,9 @@ const (
 type actionMessage struct {
 	// actionPlayPause toggles the playbackState.playState
 	Action playbackAction `json:"action"`
+
+	// PlaySpeed is the playback speed to use.
+	PlaybackSpeed float32 `json:"speed,omitempty"`
 }
 
 // waitWhilePaused waits idly while the player's state is paused, waiting until:
@@ -185,6 +198,16 @@ func (pp *Player) receiveActions(cancel context.CancelFunc) {
 		switch action.Action {
 		case actionPlayPause:
 			pp.togglePlaying()
+		case actionSpeed:
+			if action.PlaybackSpeed < minPlaybackSpeed {
+				action.PlaybackSpeed = minPlaybackSpeed
+			} else if action.PlaybackSpeed > maxPlaybackSpeed {
+				action.PlaybackSpeed = maxPlaybackSpeed
+			}
+
+			pp.mu.Lock()
+			pp.playSpeed = action.PlaybackSpeed
+			pp.mu.Unlock()
 		default:
 			pp.log.Errorf("received unknown action: %v", action.Action)
 			return
@@ -198,6 +221,11 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 	defer pp.close(cancel)
 
 	var lastDelay int64
+	scaleDelay := func(delay int64) int64 {
+		pp.mu.Lock()
+		defer pp.mu.Unlock()
+		return int64(float32(delay) / pp.playSpeed)
+	}
 	eventsC, errC := pp.streamer.StreamSessionEvents(ctx, session.ID(pp.sID), 0)
 	for {
 		pp.waitWhilePaused()
@@ -231,7 +259,7 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 			case *apievents.DesktopRecording:
 				if e.DelayMilliseconds > lastDelay {
 					// TODO(zmb3): replace with time.After so we can cancel
-					time.Sleep(time.Duration(e.DelayMilliseconds-lastDelay) * time.Millisecond)
+					time.Sleep(time.Duration(scaleDelay(e.DelayMilliseconds-lastDelay)) * time.Millisecond)
 					lastDelay = e.DelayMilliseconds
 				}
 				msg, err := utils.FastMarshal(e)

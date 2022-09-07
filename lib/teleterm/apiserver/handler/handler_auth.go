@@ -52,6 +52,32 @@ func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyR
 
 }
 
+// LoginPasswordless logs in a user to a cluster passwordlessly.
+func (s *Handler) LoginPasswordless(stream api.TerminalService_LoginPasswordlessServer) error {
+	// Init stream request with cluster uri.
+	req, err := stream.Recv()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	initReq := req.GetInit()
+	if initReq == nil || initReq.GetClusterUri() == "" {
+		return trace.BadParameter("cluster URI is required")
+	}
+
+	cluster, err := s.DaemonService.ResolveCluster(initReq.GetClusterUri())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Start the prompt flow.
+	if err := cluster.PasswordlessLogin(stream.Context(), stream); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // Logout logs a user out from a cluster
 func (s *Handler) Logout(ctx context.Context, req *api.LogoutRequest) (*api.EmptyResponse, error) {
 	if err := s.DaemonService.ClusterLogout(ctx, req.ClusterUri); err != nil {
@@ -74,10 +100,12 @@ func (s *Handler) GetAuthSettings(ctx context.Context, req *api.GetAuthSettingsR
 	}
 
 	result := &api.AuthSettings{
-		PreferredMfa:     string(preferences.PreferredLocalMFA),
-		SecondFactor:     string(preferences.SecondFactor),
-		LocalAuthEnabled: preferences.LocalAuthEnabled,
-		AuthProviders:    []*api.AuthProvider{},
+		PreferredMfa:       string(preferences.PreferredLocalMFA),
+		SecondFactor:       string(preferences.SecondFactor),
+		LocalAuthEnabled:   preferences.LocalAuthEnabled,
+		AuthType:           preferences.AuthType,
+		AllowPasswordless:  preferences.AllowPasswordless,
+		LocalConnectorName: preferences.LocalConnectorName,
 	}
 
 	for _, provider := range preferences.Providers {

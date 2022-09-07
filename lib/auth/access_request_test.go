@@ -66,7 +66,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 
 	roles := map[string]types.RoleSpecV5{
 		// superadmins have access to all nodes
-		"superadmins": types.RoleSpecV5{
+		"superadmins": {
 			Allow: types.RoleConditions{
 				Logins: []string{"root"},
 				NodeLabels: types.Labels{
@@ -75,7 +75,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 			},
 		},
 		// admins have access to nodes in prod and staging
-		"admins": types.RoleSpecV5{
+		"admins": {
 			Allow: types.RoleConditions{
 				Logins: []string{"root"},
 				NodeLabels: types.Labels{
@@ -87,7 +87,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 			},
 		},
 		// operators can request the admins role
-		"operators": types.RoleSpecV5{
+		"operators": {
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					Roles: []string{"admins"},
@@ -96,7 +96,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 		},
 		// responders can request the admins role but only with a
 		// resource request limited to specific resources
-		"responders": types.RoleSpecV5{
+		"responders": {
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					SearchAsRoles: []string{"admins"},
@@ -104,7 +104,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 			},
 		},
 		// requesters can request everything possible
-		"requesters": types.RoleSpecV5{
+		"requesters": {
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					Roles:         []string{"admins", "superadmins"},
@@ -112,7 +112,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 				},
 			},
 		},
-		"empty": types.RoleSpecV5{},
+		"empty": {},
 	}
 	for roleName, roleSpec := range roles {
 		role, err := types.NewRole(roleName, roleSpec)
@@ -123,11 +123,11 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 	}
 
 	users := map[string][]string{
-		"admin":     []string{"admins"},
-		"responder": []string{"responders"},
-		"operator":  []string{"operators"},
-		"requester": []string{"requesters"},
-		"nobody":    []string{"empty"},
+		"admin":     {"admins"},
+		"responder": {"responders"},
+		"operator":  {"operators"},
+		"requester": {"requesters"},
+		"nobody":    {"empty"},
 	}
 	for name, roles := range users {
 		user, err := types.NewUser(name)
@@ -141,12 +141,12 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 		labels map[string]string
 	}
 	nodes := map[string]nodeDesc{
-		"staging": nodeDesc{
+		"staging": {
 			labels: map[string]string{
 				"env": "staging",
 			},
 		},
-		"prod": nodeDesc{
+		"prod": {
 			labels: map[string]string{
 				"env": "prod",
 			},
@@ -475,19 +475,26 @@ func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 	require.NoError(t, err)
 
 	type newClientFunc func(*testing.T, *Client, *proto.Certs) (*Client, *proto.Certs)
-	applyAccessRequests := func(newRequests ...string) newClientFunc {
+	updateClientWithNewAndDroppedRequests := func(newRequests, dropRequests []string) newClientFunc {
 		return func(t *testing.T, clt *Client, _ *proto.Certs) (*Client, *proto.Certs) {
 			certs, err := clt.GenerateUserCerts(ctx, proto.UserCertsRequest{
-				PublicKey:      testPack.pubKey,
-				Username:       username,
-				Expires:        time.Now().Add(time.Hour).UTC(),
-				AccessRequests: newRequests,
+				PublicKey:          testPack.pubKey,
+				Username:           username,
+				Expires:            time.Now().Add(time.Hour).UTC(),
+				AccessRequests:     newRequests,
+				DropAccessRequests: dropRequests,
 			})
 			require.NoError(t, err)
 			tlsCert, err := tls.X509KeyPair(certs.TLS, testPack.privKey)
 			require.NoError(t, err)
 			return testPack.tlsServer.NewClientWithCert(tlsCert), certs
 		}
+	}
+	applyAccessRequests := func(newRequests ...string) newClientFunc {
+		return updateClientWithNewAndDroppedRequests(newRequests, nil)
+	}
+	dropAccessRequests := func(dropRequests ...string) newClientFunc {
+		return updateClientWithNewAndDroppedRequests(nil, dropRequests)
 	}
 	failToApplyAccessRequests := func(reqs ...string) newClientFunc {
 		return func(t *testing.T, clt *Client, certs *proto.Certs) (*Client, *proto.Certs) {
@@ -568,6 +575,50 @@ func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			expectLogins:         []string{"root"},
 			expectResources:      prodResourceIDs,
 			expectAccessRequests: []string{adminRequest.GetName(), prodResourceRequest.GetName(), superAdminRequest.GetName()},
+		},
+		{
+			desc: "drop resource request",
+			steps: []newClientFunc{
+				applyAccessRequests(prodResourceRequest.GetName(), adminRequest.GetName(), superAdminRequest.GetName()),
+				dropAccessRequests(prodResourceRequest.GetName()),
+			},
+			expectRoles:          []string{"requesters", "admins", "superadmins"},
+			expectLogins:         []string{"root"},
+			expectAccessRequests: []string{adminRequest.GetName(), superAdminRequest.GetName()},
+		},
+		{
+			desc: "drop role request",
+			steps: []newClientFunc{
+				applyAccessRequests(prodResourceRequest.GetName(), adminRequest.GetName(), superAdminRequest.GetName()),
+				dropAccessRequests(superAdminRequest.GetName()),
+			},
+			expectRoles:          []string{"requesters", "admins"},
+			expectResources:      prodResourceIDs,
+			expectLogins:         []string{"root"},
+			expectAccessRequests: []string{adminRequest.GetName(), prodResourceRequest.GetName()},
+		},
+		{
+			desc: "drop all",
+			steps: []newClientFunc{
+				applyAccessRequests(prodResourceRequest.GetName(), adminRequest.GetName(), superAdminRequest.GetName()),
+				dropAccessRequests("*"),
+			},
+			expectRoles: []string{"requesters"},
+		},
+		{
+			desc: "switch resource requests",
+			steps: []newClientFunc{
+				applyAccessRequests(adminRequest.GetName()),
+				applyAccessRequests(prodResourceRequest.GetName()),
+				failToApplyAccessRequests(stagingResourceRequest.GetName()),
+				dropAccessRequests(prodResourceRequest.GetName()),
+				applyAccessRequests(stagingResourceRequest.GetName()),
+				failToApplyAccessRequests(prodResourceRequest.GetName()),
+				dropAccessRequests(stagingResourceRequest.GetName()),
+			},
+			expectRoles:          []string{"requesters", "admins"},
+			expectLogins:         []string{"root"},
+			expectAccessRequests: []string{adminRequest.GetName()},
 		},
 	} {
 		tc := tc

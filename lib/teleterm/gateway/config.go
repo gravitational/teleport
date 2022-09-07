@@ -17,11 +17,14 @@ limitations under the License.
 package gateway
 
 import (
-	"github.com/google/uuid"
-	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"runtime"
 
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/trace"
 
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -70,6 +73,10 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.LocalAddress == "" {
 		c.LocalAddress = "localhost"
+		// SQL Server Management Studio won't connect to localhost:12345, so use 127.0.0.1:12345 instead.
+		if runtime.GOOS == constants.WindowsOS && c.Protocol == defaults.ProtocolSQLServer {
+			c.LocalAddress = "127.0.0.1"
+		}
 	}
 
 	if c.LocalPort == "" {

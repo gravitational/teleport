@@ -34,8 +34,9 @@ type DefaultPrompt struct {
 	FirstTouchMessage, SecondTouchMessage string
 	PromptCredentialMessage               string
 
-	ctx   context.Context
-	out   io.Writer
+	ctx context.Context
+	out io.Writer
+
 	count int
 }
 
@@ -59,18 +60,19 @@ func (p *DefaultPrompt) PromptPIN() (string, error) {
 }
 
 // PromptTouch prompts the user for a security key touch, using different
-// messages for first and second prompts.
-func (p *DefaultPrompt) PromptTouch() {
+// messages for first and second prompts. Error is always nil.
+func (p *DefaultPrompt) PromptTouch() error {
 	if p.count == 0 {
 		p.count++
 		if p.FirstTouchMessage != "" {
 			fmt.Fprintln(p.out, p.FirstTouchMessage)
 		}
-		return
+		return nil
 	}
 	if p.SecondTouchMessage != "" {
 		fmt.Fprintln(p.out, p.SecondTouchMessage)
 	}
+	return nil
 }
 
 // PromptCredential prompts the user to choose a credential, in case multiple

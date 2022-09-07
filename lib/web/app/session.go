@@ -39,6 +39,8 @@ type session struct {
 	fwd *forward.Forwarder
 	// ws represents the services.WebSession this requests belongs to.
 	ws types.WebSession
+	// transport allows to dial an application server.
+	tr *transport
 }
 
 // newSession creates a new session.
@@ -113,6 +115,7 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 	return &session{
 		fwd: fwd,
 		ws:  ws,
+		tr:  transport,
 	}, nil
 }
 

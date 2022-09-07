@@ -19,6 +19,11 @@ import (
 	"crypto/subtle"
 	"net/mail"
 
+	"github.com/gravitational/trace"
+	"github.com/pquerna/otp"
+	"github.com/pquerna/otp/totp"
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -28,10 +33,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/pquerna/otp"
-	"github.com/pquerna/otp/totp"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // This is bcrypt hash for password "barbaz".
@@ -237,7 +238,7 @@ func (s *Server) checkOTP(user string, otpToken string) (*types.MFADevice, error
 			return nil, trace.BadParameter("previously used totp token")
 		}
 
-		devs, err := s.Identity.GetMFADevices(ctx, user, true)
+		devs, err := s.Services.GetMFADevices(ctx, user, true)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
