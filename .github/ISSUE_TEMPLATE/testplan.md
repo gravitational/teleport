@@ -872,37 +872,61 @@ Add the following to enable read access to trusted clusters
 - [ ] Verify that a user cannot create/delete/update a trusted cluster.
 
 
-## Performance/Soak Test
+## Performance
 
-Using `tsh bench` tool, perform the soak tests and benchmark tests on the following configurations:
+Perform all tests on the following configurations:
 
-* Cluster with 10K nodes in normal (non-IOT) node mode with ETCD
-* Cluster with 10K nodes in normal (non-IOT) mode with DynamoDB
+- [ ] With default networking configuration
+- [ ] With Proxy Peering Enabled
+- [ ] With TLS Routing Enabled
 
-* Cluster with 1K IOT nodes with ETCD
-* Cluster with 1K IOT nodes with DynamoDB
+* Cluster with 10K direct dial nodes: 
+ - [ ] etcd
+ - [ ] DynamoDB
+ - [ ] Firestore
+ - [ ] Postgres
 
-* Cluster with 500 trusted clusters with ETCD
-* Cluster with 500 trusted clusters with DynamoDB
+* Cluster with 10K reverse tunnel nodes:
+ - [ ] etcd
+ - [ ] DynamoDB
+ - [ ] Firestore
+ - [ ] Postgres
 
-**Soak Tests**
+* Cluster with 500 trusted clusters:
+- [ ] etcd
+- [ ] DynamoDB
+- [ ] Firestore
+- [ ] Postgres
 
-Run 4hour soak test with a mix of interactive/non-interactive sessions:
+### Soak Test
 
-```
-tsh bench --duration=4h user@teleport-monster-6757d7b487-x226b ls
-tsh bench -i --duration=4h user@teleport-monster-6757d7b487-x226b ps uax
+Run 30 minute soak test with a mix of interactive/non-interactive sessions for both direct and reverse tunnel nodes:
+
+```shell
+tsh bench --duration=30m user@direct-dial-node ls
+tsh bench -i --duration=30m user@direct-dial-node ps uax
+
+tsh bench --duration=30m user@reverse-tunnel-node ls
+tsh bench -i --duration=30m user@reverse-tunnel-node ps uax
 ```
 
 Observe prometheus metrics for goroutines, open files, RAM, CPU, Timers and make sure there are no leaks
 
 - [ ] Verify that prometheus metrics are accurate.
 
-**Breaking load tests**
+### Concurrent Session Test
 
-Load system with tsh bench to the capacity and publish maximum numbers of concurrent sessions with interactive
-and non interactive tsh bench loads.
+* Cluster with 1k reverse tunnel nodes
 
+Run a concurrent session test that will spawn 5 interactive sessions per node in the cluster:
+
+```shell
+tsh bench sessions --max=5000 user ls
+tsh bench sessions --max=5000 --web user ls 
+```
+
+- [ ] Verify that all 5000 sessions are able to be established.
+- [ ] Verify that tsh and the web UI are still functional.
 
 ## Teleport with Cloud Providers
 
@@ -1113,6 +1137,45 @@ and non interactive tsh bench loads.
     - [ ] The UI shows a relevant alert and "Clipboard Sharing Disabled" is highlighted in the top bar
   - When a user has a role with clipboard sharing *disabled* and is using a chromium and non-chromium based browser (confirm both)
     - [ ] The live session should show disabled in the top bar and copy/paste should not work between your workstation and the remote desktop.
+- Directory Sharing
+  - On supported, non-chromium based browsers (Firefox/Safari)
+    - [ ] Attempting to share directory shows a dismissible "Unsupported Action" dialog
+  - On supported, chromium based browsers (Chrome/Edge)
+    - Begin sharing works
+      - [ ] The shared directory icon in the top right of the screen is highlighted when directory sharing is initiated
+      - [ ] The shared directory appears as a network drive named "<directory_name> on teleport"
+      - [ ] The share directory menu option dissapears from the menu
+    - Navigation
+      - [ ] The folders of the shared directory are navigable (move up and down the directory tree)
+    - CRUD
+      - [ ] A new text file can be created
+      - [ ] The text file can be written to (saved)
+      - [ ] The text file can be read (close it, check that its saved on the local machine, then open it again on the remote)
+      - [ ] The text file can be deleted
+    - File/Folder movement
+      - In to out (make at least one of these from a non-top-level-directory)
+        - [ ] A file from inside the shared directory can be drag-and-dropped outside the shared directory
+        - [ ] A folder from inside the shared directory can be drag-and-dropped outside the shared directory (and its contents retained)
+        - [ ] A file from inside the shared directory can be cut-pasted outside the shared directory
+        - [ ] A folder from inside the shared directory can be cut-pasted outside the shared directory
+        - [ ] A file from inside the shared directory can be copy-pasted outside the shared directory
+        - [ ] A folder from inside the shared directory can be copy-pasted outside the shared directory
+      - Out to in (make at least one of these overwrite an existing file, and one go into a non-top-level directory)
+        - [ ] A file from outside the shared directory can be drag-and-dropped into the shared directory
+        - [ ] A folder from outside the shared directory can be drag-and-dropped into the shared directory (and its contents retained)
+        - [ ] A file from outside the shared directory can be cut-pasted into the shared directory
+        - [ ] A folder from outside the shared directory can be cut-pasted into the shared directory
+        - [ ] A file from outside the shared directory can be copy-pasted into the shared directory
+        - [ ] A folder from outside the shared directory can be copy-pasted into the shared directory
+      - Within
+        - [ ] A file from inside the shared directory cannot be drag-and-dropped to another folder inside the shared directory: a dismissible "Unsupported Action" dialog is shown
+        - [ ] A folder from inside the shared directory cannot be drag-and-dropped to another folder inside the shared directory: a dismissible "Unsupported Action" dialog is shown
+        - [ ] A file from inside the shared directory cannot be cut-pasted to another folder inside the shared directory: a dismissible "Unsupported Action" dialog is shown
+        - [ ] A folder from inside the shared directory cannot be cut-pasted to another folder inside the shared directory: a dismissible "Unsupported Action" dialog is shown
+        - [ ] A file from inside the shared directory can be copy-pasted to another folder inside the shared directory
+        - [ ] A folder from inside the shared directory can be copy-pasted to another folder inside shared directory (and its contents retained)
+  - RBAC
+    - [ ] Give the user one role that explicitly disables directory sharing (`desktop_directory_sharing: false`) and confirm that the option to share a directory doesn't appear in the menu
 - Per-Session MFA (try webauthn on each of Chrome, Safari, and Firefox; u2f only works with Firefox)
   - [ ] Attempting to start a session no keys registered shows an error message
   - [ ] Attempting to start a session with a u2f key registered shows an error message

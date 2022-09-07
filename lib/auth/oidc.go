@@ -599,9 +599,14 @@ type OIDCAuthResponse struct {
 func (a *Server) calculateOIDCUser(diagCtx *ssoDiagContext, connector types.OIDCConnector, claims jose.Claims, ident *oidc.Identity, request *types.OIDCAuthRequest) (*createUserParams, error) {
 	var err error
 
+	username, err := usernameFromClaims(connector, claims, ident)
+	if err != nil {
+		return nil, err
+	}
+
 	p := createUserParams{
 		connectorName: connector.GetName(),
-		username:      ident.Email,
+		username:      username,
 	}
 
 	p.traits = services.OIDCClaimsToTraits(claims)
@@ -706,6 +711,25 @@ func (a *Server) createOIDCUser(p *createUserParams, dryRun bool) (types.User, e
 	}
 
 	return user, nil
+}
+
+// usernameFromClaims gets the username of the OIDC user based on the claims received. The `username_claim` field in the OIDC
+// config specifies which claim from the OIDC provider to use as the user's username. If it isn't specified, the email will be used
+// as the username. If it is specified but specifies a claim that doesn't exist, an error is returned.
+func usernameFromClaims(connector types.OIDCConnector, claims jose.Claims, ident *oidc.Identity) (string, error) {
+	usernameClaim := connector.GetUsernameClaim()
+	if usernameClaim == "" {
+		return ident.Email, nil
+	}
+
+	username, ok, err := claims.StringClaim(usernameClaim)
+	if err != nil {
+		return "", err
+	} else if !ok {
+		return "", trace.BadParameter("The configured username_claim of %q was not received from the IdP. Please update the username_claim in connector %q.", usernameClaim, connector.GetName())
+	}
+
+	return username, nil
 }
 
 // claimsFromIDToken extracts claims from the ID token.
