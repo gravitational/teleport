@@ -58,7 +58,7 @@ func TestParsePrivateKey(t *testing.T) {
 			assertKey: func(tt require.TestingT, key interface{}, i2 ...interface{}) {
 				privateKey, ok := key.(*PrivateKey)
 				require.True(t, ok)
-				require.IsType(t, &rsa.PrivateKey{}, privateKey.GetBaseSigner())
+				require.IsType(t, &rsa.PrivateKey{}, privateKey.Signer)
 			},
 		},
 		{
@@ -68,7 +68,7 @@ func TestParsePrivateKey(t *testing.T) {
 			assertKey: func(tt require.TestingT, key interface{}, i2 ...interface{}) {
 				privateKey, ok := key.(*PrivateKey)
 				require.True(t, ok)
-				require.IsType(t, &ecdsa.PrivateKey{}, privateKey.GetBaseSigner())
+				require.IsType(t, &ecdsa.PrivateKey{}, privateKey.Signer)
 			},
 		},
 		{
@@ -78,7 +78,7 @@ func TestParsePrivateKey(t *testing.T) {
 			assertKey: func(tt require.TestingT, key interface{}, i2 ...interface{}) {
 				privateKey, ok := key.(*PrivateKey)
 				require.True(t, ok)
-				require.IsType(t, ed25519.PrivateKey{}, privateKey.GetBaseSigner())
+				require.IsType(t, ed25519.PrivateKey{}, privateKey.Signer)
 			},
 		},
 	} {
