@@ -36,6 +36,8 @@ const (
 )
 
 // VerifyPolicy verifies that the given policy meets the requirements of this policy.
+// If not, it will return a private key policy error, which can be parsed to retrive
+// the unmet policy.
 func (p PrivateKeyPolicy) VerifyPolicy(policy PrivateKeyPolicy) error {
 	switch p {
 	case PrivateKeyPolicyNone:
@@ -58,6 +60,8 @@ func newPrivateKeyPolicyError(p PrivateKeyPolicy) error {
 	return trace.BadParameter(privateKeyPolicyErrMsg + string(p))
 }
 
+// IsPrivateKeyPolicyError returns whether this error is a private key policy
+// error, in the form "private key policy not met: unmet-policy".
 func IsPrivateKeyPolicyError(err error) bool {
 	if trace.IsBadParameter(err) {
 		return strings.Contains(err.Error(), privateKeyPolicyErrMsg)
@@ -65,8 +69,8 @@ func IsPrivateKeyPolicyError(err error) bool {
 	return false
 }
 
-// ParsePrivateKeyPolicyError checks if the given error matches one from VerifyPolicy,
-// and returns the contained PrivateKeyPolicy.
+// ParsePrivateKeyPolicyError checks if the given error is a private key policy
+// error and returns the contained PrivateKeyPolicy.
 func ParsePrivateKeyPolicyError(err error) (PrivateKeyPolicy, error) {
 	if !IsPrivateKeyPolicyError(err) {
 		return "", trace.BadParameter("provided error is not a key policy error")

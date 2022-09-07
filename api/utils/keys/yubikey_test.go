@@ -26,8 +26,14 @@ import (
 
 // TestGetOrGenerateYubiKeyPrivateKey tests GetOrGenerateYubiKeyPrivateKey.
 func TestGetOrGenerateYubiKeyPrivateKey(t *testing.T) {
+	// This test expects a yubiKey to be connected with default PIV
+	// settings and will overwrite any PIV data on the yubiKey.
+	if os.Getenv("TELEPORT_TEST_YUBIKEY_PIV") == "" {
+		t.Skipf("Skipping TestGenerateYubiKeyPrivateKey because TELEPORT_TEST_YUBIKEY_PIV is not set")
+	}
+
 	ctx := context.Background()
-	setupTestYubikey(ctx, t)
+	resetYubikey(ctx, t)
 
 	// Generate a new YubiKeyPrivateKey.
 	priv, err := GetOrGenerateYubiKeyPrivateKey(ctx, false)
@@ -48,14 +54,8 @@ func TestGetOrGenerateYubiKeyPrivateKey(t *testing.T) {
 	require.Equal(t, priv, retrieveKey)
 }
 
-// setupTestYubikey checks if TELEPORT_TEST_YUBIKEY_PIV has been requested,
-// finds the first connected yubikey, and resets it to default PIV settings.
-func setupTestYubikey(ctx context.Context, t *testing.T) {
-	if os.Getenv("TELEPORT_TEST_YUBIKEY_PIV") == "" {
-		t.Skipf("Skipping TestGenerateYubiKeyPrivateKey because TELEPORT_TEST_YUBIKEY_PIV is not set")
-	}
-
-	// Connect to the first yubiKey and reset it.
+// resetYubikey connectsx to the first yubiKey and resets it to defaults.
+func resetYubikey(ctx context.Context, t *testing.T) {
 	y, err := findYubiKey(ctx, 0)
 	require.NoError(t, err)
 	yk, err := y.open(ctx)

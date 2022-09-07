@@ -60,8 +60,8 @@ func GetOrGenerateYubiKeyPrivateKey(ctx context.Context, touchRequired bool) (*P
 	}
 
 	// Get the correct PIV slot and Touch policy for the given touch requirement:
-	//  - Slot 9a = hardware_key
-	//  - Slot 9c = hardware_key_touch
+	//  - Slot 9a = no touch
+	//  - Slot 9c = touch
 	pivSlot := piv.SlotAuthentication
 	touchPolicy := piv.TouchPolicyNever
 	if touchRequired {

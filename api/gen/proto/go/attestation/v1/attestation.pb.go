@@ -23,7 +23,7 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
-// AttestationRequest is a request to attest an attestation request.
+// AttestationRequest is a request to attest a hardware private key.
 type AttestationRequest struct {
 	// Types that are valid to be assigned to AttestationRequest:
 	//	*AttestationRequest_YubikeyAttestationRequest
@@ -104,7 +104,7 @@ type YubiKeyAttestationRequest struct {
 	// slot_cert is an attestation certificate generated from a YubiKey PIV
 	// slot's public key and signed by the YubiKey's attestation certificate.
 	SlotCert []byte `protobuf:"bytes,1,opt,name=slot_cert,json=slotCert,proto3" json:"slot_cert,omitempty"`
-	// attestation_cert is a YubiKey's unique attestation certificate signed by a Yubico CA.
+	// attestation_cert is the YubiKey's unique attestation certificate, signed by a Yubico CA.
 	AttestationCert      []byte   `protobuf:"bytes,2,opt,name=attestation_cert,json=attestationCert,proto3" json:"attestation_cert,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

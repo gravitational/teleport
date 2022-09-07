@@ -22,6 +22,7 @@ package keys
 import (
 	"context"
 	"crypto/x509"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -40,10 +41,16 @@ func TestHardwareSigner(t *testing.T) {
 	policy := GetPrivateKeyPolicy(priv)
 	require.Equal(t, PrivateKeyPolicyNone, policy)
 
-	// Generate a new YubiKeyPrivateKey. it should return a valid attestation request and key policy.
-	ctx := context.Background()
-	setupTestYubikey(ctx, t)
+	// The rest of the  test expects a yubiKey to be connected with default PIV settings
+	// and will overwrite any PIV data on the yubiKey.
+	if os.Getenv("TELEPORT_TEST_YUBIKEY_PIV") == "" {
+		t.Skipf("Skipping TestGenerateYubiKeyPrivateKey because TELEPORT_TEST_YUBIKEY_PIV is not set")
+	}
 
+	ctx := context.Background()
+	resetYubikey(ctx, t)
+
+	// Generate a new YubiKeyPrivateKey. It should return a valid attestation request and key policy.
 	priv, err = GetOrGenerateYubiKeyPrivateKey(ctx, false)
 	require.NoError(t, err)
 
@@ -57,8 +64,14 @@ func TestHardwareSigner(t *testing.T) {
 
 // TestAttestHardwareKey tests AttestHardwareKey.
 func TestAttestHardwareKey(t *testing.T) {
+	// This test expects a yubiKey to be connected with default PIV
+	// settings and will overwrite any PIV data on the yubiKey.
+	if os.Getenv("TELEPORT_TEST_YUBIKEY_PIV") == "" {
+		t.Skipf("Skipping TestGenerateYubiKeyPrivateKey because TELEPORT_TEST_YUBIKEY_PIV is not set")
+	}
+
 	ctx := context.Background()
-	setupTestYubikey(ctx, t)
+	resetYubikey(ctx, t)
 
 	priv, err := GetOrGenerateYubiKeyPrivateKey(ctx, false)
 	require.NoError(t, err)

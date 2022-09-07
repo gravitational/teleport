@@ -3442,11 +3442,12 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 func (tc *TeleportClient) GetNewLoginKey(ctx context.Context, keyPolicy keys.PrivateKeyPolicy) (*keys.PrivateKey, error) {
 	key, err := tc.LocalAgent().GetCoreKey()
 	if err == nil {
-		// If we find an existing key with a supported key policy, then we should compare
-		// its key policy to the provided keyPolicy and use the stricter of the two.
-		coreKeyPolicy := keys.GetPrivateKeyPolicy(key.PrivateKey)
-		if err := keyPolicy.VerifyPolicy(coreKeyPolicy); err == nil {
-			keyPolicy = coreKeyPolicy
+		// If we find an existing key with a non-zero key polic and it meets
+		// the given keyPolicy requirement, then we should use the existing key.
+		if coreKeyPolicy := keys.GetPrivateKeyPolicy(key.PrivateKey); coreKeyPolicy != keys.PrivateKeyPolicyNone {
+			if err := keyPolicy.VerifyPolicy(coreKeyPolicy); err == nil {
+				return key.PrivateKey, nil
+			}
 		}
 	} else if !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)

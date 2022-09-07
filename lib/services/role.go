@@ -1173,8 +1173,8 @@ func (set RoleSet) AdjustSessionTTL(ttl time.Duration) time.Duration {
 	return ttl
 }
 
-// MaxConnections returns the maximum number of concurrent ssh connections110// allowed.  If MaxConnections is zero then no maximum was defined
-// and the number of concurrent connections is unconstrained.
+// MaxConnections returns the maximum number of concurrent ssh connections
+// allowed.  If MaxConnections is zero then no maximum was defined
 func (set RoleSet) MaxConnections() int64 {
 	var mcs int64
 	for _, role := range set {

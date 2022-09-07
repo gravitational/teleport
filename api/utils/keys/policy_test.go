@@ -42,6 +42,7 @@ func TestVerifyPolicy(t *testing.T) {
 	})
 }
 
+// TestPrivateKeyPolicyError tests private key policy error logic.
 func TestPrivateKeyPolicyError(t *testing.T) {
 	for _, tc := range []struct {
 		desc               string

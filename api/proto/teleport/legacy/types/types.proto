@@ -4265,21 +4265,3 @@ enum RequireMFAType {
   // requiring double touch on session requests, normal Session MFA is disabled.
   HARDWARE_KEY_TOUCH = 3;
 }
-
-// AttestationRequest is a request to attest an attestation request.
-message AttestationRequest {
-  oneof attestation_request {
-    // yubikey_attestation_request is a request to attest a specific YubiKey PIV slot.
-    YubiKeyAttestationRequest yubikey_attestation_request = 1;
-  }
-}
-
-// YubiKeyAttestationRequest is a request to attest a specific YubiKey PIV slot.
-message YubiKeyAttestationRequest {
-  // slot_cert is an attestation certificate generated from a YubiKey PIV
-  // slot's public key and signed by the YubiKey's attestation certificate.
-  bytes slot_cert = 1;
-
-  // attestation_cert is a YubiKey's unique attestation certificate signed by a Yubico CA.
-  bytes attestation_cert = 2;
-}

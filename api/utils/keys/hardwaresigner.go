@@ -25,7 +25,8 @@ import (
 	proto "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
 )
 
-// HardwareSigner is a crypto.Signer which can be attested to support enforced private key policies.
+// HardwareSigner is a crypto.Signer which can be attested as being backed by a hardware key.
+// This enables the ability to enforced hardware key private key policies.
 type HardwareSigner interface {
 	crypto.Signer
 
@@ -37,7 +38,8 @@ type HardwareSigner interface {
 }
 
 // GetAttestationRequest returns an AttestationRequest for the given private key.
-// If the given private key is not a YubiKeyPrivateKey, then a nil request will be returned.
+// If the given private key does not have a HardwareSigner, then a nil request
+// and error will be returned.
 func GetAttestationRequest(priv *PrivateKey) (*AttestationRequest, error) {
 	if attestedPriv, ok := priv.Signer.(HardwareSigner); ok {
 		return attestedPriv.GetAttestationRequest()
@@ -54,7 +56,7 @@ func GetPrivateKeyPolicy(priv *PrivateKey) PrivateKeyPolicy {
 	return PrivateKeyPolicyNone
 }
 
-// AttestationRequest is an alias for proto.AttestationRequest which supports
+// AttestationRequest is an alias for proto.AttestationRequest that supports
 // json marshaling and unmarshaling.
 type AttestationRequest proto.AttestationRequest
 
@@ -80,16 +82,16 @@ func (ar *AttestationRequest) UnmarshalJSON(buf []byte) error {
 	return jsonpb.Unmarshal(bytes.NewReader(buf), ar.ToProto())
 }
 
-// AttestationResponse is veriried attestation data for a public key.
+// AttestationResponse is verified attestation data for a public key.
 type AttestationResponse struct {
 	// PublicKeyDER is the public key in PKIX, ASN.1 DER form.
 	PublicKeyDER []byte `json:"public_key"`
-	// PrivateKeyPolicy specifies the private key policy supported by the attested hardware key.
+	// PrivateKeyPolicy specifies the private key policy supported by the associated private key.
 	PrivateKeyPolicy PrivateKeyPolicy `json:"private_key_policy"`
 }
 
 // AttestHardwareKey performs attestation using the given attestation object, and returns
-// a response containing the public key attested and any hardware key policies that it meets.
+// a response containing the public key attested and the hardware key policy that it meets.
 func AttestHardwareKey(req *AttestationRequest) (*AttestationResponse, error) {
 	protoReq := req.ToProto()
 	switch protoReq.GetAttestationRequest().(type) {

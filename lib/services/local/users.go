@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"sort"
@@ -27,13 +28,13 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
+	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gokyle/hotp"
-	"github.com/google/certificate-transparency-go/x509"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -41,8 +42,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
-
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 )
 
 // GlobalSessionDataMaxEntries represents the maximum number of in-flight
