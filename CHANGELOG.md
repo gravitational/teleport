@@ -1,5 +1,29 @@
 # Changelog
 
+## 10.2.0
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with `tsh` reporting "no suitable devices found" when using Yubikeys. [#16011](https://github.com/gravitational/teleport/pull/16011)
+* Fixed potential panic when using unsupported Google application credentials file. [#16042](https://github.com/gravitational/teleport/pull/16042)
+* Fixed issue with database connections getting terminated due to idle timeout when running long queries. [#16017](https://github.com/gravitational/teleport/pull/16017)
+* Fixed issue with `tsh ssh` and `tsh aws` commands failing with "unknown flag" errors. [#16094](https://github.com/gravitational/teleport/pull/16094)
+* Fixed issue with empty Github connector fields being always marshaled. [#16012](https://github.com/gravitational/teleport/pull/16012)
+* Fixed issue with SSH sessions not properly terminating in some cases. [#16065](https://github.com/gravitational/teleport/pull/16065)
+* Introduced a new web UI guided wizard for joining SSH nodes. [#16169](https://github.com/gravitational/teleport/pull/16169), [#16087](https://github.com/gravitational/teleport/pull/16087)
+* Added support for Azure PostgreSQL and MySQL databases auto-discovery. [#15988](https://github.com/gravitational/teleport/pull/15988), [#15990](https://github.com/gravitational/teleport/pull/15990), [#15989](https://github.com/gravitational/teleport/pull/15989), [#15991](https://github.com/gravitational/teleport/pull/15991), [#15992](https://github.com/gravitational/teleport/pull/15992)
+* Added support for directory sharing to Desktop Access. [#16054](https://github.com/gravitational/teleport/pull/16054)
+* Added new Teleport version notifications to `tsh login` and `tsh status`. [#16180](https://github.com/gravitational/teleport/pull/16180)
+* Added support for sending session events to Linux Audit System (`auditd`). [#16140](https://github.com/gravitational/teleport/pull/16140)
+* Added `--browser=none` support to `tctl sso test` command that prints the URL in the console. [#16086](https://github.com/gravitational/teleport/pull/16086)
+* Added retries to biometric key authentication when using unregistered fingerprint. [#15947](https://github.com/gravitational/teleport/pull/15947)
+* Added support for IAM joining in AWS China regions. [#15915](https://github.com/gravitational/teleport/pull/15915)
+* Added support for AWS Console Access in AWS GovCloud regions. [#16067](https://github.com/gravitational/teleport/pull/16067)
+* Added the lock target to `lock.create` audit events. [#15981](https://github.com/gravitational/teleport/pull/15981)
+* Updated `tctl bots add` to display correct proxy address. [#16089](https://github.com/gravitational/teleport/pull/16089)
+* Updated Access Requests to include appropriate `--request-id` flag to generated `tsh login` command. [#15962](https://github.com/gravitational/teleport/pull/15962)
+* Increased maximum backend range limit to account for clusters with a lot of node churn. [#16103](https://github.com/gravitational/teleport/pull/16103)
+
 ## 10.1.9
 
 This release of Teleport contains multiple improvements and bug fixes.
