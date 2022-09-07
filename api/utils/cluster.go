@@ -44,9 +44,8 @@ func DecodeClusterName(serverName string) (string, error) {
 	if !strings.HasSuffix(serverName, suffix) {
 		return "", trace.NotFound("no cluster name is encoded")
 	}
-	clusterName := strings.TrimSuffix(serverName, suffix)
 
-	decoded, err := hex.DecodeString(clusterName)
+	decoded, err := hex.DecodeString(serverName[:len(serverName)-len(suffix)])
 	if err != nil {
 		return "", trace.BadParameter("failed to decode cluster name: %v", err)
 	}

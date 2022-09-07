@@ -19,7 +19,6 @@ package alpnproxy
 import (
 	"bytes"
 	"context"
-	"crypto/subtle"
 	"crypto/tls"
 	"encoding/base64"
 	"io"
@@ -91,7 +90,7 @@ type MatchFunc func(sni, alpn string) bool
 // MatchByProtocol creates match function based on client TLS ALPN protocol.
 func MatchByProtocol(protocol string) MatchFunc {
 	return func(sni, alpn string) bool {
-		return subtle.ConstantTimeCompare([]byte(protocol), []byte(alpn)) == 1
+		return protocol == alpn
 	}
 }
 

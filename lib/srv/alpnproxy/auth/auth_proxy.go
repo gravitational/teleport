@@ -18,13 +18,15 @@ package alpnproxyauth
 
 import (
 	"context"
-	"io"
 	"net"
 	"strings"
 
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -37,11 +39,12 @@ type sitesGetter interface {
 }
 
 // NewAuthProxyDialerService create new instance of AuthProxyDialerService.
-func NewAuthProxyDialerService(reverseTunnelServer sitesGetter, localClusterName string, authServers []string) *AuthProxyDialerService {
+func NewAuthProxyDialerService(reverseTunnelServer sitesGetter, localClusterName string, authServer string) *AuthProxyDialerService {
 	return &AuthProxyDialerService{
 		reverseTunnelServer: reverseTunnelServer,
 		localClusterName:    localClusterName,
-		authServers:         authServers,
+		authServer:          authServer,
+		tracer:              tracing.DefaultProvider().Tracer("alpnAuthDialer"),
 	}
 }
 
@@ -50,21 +53,37 @@ func NewAuthProxyDialerService(reverseTunnelServer sitesGetter, localClusterName
 type AuthProxyDialerService struct {
 	reverseTunnelServer sitesGetter
 	localClusterName    string
-	authServers         []string
+	authServer          string
+	tracer              oteltrace.Tracer
 }
 
 func (s *AuthProxyDialerService) HandleConnection(ctx context.Context, conn net.Conn, connInfo alpnproxy.ConnectionInfo) error {
+	ctx, span := s.tracer.Start(
+		ctx,
+		"alpnAuthDialer/HandleConnection",
+		oteltrace.WithAttributes(
+			attribute.String("sni", connInfo.SNI),
+			attribute.StringSlice("alpn", connInfo.ALPN),
+		),
+	)
+	defer span.End()
+
 	defer conn.Close()
+
+	span.AddEvent("getting cluster name")
 	clusterName, err := getClusterName(connInfo)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	authConn, err := s.dialAuthServer(ctx, clusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer authConn.Close()
-	if err := s.proxyConn(ctx, conn, authConn); err != nil {
+
+	span.AddEvent("proxying connection")
+	if err := utils.ProxyConn(ctx, conn, authConn); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -74,38 +93,46 @@ func getClusterName(info alpnproxy.ConnectionInfo) (string, error) {
 	if len(info.ALPN) == 0 {
 		return "", trace.NotFound("missing ALPN value")
 	}
+
 	protocol := info.ALPN[0]
 	if !strings.HasPrefix(protocol, common.ProtocolAuth) {
 		return "", trace.BadParameter("auth routing prefix not found")
 	}
-	routeToCluster := strings.TrimPrefix(protocol, common.ProtocolAuth)
-	cn, err := apiutils.DecodeClusterName(routeToCluster)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return cn, nil
+
+	cn, err := apiutils.DecodeClusterName(protocol[len(common.ProtocolAuth):])
+	return cn, trace.Wrap(err)
 }
 
 func (s *AuthProxyDialerService) dialAuthServer(ctx context.Context, clusterNameFromSNI string) (net.Conn, error) {
+	ctx, span := s.tracer.Start(
+		ctx,
+		"alpnAuthDialer/dialAuthServer",
+		oteltrace.WithAttributes(
+			attribute.String("cluster", clusterNameFromSNI),
+		),
+	)
+	defer span.End()
+
 	if clusterNameFromSNI == s.localClusterName {
+		span.AddEvent("dialing local auth server")
 		return s.dialLocalAuthServer(ctx)
 	}
 	if s.reverseTunnelServer != nil {
+		span.AddEvent("dialing remote auth server")
 		return s.dialRemoteAuthServer(ctx, clusterNameFromSNI)
 	}
 	return nil, trace.NotFound("auth server for %q cluster name not found", clusterNameFromSNI)
 }
 
 func (s *AuthProxyDialerService) dialLocalAuthServer(ctx context.Context) (net.Conn, error) {
-	if len(s.authServers) == 0 {
+	if s.authServer == "" {
 		return nil, trace.NotFound("empty auth servers list")
 	}
 
-	addr := utils.ChooseRandomString(s.authServers)
 	d := &net.Dialer{
 		Timeout: defaults.DefaultDialTimeout,
 	}
-	conn, err := d.DialContext(ctx, "tcp", addr)
+	conn, err := d.DialContext(ctx, "tcp", s.authServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -129,33 +156,4 @@ func (s *AuthProxyDialerService) dialRemoteAuthServer(ctx context.Context, clust
 		return conn, nil
 	}
 	return nil, trace.NotFound("cluster name %q not found", clusterName)
-}
-
-func (s *AuthProxyDialerService) proxyConn(ctx context.Context, upstreamConn, downstreamConn net.Conn) error {
-	errC := make(chan error, 2)
-	go func() {
-		defer upstreamConn.Close()
-		defer downstreamConn.Close()
-		_, err := io.Copy(downstreamConn, upstreamConn)
-		errC <- trace.Wrap(err)
-
-	}()
-	go func() {
-		defer upstreamConn.Close()
-		defer downstreamConn.Close()
-		_, err := io.Copy(upstreamConn, downstreamConn)
-		errC <- trace.Wrap(err)
-	}()
-	var errs []error
-	for i := 0; i < 2; i++ {
-		select {
-		case <-ctx.Done():
-			return trace.Wrap(ctx.Err())
-		case err := <-errC:
-			if err != nil && !utils.IsOKNetworkError(err) {
-				errs = append(errs, err)
-			}
-		}
-	}
-	return trace.NewAggregate(errs...)
 }
