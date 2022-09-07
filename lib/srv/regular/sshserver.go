@@ -279,14 +279,25 @@ func (s *Server) UseTunnel() bool {
 	return s.useTunnel
 }
 
-// GetBPF returns the BPF service used by enhanced session recording.
-func (s *Server) GetBPF() bpf.BPF {
-	return s.ebpf
+// OpenBPFSession will start monitoring all events within a session and
+// emitting them to the Audit Log.
+func (s *Server) OpenBPFSession(ctx *srv.ServerContext) (uint64, error) {
+	return s.ebpf.OpenSession(ctx)
 }
 
-// GetRestrictedSessionManager returns the manager for restricting user activity.
-func (s *Server) GetRestrictedSessionManager() restricted.Manager {
-	return s.restrictedMgr
+// CloseBPFSession will stop monitoring events for a particular session.
+func (s *Server) CloseBPFSession(ctx *srv.ServerContext) error {
+	return s.ebpf.CloseSession(ctx)
+}
+
+// OpenRestrictedSession  starts enforcing restrictions for a cgroup with cgroupID
+func (s *Server) OpenRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {
+	s.restrictedMgr.OpenSession(ctx, cgroupID)
+}
+
+// CloseRestrictedSession stops enforcing restrictions for a cgroup with cgroupID
+func (s *Server) CloseRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {
+	s.restrictedMgr.CloseSession(ctx, cgroupID)
 }
 
 // GetLockWatcher gets the server's lock watcher.
