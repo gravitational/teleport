@@ -1,5 +1,29 @@
 # Changelog
 
+## 7.3.24
+
+This release of Teleport contains a security fix as well as bug fixes and stability improvements.
+
+## RCE in SSH agent install script
+
+Token value provided via HTTP request to download the node join script wasn't
+properly validated. This could allow an attacker to generate a node join script
+with malicious code included.
+
+[#15876](https://github.com/gravitational/teleport/pull/15876)
+
+## Other fixes
+
+* Fixed issue with some `kubectl` commands getting "malformed HTTP response" during concurrent access. [#15468](https://github.com/gravitational/teleport/pull/15468)
+* Fixed `get-kubeconfig.sh` script to work with Kubernetes 1.24+. [#15618](https://github.com/gravitational/teleport/pull/15618)
+* Fixed issue with resource listings not returning accurate results when there are denied resources. [#14547](https://github.com/gravitational/teleport/pull/14547)
+* Fixed issue with DynamoDB backend not returning all data in clusters with a lot of node churn. [#16106](https://github.com/gravitational/teleport/pull/16106)
+* Improved stability of remote cluster connections after proxy restart. [#13798](https://github.com/gravitational/teleport/pull/13798)
+* Improved stability of agent reconnects after proxy restart. [#14508](https://github.com/gravitational/teleport/pull/14508)
+* Improved internal cache efficiency for large clusters. [#14307](https://github.com/gravitational/teleport/pull/14307)
+* Improved network utilization in large clusters. [#15841](https://github.com/gravitational/teleport/pull/15841)
+* Improved stability in clusters with missing reverse tunnels. [#15805](https://github.com/gravitational/teleport/pull/15805)
+
 ## 7.3.23
 
 This release of Teleport contains multiple security and bug fixes.
