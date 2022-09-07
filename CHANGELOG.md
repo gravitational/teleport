@@ -1,6 +1,6 @@
 # Changelog
 
-## 7.3.24
+## 7.3.25
 
 This release of Teleport contains a security fix as well as bug fixes and stability improvements.
 
