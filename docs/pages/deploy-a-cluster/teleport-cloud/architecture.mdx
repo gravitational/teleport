@@ -47,6 +47,29 @@ The Teleport [proxy service](https://goteleport.com/docs/architecture/proxy/) ca
 
 The multi-region option is currently opt-in by default. Once you have an account, please reach out to your account manager, customer success engineer, or support@goteleport.com. A future update will expand the region availability and make all regions available by default.
 
+## Releases
+
+Teleport Cloud only serves the latest stable release of the Teleport software
+for its customers.
+
+Teleport Cloud team upgrades the service with patch releases weekly and major
+releases quarterly. The team waits for the first minor release before a major
+upgrade. For example, the team will deploy (=cloud.major_version=).1.0
+instead of (=cloud.major_version=).0.0. The first minor release happens 3-4
+weeks after a first major release.
+
+Patch releases are fully backward compatible and require no actions by the
+customer.
+
+Major releases do require customers to upgrade all instances of Teleport they
+are running within 3 months of the upgrade. Failure to upgrade Teleport instances to the
+latest major release during this window may lead to compatibility issues with
+Teleport Cloud and a loss of access to your infrastructure.
+
+Subscribe to status updates at
+[status.teleport.sh](https://status.teleport.sh/) for Cloud upgrade
+notifications.
+
 ## Service Level Agreement
 
 Teleport Cloud commits to an SLA of (=cloud.sla.monthly_percentage=) of monthly uptime,
