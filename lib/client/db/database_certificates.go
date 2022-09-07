@@ -81,14 +81,14 @@ func GenerateDatabaseCertificates(ctx context.Context, req GenerateDatabaseCerti
 	}
 
 	if req.Key == nil {
-		key, err := client.NewKey()
+		key, err := client.GenerateRSAKey()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		req.Key = key
 	}
 
-	csr, err := tlsca.GenerateCertificateRequestPEM(subject, req.Key.Priv)
+	csr, err := tlsca.GenerateCertificateRequestPEM(subject, req.Key.PrivateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
