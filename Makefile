@@ -220,7 +220,7 @@ CLANG_FORMAT_STYLE = '{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
 #            This is the default build target for convenience of working on
 #            a web UI.
 .PHONY: all
-all: version
+all:
 	@echo "---> Building OSS binaries."
 	$(MAKE) $(BINARIES)
 
