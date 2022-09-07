@@ -950,21 +950,6 @@ func (c *Client) GetU2FAppID() (string, error) {
 	return appid, nil
 }
 
-// UpsertPassword updates web access password for the user
-func (c *Client) UpsertPassword(user string, password []byte) error {
-	_, err := c.PostJSON(
-		context.TODO(),
-		c.Endpoint("users", user, "web", "password"),
-		upsertPasswordReq{
-			Password: string(password),
-		})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 // UpsertUser user updates user entry.
 func (c *Client) UpsertUser(user types.User) error {
 	data, err := services.MarshalUser(user)
@@ -1092,8 +1077,8 @@ func (c *Client) GenerateKeyPair(pass string) ([]byte, []byte, error) {
 // plain text format, signs it using Host Certificate Authority private key and returns the
 // resulting certificate.
 func (c *Client) GenerateHostCert(
-	key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error) {
-
+	key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration,
+) ([]byte, error) {
 	out, err := c.PostJSON(context.TODO(), c.Endpoint("ca", "host", "certs"),
 		generateHostCertReq{
 			Key:         key,
@@ -1747,9 +1732,6 @@ type WebService interface {
 
 // IdentityService manages identities and users
 type IdentityService interface {
-	// UpsertPassword updates web access password for the user
-	UpsertPassword(user string, password []byte) error
-
 	// UpsertOIDCConnector updates or creates OIDC connector
 	UpsertOIDCConnector(ctx context.Context, connector types.OIDCConnector) error
 

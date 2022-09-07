@@ -106,15 +106,18 @@ func (a *Server) UpsertLock(ctx context.Context, lock types.Lock) error {
 		return trace.Wrap(err)
 	}
 
+	um := ClientUserMetadata(ctx)
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.LockCreate{
 		Metadata: apievents.Metadata{
 			Type: events.LockCreatedEvent,
 			Code: events.LockCreatedCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: um,
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: lock.GetName(),
+			Name:      lock.GetName(),
+			UpdatedBy: um.User,
 		},
+		Target: lock.Target(),
 	}); err != nil {
 		log.WithError(err).Warning("Failed to emit lock create event.")
 	}
