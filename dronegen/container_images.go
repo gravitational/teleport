@@ -39,6 +39,41 @@ import (
 	"strings"
 )
 
+// If you are working on a PR/testing changes to this file you should configure the following for Drone testing:
+// 1. Publish the branch you're working on
+// 2. Set `PRBranch` to the name of the branch in (1)
+// 3. Set `ConfigureForPRTestingOnly` to true
+// 4. Create a public and private ECR, Quay repos for "teleport", "teleport-ent", "teleport-operator"
+// 5. Set `TestingQuayRegistryOrg` and `TestingECRRegistryOrg` to the org name(s) used in (4)
+// 6. Set the `ECRTestingDomain` to the domain used for the private ECR repos
+// 7. Create two separate IAM users, each with full access to either the public ECR repo OR the private ECR repo
+// 8. Create a Quay "robot account" with write permissions for the created Quay repos
+// 9. Set the Drone secrets for the secret names listed in "GetContainerRepos" to the credentials in (7, 8), prefixed by the value of `TestingSecretPrefix`
+//
+// On each commit, after running `make dronegen``, run the following commands and resign the file:
+// # Pull the current branch instead of v10 so the appropriate dockerfile gets loaded
+// sed -i '' "s~git checkout -qf \"\$(cat '/go/vars/full-version/v10')\"~git checkout -qf \"${DRONE_SOURCE_BRANCH}\"~" .drone.yml
+//
+// When finishing up your PR check the following:
+// * The testing secrets added to Drone have been removed
+// * `ConfigureForPRTestingOnly` has been set to false, and `make dronegen` has been reran afterwords
+//
+const (
+	ConfigureForPRTestingOnly bool   = true
+	TestingSecretPrefix       string = "TEST_"
+	TestingQuayRegistryOrg    string = "fred_heinecke"
+	TestingECRRegistryOrg     string = "u8j2q1d9"
+	TestingEcrRegion          string = "us-east-2"
+	PRBranch                  string = "fred/arm-container-images"
+	ECRTestingDomain          string = "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+)
+
+const (
+	ProductionRegistryOrg string = "gravitational"
+	ProductionEcrRegion   string = "us-west-2"
+	StagingEcrRegion      string = "us-east-1"
+)
+
 func buildContainerImagePipelines() []pipeline {
 	// These need to be updated on each major release.
 	latestMajorVersions := []string{"v10", "v9", "v8"}
@@ -51,9 +86,10 @@ func buildContainerImagePipelines() []pipeline {
 	triggers := []*TriggerInfo{
 		NewPromoteTrigger(branchMajorVersion),
 		NewCronTrigger(latestMajorVersions),
+	}
 
-		// TODO remove after testing
-		NewTestTrigger("fred/arm-container-images", branchMajorVersion),
+	if ConfigureForPRTestingOnly {
+		triggers = append(triggers, NewTestTrigger(PRBranch, branchMajorVersion))
 	}
 
 	pipelines := make([]pipeline, 0, len(triggers))
@@ -589,14 +625,31 @@ type ContainerRepo struct {
 	Name           string
 	Environment    map[string]value
 	RegistryDomain string
+	RegistryOrg    string
 	LoginCommands  []string
 	TagBuilder     func(baseTag string) string // Postprocessor for tags that append CR-specific suffixes
 }
 
 func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, domain string, isStaging bool) *ContainerRepo {
+	ecrRegion := StagingEcrRegion
+	loginSubcommand := "ecr"
 	nameSuffix := "staging"
 	if !isStaging {
 		nameSuffix = "production"
+		ecrRegion = ProductionEcrRegion
+		loginSubcommand = "ecr-public"
+	}
+
+	registryOrg := ProductionRegistryOrg
+	if ConfigureForPRTestingOnly {
+		accessKeyIDSecret = TestingSecretPrefix + accessKeyIDSecret
+		secretAccessKeySecret = TestingSecretPrefix + secretAccessKeySecret
+		registryOrg = TestingECRRegistryOrg
+		ecrRegion = TestingEcrRegion
+
+		if isStaging {
+			domain = ECRTestingDomain
+		}
 	}
 
 	return &ContainerRepo{
@@ -610,10 +663,11 @@ func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, domain string
 			},
 		},
 		RegistryDomain: domain,
+		RegistryOrg:    registryOrg,
 		LoginCommands: []string{
 			"apk add --no-cache aws-cli",
 			"TIMESTAMP=$(date -d @\"$DRONE_BUILD_CREATED\" '+%Y%m%d%H%M')",
-			fmt.Sprintf("aws ecr get-login-password --region=us-west-2 | docker login -u=\"AWS\" --password-stdin %s", domain),
+			fmt.Sprintf("aws ecr g%s --region=%s | docker login -u=\"AWS\" --password-stdin %s", loginSubcommand, ecrRegion, domain),
 		},
 		TagBuilder: func(baseTag string) string {
 			if !isStaging {
@@ -626,6 +680,13 @@ func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, domain string
 }
 
 func NewQuayContainerRepo(dockerUsername, dockerPassword string) *ContainerRepo {
+	registryOrg := ProductionRegistryOrg
+	if ConfigureForPRTestingOnly {
+		dockerUsername = TestingSecretPrefix + dockerUsername
+		dockerPassword = TestingSecretPrefix + dockerPassword
+		registryOrg = TestingQuayRegistryOrg
+	}
+
 	return &ContainerRepo{
 		Name: "Quay",
 		Environment: map[string]value{
@@ -637,27 +698,18 @@ func NewQuayContainerRepo(dockerUsername, dockerPassword string) *ContainerRepo 
 			},
 		},
 		RegistryDomain: ProductionRegistryQuay,
+		RegistryOrg:    registryOrg,
 		LoginCommands: []string{
 			fmt.Sprintf("docker login -u=\"$QUAY_USERNAME\" -p=\"$QUAY_PASSWORD\" %q", ProductionRegistryQuay),
 		},
 	}
 }
 
-// TODO revert these after more testing
-// func GetContainerRepos() []*ContainerRepo {
-// 	return []*ContainerRepo{
-// 		NewQuayContainerRepo("PRODUCTION_QUAYIO_DOCKER_USERNAME", "PRODUCTION_QUAYIO_DOCKER_PASSWORD"),
-// 		NewEcrContainerRepo("STAGING_TELEPORT_DRONE_USER_ECR_KEY", "STAGING_TELEPORT_DRONE_USER_ECR_SECRET", StagingRegistry, true),
-// 		NewEcrContainerRepo("PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY", "PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET", ProductionRegistry, false),
-// 	}
-// }
-
-// TEST VERSION
 func GetContainerRepos() []*ContainerRepo {
 	return []*ContainerRepo{
-		NewQuayContainerRepo("TEST_PRODUCTION_QUAYIO_DOCKER_USERNAME", "TEST_PRODUCTION_QUAYIO_DOCKER_PASSWORD"),
-		NewEcrContainerRepo("TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY", "TEST_STAGING_TELEPORT_DRONE_USER_ECR_SECRET", StagingRegistry, true),
-		NewEcrContainerRepo("TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY", "TEST_PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET", ProductionRegistry, false),
+		NewQuayContainerRepo("PRODUCTION_QUAYIO_DOCKER_USERNAME", "PRODUCTION_QUAYIO_DOCKER_PASSWORD"),
+		NewEcrContainerRepo("STAGING_TELEPORT_DRONE_USER_ECR_KEY", "STAGING_TELEPORT_DRONE_USER_ECR_SECRET", StagingRegistry, true),
+		NewEcrContainerRepo("PRODUCTION_TELEPORT_DRONE_USER_ECR_KEY", "PRODUCTION_TELEPORT_DRONE_USER_ECR_SECRET", ProductionRegistry, false),
 	}
 }
 
@@ -695,7 +747,7 @@ func (cr *ContainerRepo) buildCommandsWithLogin(wrappedCommands []string) []stri
 }
 
 func (cr *ContainerRepo) BuildImageRepo() string {
-	return cr.RegistryDomain + "/gravitational/"
+	return fmt.Sprintf("%s/%s/", cr.RegistryDomain, cr.RegistryOrg)
 }
 
 func (cr *ContainerRepo) BuildImageTag(majorVersion string) string {
