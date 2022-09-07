@@ -70,8 +70,8 @@ const (
 
 const (
 	ProductionRegistryOrg string = "gravitational"
-	ProductionEcrRegion   string = "us-west-2"
-	StagingEcrRegion      string = "us-east-1"
+	PublicEcrRegion       string = "us-east-1"
+	StagingEcrRegion      string = "us-west-2"
 )
 
 func buildContainerImagePipelines() []pipeline {
@@ -631,13 +631,13 @@ type ContainerRepo struct {
 }
 
 func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, domain string, isStaging bool) *ContainerRepo {
-	ecrRegion := StagingEcrRegion
-	loginSubcommand := "ecr"
-	nameSuffix := "staging"
-	if !isStaging {
-		nameSuffix = "production"
-		ecrRegion = ProductionEcrRegion
-		loginSubcommand = "ecr-public"
+	nameSuffix := "production"
+	ecrRegion := PublicEcrRegion
+	loginSubcommand := "ecr-public"
+	if isStaging {
+		nameSuffix = "staging"
+		ecrRegion = StagingEcrRegion
+		loginSubcommand = "ecr"
 	}
 
 	registryOrg := ProductionRegistryOrg
@@ -645,10 +645,10 @@ func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, domain string
 		accessKeyIDSecret = TestingSecretPrefix + accessKeyIDSecret
 		secretAccessKeySecret = TestingSecretPrefix + secretAccessKeySecret
 		registryOrg = TestingECRRegistryOrg
-		ecrRegion = TestingEcrRegion
 
 		if isStaging {
 			domain = ECRTestingDomain
+			ecrRegion = TestingEcrRegion
 		}
 	}
 
