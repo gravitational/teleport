@@ -549,6 +549,9 @@ func (a *Server) checkForReleases(ctx context.Context) {
 		alert, err := types.NewClusterAlert(
 			alertID,
 			msg,
+			// Defaulting to "low" severity level. We may want to make this dynamic
+			// in the future depending on the distance from up-to-date.
+			types.WithAlertSeverity(types.AlertSeverity_LOW),
 			types.WithAlertLabel(types.AlertOnLogin, "yes"),
 			types.WithAlertLabel(types.AlertPermitAll, "yes"),
 		)
