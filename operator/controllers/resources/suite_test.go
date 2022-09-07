@@ -41,7 +41,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integration"
 	"github.com/gravitational/teleport/integration/helpers"
 	resourcesv2 "github.com/gravitational/teleport/operator/apis/resources/v2"
 	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
@@ -53,7 +52,7 @@ func fastEventually(t *testing.T, condition func() bool) {
 }
 
 func clientForTeleport(t *testing.T, teleportServer *helpers.TeleInstance, userName string) auth.ClientI {
-	identityFilePath := integration.MustCreateUserIdentityFile(t, teleportServer, userName, time.Hour)
+	identityFilePath := helpers.MustCreateUserIdentityFile(t, teleportServer, userName, time.Hour)
 	id, err := identityfile.ReadFile(identityFilePath)
 	require.NoError(t, err)
 	addr, err := utils.ParseAddr(teleportServer.Auth)
@@ -80,7 +79,7 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 	teleportServer := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
-		NodeName:    integration.Loopback,
+		NodeName:    helpers.Loopback,
 		Log:         logrus.StandardLogger(),
 	})
 
