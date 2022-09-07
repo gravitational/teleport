@@ -33,8 +33,8 @@ COPY operator/main.go operator/main.go
 COPY operator/namespace.go operator/namespace.go
 
 # CGO is required for github.com/gravitational/teleport/lib/system
-# The correct C compiler is deduced from the compiler package name
-RUN CGO_ENABLED=1 CC=$COMPILERE_NAME GOOS=$TARGETOS GOARCH=$TARGETARCH \
+RUN echo "Targeting $TARGETOS/$TARGETARCH with CC=$COMPILER_NAME" && \
+    CGO_ENABLED=1 CC=$COMPILER_NAME GOOS=$TARGETOS GOARCH=$TARGETARCH \
     go build -a -o teleport-operator github.com/gravitational/teleport/operator
 
 # Create the image with the build operator on the $TARGETPLATFORM

@@ -362,8 +362,8 @@ func NewTeleportOperatorProduct(cloneDirectory string) *product {
 			case "x86_64":
 				fallthrough
 			case "amd64":
-				gccPackage = "gcc-x86_64-linux-gnu"
-				compilerName = "x86-64-linux-gnu-gcc"
+				gccPackage = "gcc-x86-64-linux-gnu"
+				compilerName = "x86_64-linux-gnu-gcc"
 			case "i686":
 				fallthrough
 			case "i386":
@@ -383,7 +383,7 @@ func NewTeleportOperatorProduct(cloneDirectory string) *product {
 
 			return []string{
 				fmt.Sprintf("COMPILER_PACKAGE=%s", gccPackage),
-				fmt.Sprintf("COMPILERE_NAME=%s", compilerName),
+				fmt.Sprintf("COMPILER_NAME=%s", compilerName),
 			}
 		},
 	}

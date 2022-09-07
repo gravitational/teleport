@@ -6490,7 +6490,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-operator-v10-amd64-builder" --platform
     "linux/amd64" --tag "teleport-operator-v10-amd64" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
-    --build-arg "COMPILER_PACKAGE=gcc-x86_64-linux-gnu" --build-arg "COMPILERE_NAME=x86-64-linux-gnu-gcc"
+    --build-arg "COMPILER_PACKAGE=gcc-x86-64-linux-gnu" --build-arg "COMPILER_NAME=x86_64-linux-gnu-gcc"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-amd64-builder"
   environment:
@@ -6510,7 +6510,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm-builder"
   - docker buildx build --load --builder "teleport-operator-v10-arm-builder" --platform
     "linux/arm" --tag "teleport-operator-v10-arm" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
-    --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf" --build-arg "COMPILERE_NAME=arm-linux-gnueabihf-gcc"
+    --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf" --build-arg "COMPILER_NAME=arm-linux-gnueabihf-gcc"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-arm-builder"
   environment:
@@ -6530,7 +6530,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm64-builder"
   - docker buildx build --load --builder "teleport-operator-v10-arm64-builder" --platform
     "linux/arm64" --tag "teleport-operator-v10-arm64" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
-    --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu" --build-arg "COMPILERE_NAME=aarch64-linux-gnu-gcc"
+    --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu" --build-arg "COMPILER_NAME=aarch64-linux-gnu-gcc"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-arm64-builder"
   environment:
@@ -8106,7 +8106,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-operator-v10-amd64-builder" --platform
     "linux/amd64" --tag "teleport-operator-v10-amd64" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
-    --build-arg "COMPILER_PACKAGE=gcc-x86_64-linux-gnu" --build-arg "COMPILERE_NAME=x86-64-linux-gnu-gcc"
+    --build-arg "COMPILER_PACKAGE=gcc-x86-64-linux-gnu" --build-arg "COMPILER_NAME=x86_64-linux-gnu-gcc"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-amd64-builder"
   environment:
@@ -8126,7 +8126,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm-builder"
   - docker buildx build --load --builder "teleport-operator-v10-arm-builder" --platform
     "linux/arm" --tag "teleport-operator-v10-arm" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
-    --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf" --build-arg "COMPILERE_NAME=arm-linux-gnueabihf-gcc"
+    --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf" --build-arg "COMPILER_NAME=arm-linux-gnueabihf-gcc"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-arm-builder"
   environment:
@@ -8146,7 +8146,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm64-builder"
   - docker buildx build --load --builder "teleport-operator-v10-arm64-builder" --platform
     "linux/arm64" --tag "teleport-operator-v10-arm64" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
-    --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu" --build-arg "COMPILERE_NAME=aarch64-linux-gnu-gcc"
+    --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu" --build-arg "COMPILER_NAME=aarch64-linux-gnu-gcc"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-arm64-builder"
   environment:
@@ -9718,7 +9718,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-operator-v9-amd64-builder"
   - docker buildx build --load --builder "teleport-operator-v9-amd64-builder" --platform
     "linux/amd64" --tag "teleport-operator-v9-amd64" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
-    --build-arg "COMPILER_PACKAGE=gcc-x86_64-linux-gnu" --build-arg "COMPILERE_NAME=x86-64-linux-gnu-gcc"
+    --build-arg "COMPILER_PACKAGE=gcc-x86-64-linux-gnu" --build-arg "COMPILER_NAME=x86_64-linux-gnu-gcc"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v9-amd64-builder"
   environment:
@@ -9738,7 +9738,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-operator-v9-arm-builder"
   - docker buildx build --load --builder "teleport-operator-v9-arm-builder" --platform
     "linux/arm" --tag "teleport-operator-v9-arm" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
-    --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf" --build-arg "COMPILERE_NAME=arm-linux-gnueabihf-gcc"
+    --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf" --build-arg "COMPILER_NAME=arm-linux-gnueabihf-gcc"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v9-arm-builder"
   environment:
@@ -9758,7 +9758,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-operator-v9-arm64-builder"
   - docker buildx build --load --builder "teleport-operator-v9-arm64-builder" --platform
     "linux/arm64" --tag "teleport-operator-v9-arm64" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
-    --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu" --build-arg "COMPILERE_NAME=aarch64-linux-gnu-gcc"
+    --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu" --build-arg "COMPILER_NAME=aarch64-linux-gnu-gcc"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v9-arm64-builder"
   environment:
@@ -11330,7 +11330,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-operator-v8-amd64-builder"
   - docker buildx build --load --builder "teleport-operator-v8-amd64-builder" --platform
     "linux/amd64" --tag "teleport-operator-v8-amd64" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
-    --build-arg "COMPILER_PACKAGE=gcc-x86_64-linux-gnu" --build-arg "COMPILERE_NAME=x86-64-linux-gnu-gcc"
+    --build-arg "COMPILER_PACKAGE=gcc-x86-64-linux-gnu" --build-arg "COMPILER_NAME=x86_64-linux-gnu-gcc"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v8-amd64-builder"
   environment:
@@ -11350,7 +11350,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-operator-v8-arm-builder"
   - docker buildx build --load --builder "teleport-operator-v8-arm-builder" --platform
     "linux/arm" --tag "teleport-operator-v8-arm" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
-    --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf" --build-arg "COMPILERE_NAME=arm-linux-gnueabihf-gcc"
+    --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf" --build-arg "COMPILER_NAME=arm-linux-gnueabihf-gcc"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v8-arm-builder"
   environment:
@@ -11370,7 +11370,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-operator-v8-arm64-builder"
   - docker buildx build --load --builder "teleport-operator-v8-arm64-builder" --platform
     "linux/arm64" --tag "teleport-operator-v8-arm64" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
-    --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu" --build-arg "COMPILERE_NAME=aarch64-linux-gnu-gcc"
+    --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu" --build-arg "COMPILER_NAME=aarch64-linux-gnu-gcc"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v8-arm64-builder"
   environment:
@@ -12955,7 +12955,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-operator-v10-amd64-builder" --platform
     "linux/amd64" --tag "teleport-operator-v10-amd64" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
-    --build-arg "COMPILER_PACKAGE=gcc-x86_64-linux-gnu" --build-arg "COMPILERE_NAME=x86-64-linux-gnu-gcc"
+    --build-arg "COMPILER_PACKAGE=gcc-x86-64-linux-gnu" --build-arg "COMPILER_NAME=x86_64-linux-gnu-gcc"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-amd64-builder"
   environment:
@@ -12976,7 +12976,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm-builder"
   - docker buildx build --load --builder "teleport-operator-v10-arm-builder" --platform
     "linux/arm" --tag "teleport-operator-v10-arm" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
-    --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf" --build-arg "COMPILERE_NAME=arm-linux-gnueabihf-gcc"
+    --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf" --build-arg "COMPILER_NAME=arm-linux-gnueabihf-gcc"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-arm-builder"
   environment:
@@ -12997,7 +12997,7 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm64-builder"
   - docker buildx build --load --builder "teleport-operator-v10-arm64-builder" --platform
     "linux/arm64" --tag "teleport-operator-v10-arm64" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
-    --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu" --build-arg "COMPILERE_NAME=aarch64-linux-gnu-gcc"
+    --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu" --build-arg "COMPILER_NAME=aarch64-linux-gnu-gcc"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-arm64-builder"
   environment:
@@ -13747,6 +13747,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 256c1acb228779749cb5d01923fde4454dba6f06ef94f9c99ec0760ff982bb18
+hmac: 5d742bc79d9db96d0d24689752b9fdb975d00b58a96efdd0eeec737297f0e86a
 
 ...
