@@ -465,7 +465,7 @@ func TestCASigningAlg(t *testing.T) {
 	auth, err := Init(conf)
 	require.NoError(t, err)
 	defer auth.Close()
-	verifyCAs(auth, ssh.KeyAlgoRSASHA2512)
+	verifyCAs(auth, ssh.SigAlgoRSASHA2512)
 
 	require.NoError(t, auth.Close())
 
@@ -475,19 +475,19 @@ func TestCASigningAlg(t *testing.T) {
 	conf.DataDir = t.TempDir()
 
 	// Start a new server with non-default signing alg.
-	signingAlg := ssh.KeyAlgoRSA
+	signingAlg := ssh.SigAlgoRSA
 	conf.CASigningAlg = &signingAlg
 	auth, err = Init(conf)
 	require.NoError(t, err)
 	defer auth.Close()
-	verifyCAs(auth, ssh.KeyAlgoRSA)
+	verifyCAs(auth, ssh.SigAlgoRSA)
 
 	// Start again, using a different alg. This should not change the existing
 	// CA.
-	signingAlg = ssh.KeyAlgoRSASHA2256
+	signingAlg = ssh.SigAlgoRSASHA2256
 	auth, err = Init(conf)
 	require.NoError(t, err)
-	verifyCAs(auth, ssh.KeyAlgoRSA)
+	verifyCAs(auth, ssh.SigAlgoRSA)
 }
 
 // TestPresets tests behavior of presets
