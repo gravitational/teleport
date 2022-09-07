@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::errors::invalid_data_error;
-use crate::Payload;
+use crate::PayloadIn;
+use crate::{errors::invalid_data_error, MessageOut, PayloadOut};
 use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use rdp::core::tpkt;
@@ -51,7 +51,7 @@ impl Client {
     /// CLIPRDR_HEADER structure that's is present in all clipboard PDUs.
     ///
     /// Returns Ok(None) on interim chunks.
-    pub fn read(&mut self, raw_payload: tpkt::Payload) -> RdpResult<Option<Payload>> {
+    pub fn read(&mut self, raw_payload: tpkt::Payload) -> RdpResult<Option<PayloadIn>> {
         let mut raw_payload = try_let!(tpkt::Payload::Raw, raw_payload)?;
         let channel_pdu_header = ChannelPDUHeader::decode(&mut raw_payload)?;
 
@@ -75,8 +75,8 @@ impl Client {
     pub fn add_header_and_chunkify(
         &self,
         channel_flags: Option<ChannelPDUFlags>,
-        payload: Vec<u8>,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+        payload: MessageOut,
+    ) -> RdpResult<PayloadOut> {
         let mut inner = payload;
         let total_len = inner.len() as u32;
 
@@ -161,14 +161,14 @@ impl ChannelPDUHeader {
     pub fn new(length: u32, flags: ChannelPDUFlags) -> Self {
         Self { length, flags }
     }
-    pub fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    pub fn decode(payload: &mut PayloadIn) -> RdpResult<Self> {
         Ok(Self {
             length: payload.read_u32::<LittleEndian>()?,
             flags: ChannelPDUFlags::from_bits(payload.read_u32::<LittleEndian>()?)
                 .ok_or_else(|| invalid_data_error("invalid flags in ChannelPDUHeader"))?,
         })
     }
-    pub fn encode(&self) -> RdpResult<Vec<u8>> {
+    pub fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.length)?;
         w.write_u32::<LittleEndian>(self.flags.bits())?;

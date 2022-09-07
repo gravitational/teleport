@@ -14,8 +14,8 @@
 
 use super::errors::try_error;
 use crate::errors::invalid_data_error;
-use crate::util;
-use crate::{vchan, Payload};
+use crate::{util, MessageOut, PayloadOut};
+use crate::{vchan, PayloadIn};
 use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use num_traits::FromPrimitive;
@@ -106,7 +106,7 @@ impl Client {
     /// update_clipboard is invoked from Go.
     /// It updates the local clipboard cache and returns the encoded message
     /// that should be sent to the RDP server.
-    pub fn update_clipboard(&mut self, data: String) -> RdpResult<Vec<Vec<u8>>> {
+    pub fn update_clipboard(&mut self, data: String) -> RdpResult<PayloadOut> {
         // convert LF to CRLF, as required by CF_TEXT and CF_UNICODETEXT
         let mut converted = String::with_capacity(data.len());
         let mut prev_was_cr = false;
@@ -143,7 +143,7 @@ impl Client {
 
     /// Handles the server capabilities message, which is the first message sent from the server
     /// to the client during the initialization sequence. Described in section 1.3.2.1.
-    fn handle_server_caps(&self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
+    fn handle_server_caps(&self, payload: &mut PayloadIn) -> RdpResult<PayloadOut> {
         let caps = ClipboardCapabilitiesPDU::decode(payload)?;
         if let Some(general) = caps.general {
             // our capabilities are minimal, so we log the server
@@ -160,7 +160,7 @@ impl Client {
     /// Handles the monitor ready PDU, which is sent from the server to the client during
     /// the initialization phase. Upon receiving this message, the client should respond
     /// with its capabilities, an optional temporary directory PDU, and a format list PDU.
-    fn handle_monitor_ready(&self, _payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
+    fn handle_monitor_ready(&self, _payload: &mut PayloadIn) -> RdpResult<PayloadOut> {
         // There's nothing additional to decode here, the monitor ready PDU is just a header.
         // In response, we need to:
         // 1. Send our clipboard capabilities
@@ -193,9 +193,9 @@ impl Client {
     /// that some data was copied and can be requested at a later date.
     fn handle_format_list(
         &mut self,
-        payload: &mut Payload,
+        payload: &mut PayloadIn,
         length: u32,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+    ) -> RdpResult<PayloadOut> {
         let list = FormatListPDU::<LongFormatName>::decode(payload, length)?;
         let formats = list
             .format_names
@@ -239,7 +239,7 @@ impl Client {
     /// Handle the format list response, which is the server acknowledging that
     /// it recieved a notification that the client has updated clipboard data
     /// that may be requested in the future.
-    fn handle_format_list_response(&self, flags: ClipboardHeaderFlags) -> RdpResult<Vec<Vec<u8>>> {
+    fn handle_format_list_response(&self, flags: ClipboardHeaderFlags) -> RdpResult<PayloadOut> {
         if !flags.contains(ClipboardHeaderFlags::CB_RESPONSE_OK) {
             warn!("RDP server did not process our copy operation");
         }
@@ -248,7 +248,7 @@ impl Client {
 
     /// Handles a request from the RDP server for clipboard data.
     /// This message is received when a user executes a paste in the remote desktop.
-    fn handle_format_data_request(&self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
+    fn handle_format_data_request(&self, payload: &mut PayloadIn) -> RdpResult<PayloadOut> {
         let req = FormatDataRequestPDU::decode(payload)?;
         let data = match self.clipboard.get(&req.format_id) {
             Some(d) => d.clone(),
@@ -274,9 +274,9 @@ impl Client {
     /// to our format data request.
     fn handle_format_data_response(
         &mut self,
-        payload: &mut Payload,
+        payload: &mut PayloadIn,
         length: u32,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+    ) -> RdpResult<PayloadOut> {
         let resp = FormatDataResponsePDU::decode(payload, length)?;
         let data_len = resp.data.len();
         let format = self.incoming_paste_formats.pop_front().ok_or_else(|| {
@@ -299,8 +299,8 @@ impl Client {
     fn add_headers_and_chunkify(
         &self,
         msg_type: ClipboardPDUType,
-        payload: Vec<u8>,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+        payload: MessageOut,
+    ) -> RdpResult<PayloadOut> {
         let msg_flags = match msg_type {
             // the spec requires 0 for these messages
             ClipboardPDUType::CB_CLIP_CAPS => ClipboardHeaderFlags::from_bits_truncate(0),
@@ -371,7 +371,7 @@ impl ClipboardPDUHeader {
         }
     }
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.write_u16::<LittleEndian>(self.msg_type as u16)?;
         w.write_u16::<LittleEndian>(self.msg_flags.bits())?;
@@ -379,7 +379,7 @@ impl ClipboardPDUHeader {
         Ok(w)
     }
 
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut PayloadIn) -> RdpResult<Self> {
         let typ = payload.read_u16::<LittleEndian>()?;
         Ok(Self {
             msg_type: ClipboardPDUType::from_u16(typ)
@@ -422,7 +422,7 @@ struct ClipboardCapabilitiesPDU {
 const CB_CAPS_VERSION_2: u32 = 0x0002;
 
 impl ClipboardCapabilitiesPDU {
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         // there's either 0 or 1 capability sets included here
         w.write_u16::<LittleEndian>(self.general.is_some() as u16)?;
@@ -438,7 +438,7 @@ impl ClipboardCapabilitiesPDU {
         Ok(w)
     }
 
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut PayloadIn) -> RdpResult<Self> {
         let count = payload.read_u16::<LittleEndian>()?;
         payload.read_u16::<LittleEndian>()?; // pad
 
@@ -453,7 +453,7 @@ impl ClipboardCapabilitiesPDU {
 }
 
 impl GeneralClipboardCapabilitySet {
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut PayloadIn) -> RdpResult<Self> {
         let set_type = payload.read_u16::<LittleEndian>()?;
         if set_type != ClipboardCapabilitySetType::General as u16 {
             return Err(invalid_data_error(&format!(
@@ -526,12 +526,12 @@ struct FormatListPDU<T: FormatName> {
 }
 
 trait FormatName: Sized {
-    fn encode(&self) -> RdpResult<Vec<u8>>;
-    fn decode(payload: &mut Payload) -> RdpResult<Self>;
+    fn encode(&self) -> RdpResult<MessageOut>;
+    fn decode(payload: &mut PayloadIn) -> RdpResult<Self>;
 }
 
 impl<T: FormatName> FormatListPDU<T> {
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = Vec::new();
         for name in &self.format_names {
             w.extend(name.encode()?);
@@ -540,7 +540,7 @@ impl<T: FormatName> FormatListPDU<T> {
         Ok(w)
     }
 
-    fn decode(payload: &mut Payload, length: u32) -> RdpResult<Self> {
+    fn decode(payload: &mut PayloadIn, length: u32) -> RdpResult<Self> {
         let mut format_names: Vec<T> = Vec::new();
 
         let startpos = payload.position();
@@ -631,7 +631,7 @@ impl ShortFormatName {
 }
 
 impl FormatName for ShortFormatName {
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = Vec::new();
         w.write_u32::<LittleEndian>(self.format_id)?;
         w.write_all(&self.format_name)?;
@@ -639,7 +639,7 @@ impl FormatName for ShortFormatName {
         Ok(w)
     }
 
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut PayloadIn) -> RdpResult<Self> {
         let format_id = payload.read_u32::<LittleEndian>()?;
         let mut format_name = [0u8; 32];
         payload.read_exact(&mut format_name)?;
@@ -668,7 +668,7 @@ impl LongFormatName {
 }
 
 impl FormatName for LongFormatName {
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = Vec::new();
         w.write_u32::<LittleEndian>(self.format_id)?;
         match &self.format_name {
@@ -683,7 +683,7 @@ impl FormatName for LongFormatName {
         Ok(w)
     }
 
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut PayloadIn) -> RdpResult<Self> {
         let format_id = payload.read_u32::<LittleEndian>()?;
         let mut consumed = 0;
         let name: String = std::char::decode_utf16(
@@ -769,13 +769,13 @@ impl FormatDataRequestPDU {
         Self { format_id }
     }
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = Vec::with_capacity(4);
         w.write_u32::<LittleEndian>(self.format_id)?;
         Ok(w)
     }
 
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut PayloadIn) -> RdpResult<Self> {
         Ok(Self {
             format_id: payload.read_u32::<LittleEndian>()?,
         })
@@ -791,11 +791,11 @@ struct FormatDataResponsePDU {
 }
 
 impl FormatDataResponsePDU {
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         Ok(self.data.clone())
     }
 
-    fn decode(payload: &mut Payload, length: u32) -> RdpResult<Self> {
+    fn decode(payload: &mut PayloadIn, length: u32) -> RdpResult<Self> {
         let mut data = vec![0; length as usize];
         payload.read_exact(data.as_mut_slice())?;
 

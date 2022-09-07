@@ -22,15 +22,15 @@ use crate::errors::{
     invalid_data_error, not_implemented_error, rejected_by_server_error, try_error, NTSTATUS_OK,
     SPECIAL_NO_RESPONSE,
 };
-use crate::util;
-use crate::vchan;
+use crate::{util, PayloadOut};
+use crate::{vchan, MessageOut};
 use crate::{
-    FileSystemObject, FileType, Payload, SharedDirectoryAcknowledge, SharedDirectoryCreateRequest,
-    SharedDirectoryCreateResponse, SharedDirectoryDeleteRequest, SharedDirectoryDeleteResponse,
-    SharedDirectoryInfoRequest, SharedDirectoryInfoResponse, SharedDirectoryListRequest,
-    SharedDirectoryListResponse, SharedDirectoryMoveRequest, SharedDirectoryMoveResponse,
-    SharedDirectoryReadRequest, SharedDirectoryReadResponse, SharedDirectoryWriteRequest,
-    SharedDirectoryWriteResponse, TdpErrCode,
+    FileSystemObject, FileType, PayloadIn, SharedDirectoryAcknowledge,
+    SharedDirectoryCreateRequest, SharedDirectoryCreateResponse, SharedDirectoryDeleteRequest,
+    SharedDirectoryDeleteResponse, SharedDirectoryInfoRequest, SharedDirectoryInfoResponse,
+    SharedDirectoryListRequest, SharedDirectoryListResponse, SharedDirectoryMoveRequest,
+    SharedDirectoryMoveResponse, SharedDirectoryReadRequest, SharedDirectoryReadResponse,
+    SharedDirectoryWriteRequest, SharedDirectoryWriteResponse, TdpErrCode,
 };
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
@@ -44,7 +44,7 @@ use consts::{
 use num_traits::{FromPrimitive, ToPrimitive};
 use rdp::core::mcs;
 use rdp::core::tpkt;
-use rdp::model::data::Message;
+use rdp::model::data::Message as MessageTrait;
 use rdp::model::error::Error as RdpError;
 use rdp::model::error::*;
 use std::collections::HashMap;
@@ -147,7 +147,7 @@ impl Client {
         }
     }
     /// Reads raw RDP messages sent on the rdpdr virtual channel and replies as necessary.
-    pub fn read_and_create_reply(&mut self, payload: tpkt::Payload) -> RdpResult<Vec<Vec<u8>>> {
+    pub fn read_and_create_reply(&mut self, payload: tpkt::Payload) -> RdpResult<PayloadOut> {
         if self.test_debug_logs {
             debug!("received RDPDR tpkt::Payload: {:?}", payload);
         }
@@ -195,7 +195,7 @@ impl Client {
         Ok(vec![])
     }
 
-    fn handle_server_announce(&self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
+    fn handle_server_announce(&self, payload: &mut PayloadIn) -> RdpResult<PayloadOut> {
         let req = ServerAnnounceRequest::decode(payload)?;
         debug!("received RDP ServerAnnounceRequest: {:?}", req);
 
@@ -221,7 +221,7 @@ impl Client {
         Ok(resp)
     }
 
-    fn handle_server_capability(&self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
+    fn handle_server_capability(&self, payload: &mut PayloadIn) -> RdpResult<PayloadOut> {
         let req = ServerCoreCapabilityRequest::decode(payload)?;
         debug!("received RDP {:?}", req);
 
@@ -232,7 +232,7 @@ impl Client {
         Ok(resp)
     }
 
-    fn handle_client_id_confirm(&mut self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
+    fn handle_client_id_confirm(&mut self, payload: &mut PayloadIn) -> RdpResult<PayloadOut> {
         let req = ServerClientIdConfirm::decode(payload)?;
         debug!("received RDP ServerClientIdConfirm: {:?}", req);
 
@@ -251,7 +251,7 @@ impl Client {
         Ok(resp)
     }
 
-    fn handle_device_reply(&self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
+    fn handle_device_reply(&self, payload: &mut PayloadIn) -> RdpResult<PayloadOut> {
         let req = ServerDeviceAnnounceResponse::decode(payload)?;
         debug!("received RDP: {:?}", req);
 
@@ -291,7 +291,7 @@ impl Client {
         Ok(vec![])
     }
 
-    fn handle_device_io_request(&mut self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
+    fn handle_device_io_request(&mut self, payload: &mut PayloadIn) -> RdpResult<PayloadOut> {
         let device_io_request = DeviceIoRequest::decode(payload)?;
         let major_function = device_io_request.major_function.clone();
 
@@ -338,8 +338,8 @@ impl Client {
     fn process_irp_device_control(
         &mut self,
         device_io_request: DeviceIoRequest,
-        payload: &mut Payload,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+        payload: &mut PayloadIn,
+    ) -> RdpResult<PayloadOut> {
         let ioctl = DeviceControlRequest::decode(device_io_request, payload)?;
         let is_smart_card_op = ioctl.header.device_id == self.get_scard_device_id()?;
         debug!("received RDP: {:?}", ioctl);
@@ -371,8 +371,8 @@ impl Client {
     fn process_irp_create(
         &mut self,
         device_io_request: DeviceIoRequest,
-        payload: &mut Payload,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+        payload: &mut PayloadIn,
+    ) -> RdpResult<PayloadOut> {
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L207
         let rdp_req = ServerCreateDriveRequest::decode(device_io_request, payload)?;
         debug!("received RDP ServerCreateDriveRequest: {:?}", rdp_req);
@@ -388,7 +388,7 @@ impl Client {
         self.pending_sd_info_resp_handlers.insert(
             rdp_req.device_io_request.completion_id,
             Box::new(
-                |cli: &mut Self, res: SharedDirectoryInfoResponse| -> RdpResult<Vec<Vec<u8>>> {
+                |cli: &mut Self, res: SharedDirectoryInfoResponse| -> RdpResult<PayloadOut> {
                     let rdp_req = rdp_req;
 
                     match res.err_code {
@@ -563,8 +563,8 @@ impl Client {
     fn process_irp_query_information(
         &mut self,
         device_io_request: DeviceIoRequest,
-        payload: &mut Payload,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+        payload: &mut PayloadIn,
+    ) -> RdpResult<PayloadOut> {
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L373
         let rdp_req = ServerDriveQueryInformationRequest::decode(device_io_request, payload)?;
         debug!("received RDP: {:?}", rdp_req);
@@ -577,7 +577,7 @@ impl Client {
         self.prep_query_info_response(&rdp_req, f, code)
     }
 
-    fn process_irp_close(&mut self, device_io_request: DeviceIoRequest) -> RdpResult<Vec<Vec<u8>>> {
+    fn process_irp_close(&mut self, device_io_request: DeviceIoRequest) -> RdpResult<PayloadOut> {
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L236
         let rdp_req = DeviceCloseRequest::decode(device_io_request);
         debug!("received RDP: {:?}", rdp_req);
@@ -606,8 +606,8 @@ impl Client {
     fn process_irp_directory_control(
         &mut self,
         device_io_request: DeviceIoRequest,
-        payload: &mut Payload,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+        payload: &mut PayloadIn,
+    ) -> RdpResult<PayloadOut> {
         let minor_function = device_io_request.minor_function.clone();
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L650
         match minor_function {
@@ -648,7 +648,7 @@ impl Client {
                         Box::new(
                             move |cli: &mut Self,
                                   res: SharedDirectoryListResponse|
-                                  -> RdpResult<Vec<Vec<u8>>> {
+                                  -> RdpResult<PayloadOut> {
                                 if res.err_code != TdpErrCode::Nil {
                                     // TODO(isaiah): For now any error will kill the session.
                                     // In the future, we might want to make this send back
@@ -706,8 +706,8 @@ impl Client {
     fn process_irp_query_volume_information(
         &mut self,
         device_io_request: DeviceIoRequest,
-        payload: &mut Payload,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+        payload: &mut PayloadIn,
+    ) -> RdpResult<PayloadOut> {
         let rdp_req = ServerDriveQueryVolumeInformationRequest::decode(device_io_request, payload)?;
         debug!("received RDP: {:?}", rdp_req);
         if let Some(dir) = self.file_cache.get(rdp_req.device_io_request.file_id) {
@@ -761,8 +761,8 @@ impl Client {
     fn process_irp_read(
         &mut self,
         device_io_request: DeviceIoRequest,
-        payload: &mut Payload,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+        payload: &mut PayloadIn,
+    ) -> RdpResult<PayloadOut> {
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L268
         let rdp_req = DeviceReadRequest::decode(device_io_request, payload)?;
         debug!("received RDP: {:?}", rdp_req);
@@ -772,8 +772,8 @@ impl Client {
     fn process_irp_write(
         &mut self,
         device_io_request: DeviceIoRequest,
-        payload: &mut Payload,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+        payload: &mut PayloadIn,
+    ) -> RdpResult<PayloadOut> {
         let rdp_req = DeviceWriteRequest::decode(device_io_request, payload)?;
         debug!("received RDP: {:?}", rdp_req);
         self.tdp_sd_write(rdp_req)
@@ -782,8 +782,8 @@ impl Client {
     fn process_irp_set_information(
         &mut self,
         device_io_request: DeviceIoRequest,
-        payload: &mut Payload,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+        payload: &mut PayloadIn,
+    ) -> RdpResult<PayloadOut> {
         let rdp_req = ServerDriveSetInformationRequest::decode(device_io_request, payload)?;
         debug!("received RDP: {:?}", rdp_req);
 
@@ -850,7 +850,7 @@ impl Client {
         }
     }
 
-    fn process_irp_lock_ctl(&mut self) -> RdpResult<Vec<Vec<u8>>> {
+    fn process_irp_lock_ctl(&mut self) -> RdpResult<PayloadOut> {
         // return an empty payload
         // https://github.com/FreeRDP/FreeRDP/blob/dfa231c0a55b005af775b833f92f6bcd30363d77/channels/drive/client/drive_main.c#L600-L601
         debug!("received RDP: major function IRP_MJ_LOCK_CONTROL");
@@ -1052,7 +1052,7 @@ impl Client {
         req: &DeviceCreateRequest,
         io_status: NTSTATUS,
         new_file_id: u32,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+    ) -> RdpResult<PayloadOut> {
         let resp = DeviceCreateResponse::new(req, io_status, new_file_id);
         debug!("sending RDP: {:?}", resp);
         let resp = self
@@ -1065,7 +1065,7 @@ impl Client {
         req: &ServerDriveQueryInformationRequest,
         file: Option<&FileCacheObject>,
         io_status: NTSTATUS,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+    ) -> RdpResult<PayloadOut> {
         let resp = ClientDriveQueryInformationResponse::new(req, file, io_status)?;
         debug!("sending RDP: {:?}", resp);
         let resp = self
@@ -1077,7 +1077,7 @@ impl Client {
         &self,
         req: DeviceCloseRequest,
         io_status: NTSTATUS,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+    ) -> RdpResult<PayloadOut> {
         let resp = DeviceCloseResponse::new(req, io_status);
         debug!("sending RDP: {:?}", resp);
         let resp = self
@@ -1090,7 +1090,7 @@ impl Client {
         device_io_request: &DeviceIoRequest,
         io_status: NTSTATUS,
         buffer: Option<FileInformationClass>,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+    ) -> RdpResult<PayloadOut> {
         let resp = ClientDriveQueryDirectoryResponse::new(device_io_request, io_status, buffer)?;
         debug!("sending RDP: {:?}", resp);
         let resp = self
@@ -1110,7 +1110,7 @@ impl Client {
     fn prep_next_drive_query_dir_response(
         &mut self,
         req: &ServerDriveQueryDirectoryRequest,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+    ) -> RdpResult<PayloadOut> {
         if let Some(dir) = self.file_cache.get_mut(req.device_io_request.file_id) {
             // Get the next FileSystemObject from the FileCacheObject for translation
             // into an RDP data structure. Because of how next() is implemented for FileCacheObject,
@@ -1170,7 +1170,7 @@ impl Client {
     fn prep_file_cache_fail_drive_query_dir_response(
         &self,
         req: &ServerDriveQueryDirectoryRequest,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+    ) -> RdpResult<PayloadOut> {
         debug!(
             "failed to retrieve an item from the file cache with FileId = {}",
             req.device_io_request.file_id
@@ -1188,7 +1188,7 @@ impl Client {
         device_io_request: &DeviceIoRequest,
         io_status: NTSTATUS,
         buffer: Option<FileSystemInformationClass>,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+    ) -> RdpResult<PayloadOut> {
         let resp =
             ClientDriveQueryVolumeInformationResponse::new(device_io_request, io_status, buffer)?;
         debug!("sending RDP: {:?}", resp);
@@ -1202,7 +1202,7 @@ impl Client {
         req: DeviceReadRequest,
         io_status: NTSTATUS,
         data: Vec<u8>,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+    ) -> RdpResult<PayloadOut> {
         let resp = DeviceReadResponse::new(&req, io_status, data);
         debug!("sending RDP: {:?}", resp);
         let resp = self
@@ -1215,7 +1215,7 @@ impl Client {
         req: DeviceIoRequest,
         io_status: NTSTATUS,
         length: u32,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+    ) -> RdpResult<PayloadOut> {
         let resp = DeviceWriteResponse::new(&req, io_status, length);
         debug!("sending RDP: {:?}", resp);
         let resp = self
@@ -1227,7 +1227,7 @@ impl Client {
         &mut self,
         req: &ServerDriveSetInformationRequest,
         io_status: NTSTATUS,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+    ) -> RdpResult<PayloadOut> {
         let resp = ClientDriveSetInformationResponse::new(req, io_status);
         debug!("sending RDP: {:?}", resp);
         let resp = self
@@ -1241,7 +1241,7 @@ impl Client {
         &mut self,
         rdp_req: DeviceCreateRequest,
         file_type: FileType,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+    ) -> RdpResult<PayloadOut> {
         let tdp_req = SharedDirectoryCreateRequest {
             completion_id: rdp_req.device_io_request.completion_id,
             directory_id: rdp_req.device_io_request.device_id,
@@ -1255,7 +1255,7 @@ impl Client {
             Box::new(
                 move |cli: &mut Self,
                       res: SharedDirectoryCreateResponse|
-                      -> RdpResult<Vec<Vec<u8>>> {
+                      -> RdpResult<PayloadOut> {
                     if res.err_code != TdpErrCode::Nil {
                         return cli.prep_device_create_response(
                             &rdp_req,
@@ -1279,7 +1279,7 @@ impl Client {
     /// Helper function for combining a TDP SharedDirectoryDeleteRequest
     /// with a TDP SharedDirectoryCreateRequest to overwrite a file, based
     /// on an RDP DeviceCreateRequest.
-    fn tdp_sd_overwrite(&mut self, rdp_req: DeviceCreateRequest) -> RdpResult<Vec<Vec<u8>>> {
+    fn tdp_sd_overwrite(&mut self, rdp_req: DeviceCreateRequest) -> RdpResult<PayloadOut> {
         let tdp_req = SharedDirectoryDeleteRequest {
             completion_id: rdp_req.device_io_request.completion_id,
             directory_id: rdp_req.device_io_request.device_id,
@@ -1289,7 +1289,7 @@ impl Client {
         self.pending_sd_delete_resp_handlers.insert(
             rdp_req.device_io_request.completion_id,
             Box::new(
-                |cli: &mut Self, res: SharedDirectoryDeleteResponse| -> RdpResult<Vec<Vec<u8>>> {
+                |cli: &mut Self, res: SharedDirectoryDeleteResponse| -> RdpResult<PayloadOut> {
                     match res.err_code {
                         TdpErrCode::Nil => cli.tdp_sd_create(rdp_req, FileType::File),
                         _ => cli.prep_device_create_response(
@@ -1308,7 +1308,7 @@ impl Client {
         &mut self,
         rdp_req: DeviceCloseRequest,
         file: FileCacheObject,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+    ) -> RdpResult<PayloadOut> {
         let tdp_req = SharedDirectoryDeleteRequest {
             completion_id: rdp_req.device_io_request.completion_id,
             directory_id: rdp_req.device_io_request.device_id,
@@ -1318,7 +1318,7 @@ impl Client {
         self.pending_sd_delete_resp_handlers.insert(
             rdp_req.device_io_request.completion_id,
             Box::new(
-                |cli: &mut Self, res: SharedDirectoryDeleteResponse| -> RdpResult<Vec<Vec<u8>>> {
+                |cli: &mut Self, res: SharedDirectoryDeleteResponse| -> RdpResult<PayloadOut> {
                     let code = if res.err_code == TdpErrCode::Nil {
                         NTSTATUS::STATUS_SUCCESS
                     } else {
@@ -1331,7 +1331,7 @@ impl Client {
         Ok(vec![])
     }
 
-    fn tdp_sd_read(&mut self, rdp_req: DeviceReadRequest) -> RdpResult<Vec<Vec<u8>>> {
+    fn tdp_sd_read(&mut self, rdp_req: DeviceReadRequest) -> RdpResult<PayloadOut> {
         if let Some(file) = self.file_cache.get(rdp_req.device_io_request.file_id) {
             let tdp_req = SharedDirectoryReadRequest {
                 completion_id: rdp_req.device_io_request.completion_id,
@@ -1347,7 +1347,7 @@ impl Client {
                 Box::new(
                     move |cli: &mut Self,
                           res: SharedDirectoryReadResponse|
-                          -> RdpResult<Vec<Vec<u8>>> {
+                          -> RdpResult<PayloadOut> {
                         match res.err_code {
                             TdpErrCode::Nil => cli.prep_read_response(
                                 rdp_req,
@@ -1371,7 +1371,7 @@ impl Client {
         self.prep_read_response(rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL, vec![])
     }
 
-    fn tdp_sd_write(&mut self, rdp_req: DeviceWriteRequest) -> RdpResult<Vec<Vec<u8>>> {
+    fn tdp_sd_write(&mut self, rdp_req: DeviceWriteRequest) -> RdpResult<PayloadOut> {
         if let Some(file) = self.file_cache.get(rdp_req.device_io_request.file_id) {
             let tdp_req = SharedDirectoryWriteRequest {
                 completion_id: rdp_req.device_io_request.completion_id,
@@ -1388,7 +1388,7 @@ impl Client {
                 Box::new(
                     move |cli: &mut Self,
                           res: SharedDirectoryWriteResponse|
-                          -> RdpResult<Vec<Vec<u8>>> {
+                          -> RdpResult<PayloadOut> {
                         match res.err_code {
                             TdpErrCode::Nil => cli.prep_write_response(
                                 device_io_request,
@@ -1417,7 +1417,7 @@ impl Client {
         rdp_req: ServerDriveSetInformationRequest,
         rename_info: &FileRenameInformation,
         io_status: NTSTATUS,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+    ) -> RdpResult<PayloadOut> {
         // https://github.com/FreeRDP/FreeRDP/blob/dfa231c0a55b005af775b833f92f6bcd30363d77/channels/drive/client/drive_file.c#L709
         match rename_info.replace_if_exists {
             Boolean::True => self.rename_replace_if_exists(rdp_req, rename_info, io_status),
@@ -1430,7 +1430,7 @@ impl Client {
         rdp_req: ServerDriveSetInformationRequest,
         rename_info: &FileRenameInformation,
         io_status: NTSTATUS,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+    ) -> RdpResult<PayloadOut> {
         // If replace_if_exists is true, we can just send a TDP SharedDirectoryMoveRequest,
         // which works like the unix `mv` utility (meaning it will automatically replace if exists).
         self.tdp_sd_move(rdp_req, rename_info, io_status)
@@ -1441,7 +1441,7 @@ impl Client {
         rdp_req: ServerDriveSetInformationRequest,
         rename_info: &FileRenameInformation,
         io_status: NTSTATUS,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+    ) -> RdpResult<PayloadOut> {
         let new_path = UnixPath::from(&rename_info.file_name);
         // If replace_if_exists is false, first check if the new_path exists.
         (self.tdp_sd_info_request)(SharedDirectoryInfoRequest {
@@ -1454,9 +1454,7 @@ impl Client {
         self.pending_sd_info_resp_handlers.insert(
             rdp_req.device_io_request.completion_id,
             Box::new(
-                move |cli: &mut Self,
-                      res: SharedDirectoryInfoResponse|
-                      -> RdpResult<Vec<Vec<u8>>> {
+                move |cli: &mut Self, res: SharedDirectoryInfoResponse| -> RdpResult<PayloadOut> {
                     if res.err_code == TdpErrCode::DoesNotExist {
                         // If the file doesn't already exist, send a move request.
                         return cli.tdp_sd_move(rdp_req, &rename_info, io_status);
@@ -1475,7 +1473,7 @@ impl Client {
         rdp_req: ServerDriveSetInformationRequest,
         rename_info: &FileRenameInformation,
         io_status: NTSTATUS,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+    ) -> RdpResult<PayloadOut> {
         if let Some(file) = self.file_cache.get(rdp_req.device_io_request.file_id) {
             (self.tdp_sd_move_request)(SharedDirectoryMoveRequest {
                 completion_id: rdp_req.device_io_request.completion_id,
@@ -1489,7 +1487,7 @@ impl Client {
                 Box::new(
                     move |cli: &mut Self,
                           res: SharedDirectoryMoveResponse|
-                          -> RdpResult<Vec<Vec<u8>>> {
+                          -> RdpResult<PayloadOut> {
                         if res.err_code != TdpErrCode::Nil {
                             return cli
                                 .prep_set_info_response(&rdp_req, NTSTATUS::STATUS_UNSUCCESSFUL);
@@ -1513,8 +1511,8 @@ impl Client {
     fn add_headers_and_chunkify(
         &self,
         packet_id: PacketId,
-        payload: Vec<u8>,
-    ) -> RdpResult<Vec<Vec<u8>>> {
+        payload: MessageOut,
+    ) -> RdpResult<PayloadOut> {
         let mut inner = SharedHeader::new(Component::RDPDR_CTYP_CORE, packet_id).encode()?;
         inner.extend_from_slice(&payload);
         self.vchan.add_header_and_chunkify(None, inner)
@@ -1705,7 +1703,7 @@ impl SharedHeader {
             packet_id,
         }
     }
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut PayloadIn) -> RdpResult<Self> {
         let component = payload.read_u16::<LittleEndian>()?;
         let packet_id = payload.read_u16::<LittleEndian>()?;
         Ok(Self {
@@ -1717,7 +1715,7 @@ impl SharedHeader {
             })?,
         })
     }
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.write_u16::<LittleEndian>(self.component.to_u16().unwrap())?;
         w.write_u16::<LittleEndian>(self.packet_id.to_u16().unwrap())?;
@@ -1745,7 +1743,7 @@ impl ClientIdMessage {
         }
     }
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.write_u16::<LittleEndian>(self.version_major)?;
         w.write_u16::<LittleEndian>(self.version_minor)?;
@@ -1753,7 +1751,7 @@ impl ClientIdMessage {
         Ok(w)
     }
 
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut PayloadIn) -> RdpResult<Self> {
         Ok(Self {
             version_major: payload.read_u16::<LittleEndian>()?,
             version_minor: payload.read_u16::<LittleEndian>()?,
@@ -1822,7 +1820,7 @@ impl ServerCoreCapabilityRequest {
         }
     }
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.write_u16::<LittleEndian>(self.num_capabilities)?;
         w.write_u16::<LittleEndian>(self.padding)?;
@@ -1832,7 +1830,7 @@ impl ServerCoreCapabilityRequest {
         Ok(w)
     }
 
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut PayloadIn) -> RdpResult<Self> {
         let num_capabilities = payload.read_u16::<LittleEndian>()?;
         let padding = payload.read_u16::<LittleEndian>()?;
         let mut capabilities = vec![];
@@ -1855,12 +1853,12 @@ struct CapabilitySet {
 }
 
 impl CapabilitySet {
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = self.header.encode()?;
         w.extend_from_slice(&self.data.encode()?);
         Ok(w)
     }
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut PayloadIn) -> RdpResult<Self> {
         let header = CapabilityHeader::decode(payload)?;
         let data = Capability::decode(payload, &header)?;
 
@@ -1876,14 +1874,14 @@ struct CapabilityHeader {
 }
 
 impl CapabilityHeader {
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.write_u16::<LittleEndian>(self.cap_type.to_u16().unwrap())?;
         w.write_u16::<LittleEndian>(self.length)?;
         w.write_u32::<LittleEndian>(self.version)?;
         Ok(w)
     }
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut PayloadIn) -> RdpResult<Self> {
         let cap_type = payload.read_u16::<LittleEndian>()?;
         Ok(Self {
             cap_type: CapabilityType::from_u16(cap_type).ok_or_else(|| {
@@ -1905,14 +1903,14 @@ enum Capability {
 }
 
 impl Capability {
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         match self {
             Capability::General(general) => Ok(general.encode()?),
             _ => Ok(vec![]),
         }
     }
 
-    fn decode(payload: &mut Payload, header: &CapabilityHeader) -> RdpResult<Self> {
+    fn decode(payload: &mut PayloadIn, header: &CapabilityHeader) -> RdpResult<Self> {
         match header.cap_type {
             CapabilityType::CAP_GENERAL_TYPE => Ok(Capability::General(
                 GeneralCapabilitySet::decode(payload, header.version)?,
@@ -1940,7 +1938,7 @@ struct GeneralCapabilitySet {
 }
 
 impl GeneralCapabilitySet {
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.os_type)?;
         w.write_u32::<LittleEndian>(self.os_version)?;
@@ -1955,7 +1953,7 @@ impl GeneralCapabilitySet {
         Ok(w)
     }
 
-    fn decode(payload: &mut Payload, version: u32) -> RdpResult<Self> {
+    fn decode(payload: &mut PayloadIn, version: u32) -> RdpResult<Self> {
         Ok(Self {
             os_type: payload.read_u32::<LittleEndian>()?,
             os_version: payload.read_u32::<LittleEndian>()?,
@@ -2032,7 +2030,7 @@ impl ClientDeviceListAnnounceRequest {
         }
     }
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.device_count)?;
         for dev in self.device_list.iter() {
@@ -2054,7 +2052,7 @@ struct DeviceAnnounceHeader {
 }
 
 impl DeviceAnnounceHeader {
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.device_type.to_u32().unwrap())?;
         w.write_u32::<LittleEndian>(self.device_id)?;
@@ -2078,7 +2076,7 @@ struct ServerDeviceAnnounceResponse {
 }
 
 impl ServerDeviceAnnounceResponse {
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut PayloadIn) -> RdpResult<Self> {
         Ok(Self {
             device_id: payload.read_u32::<LittleEndian>()?,
             result_code: payload.read_u32::<LittleEndian>()?,
@@ -2111,7 +2109,7 @@ impl ClientNameRequest {
         }
     }
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.unicode_flag.clone() as u32)?;
         // CodePage (4 bytes): A 32-bit unsigned integer that specifies the code page of the ComputerName field; it MUST be set to 0.
@@ -2146,7 +2144,7 @@ pub struct DeviceIoRequest {
 }
 
 impl DeviceIoRequest {
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut PayloadIn) -> RdpResult<Self> {
         let device_id = payload.read_u32::<LittleEndian>()?;
         let file_id = payload.read_u32::<LittleEndian>()?;
         let completion_id = payload.read_u32::<LittleEndian>()?;
@@ -2200,7 +2198,7 @@ struct DeviceControlRequest {
 }
 
 impl DeviceControlRequest {
-    fn decode(header: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(header: DeviceIoRequest, payload: &mut PayloadIn) -> RdpResult<Self> {
         let output_buffer_length = payload.read_u32::<LittleEndian>()?;
         let input_buffer_length = payload.read_u32::<LittleEndian>()?;
         let io_control_code = payload.read_u32::<LittleEndian>()?;
@@ -2234,7 +2232,7 @@ impl DeviceIoResponse {
         }
     }
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.device_id)?;
         w.write_u32::<LittleEndian>(self.completion_id)?;
@@ -2259,7 +2257,7 @@ impl DeviceControlResponse {
         }
     }
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.extend_from_slice(&self.header.encode()?);
         w.write_u32::<LittleEndian>(self.output_buffer_length)?;
@@ -2290,7 +2288,7 @@ pub struct DeviceCreateRequest {
 }
 
 impl DeviceCreateRequest {
-    fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(device_io_request: DeviceIoRequest, payload: &mut PayloadIn) -> RdpResult<Self> {
         debug!("In DeviceCreateRequest decode");
         let invalid_flags = |flag_name: &str, v: u32| {
             invalid_data_error(&format!(
@@ -2399,7 +2397,7 @@ impl DeviceCreateResponse {
         }
     }
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.extend_from_slice(&self.device_io_reply.encode()?);
         w.write_u32::<LittleEndian>(self.file_id)?;
@@ -2439,7 +2437,7 @@ struct ServerDriveQueryInformationRequest {
 }
 
 impl ServerDriveQueryInformationRequest {
-    fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(device_io_request: DeviceIoRequest, payload: &mut PayloadIn) -> RdpResult<Self> {
         let n = payload.read_u32::<LittleEndian>()?;
         if let Some(file_info_class_lvl) = FileInformationClassLevel::from_u32(n) {
             return Ok(Self {
@@ -2477,7 +2475,7 @@ enum FileInformationClass {
 }
 
 impl FileInformationClass {
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         match self {
             Self::FileBasicInformation(file_info_class) => file_info_class.encode(),
             Self::FileStandardInformation(file_info_class) => file_info_class.encode(),
@@ -2496,7 +2494,7 @@ impl FileInformationClass {
     fn decode(
         file_information_class_level: &FileInformationClassLevel,
         length: u32,
-        payload: &mut Payload,
+        payload: &mut PayloadIn,
     ) -> RdpResult<Self> {
         match file_information_class_level {
             FileInformationClassLevel::FileBasicInformation => Ok(
@@ -2563,7 +2561,7 @@ struct FileBasicInformation {
 impl FileBasicInformation {
     const BASE_SIZE: u32 = (4 * I64_SIZE) + FILE_ATTR_SIZE;
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.write_i64::<LittleEndian>(self.creation_time)?;
         w.write_i64::<LittleEndian>(self.last_access_time)?;
@@ -2573,7 +2571,7 @@ impl FileBasicInformation {
         Ok(w)
     }
 
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut PayloadIn) -> RdpResult<Self> {
         let creation_time = payload.read_i64::<LittleEndian>()?;
         let last_access_time = payload.read_i64::<LittleEndian>()?;
         let last_write_time = payload.read_i64::<LittleEndian>()?;
@@ -2632,7 +2630,7 @@ struct FileStandardInformation {
 impl FileStandardInformation {
     const BASE_SIZE: u32 = (2 * I64_SIZE) + U32_SIZE + (2 * BOOL_SIZE);
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.write_i64::<LittleEndian>(self.allocation_size)?;
         w.write_i64::<LittleEndian>(self.end_of_file)?;
@@ -2658,7 +2656,7 @@ struct FileAttributeTagInformation {
 impl FileAttributeTagInformation {
     const BASE_SIZE: u32 = U32_SIZE + FILE_ATTR_SIZE;
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.file_attributes.bits())?;
         w.write_u32::<LittleEndian>(self.reparse_tag)?;
@@ -2735,7 +2733,7 @@ impl FileBothDirectoryInformation {
         }
     }
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.next_entry_offset)?;
         w.write_u32::<LittleEndian>(self.file_index)?;
@@ -2832,7 +2830,7 @@ impl FileFullDirectoryInformation {
         }
     }
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.next_entry_offset)?;
         w.write_u32::<LittleEndian>(self.file_index)?;
@@ -2886,13 +2884,13 @@ struct FileEndOfFileInformation {
 impl FileEndOfFileInformation {
     const BASE_SIZE: u32 = I64_SIZE;
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.write_i64::<LittleEndian>(self.end_of_file)?;
         Ok(w)
     }
 
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut PayloadIn) -> RdpResult<Self> {
         let end_of_file = payload.read_i64::<LittleEndian>()?;
         Ok(Self { end_of_file })
     }
@@ -2912,13 +2910,13 @@ struct FileDispositionInformation {
 impl FileDispositionInformation {
     const BASE_SIZE: u32 = U8_SIZE;
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.write_u8(self.delete_pending)?;
         Ok(w)
     }
 
-    fn decode(payload: &mut Payload, length: u32) -> RdpResult<Self> {
+    fn decode(payload: &mut PayloadIn, length: u32) -> RdpResult<Self> {
         // https://github.com/FreeRDP/FreeRDP/blob/dfa231c0a55b005af775b833f92f6bcd30363d77/channels/drive/client/drive_file.c#L684-L692
         let delete_pending = if length != 0 { payload.read_u8()? } else { 1 };
         Ok(Self { delete_pending })
@@ -2943,7 +2941,7 @@ impl FileRenameInformation {
     // see encode method
     const BASE_SIZE: u32 = (2 * U8_SIZE) + U32_SIZE;
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L709
         // https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/3668ae46-1df5-4656-b481-763877428bcb
         // This matches the FreeRDP implementation rather than Microsoft specification
@@ -2956,7 +2954,7 @@ impl FileRenameInformation {
         Ok(w)
     }
 
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut PayloadIn) -> RdpResult<Self> {
         let replace_if_exists = payload.read_u8()?;
         // RootDirectory
         payload.read_u8()?;
@@ -2987,13 +2985,13 @@ struct FileAllocationInformation {
 impl FileAllocationInformation {
     const BASE_SIZE: u32 = I64_SIZE;
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.write_i64::<LittleEndian>(self.allocation_size)?;
         Ok(w)
     }
 
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(payload: &mut PayloadIn) -> RdpResult<Self> {
         let allocation_size = payload.read_i64::<LittleEndian>()?;
 
         Ok(Self { allocation_size })
@@ -3029,7 +3027,7 @@ impl FileNamesInformation {
         }
     }
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.next_entry_offset)?;
         w.write_u32::<LittleEndian>(self.file_index)?;
@@ -3091,7 +3089,7 @@ impl FileDirectoryInformation {
         }
     }
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.next_entry_offset)?;
         w.write_u32::<LittleEndian>(self.file_index)?;
@@ -3148,7 +3146,7 @@ enum FileSystemInformationClass {
 }
 
 impl FileSystemInformationClass {
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         match self {
             Self::FileFsVolumeInformation(fs_info_class) => fs_info_class.encode(),
             Self::FileFsSizeInformation(fs_info_class) => fs_info_class.encode(),
@@ -3198,7 +3196,7 @@ impl FileFsVolumeInformation {
         }
     }
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.write_i64::<LittleEndian>(self.volume_creation_time)?;
         w.write_u32::<LittleEndian>(self.volume_serial_number)?;
@@ -3240,7 +3238,7 @@ impl FileFsSizeInformation {
         }
     }
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.write_i64::<LittleEndian>(self.total_alloc_units)?;
         w.write_i64::<LittleEndian>(self.available_alloc_units)?;
@@ -3287,7 +3285,7 @@ impl FileFsAttributeInformation {
         }
     }
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.file_system_attributes.bits())?;
         w.write_u32::<LittleEndian>(self.max_component_name_len)?;
@@ -3330,7 +3328,7 @@ impl FileFsFullSizeInformation {
         }
     }
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.write_i64::<LittleEndian>(self.total_alloc_units)?;
         w.write_i64::<LittleEndian>(self.caller_available_alloc_units)?;
@@ -3367,7 +3365,7 @@ impl FileFsDeviceInformation {
         }
     }
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.device_type)?;
         w.write_u32::<LittleEndian>(self.characteristics)?;
@@ -3484,7 +3482,7 @@ impl ClientDriveQueryInformationResponse {
         }
     }
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.extend_from_slice(&self.device_io_response.encode()?);
         if let Some(length) = self.length {
@@ -3531,7 +3529,7 @@ impl DeviceCloseResponse {
         }
     }
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.extend_from_slice(&self.device_io_response.encode()?);
         w.write_u32::<LittleEndian>(self.padding)?;
@@ -3555,7 +3553,7 @@ struct ServerDriveNotifyChangeDirectoryRequest {
 
 #[allow(dead_code)]
 impl ServerDriveNotifyChangeDirectoryRequest {
-    fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(device_io_request: DeviceIoRequest, payload: &mut PayloadIn) -> RdpResult<Self> {
         let invalid_flags =
             || invalid_data_error("invalid flags in Server Drive NotifyChange Directory Request");
 
@@ -3586,7 +3584,7 @@ pub struct DeviceReadRequest {
 }
 
 impl DeviceReadRequest {
-    fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(device_io_request: DeviceIoRequest, payload: &mut PayloadIn) -> RdpResult<Self> {
         Ok(Self {
             device_io_request,
             length: payload.read_u32::<LittleEndian>()?,
@@ -3634,7 +3632,7 @@ impl DeviceReadResponse {
         }
     }
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.extend_from_slice(&self.device_io_reply.encode()?);
         w.write_u32::<LittleEndian>(self.length)?;
@@ -3669,7 +3667,7 @@ impl std::fmt::Debug for DeviceWriteRequest {
 }
 
 impl DeviceWriteRequest {
-    fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(device_io_request: DeviceIoRequest, payload: &mut PayloadIn) -> RdpResult<Self> {
         let length = payload.read_u32::<LittleEndian>()?;
         let offset = payload.read_u64::<LittleEndian>()?;
 
@@ -3710,7 +3708,7 @@ impl DeviceWriteResponse {
         }
     }
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.extend_from_slice(&self.device_io_reply.encode()?);
         w.write_u32::<LittleEndian>(self.length)?;
@@ -3740,7 +3738,7 @@ impl ClientDriveSetInformationResponse {
         }
     }
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.extend_from_slice(&self.device_io_reply.encode()?);
         w.write_u32::<LittleEndian>(self.length)?;
@@ -3761,7 +3759,7 @@ struct ServerDriveSetInformationRequest {
 }
 
 impl ServerDriveSetInformationRequest {
-    fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(device_io_request: DeviceIoRequest, payload: &mut PayloadIn) -> RdpResult<Self> {
         let file_information_class_level =
             FileInformationClassLevel::from_u32(payload.read_u32::<LittleEndian>()?)
                 .ok_or_else(|| invalid_data_error("failed to read FileInformationClassLevel"))?;
@@ -3823,7 +3821,7 @@ struct ServerDriveQueryDirectoryRequest {
 }
 
 impl ServerDriveQueryDirectoryRequest {
-    fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(device_io_request: DeviceIoRequest, payload: &mut PayloadIn) -> RdpResult<Self> {
         let file_info_class_lvl =
             FileInformationClassLevel::from_u32(payload.read_u32::<LittleEndian>()?)
                 .ok_or_else(|| invalid_data_error("failed to read FileInformationClassLevel"))?;
@@ -3951,7 +3949,7 @@ impl ClientDriveQueryDirectoryResponse {
         })
     }
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.extend_from_slice(&self.device_io_reply.encode()?);
         w.write_u32::<LittleEndian>(self.length)?;
@@ -3982,7 +3980,7 @@ struct ServerDriveQueryVolumeInformationRequest {
 }
 
 impl ServerDriveQueryVolumeInformationRequest {
-    fn decode(device_io_request: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
+    fn decode(device_io_request: DeviceIoRequest, payload: &mut PayloadIn) -> RdpResult<Self> {
         let fs_info_class_lvl =
             FileSystemInformationClassLevel::from_u32(payload.read_u32::<LittleEndian>()?)
                 .ok_or_else(|| {
@@ -4077,7 +4075,7 @@ impl ClientDriveQueryVolumeInformationResponse {
         })
     }
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<MessageOut> {
         let mut w = vec![];
         w.extend_from_slice(&self.device_io_reply.encode()?);
         w.write_u32::<LittleEndian>(self.length)?;
@@ -4112,19 +4110,19 @@ type SharedDirectoryWriteRequestSender = Box<dyn Fn(SharedDirectoryWriteRequest)
 type SharedDirectoryMoveRequestSender = Box<dyn Fn(SharedDirectoryMoveRequest) -> RdpResult<()>>;
 
 type SharedDirectoryInfoResponseHandler =
-    Box<dyn FnOnce(&mut Client, SharedDirectoryInfoResponse) -> RdpResult<Vec<Vec<u8>>>>;
+    Box<dyn FnOnce(&mut Client, SharedDirectoryInfoResponse) -> RdpResult<PayloadOut>>;
 type SharedDirectoryCreateResponseHandler =
-    Box<dyn FnOnce(&mut Client, SharedDirectoryCreateResponse) -> RdpResult<Vec<Vec<u8>>>>;
+    Box<dyn FnOnce(&mut Client, SharedDirectoryCreateResponse) -> RdpResult<PayloadOut>>;
 type SharedDirectoryDeleteResponseHandler =
-    Box<dyn FnOnce(&mut Client, SharedDirectoryDeleteResponse) -> RdpResult<Vec<Vec<u8>>>>;
+    Box<dyn FnOnce(&mut Client, SharedDirectoryDeleteResponse) -> RdpResult<PayloadOut>>;
 type SharedDirectoryListResponseHandler =
-    Box<dyn FnOnce(&mut Client, SharedDirectoryListResponse) -> RdpResult<Vec<Vec<u8>>>>;
+    Box<dyn FnOnce(&mut Client, SharedDirectoryListResponse) -> RdpResult<PayloadOut>>;
 type SharedDirectoryReadResponseHandler =
-    Box<dyn FnOnce(&mut Client, SharedDirectoryReadResponse) -> RdpResult<Vec<Vec<u8>>>>;
+    Box<dyn FnOnce(&mut Client, SharedDirectoryReadResponse) -> RdpResult<PayloadOut>>;
 type SharedDirectoryWriteResponseHandler =
-    Box<dyn FnOnce(&mut Client, SharedDirectoryWriteResponse) -> RdpResult<Vec<Vec<u8>>>>;
+    Box<dyn FnOnce(&mut Client, SharedDirectoryWriteResponse) -> RdpResult<PayloadOut>>;
 type SharedDirectoryMoveResponseHandler =
-    Box<dyn FnOnce(&mut Client, SharedDirectoryMoveResponse) -> RdpResult<Vec<Vec<u8>>>>;
+    Box<dyn FnOnce(&mut Client, SharedDirectoryMoveResponse) -> RdpResult<PayloadOut>>;
 
 #[cfg(test)]
 mod tests {
@@ -4172,7 +4170,7 @@ mod tests {
     }
 
     fn create_payload(v: Vec<u8>, pos: u64) -> tpkt::Payload {
-        let mut p = Payload::new(v);
+        let mut p = PayloadIn::new(v);
         p.set_position(pos);
         tpkt::Payload::Raw(p)
     }

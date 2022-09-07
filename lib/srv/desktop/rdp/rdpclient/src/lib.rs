@@ -1874,5 +1874,8 @@ extern "C" {
     ) -> CGOErrCode;
 }
 
-/// Payload is a generic type used to represent raw incoming RDP messages for parsing.
-pub(crate) type Payload = Cursor<Vec<u8>>;
+/// PayloadIn represents raw incoming RDP messages for parsing.
+pub(crate) type PayloadIn = Cursor<Vec<u8>>;
+/// Message represents a raw outgoing RDP message to send to the RDP server.
+pub(crate) type MessageOut = Vec<u8>;
+pub(crate) type PayloadOut = Vec<MessageOut>;
