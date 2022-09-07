@@ -39,7 +39,8 @@ After expiration all tsh and tctl commands will display the license expiry warni
 
 ### Example outputs
 
-The license warning portion of the outputs should be coloured red and orange respectively for the expired and unexpired warnings.
+The license warning portion of the outputs should be coloured red and yellow respectively for the expired and unexpired warnings.
+This can be determined by the severity of the cluster alert, 5-9 for yellow and 10+ for red.
 
 ```
 $ build/tsh status
