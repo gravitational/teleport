@@ -5447,7 +5447,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -5467,7 +5467,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -5487,7 +5487,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -5507,7 +5507,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
@@ -5531,8 +5531,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport:10-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:10-amd64"
   - docker logout "public.ecr.aws"
@@ -5551,8 +5550,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-v10-arm" "public.ecr.aws/u8j2q1d9/teleport:10-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:10-arm"
   - docker logout "public.ecr.aws"
@@ -5571,8 +5569,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-v10-arm64" "public.ecr.aws/u8j2q1d9/teleport:10-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:10-arm64"
   - docker logout "public.ecr.aws"
@@ -5591,8 +5588,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker manifest create "public.ecr.aws/u8j2q1d9/teleport:10" --amend "public.ecr.aws/u8j2q1d9/teleport:10-amd64"
     --amend "public.ecr.aws/u8j2q1d9/teleport:10-arm" --amend "public.ecr.aws/u8j2q1d9/teleport:10-arm64"
   - docker manifest push "public.ecr.aws/u8j2q1d9/teleport:10"
@@ -5812,7 +5808,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-ent-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -5832,7 +5828,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-ent-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -5852,7 +5848,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-ent-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -5872,7 +5868,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
@@ -5896,8 +5892,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-ent-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport-ent:10-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:10-amd64"
   - docker logout "public.ecr.aws"
@@ -5916,8 +5911,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-ent-v10-arm" "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm"
   - docker logout "public.ecr.aws"
@@ -5936,8 +5930,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-ent-v10-arm64" "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm64"
   - docker logout "public.ecr.aws"
@@ -5957,8 +5950,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-ent:10" --amend "public.ecr.aws/u8j2q1d9/teleport-ent:10-amd64"
     --amend "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm" --amend "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm64"
   - docker manifest push "public.ecr.aws/u8j2q1d9/teleport-ent:10"
@@ -6083,7 +6075,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-ent-fips-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -6103,7 +6095,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
   - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips"
@@ -6124,8 +6116,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-ent-fips-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport-ent:10-fips-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:10-fips-amd64"
   - docker logout "public.ecr.aws"
@@ -6145,8 +6136,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-ent:10-fips" --amend
     "public.ecr.aws/u8j2q1d9/teleport-ent:10-fips-amd64"
   - docker manifest push "public.ecr.aws/u8j2q1d9/teleport-ent:10-fips"
@@ -6298,7 +6288,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-lab-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -6318,7 +6308,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-lab-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -6338,7 +6328,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-lab-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -6358,7 +6348,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
@@ -6382,8 +6372,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-lab-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport-lab:10-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:10-amd64"
   - docker logout "public.ecr.aws"
@@ -6402,8 +6391,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-lab-v10-arm" "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm"
   - docker logout "public.ecr.aws"
@@ -6422,8 +6410,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-lab-v10-arm64" "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm64"
   - docker logout "public.ecr.aws"
@@ -6443,8 +6430,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-lab:10" --amend "public.ecr.aws/u8j2q1d9/teleport-lab:10-amd64"
     --amend "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm" --amend "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm64"
   - docker manifest push "public.ecr.aws/u8j2q1d9/teleport-lab:10"
@@ -6598,7 +6584,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-operator-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -6618,7 +6604,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-operator-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -6638,7 +6624,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-operator-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -6658,7 +6644,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
@@ -6683,8 +6669,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-operator-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport-operator:10-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:10-amd64"
   - docker logout "public.ecr.aws"
@@ -6703,8 +6688,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-operator-v10-arm" "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm"
   - docker logout "public.ecr.aws"
@@ -6724,8 +6708,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-operator-v10-arm64" "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm64"
   - docker logout "public.ecr.aws"
@@ -6745,8 +6728,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-operator:10" --amend
     "public.ecr.aws/u8j2q1d9/teleport-operator:10-amd64" --amend "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm"
     --amend "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm64"
@@ -7037,7 +7019,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -7057,7 +7039,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -7077,7 +7059,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -7097,7 +7079,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
@@ -7121,8 +7103,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport:10-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:10-amd64"
   - docker logout "public.ecr.aws"
@@ -7141,8 +7122,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-v10-arm" "public.ecr.aws/u8j2q1d9/teleport:10-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:10-arm"
   - docker logout "public.ecr.aws"
@@ -7161,8 +7141,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-v10-arm64" "public.ecr.aws/u8j2q1d9/teleport:10-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:10-arm64"
   - docker logout "public.ecr.aws"
@@ -7181,8 +7160,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker manifest create "public.ecr.aws/u8j2q1d9/teleport:10" --amend "public.ecr.aws/u8j2q1d9/teleport:10-amd64"
     --amend "public.ecr.aws/u8j2q1d9/teleport:10-arm" --amend "public.ecr.aws/u8j2q1d9/teleport:10-arm64"
   - docker manifest push "public.ecr.aws/u8j2q1d9/teleport:10"
@@ -7402,7 +7380,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-ent-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -7422,7 +7400,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-ent-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -7442,7 +7420,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-ent-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -7462,7 +7440,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
@@ -7486,8 +7464,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-ent-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport-ent:10-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:10-amd64"
   - docker logout "public.ecr.aws"
@@ -7506,8 +7483,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-ent-v10-arm" "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm"
   - docker logout "public.ecr.aws"
@@ -7526,8 +7502,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-ent-v10-arm64" "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm64"
   - docker logout "public.ecr.aws"
@@ -7547,8 +7522,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-ent:10" --amend "public.ecr.aws/u8j2q1d9/teleport-ent:10-amd64"
     --amend "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm" --amend "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm64"
   - docker manifest push "public.ecr.aws/u8j2q1d9/teleport-ent:10"
@@ -7673,7 +7647,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-ent-fips-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -7693,7 +7667,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
   - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips"
@@ -7714,8 +7688,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-ent-fips-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport-ent:10-fips-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:10-fips-amd64"
   - docker logout "public.ecr.aws"
@@ -7735,8 +7708,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-ent:10-fips" --amend
     "public.ecr.aws/u8j2q1d9/teleport-ent:10-fips-amd64"
   - docker manifest push "public.ecr.aws/u8j2q1d9/teleport-ent:10-fips"
@@ -7888,7 +7860,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-lab-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -7908,7 +7880,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-lab-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -7928,7 +7900,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-lab-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -7948,7 +7920,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
@@ -7972,8 +7944,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-lab-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport-lab:10-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:10-amd64"
   - docker logout "public.ecr.aws"
@@ -7992,8 +7963,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-lab-v10-arm" "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm"
   - docker logout "public.ecr.aws"
@@ -8012,8 +7982,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-lab-v10-arm64" "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm64"
   - docker logout "public.ecr.aws"
@@ -8033,8 +8002,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-lab:10" --amend "public.ecr.aws/u8j2q1d9/teleport-lab:10-amd64"
     --amend "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm" --amend "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm64"
   - docker manifest push "public.ecr.aws/u8j2q1d9/teleport-lab:10"
@@ -8188,7 +8156,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-operator-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -8208,7 +8176,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-operator-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -8228,7 +8196,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-operator-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -8248,7 +8216,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
@@ -8273,8 +8241,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-operator-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport-operator:10-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:10-amd64"
   - docker logout "public.ecr.aws"
@@ -8293,8 +8260,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-operator-v10-arm" "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm"
   - docker logout "public.ecr.aws"
@@ -8314,8 +8280,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-operator-v10-arm64" "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm64"
   - docker logout "public.ecr.aws"
@@ -8335,8 +8300,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-operator:10" --amend
     "public.ecr.aws/u8j2q1d9/teleport-operator:10-amd64" --amend "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm"
     --amend "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm64"
@@ -8625,7 +8589,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-v9-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:9-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:9-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -8645,7 +8609,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-v9-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:9-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:9-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -8665,7 +8629,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-v9-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:9-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:9-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -8685,7 +8649,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:9-$TIMESTAMP"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:9-$TIMESTAMP-amd64"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:9-$TIMESTAMP-arm"
@@ -8709,8 +8673,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-v9-amd64" "public.ecr.aws/u8j2q1d9/teleport:9-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:9-amd64"
   - docker logout "public.ecr.aws"
@@ -8729,8 +8692,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-v9-arm" "public.ecr.aws/u8j2q1d9/teleport:9-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:9-arm"
   - docker logout "public.ecr.aws"
@@ -8749,8 +8711,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-v9-arm64" "public.ecr.aws/u8j2q1d9/teleport:9-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:9-arm64"
   - docker logout "public.ecr.aws"
@@ -8769,8 +8730,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker manifest create "public.ecr.aws/u8j2q1d9/teleport:9" --amend "public.ecr.aws/u8j2q1d9/teleport:9-amd64"
     --amend "public.ecr.aws/u8j2q1d9/teleport:9-arm" --amend "public.ecr.aws/u8j2q1d9/teleport:9-arm64"
   - docker manifest push "public.ecr.aws/u8j2q1d9/teleport:9"
@@ -8990,7 +8950,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-ent-v9-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -9010,7 +8970,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-ent-v9-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -9030,7 +8990,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-ent-v9-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -9050,7 +9010,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP-amd64"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP-arm"
@@ -9074,8 +9034,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-ent-v9-amd64" "public.ecr.aws/u8j2q1d9/teleport-ent:9-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:9-amd64"
   - docker logout "public.ecr.aws"
@@ -9094,8 +9053,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-ent-v9-arm" "public.ecr.aws/u8j2q1d9/teleport-ent:9-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:9-arm"
   - docker logout "public.ecr.aws"
@@ -9114,8 +9072,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-ent-v9-arm64" "public.ecr.aws/u8j2q1d9/teleport-ent:9-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:9-arm64"
   - docker logout "public.ecr.aws"
@@ -9135,8 +9092,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-ent:9" --amend "public.ecr.aws/u8j2q1d9/teleport-ent:9-amd64"
     --amend "public.ecr.aws/u8j2q1d9/teleport-ent:9-arm" --amend "public.ecr.aws/u8j2q1d9/teleport-ent:9-arm64"
   - docker manifest push "public.ecr.aws/u8j2q1d9/teleport-ent:9"
@@ -9261,7 +9217,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-ent-fips-v9-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP-fips-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP-fips-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -9281,7 +9237,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP-fips"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP-fips-amd64"
   - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP-fips"
@@ -9302,8 +9258,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-ent-fips-v9-amd64" "public.ecr.aws/u8j2q1d9/teleport-ent:9-fips-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:9-fips-amd64"
   - docker logout "public.ecr.aws"
@@ -9323,8 +9278,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-ent:9-fips" --amend "public.ecr.aws/u8j2q1d9/teleport-ent:9-fips-amd64"
   - docker manifest push "public.ecr.aws/u8j2q1d9/teleport-ent:9-fips"
   - docker logout "public.ecr.aws"
@@ -9475,7 +9429,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-lab-v9-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:9-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:9-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -9495,7 +9449,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-lab-v9-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:9-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:9-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -9515,7 +9469,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-lab-v9-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:9-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:9-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -9535,7 +9489,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:9-$TIMESTAMP"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:9-$TIMESTAMP-amd64"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:9-$TIMESTAMP-arm"
@@ -9559,8 +9513,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-lab-v9-amd64" "public.ecr.aws/u8j2q1d9/teleport-lab:9-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:9-amd64"
   - docker logout "public.ecr.aws"
@@ -9579,8 +9532,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-lab-v9-arm" "public.ecr.aws/u8j2q1d9/teleport-lab:9-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:9-arm"
   - docker logout "public.ecr.aws"
@@ -9599,8 +9551,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-lab-v9-arm64" "public.ecr.aws/u8j2q1d9/teleport-lab:9-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:9-arm64"
   - docker logout "public.ecr.aws"
@@ -9620,8 +9571,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-lab:9" --amend "public.ecr.aws/u8j2q1d9/teleport-lab:9-amd64"
     --amend "public.ecr.aws/u8j2q1d9/teleport-lab:9-arm" --amend "public.ecr.aws/u8j2q1d9/teleport-lab:9-arm64"
   - docker manifest push "public.ecr.aws/u8j2q1d9/teleport-lab:9"
@@ -9775,7 +9725,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-operator-v9-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:9-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:9-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -9795,7 +9745,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-operator-v9-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:9-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:9-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -9815,7 +9765,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-operator-v9-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:9-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:9-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -9835,7 +9785,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:9-$TIMESTAMP"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:9-$TIMESTAMP-amd64"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:9-$TIMESTAMP-arm"
@@ -9860,8 +9810,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-operator-v9-amd64" "public.ecr.aws/u8j2q1d9/teleport-operator:9-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:9-amd64"
   - docker logout "public.ecr.aws"
@@ -9880,8 +9829,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-operator-v9-arm" "public.ecr.aws/u8j2q1d9/teleport-operator:9-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:9-arm"
   - docker logout "public.ecr.aws"
@@ -9901,8 +9849,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-operator-v9-arm64" "public.ecr.aws/u8j2q1d9/teleport-operator:9-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:9-arm64"
   - docker logout "public.ecr.aws"
@@ -9922,8 +9869,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-operator:9" --amend "public.ecr.aws/u8j2q1d9/teleport-operator:9-amd64"
     --amend "public.ecr.aws/u8j2q1d9/teleport-operator:9-arm" --amend "public.ecr.aws/u8j2q1d9/teleport-operator:9-arm64"
   - docker manifest push "public.ecr.aws/u8j2q1d9/teleport-operator:9"
@@ -10211,7 +10157,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-v8-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:8-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:8-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -10231,7 +10177,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-v8-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:8-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:8-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -10251,7 +10197,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-v8-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:8-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:8-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -10271,7 +10217,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:8-$TIMESTAMP"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:8-$TIMESTAMP-amd64"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:8-$TIMESTAMP-arm"
@@ -10295,8 +10241,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-v8-amd64" "public.ecr.aws/u8j2q1d9/teleport:8-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:8-amd64"
   - docker logout "public.ecr.aws"
@@ -10315,8 +10260,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-v8-arm" "public.ecr.aws/u8j2q1d9/teleport:8-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:8-arm"
   - docker logout "public.ecr.aws"
@@ -10335,8 +10279,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-v8-arm64" "public.ecr.aws/u8j2q1d9/teleport:8-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:8-arm64"
   - docker logout "public.ecr.aws"
@@ -10355,8 +10298,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker manifest create "public.ecr.aws/u8j2q1d9/teleport:8" --amend "public.ecr.aws/u8j2q1d9/teleport:8-amd64"
     --amend "public.ecr.aws/u8j2q1d9/teleport:8-arm" --amend "public.ecr.aws/u8j2q1d9/teleport:8-arm64"
   - docker manifest push "public.ecr.aws/u8j2q1d9/teleport:8"
@@ -10576,7 +10518,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-ent-v8-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -10596,7 +10538,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-ent-v8-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -10616,7 +10558,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-ent-v8-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -10636,7 +10578,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP-amd64"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP-arm"
@@ -10660,8 +10602,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-ent-v8-amd64" "public.ecr.aws/u8j2q1d9/teleport-ent:8-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:8-amd64"
   - docker logout "public.ecr.aws"
@@ -10680,8 +10621,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-ent-v8-arm" "public.ecr.aws/u8j2q1d9/teleport-ent:8-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:8-arm"
   - docker logout "public.ecr.aws"
@@ -10700,8 +10640,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-ent-v8-arm64" "public.ecr.aws/u8j2q1d9/teleport-ent:8-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:8-arm64"
   - docker logout "public.ecr.aws"
@@ -10721,8 +10660,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-ent:8" --amend "public.ecr.aws/u8j2q1d9/teleport-ent:8-amd64"
     --amend "public.ecr.aws/u8j2q1d9/teleport-ent:8-arm" --amend "public.ecr.aws/u8j2q1d9/teleport-ent:8-arm64"
   - docker manifest push "public.ecr.aws/u8j2q1d9/teleport-ent:8"
@@ -10847,7 +10785,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-ent-fips-v8-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP-fips-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP-fips-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -10867,7 +10805,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP-fips"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP-fips-amd64"
   - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP-fips"
@@ -10888,8 +10826,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-ent-fips-v8-amd64" "public.ecr.aws/u8j2q1d9/teleport-ent:8-fips-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:8-fips-amd64"
   - docker logout "public.ecr.aws"
@@ -10909,8 +10846,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-ent:8-fips" --amend "public.ecr.aws/u8j2q1d9/teleport-ent:8-fips-amd64"
   - docker manifest push "public.ecr.aws/u8j2q1d9/teleport-ent:8-fips"
   - docker logout "public.ecr.aws"
@@ -11061,7 +10997,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-lab-v8-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:8-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:8-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -11081,7 +11017,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-lab-v8-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:8-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:8-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -11101,7 +11037,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-lab-v8-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:8-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:8-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -11121,7 +11057,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:8-$TIMESTAMP"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:8-$TIMESTAMP-amd64"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:8-$TIMESTAMP-arm"
@@ -11145,8 +11081,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-lab-v8-amd64" "public.ecr.aws/u8j2q1d9/teleport-lab:8-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:8-amd64"
   - docker logout "public.ecr.aws"
@@ -11165,8 +11100,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-lab-v8-arm" "public.ecr.aws/u8j2q1d9/teleport-lab:8-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:8-arm"
   - docker logout "public.ecr.aws"
@@ -11185,8 +11119,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-lab-v8-arm64" "public.ecr.aws/u8j2q1d9/teleport-lab:8-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:8-arm64"
   - docker logout "public.ecr.aws"
@@ -11206,8 +11139,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-lab:8" --amend "public.ecr.aws/u8j2q1d9/teleport-lab:8-amd64"
     --amend "public.ecr.aws/u8j2q1d9/teleport-lab:8-arm" --amend "public.ecr.aws/u8j2q1d9/teleport-lab:8-arm64"
   - docker manifest push "public.ecr.aws/u8j2q1d9/teleport-lab:8"
@@ -11361,7 +11293,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-operator-v8-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:8-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:8-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -11381,7 +11313,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-operator-v8-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:8-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:8-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -11401,7 +11333,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-operator-v8-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:8-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:8-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -11421,7 +11353,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:8-$TIMESTAMP"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:8-$TIMESTAMP-amd64"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:8-$TIMESTAMP-arm"
@@ -11446,8 +11378,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-operator-v8-amd64" "public.ecr.aws/u8j2q1d9/teleport-operator:8-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:8-amd64"
   - docker logout "public.ecr.aws"
@@ -11466,8 +11397,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-operator-v8-arm" "public.ecr.aws/u8j2q1d9/teleport-operator:8-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:8-arm"
   - docker logout "public.ecr.aws"
@@ -11487,8 +11417,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-operator-v8-arm64" "public.ecr.aws/u8j2q1d9/teleport-operator:8-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:8-arm64"
   - docker logout "public.ecr.aws"
@@ -11508,8 +11437,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-operator:8" --amend "public.ecr.aws/u8j2q1d9/teleport-operator:8-amd64"
     --amend "public.ecr.aws/u8j2q1d9/teleport-operator:8-arm" --amend "public.ecr.aws/u8j2q1d9/teleport-operator:8-arm64"
   - docker manifest push "public.ecr.aws/u8j2q1d9/teleport-operator:8"
@@ -11806,7 +11734,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -11826,7 +11754,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -11846,7 +11774,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -11866,7 +11794,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
@@ -11890,8 +11818,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport:10-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:10-amd64"
   - docker logout "public.ecr.aws"
@@ -11910,8 +11837,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-v10-arm" "public.ecr.aws/u8j2q1d9/teleport:10-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:10-arm"
   - docker logout "public.ecr.aws"
@@ -11930,8 +11856,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-v10-arm64" "public.ecr.aws/u8j2q1d9/teleport:10-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:10-arm64"
   - docker logout "public.ecr.aws"
@@ -11950,8 +11875,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker manifest create "public.ecr.aws/u8j2q1d9/teleport:10" --amend "public.ecr.aws/u8j2q1d9/teleport:10-amd64"
     --amend "public.ecr.aws/u8j2q1d9/teleport:10-arm" --amend "public.ecr.aws/u8j2q1d9/teleport:10-arm64"
   - docker manifest push "public.ecr.aws/u8j2q1d9/teleport:10"
@@ -12169,7 +12093,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-ent-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -12189,7 +12113,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-ent-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -12209,7 +12133,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-ent-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -12229,7 +12153,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
@@ -12253,8 +12177,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-ent-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport-ent:10-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:10-amd64"
   - docker logout "public.ecr.aws"
@@ -12273,8 +12196,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-ent-v10-arm" "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm"
   - docker logout "public.ecr.aws"
@@ -12293,8 +12215,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-ent-v10-arm64" "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm64"
   - docker logout "public.ecr.aws"
@@ -12314,8 +12235,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-ent:10" --amend "public.ecr.aws/u8j2q1d9/teleport-ent:10-amd64"
     --amend "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm" --amend "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm64"
   - docker manifest push "public.ecr.aws/u8j2q1d9/teleport-ent:10"
@@ -12441,7 +12361,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-ent-fips-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -12461,7 +12381,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
   - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips"
@@ -12482,8 +12402,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-ent-fips-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport-ent:10-fips-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:10-fips-amd64"
   - docker logout "public.ecr.aws"
@@ -12503,8 +12422,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-ent:10-fips" --amend
     "public.ecr.aws/u8j2q1d9/teleport-ent:10-fips-amd64"
   - docker manifest push "public.ecr.aws/u8j2q1d9/teleport-ent:10-fips"
@@ -12659,7 +12577,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-lab-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -12679,7 +12597,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-lab-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -12699,7 +12617,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-lab-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -12719,7 +12637,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
@@ -12743,8 +12661,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-lab-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport-lab:10-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:10-amd64"
   - docker logout "public.ecr.aws"
@@ -12763,8 +12680,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-lab-v10-arm" "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm"
   - docker logout "public.ecr.aws"
@@ -12783,8 +12699,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-lab-v10-arm64" "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm64"
   - docker logout "public.ecr.aws"
@@ -12804,8 +12719,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-lab:10" --amend "public.ecr.aws/u8j2q1d9/teleport-lab:10-amd64"
     --amend "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm" --amend "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm64"
   - docker manifest push "public.ecr.aws/u8j2q1d9/teleport-lab:10"
@@ -12962,7 +12876,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-operator-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -12982,7 +12896,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-operator-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -13002,7 +12916,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker tag "teleport-operator-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
@@ -13022,7 +12936,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
+  - aws ecr --region=us-east-2 | docker login -u="AWS" --password-stdin 278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
   - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
     --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
@@ -13047,8 +12961,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-operator-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport-operator:10-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:10-amd64"
   - docker logout "public.ecr.aws"
@@ -13067,8 +12980,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-operator-v10-arm" "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm"
   - docker logout "public.ecr.aws"
@@ -13088,8 +13000,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker tag "teleport-operator-v10-arm64" "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm64"
   - docker logout "public.ecr.aws"
@@ -13109,8 +13020,7 @@ steps:
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
-  - aws ecr gecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin
-    public.ecr.aws
+  - aws ecr-public --region=us-east-2 | docker login -u="AWS" --password-stdin public.ecr.aws
   - docker manifest create "public.ecr.aws/u8j2q1d9/teleport-operator:10" --amend
     "public.ecr.aws/u8j2q1d9/teleport-operator:10-amd64" --amend "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm"
     --amend "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm64"
@@ -13617,6 +13527,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 2d5fc59048ccb279f961e8a740e06a96166838fbad001a92b462ee829065de1a
+hmac: d6a2e2211959f646bfff02126f6ea08e2867b4e9dadaae20cb3521c55016241b
 
 ...

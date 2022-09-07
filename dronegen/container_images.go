@@ -667,7 +667,7 @@ func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, domain string
 		LoginCommands: []string{
 			"apk add --no-cache aws-cli",
 			"TIMESTAMP=$(date -d @\"$DRONE_BUILD_CREATED\" '+%Y%m%d%H%M')",
-			fmt.Sprintf("aws ecr g%s --region=%s | docker login -u=\"AWS\" --password-stdin %s", loginSubcommand, ecrRegion, domain),
+			fmt.Sprintf("aws %s --region=%s | docker login -u=\"AWS\" --password-stdin %s", loginSubcommand, ecrRegion, domain),
 		},
 		TagBuilder: func(baseTag string) string {
 			if !isStaging {
