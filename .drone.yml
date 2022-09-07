@@ -5240,7 +5240,7 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin
-  - git checkout -qf "$(cat '/go/vars/full-version/v10')"
+  - git checkout -qf "fred/arm-container-images"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -6853,7 +6853,7 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin
-  - git checkout -qf "$(cat '/go/vars/full-version/v10')"
+  - git checkout -qf "fred/arm-container-images"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -13732,6 +13732,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: e248c4292277e5cec92e1eec4287fc2acfb9fd696f160ce16a0c6abdca388ff7
+hmac: 232cc70c8090e2879f4d33c904632afb9a8311af5c060c44e13c4973d14ee19c
 
 ...
