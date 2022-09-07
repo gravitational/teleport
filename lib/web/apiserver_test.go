@@ -75,7 +75,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/conntest"
@@ -90,7 +89,6 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/desktop"
@@ -909,17 +907,6 @@ type clusterAlertsGetResponse struct {
 func TestClusterAlertsGet(t *testing.T) {
 	t.Parallel()
 	env := newWebPack(t, 1)
-	pack := env.proxies[0].authPack(t, "test-user@example.com", nil)
-	clusterName := env.server.ClusterName()
-
-	backend, err := memory.New(memory.Config{
-		Context: context.Background(),
-		Clock:   env.clock,
-	})
-	require.NoError(t, err)
-	defer backend.Close()
-
-	status := local.NewStatusService(backend)
 
 	// generate alert
 	alert, err := types.NewClusterAlert(
@@ -927,15 +914,18 @@ func TestClusterAlertsGet(t *testing.T) {
 		"test alert message",
 		types.WithAlertSeverity(0),
 		types.WithAlertLabel(types.AlertOnLogin, "yes"),
+		// AlertPermitAll is necessary because the alert is only shown to
+		// admin clients by default.
+		types.WithAlertLabel(types.AlertPermitAll, "yes"),
 	)
 	require.NoError(t, err)
-
-	err = status.UpsertClusterAlert(context.Background(), alert)
+	err = env.server.Auth().UpsertClusterAlert(context.Background(), alert)
 	require.NoError(t, err)
 
-	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "alerts")
-
 	// get alerts.
+	clusterName := env.server.ClusterName()
+	pack := env.proxies[0].authPack(t, "test-user@example.com", nil)
+	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "alerts")
 	re, err := pack.clt.Get(context.Background(), endpoint, nil)
 	require.NoError(t, err)
 
