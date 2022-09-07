@@ -239,6 +239,7 @@ func TestHostCertVerification(t *testing.T) {
 		ProxyHost:  s.hostname,
 		Username:   s.username,
 		KeysOption: AddKeysToAgentAuto,
+		Sites:      []string{"example.com"},
 	})
 	require.NoError(t, err)
 
