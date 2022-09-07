@@ -43,7 +43,7 @@ import (
 // 1. Publish the branch you're working on
 // 2. Set `PRBranch` to the name of the branch in (1)
 // 3. Set `ConfigureForPRTestingOnly` to true
-// 4. Create a public and private ECR, Quay repos for "teleport", "teleport-ent", "teleport-operator"
+// 4. Create a public and private ECR, Quay repos for "teleport", "teleport-ent", "teleport-operator", "teleport-lab"
 // 5. Set `TestingQuayRegistryOrg` and `TestingECRRegistryOrg` to the org name(s) used in (4)
 // 6. Set the `ECRTestingDomain` to the domain used for the private ECR repos
 // 7. Create two separate IAM users, each with full access to either the public ECR repo OR the private ECR repo
