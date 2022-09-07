@@ -75,6 +75,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/conntest"
@@ -89,6 +90,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/desktop"
@@ -898,6 +900,48 @@ func TestClusterNodesGet(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes2))
 	require.Len(t, nodes.Items, 1)
 	require.Equal(t, nodes, nodes2)
+}
+
+type clusterAlertsGetResponse struct {
+	Alerts []types.ClusterAlert `json:"alerts"`
+}
+
+func TestClusterAlertsGet(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+	pack := env.proxies[0].authPack(t, "test-user@example.com", nil)
+	clusterName := env.server.ClusterName()
+
+	backend, err := memory.New(memory.Config{
+		Context: context.Background(),
+		Clock:   env.clock,
+	})
+	require.NoError(t, err)
+	defer backend.Close()
+
+	status := local.NewStatusService(backend)
+
+	// generate alert
+	alert, err := types.NewClusterAlert(
+		"test-alert",
+		"test alert message",
+		types.WithAlertSeverity(0),
+		types.WithAlertLabel(types.AlertOnLogin, "yes"),
+	)
+	require.NoError(t, err)
+
+	err = status.UpsertClusterAlert(context.Background(), alert)
+	require.NoError(t, err)
+
+	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "alerts")
+
+	// get alerts.
+	re, err := pack.clt.Get(context.Background(), endpoint, nil)
+	require.NoError(t, err)
+
+	alerts := clusterAlertsGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &alerts))
+	require.Len(t, alerts.Alerts, 1)
 }
 
 func TestSiteNodeConnectInvalidSessionID(t *testing.T) {
@@ -4670,6 +4714,7 @@ type webPack struct {
 	server  *auth.TestServer
 	node    *regular.Server
 	clock   clockwork.FakeClock
+	ctx     context.Context
 }
 
 type proxy struct {
