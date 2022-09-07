@@ -781,7 +781,7 @@ $(ADDLICENSE):
 
 # This rule triggers re-generation of version files if Makefile changes.
 .PHONY: version
-version: $(VERSRC)
+version: $(VERSRC) test-helm-update-snapshots
 
 # This rule triggers re-generation of version files specified if Makefile changes.
 $(VERSRC): Makefile

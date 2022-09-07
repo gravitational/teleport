@@ -2509,12 +2509,10 @@ impl FileInformationClass {
                     FileAllocationInformation::decode(payload)?,
                 ))
             }
-            _ => {
-                return Err(invalid_data_error(&format!(
-                    "decode invalid FileInformationClassLevel: {:?}",
-                    file_information_class_level
-                )))
-            }
+            _ => Err(invalid_data_error(&format!(
+                "decode invalid FileInformationClassLevel: {:?}",
+                file_information_class_level
+            ))),
         }
     }
 
