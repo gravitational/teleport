@@ -262,7 +262,8 @@ and replace the subscription in "assignableScopes" with your own subscription id
 
 ### Create a role assignment for the Teleport Database Service principal.
 
-To grant Teleport permissions, the custom role you created must be assigned to the Teleport service principal.
+To grant Teleport permissions, the custom role you created must be assigned to the Teleport service principal -
+either the managed identity or the app registration you created earlier.
 
 Navigate to the resource scope where you want to make the role assignment. Click *Access control (IAM)* and 
 select *Add > Add role assignment*. Choose the custom role you created as the role and the Teleport
