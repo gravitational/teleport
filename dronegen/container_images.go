@@ -450,11 +450,14 @@ func teleportSetupStep(shellVersion, packageName, workingPath, downloadURL strin
 
 	archDestFileMap := make(map[string]string, len(archs))
 	for _, arch := range archs {
-		archDir := path.Join(workingPath, "/artifacts/deb/", packageName, arch)
-		// Example: `/go/artifacts/deb/teleport-ent/arm64/v10.1.4.deb`
-		destPath := path.Join(archDir, fmt.Sprintf("%s.deb", shellVersion))
+		relArchDir := path.Join(".", "/artifacts/deb/", packageName, arch)
+		archDir := path.Join(workingPath, relArchDir)
+		// Example: `./artifacts/deb/teleport-ent/arm64/v10.1.4.deb`
+		relDestPath := path.Join(relArchDir, fmt.Sprintf("%s.deb", shellVersion))
+		// Example: `/go/./artifacts/deb/teleport-ent/arm64/v10.1.4.deb`
+		destPath := path.Join(workingPath)
 
-		archDestFileMap[arch] = destPath
+		archDestFileMap[arch] = relDestPath
 
 		// Our built debs are listed as ISA "armhf" not "arm", so we account for that here
 		if arch == "arm" {
