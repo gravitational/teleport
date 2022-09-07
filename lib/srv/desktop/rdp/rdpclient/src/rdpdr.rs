@@ -169,6 +169,9 @@ impl Client {
                     self.handle_server_announce(&mut payload)?
                 }
                 PacketId::PAKID_CORE_SERVER_CAPABILITY => {
+                    if self.test_debug_logs {
+                        debug!("got PAKID_CORE_SERVER_CAPABILITY");
+                    }
                     self.handle_server_capability(&mut payload)?
                 }
                 PacketId::PAKID_CORE_CLIENTID_CONFIRM => {
@@ -189,6 +192,10 @@ impl Client {
                     vec![]
                 }
             };
+
+            if self.test_debug_logs {
+                debug!("returning RDP raw: {:?}", responses);
+            }
 
             return Ok(responses);
         }
