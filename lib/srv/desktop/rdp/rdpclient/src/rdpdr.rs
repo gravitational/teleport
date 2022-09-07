@@ -172,17 +172,9 @@ impl Client {
                     self.handle_server_capability(&mut payload)?
                 }
                 PacketId::PAKID_CORE_CLIENTID_CONFIRM => {
-                    if self.test_debug_logs {
-                        debug!("got PAKID_CORE_CLIENTID_CONFIRM");
-                    }
                     self.handle_client_id_confirm(&mut payload)?
                 }
-                PacketId::PAKID_CORE_DEVICE_REPLY => {
-                    if self.test_debug_logs {
-                        debug!("got PAKID_CORE_DEVICE_REPLY");
-                    }
-                    self.handle_device_reply(&mut payload)?
-                }
+                PacketId::PAKID_CORE_DEVICE_REPLY => self.handle_device_reply(&mut payload)?,
                 // Device IO request is where communication with the smartcard and shared drive actually happens.
                 // Everything up to this point was negotiation (and smartcard device registration).
                 PacketId::PAKID_CORE_DEVICE_IOREQUEST => {
@@ -4137,7 +4129,7 @@ type SharedDirectoryMoveResponseHandler =
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::PayloadOut;
+    use crate::Messages;
 
     #[test]
     fn test_to_windows_time() {
@@ -4186,12 +4178,11 @@ mod tests {
         tpkt::Payload::Raw(p)
     }
 
-    fn test_payload(c: &mut Client, payload_in: Vec<u8>, payload_out: PayloadOut) {
+    fn test_payload(c: &mut Client, payload_in: Vec<u8>, payload_out: Messages) {
         let payload_in = create_payload(payload_in, 10);
         assert_eq!(c.read_and_create_reply(payload_in).unwrap(), payload_out)
     }
 
-    #[test]
     /// Incoming payload of:
     /// SharedHeader { component: RDPDR_CTYP_CORE, packet_id: PAKID_CORE_SERVER_ANNOUNCE }
     /// ServerAnnounceRequest { version_major: 1, version_minor: 13, client_id: 3 }
@@ -4199,10 +4190,9 @@ mod tests {
     /// Response payload of:
     /// ClientAnnounceReply ClientIdMessage { version_major: 1, version_minor: 12, client_id: 3 }
     /// ClientNameRequest { unicode_flag: Ascii, computer_name: "teleport" }
-    fn handle_server_announce() {
-        let mut c = client();
+    fn test_handle_server_announce(c: &mut Client) {
         test_payload(
-            &mut c,
+            c,
             vec![
                 2, 240, 128, 104, 0, 1, 3, 236, 240, 20, 12, 0, 0, 0, 3, 0, 0, 0, 114, 68, 110, 73,
                 1, 0, 13, 0, 3, 0, 0, 0,
@@ -4219,17 +4209,15 @@ mod tests {
         );
     }
 
-    #[test]
     /// Incoming payload of:
     /// SharedHeader { component: RDPDR_CTYP_CORE, packet_id: PAKID_CORE_SERVER_CAPABILITY }
     /// ServerCoreCapabilityRequest { num_capabilities: 5, padding: 0, capabilities: [CapabilitySet { header: CapabilityHeader { cap_type: CAP_GENERAL_TYPE, length: 44, version: 2 }, data: General(GeneralCapabilitySet { os_type: 2, os_version: 0, protocol_major_version: 1, protocol_minor_version: 13, io_code_1: 65535, io_code_2: 0, extended_pdu: 7, extra_flags_1: 0, extra_flags_2: 0, special_type_device_cap: 2 }) }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_PRINTER_TYPE, length: 8, version: 1 }, data: Printer }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_PORT_TYPE, length: 8, version: 1 }, data: Port }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_DRIVE_TYPE, length: 8, version: 2 }, data: Drive }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_SMARTCARD_TYPE, length: 8, version: 1 }, data: Smartcard }] }
     ///
     /// Response payload of:
     /// ClientCoreCapabilityResponse { num_capabilities: 3, padding: 0, capabilities: [CapabilitySet { header: CapabilityHeader { cap_type: CAP_GENERAL_TYPE, length: 44, version: 2 }, data: General(GeneralCapabilitySet { os_type: 0, os_version: 0, protocol_major_version: 1, protocol_minor_version: 12, io_code_1: 32767, io_code_2: 0, extended_pdu: 3, extra_flags_1: 0, extra_flags_2: 0, special_type_device_cap: 1 }) }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_SMARTCARD_TYPE, length: 8, version: 1 }, data: Smartcard }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_DRIVE_TYPE, length: 8, version: 2 }, data: Drive }] }
-    fn handle_server_capability() {
-        let mut c = client();
+    fn test_handle_server_capability(c: &mut Client) {
         test_payload(
-            &mut c,
+            c,
             vec![
                 2, 240, 128, 104, 0, 1, 3, 236, 240, 92, 84, 0, 0, 0, 3, 0, 0, 0, 114, 68, 80, 83,
                 5, 0, 0, 0, 1, 0, 44, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 13, 0, 255, 255,
@@ -4244,17 +4232,15 @@ mod tests {
         );
     }
 
-    #[test]
     /// Incoming payload of:
     /// SharedHeader { component: RDPDR_CTYP_CORE, packet_id: PAKID_CORE_CLIENTID_CONFIRM }
     /// ServerClientIdConfirm { version_major: 1, version_minor: 13, client_id: 3 }
     ///
     /// Response payload of:
     /// ClientDeviceListAnnounceRequest { device_count: 1, device_list: [DeviceAnnounceHeader { device_type: RDPDR_DTYP_SMARTCARD, device_id: 1, preferred_dos_name: "SCARD", device_data_length: 0, device_data: [] }] }
-    fn test_handle_client_id_confirm() {
-        let mut c = client();
+    fn test_handle_client_id_confirm(c: &mut Client) {
         test_payload(
-            &mut c,
+            c,
             vec![
                 2, 240, 128, 104, 0, 1, 3, 236, 240, 20, 12, 0, 0, 0, 3, 0, 0, 0, 114, 68, 67, 67,
                 1, 0, 13, 0, 3, 0, 0, 0,
@@ -4266,20 +4252,27 @@ mod tests {
         );
     }
 
-    #[test]
     /// Incoming payload of:
     /// SharedHeader { component: RDPDR_CTYP_CORE, packet_id: PAKID_CORE_DEVICE_REPLY }
     /// ServerDeviceAnnounceResponse { device_id: 1, result_code: 0 }
-    fn test_handle_device_reply() {
-        let mut c = client();
-        c.push_active_device_id(SCARD_DEVICE_ID).unwrap();
+    fn test_handle_device_reply(c: &mut Client) {
         test_payload(
-            &mut c,
+            c,
             vec![
                 2, 240, 128, 104, 0, 1, 3, 236, 240, 20, 12, 0, 0, 0, 3, 0, 0, 0, 114, 68, 114,
                 100, 1, 0, 0, 0, 0, 0, 0, 0,
             ],
             vec![],
         );
+    }
+
+    #[test]
+    fn test_smartcard_initialization() {
+        let mut c = client();
+        test_handle_server_announce(&mut c);
+        test_handle_server_capability(&mut c);
+        test_handle_client_id_confirm(&mut c);
+        test_handle_device_reply(&mut c);
+        // TODO(isaiah): the remainder of the initialization sequence
     }
 }
