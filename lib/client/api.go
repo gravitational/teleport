@@ -1063,13 +1063,14 @@ func Status(profileDir, proxyHost string) (*ProfileStatus, []*ProfileStatus, err
 		}
 	}
 
-	// Read in the target profile first. If readProfile returns trace.NotFound,
-	// that means the profile may have been corrupted (for example keys were
-	// deleted but profile exists), treat this as the user not being logged in.
+	// Read in the target profile first. If readProfile returns trace.NotFound
+	// or trace.CompareFailed, that means the profile may have been corrupted
+	// (for example keys were deleted or modified, but profile exists), treat
+	// this as the user not being logged in.
 	profileStatus, err = ReadProfileStatus(profileDir, profileName)
 	if err != nil {
 		log.Debug(err)
-		if !trace.IsNotFound(err) {
+		if !trace.IsNotFound(err) && !trace.IsCompareFailed(err) {
 			return nil, nil, trace.Wrap(err)
 		}
 		// Make sure the profile is nil, which tsh uses to detect that no
