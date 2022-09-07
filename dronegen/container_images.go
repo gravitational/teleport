@@ -357,27 +357,33 @@ func NewTeleportOperatorProduct(cloneDirectory string) *product {
 		ImageNameBuilder: func(repo, tag string) string { return defaultImageTagBuilder(repo, name, tag) },
 		DockerfileArgBuilder: func(arch string) []string {
 			gccPackage := ""
+			compilerName := ""
 			switch arch {
 			case "x86_64":
 				fallthrough
 			case "amd64":
 				gccPackage = "gcc-x86_64-linux-gnu"
+				compilerName = "x86-64-linux-gnu-gcc"
 			case "i686":
 				fallthrough
 			case "i386":
 				gccPackage = "gcc-multilib-i686-linux-gnu"
+				compilerName = "i686-linux-gnu-gcc"
 			case "aarch64":
 				fallthrough
 			case "arm64":
 				gccPackage = "gcc-aarch64-linux-gnu"
+				compilerName = "aarch64-linux-gnu-gcc"
 			// We may want to add additional arm ISAs in the future to support devices without hardware FPUs
 			case "armhf":
 			case "arm":
 				gccPackage = "gcc-arm-linux-gnueabihf"
+				compilerName = "arm-linux-gnueabihf-gcc"
 			}
 
 			return []string{
 				fmt.Sprintf("COMPILER_PACKAGE=%s", gccPackage),
+				fmt.Sprintf("COMPILERE_NAME=%s", compilerName),
 			}
 		},
 	}

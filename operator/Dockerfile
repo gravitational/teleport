@@ -4,8 +4,8 @@
 FROM --platform=$BUILDPLATFORM golang:1.18 as builder
 
 # GCC Compiler package should be of the form "gcc-<GNU TARGETARCH>-linux-<ABI format>"
-# Even when not cross compiling it should still be in this format
-ARG TARGETOS TARGETARCH COMPILER_PACKAGE 
+# Compiler package should use host-triplet-agnostic name (i.e. "x86-64-linux-gnu-gcc" instead of "gcc")
+ARG TARGETOS TARGETARCH COMPILER_PACKAGE COMPILER_NAME
 
 WORKDIR /workspace
 
@@ -34,7 +34,7 @@ COPY operator/namespace.go operator/namespace.go
 
 # CGO is required for github.com/gravitational/teleport/lib/system
 # The correct C compiler is deduced from the compiler package name
-RUN CGO_ENABLED=1 CC="$(echo $COMPILER_PACKAGE | sed -e 's/^gcc-//' -e 's/^multilib-//' -e 's/$/-gcc/')" GOOS=$TARGETOS GOARCH=$TARGETARCH \
+RUN CGO_ENABLED=1 CC=$COMPILERE_NAME GOOS=$TARGETOS GOARCH=$TARGETARCH \
     go build -a -o teleport-operator github.com/gravitational/teleport/operator
 
 # Create the image with the build operator on the $TARGETPLATFORM
