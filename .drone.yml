@@ -5287,19 +5287,22 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/amd64/$(cat
+    '/go/vars/full-version/v10').deb"
   - mkdir -pv "/go/build/artifacts/deb/teleport/arm"
   - apt download "teleport:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:armhf=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport:armhf=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/arm/$(cat
+    '/go/vars/full-version/v10').deb"
   - mkdir -pv "/go/build/artifacts/deb/teleport/arm64"
   - apt download "teleport:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/arm64/$(cat
+    '/go/vars/full-version/v10').deb"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -5307,6 +5310,7 @@ steps:
 - name: Build teleport image "teleport-v10-amd64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-v10-amd64-builder" --target "teleport"
@@ -5327,6 +5331,7 @@ steps:
 - name: Build teleport image "teleport-v10-arm"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v10-arm-builder"
   - docker buildx build --load --builder "teleport-v10-arm-builder" --target "teleport"
@@ -5347,6 +5352,7 @@ steps:
 - name: Build teleport image "teleport-v10-arm64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v10-arm64-builder"
   - docker buildx build --load --builder "teleport-v10-arm64-builder" --target "teleport"
@@ -5651,19 +5657,22 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/amd64/$(cat
+    '/go/vars/full-version/v10').deb"
   - mkdir -pv "/go/build/artifacts/deb/teleport-ent/arm"
   - apt download "teleport-ent:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:armhf=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport-ent:armhf=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/arm/$(cat
+    '/go/vars/full-version/v10').deb"
   - mkdir -pv "/go/build/artifacts/deb/teleport-ent/arm64"
   - apt download "teleport-ent:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/arm64/$(cat
+    '/go/vars/full-version/v10').deb"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -5671,6 +5680,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v10-amd64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-ent-v10-amd64-builder" --target
@@ -5691,6 +5701,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v10-arm"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm-builder"
   - docker buildx build --load --builder "teleport-ent-v10-arm-builder" --target "teleport"
@@ -5711,6 +5722,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v10-arm64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm64-builder"
   - docker buildx build --load --builder "teleport-ent-v10-arm64-builder" --target
@@ -6016,7 +6028,8 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent-fips/amd64/$(cat
+    '/go/vars/full-version/v10').deb"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -6024,6 +6037,7 @@ steps:
 - name: Build teleport-ent-fips image "teleport-ent-fips-v10-amd64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-ent-fips-v10-amd64-builder" --target
@@ -6164,6 +6178,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v10-amd64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-lab-v10-amd64-builder" --platform
@@ -6183,6 +6198,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v10-arm"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm-builder"
   - docker buildx build --load --builder "teleport-lab-v10-arm-builder" --platform
@@ -6202,6 +6218,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v10-arm64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm64-builder"
   - docker buildx build --load --builder "teleport-lab-v10-arm64-builder" --platform
@@ -6468,6 +6485,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v10-amd64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-operator-v10-amd64-builder" --platform
@@ -6486,6 +6504,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v10-arm"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm-builder"
   - docker buildx build --load --builder "teleport-operator-v10-arm-builder" --platform
@@ -6504,6 +6523,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v10-arm64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm64-builder"
   - docker buildx build --load --builder "teleport-operator-v10-arm64-builder" --platform
@@ -6880,19 +6900,22 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/amd64/$(cat
+    '/go/vars/full-version/v10').deb"
   - mkdir -pv "/go/build/artifacts/deb/teleport/arm"
   - apt download "teleport:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:armhf=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport:armhf=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/arm/$(cat
+    '/go/vars/full-version/v10').deb"
   - mkdir -pv "/go/build/artifacts/deb/teleport/arm64"
   - apt download "teleport:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/arm64/$(cat
+    '/go/vars/full-version/v10').deb"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -6900,6 +6923,7 @@ steps:
 - name: Build teleport image "teleport-v10-amd64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-v10-amd64-builder" --target "teleport"
@@ -6920,6 +6944,7 @@ steps:
 - name: Build teleport image "teleport-v10-arm"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v10-arm-builder"
   - docker buildx build --load --builder "teleport-v10-arm-builder" --target "teleport"
@@ -6940,6 +6965,7 @@ steps:
 - name: Build teleport image "teleport-v10-arm64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v10-arm64-builder"
   - docker buildx build --load --builder "teleport-v10-arm64-builder" --target "teleport"
@@ -7244,19 +7270,22 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/amd64/$(cat
+    '/go/vars/full-version/v10').deb"
   - mkdir -pv "/go/build/artifacts/deb/teleport-ent/arm"
   - apt download "teleport-ent:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:armhf=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport-ent:armhf=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/arm/$(cat
+    '/go/vars/full-version/v10').deb"
   - mkdir -pv "/go/build/artifacts/deb/teleport-ent/arm64"
   - apt download "teleport-ent:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/arm64/$(cat
+    '/go/vars/full-version/v10').deb"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -7264,6 +7293,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v10-amd64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-ent-v10-amd64-builder" --target
@@ -7284,6 +7314,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v10-arm"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm-builder"
   - docker buildx build --load --builder "teleport-ent-v10-arm-builder" --target "teleport"
@@ -7304,6 +7335,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v10-arm64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm64-builder"
   - docker buildx build --load --builder "teleport-ent-v10-arm64-builder" --target
@@ -7609,7 +7641,8 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent-fips/amd64/$(cat
+    '/go/vars/full-version/v10').deb"
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
@@ -7617,6 +7650,7 @@ steps:
 - name: Build teleport-ent-fips image "teleport-ent-fips-v10-amd64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-ent-fips-v10-amd64-builder" --target
@@ -7757,6 +7791,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v10-amd64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-lab-v10-amd64-builder" --platform
@@ -7776,6 +7811,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v10-arm"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm-builder"
   - docker buildx build --load --builder "teleport-lab-v10-arm-builder" --platform
@@ -7795,6 +7831,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v10-arm64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm64-builder"
   - docker buildx build --load --builder "teleport-lab-v10-arm64-builder" --platform
@@ -8061,6 +8098,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v10-amd64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-operator-v10-amd64-builder" --platform
@@ -8079,6 +8117,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v10-arm"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm-builder"
   - docker buildx build --load --builder "teleport-operator-v10-arm-builder" --platform
@@ -8097,6 +8136,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v10-arm64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm64-builder"
   - docker buildx build --load --builder "teleport-operator-v10-arm64-builder" --platform
@@ -8472,19 +8512,22 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/amd64/$(cat
+    '/go/vars/full-version/v9').deb"
   - mkdir -pv "/go/build/artifacts/deb/teleport/arm"
   - apt download "teleport:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:armhf=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport:armhf=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/arm/$(cat
+    '/go/vars/full-version/v9').deb"
   - mkdir -pv "/go/build/artifacts/deb/teleport/arm64"
   - apt download "teleport:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/arm64/$(cat
+    '/go/vars/full-version/v9').deb"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -8492,6 +8535,7 @@ steps:
 - name: Build teleport image "teleport-v9-amd64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v9-amd64-builder"
   - docker buildx build --load --builder "teleport-v9-amd64-builder" --target "teleport"
@@ -8512,6 +8556,7 @@ steps:
 - name: Build teleport image "teleport-v9-arm"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v9-arm-builder"
   - docker buildx build --load --builder "teleport-v9-arm-builder" --target "teleport"
@@ -8531,6 +8576,7 @@ steps:
 - name: Build teleport image "teleport-v9-arm64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v9-arm64-builder"
   - docker buildx build --load --builder "teleport-v9-arm64-builder" --target "teleport"
@@ -8835,19 +8881,22 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/amd64/$(cat
+    '/go/vars/full-version/v9').deb"
   - mkdir -pv "/go/build/artifacts/deb/teleport-ent/arm"
   - apt download "teleport-ent:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:armhf=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport-ent:armhf=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/arm/$(cat
+    '/go/vars/full-version/v9').deb"
   - mkdir -pv "/go/build/artifacts/deb/teleport-ent/arm64"
   - apt download "teleport-ent:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/arm64/$(cat
+    '/go/vars/full-version/v9').deb"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -8855,6 +8904,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v9-amd64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v9-amd64-builder"
   - docker buildx build --load --builder "teleport-ent-v9-amd64-builder" --target
@@ -8875,6 +8925,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v9-arm"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v9-arm-builder"
   - docker buildx build --load --builder "teleport-ent-v9-arm-builder" --target "teleport"
@@ -8895,6 +8946,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v9-arm64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v9-arm64-builder"
   - docker buildx build --load --builder "teleport-ent-v9-arm64-builder" --target
@@ -9199,7 +9251,8 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent-fips/amd64/$(cat
+    '/go/vars/full-version/v9').deb"
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
@@ -9207,6 +9260,7 @@ steps:
 - name: Build teleport-ent-fips image "teleport-ent-fips-v9-amd64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v9-amd64-builder"
   - docker buildx build --load --builder "teleport-ent-fips-v9-amd64-builder" --target
@@ -9347,6 +9401,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v9-amd64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v9-amd64-builder"
   - docker buildx build --load --builder "teleport-lab-v9-amd64-builder" --platform
@@ -9366,6 +9421,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v9-arm"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v9-arm-builder"
   - docker buildx build --load --builder "teleport-lab-v9-arm-builder" --platform
@@ -9385,6 +9441,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v9-arm64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v9-arm64-builder"
   - docker buildx build --load --builder "teleport-lab-v9-arm64-builder" --platform
@@ -9650,6 +9707,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v9-amd64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v9-amd64-builder"
   - docker buildx build --load --builder "teleport-operator-v9-amd64-builder" --platform
@@ -9668,6 +9726,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v9-arm"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v9-arm-builder"
   - docker buildx build --load --builder "teleport-operator-v9-arm-builder" --platform
@@ -9686,6 +9745,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v9-arm64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v9-arm64-builder"
   - docker buildx build --load --builder "teleport-operator-v9-arm64-builder" --platform
@@ -10061,19 +10121,22 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/amd64/$(cat
+    '/go/vars/full-version/v8').deb"
   - mkdir -pv "/go/build/artifacts/deb/teleport/arm"
   - apt download "teleport:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:armhf=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport:armhf=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/arm/$(cat
+    '/go/vars/full-version/v8').deb"
   - mkdir -pv "/go/build/artifacts/deb/teleport/arm64"
   - apt download "teleport:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/arm64/$(cat
+    '/go/vars/full-version/v8').deb"
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
@@ -10081,6 +10144,7 @@ steps:
 - name: Build teleport image "teleport-v8-amd64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v8-amd64-builder"
   - docker buildx build --load --builder "teleport-v8-amd64-builder" --target "teleport"
@@ -10101,6 +10165,7 @@ steps:
 - name: Build teleport image "teleport-v8-arm"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v8-arm-builder"
   - docker buildx build --load --builder "teleport-v8-arm-builder" --target "teleport"
@@ -10120,6 +10185,7 @@ steps:
 - name: Build teleport image "teleport-v8-arm64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v8-arm64-builder"
   - docker buildx build --load --builder "teleport-v8-arm64-builder" --target "teleport"
@@ -10424,19 +10490,22 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/amd64/$(cat
+    '/go/vars/full-version/v8').deb"
   - mkdir -pv "/go/build/artifacts/deb/teleport-ent/arm"
   - apt download "teleport-ent:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:armhf=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport-ent:armhf=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/arm/$(cat
+    '/go/vars/full-version/v8').deb"
   - mkdir -pv "/go/build/artifacts/deb/teleport-ent/arm64"
   - apt download "teleport-ent:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/arm64/$(cat
+    '/go/vars/full-version/v8').deb"
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
@@ -10444,6 +10513,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v8-amd64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v8-amd64-builder"
   - docker buildx build --load --builder "teleport-ent-v8-amd64-builder" --target
@@ -10464,6 +10534,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v8-arm"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v8-arm-builder"
   - docker buildx build --load --builder "teleport-ent-v8-arm-builder" --target "teleport"
@@ -10484,6 +10555,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v8-arm64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v8-arm64-builder"
   - docker buildx build --load --builder "teleport-ent-v8-arm64-builder" --target
@@ -10788,7 +10860,8 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent-fips/amd64/$(cat
+    '/go/vars/full-version/v8').deb"
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
@@ -10796,6 +10869,7 @@ steps:
 - name: Build teleport-ent-fips image "teleport-ent-fips-v8-amd64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v8-amd64-builder"
   - docker buildx build --load --builder "teleport-ent-fips-v8-amd64-builder" --target
@@ -10936,6 +11010,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v8-amd64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v8-amd64-builder"
   - docker buildx build --load --builder "teleport-lab-v8-amd64-builder" --platform
@@ -10955,6 +11030,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v8-arm"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v8-arm-builder"
   - docker buildx build --load --builder "teleport-lab-v8-arm-builder" --platform
@@ -10974,6 +11050,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v8-arm64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v8-arm64-builder"
   - docker buildx build --load --builder "teleport-lab-v8-arm64-builder" --platform
@@ -11239,6 +11316,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v8-amd64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v8-amd64-builder"
   - docker buildx build --load --builder "teleport-operator-v8-amd64-builder" --platform
@@ -11257,6 +11335,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v8-arm"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v8-arm-builder"
   - docker buildx build --load --builder "teleport-operator-v8-arm-builder" --platform
@@ -11275,6 +11354,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v8-arm64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v8-arm64-builder"
   - docker buildx build --load --builder "teleport-operator-v8-arm64-builder" --platform
@@ -11660,19 +11740,19 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/amd64/$DRONE_TAG.deb"
   - mkdir -pv "/go/build/artifacts/deb/teleport/arm"
   - apt download "teleport:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/arm/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:armhf=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport:armhf=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/arm/$DRONE_TAG.deb"
   - mkdir -pv "/go/build/artifacts/deb/teleport/arm64"
   - apt download "teleport:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport/arm64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport:arm64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport/arm64/$DRONE_TAG.deb"
   depends_on:
   - Verify build is tagged
   - Check if tag is prerelease
@@ -11681,6 +11761,7 @@ steps:
 - name: Build teleport image "teleport-v10-amd64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-v10-amd64-builder" --target "teleport"
@@ -11701,6 +11782,7 @@ steps:
 - name: Build teleport image "teleport-v10-arm"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v10-arm-builder"
   - docker buildx build --load --builder "teleport-v10-arm-builder" --target "teleport"
@@ -11721,6 +11803,7 @@ steps:
 - name: Build teleport image "teleport-v10-arm64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v10-arm64-builder"
   - docker buildx build --load --builder "teleport-v10-arm64-builder" --target "teleport"
@@ -12025,19 +12108,19 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport-ent:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/amd64/$DRONE_TAG.deb"
   - mkdir -pv "/go/build/artifacts/deb/teleport-ent/arm"
   - apt download "teleport-ent:armhf=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/arm/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:armhf=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport-ent:armhf=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/arm/$DRONE_TAG.deb"
   - mkdir -pv "/go/build/artifacts/deb/teleport-ent/arm64"
   - apt download "teleport-ent:arm64=$${FULL_VERSION}"
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent/arm64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport-ent:arm64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent/arm64/$DRONE_TAG.deb"
   depends_on:
   - Verify build is tagged
   - Check if tag is prerelease
@@ -12046,6 +12129,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v10-amd64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-ent-v10-amd64-builder" --target
@@ -12066,6 +12150,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v10-arm"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm-builder"
   - docker buildx build --load --builder "teleport-ent-v10-arm-builder" --target "teleport"
@@ -12086,6 +12171,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v10-arm64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm64-builder"
   - docker buildx build --load --builder "teleport-ent-v10-arm64-builder" --target
@@ -12391,7 +12477,7 @@ steps:
   - FILENAME=$(ls)
   - echo "Downloaded file \"$${FILENAME}\""
   - mv "$${FILENAME}" "/go/build/artifacts/deb/teleport-ent-fips/amd64/$${PACKAGE_VERSION}.deb"
-  - echo Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/build"
+  - echo Downloaded "teleport-ent-fips:amd64=$${FULL_VERSION}" to "/go/build/artifacts/deb/teleport-ent-fips/amd64/$DRONE_TAG.deb"
   depends_on:
   - Verify build is tagged
   - Check if tag is prerelease
@@ -12400,6 +12486,7 @@ steps:
 - name: Build teleport-ent-fips image "teleport-ent-fips-v10-amd64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-ent-fips-v10-amd64-builder" --target
@@ -12541,6 +12628,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v10-amd64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-lab-v10-amd64-builder" --platform
@@ -12561,6 +12649,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v10-arm"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm-builder"
   - docker buildx build --load --builder "teleport-lab-v10-arm-builder" --platform
@@ -12581,6 +12670,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v10-arm64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm64-builder"
   - docker buildx build --load --builder "teleport-lab-v10-arm64-builder" --platform
@@ -12848,6 +12938,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v10-amd64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-operator-v10-amd64-builder" --platform
@@ -12867,6 +12958,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v10-arm"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm-builder"
   - docker buildx build --load --builder "teleport-operator-v10-arm-builder" --platform
@@ -12886,6 +12978,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v10-arm64"
   image: docker
   commands:
+  - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm64-builder"
   - docker buildx build --load --builder "teleport-operator-v10-arm64-builder" --platform
@@ -13639,6 +13732,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 92fdd0f65d57a55f66d2a7915de50251635a6b227a7f5a39753a35c44c1d5c8e
+hmac: e248c4292277e5cec92e1eec4287fc2acfb9fd696f160ce16a0c6abdca388ff7
 
 ...

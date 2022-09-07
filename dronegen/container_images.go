@@ -455,7 +455,7 @@ func teleportSetupStep(shellVersion, packageName, workingPath, downloadURL strin
 		// Example: `./artifacts/deb/teleport-ent/arm64/v10.1.4.deb`
 		relDestPath := path.Join(relArchDir, fmt.Sprintf("%s.deb", shellVersion))
 		// Example: `/go/./artifacts/deb/teleport-ent/arm64/v10.1.4.deb`
-		destPath := path.Join(workingPath)
+		destPath := path.Join(workingPath, relDestPath)
 
 		archDestFileMap[arch] = relDestPath
 
@@ -552,6 +552,7 @@ func (p *product) createBuildStep(arch string, version *releaseVersion) (step, *
 			},
 		},
 		Commands: []string{
+			"docker run --privileged --rm tonistiigi/binfmt --install all",
 			fmt.Sprintf("mkdir -pv %q && cd %q", p.WorkingDirectory, p.WorkingDirectory),
 			fmt.Sprintf("docker buildx create --driver %q --name %q", "docker-container", builderName),
 			buildCommand,
