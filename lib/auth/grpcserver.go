@@ -4206,6 +4206,26 @@ func (g *GRPCServer) UpdateConnectionDiagnostic(ctx context.Context, connectionD
 	return &empty.Empty{}, nil
 }
 
+// AppendDiagnosticTrace updates a connection diagnostic
+func (g *GRPCServer) AppendDiagnosticTrace(ctx context.Context, in *proto.AppendDiagnosticTraceRequest) (*types.ConnectionDiagnosticV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	connectionDiagnostic, err := auth.ServerWithRoles.AppendDiagnosticTrace(ctx, in.Name, in.Trace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	connectionDiagnosticV1, ok := connectionDiagnostic.(*types.ConnectionDiagnosticV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected connection diagnostic type %T", connectionDiagnostic)
+	}
+
+	return connectionDiagnosticV1, nil
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration

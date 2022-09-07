@@ -36,28 +36,28 @@ func TestRequestParameters(t *testing.T) {
 	r := saveUserRequest{
 		Name:   "",
 		Roles:  nil,
-		Logins: nil,
+		Traits: userTraits{},
 	}
 	require.True(t, trace.IsBadParameter(r.checkAndSetDefaults()))
 
 	r = saveUserRequest{
 		Name:   "",
 		Roles:  []string{"testrole"},
-		Logins: nil,
+		Traits: userTraits{},
 	}
 	require.True(t, trace.IsBadParameter(r.checkAndSetDefaults()))
 
 	r = saveUserRequest{
 		Name:   "username",
 		Roles:  nil,
-		Logins: nil,
+		Traits: userTraits{},
 	}
 	require.True(t, trace.IsBadParameter(r.checkAndSetDefaults()))
 
 	r = saveUserRequest{
 		Name:   "username",
 		Roles:  []string{"testrole"},
-		Logins: nil,
+		Traits: userTraits{},
 	}
 	require.Nil(t, r.checkAndSetDefaults())
 }
@@ -66,7 +66,7 @@ func TestCRUDs(t *testing.T) {
 	u := saveUserRequest{
 		Name:   "testname",
 		Roles:  []string{"testrole"},
-		Logins: nil,
+		Traits: userTraits{},
 	}
 
 	m := &mockedUserAPIGetter{}
@@ -132,7 +132,7 @@ func TestUpdateUser_setTraits(t *testing.T) {
 			updateReq: saveUserRequest{
 				Name:   "setlogins",
 				Roles:  defaultRoles,
-				Logins: &[]string{"login1", "login2"},
+				Traits: userTraits{Logins: &[]string{"login1", "login2"}},
 			},
 			expectedTraits: map[string][]string{
 				constants.TraitLogins: {"login1", "login2"},
@@ -141,11 +141,13 @@ func TestUpdateUser_setTraits(t *testing.T) {
 		{
 			name: "DB",
 			updateReq: saveUserRequest{
-				Name:          "setdb",
-				Roles:         defaultRoles,
-				Logins:        &defaultLogins,
-				DatabaseUsers: &[]string{"dbuser1", "dbuser2"},
-				DatabaseNames: &[]string{"dbname1", "dbname2"},
+				Name:  "setdb",
+				Roles: defaultRoles,
+				Traits: userTraits{
+					Logins:        &defaultLogins,
+					DatabaseUsers: &[]string{"dbuser1", "dbuser2"},
+					DatabaseNames: &[]string{"dbname1", "dbname2"},
+				},
 			},
 			expectedTraits: map[string][]string{
 				constants.TraitDBUsers: {"dbuser1", "dbuser2"},
@@ -156,11 +158,13 @@ func TestUpdateUser_setTraits(t *testing.T) {
 		{
 			name: "Kube",
 			updateReq: saveUserRequest{
-				Name:       "setkube",
-				Roles:      defaultRoles,
-				Logins:     &defaultLogins,
-				KubeUsers:  &[]string{"kubeuser1", "kubeuser2"},
-				KubeGroups: &[]string{"kubegroup1", "kubegroup2"},
+				Name:  "setkube",
+				Roles: defaultRoles,
+				Traits: userTraits{
+					Logins:     &defaultLogins,
+					KubeUsers:  &[]string{"kubeuser1", "kubeuser2"},
+					KubeGroups: &[]string{"kubegroup1", "kubegroup2"},
+				},
 			},
 			expectedTraits: map[string][]string{
 				constants.TraitKubeUsers:  {"kubeuser1", "kubeuser2"},
@@ -171,10 +175,12 @@ func TestUpdateUser_setTraits(t *testing.T) {
 		{
 			name: "WindowsLogins",
 			updateReq: saveUserRequest{
-				Name:          "setwindowslogins",
-				Roles:         defaultRoles,
-				Logins:        &defaultLogins,
-				WindowsLogins: &[]string{"login1", "login2"},
+				Name:  "setwindowslogins",
+				Roles: defaultRoles,
+				Traits: userTraits{
+					Logins:        &defaultLogins,
+					WindowsLogins: &[]string{"login1", "login2"},
+				},
 			},
 			expectedTraits: map[string][]string{
 				constants.TraitWindowsLogins: {"login1", "login2"},
@@ -184,10 +190,12 @@ func TestUpdateUser_setTraits(t *testing.T) {
 		{
 			name: "AWSRoleARNs",
 			updateReq: saveUserRequest{
-				Name:        "setawsrolearns",
-				Roles:       defaultRoles,
-				Logins:      &defaultLogins,
-				AWSRolesARN: &[]string{"arn1", "arn2"},
+				Name:  "setawsrolearns",
+				Roles: defaultRoles,
+				Traits: userTraits{
+					Logins:      &defaultLogins,
+					AWSRoleARNs: &[]string{"arn1", "arn2"},
+				},
 			},
 			expectedTraits: map[string][]string{
 				constants.TraitAWSRoleARNs: {"arn1", "arn2"},
@@ -199,7 +207,7 @@ func TestUpdateUser_setTraits(t *testing.T) {
 			updateReq: saveUserRequest{
 				Name:   "deduplicates",
 				Roles:  defaultRoles,
-				Logins: &[]string{"login1", "login2", "login1"},
+				Traits: userTraits{Logins: &[]string{"login1", "login2", "login1"}},
 			},
 			expectedTraits: map[string][]string{
 				constants.TraitLogins: {"login1", "login2"},
@@ -210,7 +218,7 @@ func TestUpdateUser_setTraits(t *testing.T) {
 			updateReq: saveUserRequest{
 				Name:   "removesall",
 				Roles:  defaultRoles,
-				Logins: &[]string{},
+				Traits: userTraits{Logins: &[]string{}},
 			},
 			expectedTraits: map[string][]string{
 				constants.TraitLogins: {},
@@ -248,13 +256,13 @@ func TestUpdateUser_setTraits(t *testing.T) {
 			uiUser, err := getUser(tt.name, m)
 			require.NoError(t, err)
 
-			require.ElementsMatch(t, uiUser.Logins, tt.expectedTraits[constants.TraitLogins])
-			require.ElementsMatch(t, uiUser.DatabaseUsers, tt.expectedTraits[constants.TraitDBUsers])
-			require.ElementsMatch(t, uiUser.DatabaseNames, tt.expectedTraits[constants.TraitDBNames])
-			require.ElementsMatch(t, uiUser.KubeUsers, tt.expectedTraits[constants.TraitKubeUsers])
-			require.ElementsMatch(t, uiUser.KubeGroups, tt.expectedTraits[constants.TraitKubeGroups])
-			require.ElementsMatch(t, uiUser.WindowsLogins, tt.expectedTraits[constants.TraitWindowsLogins])
-			require.ElementsMatch(t, uiUser.AWSRoleARNs, tt.expectedTraits[constants.TraitAWSRoleARNs])
+			require.ElementsMatch(t, uiUser.Traits.Logins, tt.expectedTraits[constants.TraitLogins])
+			require.ElementsMatch(t, uiUser.Traits.DatabaseUsers, tt.expectedTraits[constants.TraitDBUsers])
+			require.ElementsMatch(t, uiUser.Traits.DatabaseNames, tt.expectedTraits[constants.TraitDBNames])
+			require.ElementsMatch(t, uiUser.Traits.KubeUsers, tt.expectedTraits[constants.TraitKubeUsers])
+			require.ElementsMatch(t, uiUser.Traits.KubeGroups, tt.expectedTraits[constants.TraitKubeGroups])
+			require.ElementsMatch(t, uiUser.Traits.WindowsLogins, tt.expectedTraits[constants.TraitWindowsLogins])
+			require.ElementsMatch(t, uiUser.Traits.AWSRoleARNs, tt.expectedTraits[constants.TraitAWSRoleARNs])
 		})
 	}
 }
@@ -284,7 +292,7 @@ func TestCRUDErrors(t *testing.T) {
 	u := saveUserRequest{
 		Name:   "testname",
 		Roles:  []string{"testrole"},
-		Logins: nil,
+		Traits: userTraits{Logins: nil},
 	}
 
 	// update errors

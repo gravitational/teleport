@@ -53,7 +53,7 @@ require (
 	github.com/gorilla/websocket v1.4.2
 	github.com/gravitational/configure v0.0.0-20180808141939-c3428bd84c23
 	github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70
-	github.com/gravitational/kingpin v2.1.11-0.20220708173555-cb79b87d008b+incompatible
+	github.com/gravitational/kingpin v2.1.11-0.20220901134012-2a1956e29525+incompatible
 	github.com/gravitational/license v0.0.0-20210218173955-6d8fb49b117a
 	github.com/gravitational/oxy v0.0.0-20211213172937-a1ba0900a4c9
 	github.com/gravitational/reporting v0.0.0-20210923183620-237377721140
@@ -78,6 +78,8 @@ require (
 	github.com/mailgun/timetools v0.0.0-20170619190023-f3a7b8ffff47
 	github.com/mailgun/ttlmap v0.0.0-20170619185759-c1c17f74874f
 	github.com/mattn/go-sqlite3 v1.14.6
+	github.com/mdlayher/netlink v1.6.0
+	github.com/mitchellh/mapstructure v1.4.1
 	github.com/moby/term v0.0.0-20210619224110-3f7ff695adc6
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/sftp v1.13.5
@@ -230,6 +232,7 @@ require (
 	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
+	github.com/josharian/native v1.0.0 // indirect
 	github.com/joshlf/testutil v0.0.0-20170608050642-b5d8aa79d93d // indirect
 	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/kr/fs v0.1.0 // indirect
@@ -244,6 +247,7 @@ require (
 	github.com/mattn/go-ieproxy v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.10 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
+	github.com/mdlayher/socket v0.1.1 // indirect
 	github.com/mdp/rsc v0.0.0-20160131164516-90f07065088d // indirect
 	github.com/miekg/pkcs11 v1.0.3-0.20190429190417-a667d056470f // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
