@@ -95,7 +95,7 @@ module.exports = {
     artifactName: '${name}-${version}.${arch}.${ext}',
   },
   deb: {
-    artifactName: '${name}-${version}_${arch}.${ext}',
+    artifactName: '${name}_${version}_${arch}.${ext}',
   },
   linux: {
     target: ['tar.gz', 'rpm', 'deb'],
