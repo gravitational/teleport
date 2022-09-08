@@ -29,7 +29,8 @@ import (
 
 // ports contains tcp ports allocated for all integration tests.
 // TODO: Replace all usage of `Ports` with FD-injected sockets as per
-//       https://github.com/gravitational/teleport/pull/13346
+//
+//	https://github.com/gravitational/teleport/pull/13346
 var ports utils.PortList
 
 func init() {
@@ -239,6 +240,8 @@ func NewListenerOn(t *testing.T, hostAddr string, ty service.ListenerType, fds *
 		Address: addr,
 		File:    lf,
 	})
+
+	fmt.Printf("New Listener %s %s\n", ty, addr)
 
 	return addr
 }

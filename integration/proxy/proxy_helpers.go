@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package integration
+package proxy
 
 import (
 	"bytes"
@@ -25,7 +25,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os/user"
 	"path/filepath"
 	"testing"
 	"time"
@@ -36,6 +35,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -82,10 +82,10 @@ type proxySuiteOptions struct {
 
 func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 	options := proxySuiteOptions{
-		rootClusterNodeName:  Host,
-		leafClusterNodeName:  Host,
-		rootClusterListeners: helpers.SingleProxyPortSetupOn(Host),
-		leafClusterListeners: helpers.SingleProxyPortSetupOn(Host),
+		rootClusterNodeName:  helpers.Host,
+		leafClusterNodeName:  helpers.Host,
+		rootClusterListeners: helpers.SingleProxyPortSetupOn(helpers.Host),
+		leafClusterListeners: helpers.SingleProxyPortSetupOn(helpers.Host),
 	}
 	for _, opt := range opts {
 		opt(&options)
@@ -116,7 +116,7 @@ func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 		leaf: lc,
 	}
 
-	user := mustGetCurrentUser(t)
+	user := helpers.MustGetCurrentUser(t)
 	for _, role := range options.rootClusterRoles {
 		rc.AddUserWithRole(user.Username, role)
 	}
@@ -162,8 +162,8 @@ func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 	}
 
 	if options.trustedCluster != nil {
-		tryCreateTrustedCluster(t, suite.leaf.Process.GetAuthServer(), options.trustedCluster)
-		waitForTunnelConnections(t, suite.root.Process.GetAuthServer(), suite.leaf.Secrets.SiteName, 1)
+		helpers.TryCreateTrustedCluster(t, suite.leaf.Process.GetAuthServer(), options.trustedCluster)
+		helpers.WaitForTunnelConnections(t, suite.root.Process.GetAuthServer(), suite.leaf.Secrets.SiteName, 1)
 	}
 
 	return suite
@@ -192,13 +192,13 @@ func (p *ProxySuite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname strin
 	require.NoError(t, err)
 
 	// Wait for both cluster to see each other via reverse tunnels.
-	require.Eventually(t, waitForClusters(p.root.Tunnel, 1), 10*time.Second, 1*time.Second,
+	require.Eventually(t, helpers.WaitForClusters(p.root.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
-	require.Eventually(t, waitForClusters(p.leaf.Tunnel, 1), 10*time.Second, 1*time.Second,
+	require.Eventually(t, helpers.WaitForClusters(p.leaf.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
 	// Wait for both nodes to show up before attempting to dial to them.
-	err = waitForNodeCount(context.Background(), p.root, p.leaf.Secrets.SiteName, 2)
+	err = helpers.WaitForNodeCount(context.Background(), p.root, p.leaf.Secrets.SiteName, 2)
 	require.NoError(t, err)
 }
 
@@ -243,7 +243,6 @@ func withRootAndLeafClusterRoles(roles ...types.Role) proxySuiteOptionsFunc {
 	return func(options *proxySuiteOptions) {
 		withRootClusterRoles(roles...)(options)
 		withLeafClusterRoles(roles...)(options)
-
 	}
 }
 
@@ -359,7 +358,7 @@ func withStandardRoleMapping() proxySuiteOptionsFunc {
 		options.updateRoleMappingFunc = func(t *testing.T, suite *ProxySuite) {
 			rc := suite.root
 			lc := suite.leaf
-			role := suite.root.Secrets.Users[mustGetCurrentUser(t).Username].Roles[0]
+			role := suite.root.Secrets.Users[helpers.MustGetCurrentUser(t).Username].Roles[0]
 			ca, err := lc.Process.GetAuthServer().GetCertAuthority(context.Background(), types.CertAuthID{
 				Type:       types.UserCA,
 				DomainName: rc.Secrets.SiteName,
@@ -378,8 +377,8 @@ func withTrustedCluster() proxySuiteOptionsFunc {
 	return func(options *proxySuiteOptions) {
 		options.updateRoleMappingFunc = func(t *testing.T, suite *ProxySuite) {
 			root := suite.root
-			rootRole := suite.root.Secrets.Users[mustGetCurrentUser(t).Username].Roles[0]
-			secondRole := suite.leaf.Secrets.Users[mustGetCurrentUser(t).Username].Roles[0]
+			rootRole := suite.root.Secrets.Users[helpers.MustGetCurrentUser(t).Username].Roles[0]
+			secondRole := suite.leaf.Secrets.Users[helpers.MustGetCurrentUser(t).Username].Roles[0]
 
 			trustedClusterToken := "trustedclustertoken"
 			err := root.Process.GetAuthServer().UpsertToken(context.Background(),
@@ -395,12 +394,6 @@ func withTrustedCluster() proxySuiteOptionsFunc {
 
 		}
 	}
-}
-
-func mustGetCurrentUser(t *testing.T) *user.User {
-	user, err := user.Current()
-	require.NoError(t, err)
-	return user
 }
 
 func mustRunPostgresQuery(t *testing.T, client *pgconn.PgConn) {
@@ -601,4 +594,15 @@ func mustStartMockALBProxy(t *testing.T, proxyAddr string) *mockAWSALBProxy {
 	}
 	go m.serve(ctx, t)
 	return m
+}
+
+// waitForActivePeerProxyConnections waits for remote cluster to report a minimum number of active proxy peer connections
+func waitForActivePeerProxyConnections(t *testing.T, tunnel reversetunnel.Server, expectedCount int) {
+	require.Eventually(t, func() bool {
+		return tunnel.GetProxyPeerClient().GetConnectionsCount() >= expectedCount
+	},
+		30*time.Second,
+		time.Second,
+		"Peer proxy connections did not reach %v in the expected time frame", expectedCount,
+	)
 }

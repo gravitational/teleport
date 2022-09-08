@@ -51,7 +51,7 @@ func TestClientWithExpiredCredentialsAndDetailedErrorMessage(t *testing.T) {
 	rcConf.SSH.Enabled = true
 	rcConf.Version = "v2"
 
-	username := mustGetCurrentUser(t).Username
+	username := helpers.MustGetCurrentUser(t).Username
 	rc.AddUser(username, []string{username})
 
 	err := rc.CreateEx(t, nil, rcConf)
