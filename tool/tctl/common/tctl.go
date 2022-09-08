@@ -188,6 +188,9 @@ func TryRun(commands []CLICommand, args []string) error {
 
 	client, err := authclient.Connect(ctx, clientConfig)
 	if err != nil {
+		if utils.IsUntrustedCertErr(err) {
+			err = trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
+		}
 		utils.Consolef(os.Stderr, log.WithField(trace.Component, teleport.ComponentClient), teleport.ComponentClient,
 			"Cannot connect to the auth server: %v.\nIs the auth server running on %q?",
 			err, cfg.AuthServers[0].Addr)

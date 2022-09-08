@@ -316,6 +316,7 @@ impl Client {
             MajorFunction::IRP_MJ_SET_INFORMATION => {
                 self.process_irp_set_information(device_io_request, payload)
             }
+            MajorFunction::IRP_MJ_LOCK_CONTROL => self.process_irp_lock_ctl(),
             _ => Err(invalid_data_error(&format!(
                 // TODO(isaiah): send back a not implemented response(?)
                 "got unsupported major_function in DeviceIoRequest: {:?}",
@@ -837,6 +838,14 @@ impl Client {
                 )))
             }
         }
+    }
+
+    fn process_irp_lock_ctl(&mut self) -> RdpResult<Vec<Vec<u8>>> {
+        // return an empty payload
+        // https://github.com/FreeRDP/FreeRDP/blob/dfa231c0a55b005af775b833f92f6bcd30363d77/channels/drive/client/drive_main.c#L600-L601
+        debug!("received RDP: major function IRP_MJ_LOCK_CONTROL");
+        debug!("sending RDP an empty response");
+        self.vchan.add_header_and_chunkify(None, vec![])
     }
 
     pub fn write_client_device_list_announce<S: Read + Write>(
@@ -2500,12 +2509,10 @@ impl FileInformationClass {
                     FileAllocationInformation::decode(payload)?,
                 ))
             }
-            _ => {
-                return Err(invalid_data_error(&format!(
-                    "decode invalid FileInformationClassLevel: {:?}",
-                    file_information_class_level
-                )))
-            }
+            _ => Err(invalid_data_error(&format!(
+                "decode invalid FileInformationClassLevel: {:?}",
+                file_information_class_level
+            ))),
         }
     }
 

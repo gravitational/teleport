@@ -25,6 +25,12 @@ import (
 	"os/user"
 	"testing"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -32,22 +38,15 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/pam"
-	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 )
 
-func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *ServerContext {
+func NewTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *ServerContext {
 	usr, err := user.Current()
 	require.NoError(t, err)
 
@@ -96,7 +95,7 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 	return scx
 }
 
-func newMockServer(t *testing.T) *mockServer {
+func NewMockServer(t *testing.T) *MockServer {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -126,14 +125,14 @@ func newMockServer(t *testing.T) *mockServer {
 	authServer, err := auth.NewServer(authCfg, auth.WithClock(clock))
 	require.NoError(t, err)
 
-	return &mockServer{
+	return &MockServer{
 		auth:        authServer,
 		MockEmitter: &eventstest.MockEmitter{},
 		clock:       clock,
 	}
 }
 
-type mockServer struct {
+type MockServer struct {
 	*eventstest.MockEmitter
 	auth      *auth.Server
 	component string
@@ -141,54 +140,54 @@ type mockServer struct {
 }
 
 // ID is the unique ID of the server.
-func (m *mockServer) ID() string {
+func (m *MockServer) ID() string {
 	return "testID"
 }
 
 // HostUUID is the UUID of the underlying host. For the forwarding
 // server this is the proxy the forwarding server is running in.
-func (m *mockServer) HostUUID() string {
+func (m *MockServer) HostUUID() string {
 	return "testHostUUID"
 }
 
 // GetNamespace returns the namespace the server was created in.
-func (m *mockServer) GetNamespace() string {
+func (m *MockServer) GetNamespace() string {
 	return "testNamespace"
 }
 
 // AdvertiseAddr is the publicly addressable address of this server.
-func (m *mockServer) AdvertiseAddr() string {
+func (m *MockServer) AdvertiseAddr() string {
 	return "testAdvertiseAddr"
 }
 
 // Component is the type of server, forwarding or regular.
-func (m *mockServer) Component() string {
+func (m *MockServer) Component() string {
 	return m.component
 }
 
 // PermitUserEnvironment returns if reading environment variables upon
 // startup is allowed.
-func (m *mockServer) PermitUserEnvironment() bool {
+func (m *MockServer) PermitUserEnvironment() bool {
 	return false
 }
 
 // GetAccessPoint returns an AccessPoint for this cluster.
-func (m *mockServer) GetAccessPoint() AccessPoint {
+func (m *MockServer) GetAccessPoint() AccessPoint {
 	return m.auth
 }
 
 // GetDataDir returns data directory of the server
-func (m *mockServer) GetDataDir() string {
+func (m *MockServer) GetDataDir() string {
 	return "testDataDir"
 }
 
 // GetPAM returns PAM configuration for this server.
-func (m *mockServer) GetPAM() (*pam.Config, error) {
+func (m *MockServer) GetPAM() (*pam.Config, error) {
 	return &pam.Config{}, nil
 }
 
 // GetClock returns a clock setup for the server
-func (m *mockServer) GetClock() clockwork.Clock {
+func (m *MockServer) GetClock() clockwork.Clock {
 	if m.clock != nil {
 		return m.clock
 	}
@@ -196,7 +195,7 @@ func (m *mockServer) GetClock() clockwork.Clock {
 }
 
 // GetInfo returns a services.Server that represents this server.
-func (m *mockServer) GetInfo() types.Server {
+func (m *MockServer) GetInfo() types.Server {
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "localhost"
@@ -220,50 +219,55 @@ func (m *mockServer) GetInfo() types.Server {
 	}
 }
 
-func (m *mockServer) TargetMetadata() apievents.ServerMetadata {
+func (m *MockServer) TargetMetadata() apievents.ServerMetadata {
 	return apievents.ServerMetadata{}
 }
 
 // UseTunnel used to determine if this node has connected to this cluster
 // using reverse tunnel.
-func (m *mockServer) UseTunnel() bool {
+func (m *MockServer) UseTunnel() bool {
 	return false
 }
 
-// GetBPF returns the BPF service used for enhanced session recording.
-func (m *mockServer) GetBPF() bpf.BPF {
-	return &bpf.NOP{}
-
+// OpenBPFSession is a nop since the session must be run on the actual node
+func (m *MockServer) OpenBPFSession(ctx *ServerContext) (uint64, error) {
+	return 0, nil
 }
 
-// GetRestrictedSessionManager returns the manager for restricting user activity
-func (m *mockServer) GetRestrictedSessionManager() restricted.Manager {
-	return &restricted.NOP{}
+// CloseBPFSession is anop since the session must be run on the actual node
+func (m *MockServer) CloseBPFSession(ctx *ServerContext) error {
+	return nil
 }
+
+// OpenRestrictedSession is a nop since the session must be run on the actual node
+func (m *MockServer) OpenRestrictedSession(ctx *ServerContext, cgroupID uint64) {}
+
+// CloseRestrictedSession is a nop since the session must be run on the actual node
+func (m *MockServer) CloseRestrictedSession(ctx *ServerContext, cgroupID uint64) {}
 
 // Context returns server shutdown context
-func (m *mockServer) Context() context.Context {
+func (m *MockServer) Context() context.Context {
 	return context.Background()
 }
 
 // GetUtmpPath returns the path of the user accounting database and log. Returns empty for system defaults.
-func (m *mockServer) GetUtmpPath() (utmp, wtmp string) {
+func (m *MockServer) GetUtmpPath() (utmp, wtmp string) {
 	return "test", "test"
 }
 
 // GetLockWatcher gets the server's lock watcher.
-func (m *mockServer) GetLockWatcher() *services.LockWatcher {
+func (m *MockServer) GetLockWatcher() *services.LockWatcher {
 	return nil
 }
 
 // GetCreateHostUser gets whether the server allows host user creation
 // or not
-func (m *mockServer) GetCreateHostUser() bool {
+func (m *MockServer) GetCreateHostUser() bool {
 	return false
 }
 
 // GetHostUsers
-func (m *mockServer) GetHostUsers() HostUsers {
+func (m *MockServer) GetHostUsers() HostUsers {
 	return nil
 }
 
