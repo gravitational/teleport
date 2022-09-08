@@ -375,15 +375,9 @@ func (t *TerminalHandler) issueSessionMFACerts(tc *client.TeleportClient, ws *we
 		return trace.Wrap(err)
 	}
 
-	clt, err := pc.ConnectToCurrentCluster(t.terminalContext)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer clt.Close()
-
 	key, err := pc.IssueUserCertsWithMFA(
 		t.terminalContext,
-		clt,
+		pc.AuthClient(),
 		client.ReissueParams{
 			RouteToCluster: t.params.Cluster,
 			NodeName:       t.params.Server,

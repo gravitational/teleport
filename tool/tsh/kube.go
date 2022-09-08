@@ -109,12 +109,7 @@ func (c *kubeJoinCommand) getSessionMeta(ctx context.Context, tc *client.Telepor
 		return nil, trace.Wrap(err)
 	}
 
-	site, err := proxy.ConnectToCurrentCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return site.GetSessionTracker(ctx, c.session)
+	return proxy.AuthClient().GetSessionTracker(ctx, c.session)
 }
 
 func (c *kubeJoinCommand) run(cf *CLIConf) error {
@@ -162,15 +157,9 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 				}
 				defer proxyClient.Close()
 
-				clt, err := proxyClient.ConnectToCurrentCluster(cf.Context)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				defer clt.Close()
-
 				k, err = proxyClient.IssueUserCertsWithMFA(
 					cf.Context,
-					clt,
+					proxyClient.AuthClient(),
 					client.ReissueParams{
 						RouteToCluster:    cluster,
 						KubernetesCluster: kubeCluster,
@@ -517,12 +506,7 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	site, err := proxy.ConnectToCurrentCluster(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	sessions, err := site.GetActiveSessionTrackers(cf.Context)
+	sessions, err := proxy.AuthClient().GetActiveSessionTrackers(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -626,15 +610,9 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 		}
 		defer proxyClient.Close()
 
-		clt, err := proxyClient.ConnectToCurrentCluster(cf.Context)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer clt.Close()
-
 		k, err = proxyClient.IssueUserCertsWithMFA(
 			cf.Context,
-			clt,
+			proxyClient.AuthClient(),
 			client.ReissueParams{
 				RouteToCluster:    c.teleportCluster,
 				KubernetesCluster: c.kubeCluster,
@@ -970,11 +948,8 @@ func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleport
 			return trace.Wrap(err)
 		}
 		defer pc.Close()
-		ac, err := pc.ConnectToCurrentCluster(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer ac.Close()
+
+		ac := pc.AuthClient()
 
 		cn, err := ac.GetClusterName()
 		if err != nil {

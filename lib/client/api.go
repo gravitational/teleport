@@ -40,6 +40,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -1606,7 +1607,7 @@ func (tc *TeleportClient) RootClusterName(ctx context.Context) (string, error) {
 
 // getTargetNodes returns a list of node addresses this SSH command needs to
 // operate on.
-func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient) ([]string, error) {
+func (tc *TeleportClient) getTargetNodes(ctx context.Context, clt client.ListResourcesClient) ([]string, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/getTargetNodes",
@@ -1614,37 +1615,38 @@ func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient
 	)
 	defer span.End()
 
-	var (
-		err    error
-		nodes  []types.Server
-		retval = make([]string, 0)
-	)
-	if tc.Labels != nil && len(tc.Labels) > 0 {
-		nodes, err = proxy.FindNodesByFilters(ctx, *tc.DefaultResourceFilter())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		for i := 0; i < len(nodes); i++ {
-			addr := nodes[i].GetAddr()
-			if addr == "" {
-				// address is empty, try dialing by UUID instead.
-				addr = fmt.Sprintf("%s:0", nodes[i].GetName())
-			}
-			retval = append(retval, addr)
-		}
-	}
-	if len(nodes) == 0 {
+	if len(tc.Labels) <= 0 {
 		// detect the common error when users use host:port address format
 		_, port, err := net.SplitHostPort(tc.Host)
 		// client has used host:port notation
 		if err == nil {
-			return nil, trace.BadParameter(
-				"please use ssh subcommand with '--port=%v' flag instead of semicolon",
-				port)
+			return nil, trace.BadParameter("please use ssh subcommand with '--port=%v' flag instead of semicolon", port)
 		}
-		addr := net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort))
-		retval = append(retval, addr)
+
+		return []string{net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort))}, nil
 	}
+
+	resources, err := client.GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{
+		Namespace:           tc.Namespace,
+		Labels:              tc.Labels,
+		SearchKeywords:      tc.SearchKeywords,
+		PredicateExpression: tc.PredicateExpression,
+		ResourceType:        types.KindNode,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	retval := make([]string, 0, len(resources))
+	for _, resource := range resources {
+		node, ok := resource.(types.Server)
+		if !ok {
+			return nil, trace.BadParameter("expected types.Server, got: %T", resource)
+		}
+
+		retval = append(retval, fmt.Sprintf("%s:0", node.GetName()))
+	}
+
 	return retval, nil
 }
 
@@ -1838,22 +1840,18 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	}
 	defer proxyClient.Close()
 
+	// Connect to the target cluster (root or leaf) to check whether MFA is
+	// required.
+	clt := proxyClient.AuthClient()
+
 	// which nodes are we executing this commands on?
-	nodeAddrs, err := tc.getTargetNodes(ctx, proxyClient)
+	nodeAddrs, err := tc.getTargetNodes(ctx, clt)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if len(nodeAddrs) == 0 {
 		return trace.BadParameter("no target host specified")
 	}
-
-	// Connect to the target cluster (root or leaf) to check whether MFA is
-	// required.
-	clt, err := proxyClient.ConnectToCluster(ctx, tc.SiteName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer clt.Close()
 
 	nodeClient, err := proxyClient.ConnectToNode(
 		ctx,
@@ -1961,10 +1959,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	clt, err := proxyClient.ConnectToCurrentCluster(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	clt := proxyClient.AuthClient()
 
 	// Session joining is not supported in proxy recording mode
 	if recConfig, err := clt.GetSessionRecordingConfig(ctx); err != nil {
@@ -2054,10 +2049,8 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 	}
 	defer proxyClient.Close()
 
-	site, err := proxyClient.ConnectToCurrentCluster(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	site := proxyClient.AuthClient()
+
 	// request events for that session (to get timing data)
 	sessionEvents, err = site.GetSessionEvents(namespace, *sid, 0, true)
 	if err != nil {
@@ -2104,10 +2097,7 @@ func (tc *TeleportClient) GetSessionEvents(ctx context.Context, namespace, sessi
 	}
 	defer proxyClient.Close()
 
-	site, err := proxyClient.ConnectToCurrentCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	site := proxyClient.AuthClient()
 	events, err := site.GetSessionEvents(namespace, *sid, 0, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2162,13 +2152,10 @@ func (tc *TeleportClient) ExecuteSCP(ctx context.Context, cmd scp.Command) (err 
 	}
 	defer proxyClient.Close()
 
-	clt, err := proxyClient.ConnectToCurrentCluster(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	clt := proxyClient.AuthClient()
 
 	// which nodes are we executing this commands on?
-	nodeAddrs, err := tc.getTargetNodes(ctx, proxyClient)
+	nodeAddrs, err := tc.getTargetNodes(ctx, clt)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2236,11 +2223,6 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, flag
 		progressWriter = tc.Stdout
 	}
 
-	clt, err := proxyClient.ConnectToCurrentCluster(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// helper function connects to the src/target node:
 	connectToNode := func(addr, hostLogin string) (*NodeClient, error) {
 		// determine which cluster we're connecting to:
@@ -2250,7 +2232,7 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, flag
 		}
 		return proxyClient.ConnectToNode(
 			ctx,
-			clt,
+			proxyClient.AuthClient(),
 			NodeAddr{Addr: addr, Namespace: tc.Namespace, Cluster: tc.SiteName},
 			hostLogin,
 		)
@@ -2404,9 +2386,11 @@ func (tc *TeleportClient) ListNodesWithFiltersAllClusters(ctx context.Context) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	filters := tc.DefaultResourceFilter()
 	servers := make(map[string][]types.Server, len(clusters))
 	for _, cluster := range clusters {
-		s, err := proxyClient.FindNodesByFiltersForCluster(ctx, *tc.DefaultResourceFilter(), cluster.Name)
+		s, err := proxyClient.FindNodesByFiltersForCluster(ctx, *filters, cluster.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2683,9 +2667,7 @@ func (tc *TeleportClient) ListKubeClustersWithFiltersAllClusters(ctx context.Con
 }
 
 // runCommandOnNodes executes a given bash command on a bunch of remote nodes.
-func (tc *TeleportClient) runCommandOnNodes(
-	ctx context.Context, clt auth.ClientI, siteName string, nodeAddresses []string, proxyClient *ProxyClient, command []string,
-) error {
+func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt auth.ClientI, siteName string, nodeAddresses []string, proxyClient *ProxyClient, command []string) error {
 	resultsC := make(chan error, len(nodeAddresses))
 	for _, address := range nodeAddresses {
 		go func(address string) {
@@ -2730,7 +2712,7 @@ func (tc *TeleportClient) runCommand(ctx context.Context, clt auth.ClientI, node
 	)
 	defer span.End()
 
-	nodeSession, err := newSession(ctx, clt, nodeClient, nil, tc.Config.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.EnableEscapeSequences)
+	nodeSession, err := newSession(ctx, nodeClient, nil, tc.Config.Env, tc.Stdin, tc.Stdout, tc.Stderr, tc.EnableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2779,7 +2761,7 @@ func (tc *TeleportClient) runShell(ctx context.Context, clt auth.ClientI, nodeCl
 		env[key] = value
 	}
 
-	nodeSession, err := newSession(ctx, clt, nodeClient, sessToJoin, env, tc.Stdin, tc.Stdout, tc.Stderr, tc.EnableEscapeSequences)
+	nodeSession, err := newSession(ctx, nodeClient, sessToJoin, env, tc.Stdin, tc.Stdout, tc.Stderr, tc.EnableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2963,7 +2945,7 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		return nil, trace.Wrap(err)
 	}
 
-	return &ProxyClient{
+	pc := &ProxyClient{
 		teleportClient:  tc,
 		Client:          sshClient,
 		proxyAddress:    sshProxyAddr,
@@ -2974,7 +2956,16 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		siteName:        clusterName(),
 		clientAddr:      tc.ClientAddr,
 		Tracer:          tc.Tracer,
-	}, nil
+	}
+
+	clt, err := pc.ConnectToCurrentCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pc.currentCluster = clt
+
+	return pc, nil
 }
 
 // makeProxySSHClient creates an SSH client by following steps:
@@ -3638,10 +3629,11 @@ func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) 
 	defer proxyClient.Close()
 
 	// Get a client to the Auth Server.
-	clt, err := proxyClient.ClusterAccessPoint(ctx, clusterName)
+	clt, err := proxyClient.ConnectToCluster(ctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer clt.Close()
 
 	// Get the list of host certificates that this cluster knows about.
 	return clt.GetCertAuthorities(ctx, types.HostCA, false)
@@ -4316,13 +4308,8 @@ func (tc *TeleportClient) SearchSessionEvents(ctx context.Context, fromUTC, toUT
 		return nil, trace.Wrap(err)
 	}
 	defer proxyClient.Close()
-	authClient, err := proxyClient.CurrentClusterAccessPoint(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer authClient.Close()
-	sessions, err := GetPaginatedSessions(ctx, fromUTC, toUTC,
-		pageSize, order, max, authClient)
+
+	sessions, err := GetPaginatedSessions(ctx, fromUTC, toUTC, pageSize, order, max, proxyClient.AuthClient())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -217,16 +217,10 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := pc.ConnectToCurrentCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer clt.Close()
-
 	var wsLock sync.Mutex
 	key, err := pc.IssueUserCertsWithMFA(
 		ctx,
-		clt,
+		pc.AuthClient(),
 		client.ReissueParams{
 			RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
 				WindowsDesktop: desktopName,

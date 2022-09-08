@@ -379,12 +379,7 @@ func onRequestSearch(cf *CLIConf) error {
 	}
 	defer proxyClient.Close()
 
-	authClient, err := proxyClient.CurrentClusterAccessPoint(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	clusterNameResource, err := authClient.GetClusterName()
+	clusterNameResource, err := proxyClient.AuthClient().GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -398,7 +393,7 @@ func onRequestSearch(cf *CLIConf) error {
 		UseSearchAsRoles:    true,
 	}
 
-	results, err := client.GetResourcesWithFilters(cf.Context, authClient, req)
+	results, err := client.GetResourcesWithFilters(cf.Context, proxyClient.AuthClient(), req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -412,7 +407,7 @@ func onRequestSearch(cf *CLIConf) error {
 		resources = append(resources, leafResources...)
 	}
 
-	rows := [][]string{}
+	var rows [][]string
 	var resourceIDs []string
 	for _, resource := range resources {
 		resourceID := types.ResourceIDToString(types.ResourceID{
