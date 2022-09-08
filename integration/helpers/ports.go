@@ -29,8 +29,7 @@ import (
 
 // ports contains tcp ports allocated for all integration tests.
 // TODO: Replace all usage of `Ports` with FD-injected sockets as per
-//
-//	https://github.com/gravitational/teleport/pull/13346
+//       https://github.com/gravitational/teleport/pull/13346
 var ports utils.PortList
 
 func init() {
