@@ -1,5 +1,21 @@
 # Changelog
 
+## 8.3.18
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed potential panic when using unsupported Google application credentials format. [#16040](https://github.com/gravitational/teleport/pull/16040)
+* Fixed issue with `tsh aws s3` failing on paths with special characters. [#15820](https://github.com/gravitational/teleport/pull/15820)
+* Fixed issue with sessions not being completed in some cases. [#16098](https://github.com/gravitational/teleport/pull/16098)
+* Fixed issue with DynamoDB backend not returning all items in clusters with a lot of node churn. [#16105](https://github.com/gravitational/teleport/pull/16105)
+* Added support for IAM joining in AWS China regions. [#15918](https://github.com/gravitational/teleport/pull/15918)
+* Added `SessionRecordingAccess` event emitted every time session's events are queried or session's events are streamed. [#14302](https://github.com/gravitational/teleport/pull/14302)
+* Added support for AWS Console Access in AWS GovCloud regions. [#16070](https://github.com/gravitational/teleport/pull/16070)
+* Added `teleport install systemd` command that generates Teleport systemd unit file. [#15272](https://github.com/gravitational/teleport/pull/15272)
+* Added lock target to `lock.create` events. [#16004](https://github.com/gravitational/teleport/pull/16004)
+* Improved network utilization in large clusters. [#15840](https://github.com/gravitational/teleport/pull/15840)
+* Improved stability in clusters with missing reverse tunnels. [#15804](https://github.com/gravitational/teleport/pull/15804)
+
 ## 8.3.17
 
 This release of Teleport contains multiple improvements and bug fixes.
