@@ -1913,6 +1913,17 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 }
 
 func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, siteName string, nodeAddr string, proxyClient *ProxyClient, command []string, runLocally bool) error {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/runShellOrCommandOnSingleNode",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("site", siteName),
+			attribute.String("node", nodeAddr),
+		),
+	)
+	defer span.End()
+
 	nodeClient, err := proxyClient.ConnectToNode(
 		ctx,
 		NodeDetails{Addr: nodeAddr, Namespace: tc.Namespace, Cluster: siteName},
@@ -1958,6 +1969,17 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, sit
 }
 
 func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, siteName string, nodeAddrs []string, proxyClient *ProxyClient, command []string) error {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/runShellOrCommandOnMultipleNodes",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("site", siteName),
+			attribute.StringSlice("node", nodeAddrs),
+		),
+	)
+	defer span.End()
+
 	if len(command) < 1 {
 		// Issue "shell" request to run single node.
 		fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %v\n", nodeAddrs[0])
@@ -2705,6 +2727,13 @@ func (tc *TeleportClient) ListDatabases(ctx context.Context, customFilter *proto
 
 // ListDatabasesAllClusters returns all registered databases across all clusters.
 func (tc *TeleportClient) ListDatabasesAllClusters(ctx context.Context, customFilter *proto.ListResourcesRequest) (map[string][]types.Database, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/ListDatabasesAllClusters",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	serversByCluster, err := tc.listDatabaseServersWithFiltersAllClusters(ctx, customFilter)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2742,6 +2771,13 @@ func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]types.Server, err
 
 // ListKubernetesClustersWithFiltersAllClusters returns a map of all kube clusters in all clusters connected to a proxy.
 func (tc *TeleportClient) ListKubernetesClustersWithFiltersAllClusters(ctx context.Context, req proto.ListResourcesRequest) (map[string][]types.KubeCluster, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/ListKubernetesClustersWithFiltersAllClusters",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	pc, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2767,10 +2803,53 @@ func (tc *TeleportClient) ListKubernetesClustersWithFiltersAllClusters(ctx conte
 	return kubeClusters, nil
 }
 
+// roleGetter retrieves roles for the current user
+type roleGetter interface {
+	GetRoles(ctx context.Context) ([]types.Role, error)
+}
+
+// commandLimit determines how many commands may be executed in parallel.
+// The limit will one of the following:
+//   - 1 if per session mfa is required
+//   - 1 if we cannot determine the users role set
+//   - half the max connection limit defined by the users role set
+//
+// Out of an abundance of caution we only use half the max connection
+// limit to allow other connections to be established.
+func commandLimit(ctx context.Context, getter roleGetter, mfaRequired bool) int {
+	if mfaRequired {
+		return 1
+	}
+
+	roles, err := getter.GetRoles(ctx)
+	if err != nil {
+		return 1
+	}
+
+	max := services.NewRoleSet(roles...).MaxConnections()
+	limit := max / 2
+
+	switch {
+	case max == 0:
+		return -1
+	case max == 1:
+		return 1
+	case limit <= 0:
+		return 1
+	default:
+		return int(limit)
+	}
+}
+
 // runCommandOnNodes executes a given bash command on a bunch of remote nodes.
-func (tc *TeleportClient) runCommandOnNodes(
-	ctx context.Context, siteName string, nodeAddresses []string, proxyClient *ProxyClient, command []string,
-) error {
+func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, siteName string, nodeAddresses []string, proxyClient *ProxyClient, command []string) error {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/runCommandOnNodes",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	clt, err := proxyClient.ConnectToCluster(ctx, siteName)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2793,15 +2872,20 @@ func (tc *TeleportClient) runCommandOnNodes(
 	}
 
 	g, gctx := errgroup.WithContext(ctx)
-	if mfaRequiredCheck.Required {
-		// Set limit 1 to run commands sequentially
-		g.SetLimit(1)
-	}
+	g.SetLimit(commandLimit(ctx, clt, mfaRequiredCheck.Required))
 	for _, address := range nodeAddresses {
 		address := address
 		g.Go(func() error {
-			nodeClient, err := proxyClient.ConnectToNode(
+			ctx, span := tc.Tracer.Start(
 				gctx,
+				"teleportClient/executingCommand",
+				oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+				oteltrace.WithAttributes(attribute.String("node", address)),
+			)
+			defer span.End()
+
+			nodeClient, err := proxyClient.ConnectToNode(
+				ctx,
 				NodeDetails{
 					Addr:      address,
 					Namespace: tc.Namespace,
@@ -2818,7 +2902,7 @@ func (tc *TeleportClient) runCommandOnNodes(
 
 			fmt.Printf("Running command on %v:\n", address)
 
-			return trace.Wrap(tc.runCommand(gctx, nodeClient, command))
+			return trace.Wrap(tc.runCommand(ctx, nodeClient, command))
 		})
 	}
 
