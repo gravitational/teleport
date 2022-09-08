@@ -309,7 +309,7 @@ func (c *AccessRequestCommand) Delete(ctx context.Context, client auth.ClientI) 
 		fmt.Println("the user's access to these roles. If you would like to lock the user's access to the")
 		fmt.Printf("requested roles instead, you can run:\n\n")
 		for _, reqID := range approvedTokens {
-			fmt.Printf("> tctl lock --access_request %s\n", reqID)
+			fmt.Printf("> tctl lock --access-request %s\n", reqID)
 		}
 		fmt.Printf("\nTo disregard this warning and delete the request anyway, re-run this command with --force.\n\n")
 	}
