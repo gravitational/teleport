@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	utils "github.com/gravitational/teleport/api/utils"
 
 	"github.com/google/uuid"
 )
@@ -157,4 +158,50 @@ func NewPresetAuditorRole() types.Role {
 	}
 	role.SetLogins(types.Allow, []string{"no-login-" + uuid.New().String()})
 	return role
+}
+
+// DefaultAllowRules has the Allow rules that should be set as default when they were no explicitly defined.
+// This is used to update the current cluster roles when deploying a new resource.
+func DefaultAllowRules() map[string][]types.Rule {
+	return map[string][]types.Rule{
+		teleport.PresetEditorRoleName: {
+			types.NewRule(types.KindConnectionDiagnostic, RW()),
+		},
+	}
+}
+
+// AddDefaultAllowRules returns a copy of the received role with a new default allow rule.
+// If the current role already defined one of the resources (either allowing or denying),
+// the role will be returned without setting the default.
+func AddDefaultAllowRules(role types.Role) types.Role {
+	defaultRules, ok := DefaultAllowRules()[role.GetName()]
+	if !ok || len(defaultRules) == 0 {
+		return role
+	}
+
+	combined := append(role.GetRules(types.Allow), role.GetRules(types.Deny)...)
+
+	for _, defaultRule := range defaultRules {
+		if resourceBelongsToRules(combined, defaultRule.Resources) {
+			continue
+		}
+
+		rules := role.GetRules(types.Allow)
+		rules = append(rules, defaultRule)
+		role.SetRules(types.Allow, rules)
+	}
+
+	return role
+}
+
+func resourceBelongsToRules(rules []types.Rule, resources []string) bool {
+	for _, rule := range rules {
+		for _, ruleResource := range rule.Resources {
+			if utils.SliceContainsStr(resources, ruleResource) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
