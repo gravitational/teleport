@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -310,6 +311,16 @@ func SplitHostPort(hostname string) (string, string, error) {
 		return "", "", trace.BadParameter("empty hostname")
 	}
 	return host, port, nil
+}
+
+// IsValidHostname checks if a string represents a valid hostname.
+func IsValidHostname(hostname string) bool {
+	for _, label := range strings.Split(hostname, ".") {
+		if len(validation.IsDNS1035Label(label)) > 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // ReadPath reads file contents
