@@ -86,7 +86,7 @@ is so that it will be extensible.
 As the need arises, we can always add new helper function.
 
 The predicate parser is based on the `Go` language parser, so `Go` keywords
-which may be better names (such as `if`) must unfortunately be avoided.
+which may be better names (such as `if` or `select`) must unfortunately be avoided.
 
 #### `set(...items)`
 
@@ -207,23 +207,22 @@ evaluates to `true`, else it returns `value_if_false`.
 returns
 `("b", "c")`.
 
-#### `match(value, ...options)`
+#### `choose(...options)`
 
-`match(value, ...options)` returns the value of the first `option` which is a
-match for `value`.
+`choose(...options)` returns the value of the first `option` for which the
+condition evaluates to `true`.
 
-`match("c", option("a", "foo"), option("b", "bar"), option("c", "baz"))` returns
-`"baz"`
-
-`match(true, option(false, set("a", "b")), option(true, set("c", "d")))`
+`choose(option(false, set("a", "b")), option(true, set("c", "d")))`
 returns `("c", "d")`
 
+`choose(option(set("a").contains("b"), "foo"), option(set("a").contains("a"), "bar"))`
+returns `"bar"`.
+
+Use an option with the condition hardcoded to `true` to set a default value.
 `default_option(value)` will match for any input value.
 
-`match("xyz", option("abc", "go"), default_option("stop"))` returns `"stop"`.
-
-We could add `regexp_option` which would match based on a regular expression,
-and/or `match_all` which would return the concatenation of all matching options.
+`choose(option(set("a").contains("b"), "foo"), option(true, "default"))`
+returns `"default"`.
 
 #### `strings.replace(input, match, replacement)`
 
@@ -325,10 +324,10 @@ spec:
   priority: 0
   traits: >
     external.overwrite("allow-env",
-      match(external.group,
-        option(set("dev"), set("dev", "staging")),
-        option(set("qa"), set("qa", "staging")),
-        option(set("admin"), set("dev", "qa", "staging", "prod")))
+      choose(
+        option(external.group.contains("dev"), set("dev", "staging")),
+        option(external.group.contains("qa"), set("qa", "staging")),
+        option(external.group.contains("admin"), set("dev", "qa", "staging", "prod")))
 ```
 
 ### Use only specific traits provided by the OIDC/SAML provider
