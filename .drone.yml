@@ -2098,6 +2098,10 @@ steps:
     -o -iname "teleport-connect*.deb" \) -print -exec cp {} /go/artifacts/ \;
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
+  - |-
+    cd /go/artifacts && for FILE in teleport-connect*.deb teleport-connect*.rpm; do
+      sha256sum $FILE > $FILE.sha256;
+    done && ls -l
 - name: Upload to S3
   image: plugins/s3
   settings:
@@ -7050,6 +7054,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 2d50f73226640e621d790dadf4f07b891eeb3e9e11f9b2cc8e93f6d4bed8841b
+hmac: b68fe9d35dc388588d492226f5a4da5df5590f397dd37292be5c0d3812fd64b3
 
 ...
