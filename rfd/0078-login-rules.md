@@ -219,7 +219,6 @@ returns `("c", "d")`
 returns `"bar"`.
 
 Use an option with the condition hardcoded to `true` to set a default value.
-`default_option(value)` will match for any input value.
 
 `choose(option(set("a").contains("b"), "foo"), option(true, "default"))`
 returns `"default"`.
