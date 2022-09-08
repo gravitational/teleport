@@ -14,7 +14,6 @@ clients and services connect to the Teleport Proxy Service instead.
 <Tabs dropdownCaption="Environment type" dropdownSelected="Executable">
 <TabItem label="Connect to the Proxy Service" options="Executable">
 
-
 The following `tctl auth sign` command impersonates the `access-plugin` user,
 generates signed credentials, and writes an identity file to the local
 directory:
@@ -80,6 +79,36 @@ Auth Service's gRPC endpoint.
 The Helm chart only supports the `file` format.
 
 You will refer to this file later when configuring the plugin.
+</TabItem>
+<TabItem label="Connect to the Proxy or Auth Service" options="Helm Chart">
+
+The following `tctl auth sign` command impersonates the `access-plugin` user,
+generates signed credentials, and writes an identity file to the local
+directory:
+
+```code
+$ tctl auth sign --user=access-plugin --out=auth
+```
+
+Then create a Kubernetes secret:
+
+```code
+$ kubectl create secret generic teleport-mattermost-identity --from-file=auth_id=auth.pem
+```
+
+Teleport's Access Request plugins listen for new and updated Access Requests by
+connecting to the Teleport Auth Service's gRPC endpoint over TLS.
+
+The identity file, `auth.pem`, includes both TLS and SSH credentials. Your
+Access Request plugin uses the SSH credentials to connect to the Proxy Service,
+which establishes a reverse tunnel connection to the Auth Service. The plugin
+uses this reverse tunnel, along with your TLS credentials, to connect to the
+Auth Service's gRPC endpoint.
+
+The Helm chart only supports the `file` format.
+
+You will refer to this file later when configuring the plugin.
+
 </TabItem>
 </Tabs>
 
