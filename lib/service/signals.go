@@ -233,8 +233,6 @@ func (process *TeleportProcess) importSignalPipe() (*os.File, error) {
 // importListener imports listener passed by the parent process, if no listener is found
 // returns NotFound, otherwise removes the file from the list
 func (process *TeleportProcess) importListener(typ ListenerType, address string) (net.Listener, error) {
-	process.log.Infof("Searching for FD %s %s", typ, address)
-
 	process.Lock()
 	defer process.Unlock()
 
