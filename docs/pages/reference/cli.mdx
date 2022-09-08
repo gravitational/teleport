@@ -45,7 +45,7 @@ For more information on subcommands when working with the `teleport` cli, use th
 ### teleport start
 
 The `teleport start` command includes a large number of optional configuration flags which change the behavior of the default command to support a wider spectrum of teleport products and services.
-While configuration flags are a supported feature through our CLI for use cases that require it, we recommend using the [Teleport configuration file](../config.mdx) in all cases where possible.
+While configuration flags are a supported feature through our CLI for use cases that require it, we recommend using the [Teleport configuration file](config.mdx) in all cases where possible.
 
 #### Flags
 
@@ -1862,7 +1862,7 @@ $ tctl rm [<resource-type/resource-name>]
 #### Arguments
 
 - `[<resource-type/resource-name>]` Resource to delete
-  - `<resource type>` Type of a resource \[for example: `saml,oidc,github,user,cluster,token`]
+  - `<resource type>` Type of a resource \[for example: `saml,oidc,github,user,cluster,tokens`]
   - `<resource name>` Resource name to delete
 
 #### Examples
@@ -2267,5 +2267,5 @@ Note that this decreases security:
  - Your connection to the database will be unencrypted until it reaches the
    `tbot` proxy running on `localhost`.
 
-Refer to the [database guide](../guides/databases.mdx) for more information on
+Refer to the [database guide](../../machine-id/guides/databases.mdx) for more information on
 using database proxies.
