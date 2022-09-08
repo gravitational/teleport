@@ -52,14 +52,14 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
-type ProxySuite struct {
+type Suite struct {
 	root *helpers.TeleInstance
 	leaf *helpers.TeleInstance
 }
 
-type proxySuiteOptions struct {
-	rootConfigFunc func(suite *ProxySuite) *service.Config
-	leafConfigFunc func(suite *ProxySuite) *service.Config
+type suiteOptions struct {
+	rootConfigFunc func(suite *Suite) *service.Config
+	leafConfigFunc func(suite *Suite) *service.Config
 
 	rootConfigModFunc []func(config *service.Config)
 	leafConfigModFunc []func(config *service.Config)
@@ -70,18 +70,18 @@ type proxySuiteOptions struct {
 	rootClusterListeners helpers.InstanceListenerSetupFunc
 	leafClusterListeners helpers.InstanceListenerSetupFunc
 
-	rootTrustedSecretFunc func(suite *ProxySuite) []*helpers.InstanceSecrets
-	leafTrustedFunc       func(suite *ProxySuite) []*helpers.InstanceSecrets
+	rootTrustedSecretFunc func(suite *Suite) []*helpers.InstanceSecrets
+	leafTrustedFunc       func(suite *Suite) []*helpers.InstanceSecrets
 
 	rootClusterRoles      []types.Role
 	leafClusterRoles      []types.Role
-	updateRoleMappingFunc func(t *testing.T, suite *ProxySuite)
+	updateRoleMappingFunc func(t *testing.T, suite *Suite)
 
 	trustedCluster types.TrustedCluster
 }
 
-func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
-	options := proxySuiteOptions{
+func newSuite(t *testing.T, opts ...proxySuiteOptionsFunc) *Suite {
+	options := suiteOptions{
 		rootClusterNodeName:  helpers.Host,
 		leafClusterNodeName:  helpers.Host,
 		rootClusterListeners: helpers.SingleProxyPortSetupOn(helpers.Host),
@@ -111,7 +111,7 @@ func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 	}
 	lCfg.Listeners = options.leafClusterListeners(t, &lCfg.Fds)
 	lc := helpers.NewInstance(t, lCfg)
-	suite := &ProxySuite{
+	suite := &Suite{
 		root: rc,
 		leaf: lc,
 	}
@@ -169,7 +169,7 @@ func newProxySuite(t *testing.T, opts ...proxySuiteOptionsFunc) *ProxySuite {
 	return suite
 }
 
-func (p *ProxySuite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
+func (p *Suite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
 	nodeConfig := func() *service.Config {
 		tconf := service.MakeDefaultConfig()
 		tconf.Console = nil
@@ -202,7 +202,7 @@ func (p *ProxySuite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname strin
 	require.NoError(t, err)
 }
 
-func (p *ProxySuite) mustConnectToClusterAndRunSSHCommand(t *testing.T, config helpers.ClientConfig) {
+func (p *Suite) mustConnectToClusterAndRunSSHCommand(t *testing.T, config helpers.ClientConfig) {
 	const (
 		deadline         = time.Second * 5
 		nextIterWaitTime = time.Millisecond * 100
@@ -225,72 +225,72 @@ func (p *ProxySuite) mustConnectToClusterAndRunSSHCommand(t *testing.T, config h
 	require.Equal(t, "hello world\n", output.String())
 }
 
-type proxySuiteOptionsFunc func(*proxySuiteOptions)
+type proxySuiteOptionsFunc func(*suiteOptions)
 
 func withRootClusterRoles(roles ...types.Role) proxySuiteOptionsFunc {
-	return func(options *proxySuiteOptions) {
+	return func(options *suiteOptions) {
 		options.rootClusterRoles = roles
 	}
 }
 
 func withLeafClusterRoles(roles ...types.Role) proxySuiteOptionsFunc {
-	return func(options *proxySuiteOptions) {
+	return func(options *suiteOptions) {
 		options.leafClusterRoles = roles
 	}
 }
 
 func withRootAndLeafClusterRoles(roles ...types.Role) proxySuiteOptionsFunc {
-	return func(options *proxySuiteOptions) {
+	return func(options *suiteOptions) {
 		withRootClusterRoles(roles...)(options)
 		withLeafClusterRoles(roles...)(options)
 	}
 }
 
-func withLeafClusterConfig(fn func(suite *ProxySuite) *service.Config, configModFunctions ...func(config *service.Config)) proxySuiteOptionsFunc {
-	return func(options *proxySuiteOptions) {
+func withLeafClusterConfig(fn func(suite *Suite) *service.Config, configModFunctions ...func(config *service.Config)) proxySuiteOptionsFunc {
+	return func(options *suiteOptions) {
 		options.leafConfigFunc = fn
 		options.leafConfigModFunc = append(options.leafConfigModFunc, configModFunctions...)
 	}
 }
 
-func withRootClusterConfig(fn func(suite *ProxySuite) *service.Config, configModFunctions ...func(config *service.Config)) proxySuiteOptionsFunc {
-	return func(options *proxySuiteOptions) {
+func withRootClusterConfig(fn func(suite *Suite) *service.Config, configModFunctions ...func(config *service.Config)) proxySuiteOptionsFunc {
+	return func(options *suiteOptions) {
 		options.rootConfigFunc = fn
 		options.rootConfigModFunc = append(options.rootConfigModFunc, configModFunctions...)
 	}
 }
 
 func withRootAndLeafTrustedClusterReset() proxySuiteOptionsFunc {
-	return func(options *proxySuiteOptions) {
-		options.rootTrustedSecretFunc = func(suite *ProxySuite) []*helpers.InstanceSecrets {
+	return func(options *suiteOptions) {
+		options.rootTrustedSecretFunc = func(suite *Suite) []*helpers.InstanceSecrets {
 			return nil
 		}
-		options.leafTrustedFunc = func(suite *ProxySuite) []*helpers.InstanceSecrets {
+		options.leafTrustedFunc = func(suite *Suite) []*helpers.InstanceSecrets {
 			return nil
 		}
 	}
 }
 
 func withRootClusterNodeName(nodeName string) proxySuiteOptionsFunc {
-	return func(options *proxySuiteOptions) {
+	return func(options *suiteOptions) {
 		options.rootClusterNodeName = nodeName
 	}
 }
 
 func withLeafClusterNodeName(nodeName string) proxySuiteOptionsFunc {
-	return func(options *proxySuiteOptions) {
+	return func(options *suiteOptions) {
 		options.leafClusterNodeName = nodeName
 	}
 }
 
 func withRootClusterListeners(fn helpers.InstanceListenerSetupFunc) proxySuiteOptionsFunc {
-	return func(options *proxySuiteOptions) {
+	return func(options *suiteOptions) {
 		options.rootClusterListeners = fn
 	}
 }
 
 func withLeafClusterListeners(fn helpers.InstanceListenerSetupFunc) proxySuiteOptionsFunc {
-	return func(options *proxySuiteOptions) {
+	return func(options *suiteOptions) {
 		options.leafClusterListeners = fn
 	}
 }
@@ -305,8 +305,8 @@ func newRole(t *testing.T, roleName string, username string) types.Role {
 	return role
 }
 
-func rootClusterStandardConfig(t *testing.T) func(suite *ProxySuite) *service.Config {
-	return func(suite *ProxySuite) *service.Config {
+func rootClusterStandardConfig(t *testing.T) func(suite *Suite) *service.Config {
+	return func(suite *Suite) *service.Config {
 		rc := suite.root
 		config := service.MakeDefaultConfig()
 		config.DataDir = t.TempDir()
@@ -325,8 +325,8 @@ func rootClusterStandardConfig(t *testing.T) func(suite *ProxySuite) *service.Co
 	}
 }
 
-func leafClusterStandardConfig(t *testing.T) func(suite *ProxySuite) *service.Config {
-	return func(suite *ProxySuite) *service.Config {
+func leafClusterStandardConfig(t *testing.T) func(suite *Suite) *service.Config {
+	return func(suite *Suite) *service.Config {
 		lc := suite.leaf
 		config := service.MakeDefaultConfig()
 		config.DataDir = t.TempDir()
@@ -354,8 +354,8 @@ func createTestRole(username string) types.Role {
 }
 
 func withStandardRoleMapping() proxySuiteOptionsFunc {
-	return func(options *proxySuiteOptions) {
-		options.updateRoleMappingFunc = func(t *testing.T, suite *ProxySuite) {
+	return func(options *suiteOptions) {
+		options.updateRoleMappingFunc = func(t *testing.T, suite *Suite) {
 			rc := suite.root
 			lc := suite.leaf
 			role := suite.root.Secrets.Users[helpers.MustGetCurrentUser(t).Username].Roles[0]
@@ -374,8 +374,8 @@ func withStandardRoleMapping() proxySuiteOptionsFunc {
 }
 
 func withTrustedCluster() proxySuiteOptionsFunc {
-	return func(options *proxySuiteOptions) {
-		options.updateRoleMappingFunc = func(t *testing.T, suite *ProxySuite) {
+	return func(options *suiteOptions) {
+		options.updateRoleMappingFunc = func(t *testing.T, suite *Suite) {
 			root := suite.root
 			rootRole := suite.root.Secrets.Users[helpers.MustGetCurrentUser(t).Username].Roles[0]
 			secondRole := suite.leaf.Secrets.Users[helpers.MustGetCurrentUser(t).Username].Roles[0]

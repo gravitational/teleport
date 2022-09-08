@@ -351,7 +351,7 @@ func waitAppServerTunnel(t *testing.T, tunnel reversetunnel.Server, clusterName,
 
 type appAccessTestFunc func(*Pack, *testing.T)
 
-func bind(p *Pack, fn func(*Pack, *testing.T)) func(*testing.T) {
+func bind(p *Pack, fn appAccessTestFunc) func(*testing.T) {
 	return func(t *testing.T) {
 		fn(p, t)
 	}

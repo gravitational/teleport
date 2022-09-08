@@ -100,7 +100,7 @@ func TestALPNSNIProxyMultiCluster(t *testing.T) {
 
 			username := helpers.MustGetCurrentUser(t).Username
 
-			suite := newProxySuite(t,
+			suite := newSuite(t,
 				withRootClusterConfig(rootClusterStandardConfig(t), func(config *service.Config) {
 					config.Proxy.DisableALPNSNIListener = tc.disableALPNListenerOnRoot
 				}),
@@ -174,7 +174,7 @@ func TestALPNSNIProxyTrustedClusterNode(t *testing.T) {
 
 			username := helpers.MustGetCurrentUser(t).Username
 
-			suite := newProxySuite(t,
+			suite := newSuite(t,
 				withRootClusterConfig(rootClusterStandardConfig(t)),
 				withLeafClusterConfig(leafClusterStandardConfig(t)),
 				withRootClusterListeners(tc.mainClusterListenerSetup),
@@ -229,7 +229,7 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 	addr, err := helpers.GetLocalIP()
 	require.NoError(t, err)
 
-	suite := newProxySuite(t,
+	suite := newSuite(t,
 		withRootClusterConfig(rootClusterStandardConfig(t)),
 		withLeafClusterConfig(leafClusterStandardConfig(t)),
 		withRootClusterNodeName(addr),
@@ -270,7 +270,7 @@ func TestMultiPortHTTPSProxy(t *testing.T) {
 	addr, err := helpers.GetLocalIP()
 	require.NoError(t, err)
 
-	suite := newProxySuite(t,
+	suite := newSuite(t,
 		withRootClusterConfig(rootClusterStandardConfig(t)),
 		withLeafClusterConfig(leafClusterStandardConfig(t)),
 		withRootClusterNodeName(addr),
@@ -313,7 +313,7 @@ func TestALPNSNIProxyKube(t *testing.T) {
 	kubeRole, err := types.NewRoleV3(k8RoleName, kubeRoleSpec)
 	require.NoError(t, err)
 
-	suite := newProxySuite(t,
+	suite := newSuite(t,
 		withRootClusterConfig(rootClusterStandardConfig(t), func(config *service.Config) {
 			config.Proxy.Kube.Enabled = true
 			config.Proxy.Kube.KubeconfigPath = kubeConfigPath
@@ -365,7 +365,7 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 	kubeRole, err := types.NewRoleV3(k8RoleName, kubeRoleSpec)
 	require.NoError(t, err)
 
-	suite := newProxySuite(t,
+	suite := newSuite(t,
 		withRootClusterConfig(rootClusterStandardConfig(t), func(config *service.Config) {
 			config.Proxy.Kube.Enabled = true
 			config.Version = defaults.TeleportConfigVersionV2
@@ -788,7 +788,7 @@ func TestALPNProxyRootLeafAuthDial(t *testing.T) {
 
 	username := helpers.MustGetCurrentUser(t).Username
 
-	suite := newProxySuite(t,
+	suite := newSuite(t,
 		withRootClusterConfig(rootClusterStandardConfig(t)),
 		withLeafClusterConfig(leafClusterStandardConfig(t)),
 		withRootClusterListeners(helpers.SingleProxyPortSetup),
