@@ -1975,7 +1975,7 @@ func testTwoClustersProxy(t *testing.T, suite *integrationTestSuite) {
 
 	// httpproxy doesn't allow proxying when the target is localhost, so use
 	// this address instead.
-	addr, err := getLocalIP()
+	addr, err := helpers.GetLocalIP()
 	require.NoError(t, err)
 	a := suite.newNamedTeleportInstance(t, "site-A",
 		WithNodeName(addr),
@@ -2928,12 +2928,12 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 	// create first numbered proxy
 	_, c0 := addNewMainProxy(pname(0))
 	// check that we now have two tunnel connections
-	require.NoError(t, waitForProxyCount(remote, "cluster-main", 2))
+	require.NoError(t, helpers.WaitForProxyCount(remote, "cluster-main", 2))
 	// check that first numbered proxy is OK.
 	testProxyConn(&c0, false)
 	// remove the initial proxy.
 	require.NoError(t, lb.RemoveBackend(mainProxyAddr))
-	require.NoError(t, waitForProxyCount(remote, "cluster-main", 1))
+	require.NoError(t, helpers.WaitForProxyCount(remote, "cluster-main", 1))
 
 	// force bad state by iteratively removing previous proxy before
 	// adding next proxy; this ensures that discovery protocol's list of
@@ -2941,9 +2941,9 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 	for i := 0; i < 6; i++ {
 		prev, next := pname(i), pname(i+1)
 		killMainProxy(prev)
-		require.NoError(t, waitForProxyCount(remote, "cluster-main", 0))
+		require.NoError(t, helpers.WaitForProxyCount(remote, "cluster-main", 0))
 		_, cn := addNewMainProxy(next)
-		require.NoError(t, waitForProxyCount(remote, "cluster-main", 1))
+		require.NoError(t, helpers.WaitForProxyCount(remote, "cluster-main", 1))
 		testProxyConn(&cn, false)
 	}
 
@@ -3071,7 +3071,7 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// Wait for the remote cluster to detect the outbound connection is gone.
-	require.NoError(t, waitForProxyCount(remote, "cluster-main", 1))
+	require.NoError(t, helpers.WaitForProxyCount(remote, "cluster-main", 1))
 
 	// Stop both clusters and remaining nodes.
 	require.NoError(t, remote.StopAll())
@@ -3386,23 +3386,6 @@ func waitForActivePeerProxyConnections(t *testing.T, tunnel reversetunnel.Server
 	)
 }
 
-// waitForProxyCount waits a set time for the proxy count in clusterName to
-// reach some value.
-func waitForProxyCount(t *helpers.TeleInstance, clusterName string, count int) error {
-	var counts map[string]int
-	start := time.Now()
-	for time.Since(start) < 17*time.Second {
-		counts = t.RemoteClusterWatcher.Counts()
-		if counts[clusterName] == count {
-			return nil
-		}
-
-		time.Sleep(500 * time.Millisecond)
-	}
-
-	return trace.BadParameter("proxy count on %v: %v (wanted %v)", clusterName, counts[clusterName], count)
-}
-
 // waitForNodeCount waits for a certain number of nodes to show up in the remote site.
 func waitForNodeCount(ctx context.Context, t *helpers.TeleInstance, clusterName string, count int) error {
 	const (
@@ -3566,17 +3549,17 @@ func testExternalClient(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// Start (and defer close) a agent that runs during this integration test.
-			teleAgent, socketDirPath, socketPath, err := createAgent(suite.Me, &creds.Key)
+			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(suite.Me, &creds.Key)
 			require.NoError(t, err)
-			defer closeAgent(teleAgent, socketDirPath)
+			defer helpers.CloseAgent(teleAgent, socketDirPath)
 
 			// Create a *exec.Cmd that will execute the external SSH command.
-			execCmd, err := externalSSHCommand(commandOptions{
-				forwardAgent: tt.inForwardAgent,
-				socketPath:   socketPath,
-				proxyPort:    helpers.PortStr(t, teleport.SSHProxy),
-				nodePort:     helpers.PortStr(t, teleport.SSH),
-				command:      tt.inCommand,
+			execCmd, err := helpers.ExternalSSHCommand(helpers.CommandOptions{
+				ForwardAgent: tt.inForwardAgent,
+				SocketPath:   socketPath,
+				ProxyPort:    helpers.PortStr(t, teleport.SSHProxy),
+				NodePort:     helpers.PortStr(t, teleport.SSH),
+				Command:      tt.inCommand,
 			})
 			require.NoError(t, err)
 
@@ -3662,22 +3645,22 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 		require.NoError(t, err)
 
 		// Start (and defer close) a agent that runs during this integration test.
-		teleAgent, socketDirPath, socketPath, err := createAgent(suite.Me, &creds.Key)
+		teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(suite.Me, &creds.Key)
 		require.NoError(t, err)
-		defer closeAgent(teleAgent, socketDirPath)
+		defer helpers.CloseAgent(teleAgent, socketDirPath)
 
 		// Create and run an exec command twice with the passed in ControlPath. This
 		// will cause re-use of the connection and creation of two sessions within
 		// the connection.
 		for i := 0; i < 2; i++ {
-			execCmd, err := externalSSHCommand(commandOptions{
-				forcePTY:     true,
-				forwardAgent: true,
-				controlPath:  controlPath,
-				socketPath:   socketPath,
-				proxyPort:    helpers.PortStr(t, teleport.SSHProxy),
-				nodePort:     helpers.PortStr(t, teleport.SSH),
-				command:      "echo hello",
+			execCmd, err := helpers.ExternalSSHCommand(helpers.CommandOptions{
+				ForcePTY:     true,
+				ForwardAgent: true,
+				ControlPath:  controlPath,
+				SocketPath:   socketPath,
+				ProxyPort:    helpers.PortStr(t, teleport.SSHProxy),
+				NodePort:     helpers.PortStr(t, teleport.SSH),
+				Command:      "echo hello",
 			})
 			require.NoError(t, err)
 

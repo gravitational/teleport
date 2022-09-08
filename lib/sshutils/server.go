@@ -407,7 +407,6 @@ func (s *Server) trackUserConnections(delta int32) int32 {
 //
 // this is the foundation of all SSH connections in Teleport (between clients
 // and proxies, proxies and servers, servers and auth, etc).
-//
 func (s *Server) HandleConnection(conn net.Conn) {
 	// initiate an SSH connection, note that we don't need to close the conn here
 	// in case of error as ssh server takes care of this
