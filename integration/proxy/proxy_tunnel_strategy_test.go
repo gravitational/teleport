@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package integration
+package proxy
 
 import (
 	"bytes"
@@ -65,7 +65,7 @@ type proxyTunnelStrategy struct {
 func newProxyTunnelStrategy(t *testing.T, cluster string, strategy *types.TunnelStrategyV1) *proxyTunnelStrategy {
 	p := &proxyTunnelStrategy{
 		cluster:  cluster,
-		username: mustGetCurrentUser(t).Username,
+		username: helpers.MustGetCurrentUser(t).Username,
 		strategy: strategy,
 		log:      utils.NewLoggerForTests(),
 	}
@@ -100,8 +100,8 @@ func testProxyTunnelStrategyAgentMesh(t *testing.T) {
 				p.makeNode(t)
 
 				// wait for the node to be connected to both proxies
-				waitForActiveTunnelConnections(t, p.proxies[0].Tunnel, p.cluster, 1)
-				waitForActiveTunnelConnections(t, p.proxies[1].Tunnel, p.cluster, 1)
+				helpers.WaitForActiveTunnelConnections(t, p.proxies[0].Tunnel, p.cluster, 1)
+				helpers.WaitForActiveTunnelConnections(t, p.proxies[1].Tunnel, p.cluster, 1)
 
 				// make sure we can connect to the node going through any proxy.
 				p.waitForNodeToBeReachable(t)
@@ -114,8 +114,8 @@ func testProxyTunnelStrategyAgentMesh(t *testing.T) {
 				p.makeDatabase(t)
 
 				// wait for the node to be connected to both proxies
-				waitForActiveTunnelConnections(t, p.proxies[0].Tunnel, p.cluster, 1)
-				waitForActiveTunnelConnections(t, p.proxies[1].Tunnel, p.cluster, 1)
+				helpers.WaitForActiveTunnelConnections(t, p.proxies[0].Tunnel, p.cluster, 1)
+				helpers.WaitForActiveTunnelConnections(t, p.proxies[1].Tunnel, p.cluster, 1)
 
 				// make sure we can connect to the database going through any proxy.
 				p.waitForDatabaseToBeReachable(t)
@@ -184,7 +184,7 @@ func testProxyTunnelStrategyProxyPeering(t *testing.T) {
 	p.makeDatabase(t)
 
 	// wait for the node and db to open reverse tunnels to the first proxy.
-	waitForActiveTunnelConnections(t, p.proxies[0].Tunnel, p.cluster, 2)
+	helpers.WaitForActiveTunnelConnections(t, p.proxies[0].Tunnel, p.cluster, 2)
 
 	// bootstrap the second proxy instance after the node and db have already
 	// established reverse tunnels to the first proxy.
@@ -268,7 +268,9 @@ func (p *proxyTunnelStrategy) makeLoadBalancer(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	lbAddr := utils.MustParseAddr(net.JoinHostPort(Loopback, helpers.NewPortStr()))
+	// TODO(tcsc): fix ports before merging
+	lbAddr := utils.MustParseAddr(net.JoinHostPort(helpers.Loopback, "0"))
+	//lbAddr := utils.MustParseAddr(net.JoinHostPort(helpers.Loopback, helpers.NewPortStr()))
 	lb, err := utils.NewLoadBalancer(ctx, *lbAddr)
 	require.NoError(t, err)
 
@@ -293,7 +295,7 @@ func (p *proxyTunnelStrategy) makeAuth(t *testing.T) {
 	auth := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: p.cluster,
 		HostID:      uuid.New().String(),
-		NodeName:    Loopback,
+		NodeName:    helpers.Loopback,
 		Priv:        privateKey,
 		Pub:         publicKey,
 		Log:         utils.NewLoggerForTests(),
@@ -321,7 +323,7 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 	proxy := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: p.cluster,
 		HostID:      uuid.New().String(),
-		NodeName:    Loopback,
+		NodeName:    helpers.Loopback,
 		Log:         utils.NewLoggerForTests(),
 	})
 
@@ -335,12 +337,11 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 	conf.Auth.Enabled = false
 	conf.SSH.Enabled = false
 
-	// TODO: Replace old-style NewPortStr() call with preconfigured listener
 	conf.Proxy.Enabled = true
 	conf.Proxy.ReverseTunnelListenAddr.Addr = proxy.ReverseTunnel
 	conf.Proxy.SSHAddr.Addr = proxy.SSHProxy
 	conf.Proxy.WebAddr.Addr = proxy.Web
-	conf.Proxy.PeerAddr.Addr = net.JoinHostPort(Loopback, helpers.NewPortStr())
+	conf.Proxy.PeerAddr.Addr = helpers.NewListenerOn(t, helpers.Loopback, service.ListenerProxyPeer, &proxy.Fds)
 	conf.Proxy.PeerPublicAddr = conf.Proxy.PeerAddr
 	conf.Proxy.PublicAddrs = append(conf.Proxy.PublicAddrs, utils.FromAddr(p.lb.Addr()))
 	conf.Proxy.DisableWebInterface = true
@@ -367,7 +368,7 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 	node := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: p.cluster,
 		HostID:      uuid.New().String(),
-		NodeName:    Loopback,
+		NodeName:    helpers.Loopback,
 		Log:         utils.NewLoggerForTests(),
 	})
 
@@ -397,19 +398,19 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 		require.Fail(t, "database already initialized")
 	}
 
-	dbListener, err := net.Listen("tcp", net.JoinHostPort(Host, "0"))
+	dbListener, err := net.Listen("tcp", net.JoinHostPort(helpers.Host, "0"))
 	require.NoError(t, err)
 
 	_, portStr, err := net.SplitHostPort(dbListener.Addr().String())
 	require.NoError(t, err)
 
-	dbAddr := net.JoinHostPort(Host, portStr)
+	dbAddr := net.JoinHostPort(helpers.Host, portStr)
 
 	// setup database service
 	db := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: p.cluster,
 		HostID:      uuid.New().String(),
-		NodeName:    Loopback,
+		NodeName:    helpers.Loopback,
 		Log:         utils.NewLoggerForTests(),
 	})
 

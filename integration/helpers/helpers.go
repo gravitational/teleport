@@ -257,3 +257,9 @@ func WaitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime 
 		}
 	}
 }
+
+func MustGetCurrentUser(t *testing.T) *user.User {
+	user, err := user.Current()
+	require.NoError(t, err)
+	return user
+}
