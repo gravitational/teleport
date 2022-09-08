@@ -160,7 +160,7 @@ func TestSetAuthServerFlagWhileLoggedIn(t *testing.T) {
 			ccf := &common.GlobalCLIFlags{}
 			ccf.AuthServerAddr = tt.authServerFlag
 
-			cfg := new(service.Config)
+			cfg := &service.Config{}
 			cfg.TeleportHome = tmpHomePath
 			// this is needed for the case where the --auth-server=host is not found in profile.
 			// ApplyConfig will try to read local auth server identity if the profile is not found.
