@@ -232,6 +232,14 @@ Finds all matches of `match` in `input`, and replaces them with `replacement`.
 `input` can be a string or a set of strings, in which case the replacement will
 be applied to all strings in the set.
 
+### Modifications to predicate
+
+The predicate language currently does not support "methods" on objects such as
+`dict.remove_keys` or `set.contains` as described above.
+We will need to add support for these in our
+[gravitational/predicate](https://github.com/gravitational/predicate)
+fork.
+
 ### Using transformed traits in roles
 
 Login rules transparently set the user's traits during login.
