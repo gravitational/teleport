@@ -63,11 +63,11 @@ tests:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
-            - matchExpressions:
-              - key: gravitational.io/dedicated
-                operator: In
-                values:
-                - teleport
+              - matchExpressions:
+                  - key: gravitational.io/dedicated
+                    operator: In
+                    values:
+                      - teleport
     asserts:
       - isNotNull:
           path: spec.template.spec.affinity
@@ -115,6 +115,40 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  - it: should set securityContext when set in values
+    values:
+      - ../.lint/security-context.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.privileged
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsGroup
+          value: 99
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 99
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should not set securityContext when is empty object (default value)
+    values:
+      - ../.lint/security-context-empty.yaml
+    asserts:
+      - isNull:
+          path: spec.template.spec.containers[0].securityContext
+      - matchSnapshot:
+          path: spec.template.spec
+
   # we can't use the dynamic chart version or appVersion as a variable in the tests,
   # so we override it manually and check that gets set instead
   # this saves us having to update the test every time we cut a new release
@@ -126,7 +160,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: quay.io/gravitational/teleport-ent:8.3.4
+          value: public.ecr.aws/gravitational/teleport-ent:8.3.4
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
@@ -149,7 +183,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: quay.io/gravitational/teleport:8.3.4
+          value: public.ecr.aws/gravitational/teleport:8.3.4
       - notContains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
@@ -554,6 +588,16 @@ tests:
               claimName: RELEASE-NAME
       - matchSnapshot:
           path: spec.template.spec
+
+  - it: should add an operator side-car when operator is enabled
+    values:
+      - ../.lint/operator.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: operator
+      - matchSnapshot:
+          path: spec.template.spec.containers[1]
 
   - it: should add named PersistentVolumeClaim as volume when in standalone mode, persistence.existingClaimName is set and persistence.enabled is true
     values:

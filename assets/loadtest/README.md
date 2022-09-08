@@ -18,26 +18,25 @@ Teleports manual release test plan.
 - Make sure that you have a GCP service account key with `Compute Admin`, `Compute Network Admin`,
       `Kubernetes Engine Admin`, `Kubernetes Engine Cluster Admin`, and `Service Account User`
   - To authenticate as the service account follow these [instructions](https://cloud.google.com/docs/authentication/production)
-- Make sure you have reserved static ip addresses for the proxy and grafana
+- Make sure you have reserved static ip addresses for the proxy
   - This only needs to be done once per GCP project, see the [network docs](./network/README.md) for details
 
 ### Creating the Cluster
 
 First create a cluster, if you are running this automation for the first time, you may be asked to run
-`terraform init` from the cluster directory before continuing. To resize the cluster, edit [`terraform.tfvars`](./cluster/terraform.tfvars) as needed.
+`terraform init` from the cluster directory before continuing. To resize the cluster, edit [`terraform.tfvars`](cluster/terraform.tfvars) as needed.
 
 ```bash
 $ make create-cluster
 ```
 
 ### DNS Entries
-Before deploying anything to the cluster you first need to set `PROXY_HOST` and `GRAFANA_HOST`. These variables should
-be the DNS names to be used for the [`proxy`](./k8s/proxy.yaml)  and [`grafana`](./k8s/grafana.yaml) services. When everything is successfully deployed you should be able
-to navigate to `https://PROXY_HOST:3080` and `https://GRAFANA_HOST:8443` in your browser.
+Before deploying anything to the cluster you first need to set `PROXY_HOST`. These variables should
+be the DNS names to be used for the [`proxy`](./k8s/proxy.yaml). When everything is successfully deployed you should be able
+to navigate to `https://PROXY_HOST:3080` in your browser.
 
 ```bash
 $ export PROXY_HOST=proxy.loadtest.com 
-$ export GRAFANA_HOST=grafana.loadtest.com
 ```
 
 ### TLS Certificates
@@ -93,7 +92,7 @@ $ make run-soak-tests
 ```
 
 
-**Note:** You must have enough nodes in the cluster to run the following tests. Ensure your `node_count` in [`terraform.tfvars`](./cluster/terraform.tfvars) is correctly set.
+**Note:** You must have enough nodes in the cluster to run the following tests. Ensure your `node_count` in [`terraform.tfvars`](cluster/terraform.tfvars) is correctly set.
 
 To run the 10k node scaling tests:
 

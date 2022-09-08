@@ -30,6 +30,7 @@ import (
 	"encoding/binary"
 	"os"
 	"sync"
+	"unsafe"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -51,7 +52,7 @@ var pageSize = os.Getpagesize()
 
 // ResizeMap resizes (changes max number of entries) the
 // map to the specified value. This function must be called
-// before BPFLoadObject has been called..
+// before BPFLoadObject has been called.
 func ResizeMap(mod *libbpfgo.Module, mapName string, value uint32) error {
 	m, err := mod.GetMap(mapName)
 	if err != nil {
@@ -102,7 +103,7 @@ func AttachTracepoint(mod *libbpfgo.Module, category, name string) error {
 		return trace.Wrap(err)
 	}
 
-	_, err = prog.AttachTracepoint(category + ":" + name)
+	_, err = prog.AttachTracepoint(category, name)
 	return err
 }
 
@@ -163,7 +164,7 @@ func (rb *RingBuffer) Close() {
 // When it's incremented, the BPF program also rings the doorbell
 // via a ring buffer.
 type Counter struct {
-	// doorbelBuf contains dummy bytes and is used for signaling the userspace
+	// doorbellBuf contains dummy bytes and is used for signaling the userspace
 	doorbellBuf *libbpfgo.RingBuffer
 	// doorbellCh is the chan corresponding to doorbellBuf
 	doorbellCh chan []byte
@@ -176,11 +177,11 @@ type Counter struct {
 	// wg is used to wait for the loop goroutine to finish
 	wg sync.WaitGroup
 
-	// counter is the associated Prometheous counter to increment
+	// counter is the associated Prometheus counter to increment
 	counter prometheus.Counter
 }
 
-// NewLostCounter starts tracking the lost messages and updating the Prometheous counter.
+// NewCounter starts tracking the lost messages and updating the Prometheus counter.
 func NewCounter(mod *libbpfgo.Module, name string, counter prometheus.Counter) (*Counter, error) {
 	c := &Counter{
 		doorbellCh: make(chan []byte, chanSize),
@@ -217,8 +218,9 @@ func (c *Counter) Close() {
 }
 
 func (c *Counter) loop() {
-	for _ = range c.doorbellCh {
-		cntBytes, err := c.arr.GetValue(int32(0), 8)
+	for range c.doorbellCh {
+		var key int32 = 0
+		cntBytes, err := c.arr.GetValue(unsafe.Pointer(&key))
 		if err != nil {
 			log.Errorf("Error reading array value at index 0")
 			continue
@@ -236,19 +238,19 @@ func (c *Counter) loop() {
 }
 
 const (
-	// commMax is the maximum length of a command from linux/sched.h.
+	// CommMax is the maximum length of a command from linux/sched.h.
 	CommMax = 16
 
-	// pathMax is the maximum length of a path from linux/limits.h.
+	// PathMax is the maximum length of a path from linux/limits.h.
 	PathMax = 255
 
-	// argvMax is the maximum length of the args vector.
+	// ArgvMax is the maximum length of the args vector.
 	ArgvMax = 128
 
 	// eventArg is an exec event that holds the arguments to a function.
 	eventArg = 0
 
-	// eventRet holds the return value and other data about about an event.
+	// eventRet holds the return value and other data about an event.
 	eventRet = 1
 
 	// chanSize is the size of the event channels.

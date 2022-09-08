@@ -19,6 +19,7 @@ package clusters
 import (
 	"context"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -36,13 +37,23 @@ type Server struct {
 
 // GetServers returns cluster servers
 func (c *Cluster) GetServers(ctx context.Context) ([]Server, error) {
-	proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer proxyClient.Close()
+	var clusterServers []types.Server
+	err := addMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
 
-	clusterServers, err := proxyClient.FindServersByLabels(ctx, defaults.Namespace, nil)
+		clusterServers, err = proxyClient.FindNodesByFilters(ctx, proto.ListResourcesRequest{
+			Namespace: defaults.Namespace,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

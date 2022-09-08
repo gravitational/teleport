@@ -21,11 +21,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
 type componentStateEnum byte
@@ -57,10 +58,9 @@ func init() {
 
 // processState tracks the state of the Teleport process.
 type processState struct {
-	process             *TeleportProcess
-	mu                  sync.Mutex
-	states              map[string]*componentState
-	totalComponentCount int // number of components that will send updates
+	process *TeleportProcess
+	mu      sync.Mutex
+	states  map[string]*componentState
 }
 
 type componentState struct {
@@ -69,16 +69,15 @@ type componentState struct {
 }
 
 // newProcessState returns a new FSM that tracks the state of the Teleport process.
-func newProcessState(process *TeleportProcess, componentCount int) (*processState, error) {
-	err := utils.RegisterPrometheusCollectors(stateGauge)
+func newProcessState(process *TeleportProcess) (*processState, error) {
+	err := metrics.RegisterPrometheusCollectors(stateGauge)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &processState{
-		process:             process,
-		states:              make(map[string]*componentState),
-		totalComponentCount: componentCount,
+		process: process,
+		states:  make(map[string]*componentState),
 	}, nil
 }
 
@@ -129,7 +128,7 @@ func (f *processState) update(event Event) {
 }
 
 // getStateLocked returns the overall process state based on the state of
-// individual components. If not all components have sent updates yet, returns
+// individual components. If no components sent updates yet, returns
 // stateStarting.
 //
 // Order of importance:
@@ -140,13 +139,8 @@ func (f *processState) update(event Event) {
 //
 // Note: f.mu must be locked by the caller!
 func (f *processState) getStateLocked() componentStateEnum {
-	// Return stateStarting if not all components have sent updates yet.
-	if len(f.states) < f.totalComponentCount {
-		return stateStarting
-	}
-
 	state := stateStarting
-	numOK := 0
+	numNotOK := len(f.states)
 	for _, s := range f.states {
 		switch s.state {
 		case stateDegraded:
@@ -154,14 +148,12 @@ func (f *processState) getStateLocked() componentStateEnum {
 		case stateRecovering:
 			state = stateRecovering
 		case stateOK:
-			numOK++
+			numNotOK--
 		}
 	}
 	// Only return stateOK if *all* components are in stateOK.
-	if numOK == f.totalComponentCount {
+	if numNotOK == 0 && len(f.states) > 0 {
 		state = stateOK
-	} else if numOK > f.totalComponentCount {
-		f.process.log.Errorf("incorrect count of components (found: %d; expected: %d), this is a bug!", numOK, f.totalComponentCount)
 	}
 	return state
 }

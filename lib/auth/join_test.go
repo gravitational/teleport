@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -52,9 +53,9 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 	require.NoError(t, err)
 
 	// create a dynamic token
-	dynamicToken, err := a.GenerateToken(ctx, GenerateTokenRequest{
+	dynamicToken, err := a.GenerateToken(ctx, &proto.GenerateTokenRequest{
 		Roles: types.SystemRoles{types.RoleNode},
-		TTL:   time.Hour,
+		TTL:   proto.Duration(time.Hour),
 	})
 	require.NoError(t, err)
 	require.NotNil(t, dynamicToken)
@@ -277,7 +278,7 @@ func TestRegister_Bot(t *testing.T) {
 	_, err := createBotRole(context.Background(), srv.Auth(), "test", "bot-test", []string{})
 	require.NoError(t, err)
 
-	_, err = createBotUser(context.Background(), srv.Auth(), botName, botResourceName)
+	_, err = createBotUser(context.Background(), srv.Auth(), botName, botResourceName, wrappers.Traits{})
 	require.NoError(t, err)
 
 	later := srv.Clock().Now().Add(4 * time.Hour)

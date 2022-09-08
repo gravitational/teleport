@@ -74,9 +74,17 @@ type Server interface {
 	SetApps([]*App)
 	// GetKubeClusters returns the kubernetes clusters directly handled by this
 	// server.
+	// DELETE IN 12.0.0
 	GetKubernetesClusters() []*KubernetesCluster
 	// SetKubeClusters sets the kubernetes clusters handled by this server.
+	// DELETE IN 12.0.0
 	SetKubernetesClusters([]*KubernetesCluster)
+	// GetPeerAddr returns the peer address of the server.
+	GetPeerAddr() string
+	// SetPeerAddr sets the peer address of the server.
+	SetPeerAddr(string)
+	// ProxiedService provides common methods for a proxied service.
+	ProxiedService
 	// MatchAgainst takes a map of labels and returns True if this server
 	// has ALL of them
 	//
@@ -221,9 +229,23 @@ func (s *ServerV2) GetHostname() string {
 	return s.Spec.Hostname
 }
 
+// GetLabels and GetStaticLabels are the same, and that is intentional. GetLabels
+// exists to preserve backwards compatibility, while GetStaticLabels exists to
+// implement ResourcesWithLabels.
+
 // GetLabels returns server's static label key pairs
 func (s *ServerV2) GetLabels() map[string]string {
 	return s.Metadata.Labels
+}
+
+// GetStaticLabels returns the server static labels.
+func (s *ServerV2) GetStaticLabels() map[string]string {
+	return s.Metadata.Labels
+}
+
+// SetStaticLabels sets the server static labels.
+func (s *ServerV2) SetStaticLabels(sl map[string]string) {
+	s.Metadata.Labels = sl
 }
 
 // GetCmdLabels returns command labels
@@ -268,6 +290,16 @@ func (s *ServerV2) GetNamespace() string {
 	return ProcessNamespace(s.Metadata.Namespace)
 }
 
+// GetProxyID returns the proxy id this server is connected to.
+func (s *ServerV2) GetProxyIDs() []string {
+	return s.Spec.ProxyIDs
+}
+
+// SetProxyID sets the proxy ids this server is connected to.
+func (s *ServerV2) SetProxyIDs(proxyIDs []string) {
+	s.Spec.ProxyIDs = proxyIDs
+}
+
 // GetAllLabels returns the full key:value map of both static labels and
 // "command labels"
 func (s *ServerV2) GetAllLabels() map[string]string {
@@ -303,11 +335,23 @@ func CombineLabels(static map[string]string, dynamic map[string]CommandLabelV2) 
 
 // GetKubernetesClusters returns the kubernetes clusters directly handled by this
 // server.
+// DEPRECATED, remove in 12.0.0
 func (s *ServerV2) GetKubernetesClusters() []*KubernetesCluster { return s.Spec.KubernetesClusters }
 
 // SetKubernetesClusters sets the kubernetes clusters handled by this server.
+// DEPRECATED, remove in 12.0.0
 func (s *ServerV2) SetKubernetesClusters(clusters []*KubernetesCluster) {
 	s.Spec.KubernetesClusters = clusters
+}
+
+// GetPeerAddr returns the peer address of the server.
+func (s *ServerV2) GetPeerAddr() string {
+	return s.Spec.PeerAddr
+}
+
+// SetPeerAddr sets the peer address of the server.
+func (s *ServerV2) SetPeerAddr(addr string) {
+	s.Spec.PeerAddr = addr
 }
 
 // MatchAgainst takes a map of labels and returns True if this server

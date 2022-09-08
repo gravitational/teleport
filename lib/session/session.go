@@ -14,25 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package session is used for bookeeping of SSH interactive sessions
+// Package session is used for bookkeeping of SSH interactive sessions
 // that happen in realtime across the teleport cluster
 package session
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/jonboulle/clockwork"
 	"github.com/moby/term"
+
+	"github.com/gravitational/teleport/api/types"
 
 	"github.com/gravitational/trace"
 )
@@ -71,16 +66,11 @@ func NewID() ID {
 	return ID(uuid.New().String())
 }
 
-// DELETE IN: 4.1.0.
-//
-// NewLegacyID creates a new session ID in the UUIDv1 legacy format.
-func NewLegacyID() ID {
-	return ID(uuid.New().String())
-}
-
 // Session is an interactive collaboration session that represents one
-// or many SSH session started by teleport user
+// or many sessions started by the teleport user.
 type Session struct {
+	// Kind describes what kind of session this is e.g. ssh or kubernetes.
+	Kind types.SessionKind `json:"kind"`
 	// ID is a unique session identifier
 	ID ID `json:"id"`
 	// Namespace is a session namespace, separating sessions from each other
@@ -105,6 +95,8 @@ type Session struct {
 	ServerAddr string `json:"server_addr"`
 	// ClusterName is the name of cluster that this session belongs to.
 	ClusterName string `json:"cluster_name"`
+	// KubernetesClusterName is the name of the kube cluster that this session is running in.
+	KubernetesClusterName string `json:"kubernetes_cluster_name"`
 }
 
 // Participants returns the usernames of the current session participants.
@@ -201,292 +193,9 @@ func (p *TerminalParams) Winsize() *term.Winsize {
 	}
 }
 
-// UpdateRequest is a session update request
-type UpdateRequest struct {
-	ID             ID              `json:"id"`
-	Namespace      string          `json:"namespace"`
-	TerminalParams *TerminalParams `json:"terminal_params"`
-
-	// Parties allows to update the list of session parties. nil means
-	// "do not update", empty list means "everybody is gone"
-	Parties *[]Party `json:"parties"`
-}
-
-// Check returns nil if request is valid, error otherwize
-func (u *UpdateRequest) Check() error {
-	if err := u.ID.Check(); err != nil {
-		return trace.Wrap(err)
-	}
-	if u.Namespace == "" {
-		return trace.BadParameter("missing parameter Namespace")
-	}
-	if u.TerminalParams != nil {
-		_, err := NewTerminalParamsFromInt(u.TerminalParams.W, u.TerminalParams.H)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
 // MaxSessionSliceLength is the maximum number of sessions per time window
 // that the backend will return.
 const MaxSessionSliceLength = 1000
-
-// Service is a realtime SSH session service that has information about
-// sessions that are in-flight in the cluster at the moment.
-type Service interface {
-	// GetSessions returns a list of currently active sessions matching
-	// the given condition.
-	GetSessions(namespace string) ([]Session, error)
-
-	// GetSession returns a session with it's parties by ID.
-	GetSession(namespace string, id ID) (*Session, error)
-
-	// CreateSession creates a new active session and it's parameters if term is
-	// skipped, terminal size won't be recorded.
-	CreateSession(sess Session) error
-
-	// UpdateSession updates certain session parameters (last_active, terminal
-	// parameters) other parameters will not be updated.
-	UpdateSession(req UpdateRequest) error
-
-	// DeleteSession removes an active session from the backend.
-	DeleteSession(namespace string, id ID) error
-}
-
-type server struct {
-	bk               backend.Backend
-	activeSessionTTL time.Duration
-	clock            clockwork.Clock
-}
-
-// New returns new session server that uses sqlite to manage
-// active sessions
-func New(bk backend.Backend) (Service, error) {
-	s := &server{
-		bk:    bk,
-		clock: clockwork.NewRealClock(),
-	}
-	if s.activeSessionTTL == 0 {
-		s.activeSessionTTL = defaults.ActiveSessionTTL
-	}
-	return s, nil
-}
-
-func activePrefix(namespace string) []byte {
-	return backend.Key("namespaces", namespace, "sessions", "active")
-}
-
-func activeKey(namespace string, key string) []byte {
-	return backend.Key("namespaces", namespace, "sessions", "active", key)
-}
-
-// GetSessions returns a list of active sessions.
-// Returns an empty slice if no sessions are active
-func (s *server) GetSessions(namespace string) ([]Session, error) {
-	prefix := activePrefix(namespace)
-	result, err := s.bk.GetRange(context.TODO(), prefix, backend.RangeEnd(prefix), MaxSessionSliceLength)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sessions := make(Sessions, len(result.Items))
-	for i, item := range result.Items {
-		if err := json.Unmarshal(item.Value, &sessions[i]); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	sort.Stable(sessions)
-	return sessions, nil
-}
-
-// Sessions type is created over []Session to implement sort.Interface to
-// be able to sort sessions by creation time
-type Sessions []Session
-
-// Swap is part of sort.Interface implementation for []Session
-func (slice Sessions) Swap(i, j int) {
-	s := slice[i]
-	slice[i] = slice[j]
-	slice[j] = s
-}
-
-// Less is part of sort.Interface implementation for []Session
-func (slice Sessions) Less(i, j int) bool {
-	return slice[i].Created.Before(slice[j].Created)
-}
-
-// Len is part of sort.Interface implementation for []Session
-func (slice Sessions) Len() int {
-	return len(slice)
-}
-
-// GetSession returns the session by it's id. Returns NotFound if a session
-// is not found
-func (s *server) GetSession(namespace string, id ID) (*Session, error) {
-	item, err := s.bk.Get(context.TODO(), activeKey(namespace, string(id)))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("session(%v, %v) is not found", namespace, id)
-		}
-		return nil, trace.Wrap(err)
-	}
-	var sess Session
-	if err := json.Unmarshal(item.Value, &sess); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &sess, nil
-}
-
-// CreateSession creates a new session if it does not exist, if the session
-// exists the function will return AlreadyExists error
-// The session will be marked as active for TTL period of time
-func (s *server) CreateSession(sess Session) error {
-	if err := sess.ID.Check(); err != nil {
-		return trace.Wrap(err)
-	}
-	if sess.Namespace == "" {
-		return trace.BadParameter("session namespace can not be empty")
-	}
-	if sess.Login == "" {
-		return trace.BadParameter("session login can not be empty")
-	}
-	if sess.Created.IsZero() {
-		return trace.BadParameter("created can not be empty")
-	}
-	if sess.LastActive.IsZero() {
-		return trace.BadParameter("last_active can not be empty")
-	}
-	_, err := NewTerminalParamsFromInt(sess.TerminalParams.W, sess.TerminalParams.H)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	sess.Parties = nil
-	data, err := json.Marshal(sess)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:     activeKey(sess.Namespace, string(sess.ID)),
-		Value:   data,
-		Expires: s.clock.Now().UTC().Add(s.activeSessionTTL),
-	}
-	_, err = s.bk.Create(context.TODO(), item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-const (
-	sessionUpdateAttempts    = 10
-	sessionUpdateRetryPeriod = 20 * time.Millisecond
-)
-
-// UpdateSession updates session parameters - can mark it as inactive and update it's terminal parameters
-func (s *server) UpdateSession(req UpdateRequest) error {
-	if err := req.Check(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	key := activeKey(req.Namespace, string(req.ID))
-
-	// Try several times, then give up
-	for i := 0; i < sessionUpdateAttempts; i++ {
-		item, err := s.bk.Get(context.TODO(), key)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		var session Session
-		if err := json.Unmarshal(item.Value, &session); err != nil {
-			return trace.Wrap(err)
-		}
-
-		if req.TerminalParams != nil {
-			session.TerminalParams = *req.TerminalParams
-		}
-		if req.Parties != nil {
-			session.Parties = *req.Parties
-		}
-		newValue, err := json.Marshal(session)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		newItem := backend.Item{
-			Key:     key,
-			Value:   newValue,
-			Expires: s.clock.Now().UTC().Add(s.activeSessionTTL),
-		}
-
-		_, err = s.bk.CompareAndSwap(context.TODO(), *item, newItem)
-		if err != nil {
-			if trace.IsCompareFailed(err) || trace.IsConnectionProblem(err) {
-				s.clock.Sleep(sessionUpdateRetryPeriod)
-				continue
-			}
-			return trace.Wrap(err)
-		}
-		return nil
-	}
-	return trace.ConnectionProblem(nil, "failed concurrently update the session")
-}
-
-// DeleteSession removes an active session from the backend.
-func (s *server) DeleteSession(namespace string, id ID) error {
-	if !types.IsValidNamespace(namespace) {
-		return trace.BadParameter("invalid namespace %q", namespace)
-	}
-	err := id.Check()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = s.bk.Delete(context.TODO(), activeKey(namespace, string(id)))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// discardSessionServer discards all information about sessions given to it.
-type discardSessionServer struct {
-}
-
-// NewDiscardSessionServer returns a new discarding session server. It's used
-// with the recording proxy so that nodes don't register active sessions to
-// the backend.
-func NewDiscardSessionServer() Service {
-	return &discardSessionServer{}
-}
-
-// GetSessions returns an empty list of sessions.
-func (d *discardSessionServer) GetSessions(namespace string) ([]Session, error) {
-	return []Session{}, nil
-}
-
-// GetSession always returns a zero session.
-func (d *discardSessionServer) GetSession(namespace string, id ID) (*Session, error) {
-	return &Session{}, nil
-}
-
-// CreateSession always returns nil, does nothing.
-func (d *discardSessionServer) CreateSession(sess Session) error {
-	return nil
-}
-
-// UpdateSession always returns nil, does nothing.
-func (d *discardSessionServer) UpdateSession(req UpdateRequest) error {
-	return nil
-}
-
-// DeleteSession removes an active session from the backend.
-func (d *discardSessionServer) DeleteSession(namespace string, id ID) error {
-	return nil
-}
 
 // NewTerminalParamsFromUint32 returns new terminal parameters from uint32 width and height
 func NewTerminalParamsFromUint32(w uint32, h uint32) (*TerminalParams, error) {

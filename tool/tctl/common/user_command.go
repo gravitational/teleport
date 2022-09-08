@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -46,12 +47,9 @@ type UserCommand struct {
 	allowedDatabaseUsers []string
 	allowedDatabaseNames []string
 	allowedAWSRoleARNs   []string
-	createRoles          []string
+	allowedRoles         []string
 
 	ttl time.Duration
-
-	// updateRoles is used for update users command
-	updateRoles string
 
 	// format is the output format, e.g. text or json
 	format string
@@ -81,7 +79,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 	u.userAdd.Flag("db-names", "List of allowed database names for the new user").StringsVar(&u.allowedDatabaseNames)
 	u.userAdd.Flag("aws-role-arns", "List of allowed AWS role ARNs for the new user").StringsVar(&u.allowedAWSRoleARNs)
 
-	u.userAdd.Flag("roles", "List of roles for the new user to assume").Required().StringsVar(&u.createRoles)
+	u.userAdd.Flag("roles", "List of roles for the new user to assume").Required().StringsVar(&u.allowedRoles)
 
 	u.userAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v, maximum is %v",
 		defaults.SignupTokenTTL, defaults.MaxSignupTokenTTL)).
@@ -92,7 +90,21 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 	u.userUpdate = users.Command("update", "Update user account")
 	u.userUpdate.Arg("account", "Teleport user account name").Required().StringVar(&u.login)
 	u.userUpdate.Flag("set-roles", "List of roles for the user to assume, replaces current roles").
-		Default("").StringVar(&u.updateRoles)
+		StringsVar(&u.allowedRoles)
+	u.userUpdate.Flag("set-logins", "List of allowed SSH logins for the user, replaces current logins").
+		StringsVar(&u.allowedLogins)
+	u.userUpdate.Flag("set-windows-logins", "List of allowed Windows logins for the user, replaces current Windows logins").
+		StringsVar(&u.allowedWindowsLogins)
+	u.userUpdate.Flag("set-kubernetes-users", "List of allowed Kubernetes users for the user, replaces current Kubernetes users").
+		StringsVar(&u.allowedKubeUsers)
+	u.userUpdate.Flag("set-kubernetes-groups", "List of allowed Kubernetes groups for the user, replaces current Kubernetes groups").
+		StringsVar(&u.allowedKubeGroups)
+	u.userUpdate.Flag("set-db-users", "List of allowed database users for the user, replaces current database users").
+		StringsVar(&u.allowedDatabaseUsers)
+	u.userUpdate.Flag("set-db-names", "List of allowed database names for the user, replaces current database names").
+		StringsVar(&u.allowedDatabaseNames)
+	u.userUpdate.Flag("set-aws-role-arns", "List of allowed AWS role ARNs for the user, replaces current AWS role ARNs").
+		StringsVar(&u.allowedAWSRoleARNs)
 
 	u.userList = users.Command("ls", "Lists all user accounts.")
 	u.userList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
@@ -110,18 +122,18 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 }
 
 // TryRun takes the CLI command as an argument (like "users add") and executes it.
-func (u *UserCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
+func (u *UserCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case u.userAdd.FullCommand():
-		err = u.Add(client)
+		err = u.Add(ctx, client)
 	case u.userUpdate.FullCommand():
-		err = u.Update(client)
+		err = u.Update(ctx, client)
 	case u.userList.FullCommand():
-		err = u.List(client)
+		err = u.List(ctx, client)
 	case u.userDelete.FullCommand():
-		err = u.Delete(client)
+		err = u.Delete(ctx, client)
 	case u.userResetPassword.FullCommand():
-		err = u.ResetPassword(client)
+		err = u.ResetPassword(ctx, client)
 	default:
 		return false, nil
 	}
@@ -129,13 +141,13 @@ func (u *UserCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 }
 
 // ResetPassword resets user password and generates a token to setup new password
-func (u *UserCommand) ResetPassword(client auth.ClientI) error {
+func (u *UserCommand) ResetPassword(ctx context.Context, client auth.ClientI) error {
 	req := auth.CreateUserTokenRequest{
 		Name: u.login,
 		TTL:  u.ttl,
 		Type: auth.UserTokenTypeResetPassword,
 	}
-	token, err := client.CreateResetPasswordToken(context.TODO(), req)
+	token, err := client.CreateResetPasswordToken(ctx, req)
 	if err != nil {
 		return err
 	}
@@ -154,7 +166,6 @@ func (u *UserCommand) PrintResetPasswordToken(token types.UserToken, format stri
 		format,
 		"User %q has been reset. Share this URL with the user to complete password reset, link is valid for %v:\n%v\n\n",
 	)
-
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -194,26 +205,26 @@ func (u *UserCommand) printResetPasswordToken(token types.UserToken, format stri
 
 // Add implements `tctl users add` for the enterprise edition. Unlike the OSS
 // version, this one requires --roles flag to be set
-func (u *UserCommand) Add(client auth.ClientI) error {
-	u.createRoles = flattenSlice(u.createRoles)
+func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
+	u.allowedRoles = flattenSlice(u.allowedRoles)
 	u.allowedLogins = flattenSlice(u.allowedLogins)
 	u.allowedWindowsLogins = flattenSlice(u.allowedWindowsLogins)
 
 	// Validate roles (server does not do this yet).
-	for _, roleName := range u.createRoles {
-		if _, err := client.GetRole(context.TODO(), roleName); err != nil {
+	for _, roleName := range u.allowedRoles {
+		if _, err := client.GetRole(ctx, roleName); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
 	traits := map[string][]string{
-		teleport.TraitLogins:        u.allowedLogins,
-		teleport.TraitWindowsLogins: u.allowedWindowsLogins,
-		teleport.TraitKubeUsers:     flattenSlice(u.allowedKubeUsers),
-		teleport.TraitKubeGroups:    flattenSlice(u.allowedKubeGroups),
-		teleport.TraitDBUsers:       flattenSlice(u.allowedDatabaseUsers),
-		teleport.TraitDBNames:       flattenSlice(u.allowedDatabaseNames),
-		teleport.TraitAWSRoleARNs:   flattenSlice(u.allowedAWSRoleARNs),
+		constants.TraitLogins:        u.allowedLogins,
+		constants.TraitWindowsLogins: u.allowedWindowsLogins,
+		constants.TraitKubeUsers:     flattenSlice(u.allowedKubeUsers),
+		constants.TraitKubeGroups:    flattenSlice(u.allowedKubeGroups),
+		constants.TraitDBUsers:       flattenSlice(u.allowedDatabaseUsers),
+		constants.TraitDBNames:       flattenSlice(u.allowedDatabaseNames),
+		constants.TraitAWSRoleARNs:   flattenSlice(u.allowedAWSRoleARNs),
 	}
 
 	user, err := types.NewUser(u.login)
@@ -222,13 +233,13 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 	}
 
 	user.SetTraits(traits)
-	user.SetRoles(u.createRoles)
+	user.SetRoles(u.allowedRoles)
 
-	if err := client.CreateUser(context.TODO(), user); err != nil {
+	if err := client.CreateUser(ctx, user); err != nil {
 		return trace.Wrap(err)
 	}
 
-	token, err := client.CreateResetPasswordToken(context.TODO(), auth.CreateUserTokenRequest{
+	token, err := client.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
 		Name: u.login,
 		TTL:  u.ttl,
 		Type: auth.UserTokenTypeResetPasswordInvite,
@@ -277,27 +288,75 @@ func printTokenAsText(token types.UserToken, messageFormat string) error {
 }
 
 // Update updates existing user
-func (u *UserCommand) Update(client auth.ClientI) error {
+func (u *UserCommand) Update(ctx context.Context, client auth.ClientI) error {
 	user, err := client.GetUser(u.login, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	roles := flattenSlice([]string{u.updateRoles})
-	for _, role := range roles {
-		if _, err := client.GetRole(context.TODO(), role); err != nil {
-			return trace.Wrap(err)
+
+	updateMessages := make(map[string][]string)
+	if len(u.allowedRoles) > 0 {
+		roles := flattenSlice(u.allowedRoles)
+		for _, role := range roles {
+			if _, err := client.GetRole(ctx, role); err != nil {
+				return trace.Wrap(err)
+			}
 		}
+		user.SetRoles(roles)
+		updateMessages["roles"] = roles
 	}
-	user.SetRoles(roles)
+	if len(u.allowedLogins) > 0 {
+		logins := flattenSlice(u.allowedLogins)
+		user.SetLogins(logins)
+		updateMessages["logins"] = logins
+	}
+	if len(u.allowedWindowsLogins) > 0 {
+		windowsLogins := flattenSlice(u.allowedWindowsLogins)
+		user.SetWindowsLogins(windowsLogins)
+		updateMessages["Windows logins"] = windowsLogins
+	}
+	if len(u.allowedKubeUsers) > 0 {
+		kubeUsers := flattenSlice(u.allowedKubeUsers)
+		user.SetKubeUsers(kubeUsers)
+		updateMessages["Kubernetes users"] = kubeUsers
+	}
+	if len(u.allowedKubeGroups) > 0 {
+		kubeGroups := flattenSlice(u.allowedKubeGroups)
+		user.SetKubeGroups(kubeGroups)
+		updateMessages["Kubernetes groups"] = kubeGroups
+	}
+	if len(u.allowedDatabaseUsers) > 0 {
+		dbUsers := flattenSlice(u.allowedDatabaseUsers)
+		user.SetDatabaseUsers(dbUsers)
+		updateMessages["database users"] = dbUsers
+	}
+	if len(u.allowedDatabaseNames) > 0 {
+		dbNames := flattenSlice(u.allowedDatabaseNames)
+		user.SetDatabaseNames(dbNames)
+		updateMessages["database names"] = dbNames
+	}
+	if len(u.allowedAWSRoleARNs) > 0 {
+		awsRoleARNs := flattenSlice(u.allowedAWSRoleARNs)
+		user.SetAWSRoleARNs(awsRoleARNs)
+		updateMessages["AWS role ARNs"] = awsRoleARNs
+	}
+
+	if len(updateMessages) == 0 {
+		return trace.BadParameter("Nothing to update. Please provide at least one --set flag.")
+	}
+
 	if err := client.UpsertUser(user); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("%v has been updated with roles %v\n", user.GetName(), strings.Join(user.GetRoles(), ","))
+	fmt.Printf("User %v has been updated:\n", user.GetName())
+	for field, values := range updateMessages {
+		fmt.Printf("\tNew %v: %v\n", field, strings.Join(values, ","))
+	}
 	return nil
 }
 
 // List prints all existing user accounts
-func (u *UserCommand) List(client auth.ClientI) error {
+func (u *UserCommand) List(ctx context.Context, client auth.ClientI) error {
 	users, err := client.GetUsers(false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -326,9 +385,9 @@ func (u *UserCommand) List(client auth.ClientI) error {
 
 // Delete deletes teleport user(s). User IDs are passed as a comma-separated
 // list in UserCommand.login
-func (u *UserCommand) Delete(client auth.ClientI) error {
+func (u *UserCommand) Delete(ctx context.Context, client auth.ClientI) error {
 	for _, l := range strings.Split(u.login, ",") {
-		if err := client.DeleteUser(context.TODO(), l); err != nil {
+		if err := client.DeleteUser(ctx, l); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("User %q has been deleted\n", l)

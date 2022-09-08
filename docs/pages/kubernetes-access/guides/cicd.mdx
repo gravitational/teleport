@@ -38,16 +38,38 @@ spec:
 
 (!docs/pages/includes/permission-warning.mdx!)
 
-Generate a `kubeconfig` using the `jenkins` user and its roles using [`tctl auth sign`](../../setup/reference/cli.mdx#tctl-auth-sign):
+Generate a `kubeconfig` using the `jenkins` user and its roles using [`tctl auth sign`](../../reference/cli.mdx#tctl-auth-sign):
+
+<ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
+# Log in to your cluster with tsh so you can use tctl from your local machine.
+# You can also run tctl on your Auth Service host without running "tsh login"
+# first.
+$ tsh login --proxy=teleport.example.com --user=myuser
 # Create a new local user for Jenkins
 $ tctl users add jenkins --roles=robot
 # Creates a token for 25hrs
 $ tctl auth sign --user=jenkins --format=kubernetes --out=kubeconfig --ttl=25h
+```
 
-#  The credentials have been written to kubeconfig
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
 
+```code
+# Log in to your Teleport cluster so you can use tctl remotely.
+$ tsh login --proxy=mytenant.teleport.sh --user=myuser
+# Create a new local user for Jenkins
+$ tctl users add jenkins --roles=robot
+# Creates a token for 25hrs
+$ tctl auth sign --user=jenkins --format=kubernetes --out=kubeconfig --ttl=25h
+```
+
+</ScopedBlock>
+
+Verify that these credentials have been written to kubeconfig:
+
+```code
 $ cat kubeconfig
 #   apiVersion: v1
 #   clusters:

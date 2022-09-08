@@ -40,7 +40,7 @@ func GetName() string {
 }
 
 const (
-	// defaultBTreeDegreee is a default degree of a B-Tree
+	// defaultBTreeDegree is a default degree of a B-Tree
 	defaultBTreeDegree = 8
 )
 
@@ -127,7 +127,7 @@ type Memory struct {
 	// cancel is a function that cancels
 	// all operations
 	cancel context.CancelFunc
-	// ctx is a context signalling close
+	// ctx is a context signaling close
 	ctx context.Context
 	buf *backend.CircularBuffer
 }

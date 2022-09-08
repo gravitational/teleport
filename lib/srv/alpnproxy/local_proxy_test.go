@@ -19,15 +19,17 @@ package alpnproxy
 import (
 	"bytes"
 	"context"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -38,9 +40,10 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 	var (
 		firstAWSCred  = credentials.NewStaticCredentials("userID", "firstSecret", "")
 		secondAWSCred = credentials.NewStaticCredentials("userID", "secondSecret", "")
+		thirdAWSCred  = credentials.NewStaticCredentials("userID2", "firstSecret", "")
 
-		awsRegion  = "s3"
-		awsService = "eu-central-1"
+		awsService = "s3"
+		awsRegion  = "eu-central-1"
 	)
 
 	testCases := []struct {
@@ -58,9 +61,15 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 			wantStatus: http.StatusOK,
 		},
 		{
-			name:       "different aws credential",
+			name:       "different aws secret access key",
 			originCred: firstAWSCred,
 			proxyCred:  secondAWSCred,
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name:       "different aws access key ID",
+			originCred: firstAWSCred,
+			proxyCred:  thirdAWSCred,
 			wantStatus: http.StatusForbidden,
 		},
 		{
@@ -86,7 +95,7 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 			require.NoError(t, err)
 
 			if tc.originCred != nil {
-				v4.NewSigner(tc.originCred).Sign(req, pr, awsRegion, awsService, time.Now())
+				v4.NewSigner(tc.originCred).Sign(req, pr, awsService, awsRegion, time.Now())
 			}
 
 			resp, err := http.DefaultClient.Do(req)
@@ -97,17 +106,41 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 	}
 }
 
-func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *LocalProxy {
-	hs := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {}))
-	listener := mustCreateListener(t)
-	t.Cleanup(func() {
-		listener.Close()
+// Verifies s3 requests are signed without URL escaping to match AWS SDKs.
+func TestHandleAWSAccessS3Signing(t *testing.T) {
+	cred := credentials.NewStaticCredentials("access-key", "secret-key", "")
+	lp := createAWSAccessProxySuite(t, cred)
+
+	// Avoid loading extra things.
+	t.Setenv("AWS_SDK_LOAD_CONFIG", "false")
+
+	// Create a real AWS SDK s3 client.
+	awsConfig := aws.NewConfig().
+		WithDisableSSL(true).
+		WithRegion("local").
+		WithCredentials(cred).
+		WithEndpoint(lp.GetAddr()).
+		WithS3ForcePathStyle(true)
+
+	s3client := s3.New(session.Must(session.NewSession(awsConfig)))
+
+	// Use a bucket name with special charaters. AWS SDK actually signs the
+	// request with the unescaped bucket name.
+	_, err := s3client.ListObjects(&s3.ListObjectsInput{
+		Bucket: aws.String("=bucket=name="),
 	})
 
+	// Our signature verification should succeed to match what AWS SDK signs.
+	require.NoError(t, err)
+}
+
+func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *LocalProxy {
+	hs := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {}))
+
 	lp, err := NewLocalProxy(LocalProxyConfig{
-		Listener:           listener,
+		Listener:           mustCreateLocalListener(t),
 		RemoteProxyAddr:    hs.Listener.Addr().String(),
-		Protocol:           common.ProtocolHTTP,
+		Protocols:          []common.Protocol{common.ProtocolHTTP},
 		ParentContext:      context.Background(),
 		InsecureSkipVerify: true,
 		AWSCredentials:     cred,
@@ -116,16 +149,11 @@ func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *Loc
 	t.Cleanup(func() {
 		err := lp.Close()
 		require.NoError(t, err)
+		hs.Close()
 	})
 	go func() {
 		err := lp.StartAWSAccessProxy(context.Background())
 		require.NoError(t, err)
 	}()
 	return lp
-}
-
-func mustCreateListener(t *testing.T) net.Listener {
-	listener, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
-	return listener
 }

@@ -27,9 +27,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/tool/tbot/botfs"
-	"github.com/gravitational/teleport/tool/tbot/config"
-	"github.com/gravitational/teleport/tool/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/botfs"
+	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/trace"
 )
 
@@ -45,9 +45,14 @@ func getInitArtifacts(destination *config.DestinationConfig) (map[string]bool, e
 	// true = directory, false = regular file
 	toCreate := map[string]bool{}
 
+	destImpl, err := destination.GetDestination()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Collect all base artifacts and filter for the destination.
 	for _, artifact := range identity.GetArtifacts() {
-		if artifact.Matches(destination.Kinds...) {
+		if artifact.Matches(identity.DestinationKinds()...) {
 			toCreate[artifact.Key] = false
 		}
 	}
@@ -59,7 +64,7 @@ func getInitArtifacts(destination *config.DestinationConfig) (map[string]bool, e
 			return nil, trace.Wrap(err)
 		}
 
-		for _, file := range template.Describe() {
+		for _, file := range template.Describe(destImpl) {
 			toCreate[file.Name] = file.IsDir
 		}
 	}
@@ -424,9 +429,14 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 
 	log.Infof("Initializing destination: %s", destImpl)
 
+	subdirs, err := destination.ListSubdirectories()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Create the directory if needed. We haven't checked directory ownership,
 	// but it will fail when the ACLs are created if anything is misconfigured.
-	if err := destDir.Init(); err != nil {
+	if err := destDir.Init(subdirs); err != nil {
 		return trace.Wrap(err)
 	}
 

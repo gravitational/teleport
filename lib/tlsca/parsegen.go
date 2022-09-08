@@ -26,11 +26,11 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
+	"net"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/utils"
@@ -58,11 +58,12 @@ func GenerateSelfSignedCAWithSigner(signer crypto.Signer, entity pkix.Name, dnsN
 // GenerateCAConfig defines the configuration for generating
 // self-signed CA certificates
 type GenerateCAConfig struct {
-	Signer   crypto.Signer
-	Entity   pkix.Name
-	DNSNames []string
-	TTL      time.Duration
-	Clock    clockwork.Clock
+	Signer      crypto.Signer
+	Entity      pkix.Name
+	DNSNames    []string
+	IPAddresses []net.IP
+	TTL         time.Duration
+	Clock       clockwork.Clock
 }
 
 // setDefaults imposes defaults on this configuration
@@ -101,6 +102,7 @@ func GenerateSelfSignedCAWithConfig(config GenerateCAConfig) (certPEM []byte, er
 		BasicConstraintsValid: true,
 		IsCA:                  true,
 		DNSNames:              config.DNSNames,
+		IPAddresses:           config.IPAddresses,
 	}
 
 	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, config.Signer.Public(), config.Signer)
@@ -138,15 +140,11 @@ func ParseCertificateRequestPEM(bytes []byte) (*x509.CertificateRequest, error) 
 
 // GenerateCertificateRequestPEM returns PEM-encoded certificate signing
 // request from the provided subject and private key.
-func GenerateCertificateRequestPEM(subject pkix.Name, privateKeyBytes []byte) ([]byte, error) {
-	privateKey, err := ssh.ParseRawPrivateKey(privateKeyBytes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func GenerateCertificateRequestPEM(subject pkix.Name, priv crypto.Signer) ([]byte, error) {
 	csr := &x509.CertificateRequest{
 		Subject: subject,
 	}
-	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, csr, privateKey)
+	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, csr, priv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -245,7 +243,7 @@ func ParsePublicKeyDER(der []byte) (crypto.PublicKey, error) {
 }
 
 // MarshalPublicKeyFromPrivateKeyPEM extracts public key from private key
-// and returns PEM marshalled key
+// and returns PEM marshaled key
 func MarshalPublicKeyFromPrivateKeyPEM(privateKey crypto.PrivateKey) ([]byte, error) {
 	rsaPrivateKey, ok := privateKey.(*rsa.PrivateKey)
 	if !ok {

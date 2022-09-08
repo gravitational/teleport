@@ -18,23 +18,31 @@ package srv
 
 import (
 	"context"
+	"io"
 	"testing"
+	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/pam"
-	restricted "github.com/gravitational/teleport/lib/restrictedsession"
+	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
-	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 )
 
 func TestParseAccessRequestIDs(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		input     string
 		comment   string
@@ -76,104 +84,9 @@ func TestParseAccessRequestIDs(t *testing.T) {
 
 }
 
-type mockServer struct {
-	events.StreamEmitter
-}
-
-// ID is the unique ID of the server.
-func (m *mockServer) ID() string {
-	return "test"
-}
-
-// HostUUID is the UUID of the underlying host. For the forwarding
-// server this is the proxy the forwarding server is running in.
-func (m *mockServer) HostUUID() string {
-	return "test"
-}
-
-// GetNamespace returns the namespace the server was created in.
-func (m *mockServer) GetNamespace() string {
-	return "test"
-}
-
-// AdvertiseAddr is the publicly addressable address of this server.
-func (m *mockServer) AdvertiseAddr() string {
-	return "test"
-}
-
-// Component is the type of server, forwarding or regular.
-func (m *mockServer) Component() string {
-	return teleport.ComponentNode
-}
-
-// PermitUserEnvironment returns if reading environment variables upon
-// startup is allowed.
-func (m *mockServer) PermitUserEnvironment() bool {
-	return false
-}
-
-// GetAccessPoint returns an AccessPoint for this cluster.
-func (m *mockServer) GetAccessPoint() AccessPoint {
-	return nil
-}
-
-// GetSessionServer returns a session server.
-func (m *mockServer) GetSessionServer() rsession.Service {
-	return nil
-}
-
-// GetDataDir returns data directory of the server
-func (m *mockServer) GetDataDir() string {
-	return "test"
-}
-
-// GetPAM returns PAM configuration for this server.
-func (m *mockServer) GetPAM() (*pam.Config, error) {
-	return nil, nil
-}
-
-// GetClock returns a clock setup for the server
-func (m *mockServer) GetClock() clockwork.Clock {
-	return clockwork.NewRealClock()
-}
-
-// GetInfo returns a services.Server that represents this server.
-func (m *mockServer) GetInfo() types.Server {
-	return nil
-}
-
-// UseTunnel used to determine if this node has connected to this cluster
-// using reverse tunnel.
-func (m *mockServer) UseTunnel() bool {
-	return false
-}
-
-// GetBPF returns the BPF service used for enhanced session recording.
-func (m *mockServer) GetBPF() bpf.BPF {
-	return nil
-}
-
-// GetRestrictedSessionManager returns the manager for restricting user activity
-func (m *mockServer) GetRestrictedSessionManager() restricted.Manager {
-	return nil
-}
-
-// Context returns server shutdown context
-func (m *mockServer) Context() context.Context {
-	return context.Background()
-}
-
-// GetUtmpPath returns the path of the user accounting database and log. Returns empty for system defaults.
-func (m *mockServer) GetUtmpPath() (utmp, wtmp string) {
-	return "test", "test"
-}
-
-// GetLockWatcher gets the server's lock watcher.
-func (m *mockServer) GetLockWatcher() *services.LockWatcher {
-	return nil
-}
-
 func TestSession_newRecorder(t *testing.T) {
+	t.Parallel()
+
 	proxyRecording, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: types.RecordAtProxy,
 	})
@@ -211,7 +124,11 @@ func TestSession_newRecorder(t *testing.T) {
 				id:  "test",
 				log: logger,
 				registry: &SessionRegistry{
-					srv: &mockServer{},
+					SessionRegistryConfig: SessionRegistryConfig{
+						Srv: &MockServer{
+							component: teleport.ComponentNode,
+						},
+					},
 				},
 			},
 			sctx: &ServerContext{
@@ -230,7 +147,11 @@ func TestSession_newRecorder(t *testing.T) {
 				id:  "test",
 				log: logger,
 				registry: &SessionRegistry{
-					srv: &mockServer{},
+					SessionRegistryConfig: SessionRegistryConfig{
+						Srv: &MockServer{
+							component: teleport.ComponentNode,
+						},
+					},
 				},
 			},
 			sctx: &ServerContext{
@@ -249,31 +170,103 @@ func TestSession_newRecorder(t *testing.T) {
 				id:  "test",
 				log: logger,
 				registry: &SessionRegistry{
-					srv: &mockServer{},
+					SessionRegistryConfig: SessionRegistryConfig{
+						Srv: &MockServer{
+							component: teleport.ComponentNode,
+						},
+					},
 				},
 			},
 			sctx: &ServerContext{
 				SessionRecordingConfig: nodeRecording,
-				srv:                    &mockServer{},
+				srv: &MockServer{
+					component: teleport.ComponentNode,
+				},
 			},
 			errAssertion: require.Error,
 			recAssertion: require.Nil,
 		},
 		{
-			desc: "err-new-audit-writer-fails",
+			desc: "strict-err-new-audit-writer-fails",
 			sess: &session{
 				id:  "test",
 				log: logger,
 				registry: &SessionRegistry{
-					srv: &mockServer{},
+					SessionRegistryConfig: SessionRegistryConfig{
+						Srv: &MockServer{
+							component: teleport.ComponentNode,
+						},
+					},
 				},
 			},
 			sctx: &ServerContext{
 				SessionRecordingConfig: nodeRecordingSync,
-				srv:                    &mockServer{},
+				srv: &MockServer{
+					component: teleport.ComponentNode,
+				},
+				Identity: IdentityContext{
+					AccessChecker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+						Roles: []string{"dev"},
+					}, "test", services.RoleSet{
+						&types.RoleV5{
+							Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
+							Spec: types.RoleSpecV5{
+								Options: types.RoleOptions{
+									RecordSession: &types.RecordSession{
+										SSH: constants.SessionRecordingModeStrict,
+									},
+								},
+							},
+						},
+					}),
+				},
 			},
 			errAssertion: require.Error,
 			recAssertion: require.Nil,
+		},
+		{
+			desc: "best-effort-err-new-audit-writer-succeeds",
+			sess: &session{
+				id:  "test",
+				log: logger,
+				registry: &SessionRegistry{
+					SessionRegistryConfig: SessionRegistryConfig{
+						Srv: &MockServer{
+							component: teleport.ComponentNode,
+						},
+					},
+				},
+			},
+			sctx: &ServerContext{
+				ClusterName:            "test",
+				SessionRecordingConfig: nodeRecordingSync,
+				srv: &MockServer{
+					component: teleport.ComponentNode,
+				},
+				Identity: IdentityContext{
+					AccessChecker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+						Roles: []string{"dev"},
+					}, "test", services.RoleSet{
+						&types.RoleV5{
+							Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
+							Spec: types.RoleSpecV5{
+								Options: types.RoleOptions{
+									RecordSession: &types.RecordSession{
+										SSH: constants.SessionRecordingModeBestEffort,
+									},
+								},
+							},
+						},
+					}),
+				},
+			},
+			errAssertion: require.NoError,
+			recAssertion: func(t require.TestingT, i interface{}, _ ...interface{}) {
+				require.NotNil(t, i)
+				aw, ok := i.(*events.AuditWriter)
+				require.True(t, ok)
+				require.NoError(t, aw.Close(context.Background()))
+			},
 		},
 		{
 			desc: "audit-writer",
@@ -281,14 +274,18 @@ func TestSession_newRecorder(t *testing.T) {
 				id:  "test",
 				log: logger,
 				registry: &SessionRegistry{
-					srv: &mockServer{},
+					SessionRegistryConfig: SessionRegistryConfig{
+						Srv: &MockServer{
+							component: teleport.ComponentNode,
+						},
+					},
 				},
 			},
 			sctx: &ServerContext{
 				ClusterName:            "test",
 				SessionRecordingConfig: nodeRecordingSync,
-				srv: &mockServer{
-					StreamEmitter: &events.DiscardEmitter{},
+				srv: &MockServer{
+					MockEmitter: &eventstest.MockEmitter{},
 				},
 			},
 			errAssertion: require.NoError,
@@ -308,4 +305,328 @@ func TestSession_newRecorder(t *testing.T) {
 			tt.recAssertion(t, rec)
 		})
 	}
+}
+
+func TestSession_emitAuditEvent(t *testing.T) {
+	t.Parallel()
+
+	logger := logrus.WithFields(logrus.Fields{
+		trace.Component: teleport.ComponentAuth,
+	})
+
+	t.Run("FallbackConcurrency", func(t *testing.T) {
+		srv := NewMockServer(t)
+		reg, err := NewSessionRegistry(SessionRegistryConfig{
+			Srv:                   srv,
+			SessionTrackerService: srv.auth,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { reg.Close() })
+
+		sess := &session{
+			id:       "test",
+			log:      logger,
+			recorder: &mockRecorder{done: true},
+			registry: reg,
+			scx:      NewTestServerContext(t, srv, nil),
+		}
+
+		controlCh := make(chan struct{})
+		emit := func() {
+			<-controlCh
+			sess.emitSessionStartEvent(sess.scx)
+		}
+
+		// Multiple goroutines to emit events.
+		go emit()
+		go emit()
+
+		// Trigger events...
+		close(controlCh)
+
+		// Wait for the events on the new recorder
+		require.Eventually(t, func() bool {
+			return len(srv.Events()) == 2
+		}, 1000*time.Millisecond, 100*time.Millisecond)
+	})
+}
+
+// TestInteractiveSession tests interaction session lifecycles.
+// Multiple sessions are opened in parallel tests to test for
+// deadlocks between session registry, sessions, and parties.
+func TestInteractiveSession(t *testing.T) {
+	srv := NewMockServer(t)
+	srv.component = teleport.ComponentNode
+
+	reg, err := NewSessionRegistry(SessionRegistryConfig{
+		Srv:                   srv,
+		SessionTrackerService: srv.auth,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { reg.Close() })
+
+	t.Run("Stop", func(t *testing.T) {
+		t.Parallel()
+		sess, _ := testOpenSession(t, reg, nil)
+
+		// Stopping the session should trigger the session
+		// to end and cleanup in the background
+		sess.Stop()
+
+		sessionClosed := func() bool {
+			_, found := reg.findSession(sess.id)
+			return !found
+		}
+		require.Eventually(t, sessionClosed, time.Second*15, time.Millisecond*500)
+	})
+}
+
+// TestStopUnstarted tests that a session may be stopped before it launches.
+func TestStopUnstarted(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise, TestFeatures: modules.Features{ModeratedSessions: true}})
+	srv := NewMockServer(t)
+	srv.component = teleport.ComponentNode
+
+	reg, err := NewSessionRegistry(SessionRegistryConfig{
+		Srv:                   srv,
+		SessionTrackerService: srv.auth,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { reg.Close() })
+
+	role, err := types.NewRole("access", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			RequireSessionJoin: []*types.SessionRequirePolicy{{
+				Name:   "foo",
+				Filter: "contains(user.roles, 'auditor')",
+				Kinds:  []string{string(types.SSHSessionKind)},
+				Modes:  []string{string(types.SessionPeerMode)},
+				Count:  999,
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	roles := services.NewRoleSet(role)
+	sess, _ := testOpenSession(t, reg, roles)
+
+	// Stopping the session should trigger the session
+	// to end and cleanup in the background
+	sess.Stop()
+
+	sessionClosed := func() bool {
+		_, found := reg.findSession(sess.id)
+		return !found
+	}
+	require.Eventually(t, sessionClosed, time.Second*15, time.Millisecond*500)
+}
+
+// TestParties tests the party mechanisms within an interactive session,
+// including party leave, party disconnect, and empty session lingerAndDie.
+func TestParties(t *testing.T) {
+	t.Parallel()
+
+	srv := NewMockServer(t)
+	srv.component = teleport.ComponentNode
+
+	// Use a separate clock from srv so we can use BlockUntil.
+	regClock := clockwork.NewFakeClock()
+	reg, err := NewSessionRegistry(SessionRegistryConfig{
+		Srv:                   srv,
+		SessionTrackerService: srv.auth,
+		clock:                 regClock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { reg.Close() })
+
+	// Create a session with 3 parties
+	sess, _ := testOpenSession(t, reg, nil)
+	require.Equal(t, 1, len(sess.getParties()))
+	testJoinSession(t, reg, sess)
+	require.Equal(t, 2, len(sess.getParties()))
+	testJoinSession(t, reg, sess)
+	require.Equal(t, 3, len(sess.getParties()))
+
+	// If a party leaves, the session should remove the party and continue.
+	p := sess.getParties()[0]
+	p.Close()
+
+	partyIsRemoved := func() bool {
+		return len(sess.getParties()) == 2 && !sess.isStopped()
+	}
+	require.Eventually(t, partyIsRemoved, time.Second*5, time.Millisecond*500)
+
+	// If a party's session context is closed, the party should leave the session.
+	p = sess.getParties()[0]
+	err = p.ctx.Close()
+	require.NoError(t, err)
+
+	partyIsRemoved = func() bool {
+		return len(sess.getParties()) == 1 && !sess.isStopped()
+	}
+	require.Eventually(t, partyIsRemoved, time.Second*5, time.Millisecond*500)
+
+	p.closeOnce.Do(func() {
+		t.Fatalf("party should be closed already")
+	})
+
+	// If all parties are gone, the session should linger for a short duration.
+	sess.getParties()[0].Close()
+	require.False(t, sess.isStopped())
+
+	// Wait for session to linger (time.Sleep)
+	regClock.BlockUntil(2)
+
+	// If a party connects to the lingering session, it will continue.
+	testJoinSession(t, reg, sess)
+	require.Equal(t, 1, len(sess.getParties()))
+
+	// andvance clock and give lingerAndDie goroutine a second to complete.
+	regClock.Advance(defaults.SessionIdlePeriod)
+	require.False(t, sess.isStopped())
+
+	// If no parties remain it should be closed after the duration.
+	sess.getParties()[0].Close()
+	require.False(t, sess.isStopped())
+
+	// Wait for session to linger (time.Sleep)
+	regClock.BlockUntil(2)
+
+	// Session should close.
+	regClock.Advance(defaults.SessionIdlePeriod)
+	require.Eventually(t, sess.isStopped, time.Second*5, time.Millisecond*500)
+}
+
+func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
+	scx := NewTestServerContext(t, reg.Srv, nil)
+	scx.setSession(sess)
+
+	// Open a new session
+	sshChanOpen := newMockSSHChannel()
+	go func() {
+		// Consume stdout sent to the channel
+		io.ReadAll(sshChanOpen)
+	}()
+
+	err := reg.OpenSession(context.Background(), sshChanOpen, scx)
+	require.NoError(t, err)
+}
+
+func TestSessionRecordingModes(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		desc                 string
+		sessionRecordingMode constants.SessionRecordingMode
+		expectClosedSession  bool
+	}{
+		{
+			desc:                 "StrictMode",
+			sessionRecordingMode: constants.SessionRecordingModeStrict,
+			expectClosedSession:  true,
+		},
+		{
+			desc:                 "BestEffortMode",
+			sessionRecordingMode: constants.SessionRecordingModeBestEffort,
+			expectClosedSession:  false,
+		},
+	} {
+		t.Run(tt.desc, func(t *testing.T) {
+			srv := NewMockServer(t)
+			srv.component = teleport.ComponentNode
+
+			reg, err := NewSessionRegistry(SessionRegistryConfig{
+				Srv:                   srv,
+				SessionTrackerService: srv.auth,
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { reg.Close() })
+
+			sess, sessCh := testOpenSession(t, reg, services.RoleSet{
+				&types.RoleV5{
+					Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
+					Spec: types.RoleSpecV5{
+						Options: types.RoleOptions{
+							RecordSession: &types.RecordSession{
+								SSH: tt.sessionRecordingMode,
+							},
+						},
+					},
+				},
+			})
+
+			// Write stuff in the session
+			_, err = sessCh.Write([]byte("hello"))
+			require.NoError(t, err)
+
+			// Close the recorder, indicating there is some error.
+			err = sess.Recorder().Complete(context.Background())
+			require.NoError(t, err)
+
+			// Send more writes.
+			_, err = sessCh.Write([]byte("world"))
+			require.NoError(t, err)
+
+			// Ensure the session is stopped.
+			if !tt.expectClosedSession {
+				sess.Stop()
+			}
+
+			// Wait until the session is stopped.
+			require.Eventually(t, sess.isStopped, time.Second*5, time.Millisecond*500)
+
+			// Wait until server receives all non-print events.
+			checkEventsReceived := func() bool {
+				expectedEventTypes := []string{
+					events.SessionStartEvent,
+					events.SessionLeaveEvent,
+					events.SessionEndEvent,
+				}
+
+				emittedEvents := srv.Events()
+				if len(emittedEvents) != len(expectedEventTypes) {
+					return false
+				}
+
+				// Events can appear in different orders. Use a set to track.
+				eventsNotReceived := utils.StringsSet(expectedEventTypes)
+				for _, e := range emittedEvents {
+					delete(eventsNotReceived, e.GetType())
+				}
+				return len(eventsNotReceived) == 0
+			}
+			require.Eventually(t, checkEventsReceived, time.Second*5, time.Millisecond*500, "Some events are not received.")
+		})
+	}
+}
+
+func testOpenSession(t *testing.T, reg *SessionRegistry, roleSet services.RoleSet) (*session, ssh.Channel) {
+	scx := NewTestServerContext(t, reg.Srv, roleSet)
+
+	// Open a new session
+	sshChanOpen := newMockSSHChannel()
+	go func() {
+		// Consume stdout sent to the channel
+		io.ReadAll(sshChanOpen)
+	}()
+
+	err := reg.OpenSession(context.Background(), sshChanOpen, scx)
+	require.NoError(t, err)
+
+	require.NotNil(t, scx.session)
+	return scx.session, sshChanOpen
+}
+
+type mockRecorder struct {
+	events.StreamWriter
+	done bool
+}
+
+func (m *mockRecorder) Done() <-chan struct{} {
+	ch := make(chan struct{})
+	if m.done {
+		close(ch)
+	}
+
+	return ch
 }

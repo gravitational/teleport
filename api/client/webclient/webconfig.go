@@ -72,10 +72,14 @@ type WebConfigAuthSettings struct {
 	Providers []WebConfigAuthProvider `json:"providers,omitempty"`
 	// LocalAuthEnabled is a flag that enables local authentication
 	LocalAuthEnabled bool `json:"localAuthEnabled"`
+	// AllowPasswordless is true if passwordless logins are allowed.
+	AllowPasswordless bool `json:"allowPasswordless,omitempty"`
 	// AuthType is the authentication type.
 	AuthType string `json:"authType"`
 	// PreferredLocalMFA is a server-side hint for clients to pick an MFA method
 	// when various options are available.
 	// It is empty if there is nothing to suggest.
 	PreferredLocalMFA constants.SecondFactorType `json:"preferredLocalMfa,omitempty"`
+	// LocalConnectorName is the name of the local connector.
+	LocalConnectorName string `json:"localConnectorName,omitempty"`
 }

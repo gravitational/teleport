@@ -9,5 +9,8 @@ TELEPORT_INFLUXDB_ADDRESS=${influxdb_addr}
 TELEPORT_PROXY_SERVER_LB=${proxy_server_lb_addr}
 TELEPORT_PROXY_SERVER_NLB_ALIAS=${proxy_server_nlb_alias}
 TELEPORT_S3_BUCKET=${s3_bucket}
+TELEPORT_ENABLE_MONGODB=${enable_mongodb_listener}
+TELEPORT_ENABLE_MYSQL=${enable_mysql_listener}
+TELEPORT_ENABLE_POSTGRES=${enable_postgres_listener}
 USE_ACM=${use_acm}
 EOF

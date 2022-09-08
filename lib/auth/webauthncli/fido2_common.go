@@ -30,16 +30,6 @@ import (
 // FIDO2PollInterval is the poll interval used to check for new FIDO2 devices.
 var FIDO2PollInterval = 200 * time.Millisecond
 
-// LoginPrompt is the user interface for FIDO2Login.
-type LoginPrompt interface {
-	// PromptPIN prompts the user for their PIN.
-	PromptPIN() (string, error)
-	// PromptTouch prompts the user for a security key touch.
-	// In certain situations multiple touches may be required (PIN-protected
-	// devices, passwordless flows, etc).
-	PromptTouch()
-}
-
 // FIDO2Login implements Login for CTAP1 and CTAP2 devices.
 // It must be called with a context with timeout, otherwise it can run
 // indefinitely.
@@ -54,16 +44,6 @@ func FIDO2Login(
 	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
 	return fido2Login(ctx, origin, assertion, prompt, opts)
-}
-
-// RegisterPrompt is the user interface for FIDO2Register.
-type RegisterPrompt interface {
-	// PromptPIN prompts the user for their PIN.
-	PromptPIN() (string, error)
-	// PromptTouch prompts the user for a security key touch.
-	// In certain situations multiple touches may be required (eg, PIN-protected
-	// devices)
-	PromptTouch()
 }
 
 // FIDO2Register implements Register for CTAP1 and CTAP2 devices.

@@ -19,13 +19,14 @@ package web
 import (
 	"net/http"
 
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
 )
 
 // changePasswordReq is a request to change user password
@@ -88,7 +89,7 @@ func (h *Handler) createAuthenticateChallengeWithPassword(w http.ResponseWriter,
 	})
 	if err != nil && trace.IsAccessDenied(err) {
 		// logout in case of access denied
-		logoutErr := h.logout(w, ctx)
+		logoutErr := h.logout(r.Context(), w, ctx)
 		if logoutErr != nil {
 			return nil, trace.Wrap(logoutErr)
 		}

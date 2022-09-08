@@ -15,6 +15,7 @@
 package common
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -30,12 +31,49 @@ import (
 )
 
 // awsDatabaseTypes list of databases supported on the configurator.
-var awsDatabaseTypes = []string{types.DatabaseTypeRDS, types.DatabaseTypeRedshift}
+var awsDatabaseTypes = []string{
+	types.DatabaseTypeRDS,
+	types.DatabaseTypeRedshift,
+	types.DatabaseTypeElastiCache,
+	types.DatabaseTypeMemoryDB,
+}
+
+type installSystemdFlags struct {
+	config.SystemdFlags
+	// output is the destination to write the systemd unit file to.
+	output string
+}
 
 type createDatabaseConfigFlags struct {
 	config.DatabaseSampleFlags
 	// output is the destination to write the configuration to.
 	output string
+}
+
+// CheckAndSetDefaults checks and sets the defaults
+func (flags *installSystemdFlags) CheckAndSetDefaults() error {
+	flags.output = normalizeOutput(flags.output)
+	return nil
+}
+
+// onDumpSystemdUnitFile is the handler of the "install systemd" CLI command.
+func onDumpSystemdUnitFile(flags installSystemdFlags) error {
+	if err := flags.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	buf := new(bytes.Buffer)
+	err := config.WriteSystemdUnitFile(flags.SystemdFlags, buf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = dumpConfigFile(flags.output, buf.String(), "")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // CheckAndSetDefaults checks and sets the defaults
@@ -83,7 +121,7 @@ func onConfigureDatabaseBootstrap(flags configureDatabaseBootstrapFlags) error {
 
 	fmt.Printf("Reading configuration at %q...\n\n", flags.config.ConfigPath)
 	if len(configurators) == 0 {
-		fmt.Println("The agent doesn’t require any extra configuration.")
+		fmt.Println("The agent doesn't require any extra configuration.")
 		return nil
 	}
 
@@ -178,6 +216,12 @@ func buildAWSConfigurator(manual bool, flags configureDatabaseAWSFlags) (dbconfi
 		switch dbType {
 		case types.DatabaseTypeRDS:
 			configuratorFlags.ForceRDSPermissions = true
+		case types.DatabaseTypeRedshift:
+			configuratorFlags.ForceRedshiftPermissions = true
+		case types.DatabaseTypeElastiCache:
+			configuratorFlags.ForceElastiCachePermissions = true
+		case types.DatabaseTypeMemoryDB:
+			configuratorFlags.ForceMemoryDBPermissions = true
 		}
 	}
 
@@ -202,7 +246,7 @@ func onConfigureDatabasesAWSPrint(flags configureDatabaseAWSPrintFlags) error {
 
 	// Check if configurator actions is empty.
 	if configurator.IsEmpty() {
-		fmt.Println("The agent doesn’t require any extra configuration.")
+		fmt.Println("The agent doesn't require any extra configuration.")
 		return nil
 	}
 
@@ -257,7 +301,7 @@ func onConfigureDatabasesAWSCreate(flags configureDatabaseAWSCreateFlags) error 
 
 	// Check if configurator actions is empty.
 	if configurator.IsEmpty() {
-		fmt.Println("The agent doesn’t require any extra configuration.")
+		fmt.Println("The agent doesn't require any extra configuration.")
 		return nil
 	}
 
@@ -281,7 +325,7 @@ func printDBConfiguratorActions(actions []dbconfigurators.ConfiguratorAction) {
 	}
 }
 
-// executeDBConfiguratorActions iterate over all actions, executing and priting
+// executeDBConfiguratorActions iterate over all actions, executing and printing
 // their results.
 func executeDBConfiguratorActions(ctx context.Context, configuratorName string, actions []dbconfigurators.ConfiguratorAction) error {
 	actionContext := &dbconfigurators.ConfiguratorActionContext{}

@@ -19,6 +19,11 @@ import (
 	"crypto/subtle"
 	"net/mail"
 
+	"github.com/gravitational/trace"
+	"github.com/pquerna/otp"
+	"github.com/pquerna/otp/totp"
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -28,10 +33,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/pquerna/otp"
-	"github.com/pquerna/otp/totp"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // This is bcrypt hash for password "barbaz".
@@ -237,7 +238,7 @@ func (s *Server) checkOTP(user string, otpToken string) (*types.MFADevice, error
 			return nil, trace.BadParameter("previously used totp token")
 		}
 
-		devs, err := s.Identity.GetMFADevices(ctx, user, true)
+		devs, err := s.Services.GetMFADevices(ctx, user, true)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -315,9 +316,16 @@ func (s *Server) changeUserAuthentication(ctx context.Context, req *proto.Change
 		return nil, trace.AccessDenied(noLocalAuth)
 	}
 
-	err = services.VerifyPassword(req.GetNewPassword())
-	if err != nil {
-		return nil, trace.Wrap(err)
+	reqPasswordless := len(req.GetNewPassword()) == 0 && authPref.GetAllowPasswordless()
+	switch {
+	case reqPasswordless:
+		if req.GetNewMFARegisterResponse() == nil || req.NewMFARegisterResponse.GetWebauthn() == nil {
+			return nil, trace.BadParameter("passwordless: missing webauthn credentials")
+		}
+	default:
+		if err := services.VerifyPassword(req.GetNewPassword()); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Check if token exists.
@@ -343,10 +351,10 @@ func (s *Server) changeUserAuthentication(ctx context.Context, req *proto.Change
 		return nil, trace.Wrap(err)
 	}
 
-	// Set a new password.
-	err = s.UpsertPassword(username, req.GetNewPassword())
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if !reqPasswordless {
+		if err := s.UpsertPassword(username, req.GetNewPassword()); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	user, err := s.GetUser(username, false)
@@ -380,27 +388,34 @@ func (s *Server) changeUserSecondFactor(ctx context.Context, req *proto.ChangeUs
 		return trace.BadParameter("no second factor sent during user %q password reset", username)
 	}
 
-	// Default device name still used as UI invite/reset
-	// forms does not allow user to enter own device names yet.
+	deviceName := req.GetNewDeviceName()
 	// Using default values here is safe since we don't expect users to have
 	// any devices at this point.
-	var deviceName string
-	switch {
-	case req.GetNewMFARegisterResponse().GetTOTP() != nil:
-		deviceName = "otp"
-	case req.GetNewMFARegisterResponse().GetWebauthn() != nil:
-		deviceName = "webauthn"
-	default:
-		// Fallback to something reasonable while letting verifyMFARespAndAddDevice
-		// worry about the "unknown" response type.
-		deviceName = "mfa"
-		log.Warnf("Unexpected MFA register response type, setting device name to %q: %T", deviceName, req.GetNewMFARegisterResponse().Response)
+	if deviceName == "" {
+		switch {
+		case req.GetNewMFARegisterResponse().GetTOTP() != nil:
+			deviceName = "otp"
+		case req.GetNewMFARegisterResponse().GetWebauthn() != nil:
+			deviceName = "webauthn"
+		default:
+			// Fallback to something reasonable while letting verifyMFARespAndAddDevice
+			// worry about the "unknown" response type.
+			deviceName = "mfa"
+			log.Warnf("Unexpected MFA register response type, setting device name to %q: %T", deviceName, req.GetNewMFARegisterResponse().Response)
+		}
 	}
 
-	_, err = s.verifyMFARespAndAddDevice(ctx, req.GetNewMFARegisterResponse(), &newMFADeviceFields{
+	deviceUsage := proto.DeviceUsage_DEVICE_USAGE_MFA
+	if len(req.GetNewPassword()) == 0 {
+		deviceUsage = proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS
+	}
+
+	_, err = s.verifyMFARespAndAddDevice(ctx, &newMFADeviceFields{
 		username:      token.GetUser(),
 		newDeviceName: deviceName,
 		tokenID:       token.GetName(),
+		deviceResp:    req.GetNewMFARegisterResponse(),
+		deviceUsage:   deviceUsage,
 	})
 	return trace.Wrap(err)
 }

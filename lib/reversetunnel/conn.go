@@ -158,8 +158,8 @@ func (c *remoteConn) markInvalid(err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	atomic.StoreInt32(&c.invalid, 1)
 	c.lastError = err
+	atomic.StoreInt32(&c.invalid, 1)
 	c.log.Debugf("Disconnecting connection to %v %v: %v.", c.clusterName, c.conn.RemoteAddr(), err)
 }
 
@@ -208,6 +208,11 @@ func (c *remoteConn) updateProxies(proxies []types.Server) {
 		// discovery protocol that tolerates conflicting, stale or missing updates
 		c.log.Warnf("Discovery channel overflow at %v.", len(c.newProxiesC))
 	}
+}
+
+func (c *remoteConn) adviseReconnect() error {
+	_, _, err := c.sconn.SendRequest(reconnectRequest, true, nil)
+	return trace.Wrap(err)
 }
 
 // sendDiscoveryRequest sends a discovery request with up to date

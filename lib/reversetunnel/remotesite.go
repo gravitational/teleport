@@ -18,11 +18,15 @@ package reversetunnel
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"sync"
 	"time"
+
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -34,13 +38,9 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 )
 
-// remoteSite is a remote site that established the inbound connecton to
+// remoteSite is a remote site that established the inbound connection to
 // the local reverse tunnel server, and now it can provide access to the
 // cluster behind it.
 type remoteSite struct {
@@ -76,6 +76,9 @@ type remoteSite struct {
 	// remoteAccessPoint provides access to a cached subset of the Auth Server API of
 	// the remote cluster this site belongs to.
 	remoteAccessPoint auth.RemoteProxyAccessPoint
+
+	// nodeWatcher provides access the node set for the remote site
+	nodeWatcher *services.NodeWatcher
 
 	// remoteCA is the last remote certificate authority recorded by the client.
 	// It is used to detect CA rotation status changes. If the rotation
@@ -115,6 +118,7 @@ func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
 			Credentials: []client.Credentials{
 				client.LoadTLS(tlsConfig),
 			},
+			CircuitBreakerConfig: s.srv.CircuitBreakerConfig,
 		})
 		if err != nil {
 			return nil, false, trace.Wrap(err)
@@ -136,6 +140,11 @@ func (s *remoteSite) GetTunnelsCount() int {
 
 func (s *remoteSite) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
 	return s.remoteAccessPoint, nil
+}
+
+// NodeWatcher returns the services.NodeWatcher for the remote cluster.
+func (s *remoteSite) NodeWatcher() (*services.NodeWatcher, error) {
+	return s.nodeWatcher, nil
 }
 
 func (s *remoteSite) GetClient() (auth.ClientI, error) {
@@ -258,6 +267,33 @@ func (s *remoteSite) addConn(conn net.Conn, sconn ssh.Conn) (*remoteConn, error)
 	return rconn, nil
 }
 
+func (s *remoteSite) adviseReconnect(ctx context.Context) {
+	wg := &sync.WaitGroup{}
+
+	s.RLock()
+	for _, conn := range s.connections {
+		s.Debugf("Sending reconnect: %s", conn.nodeID)
+
+		wg.Add(1)
+		go func(conn *remoteConn) {
+			conn.adviseReconnect()
+			wg.Done()
+		}(conn)
+	}
+	s.RUnlock()
+
+	wait := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(wait)
+	}()
+
+	select {
+	case <-ctx.Done():
+	case <-wait:
+	}
+}
+
 func (s *remoteSite) GetStatus() string {
 	connInfo, err := s.getLastConnInfo()
 	if err != nil {
@@ -322,7 +358,7 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 	defer func() {
 		s.Infof("Cluster connection closed.")
 
-		if err := conn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+		if err := conn.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
 			s.WithError(err).Warnf("Failed to close remote connection for remote site %s", s.domainName)
 		}
 
@@ -379,7 +415,7 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 			} else {
 				s.WithFields(log.Fields{"nodeID": conn.nodeID}).Debugf("Ping <- %v", conn.conn.RemoteAddr())
 			}
-			tm := time.Now().UTC()
+			tm := s.clock.Now().UTC()
 			conn.setLastHeartbeat(tm)
 			go s.registerHeartbeat(tm)
 		// Note that time.After is re-created everytime a request is processed.
@@ -419,20 +455,11 @@ func (s *remoteSite) compareAndSwapCertAuthority(ca types.CertAuthority) error {
 	return trace.CompareFailed("remote certificate authority rotation has been updated")
 }
 
-func (s *remoteSite) updateCertAuthorities(retry utils.Retry) {
-	s.Debugf("Watching for cert authority changes.")
+func (s *remoteSite) updateCertAuthorities(retry utils.Retry, remoteWatcher *services.CertAuthorityWatcher, remoteVersion string) {
+	defer remoteWatcher.Close()
 
 	for {
-		startedWaiting := s.clock.Now()
-		select {
-		case t := <-retry.After():
-			s.Debugf("Initiating new cert authority watch after waiting %v.", t.Sub(startedWaiting))
-			retry.Inc()
-		case <-s.ctx.Done():
-			return
-		}
-
-		err := s.watchCertAuthorities()
+		err := s.watchCertAuthorities(remoteWatcher, remoteVersion)
 		if err != nil {
 			switch {
 			case trace.IsNotFound(err):
@@ -448,92 +475,181 @@ func (s *remoteSite) updateCertAuthorities(retry utils.Retry) {
 			}
 		}
 
+		startedWaiting := s.clock.Now()
+		select {
+		case t := <-retry.After():
+			s.Debugf("Initiating new cert authority watch after waiting %v.", t.Sub(startedWaiting))
+			retry.Inc()
+		case <-s.ctx.Done():
+			return
+		}
 	}
 }
 
-func (s *remoteSite) watchCertAuthorities() error {
-	localWatcher, err := services.NewCertAuthorityWatcher(s.ctx, services.CertAuthorityWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentProxy,
-			Log:       s,
-			Clock:     s.clock,
-			Client:    s.localAccessPoint,
-		},
-		WatchCertTypes: []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
-	})
+func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityWatcher, remoteVersion string) error {
+	filter, err := s.getLocalWatchedCerts(remoteVersion)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer localWatcher.Close()
 
-	remoteWatcher, err := services.NewCertAuthorityWatcher(s.ctx, services.CertAuthorityWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentProxy,
-			Log:       s,
-			Clock:     s.clock,
-			Client:    s.remoteAccessPoint,
-		},
-		WatchCertTypes: []types.CertAuthType{types.HostCA},
-	})
+	localWatch, err := s.srv.CertAuthorityWatcher.Subscribe(s.ctx, filter)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer remoteWatcher.Close()
+	defer func() {
+		if err := localWatch.Close(); err != nil {
+			s.WithError(err).Warn("Failed to close local ca watcher subscription.")
+		}
+	}()
 
+	remoteWatch, err := remoteWatcher.Subscribe(
+		s.ctx,
+		types.CertAuthorityFilter{
+			types.HostCA: s.domainName,
+		},
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer func() {
+		if err := remoteWatch.Close(); err != nil {
+			s.WithError(err).Warn("Failed to close remote ca watcher subscription.")
+		}
+	}()
+
+	localCAs := make(map[types.CertAuthType]types.CertAuthority, len(filter))
+	for caType, clusterName := range filter {
+		caID := types.CertAuthID{
+			Type:       caType,
+			DomainName: clusterName,
+		}
+		ca, err := s.localAccessPoint.GetCertAuthority(s.ctx, caID, false)
+		if err != nil {
+			return trace.Wrap(err, "failed to get local cert authority")
+		}
+		if err := s.remoteClient.RotateExternalCertAuthority(s.ctx, ca); err != nil {
+			return trace.Wrap(err, "failed to push local cert authority")
+		}
+		s.Debugf("Pushed local cert authority %v", caID.String())
+		localCAs[caType] = ca
+	}
+
+	remoteCA, err := s.remoteAccessPoint.GetCertAuthority(s.ctx, types.CertAuthID{
+		Type:       types.HostCA,
+		DomainName: s.domainName,
+	}, false)
+	if err != nil {
+		return trace.Wrap(err, "failed to get remote cert authority")
+	}
+	if remoteCA.GetName() != s.domainName || remoteCA.GetType() != types.HostCA {
+		return trace.BadParameter("received wrong CA, expected remote host CA, got %v", remoteCA.GetID())
+	}
+
+	maybeUpsertRemoteCA := func(remoteCA types.CertAuthority) error {
+		oldRemoteCA, err := s.localAccessPoint.GetCertAuthority(s.ctx, types.CertAuthID{
+			Type:       types.HostCA,
+			DomainName: remoteCA.GetClusterName(),
+		}, false)
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+
+		// if CA is changed or does not exist, update backend
+		if err != nil || !services.CertAuthoritiesEquivalent(oldRemoteCA, remoteCA) {
+			s.Debugf("Ingesting remote cert authority %v", remoteCA.GetID())
+			if err := s.localClient.UpsertCertAuthority(remoteCA); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		// keep track of when the remoteSite needs to reconnect
+		if err := s.compareAndSwapCertAuthority(remoteCA); err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	}
+
+	if err := maybeUpsertRemoteCA(remoteCA); err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.Debugf("Watching for cert authority changes.")
 	for {
 		select {
 		case <-s.ctx.Done():
 			s.WithError(s.ctx.Err()).Debug("Context is closing.")
 			return trace.Wrap(s.ctx.Err())
-		case <-localWatcher.Done():
+		case <-localWatch.Done():
 			s.Warn("Local CertAuthority watcher subscription has closed")
 			return fmt.Errorf("local ca watcher for cluster %s has closed", s.srv.ClusterName)
-		case <-remoteWatcher.Done():
+		case <-remoteWatch.Done():
 			s.Warn("Remote CertAuthority watcher subscription has closed")
 			return fmt.Errorf("remote ca watcher for cluster %s has closed", s.domainName)
-		case cas := <-localWatcher.CertAuthorityC:
-			for _, localCA := range cas {
-				if localCA.GetClusterName() != s.srv.ClusterName ||
-					(localCA.GetType() != types.HostCA &&
-						localCA.GetType() != types.UserCA && localCA.GetType() != types.DatabaseCA) {
+		case evt := <-localWatch.Events():
+			switch evt.Type {
+			case types.OpPut:
+				newCA, ok := evt.Resource.(types.CertAuthority)
+				if !ok {
 					continue
 				}
 
-				if err := s.remoteClient.RotateExternalCertAuthority(s.ctx, localCA); err != nil {
-					s.WithError(err).Warn("Failed to rotate external ca")
+				previousCA, ok := localCAs[newCA.GetType()]
+				if ok && services.CertAuthoritiesEquivalent(previousCA, newCA) {
+					continue
+				}
+
+				// clone to prevent a race with watcher filtering, as
+				// RotateExternalCertAuthority (client side) will end up calling
+				// CheckAndSetDefaults
+				// TODO(espadolini): figure out who should be responsible for validating the CA *once*
+				newCA = newCA.Clone()
+				if err := s.remoteClient.RotateExternalCertAuthority(s.ctx, newCA); err != nil {
+					log.WithError(err).Warn("Failed to rotate external ca")
 					return trace.Wrap(err)
 				}
+
+				localCAs[newCA.GetType()] = newCA
 			}
-		case cas := <-remoteWatcher.CertAuthorityC:
-			for _, remoteCA := range cas {
-				if remoteCA.GetType() != types.HostCA ||
-					remoteCA.GetClusterName() != s.domainName {
+		case evt := <-remoteWatch.Events():
+			switch evt.Type {
+			case types.OpPut:
+				remoteCA, ok := evt.Resource.(types.CertAuthority)
+				if !ok {
 					continue
 				}
 
-				oldRemoteCA, err := s.localClient.GetCertAuthority(s.ctx, types.CertAuthID{
-					Type:       types.HostCA,
-					DomainName: remoteCA.GetClusterName(),
-				}, false)
-
-				if err != nil && !trace.IsNotFound(err) {
-					return trace.Wrap(err)
-				}
-
-				// if CA is changed or does not exist, update backend
-				if err != nil || !services.CertAuthoritiesEquivalent(oldRemoteCA, remoteCA) {
-					if err := s.localClient.UpsertCertAuthority(remoteCA); err != nil {
-						return trace.Wrap(err)
-					}
-				}
-
-				// always update our local reference to the cert authority
-				if err := s.compareAndSwapCertAuthority(remoteCA); err != nil {
+				// the CA might not be trusted but the watcher's fanout logic is
+				// local, so this is ok
+				if err := maybeUpsertRemoteCA(remoteCA); err != nil {
 					return trace.Wrap(err)
 				}
 			}
 		}
 	}
+}
+
+// getLocalWatchedCerts returns local certificates types that should be watched by the cert authority watcher.
+func (s *remoteSite) getLocalWatchedCerts(remoteClusterVersion string) (types.CertAuthorityFilter, error) {
+	// Delete in 11.0.
+	ver10orAbove, err := utils.MinVerWithoutPreRelease(remoteClusterVersion, constants.DatabaseCAMinVersion)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !ver10orAbove {
+		s.Debugf("Connected to remote cluster of version %s. Database CA won't be propagated.", remoteClusterVersion)
+		return types.CertAuthorityFilter{
+			types.HostCA: s.srv.ClusterName,
+			types.UserCA: s.srv.ClusterName,
+		}, nil
+	}
+
+	return types.CertAuthorityFilter{
+		types.HostCA:     s.srv.ClusterName,
+		types.UserCA:     s.srv.ClusterName,
+		types.DatabaseCA: s.srv.ClusterName,
+	}, nil
 }
 
 func (s *remoteSite) updateLocks(retry utils.Retry) {
@@ -687,6 +803,9 @@ func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
 		Emitter:         s.srv.Config.Emitter,
 		ParentContext:   s.srv.Context,
 		LockWatcher:     s.srv.LockWatcher,
+		TargetID:        params.ServerID,
+		TargetAddr:      params.To.String(),
+		TargetHostname:  params.Address,
 	}
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {
@@ -728,7 +847,6 @@ func UseTunnel(logger *log.Logger, c *sshutils.ChConn) bool {
 }
 
 func (s *remoteSite) connThroughTunnel(req *sshutils.DialReq) (*sshutils.ChConn, error) {
-
 	s.Debugf("Requesting connection to %v [%v] in remote cluster.",
 		req.Address, req.ServerID)
 

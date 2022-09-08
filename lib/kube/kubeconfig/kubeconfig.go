@@ -154,20 +154,26 @@ func Update(path string, v Values) error {
 		//
 		// Validate the provided credentials, to avoid partially-populated
 		// kubeconfig.
-		if len(v.Credentials.Priv) == 0 {
-			return trace.BadParameter("private key missing in provided credentials")
-		}
-		if len(v.Credentials.TLSCert) == 0 {
-			return trace.BadParameter("TLS certificate missing in provided credentials")
-		}
 
-		config.AuthInfos[v.TeleportClusterName] = &clientcmdapi.AuthInfo{
-			ClientCertificateData: v.Credentials.TLSCert,
-			ClientKeyData:         v.Credentials.Priv,
-		}
+		// TODO (Joerger): Create a custom k8s Auth Provider or Exec Provider to use non-rsa
+		// private keys for kube credentials (if possible)
+		rsaKeyPEM, err := v.Credentials.PrivateKey.RSAPrivateKeyPEM()
+		if err == nil {
+			if len(v.Credentials.TLSCert) == 0 {
+				return trace.BadParameter("TLS certificate missing in provided credentials")
+			}
 
-		setContext(config.Contexts, v.TeleportClusterName, v.TeleportClusterName, v.TeleportClusterName)
-		config.CurrentContext = v.TeleportClusterName
+			config.AuthInfos[v.TeleportClusterName] = &clientcmdapi.AuthInfo{
+				ClientCertificateData: v.Credentials.TLSCert,
+				ClientKeyData:         rsaKeyPEM,
+			}
+
+			setContext(config.Contexts, v.TeleportClusterName, v.TeleportClusterName, v.TeleportClusterName)
+			config.CurrentContext = v.TeleportClusterName
+		} else if !trace.IsBadParameter(err) {
+			return trace.Wrap(err)
+		}
+		log.WithError(err).Warn("Kubernetes integration is not supported when logging in with a non-rsa private key.")
 	}
 
 	return Save(path, *config)

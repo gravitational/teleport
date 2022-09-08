@@ -19,15 +19,14 @@ package labels
 import (
 	"context"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/stretchr/testify/require"
 
 	"github.com/google/uuid"
-	"gopkg.in/check.v1"
 )
 
 func TestMain(m *testing.M) {
@@ -35,14 +34,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-type LabelSuite struct {
-}
-
-var _ = check.Suite(&LabelSuite{})
-
-func TestLabels(t *testing.T) { check.TestingT(t) }
-
-func (s *LabelSuite) TestSync(c *check.C) {
+func TestSync(t *testing.T) {
 	// Create dynamic labels and sync right away.
 	l, err := NewDynamic(context.Background(), &DynamicConfig{
 		Labels: map[string]types.CommandLabel{
@@ -52,14 +44,14 @@ func (s *LabelSuite) TestSync(c *check.C) {
 			},
 		},
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	l.Sync()
 
 	// Check that the result contains the output of the command.
-	c.Assert(l.Get()["foo"].GetResult(), check.Equals, "4")
+	require.Equal(t, "4", l.Get()["foo"].GetResult())
 }
 
-func (s *LabelSuite) TestStart(c *check.C) {
+func TestStart(t *testing.T) {
 	// Create dynamic labels and setup async update.
 	l, err := NewDynamic(context.Background(), &DynamicConfig{
 		Labels: map[string]types.CommandLabel{
@@ -69,24 +61,18 @@ func (s *LabelSuite) TestStart(c *check.C) {
 			},
 		},
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	l.Start()
 
-	// Wait a maximum of 5 seconds for dynamic labels to be updated.
-	select {
-	case <-time.Tick(50 * time.Millisecond):
+	require.Eventually(t, func() bool {
 		val, ok := l.Get()["foo"]
-		c.Assert(ok, check.Equals, true)
-		if val.GetResult() == "4" {
-			break
-		}
-	case <-time.After(5 * time.Second):
-		c.Fatalf("Timed out waiting for label to be updated.")
-	}
+		require.True(t, ok)
+		return val.GetResult() == "4"
+	}, 5*time.Second, 50*time.Millisecond)
 }
 
 // TestInvalidCommand makes sure that invalid commands return a error message.
-func (s *LabelSuite) TestInvalidCommand(c *check.C) {
+func TestInvalidCommand(t *testing.T) {
 	// Create invalid labels and sync right away.
 	l, err := NewDynamic(context.Background(), &DynamicConfig{
 		Labels: map[string]types.CommandLabel{
@@ -95,11 +81,11 @@ func (s *LabelSuite) TestInvalidCommand(c *check.C) {
 				Command: []string{uuid.New().String()}},
 		},
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	l.Sync()
 
 	// Check that the output contains that the command was not found.
 	val, ok := l.Get()["foo"]
-	c.Assert(ok, check.Equals, true)
-	c.Assert(strings.Contains(val.GetResult(), "output:"), check.Equals, true)
+	require.True(t, ok)
+	require.Contains(t, val.GetResult(), "output:")
 }

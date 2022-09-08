@@ -18,16 +18,13 @@ package events
 
 import (
 	"compress/gzip"
-	"encoding/json"
 	"fmt"
 	"io"
 	"path/filepath"
 	"sync"
-	"time"
 
 	"github.com/gravitational/teleport/lib/session"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 )
 
@@ -42,24 +39,6 @@ const (
 	chunksSuffix = "chunks.gz"
 )
 
-// sessionLogger is an interface that all session loggers must implement.
-type SessionLogger interface {
-	// LogEvent logs events associated with this session.
-	LogEvent(fields EventFields) error
-
-	// Close is called when clients close on the requested "session writer".
-	// We ignore their requests because this writer (file) should be closed only
-	// when the session logger is closed.
-	Close() error
-
-	// Finalize is called by the session when it's closing. This is where we're
-	// releasing audit resources associated with the session
-	Finalize() error
-
-	// PostSessionSlice posts session slice
-	PostSessionSlice(slice SessionSlice) error
-}
-
 // eventsFileName consists of session id and the first global event index
 // recorded. Optionally for enhanced session recording events, the event type.
 func eventsFileName(dataDir string, sessionID session.ID, eventType string, eventIndex int64) string {
@@ -72,24 +51,6 @@ func eventsFileName(dataDir string, sessionID session.ID, eventType string, even
 // chunksFileName consists of session id and the first global offset recorded
 func chunksFileName(dataDir string, sessionID session.ID, offset int64) string {
 	return filepath.Join(dataDir, fmt.Sprintf("%v-%v.%v", sessionID.String(), offset, chunksSuffix))
-}
-
-// EventFromChunk returns event converted from session chunk
-func EventFromChunk(sessionID string, chunk *SessionChunk) (EventFields, error) {
-	var fields EventFields
-	eventStart := time.Unix(0, chunk.Time).In(time.UTC).Round(time.Millisecond)
-	err := json.Unmarshal(chunk.Data, &fields)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	fields[SessionEventID] = sessionID
-	fields[EventIndex] = chunk.EventIndex
-	fields[EventTime] = eventStart
-	fields[EventType] = chunk.EventType
-	if fields[EventID] == "" {
-		fields[EventID] = uuid.New().String()
-	}
-	return fields, nil
 }
 
 type indexEntry struct {

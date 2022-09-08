@@ -1,0 +1,17 @@
+version: v1
+lint:
+  use:
+    - DEFAULT
+    - PACKAGE_NO_IMPORT_CYCLE
+    # Top-level types require comments.
+    - COMMENT_ENUM
+    - COMMENT_MESSAGE
+    - COMMENT_RPC
+    - COMMENT_SERVICE
+  ignore:
+    # "legacy" lib protos.
+    - teleport/lib/multiplexer/test/ping.proto
+    - teleport/lib/web/envelope.proto
+breaking:
+  use:
+    - FILE

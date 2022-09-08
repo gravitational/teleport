@@ -30,6 +30,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/duo-labs/webauthn/protocol"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -43,6 +44,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 )
 
 const (
@@ -212,13 +214,34 @@ type SSHLoginMFA struct {
 	SSHLogin
 	// User is the login username.
 	User string
-	// User is the login password.
+	// Password is the login password.
 	Password string
-	// UseStrongestAuth instructs the MFA prompt to use the strongest
-	// authentication method supported by the cluster.
-	// Apart from the obvious benefits, UseStrongestAuth also avoids stdin
-	// hijacking issues from MFA prompts, as a single auth method is used.
-	UseStrongestAuth bool
+
+	// AllowStdinHijack allows stdin hijack during MFA prompts.
+	// Do not set this options unless you deeply understand what you are doing.
+	AllowStdinHijack bool
+	// AuthenticatorAttachment is the authenticator attachment for MFA prompts.
+	AuthenticatorAttachment wancli.AuthenticatorAttachment
+	// PreferOTP prefers OTP in favor of other MFA methods.
+	PreferOTP bool
+}
+
+// SSHLoginPasswordless contains SSH login parameters for passwordless login.
+type SSHLoginPasswordless struct {
+	SSHLogin
+
+	// StderrOverride will override the default os.Stderr if provided.
+	StderrOverride io.Writer
+
+	// User is the login username.
+	User string
+
+	// AuthenticatorAttachment is the authenticator attachment for passwordless prompts.
+	AuthenticatorAttachment wancli.AuthenticatorAttachment
+
+	// CustomPrompt defines a custom webauthn login prompt.
+	// It's an optional field that when nil, it will use the wancli.DefaultPrompt.
+	CustomPrompt wancli.LoginPrompt
 }
 
 // initClient creates a new client to the HTTPS web proxy.
@@ -262,8 +285,8 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool) (*WebClien
 }
 
 // SSHAgentSSOLogin is used by tsh to fetch user credentials using OpenID Connect (OIDC) or SAML.
-func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO) (*auth.SSHLoginResponse, error) {
-	rd, err := NewRedirector(ctx, login)
+func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *RedirectorConfig) (*auth.SSHLoginResponse, error) {
+	rd, err := NewRedirector(ctx, login, config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -326,7 +349,7 @@ func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO) (*auth.SSHLoginRes
 		return nil, trace.Wrap(trace.Errorf("timed out waiting for callback"))
 	case <-rd.Done():
 		log.Debugf("Canceled by user.")
-		return nil, trace.Wrap(ctx.Err(), "cancelled by user")
+		return nil, trace.Wrap(ctx.Err(), "canceled by user")
 	}
 }
 
@@ -358,6 +381,77 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginRes
 	}
 
 	return out, nil
+}
+
+// SSHAgentPasswordlessLogin requests a passwordless MFA challenge via the proxy.
+// weblogin.CustomPrompt (or a default prompt) is used for interaction with the
+// end user.
+//
+// Returns the SSH certificate if authn is successful or an error.
+func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) (*auth.SSHLoginResponse, error) {
+	webClient, webURL, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	challengeJSON, err := webClient.PostJSON(
+		ctx, webClient.Endpoint("webapi", "mfa", "login", "begin"),
+		&MFAChallengeRequest{
+			Passwordless: true,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	challenge := &MFAAuthenticateChallenge{}
+	if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Sanity check WebAuthn challenge.
+	switch {
+	case challenge.WebauthnChallenge == nil:
+		return nil, trace.BadParameter("passwordless: webauthn challenge missing")
+	case challenge.WebauthnChallenge.Response.UserVerification == protocol.VerificationDiscouraged:
+		return nil, trace.BadParameter("passwordless: user verification requirement too lax (%v)", challenge.WebauthnChallenge.Response.UserVerification)
+	}
+
+	stderr := login.StderrOverride
+	if stderr == nil {
+		stderr = os.Stderr
+	}
+
+	prompt := login.CustomPrompt
+	if prompt == nil {
+		prompt = wancli.NewDefaultPrompt(ctx, stderr)
+	}
+
+	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), challenge.WebauthnChallenge, prompt, &wancli.LoginOpts{
+		User:                    login.User,
+		AuthenticatorAttachment: login.AuthenticatorAttachment,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	loginRespJSON, err := webClient.PostJSON(
+		ctx, webClient.Endpoint("webapi", "mfa", "login", "finish"),
+		&AuthenticateSSHUserRequest{
+			User:                      "", // User carried on WebAuthn assertion.
+			WebauthnChallengeResponse: wanlib.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()),
+			PubKey:                    login.PubKey,
+			TTL:                       login.TTL,
+			Compatibility:             login.Compatibility,
+			RouteToCluster:            login.RouteToCluster,
+			KubernetesCluster:         login.KubernetesCluster,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	loginResp := &auth.SSHLoginResponse{}
+	if err := json.Unmarshal(loginRespJSON.Bytes(), loginResp); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return loginResp, nil
 }
 
 // SSHAgentMFALogin requests a MFA challenge via the proxy.
@@ -394,7 +488,9 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 	}
 
 	respPB, err := PromptMFAChallenge(ctx, challengePB, login.ProxyAddr, &PromptMFAChallengeOpts{
-		UseStrongestAuth: login.UseStrongestAuth,
+		AllowStdinHijack:        login.AllowStdinHijack,
+		AuthenticatorAttachment: login.AuthenticatorAttachment,
+		PreferOTP:               login.PreferOTP,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

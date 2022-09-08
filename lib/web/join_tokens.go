@@ -31,13 +31,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/scripts"
+	"github.com/gravitational/teleport/lib/web/ui"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -51,6 +55,8 @@ type nodeJoinToken struct {
 	Expiry time.Time `json:"expiry,omitempty"`
 	// Method is the join method that the token supports
 	Method types.JoinMethod `json:"method"`
+	// SuggestedLabels contains the set of labels we expect the node to set when using this token
+	SuggestedLabels []ui.Label `json:"suggestedLabels,omitempty"`
 }
 
 // scriptSettings is used to hold values which are passed into the function that
@@ -114,20 +120,44 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 		expires = time.Now().UTC().Add(defaults.NodeJoinTokenTTL)
 	}
 
+	// If using the automatic method to add a Node, the `install.sh` will add the token's suggested labels
+	//   as part of the initial Labels configuration for that Node
+	// Script install-node.sh:
+	//   ...
+	//   $ teleport configure ... --labels <suggested_label=value>,<suggested_label=value> ...
+	//   ...
+	//
+	// We create an ID and return it as part of the Token, so the UI can use this ID to query the Node that joined using this token
+	// WebUI can then query the resources by this id and answer the question:
+	//   - Which Node joined the cluster from this token Y?
+	req.SuggestedLabels = types.Labels{
+		types.InternalResourceIDLabel: apiutils.Strings{uuid.NewString()},
+	}
+
 	provisionToken, err := types.NewProvisionTokenFromSpec(tokenName, expires, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err = clt.UpsertToken(r.Context(), provisionToken)
+	err = clt.CreateToken(r.Context(), provisionToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	suggestedLabels := make([]ui.Label, 0, len(req.SuggestedLabels))
+
+	for labelKey, labelValues := range req.SuggestedLabels {
+		suggestedLabels = append(suggestedLabels, ui.Label{
+			Name:  labelKey,
+			Value: strings.Join(labelValues, " "),
+		})
+	}
+
 	return &nodeJoinToken{
-		ID:     tokenName,
-		Expiry: expires,
-		Method: provisionToken.GetJoinMethod(),
+		ID:              tokenName,
+		Expiry:          expires,
+		Method:          provisionToken.GetJoinMethod(),
+		SuggestedLabels: suggestedLabels,
 	}, nil
 }
 
@@ -154,7 +184,7 @@ func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request
 		joinMethod:     r.URL.Query().Get("method"),
 	}
 
-	script, err := getJoinScript(settings, h.GetProxyClient())
+	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
 	if err != nil {
 		log.WithError(err).Info("Failed to return the node install script.")
 		w.Write(scripts.ErrorBashScript)
@@ -195,7 +225,7 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 		appURI:         uri,
 	}
 
-	script, err := getJoinScript(settings, h.GetProxyClient())
+	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
 	if err != nil {
 		log.WithError(err).Info("Failed to return the app install script.")
 		w.Write(scripts.ErrorBashScript)
@@ -212,9 +242,9 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 }
 
 func createJoinToken(ctx context.Context, m nodeAPIGetter, roles types.SystemRoles) (*nodeJoinToken, error) {
-	req := auth.GenerateTokenRequest{
+	req := &proto.GenerateTokenRequest{
 		Roles: roles,
-		TTL:   defaults.NodeJoinTokenTTL,
+		TTL:   proto.Duration(defaults.NodeJoinTokenTTL),
 	}
 
 	token, err := m.GenerateToken(ctx, req)
@@ -228,21 +258,27 @@ func createJoinToken(ctx context.Context, m nodeAPIGetter, roles types.SystemRol
 	}, nil
 }
 
-func getJoinScript(settings scriptSettings, m nodeAPIGetter) (string, error) {
-	// Skip decoding validation for IAM tokens since they are generated with a different method
-	if settings.joinMethod != string(types.JoinMethodIAM) {
-		// This token does not need to be validated against the backend because it's not used to
-		// reveal any sensitive information. However, we still need to perform a simple input
-		// validation check by verifying that the token was auto-generated.
-		// Auto-generated tokens must be encoded and must have an expected length.
+func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter) (string, error) {
+	switch types.JoinMethod(settings.joinMethod) {
+	case types.JoinMethodUnspecified, types.JoinMethodToken:
 		decodedToken, err := hex.DecodeString(settings.token)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
-
 		if len(decodedToken) != auth.TokenLenBytes {
-			return "", trace.BadParameter("invalid token length")
+			return "", trace.BadParameter("invalid token %q", decodedToken)
 		}
+
+	case types.JoinMethodIAM:
+	default:
+		return "", trace.BadParameter("join method %q is not supported via script", settings.joinMethod)
+	}
+
+	// The provided token can be attacker controlled, so we must validate
+	// it with the backend before using it to generate the script.
+	token, err := m.GetToken(ctx, settings.token)
+	if err != nil {
+		return "", trace.BadParameter("invalid token")
 	}
 
 	// Get hostname and port from proxy server address.
@@ -262,7 +298,7 @@ func getJoinScript(settings scriptSettings, m nodeAPIGetter) (string, error) {
 	}
 
 	// Get the CA pin hashes of the cluster to join.
-	localCAResponse, err := m.GetClusterCACert()
+	localCAResponse, err := m.GetClusterCACert(context.TODO())
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -271,12 +307,18 @@ func getJoinScript(settings scriptSettings, m nodeAPIGetter) (string, error) {
 		return "", trace.Wrap(err)
 	}
 
+	labelsList := []string{}
+	for labelKey, labelValues := range token.GetSuggestedLabels() {
+		labels := strings.Join(labelValues, " ")
+		labelsList = append(labelsList, fmt.Sprintf("%s=%s", labelKey, labels))
+	}
+
 	var buf bytes.Buffer
 	// If app install mode is requested but parameters are blank for some reason,
 	// we need to return an error.
-	if settings.appInstallMode == true {
+	if settings.appInstallMode {
 		if errs := validation.IsDNS1035Label(settings.appName); len(errs) > 0 {
-			return "", trace.BadParameter("appName %q must be a valid DNS subdomain: https://gravitational.com/teleport/docs/application-access/#application-name", settings.appName)
+			return "", trace.BadParameter("appName %q must be a valid DNS subdomain: https://goteleport.com/docs/application-access/guides/connecting-apps/#application-name", settings.appName)
 		}
 		if !appURIPattern.MatchString(settings.appURI) {
 			return "", trace.BadParameter("appURI %q contains invalid characters", settings.appURI)
@@ -285,15 +327,22 @@ func getJoinScript(settings scriptSettings, m nodeAPIGetter) (string, error) {
 	// This section relies on Go's default zero values to make sure that the settings
 	// are correct when not installing an app.
 	err = scripts.InstallNodeBashScript.Execute(&buf, map[string]string{
-		"token":          settings.token,
-		"hostname":       hostname,
-		"port":           portStr,
-		"caPins":         strings.Join(caPins, " "),
+		"token":    settings.token,
+		"hostname": hostname,
+		"port":     portStr,
+		// The install.sh script has some manually generated configs and some
+		// generated by the `teleport <service> config` commands. The old bash
+		// version used space delimited values whereas the teleport command uses
+		// a comma delimeter. The Old version can be removed when the install.sh
+		// file has been completely converted over.
+		"caPinsOld":      strings.Join(caPins, " "),
+		"caPins":         strings.Join(caPins, ","),
 		"version":        version,
 		"appInstallMode": strconv.FormatBool(settings.appInstallMode),
 		"appName":        settings.appName,
 		"appURI":         settings.appURI,
 		"joinMethod":     settings.joinMethod,
+		"labels":         strings.Join(labelsList, ","),
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -346,18 +395,20 @@ func isSameRuleSet(r1 []*types.TokenRule, r2 []*types.TokenRule) bool {
 }
 
 type nodeAPIGetter interface {
-	// GenerateToken creates a special provisioning token for a new SSH server
-	// that is valid for ttl period seconds.
+	// GenerateToken creates a special provisioning token for a new SSH server.
 	//
 	// This token is used by SSH server to authenticate with Auth server
-	// and get signed certificate and private key from the auth server.
+	// and get a signed certificate.
 	//
 	// If token is not supplied, it will be auto generated and returned.
 	// If TTL is not supplied, token will be valid until removed.
-	GenerateToken(ctx context.Context, req auth.GenerateTokenRequest) (string, error)
+	GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error)
+
+	// GetToken looks up a provisioning token.
+	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
 
 	// GetClusterCACert returns the CAs for the local cluster without signing keys.
-	GetClusterCACert() (*auth.LocalCAResponse, error)
+	GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertResponse, error)
 
 	// GetProxies returns a list of registered proxies.
 	GetProxies() ([]types.Server, error)

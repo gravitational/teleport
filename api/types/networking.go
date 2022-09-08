@@ -88,10 +88,28 @@ type ClusterNetworkingConfig interface {
 
 	// SetRoutingStrategy sets the routing strategy setting.
 	SetRoutingStrategy(strategy RoutingStrategy)
+
+	// GetTunnelStrategy gets the tunnel strategy.
+	GetTunnelStrategyType() (TunnelStrategyType, error)
+
+	// GetAgentMeshTunnelStrategy gets the agent mesh tunnel strategy.
+	GetAgentMeshTunnelStrategy() *AgentMeshTunnelStrategy
+
+	// GetProxyPeeringTunnelStrategy gets the proxy peering tunnel strategy.
+	GetProxyPeeringTunnelStrategy() *ProxyPeeringTunnelStrategy
+
+	// SetTunnelStrategy sets the tunnel strategy.
+	SetTunnelStrategy(*TunnelStrategyV1)
+
+	// GetProxyPingInterval gets the proxy ping interval.
+	GetProxyPingInterval() time.Duration
+
+	// SetProxyPingInterval sets the proxy ping interval.
+	SetProxyPingInterval(time.Duration)
 }
 
 // NewClusterNetworkingConfigFromConfigFile is a convenience method to create
-// ClusterNetworkingConfigV2 labelled as originating from config file.
+// ClusterNetworkingConfigV2 labeled as originating from config file.
 func NewClusterNetworkingConfigFromConfigFile(spec ClusterNetworkingConfigSpecV2) (ClusterNetworkingConfig, error) {
 	return newClusterNetworkingConfigWithLabels(spec, map[string]string{
 		OriginLabel: OriginConfigFile,
@@ -278,6 +296,37 @@ func (c *ClusterNetworkingConfigV2) SetRoutingStrategy(strategy RoutingStrategy)
 	c.Spec.RoutingStrategy = strategy
 }
 
+// GetTunnelStrategy gets the tunnel strategy type.
+func (c *ClusterNetworkingConfigV2) GetTunnelStrategyType() (TunnelStrategyType, error) {
+	if c.Spec.TunnelStrategy == nil {
+		return "", trace.BadParameter("tunnel strategy is nil")
+	}
+
+	switch c.Spec.TunnelStrategy.Strategy.(type) {
+	case *TunnelStrategyV1_AgentMesh:
+		return AgentMesh, nil
+	case *TunnelStrategyV1_ProxyPeering:
+		return ProxyPeering, nil
+	}
+
+	return "", trace.BadParameter("unknown tunnel strategy type: %T", c.Spec.TunnelStrategy.Strategy)
+}
+
+// GetAgentMeshTunnelStrategy gets the agent mesh tunnel strategy.
+func (c *ClusterNetworkingConfigV2) GetAgentMeshTunnelStrategy() *AgentMeshTunnelStrategy {
+	return c.Spec.TunnelStrategy.GetAgentMesh()
+}
+
+// GetProxyPeeringTunnelStrategy gets the proxy peering tunnel strategy.
+func (c *ClusterNetworkingConfigV2) GetProxyPeeringTunnelStrategy() *ProxyPeeringTunnelStrategy {
+	return c.Spec.TunnelStrategy.GetProxyPeering()
+}
+
+// SetTunnelStrategy sets the tunnel strategy.
+func (c *ClusterNetworkingConfigV2) SetTunnelStrategy(strategy *TunnelStrategyV1) {
+	c.Spec.TunnelStrategy = strategy
+}
+
 // CheckAndSetDefaults verifies the constraints for ClusterNetworkingConfig.
 func (c *ClusterNetworkingConfigV2) CheckAndSetDefaults() error {
 	c.setStaticFields()
@@ -298,10 +347,29 @@ func (c *ClusterNetworkingConfigV2) CheckAndSetDefaults() error {
 		c.Spec.KeepAliveCountMax = int64(defaults.KeepAliveCountMax)
 	}
 
+	if c.Spec.TunnelStrategy == nil {
+		c.Spec.TunnelStrategy = &TunnelStrategyV1{
+			Strategy: DefaultTunnelStrategy(),
+		}
+	}
+	if err := c.Spec.TunnelStrategy.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
-// MarshalYAML defines how a proxy listener mode should be marshalled to a string
+// GetProxyPingInterval gets the proxy ping interval.
+func (c *ClusterNetworkingConfigV2) GetProxyPingInterval() time.Duration {
+	return c.Spec.ProxyPingInterval.Duration()
+}
+
+// SetProxyPingInterval sets the proxy ping interval.
+func (c *ClusterNetworkingConfigV2) SetProxyPingInterval(interval time.Duration) {
+	c.Spec.ProxyPingInterval = Duration(interval)
+}
+
+// MarshalYAML defines how a proxy listener mode should be marshaled to a string
 func (p ProxyListenerMode) MarshalYAML() (interface{}, error) {
 	return strings.ToLower(p.String()), nil
 }
@@ -327,7 +395,7 @@ func (p *ProxyListenerMode) UnmarshalYAML(unmarshal func(interface{}) error) err
 		"proxy listener mode must be one of %s; got %q", strings.Join(available, ","), stringVar)
 }
 
-// MarshalYAML defines how a routing strategy should be marshalled to a string
+// MarshalYAML defines how a routing strategy should be marshaled to a string
 func (s RoutingStrategy) MarshalYAML() (interface{}, error) {
 	return strings.ToLower(s.String()), nil
 }

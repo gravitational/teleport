@@ -190,6 +190,268 @@ func TestAWSIAMDocuments(t *testing.T) {
 				}},
 			},
 		},
+		"ElastiCache auto discovery": {
+			target: roleTarget,
+			fileConfig: &config.FileConfig{
+				Databases: config.Databases{
+					AWSMatchers: []config.AWSMatcher{
+						{Types: []string{types.DatabaseTypeElastiCache}, Regions: []string{"us-west-2"}},
+					},
+				},
+			},
+			statements: []*awslib.Statement{
+				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
+					"elasticache:ListTagsForResource",
+					"elasticache:DescribeReplicationGroups",
+					"elasticache:DescribeCacheClusters",
+					"elasticache:DescribeCacheSubnetGroups",
+					"elasticache:DescribeUsers",
+					"elasticache:ModifyUser",
+				}},
+				{
+					Effect: awslib.EffectAllow,
+					Actions: []string{
+						"secretsmanager:DescribeSecret", "secretsmanager:CreateSecret",
+						"secretsmanager:UpdateSecret", "secretsmanager:DeleteSecret",
+						"secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue",
+						"secretsmanager:TagResource",
+					},
+					Resources: []string{"arn:aws:secretsmanager:*:1234567:secret:teleport/*"},
+				},
+			},
+			boundaryStatements: []*awslib.Statement{
+				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
+					"elasticache:ListTagsForResource",
+					"elasticache:DescribeReplicationGroups",
+					"elasticache:DescribeCacheClusters",
+					"elasticache:DescribeCacheSubnetGroups",
+					"elasticache:DescribeUsers",
+					"elasticache:ModifyUser",
+				}},
+				{
+					Effect: awslib.EffectAllow,
+					Actions: []string{
+						"secretsmanager:DescribeSecret", "secretsmanager:CreateSecret",
+						"secretsmanager:UpdateSecret", "secretsmanager:DeleteSecret",
+						"secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue",
+						"secretsmanager:TagResource",
+					},
+					Resources: []string{"arn:aws:secretsmanager:*:1234567:secret:teleport/*"},
+				},
+			},
+		},
+		"ElastiCache static database": {
+			target: roleTarget,
+			fileConfig: &config.FileConfig{
+				Databases: config.Databases{
+					Databases: []*config.Database{
+						{
+							Name: "redis-1",
+							URI:  "clustercfg.redis1.xxxxxx.usw2.cache.amazonaws.com:6379",
+						},
+						{
+							Name: "redis-2",
+							URI:  "clustercfg.redis2.xxxxxx.usw2.cache.amazonaws.com:6379",
+							AWS: config.DatabaseAWS{
+								SecretStore: config.SecretStore{
+									KeyPrefix: "my-prefix/",
+									KMSKeyID:  "my-kms-id",
+								},
+							},
+						},
+					},
+				},
+			},
+			statements: []*awslib.Statement{
+				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
+					"elasticache:ListTagsForResource",
+					"elasticache:DescribeReplicationGroups",
+					"elasticache:DescribeCacheClusters",
+					"elasticache:DescribeCacheSubnetGroups",
+					"elasticache:DescribeUsers",
+					"elasticache:ModifyUser",
+				}},
+				{
+					Effect: "Allow",
+					Actions: []string{
+						"secretsmanager:DescribeSecret", "secretsmanager:CreateSecret",
+						"secretsmanager:UpdateSecret", "secretsmanager:DeleteSecret",
+						"secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue",
+						"secretsmanager:TagResource",
+					},
+					Resources: []string{
+						"arn:aws:secretsmanager:*:1234567:secret:teleport/*",
+						"arn:aws:secretsmanager:*:1234567:secret:my-prefix/*",
+					},
+				},
+				{
+					Effect:  "Allow",
+					Actions: []string{"kms:GenerateDataKey", "kms:Decrypt"},
+					Resources: []string{
+						"arn:aws:kms:*:1234567:key/my-kms-id",
+					},
+				},
+			},
+			boundaryStatements: []*awslib.Statement{
+				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
+					"elasticache:ListTagsForResource",
+					"elasticache:DescribeReplicationGroups",
+					"elasticache:DescribeCacheClusters",
+					"elasticache:DescribeCacheSubnetGroups",
+					"elasticache:DescribeUsers",
+					"elasticache:ModifyUser",
+				}},
+				{
+					Effect: "Allow",
+					Actions: []string{
+						"secretsmanager:DescribeSecret", "secretsmanager:CreateSecret",
+						"secretsmanager:UpdateSecret", "secretsmanager:DeleteSecret",
+						"secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue",
+						"secretsmanager:TagResource",
+					},
+					Resources: []string{
+						"arn:aws:secretsmanager:*:1234567:secret:teleport/*",
+						"arn:aws:secretsmanager:*:1234567:secret:my-prefix/*",
+					},
+				},
+				{
+					Effect:  "Allow",
+					Actions: []string{"kms:GenerateDataKey", "kms:Decrypt"},
+					Resources: []string{
+						"arn:aws:kms:*:1234567:key/my-kms-id",
+					},
+				},
+			},
+		},
+		"MemoryDB auto discovery": {
+			target: roleTarget,
+			fileConfig: &config.FileConfig{
+				Databases: config.Databases{
+					AWSMatchers: []config.AWSMatcher{
+						{Types: []string{types.DatabaseTypeMemoryDB}, Regions: []string{"us-west-2"}},
+					},
+				},
+			},
+			statements: []*awslib.Statement{
+				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
+					"memorydb:ListTags",
+					"memorydb:DescribeClusters",
+					"memorydb:DescribeSubnetGroups",
+					"memorydb:DescribeUsers",
+					"memorydb:UpdateUser",
+				}},
+				{
+					Effect: awslib.EffectAllow,
+					Actions: []string{
+						"secretsmanager:DescribeSecret", "secretsmanager:CreateSecret",
+						"secretsmanager:UpdateSecret", "secretsmanager:DeleteSecret",
+						"secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue",
+						"secretsmanager:TagResource",
+					},
+					Resources: []string{"arn:aws:secretsmanager:*:1234567:secret:teleport/*"},
+				},
+			},
+			boundaryStatements: []*awslib.Statement{
+				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
+					"memorydb:ListTags",
+					"memorydb:DescribeClusters",
+					"memorydb:DescribeSubnetGroups",
+					"memorydb:DescribeUsers",
+					"memorydb:UpdateUser",
+				}},
+				{
+					Effect: awslib.EffectAllow,
+					Actions: []string{
+						"secretsmanager:DescribeSecret", "secretsmanager:CreateSecret",
+						"secretsmanager:UpdateSecret", "secretsmanager:DeleteSecret",
+						"secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue",
+						"secretsmanager:TagResource",
+					},
+					Resources: []string{"arn:aws:secretsmanager:*:1234567:secret:teleport/*"},
+				},
+			},
+		},
+		"MemoryDB static database": {
+			target: roleTarget,
+			fileConfig: &config.FileConfig{
+				Databases: config.Databases{
+					Databases: []*config.Database{
+						{
+							Name: "memorydb-1",
+							URI:  "clustercfg.memorydb1.xxxxxx.us-east-1.memorydb.amazonaws.com:6379",
+						},
+						{
+							Name: "memorydb-2",
+							URI:  "clustercfg.memorydb0.xxxxxx.us-east-1.memorydb.amazonaws.com:6379",
+							AWS: config.DatabaseAWS{
+								SecretStore: config.SecretStore{
+									KeyPrefix: "my-prefix/",
+									KMSKeyID:  "my-kms-id",
+								},
+							},
+						},
+					},
+				},
+			},
+			statements: []*awslib.Statement{
+				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
+					"memorydb:ListTags",
+					"memorydb:DescribeClusters",
+					"memorydb:DescribeSubnetGroups",
+					"memorydb:DescribeUsers",
+					"memorydb:UpdateUser",
+				}},
+				{
+					Effect: "Allow",
+					Actions: []string{
+						"secretsmanager:DescribeSecret", "secretsmanager:CreateSecret",
+						"secretsmanager:UpdateSecret", "secretsmanager:DeleteSecret",
+						"secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue",
+						"secretsmanager:TagResource",
+					},
+					Resources: []string{
+						"arn:aws:secretsmanager:*:1234567:secret:teleport/*",
+						"arn:aws:secretsmanager:*:1234567:secret:my-prefix/*",
+					},
+				},
+				{
+					Effect:  "Allow",
+					Actions: []string{"kms:GenerateDataKey", "kms:Decrypt"},
+					Resources: []string{
+						"arn:aws:kms:*:1234567:key/my-kms-id",
+					},
+				},
+			},
+			boundaryStatements: []*awslib.Statement{
+				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
+					"memorydb:ListTags",
+					"memorydb:DescribeClusters",
+					"memorydb:DescribeSubnetGroups",
+					"memorydb:DescribeUsers",
+					"memorydb:UpdateUser",
+				}},
+				{
+					Effect: "Allow",
+					Actions: []string{
+						"secretsmanager:DescribeSecret", "secretsmanager:CreateSecret",
+						"secretsmanager:UpdateSecret", "secretsmanager:DeleteSecret",
+						"secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue",
+						"secretsmanager:TagResource",
+					},
+					Resources: []string{
+						"arn:aws:secretsmanager:*:1234567:secret:teleport/*",
+						"arn:aws:secretsmanager:*:1234567:secret:my-prefix/*",
+					},
+				},
+				{
+					Effect:  "Allow",
+					Actions: []string{"kms:GenerateDataKey", "kms:Decrypt"},
+					Resources: []string{
+						"arn:aws:kms:*:1234567:key/my-kms-id",
+					},
+				},
+			},
+		},
 		"AutoDiscoveryUnknownIdentity": {
 			returnError: true,
 			target:      unknownIdentity,
@@ -368,69 +630,82 @@ func TestAWSPoliciesTarget(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := map[string]struct {
-		flags           BootstrapFlags
-		identity        awslib.Identity
-		accountID       string
-		targetType      awslib.Identity
-		targetName      string
-		targetAccountID string
+		flags             BootstrapFlags
+		identity          awslib.Identity
+		accountID         string
+		partitionID       string
+		targetType        awslib.Identity
+		targetName        string
+		targetAccountID   string
+		targetPartitionID string
 	}{
 		"UserNameFromFlags": {
-			flags:           BootstrapFlags{AttachToUser: "example-user"},
-			accountID:       "123456",
-			targetType:      awslib.User{},
-			targetName:      "example-user",
-			targetAccountID: "123456",
+			flags:             BootstrapFlags{AttachToUser: "example-user"},
+			accountID:         "123456",
+			partitionID:       "aws",
+			targetType:        awslib.User{},
+			targetName:        "example-user",
+			targetAccountID:   "123456",
+			targetPartitionID: "aws",
 		},
 		"UserARNFromFlags": {
-			flags:           BootstrapFlags{AttachToUser: "arn:aws:iam::123456:user/example-user"},
-			targetType:      awslib.User{},
-			targetName:      "example-user",
-			targetAccountID: "123456",
+			flags:             BootstrapFlags{AttachToUser: "arn:aws:iam::123456:user/example-user"},
+			targetType:        awslib.User{},
+			targetName:        "example-user",
+			targetAccountID:   "123456",
+			targetPartitionID: "aws",
 		},
 		"RoleNameFromFlags": {
-			flags:           BootstrapFlags{AttachToRole: "example-role"},
-			accountID:       "123456",
-			targetType:      awslib.Role{},
-			targetName:      "example-role",
-			targetAccountID: "123456",
+			flags:             BootstrapFlags{AttachToRole: "example-role"},
+			accountID:         "123456",
+			partitionID:       "aws",
+			targetType:        awslib.Role{},
+			targetName:        "example-role",
+			targetAccountID:   "123456",
+			targetPartitionID: "aws",
 		},
 		"RoleARNFromFlags": {
-			flags:           BootstrapFlags{AttachToRole: "arn:aws:iam::123456:role/example-role"},
-			targetType:      awslib.Role{},
-			targetName:      "example-role",
-			targetAccountID: "123456",
+			flags:             BootstrapFlags{AttachToRole: "arn:aws:iam::123456:role/example-role"},
+			targetType:        awslib.Role{},
+			targetName:        "example-role",
+			targetAccountID:   "123456",
+			targetPartitionID: "aws",
 		},
 		"UserFromIdentity": {
-			flags:           BootstrapFlags{},
-			identity:        userIdentity,
-			targetType:      awslib.User{},
-			targetName:      userIdentity.GetName(),
-			targetAccountID: userIdentity.GetAccountID(),
+			flags:             BootstrapFlags{},
+			identity:          userIdentity,
+			targetType:        awslib.User{},
+			targetName:        userIdentity.GetName(),
+			targetAccountID:   userIdentity.GetAccountID(),
+			targetPartitionID: userIdentity.GetPartition(),
 		},
 		"RoleFromIdentity": {
-			flags:           BootstrapFlags{},
-			identity:        roleIdentity,
-			targetType:      awslib.Role{},
-			targetName:      roleIdentity.GetName(),
-			targetAccountID: roleIdentity.GetAccountID(),
+			flags:             BootstrapFlags{},
+			identity:          roleIdentity,
+			targetType:        awslib.Role{},
+			targetName:        roleIdentity.GetName(),
+			targetAccountID:   roleIdentity.GetAccountID(),
+			targetPartitionID: roleIdentity.GetPartition(),
 		},
 		"DefaultTarget": {
-			flags:           BootstrapFlags{},
-			accountID:       "*",
-			targetType:      awslib.User{},
-			targetName:      defaultAttachUser,
-			targetAccountID: "*",
+			flags:             BootstrapFlags{},
+			accountID:         "*",
+			partitionID:       "*",
+			targetType:        awslib.User{},
+			targetName:        defaultAttachUser,
+			targetAccountID:   "*",
+			targetPartitionID: "*",
 		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			target, err := policiesTarget(test.flags, test.accountID, test.identity)
+			target, err := policiesTarget(test.flags, test.accountID, test.partitionID, test.identity)
 			require.NoError(t, err)
 			require.IsType(t, test.targetType, target)
 			require.Equal(t, test.targetName, target.GetName())
 			require.Equal(t, test.targetAccountID, target.GetAccountID())
+			require.Equal(t, test.targetPartitionID, target.GetPartition())
 		})
 	}
 }

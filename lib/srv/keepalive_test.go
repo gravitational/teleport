@@ -24,16 +24,12 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"gopkg.in/check.v1"
+	"github.com/stretchr/testify/require"
 )
 
-type KeepAliveSuite struct{}
+func TestServerClose(t *testing.T) {
+	t.Parallel()
 
-var _ = check.Suite(&KeepAliveSuite{})
-
-func TestSrv(t *testing.T) { check.TestingT(t) }
-
-func (s *KeepAliveSuite) TestServerClose(c *check.C) {
 	doneCh := make(chan bool, 1)
 	closeContext, closeCancel := context.WithCancel(context.Background())
 
@@ -57,7 +53,7 @@ func (s *KeepAliveSuite) TestServerClose(c *check.C) {
 
 	// Wait for a keep-alive to be sent.
 	err := waitForRequests(requestSender, 1)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Close the context (server), should cause the loop to stop as well.
 	closeCancel()
@@ -65,12 +61,14 @@ func (s *KeepAliveSuite) TestServerClose(c *check.C) {
 	// Wait 1 second for the keep-alive loop to stop, or return an error.
 	select {
 	case <-time.After(1 * time.Second):
-		c.Fatalf("Timeout waiting for keep-alive loop to stop.")
+		t.Fatalf("Timeout waiting for keep-alive loop to stop.")
 	case <-doneCh:
 	}
 }
 
-func (s *KeepAliveSuite) TestLoopClose(c *check.C) {
+func TestLoopClose(t *testing.T) {
+	t.Parallel()
+
 	doneCh := make(chan bool, 1)
 	closeContext, closeCancel := context.WithCancel(context.Background())
 
@@ -94,12 +92,12 @@ func (s *KeepAliveSuite) TestLoopClose(c *check.C) {
 
 	// Wait for a keep-alive to be sent.
 	err := waitForRequests(requestSender, 1)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Wait 1 second for the keep-alive loop to stop, or return an error.
 	select {
 	case <-time.After(1 * time.Second):
-		c.Fatalf("Timeout waiting for keep-alive loop to stop.")
+		t.Fatalf("Timeout waiting for keep-alive loop to stop.")
 	case <-doneCh:
 	}
 }

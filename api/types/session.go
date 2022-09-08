@@ -69,7 +69,7 @@ type WebSession interface {
 	SetPriv([]byte)
 	// GetTLSCert returns PEM encoded TLS certificate associated with session
 	GetTLSCert() []byte
-	// BearerToken is a special bearer token used for additional
+	// GetBearerToken is a special bearer token used for additional
 	// bearer authentication
 	GetBearerToken() string
 	// SetExpiryTime sets session expiry time
@@ -88,6 +88,10 @@ type WebSession interface {
 	WithoutSecrets() WebSession
 	// String returns string representation of the session.
 	String() string
+	// SetConsumedAccessRequestID sets the ID of the access request from which additional roles to assume were obtained.
+	SetConsumedAccessRequestID(string)
+	// GetConsumedAccessRequestID returns the ID of the access request from which additional roles to assume were obtained.
+	GetConsumedAccessRequestID() string
 }
 
 // NewWebSession returns new instance of the web session based on the V2 spec
@@ -170,6 +174,16 @@ func (ws *WebSessionV2) GetIdleTimeout() time.Duration {
 func (ws *WebSessionV2) WithoutSecrets() WebSession {
 	ws.Spec.Priv = nil
 	return ws
+}
+
+// SetConsumedAccessRequestID sets the ID of the access request from which additional roles to assume were obtained.
+func (ws *WebSessionV2) SetConsumedAccessRequestID(requestID string) {
+	ws.Spec.ConsumedAccessRequestID = requestID
+}
+
+// GetConsumedAccessRequestID returns the ID of the access request from which additional roles to assume were obtained.
+func (ws *WebSessionV2) GetConsumedAccessRequestID() string {
+	return ws.Spec.ConsumedAccessRequestID
 }
 
 // setStaticFields sets static resource header and metadata fields.
@@ -281,6 +295,21 @@ func (r *GetAppSessionRequest) Check() error {
 	return nil
 }
 
+// GetSnowflakeSessionRequest contains the parameters to request a Snowflake
+// web session.
+type GetSnowflakeSessionRequest struct {
+	// SessionID is the session ID of the Snowflake session itself.
+	SessionID string
+}
+
+// Check validates the request.
+func (r *GetSnowflakeSessionRequest) Check() error {
+	if r.SessionID == "" {
+		return trace.BadParameter("session ID missing")
+	}
+	return nil
+}
+
 // CreateAppSessionRequest contains the parameters needed to request
 // creating an application web session.
 type CreateAppSessionRequest struct {
@@ -309,9 +338,26 @@ func (r CreateAppSessionRequest) Check() error {
 	return nil
 }
 
+// CreateSnowflakeSessionRequest contains the parameters needed to request
+// creating a Snowflake web session.
+type CreateSnowflakeSessionRequest struct {
+	// Username is the identity of the user requesting the session.
+	Username string
+	// SessionToken is the Snowflake server session token.
+	SessionToken string
+	// TokenTTL is the token validity period.
+	TokenTTL time.Duration
+}
+
 // DeleteAppSessionRequest are the parameters used to request removal of
 // an application web session.
 type DeleteAppSessionRequest struct {
+	SessionID string `json:"session_id"`
+}
+
+// DeleteSnowflakeSessionRequest are the parameters used to request removal of
+// a Snowflake web session.
+type DeleteSnowflakeSessionRequest struct {
 	SessionID string `json:"session_id"`
 }
 
@@ -512,6 +558,8 @@ type NewWebSessionRequest struct {
 	LoginTime time.Time
 	// AccessRequests contains the UUIDs of the access requests currently in use.
 	AccessRequests []string
+	// RequestedResourceIDs optionally lists requested resources
+	RequestedResourceIDs []ResourceID
 }
 
 // Check validates the request.

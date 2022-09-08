@@ -20,7 +20,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/trace"
 )
@@ -86,6 +88,10 @@ type SAMLConnector interface {
 	GetEncryptionKeyPair() *AsymmetricKeyPair
 	// SetEncryptionKeyPair sets the key pair for SAML assertions.
 	SetEncryptionKeyPair(k *AsymmetricKeyPair)
+	// GetAllowIDPInitiated returns whether the identity provider can initiate a login or not.
+	GetAllowIDPInitiated() bool
+	// SetAllowIDPInitiated sets whether the identity provider can initiate a login or not.
+	SetAllowIDPInitiated(bool)
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -330,6 +336,16 @@ func (o *SAMLConnectorV2) SetEncryptionKeyPair(k *AsymmetricKeyPair) {
 	o.Spec.EncryptionKeyPair = k
 }
 
+// GetAllowIDPInitiated returns whether the identity provider can initiate a login or not.
+func (o *SAMLConnectorV2) GetAllowIDPInitiated() bool {
+	return o.Spec.AllowIDPInitiated
+}
+
+// SetAllowIDPInitiated sets whether the identity provider can initiate a login or not.
+func (o *SAMLConnectorV2) SetAllowIDPInitiated(allow bool) {
+	o.Spec.AllowIDPInitiated = allow
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (o *SAMLConnectorV2) setStaticFields() {
 	o.Kind = KindSAMLConnector
@@ -365,5 +381,32 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 			return trace.BadParameter("need roles field in attributes_to_roles")
 		}
 	}
+	return nil
+}
+
+// Check returns nil if all parameters are great, err otherwise
+func (i *SAMLAuthRequest) Check() error {
+	if i.ConnectorID == "" {
+		return trace.BadParameter("ConnectorID: missing value")
+	}
+	if len(i.PublicKey) != 0 {
+		_, _, _, _, err := ssh.ParseAuthorizedKey(i.PublicKey)
+		if err != nil {
+			return trace.BadParameter("PublicKey: bad key: %v", err)
+		}
+		if (i.CertTTL > defaults.MaxCertDuration) || (i.CertTTL < defaults.MinCertDuration) {
+			return trace.BadParameter("CertTTL: wrong certificate TTL")
+		}
+	}
+
+	// we could collapse these two checks into one, but the error message would become ambiguous.
+	if i.SSOTestFlow && i.ConnectorSpec == nil {
+		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
+	}
+
+	if !i.SSOTestFlow && i.ConnectorSpec != nil {
+		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
+	}
+
 	return nil
 }

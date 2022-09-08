@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 
 	"github.com/gravitational/trace"
@@ -30,36 +31,49 @@ type Kube struct {
 	// URI is the kube URI
 	URI uri.ResourceURI
 
-	types.KubernetesCluster
+	KubernetesCluster types.KubeCluster
 }
 
 // GetKubes returns kube services
 func (c *Cluster) GetKubes(ctx context.Context) ([]Kube, error) {
-	proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer proxyClient.Close()
+	var authClient auth.ClientI
+	err := addMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
 
-	authClient, err := proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName, true)
+		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	defer authClient.Close()
 
-	services, err := authClient.GetKubeServices(ctx)
+	servers, err := authClient.GetKubernetesServers(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	kubeMap := map[string]Kube{}
-	for _, service := range services {
-		for _, kube := range service.GetKubernetesClusters() {
-			kubeMap[kube.Name] = Kube{
-				URI:               c.URI.AppendKube(kube.Name),
-				KubernetesCluster: *kube,
-			}
+	for _, server := range servers {
+		kube := server.GetCluster()
+		if kube == nil {
+			continue
 		}
+
+		kubeMap[kube.GetName()] = Kube{
+			URI:               c.URI.AppendKube(kube.GetName()),
+			KubernetesCluster: kube,
+		}
+
 	}
 
 	kubes := make([]Kube, 0, len(kubeMap))

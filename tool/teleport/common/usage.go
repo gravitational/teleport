@@ -63,6 +63,20 @@ pair issued by "tctl auth sign --format=db".
 Starts a database server that proxies Aurora MySQL database running in AWS
 region us-west-1 which only allows access to users with the role "env=aws".`
 
+	systemdInstallExamples = `
+  > teleport install systemd
+  Generates a systemd unit file with the default configuration and outputs it to the terminal.
+
+  > teleport install systemd \
+    --fd-limit=8192 \
+    --env-file=/etc/default/teleport \
+    --pid-file=/run/teleport.pid \
+    --teleport-path=/usr/local/bin/teleport \
+    --output=/etc/systemd/system/teleport.service
+  Generates a systemd unit file teleport.service using the provided flags and 
+  places it in the given system configuration directory.
+`
+
 	dbCreateConfigExamples = `
 > teleport db configure create --rds-discovery=us-west-1 --rds-discovery=us-west-2
 Generates a configuration with samples and Aurora/RDS auto-discovery enabled on
@@ -103,7 +117,6 @@ Examples:
 const (
 	sampleConfComment = `#
 # A Sample Teleport configuration file.
-# Creates a single proxy, auth and node server.
 #
 # Things to update:
 #  1. license.pem: You only need a license from https://dashboard.goteleport.com

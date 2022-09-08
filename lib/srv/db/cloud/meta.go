@@ -20,11 +20,16 @@ import (
 	"context"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
+	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
+	"github.com/aws/aws-sdk-go/service/memorydb"
+	"github.com/aws/aws-sdk-go/service/memorydb/memorydbiface"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
 	"github.com/aws/aws-sdk-go/service/redshift"
@@ -37,13 +42,13 @@ import (
 // MetadataConfig is the cloud metadata service config.
 type MetadataConfig struct {
 	// Clients is an interface for retrieving cloud clients.
-	Clients common.CloudClients
+	Clients cloud.Clients
 }
 
 // Check validates the metadata service config.
 func (c *MetadataConfig) Check() error {
 	if c.Clients == nil {
-		c.Clients = common.NewCloudClients()
+		c.Clients = cloud.NewClients()
 	}
 	return nil
 }
@@ -67,29 +72,32 @@ func NewMetadata(config MetadataConfig) (*Metadata, error) {
 
 // Update updates cloud metadata of the provided database.
 func (m *Metadata) Update(ctx context.Context, database types.Database) error {
-	if database.IsRDS() {
-		metadata, err := m.fetchRDSMetadata(ctx, database)
-		if err != nil {
-			if trace.IsAccessDenied(err) { // Permission errors are expected.
-				m.log.Debugf("No permissions to fetch RDS metadata for %q: %v.", database.GetName(), err)
-				return nil
-			}
-			return trace.Wrap(err)
-		}
-		m.log.Debugf("Fetched RDS metadata for %q: %v.", database.GetName(), metadata)
-		database.SetStatusAWS(*metadata)
-	} else if database.IsRedshift() {
-		metadata, err := m.fetchRedshiftMetadata(ctx, database)
-		if err != nil {
-			if trace.IsAccessDenied(err) { // Permission errros are expected.
-				m.log.Debugf("No permissions to fetch Redshift metadata for %q: %v.", database.GetName(), err)
-				return nil
-			}
-			return trace.Wrap(err)
-		}
-		m.log.Debugf("Fetched Redshift metadata for %q: %v.", database.GetName(), metadata)
-		database.SetStatusAWS(*metadata)
+	switch database.GetType() {
+	case types.DatabaseTypeRDS:
+		return m.updateAWS(ctx, database, m.fetchRDSMetadata)
+	case types.DatabaseTypeRedshift:
+		return m.updateAWS(ctx, database, m.fetchRedshiftMetadata)
+	case types.DatabaseTypeElastiCache:
+		return m.updateAWS(ctx, database, m.fetchElastiCacheMetadata)
+	case types.DatabaseTypeMemoryDB:
+		return m.updateAWS(ctx, database, m.fetchMemoryDBMetadata)
 	}
+	return nil
+}
+
+// updateAWS updates cloud metadata of the provided AWS database.
+func (m *Metadata) updateAWS(ctx context.Context, database types.Database, fetchFn func(context.Context, types.Database) (*types.AWS, error)) error {
+	metadata, err := fetchFn(ctx, database)
+	if err != nil {
+		if trace.IsAccessDenied(err) { // Permission errors are expected.
+			m.log.WithError(err).Debugf("No permissions to fetch metadata for %q.", database)
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+
+	m.log.Debugf("Fetched metadata for %q: %v.", database, metadata)
+	database.SetStatusAWS(*metadata)
 	return nil
 }
 
@@ -144,6 +152,38 @@ func (m *Metadata) fetchRedshiftMetadata(ctx context.Context, database types.Dat
 	}, nil
 }
 
+// fetchElastiCacheMetadata fetches metadata for the provided ElastiCache database.
+func (m *Metadata) fetchElastiCacheMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
+	elastiCacheClient, err := m.cfg.Clients.GetAWSElastiCacheClient(database.GetAWS().Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cluster, err := describeElastiCacheCluster(ctx, elastiCacheClient, database.GetAWS().ElastiCache.ReplicationGroupID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Endpoint type does not change.
+	endpointType := database.GetAWS().ElastiCache.EndpointType
+	return services.MetadataFromElastiCacheCluster(cluster, endpointType)
+}
+
+// fetchMemoryDBMetadata fetches metadata for the provided MemoryDB database.
+func (m *Metadata) fetchMemoryDBMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
+	memoryDBClient, err := m.cfg.Clients.GetAWSMemoryDBClient(database.GetAWS().Region)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cluster, err := describeMemoryDBCluster(ctx, memoryDBClient, database.GetAWS().MemoryDB.ClusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Endpoint type does not change.
+	endpointType := database.GetAWS().MemoryDB.EndpointType
+	return services.MetadataFromMemoryDBCluster(cluster, endpointType)
+}
+
 // fetchRDSInstanceMetadata fetches metadata about specified RDS instance.
 func fetchRDSInstanceMetadata(ctx context.Context, rdsClient rdsiface.RDSAPI, instanceID string) (*types.AWS, error) {
 	rdsInstance, err := describeRDSInstance(ctx, rdsClient, instanceID)
@@ -162,7 +202,7 @@ func describeRDSInstance(ctx context.Context, rdsClient rdsiface.RDSAPI, instanc
 		return nil, common.ConvertError(err)
 	}
 	if len(out.DBInstances) != 1 {
-		return nil, trace.BadParameter("expected 1 RDS instance for %v, got %s", instanceID, out.DBInstances)
+		return nil, trace.BadParameter("expected 1 RDS instance for %v, got %+v", instanceID, out.DBInstances)
 	}
 	return out.DBInstances[0], nil
 }
@@ -185,7 +225,7 @@ func describeRDSCluster(ctx context.Context, rdsClient rdsiface.RDSAPI, clusterI
 		return nil, common.ConvertError(err)
 	}
 	if len(out.DBClusters) != 1 {
-		return nil, trace.BadParameter("expected 1 RDS cluster for %v, got %s", clusterID, out.DBClusters)
+		return nil, trace.BadParameter("expected 1 RDS cluster for %v, got %+v", clusterID, out.DBClusters)
 	}
 	return out.DBClusters[0], nil
 }
@@ -199,7 +239,36 @@ func describeRedshiftCluster(ctx context.Context, redshiftClient redshiftiface.R
 		return nil, common.ConvertError(err)
 	}
 	if len(out.Clusters) != 1 {
-		return nil, trace.BadParameter("expected 1 Redshift cluster for %v, got %s", clusterID, out.Clusters)
+		return nil, trace.BadParameter("expected 1 Redshift cluster for %v, got %+v", clusterID, out.Clusters)
+	}
+	return out.Clusters[0], nil
+}
+
+// describeElastiCacheCluster returns AWS ElastiCache Redis cluster for the
+// specified ID.
+func describeElastiCacheCluster(ctx context.Context, elastiCacheClient elasticacheiface.ElastiCacheAPI, replicationGroupID string) (*elasticache.ReplicationGroup, error) {
+	out, err := elastiCacheClient.DescribeReplicationGroupsWithContext(ctx, &elasticache.DescribeReplicationGroupsInput{
+		ReplicationGroupId: aws.String(replicationGroupID),
+	})
+	if err != nil {
+		return nil, common.ConvertError(err)
+	}
+	if len(out.ReplicationGroups) != 1 {
+		return nil, trace.BadParameter("expected 1 ElastiCache cluster for %v, got %+v", replicationGroupID, out.ReplicationGroups)
+	}
+	return out.ReplicationGroups[0], nil
+}
+
+// describeMemoryDBCluster returns AWS MemoryDB cluster for the specified ID.
+func describeMemoryDBCluster(ctx context.Context, client memorydbiface.MemoryDBAPI, clusterName string) (*memorydb.Cluster, error) {
+	out, err := client.DescribeClustersWithContext(ctx, &memorydb.DescribeClustersInput{
+		ClusterName: aws.String(clusterName),
+	})
+	if err != nil {
+		return nil, common.ConvertError(err)
+	}
+	if len(out.Clusters) != 1 {
+		return nil, trace.BadParameter("expected 1 MemoryDB cluster for %v, got %+v", clusterName, out.Clusters)
 	}
 	return out.Clusters[0], nil
 }
