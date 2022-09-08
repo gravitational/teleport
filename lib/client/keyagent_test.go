@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -107,13 +106,12 @@ func TestAddKey(t *testing.T) {
 
 	// add the key to the local agent, this should write the key
 	// to disk as well as load it in the agent
-	_, err = lka.AddKey(s.key)
+	err = lka.AddKey(s.key)
 	require.NoError(t, err)
 
 	// check that the key has been written to disk
 	expectedFiles := []string{
 		keypaths.UserKeyPath(s.keyDir, s.hostname, s.username),                    // private key
-		keypaths.SSHCAsPath(s.keyDir, s.hostname, s.username),                     // public key
 		keypaths.TLSCertPath(s.keyDir, s.hostname, s.username),                    // Teleport TLS certificate
 		keypaths.SSHCertPath(s.keyDir, s.hostname, s.username, s.key.ClusterName), // SSH certificate
 	}
@@ -192,9 +190,9 @@ func TestLoadKey(t *testing.T) {
 
 	// load the key to the twice, this should only
 	// result in one key for this user in the agent
-	_, err = lka.LoadKey(*s.key)
+	err = lka.LoadKey(*s.key)
 	require.NoError(t, err)
-	_, err = lka.LoadKey(*s.key)
+	err = lka.LoadKey(*s.key)
 	require.NoError(t, err)
 
 	// get all the keys in the teleport and system agent
@@ -214,9 +212,7 @@ func TestLoadKey(t *testing.T) {
 	require.NoError(t, err)
 
 	// parse the pem bytes for the private key, create a signer, and extract the public key
-	sshPrivateKey, err := ssh.ParseRawPrivateKey(s.key.Priv)
-	require.NoError(t, err)
-	sshSigner, err := ssh.NewSignerFromKey(sshPrivateKey)
+	sshSigner, err := s.key.SSHSigner()
 	require.NoError(t, err)
 	sshPublicKey := sshSigner.PublicKey()
 
@@ -478,16 +474,12 @@ func TestLocalKeyAgent_AddDatabaseKey(t *testing.T) {
 func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl time.Duration) (*Key, error) {
 	keygen := testauthority.New()
 
-	privateKey, publicKey, err := keygen.GenerateKeyPair()
+	privateKey, err := keygen.GeneratePrivateKey()
 	if err != nil {
 		return nil, err
 	}
 
 	// reuse the same RSA keys for SSH and TLS keys
-	cryptoPubKey, err := sshutils.CryptoPublicKey(publicKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	clock := clockwork.NewRealClock()
 	identity := tlsca.Identity{
 		Username: username,
@@ -499,7 +491,7 @@ func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl
 	}
 	tlsCert, err := s.tlsca.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     clock,
-		PublicKey: cryptoPubKey,
+		PublicKey: privateKey.Public(),
 		Subject:   subject,
 		NotAfter:  clock.Now().UTC().Add(ttl),
 	})
@@ -518,7 +510,7 @@ func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl
 
 	certificate, err := keygen.GenerateUserCert(services.UserCertParams{
 		CASigner:              caSigner,
-		PublicUserKey:         publicKey,
+		PublicUserKey:         ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
 		Username:              username,
 		AllowedLogins:         allowedLogins,
 		TTL:                   ttl,
@@ -530,10 +522,9 @@ func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl
 	}
 
 	return &Key{
-		Priv:    privateKey,
-		Pub:     publicKey,
-		Cert:    certificate,
-		TLSCert: tlsCert,
+		PrivateKey: privateKey,
+		Cert:       certificate,
+		TLSCert:    tlsCert,
 		KeyIndex: KeyIndex{
 			ProxyHost:   s.hostname,
 			Username:    username,
