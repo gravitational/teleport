@@ -397,6 +397,11 @@ find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r fi
   fi
   shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
+  echo "----------"
+  echo "file: $file"
+  echo "name: $name"
+  echo "products: $products"
+
   curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="%[2]s" -F arch="%[3]s" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
   for product in $products; do

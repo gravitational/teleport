@@ -1813,6 +1813,11 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
+      echo "----------"
+      echo "file: $file"
+      echo "name: $name"
+      echo "products: $products"
+
       curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
@@ -1971,6 +1976,11 @@ steps:
         products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      echo "----------"
+      echo "file: $file"
+      echo "name: $name"
+      echo "products: $products"
 
       curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
@@ -2140,6 +2150,11 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
+      echo "----------"
+      echo "file: $file"
+      echo "name: $name"
+      echo "products: $products"
+
       curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
@@ -2296,6 +2311,11 @@ steps:
         products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      echo "----------"
+      echo "file: $file"
+      echo "name: $name"
+      echo "products: $products"
 
       curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
@@ -2482,6 +2502,11 @@ steps:
         products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      echo "----------"
+      echo "file: $file"
+      echo "name: $name"
+      echo "products: $products"
 
       curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
@@ -2671,6 +2696,11 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
+      echo "----------"
+      echo "file: $file"
+      echo "name: $name"
+      echo "products: $products"
+
       curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
@@ -2859,6 +2889,11 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
+      echo "----------"
+      echo "file: $file"
+      echo "name: $name"
+      echo "products: $products"
+
       curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
@@ -3033,6 +3068,11 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
+      echo "----------"
+      echo "file: $file"
+      echo "name: $name"
+      echo "products: $products"
+
       curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
@@ -3189,6 +3229,11 @@ steps:
         products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      echo "----------"
+      echo "file: $file"
+      echo "name: $name"
+      echo "products: $products"
 
       curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
@@ -3376,6 +3421,11 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
+      echo "----------"
+      echo "file: $file"
+      echo "name: $name"
+      echo "products: $products"
+
       curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
@@ -3557,6 +3607,11 @@ steps:
         products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      echo "----------"
+      echo "file: $file"
+      echo "name: $name"
+      echo "products: $products"
 
       curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="386" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
@@ -3747,6 +3802,11 @@ steps:
         products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      echo "----------"
+      echo "file: $file"
+      echo "name: $name"
+      echo "products: $products"
 
       curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
@@ -3951,6 +4011,11 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
+      echo "----------"
+      echo "file: $file"
+      echo "name: $name"
+      echo "products: $products"
+
       curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
@@ -4135,6 +4200,11 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
+      echo "----------"
+      echo "file: $file"
+      echo "name: $name"
+      echo "products: $products"
+
       curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
@@ -4289,6 +4359,11 @@ steps:
         products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      echo "----------"
+      echo "file: $file"
+      echo "name: $name"
+      echo "products: $products"
 
       curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
@@ -4446,6 +4521,11 @@ steps:
         products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      echo "----------"
+      echo "file: $file"
+      echo "name: $name"
+      echo "products: $products"
 
       curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
@@ -4624,6 +4704,11 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
+      echo "----------"
+      echo "file: $file"
+      echo "name: $name"
+      echo "products: $products"
+
       curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
@@ -4800,6 +4885,11 @@ steps:
         products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      echo "----------"
+      echo "file: $file"
+      echo "name: $name"
+      echo "products: $products"
 
       curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
@@ -4986,6 +5076,11 @@ steps:
         products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      echo "----------"
+      echo "file: $file"
+      echo "name: $name"
+      echo "products: $products"
 
       curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
@@ -5178,6 +5273,11 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
+      echo "----------"
+      echo "file: $file"
+      echo "name: $name"
+      echo "products: $products"
+
       curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="linux" -F arch="arm" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
@@ -5342,6 +5442,11 @@ steps:
         products="teleport teleport-ent"
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
+
+      echo "----------"
+      echo "file: $file"
+      echo "name: $name"
+      echo "products: $products"
 
       curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="windows" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
@@ -7012,6 +7117,11 @@ steps:
       fi
       shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
+      echo "----------"
+      echo "file: $file"
+      echo "name: $name"
+      echo "products: $products"
+
       curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
 
       for product in $products; do
@@ -7050,6 +7160,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 2d50f73226640e621d790dadf4f07b891eeb3e9e11f9b2cc8e93f6d4bed8841b
+hmac: c06100ae1cb736db4fe6e5114892c477a113969086b59d93d7f091f62fe846a8
 
 ...
