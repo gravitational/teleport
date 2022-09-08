@@ -9,7 +9,7 @@ Teleport is made up of four CLI tools.
 - [teleport](#teleport): A process and CLI tool that supports the Teleport access plane.
 - [tsh](#tsh): A CLI tool that allows end users to interact with Teleport sessions and list cluster information.
 - [tctl](#tctl): An administrative CLI tool that can configure the Teleport Auth Service.
-- [tbot](#tbot): A CLI tool that supports Machine ID on Teleport, used to apply short lvied certificates to service accounts (e.g, a CI/CD server).
+- [tbot](#tbot): A CLI tool that supports Machine ID on Teleport, used to apply short lived certificates to service accounts (e.g, a CI/CD server).
 
 (!docs/pages/includes/permission-warning.mdx!)
 
@@ -2066,7 +2066,7 @@ The primary commands for `tbot` are as follows:
 | `tbot configure` | Outputs a basic Machine ID client configuration file, to be adjusted and changed as needed. |
 | `tbot start` | Starts the Machine ID client `tbot`, fetching and writing certificates to disk at a set interval. |
 | `tbot init` |  Allows certificates to be written to disks other than a Machine ID client, configuring either file or POSIX ACL permissions. |
-| `tbot db` | Allows connections to databases using native clients and queries database information. Functions as a wrapper for `tsh`, and requires `tsh` installation. |
+| `tbot db` | Connects to databases using native clients and queries database information. Functions as a wrapper for `tsh`, and requires `tsh` installation. |
 | `tbot proxy` | Allows for access to teleport resources on a cluster using TLS routing. Functions as a wrapper for `tsh`, and requires `tsh` installation. |
 
 ### tbot start
