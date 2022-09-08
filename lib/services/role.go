@@ -2018,7 +2018,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 		if !matchMatchers {
 			if isDebugEnabled {
 				errs = append(errs, fmt.Errorf("role=%v, match(matchers=%v)",
-					role.GetName(), err))
+					role.GetName(), matchers))
 			}
 			continue
 		}
