@@ -22,7 +22,7 @@ use crate::errors::{
     invalid_data_error, not_implemented_error, rejected_by_server_error, try_error, NTSTATUS_OK,
     SPECIAL_NO_RESPONSE,
 };
-use crate::{util, Messages};
+use crate::{test_debug, util, Messages};
 use crate::{vchan, Message};
 use crate::{
     FileSystemObject, FileType, Payload, SharedDirectoryAcknowledge, SharedDirectoryCreateRequest,
@@ -89,9 +89,6 @@ pub struct Client {
     pending_sd_read_resp_handlers: HashMap<u32, SharedDirectoryReadResponseHandler>,
     pending_sd_write_resp_handlers: HashMap<u32, SharedDirectoryWriteResponseHandler>,
     pending_sd_move_resp_handlers: HashMap<u32, SharedDirectoryMoveResponseHandler>,
-
-    // TODO(isaiah): delete this once first round of testing is implemented
-    test_debug_logs: bool,
 }
 
 pub struct Config {
@@ -142,23 +139,17 @@ impl Client {
             pending_sd_read_resp_handlers: HashMap::new(),
             pending_sd_write_resp_handlers: HashMap::new(),
             pending_sd_move_resp_handlers: HashMap::new(),
-
-            test_debug_logs: false, // Note to reviewers: this should be false in any PRs
         }
     }
     /// Reads raw RDP messages sent on the rdpdr virtual channel and replies as necessary.
     pub fn read_and_create_reply(&mut self, payload: tpkt::Payload) -> RdpResult<Messages> {
-        if self.test_debug_logs {
-            debug!("received RDPDR tpkt::Payload: {:?}", payload);
-        }
+        test_debug!("received RDPDR tpkt::Payload: {:?}", payload);
+
         if let Some(mut payload) = self.vchan.read(payload)? {
-            if self.test_debug_logs {
-                debug!("read into RDPDR rdpclient::Payload: {:?}", payload);
-            }
+            test_debug!("read into RDPDR rdpclient::Payload: {:?}", payload);
+
             let header = SharedHeader::decode(&mut payload)?;
-            if self.test_debug_logs {
-                debug!("decoded to RDPDR SharedHeader: {:?}", header);
-            }
+            test_debug!("decoded to RDPDR: {:?}", header);
             if let Component::RDPDR_CTYP_PRN = header.component {
                 warn!("got {:?} RDPDR header from RDP server, ignoring because we're not redirecting any printers", header);
                 return Ok(vec![]);
@@ -190,9 +181,7 @@ impl Client {
                 }
             };
 
-            if self.test_debug_logs {
-                debug!("returning RDP raw: {:?}", responses);
-            }
+            test_debug!("returning RDP raw: {:?}", responses);
 
             return Ok(responses);
         }
@@ -4187,8 +4176,8 @@ mod tests {
         tpkt::Payload::Raw(p)
     }
 
-    fn test_payload(c: &mut Client, payload_in: Vec<u8>, payload_out: Messages) {
-        let payload_in = create_payload(payload_in, 10);
+    fn test_payload(c: &mut Client, payload_in: Vec<u8>, payload_out: Messages, pos: u64) {
+        let payload_in = create_payload(payload_in, pos);
         assert_eq!(c.read_and_create_reply(payload_in).unwrap(), payload_out)
     }
 
@@ -4200,12 +4189,32 @@ mod tests {
     /// ClientAnnounceReply ClientIdMessage { version_major: 1, version_minor: 12, client_id: 3 }
     /// ClientNameRequest { unicode_flag: Ascii, computer_name: "teleport" }
     fn test_handle_server_announce(c: &mut Client) {
+        init_logger();
+        let h = SharedHeader {
+            component: Component::RDPDR_CTYP_CORE,
+            packet_id: PacketId::PAKID_CORE_SERVER_ANNOUNCE,
+        };
+        let req = ServerAnnounceRequest {
+            version_major: 1,
+            version_minor: 13,
+            client_id: 3,
+        };
+        let mut payload_in = h.encode().unwrap();
+        payload_in.extend(req.encode().unwrap());
+        // assert_eq!(
+        //     payload_in,
+        //     vec![
+        //         2, 240, 128, 104, 0, 1, 3, 236, 240, 20, 12, 0, 0, 0, 3, 0, 0, 0, 114, 68, 110, 73,
+        //         1, 0, 13, 0, 3, 0, 0, 0,
+        //     ]
+        // );
         test_payload(
             c,
-            vec![
-                2, 240, 128, 104, 0, 1, 3, 236, 240, 20, 12, 0, 0, 0, 3, 0, 0, 0, 114, 68, 110, 73,
-                1, 0, 13, 0, 3, 0, 0, 0,
-            ],
+            // vec![
+            //     2, 240, 128, 104, 0, 1, 3, 236, 240, 20, 12, 0, 0, 0, 3, 0, 0, 0, 114, 68, 110, 73,
+            //     1, 0, 13, 0, 3, 0, 0, 0,
+            // ],
+            payload_in,
             vec![
                 vec![
                     12, 0, 0, 0, 3, 0, 0, 0, 114, 68, 67, 67, 1, 0, 12, 0, 3, 0, 0, 0,
@@ -4215,6 +4224,7 @@ mod tests {
                     116, 101, 108, 101, 112, 111, 114, 116, 0,
                 ],
             ],
+            0,
         );
     }
 
@@ -4238,6 +4248,7 @@ mod tests {
                 0, 0, 0, 0, 0, 0, 0, 1, 0, 12, 0, 255, 127, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 1, 0, 0, 0, 5, 0, 8, 0, 1, 0, 0, 0, 4, 0, 8, 0, 2, 0, 0, 0,
             ]],
+            10,
         );
     }
 
@@ -4258,6 +4269,7 @@ mod tests {
                 28, 0, 0, 0, 3, 0, 0, 0, 114, 68, 65, 68, 1, 0, 0, 0, 32, 0, 0, 0, 1, 0, 0, 0, 83,
                 67, 65, 82, 68, 0, 0, 0, 0, 0, 0, 0,
             ]],
+            10,
         );
     }
 
@@ -4272,6 +4284,7 @@ mod tests {
                 100, 1, 0, 0, 0, 0, 0, 0, 0,
             ],
             vec![],
+            10,
         );
     }
 
@@ -4295,6 +4308,7 @@ mod tests {
                 0, 0, 0, 1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0,
             ]],
+            10,
         );
     }
 
