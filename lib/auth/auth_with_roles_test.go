@@ -3839,7 +3839,7 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 				Rules: []types.Rule{{
 					Resources: []string{types.KindSessionTracker},
 					Verbs:     []string{types.VerbList, types.VerbRead},
-					Where:     "equals(tracker.session_id, \"1\")",
+					Where:     "equals(session_tracker.session_id, \"1\")",
 				}},
 			},
 		})
@@ -3858,7 +3858,7 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 				Rules: []types.Rule{{
 					Resources: []string{types.KindSessionTracker},
 					Verbs:     []string{types.VerbList, types.VerbRead},
-					Where:     "equals(tracker.session_id, \"1\")",
+					Where:     "equals(session_tracker.session_id, \"1\")",
 				}},
 			},
 		})
