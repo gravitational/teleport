@@ -231,6 +231,20 @@ Finds all matches of `match` in `input`, and replaces them with `replacement`.
 `input` can be a string or a set of strings, in which case the replacement will
 be applied to all strings in the set.
 
+#### `upper(input)`
+
+`upper(input)` returns a copy of the input string converted to uppercase.
+`upper("ExAmPlE")` returns `"EXAMPLE"`.
+`input` can be a string or a set of strings, in which case all strings in the
+set will be converted to uppercase.
+
+#### `lower(input)`
+
+`lower(input)` returns a copy of the input string converted to lowercase.
+`lower("ExAmPlE")` returns `"example"`.
+`input` can be a string or a set of strings, in which case all strings in the
+set will be converted to lowercase.
+
 ### Modifications to predicate
 
 The predicate language currently does not support "methods" on objects such as
