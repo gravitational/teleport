@@ -90,7 +90,7 @@ func NewProvisionTokenFromSpec(token string, expires time.Time, spec ProvisionTo
 	if err := t.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &ProvisionTokenV2{}, nil
+	return &t, nil
 }
 
 // MustCreateProvisionToken returns a new valid provision token
@@ -359,7 +359,31 @@ func (p ProvisionTokenV1) String() string {
 
 // ProvisionTokenV3 methods
 
+// setStaticFields sets static resource header and metadata fields.
+func (p *ProvisionTokenV3) setStaticFields() {
+	p.Kind = KindToken
+	p.Version = V3
+}
+
 func (p *ProvisionTokenV3) CheckAndSetDefaults() error {
+	p.setStaticFields()
+	if err := p.Metadata.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(p.Spec.Roles) == 0 {
+		return trace.BadParameter("provisioning token is missing roles")
+	}
+	if err := SystemRoles(p.Spec.Roles).Check(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if p.Spec.BotName == "" && SystemRoles(p.Spec.Roles).Include(RoleBot) {
+		return trace.BadParameter("token with role %q must set bot_name", RoleBot)
+	} else if p.Spec.BotName != "" && !SystemRoles(p.Spec.Roles).Include(RoleBot) {
+		return trace.BadParameter("can only set bot_name on token with role %q", RoleBot)
+	}
+
 	switch p.Spec.JoinMethod {
 	case JoinMethodToken:
 	case JoinMethodIAM:
@@ -434,13 +458,24 @@ func (p *ProvisionTokenV3) SetName(e string) {
 	p.Metadata.Name = e
 }
 
-// String returns the human readable representation of a provisioning token.
-func (p ProvisionTokenV3) String() string {
-	expires := "never"
-	if !p.Expiry().IsZero() {
-		expires = p.Expiry().String()
-	}
-	return fmt.Sprintf("ProvisionToken(Roles=%v, Expires=%v)", p.Spec.Roles, expires)
+// GetBotName returns the BotName field which must be set for joining bots.
+func (p *ProvisionTokenV3) GetBotName() string {
+	return p.Spec.BotName
+}
+
+// GetKind returns resource kind
+func (p *ProvisionTokenV3) GetKind() string {
+	return p.Kind
+}
+
+// GetSubKind returns resource sub kind
+func (p *ProvisionTokenV3) GetSubKind() string {
+	return p.SubKind
+}
+
+// SetSubKind sets resource subkind
+func (p *ProvisionTokenV3) SetSubKind(s string) {
+	p.SubKind = s
 }
 
 // GetResourceID returns resource ID
@@ -451,6 +486,15 @@ func (p *ProvisionTokenV3) GetResourceID() int64 {
 // SetResourceID sets resource ID
 func (p *ProvisionTokenV3) SetResourceID(id int64) {
 	p.Metadata.ID = id
+}
+
+// String returns the human readable representation of a provisioning token.
+func (p ProvisionTokenV3) String() string {
+	expires := "never"
+	if !p.Expiry().IsZero() {
+		expires = p.Expiry().String()
+	}
+	return fmt.Sprintf("ProvisionToken(Roles=%v, Expires=%v)", p.Spec.Roles, expires)
 }
 
 // Validation for provider specific config
@@ -490,6 +534,9 @@ func (a *ProvisionTokenSpecV3AWSIAM) CheckAndSetDefaults() error {
 }
 
 func (a *ProvisionTokenSpecV3OIDCGoogle) CheckAndSetDefaults() error {
+	if len(a.Allow) == 0 {
+		return trace.BadParameter("the %q join method requires defined token allow rules", JoinMethodOIDCGCP)
+	}
 	for _, allowRule := range a.Allow {
 		projectIDPresent := allowRule.ProjectID != ""
 		projectNumberPresent := allowRule.ProjectNumber != 0
