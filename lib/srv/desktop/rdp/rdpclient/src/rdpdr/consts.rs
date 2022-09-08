@@ -79,7 +79,7 @@ pub enum DeviceType {
 }
 
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/a087ffa8-d0d5-4874-ac7b-0494f63e2d5d
-#[derive(Debug, FromPrimitive, ToPrimitive, PartialEq, Clone)]
+#[derive(Debug, FromPrimitive, ToPrimitive, PartialEq, Eq, Clone)]
 #[allow(non_camel_case_types)]
 pub enum MajorFunction {
     IRP_MJ_CREATE = 0x00000000,
@@ -106,7 +106,7 @@ pub enum MinorFunction {
 /// Windows defines an absolutely massive list of potential NTSTATUS values.
 /// This enum includes the basic ones we support for communicating with the windows machine.
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/596a1078-e883-4972-9bbc-49e60bebca55
-#[derive(ToPrimitive, Debug, PartialEq)]
+#[derive(ToPrimitive, Debug, PartialEq, Eq)]
 #[repr(u32)]
 #[allow(non_camel_case_types)]
 #[allow(dead_code)]
@@ -125,7 +125,7 @@ pub enum NTSTATUS {
 
 /// 2.4 File Information Classes [MS-FSCC]
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/4718fc40-e539-4014-8e33-b675af74e3e1
-#[derive(FromPrimitive, Debug, PartialEq, Clone)]
+#[derive(FromPrimitive, Debug, PartialEq, Eq, Clone)]
 #[repr(u32)]
 #[allow(clippy::enum_variant_names)]
 pub enum FileInformationClassLevel {
@@ -180,7 +180,7 @@ pub enum FileInformationClassLevel {
 
 /// 2.5 File System Information Classes [MS-FSCC]
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/ee12042a-9352-46e3-9f67-c094b75fe6c3
-#[derive(FromPrimitive, Debug, PartialEq)]
+#[derive(FromPrimitive, Debug, PartialEq, Eq)]
 #[repr(u32)]
 #[allow(clippy::enum_variant_names)]
 pub enum FileSystemInformationClassLevel {
