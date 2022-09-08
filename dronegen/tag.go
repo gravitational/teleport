@@ -177,6 +177,13 @@ func tagCopyArtifactCommands(b buildType) []string {
 
 	// generate checksums
 	commands = append(commands, fmt.Sprintf(`cd /go/artifacts && for FILE in teleport*%s; do sha256sum $FILE > $FILE.sha256; done && ls -l`, extension))
+
+	if b.os == "linux" && b.hasTeleportConnect() {
+		commands = append(commands,
+			`cd /go/artifacts && for FILE in teleport-connect*.deb teleport-connect*.rpm; do
+  sha256sum $FILE > $FILE.sha256;
+done && ls -l`)
+	}
 	return commands
 }
 
