@@ -978,7 +978,11 @@
             {
               "title": "teleport-plugin-event-handler",
               "slug": "/reference/helm-reference/teleport-plugin-event-handler/"
-	    }
+            },
+	    {
+              "title": "teleport-plugin-mattermost",
+              "slug": "/reference/helm-reference/teleport-plugin-mattermost/"
+            }
           ]
         }
       ]
