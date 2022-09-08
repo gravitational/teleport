@@ -110,7 +110,7 @@ func TestSetAuthServerFlagWhileLoggedIn(t *testing.T) {
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
 
-	authAddr, err := authProcess.AuthAddr()
+	authAddr, err := authProcess.AuthSSHAddr()
 	require.NoError(t, err)
 
 	proxyAddr, err := proxyProcess.ProxyWebAddr()
