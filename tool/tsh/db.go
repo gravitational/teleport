@@ -400,9 +400,6 @@ func onDatabaseEnv(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if tc.TLSRoutingEnabled {
-		return trace.BadParameter(dbCmdUnsupportedTLSRouting, cf.CommandWithBinary())
-	}
 
 	database, err := pickActiveDatabase(cf)
 	if err != nil {
@@ -411,6 +408,12 @@ func onDatabaseEnv(cf *CLIConf) error {
 
 	if !dbprofile.IsSupported(*database) {
 		return trace.BadParameter(dbCmdUnsupportedDBProtocol,
+			cf.CommandWithBinary(),
+			defaults.ReadableDatabaseProtocol(database.Protocol),
+		)
+	}
+	if tc.TLSRoutingEnabled && isLocalProxyRequiredForTLSRouting(database.Protocol) {
+		return trace.BadParameter(dbCmdUnsupportedTLSRouting,
 			cf.CommandWithBinary(),
 			defaults.ReadableDatabaseProtocol(database.Protocol),
 		)
@@ -457,9 +460,6 @@ func onDatabaseConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if tc.TLSRoutingEnabled {
-		return trace.BadParameter(dbCmdUnsupportedTLSRouting, cf.CommandWithBinary())
-	}
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
 	if err != nil {
 		return trace.Wrap(err)
@@ -468,26 +468,27 @@ func onDatabaseConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	rootCluster, err := tc.RootClusterName(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// Postgres proxy listens on web proxy port while MySQL proxy listens on
-	// a separate port due to the specifics of the protocol.
-	var host string
-	var port int
-	switch database.Protocol {
-	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
-		host, port = tc.PostgresProxyHostPort()
-	case defaults.ProtocolMySQL:
-		host, port = tc.MySQLProxyHostPort()
-	case defaults.ProtocolMongoDB, defaults.ProtocolRedis, defaults.ProtocolSnowflake, defaults.ProtocolElasticsearch:
-		host, port = tc.WebProxyHostPort()
-	default:
+
+	// "tsh db config" prints out instructions for native clients to connect to
+	// the remote proxy directly. Return errors here when direct connection
+	// does NOT work (e.g. when ALPN local proxy is required).
+	if isLocalProxyAlwaysRequired(database.Protocol) {
 		return trace.BadParameter(dbCmdUnsupportedDBProtocol,
 			cf.CommandWithBinary(),
 			defaults.ReadableDatabaseProtocol(database.Protocol),
 		)
+	}
+	if tc.TLSRoutingEnabled && isLocalProxyRequiredForTLSRouting(database.Protocol) {
+		return trace.BadParameter(dbCmdUnsupportedTLSRouting,
+			cf.CommandWithBinary(),
+			defaults.ReadableDatabaseProtocol(database.Protocol),
+		)
+	}
+
+	host, port := tc.DatabaseProxyHostPort(*database)
+	rootCluster, err := tc.RootClusterName(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	format := strings.ToLower(cf.Format)
@@ -1007,12 +1008,36 @@ func formatDatabaseConfigCommand(clusterFlag string, db tlsca.RouteToDatabase) s
 	return fmt.Sprintf("tsh db config --cluster=%v --format=cmd %v", clusterFlag, db.ServiceName)
 }
 
+// isLocalProxyAlwaysRequired returns true for protocols that always requires
+// an ALPN local proxy.
+func isLocalProxyAlwaysRequired(protocol string) bool {
+	switch protocol {
+	case defaults.ProtocolSQLServer,
+		defaults.ProtocolSnowflake:
+		return true
+	default:
+		return false
+	}
+}
+
+// isLocalProxyRequiredForTLSRouting returns true for protocols that requires
+// an ALPN local proxy only when TLS routing is enabled.
+func isLocalProxyRequiredForTLSRouting(protocol string) bool {
+	// MySQL can use its dedicated port when TLS routing is off, without ALPN
+	// local proxy.
+	return protocol == defaults.ProtocolMySQL
+}
+
 // isLocalProxyRequiredForDatabase returns true if local proxy has to be used
-// for connecting to the provided database. Currently return true if:
-//   - TLS routing is enabled.
-//   - A SQL Server connection always requires a local proxy.
+// for connecting to the provided database.
 func isLocalProxyRequiredForDatabase(tc *client.TeleportClient, db *tlsca.RouteToDatabase) bool {
-	return tc.TLSRoutingEnabled || db.Protocol == defaults.ProtocolSQLServer
+	if isLocalProxyAlwaysRequired(db.Protocol) {
+		return true
+	}
+	if tc.TLSRoutingEnabled && isLocalProxyRequiredForTLSRouting(db.Protocol) {
+		return true
+	}
+	return false
 }
 
 const (
@@ -1029,7 +1054,7 @@ const (
 const (
 	// dbCmdUnsupportedTLSRouting is the error message printed when some
 	// database subcommands are not supported because TLS routing is enabled.
-	dbCmdUnsupportedTLSRouting = `"%v" is not supported when TLS routing is enabled on the Teleport Proxy Service.
+	dbCmdUnsupportedTLSRouting = `"%v" is not supported for %v databases when TLS routing is enabled on the Teleport Proxy Service.
 
 Please use "tsh db connect" or "tsh proxy db" to connect to the database.`
 
