@@ -25,6 +25,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/pquerna/otp/totp"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -34,10 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/pquerna/otp/totp"
-	"github.com/stretchr/testify/require"
 )
 
 // TestGenerateAndUpsertRecoveryCodes tests the following:
@@ -684,7 +685,7 @@ func TestCompleteAccountRecovery(t *testing.T) {
 		{
 			name: "add new WEBAUTHN device",
 			getRequest: func() *proto.CompleteAccountRecoveryRequest {
-				_, webauthnRegRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), approvedToken.GetName())
+				_, webauthnRegRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), approvedToken.GetName(), proto.DeviceUsage_DEVICE_USAGE_MFA)
 				require.NoError(t, err)
 
 				return &proto.CompleteAccountRecoveryRequest{
@@ -711,7 +712,7 @@ func TestCompleteAccountRecovery(t *testing.T) {
 			require.Equal(t, event.(*apievents.MFADeviceAdd).UserMetadata.User, u.username)
 
 			// Test new device has been added.
-			mfas, err := srv.Auth().Identity.GetMFADevices(ctx, u.username, false)
+			mfas, err := srv.Auth().Services.GetMFADevices(ctx, u.username, false)
 			require.NoError(t, err)
 
 			found := false
@@ -807,12 +808,12 @@ func TestCompleteAccountRecovery_WithErrors(t *testing.T) {
 				require.NoError(t, err)
 
 				// Retrieve list of devices to get the name of an existing device.
-				devs, err := srv.Auth().Identity.GetMFADevices(ctx, u.username, false)
+				devs, err := srv.Auth().Services.GetMFADevices(ctx, u.username, false)
 				require.NoError(t, err)
 				require.NotEmpty(t, devs)
 
 				// New register response.
-				_, mfaResp, err := getMockedWebauthnAndRegisterRes(srv.Auth(), approvedToken.GetName())
+				_, mfaResp, err := getMockedWebauthnAndRegisterRes(srv.Auth(), approvedToken.GetName(), proto.DeviceUsage_DEVICE_USAGE_MFA)
 				require.NoError(t, err)
 
 				return &proto.CompleteAccountRecoveryRequest{
@@ -989,7 +990,7 @@ func TestAccountRecoveryFlow(t *testing.T) {
 				}
 			},
 			getCompleteRequest: func(u *userAuthCreds, approvedTokenID string) *proto.CompleteAccountRecoveryRequest {
-				_, webauthnRegRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), approvedTokenID)
+				_, webauthnRegRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), approvedTokenID, proto.DeviceUsage_DEVICE_USAGE_MFA)
 				require.NoError(t, err)
 
 				return &proto.CompleteAccountRecoveryRequest{
@@ -1085,7 +1086,7 @@ func TestGetAccountRecoveryToken(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				_, err = srv.Auth().Identity.CreateUserToken(ctx, wrongTokenType)
+				_, err = srv.Auth().CreateUserToken(ctx, wrongTokenType)
 				require.NoError(t, err)
 
 				return &proto.GetAccountRecoveryTokenRequest{
@@ -1245,7 +1246,7 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 				require.NotEmpty(t, res.GetCreated())
 
 				// Check token is deleted after success.
-				_, err = srv.Auth().Identity.GetUserToken(ctx, req.TokenID)
+				_, err = srv.Auth().GetUserToken(ctx, req.TokenID)
 				switch {
 				case c.forRecovery:
 					require.True(t, trace.IsNotFound(err))
@@ -1350,7 +1351,7 @@ func createUserWithSecondFactors(srv *TestTLSServer) (*userAuthCreds, error) {
 	}
 
 	// Insert a password, device, and recovery codes.
-	webDev, mfaResp, err := getMockedWebauthnAndRegisterRes(srv.Auth(), resetToken.GetName())
+	webDev, mfaResp, err := getMockedWebauthnAndRegisterRes(srv.Auth(), resetToken.GetName(), proto.DeviceUsage_DEVICE_USAGE_MFA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1383,15 +1384,24 @@ func createUserWithSecondFactors(srv *TestTLSServer) (*userAuthCreds, error) {
 	}, nil
 }
 
-func getMockedWebauthnAndRegisterRes(authSrv *Server, tokenID string) (*TestDevice, *proto.MFARegisterResponse, error) {
+func getMockedWebauthnAndRegisterRes(authSrv *Server, tokenID string, usage proto.DeviceUsage) (*TestDevice, *proto.MFARegisterResponse, error) {
 	res, err := authSrv.CreateRegisterChallenge(context.Background(), &proto.CreateRegisterChallengeRequest{
-		TokenID:    tokenID,
-		DeviceType: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		TokenID:     tokenID,
+		DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		DeviceUsage: usage,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	dev, regRes, err := NewTestDeviceFromChallenge(res)
+	var dev *TestDevice
+	var regRes *proto.MFARegisterResponse
+
+	if usage == proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS {
+		dev, regRes, err = NewTestDeviceFromChallenge(res, WithPasswordless())
+	} else {
+		dev, regRes, err = NewTestDeviceFromChallenge(res)
+	}
+
 	return dev, regRes, trace.Wrap(err)
 }

@@ -49,16 +49,18 @@ func TestBackportReviewers(t *testing.T) {
 		{
 			desc: "backport-original-pr-number-approved",
 			pull: github.PullRequest{
-				Author:      "baz",
-				Repository:  "bar",
-				UnsafeHead:  "baz/fix",
+				Author:     "baz",
+				Repository: "bar",
+				UnsafeHead: github.Branch{
+					Ref: "baz/fix",
+				},
 				UnsafeTitle: "Backport #0 to branch/v8",
 				UnsafeBody:  "",
 				Fork:        false,
 			},
 			reviewers: []string{"3"},
 			reviews: []github.Review{
-				{Author: "4", State: "APPROVED"},
+				{Author: "4", State: review.Approved},
 			},
 			err:      false,
 			expected: []string{"3", "4"},
@@ -66,16 +68,18 @@ func TestBackportReviewers(t *testing.T) {
 		{
 			desc: "backport-original-url-approved",
 			pull: github.PullRequest{
-				Author:      "baz",
-				Repository:  "bar",
-				UnsafeHead:  "baz/fix",
+				Author:     "baz",
+				Repository: "bar",
+				UnsafeHead: github.Branch{
+					Ref: "baz/fix",
+				},
 				UnsafeTitle: "Fixed an issue",
 				UnsafeBody:  "https://github.com/gravitational/teleport/pull/0",
 				Fork:        false,
 			},
 			reviewers: []string{"3"},
 			reviews: []github.Review{
-				{Author: "4", State: "APPROVED"},
+				{Author: "4", State: review.Approved},
 			},
 			err:      false,
 			expected: []string{"3", "4"},
@@ -83,19 +87,22 @@ func TestBackportReviewers(t *testing.T) {
 		{
 			desc: "backport-multiple-reviews",
 			pull: github.PullRequest{
-				Author:      "baz",
-				Repository:  "bar",
-				UnsafeHead:  "baz/fix",
+				Author:     "baz",
+				Repository: "bar",
+				UnsafeHead: github.Branch{
+					Ref: "baz/fix",
+				},
+
 				UnsafeTitle: "Fixed feature",
 				UnsafeBody:  "",
 				Fork:        false,
 			},
 			reviewers: []string{"3"},
 			reviews: []github.Review{
-				{Author: "4", State: "COMMENTED"},
-				{Author: "4", State: "CHANGES_REQUESTED"},
-				{Author: "4", State: "APPROVED"},
-				{Author: "9", State: "APPROVED"},
+				{Author: "4", State: review.Commented},
+				{Author: "4", State: review.ChangesRequested},
+				{Author: "4", State: review.Approved},
+				{Author: "9", State: review.Approved},
 			},
 			err:      true,
 			expected: []string{},
@@ -103,16 +110,18 @@ func TestBackportReviewers(t *testing.T) {
 		{
 			desc: "backport-original-not-found",
 			pull: github.PullRequest{
-				Author:      "baz",
-				Repository:  "bar",
-				UnsafeHead:  "baz/fix",
+				Author:     "baz",
+				Repository: "bar",
+				UnsafeHead: github.Branch{
+					Ref: "baz/fix",
+				},
 				UnsafeTitle: "Fixed feature",
 				UnsafeBody:  "",
 				Fork:        false,
 			},
 			reviewers: []string{"3"},
 			reviews: []github.Review{
-				{Author: "4", State: "APPROVED"},
+				{Author: "4", State: review.Approved},
 			},
 			err:      true,
 			expected: []string{},

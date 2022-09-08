@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -95,6 +96,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 		Host:         "localhost",
 		WebProxyAddr: "localhost",
 		SiteName:     "db.example.com",
+		Tracer:       tracing.NoopProvider().Tracer("test"),
 	}
 
 	tc, err := client.NewClient(conf)
@@ -334,11 +336,10 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				execOutput: map[string][]byte{},
 			},
 			cmd: []string{"mongo",
-				"--host", "localhost",
-				"--port", "12345",
 				"--ssl",
 				"--sslPEMKeyFile", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
-				"mydb"},
+				"mongodb://localhost:12345/mydb?serverSelectionTimeoutMS=5000",
+			},
 			wantErr: false,
 		},
 		{
@@ -350,13 +351,12 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				execOutput: map[string][]byte{},
 			},
 			cmd: []string{"mongo",
-				"--host", "localhost",
-				"--port", "12345",
-				"mydb"},
+				"mongodb://localhost:12345/mydb?serverSelectionTimeoutMS=5000",
+			},
 			wantErr: false,
 		},
 		{
-			name:         "mongosh",
+			name:         "mongosh no CA",
 			dbProtocol:   defaults.ProtocolMongoDB,
 			databaseName: "mydb",
 			execer: &fakeExec{
@@ -365,12 +365,29 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				},
 			},
 			cmd: []string{"mongosh",
-				"--host", "localhost",
-				"--port", "12345",
 				"--tls",
 				"--tlsCertificateKeyFile", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
 				"--tlsUseSystemCA",
-				"mydb"},
+				"mongodb://localhost:12345/mydb?serverSelectionTimeoutMS=5000",
+			},
+		},
+		{
+			name:         "mongosh",
+			dbProtocol:   defaults.ProtocolMongoDB,
+			databaseName: "mydb",
+			opts: []ConnectCommandFunc{
+				WithLocalProxy("localhost", 12345, "/tmp/keys/example.com/cas/example.com.pem")},
+			execer: &fakeExec{
+				execOutput: map[string][]byte{
+					"mongosh": []byte("1.1.6"),
+				},
+			},
+			cmd: []string{"mongosh",
+				"--tls",
+				"--tlsCertificateKeyFile", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
+				"--tlsCAFile", "/tmp/keys/example.com/cas/example.com.pem",
+				"mongodb://localhost:12345/mydb?serverSelectionTimeoutMS=5000",
+			},
 		},
 		{
 			name:         "mongosh no TLS",
@@ -383,9 +400,8 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				},
 			},
 			cmd: []string{"mongosh",
-				"--host", "localhost",
-				"--port", "12345",
-				"mydb"},
+				"mongodb://localhost:12345/mydb?serverSelectionTimeoutMS=5000",
+			},
 		},
 		{
 			name:         "sqlserver",
@@ -436,6 +452,32 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 				"-p", "12345"},
 			wantErr: false,
 		},
+		{
+			name:       "snowsql no TLS",
+			dbProtocol: defaults.ProtocolSnowflake,
+			opts:       []ConnectCommandFunc{WithNoTLS()},
+			execer:     &fakeExec{},
+			cmd: []string{"snowsql",
+				"-a", "teleport",
+				"-u", "myUser",
+				"-h", "localhost",
+				"-p", "12345"},
+			wantErr: false,
+		},
+		{
+			name:         "snowsql db-name no TLS",
+			dbProtocol:   defaults.ProtocolSnowflake,
+			opts:         []ConnectCommandFunc{WithNoTLS()},
+			execer:       &fakeExec{},
+			databaseName: "warehouse1",
+			cmd: []string{"snowsql",
+				"-a", "teleport",
+				"-u", "myUser",
+				"-h", "localhost",
+				"-p", "12345",
+				"-w", "warehouse1"},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -452,11 +494,11 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 
 			opts := append([]ConnectCommandFunc{
 				WithLocalProxy("localhost", 12345, ""),
+				WithExecer(tt.execer),
 			}, tt.opts...)
 
 			c := NewCmdBuilder(tc, profile, database, "root", opts...)
 			c.uid = utils.NewFakeUID()
-			c.exe = tt.execer
 			got, err := c.GetConnectCommand()
 			if tt.wantErr {
 				if err == nil {
@@ -477,6 +519,7 @@ func TestGetConnectCommandNoAbsPathConvertsAbsolutePathToRelative(t *testing.T) 
 		Host:         "localhost",
 		WebProxyAddr: "localhost",
 		SiteName:     "db.example.com",
+		Tracer:       tracing.NoopProvider().Tracer("test"),
 	}
 
 	tc, err := client.NewClient(conf)
@@ -498,11 +541,11 @@ func TestGetConnectCommandNoAbsPathConvertsAbsolutePathToRelative(t *testing.T) 
 	opts := []ConnectCommandFunc{
 		WithLocalProxy("localhost", 12345, ""),
 		WithNoTLS(),
+		WithExecer(&fakeExec{commandPathBehavior: forceAbsolutePath}),
 	}
 
 	c := NewCmdBuilder(tc, profile, database, "root", opts...)
 	c.uid = utils.NewFakeUID()
-	c.exe = &fakeExec{commandPathBehavior: forceAbsolutePath}
 
 	got, err := c.GetConnectCommandNoAbsPath()
 	require.NoError(t, err)
@@ -515,6 +558,7 @@ func TestGetConnectCommandNoAbsPathIsNoopWhenGivenRelativePath(t *testing.T) {
 		Host:         "localhost",
 		WebProxyAddr: "localhost",
 		SiteName:     "db.example.com",
+		Tracer:       tracing.NoopProvider().Tracer("test"),
 	}
 
 	tc, err := client.NewClient(conf)
@@ -536,11 +580,11 @@ func TestGetConnectCommandNoAbsPathIsNoopWhenGivenRelativePath(t *testing.T) {
 	opts := []ConnectCommandFunc{
 		WithLocalProxy("localhost", 12345, ""),
 		WithNoTLS(),
+		WithExecer(&fakeExec{commandPathBehavior: forceBasePath}),
 	}
 
 	c := NewCmdBuilder(tc, profile, database, "root", opts...)
 	c.uid = utils.NewFakeUID()
-	c.exe = &fakeExec{commandPathBehavior: forceBasePath}
 
 	got, err := c.GetConnectCommandNoAbsPath()
 	require.NoError(t, err)

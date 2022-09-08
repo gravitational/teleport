@@ -2,6 +2,8 @@ teleport:
   data_dir: /var/lib/teleport
   log:
     severity: DEBUG
+    format:
+      output: json
   storage:
     type: dir
   auth_servers: ["${PROXY_HOST}:3080"]

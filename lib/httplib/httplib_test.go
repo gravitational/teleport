@@ -17,40 +17,36 @@ limitations under the License.
 package httplib
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/julienschmidt/httprouter"
-	. "gopkg.in/check.v1"
+	"github.com/stretchr/testify/require"
 )
 
-func TestHTTP(t *testing.T) { TestingT(t) }
-
-type HTTPSuite struct {
-}
-
-var _ = Suite(&HTTPSuite{})
-
-func (s *HTTPSuite) TestRewritePaths(c *C) {
+func TestRewritePaths(t *testing.T) {
 	handler := newTestHandler()
 	server := httptest.NewServer(
 		RewritePaths(handler,
 			Rewrite("/v1/sessions/([^/]+)/(.*)", "/v1/namespaces/default/sessions/$1/$2")))
 	defer server.Close()
 	re, err := http.Post(server.URL+"/v1/sessions/s1/stream", "text/json", nil)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 	defer re.Body.Close()
-	c.Assert(re.StatusCode, Equals, http.StatusOK)
-	c.Assert(handler.capturedNamespace, Equals, "default")
-	c.Assert(handler.capturedID, Equals, "s1")
+	require.Equal(t, http.StatusOK, re.StatusCode)
+	require.Equal(t, "default", handler.capturedNamespace)
+	require.Equal(t, "s1", handler.capturedID)
 
 	re, err = http.Post(server.URL+"/v1/namespaces/system/sessions/s2/stream", "text/json", nil)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 	defer re.Body.Close()
-	c.Assert(re.StatusCode, Equals, http.StatusOK)
-	c.Assert(handler.capturedNamespace, Equals, "system")
-	c.Assert(handler.capturedID, Equals, "s2")
+	require.Equal(t, http.StatusOK, re.StatusCode)
+	require.Equal(t, "system", handler.capturedNamespace)
+	require.Equal(t, "s2", handler.capturedID)
 }
 
 type testHandler struct {
@@ -76,4 +72,60 @@ func (h *testHandler) postSessionChunkNamespace(w http.ResponseWriter, r *http.R
 	h.capturedNamespace = p.ByName("namespace")
 	h.capturedID = p.ByName("id")
 	return "ok", nil
+}
+
+func TestReadJSON_ContentType(t *testing.T) {
+	t.Parallel()
+
+	type TestJSON struct {
+		Name string `json:"name"`
+		Age  int    `json:"age"`
+	}
+
+	testCases := []struct {
+		name        string
+		contentType string
+		wantErr     bool
+	}{
+		{
+			name:        "empty value",
+			contentType: "",
+			wantErr:     true,
+		},
+		{
+			name:        "invalid type",
+			contentType: "multipart/form-data",
+			wantErr:     true,
+		},
+		{
+			name:        "just type/subtype",
+			contentType: "application/json",
+		},
+		{
+			name:        "type/subtype with params",
+			contentType: "application/json; charset=utf-8",
+		},
+	}
+
+	body := TestJSON{Name: "foo", Age: 60}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			payloadBuf := new(bytes.Buffer)
+			require.NoError(t, json.NewEncoder(payloadBuf).Encode(body))
+
+			httpReq, err := http.NewRequest("", "", payloadBuf)
+			require.NoError(t, err)
+			httpReq.Header.Add("Content-Type", tc.contentType)
+
+			output := TestJSON{}
+			err = ReadJSON(httpReq, &output)
+			if tc.wantErr {
+				require.True(t, strings.Contains(err.Error(), "invalid request"))
+				require.Empty(t, output)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, body, output)
+			}
+		})
+	}
 }

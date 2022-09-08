@@ -19,12 +19,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"os/user"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
@@ -39,6 +41,9 @@ type suite struct {
 }
 
 func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
+	sshListenAddr := localListenerAddr()
+	_, sshListenPort, err := net.SplitHostPort(sshListenAddr)
+	require.NoError(t, err)
 	fileConfig := &config.FileConfig{
 		Version: "v1",
 		Global: config.Global{
@@ -54,10 +59,11 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 		Proxy: config.Proxy{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: localListenerAddr(),
+				ListenAddress: sshListenAddr,
 			},
-			WebAddr: localListenerAddr(),
-			TunAddr: localListenerAddr(),
+			SSHPublicAddr: []string{net.JoinHostPort("localhost", sshListenPort)},
+			WebAddr:       localListenerAddr(),
+			TunAddr:       localListenerAddr(),
 		},
 		Auth: config.Auth{
 			Service: config.Service{
@@ -69,7 +75,8 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	}
 
 	cfg := service.MakeDefaultConfig()
-	err := config.ApplyFileConfig(fileConfig, cfg)
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	err = config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 
 	cfg.Proxy.DisableWebInterface = true
@@ -138,6 +145,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	}
 
 	cfg := service.MakeDefaultConfig()
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	err := config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 
@@ -226,8 +234,23 @@ func runTeleport(t *testing.T, cfg *service.Config) *service.TeleportProcess {
 	process, err := service.NewTeleport(cfg)
 	require.NoError(t, err)
 	require.NoError(t, process.Start())
-	t.Cleanup(func() { require.NoError(t, process.Close()) })
-	waitForEvents(t, process, service.ProxyWebServerReady, service.NodeSSHReady)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+
+	serviceReadyEvents := []string{
+		service.ProxyWebServerReady,
+		service.NodeSSHReady,
+	}
+	if cfg.Databases.Enabled {
+		serviceReadyEvents = append(serviceReadyEvents, service.DatabasesReady)
+	}
+	waitForEvents(t, process, serviceReadyEvents...)
+
+	if cfg.Databases.Enabled {
+		waitForDatabases(t, process, cfg.Databases.Databases)
+	}
 	return process
 }
 
@@ -237,15 +260,8 @@ func localListenerAddr() string {
 
 func waitForEvents(t *testing.T, svc service.Supervisor, events ...string) {
 	for _, event := range events {
-		eventCh := make(chan service.Event, 1)
-		svc.WaitForEvent(svc.ExitContext(), event, eventCh)
-		select {
-		case <-eventCh:
-		case <-time.After(30 * time.Second):
-			// in reality, the auth server should start *much* sooner than this.  we use a very large
-			// timeout here because this isn't the kind of problem that this test is meant to catch.
-			t.Fatalf("service server didn't receved %v event after 30s", event)
-		}
+		_, err := svc.WaitForEventTimeout(30*time.Second, event)
+		require.NoError(t, err, "service server didn't receved %v event after 30s", event)
 	}
 }
 

@@ -80,19 +80,33 @@ spec:
   client_secret: ""
   display: ""
   redirect_url: ""
-  teams_to_logins: null
+  teams_to_logins:
+  - logins:
+    - dummy
+    organization: octocats
+    team: dummy
+  teams_to_roles: null
 version: v3
 `
-	githubConn, err := types.NewGithubConnector("githubName", types.GithubConnectorSpecV3{})
+	githubConn, err := types.NewGithubConnector("githubName", types.GithubConnectorSpecV3{
+		TeamsToLogins: []types.TeamMapping{
+			{
+				Organization: "octocats",
+				Team:         "dummy",
+				Logins:       []string{"dummy"},
+			},
+		},
+	})
 	require.NoError(t, err)
 	item, err := ui.NewResourceItem(githubConn)
-	require.Nil(t, err)
-	require.Equal(t, item, &ui.ResourceItem{
+	require.NoError(t, err)
+
+	require.Equal(t, &ui.ResourceItem{
 		ID:      "github:githubName",
 		Kind:    types.KindGithubConnector,
 		Name:    "githubName",
 		Content: contents,
-	})
+	}, item)
 }
 
 func TestNewResourceItemRole(t *testing.T) {
@@ -114,15 +128,20 @@ spec:
   deny: {}
   options:
     cert_format: standard
+    create_host_user: false
     desktop_clipboard: true
+    desktop_directory_sharing: true
     enhanced_recording:
     - command
     - network
     forward_agent: false
     max_session_ttl: 30h0m0s
+    pin_source_ip: false
     port_forwarding: true
     record_session:
+      default: best_effort
       desktop: true
+    ssh_file_copy: true
 version: v3
 `
 	role, err := types.NewRoleV3("roleName", types.RoleSpecV5{
@@ -231,7 +250,15 @@ func TestGetGithubConnectors(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
 
 	m.mockGetGithubConnectors = func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
-		connector, err := types.NewGithubConnector("test", types.GithubConnectorSpecV3{})
+		connector, err := types.NewGithubConnector("test", types.GithubConnectorSpecV3{
+			TeamsToLogins: []types.TeamMapping{
+				{
+					Organization: "octocats",
+					Team:         "dummy",
+					Logins:       []string{"dummy"},
+				},
+			},
+		})
 		require.NoError(t, err)
 
 		return []types.GithubConnector{connector}, nil
@@ -349,13 +376,12 @@ func TestListResources(t *testing.T) {
 			expected: proto.ListResourcesRequest{
 				ResourceType:        types.KindNode,
 				Limit:               defaults.MaxIterationLimit,
-				NeedTotalCount:      true,
 				PredicateExpression: "(labels[`\"test\"`] == \"+:',#*~%^\" && !exists(labels.tier)) || resource.spec.description != \"weird example https://foo.dev:3080?bar=a,b&baz=banana\"",
 			},
 		},
 		{
 			name: "all param defined and set",
-			url:  `https://dev:3080/login?query=labels.env%20%3D%3D%20%22prod%22&limit=50&startKey=banana&sort=foo:desc&search=foo%2Bbar+baz+foo%2Cbar+%22some%20phrase%22`,
+			url:  `https://dev:3080/login?searchAsRoles=yes&query=labels.env%20%3D%3D%20%22prod%22&limit=50&startKey=banana&sort=foo:desc&search=foo%2Bbar+baz+foo%2Cbar+%22some%20phrase%22`,
 			expected: proto.ListResourcesRequest{
 				ResourceType:        types.KindNode,
 				Limit:               50,
@@ -363,35 +389,33 @@ func TestListResources(t *testing.T) {
 				SearchKeywords:      []string{"foo+bar", "baz", "foo,bar", "some phrase"},
 				PredicateExpression: `labels.env == "prod"`,
 				SortBy:              types.SortBy{Field: "foo", IsDesc: true},
+				UseSearchAsRoles:    true,
 			},
 		},
 		{
 			name: "all query param defined but empty",
 			url:  `https://dev:3080/login?query=&startKey=&search=&sort=&limit=&startKey=`,
 			expected: proto.ListResourcesRequest{
-				ResourceType:   types.KindNode,
-				Limit:          defaults.MaxIterationLimit,
-				NeedTotalCount: true,
+				ResourceType: types.KindNode,
+				Limit:        defaults.MaxIterationLimit,
 			},
 		},
 		{
 			name: "sort partially defined: fieldName",
 			url:  `https://dev:3080/login?sort=foo`,
 			expected: proto.ListResourcesRequest{
-				ResourceType:   types.KindNode,
-				Limit:          defaults.MaxIterationLimit,
-				SortBy:         types.SortBy{Field: "foo", IsDesc: false},
-				NeedTotalCount: true,
+				ResourceType: types.KindNode,
+				Limit:        defaults.MaxIterationLimit,
+				SortBy:       types.SortBy{Field: "foo", IsDesc: false},
 			},
 		},
 		{
 			name: "sort partially defined: fieldName with colon",
 			url:  `https://dev:3080/login?sort=foo:`,
 			expected: proto.ListResourcesRequest{
-				ResourceType:   types.KindNode,
-				Limit:          defaults.MaxIterationLimit,
-				SortBy:         types.SortBy{Field: "foo", IsDesc: false},
-				NeedTotalCount: true,
+				ResourceType: types.KindNode,
+				Limit:        defaults.MaxIterationLimit,
+				SortBy:       types.SortBy{Field: "foo", IsDesc: false},
 			},
 		},
 		{

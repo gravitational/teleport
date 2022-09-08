@@ -85,15 +85,15 @@ which can be used as a `ProxyCommand`.
 Similarly to `tsh ssh`, `tsh proxy ssh` establishes a TLS tunnel to Teleport
 proxy with `teleport-ssh-proxy` ALPN protocol, which `ssh` then connects over.
 
-See [OpenSSH client](../server-access/guides/openssh.mdx#use-the-openssh-client-to-access-teleport-nodes)
-guide for details on how it's configured.
+See the [OpenSSH client](../server-access/guides/openssh.mdx) guide for details on
+how it's configured.
 
 ## Reverse tunnels
 
-Reverse tunnel agents for Teleport node, application and database services, as
-well as for trusted clusters, open a TLS tunnel to the cluster's proxy with
-`teleport-reversetunnel` ALPN protocol and then dials SSH over it establishing
-the reverse tunnel connection.
+Reverse tunnel workers within the Teleport Node, Application and Database
+Services, as well as for Trusted Clusters, open a TLS tunnel to the cluster's
+Proxy Service with the `teleport-reversetunnel` ALPN protocol. The workers then
+dial SSH over the tunnel, establishing a secure connection.
 
 ## Kubernetes
 
@@ -136,7 +136,7 @@ Teleport provides a `tsh proxy db` command to launch a local database proxy:
 $ tsh proxy db example-db
 ```
 
-See [GUI clients](../database-access/guides/gui-clients.mdx) guide for a usage
+See [GUI clients](../connect-your-client/gui-clients.mdx) guide for a usage
 example.
 
 ## Web UI, apps and desktops
@@ -148,6 +148,6 @@ protocols for ALPN.
 
 ## Next steps
 
-- See [migration guide](../setup/operations/tls-routing.mdx) to learn how to
+- See [migration guide](../management/operations/tls-routing.mdx) to learn how to
   upgrade an existing cluster to use TLS routing.
 - Read through TLS routing design document [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0039-sni-alpn-teleport-proxy-routing.md).

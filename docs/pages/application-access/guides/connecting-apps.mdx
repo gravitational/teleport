@@ -1,9 +1,7 @@
 ---
-title: Use Teleport for Application Access
+title: Web Application Access
 description: How to configure Teleport for Application Access.
 ---
-
-# Connecting Web Applications
 
 Download the latest version of Teleport for your platform from our [downloads page](https://goteleport.com/teleport/download)
 and follow the installation [instructions](../../installation.mdx).
@@ -41,6 +39,10 @@ join the cluster. Generate a short-lived join token and save it for example
 in `/tmp/token`:
 
 ```code
+# Log in to your cluster with tsh so you can use tctl from your local machine.
+# You can also run tctl on your Auth Service host without running "tsh login"
+# first.
+$ tsh login --user=myuser --proxy=teleport.example.com
 $ tctl tokens add \
     --type=app \
     --app-name=grafana \
@@ -97,7 +99,11 @@ $ tctl --config=/path/to/teleport.yaml users add --roles=access appuser
 
 ## Start application service with CLI flags
 
-A Teleport Application Proxy agent can be started with a single CLI command:
+Install Teleport:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+You can start the Teleport Application Service with a single CLI command:
 
 ```code
 $ sudo teleport start \
@@ -115,7 +121,7 @@ a reverse tunnel.
 
 ### Application name
 
-An application name should make a valid sub-domain (\<=63 characters, no spaces, only `a-z 0-9 _ -` allowed).
+An application name should make a valid sub-domain (\<=63 characters, no spaces, only `a-z 0-9 -` allowed).
 
 After Teleport is running, users can access the app at `app-name.proxy_public_addr.com`
 e.g. `grafana.teleport.example.com`. You can also override `public_addr` e.g
@@ -266,21 +272,27 @@ requests forwarded to a web application.
     headers:
     # Inject a static header.
     - "X-Custom-Header: example"
-    # Inject hedaers with internal/external user traits.
+    # Inject headers with internal/external user traits.
     - "X-Internal-Trait: {{internal.logins}}"
     - "X-External-Trait: {{external.env}}"
+    # Inject header with Teleport-signed JWT token.
+    - "Authorization: Bearer {{internal.jwt}}"
     # Override Host header.
     - "Host: dashboard.example.com"
 ```
 
 Headers injected this way override any headers with the same names that may
 be sent by an application. The following headers are reserved and can't be
-rewritten: `X-Teleport-Jwt`, `Cf-Access-Token`, `X-Forwarded-*`.
+rewritten: `Teleport-Jwt-Assertion`, `Cf-Access-Token`, and any `X-Forwarded-*`.
 
 Rewritten header values support the same templating variables as [role templates](../../access-controls/guides/role-templates.mdx).
 In the example above, `X-Internal-Trait` header will be populated with the value
 of internal user trait `logins` and `X-External-Trait` header will get the value
 of the user's external `env` trait coming from the identity provider.
+
+Additionally, the `{{internal.jwt}}` template variable will be replaced with
+a JWT token signed by Teleport that contains user identity information. See
+[Integrating with JWTs](../jwt/introduction.mdx) for more details.
 
 ## View applications in Teleport
 

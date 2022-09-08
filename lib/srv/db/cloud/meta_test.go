@@ -21,10 +21,12 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/stretchr/testify/require"
@@ -73,11 +75,38 @@ func TestAWSMetadata(t *testing.T) {
 		},
 	}
 
+	// Configure ElastiCache API mock.
+	elasticache := &ElastiCacheMock{
+		ReplicationGroups: []*elasticache.ReplicationGroup{
+			{
+				ARN:                      aws.String("arn:aws:elasticache:us-west-1:123456789:replicationgroup:my-redis"),
+				ReplicationGroupId:       aws.String("my-redis"),
+				ClusterEnabled:           aws.Bool(true),
+				TransitEncryptionEnabled: aws.Bool(true),
+				UserGroupIds:             []*string{aws.String("my-user-group")},
+			},
+		},
+	}
+
+	// Configure MemoryDB API mock.
+	memorydb := &MemoryDBMock{
+		Clusters: []*memorydb.Cluster{
+			{
+				ARN:        aws.String("arn:aws:memorydb:us-west-1:123456789:cluster:my-cluster"),
+				Name:       aws.String("my-cluster"),
+				TLSEnabled: aws.Bool(true),
+				ACLName:    aws.String("my-user-group"),
+			},
+		},
+	}
+
 	// Create metadata fetcher.
 	metadata, err := NewMetadata(MetadataConfig{
-		Clients: &common.TestCloudClients{
-			RDS:      rds,
-			Redshift: redshift,
+		Clients: &cloud.TestCloudClients{
+			RDS:         rds,
+			Redshift:    redshift,
+			ElastiCache: elasticache,
+			MemoryDB:    memorydb,
 		},
 	})
 	require.NoError(t, err)
@@ -166,6 +195,44 @@ func TestAWSMetadata(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "ElastiCache",
+			inAWS: types.AWS{
+				ElastiCache: types.ElastiCache{
+					ReplicationGroupID: "my-redis",
+					EndpointType:       "configuration",
+				},
+			},
+			outAWS: types.AWS{
+				AccountID: "123456789",
+				Region:    "us-west-1",
+				ElastiCache: types.ElastiCache{
+					ReplicationGroupID:       "my-redis",
+					UserGroupIDs:             []string{"my-user-group"},
+					TransitEncryptionEnabled: true,
+					EndpointType:             "configuration",
+				},
+			},
+		},
+		{
+			name: "MemoryDB",
+			inAWS: types.AWS{
+				MemoryDB: types.MemoryDB{
+					ClusterName:  "my-cluster",
+					EndpointType: "cluster",
+				},
+			},
+			outAWS: types.AWS{
+				AccountID: "123456789",
+				Region:    "us-west-1",
+				MemoryDB: types.MemoryDB{
+					ClusterName:  "my-cluster",
+					ACLName:      "my-user-group",
+					TLSEnabled:   true,
+					EndpointType: "cluster",
+				},
+			},
+		},
 	}
 
 	ctx := context.Background()
@@ -196,7 +263,7 @@ func TestAWSMetadataNoPermissions(t *testing.T) {
 
 	// Create metadata fetcher.
 	metadata, err := NewMetadata(MetadataConfig{
-		Clients: &common.TestCloudClients{
+		Clients: &cloud.TestCloudClients{
 			RDS:      rds,
 			Redshift: redshift,
 		},

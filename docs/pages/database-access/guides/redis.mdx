@@ -21,11 +21,20 @@ This guide will help you to:
 - Configure mutual TLS authentication between Teleport and Redis.
 - Connect to Redis through Teleport.
 
+<ScopedBlock scope={["oss", "enterprise"]}>
+![Teleport Database Access Redis Self-Hosted](../../../img/database-access/guides/redis_selfhosted.png)
+</ScopedBlock>
+
+
+<ScopedBlock scope={["cloud"]}>
+![Teleport Database Access Redis Cloud](../../../img/database-access/guides/redis_cloud.png)
+</ScopedBlock>
+
 ## Prerequisites
 
 - Redis version `6.0` or newer.
 
-- `redis-cli` installed and added to your system's `PATH` environment variable.
+- `redis-cli` version `6.2` or newer installed and added to your system's `PATH` environment variable.
 
 - A host where you will run the Teleport Database Service. Teleport version 9.0
   or newer must be installed.
@@ -33,8 +42,6 @@ This guide will help you to:
   See [Installation](../../installation.mdx) for details.
 
 (!docs/pages/includes/user-client-prereqs.mdx!)
-
-(!docs/pages/includes/tctl.mdx!)
 
 <Admonition type="note" title="Note">
   Redis `7.0` and RESP3 (REdis Serialization Protocol) are currently not supported.
@@ -49,6 +56,10 @@ This guide will help you to:
 ### Set up the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
+
+Install Teleport on the host where you will run the Teleport Database Service:
+
+(!docs/pages/includes/install-linux.mdx!)
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
@@ -82,7 +93,7 @@ address of your Teleport Cloud tenant:
 ```code
 $ teleport db start \
   --token=/tmp/token \
-  --auth-server=mytenant.teleport.sh \
+  --auth-server=mytenant.teleport.sh:443 \
   --name=example-redis \
   --protocol=redis \
   --uri=rediss://redis.example.com:6379 \

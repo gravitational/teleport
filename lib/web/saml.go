@@ -17,11 +17,14 @@ limitations under the License.
 package web
 
 import (
+	"errors"
 	"net/http"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/form"
 	"github.com/gravitational/trace"
@@ -38,13 +41,12 @@ func (h *Handler) samlSSO(w http.ResponseWriter, r *http.Request, p httprouter.P
 		return client.LoginFailedRedirectURL
 	}
 
-	response, err := h.cfg.ProxyClient.CreateSAMLAuthRequest(
-		services.SAMLAuthRequest{
-			ConnectorID:       req.connectorID,
-			CSRFToken:         req.csrfToken,
-			CreateWebSession:  true,
-			ClientRedirectURL: req.clientRedirectURL,
-		})
+	response, err := h.cfg.ProxyClient.CreateSAMLAuthRequest(r.Context(), types.SAMLAuthRequest{
+		ConnectorID:       req.connectorID,
+		CSRFToken:         req.csrfToken,
+		CreateWebSession:  true,
+		ClientRedirectURL: req.clientRedirectURL,
+	})
 	if err != nil {
 		logger.WithError(err).Error("Error creating auth request.")
 		return client.LoginFailedRedirectURL
@@ -68,16 +70,15 @@ func (h *Handler) samlSSOConsole(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
 
-	response, err := h.cfg.ProxyClient.CreateSAMLAuthRequest(
-		services.SAMLAuthRequest{
-			ConnectorID:       req.ConnectorID,
-			ClientRedirectURL: req.RedirectURL,
-			PublicKey:         req.PublicKey,
-			CertTTL:           req.CertTTL,
-			Compatibility:     req.Compatibility,
-			RouteToCluster:    req.RouteToCluster,
-			KubernetesCluster: req.KubernetesCluster,
-		})
+	response, err := h.cfg.ProxyClient.CreateSAMLAuthRequest(r.Context(), types.SAMLAuthRequest{
+		ConnectorID:       req.ConnectorID,
+		ClientRedirectURL: req.RedirectURL,
+		PublicKey:         req.PublicKey,
+		CertTTL:           req.CertTTL,
+		Compatibility:     req.Compatibility,
+		RouteToCluster:    req.RouteToCluster,
+		KubernetesCluster: req.KubernetesCluster,
+	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create SAML auth request.")
 		return nil, trace.AccessDenied(ssoLoginConsoleErr)
@@ -96,9 +97,27 @@ func (h *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 		return client.LoginFailedRedirectURL
 	}
 
-	response, err := h.cfg.ProxyClient.ValidateSAMLResponse(samlResponse)
+	response, err := h.cfg.ProxyClient.ValidateSAMLResponse(r.Context(), samlResponse, p.ByName("connector"))
+
 	if err != nil {
 		logger.WithError(err).Error("Error while processing callback.")
+
+		// try to find the auth request, which bears the original client redirect URL.
+		// if found, use it to terminate the flow.
+		//
+		// this improves the UX by terminating the failed SSO flow immediately, rather than hoping for a timeout.
+		if requestID, errParse := auth.ParseSAMLInResponseTo(samlResponse); errParse == nil {
+			if request, errGet := h.cfg.ProxyClient.GetSAMLAuthRequest(r.Context(), requestID); errGet == nil && !request.CreateWebSession {
+				if url, errEnc := redirectURLWithError(request.ClientRedirectURL, err); errEnc == nil {
+					return url.String()
+				}
+			}
+		}
+
+		if errors.Is(err, auth.ErrSAMLNoRoles) {
+			return client.LoginFailedUnauthorizedRedirectURL
+		}
+
 		return client.LoginFailedBadCallbackRedirectURL
 	}
 
@@ -106,14 +125,19 @@ func (h *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 	if response.Req.CreateWebSession {
 		logger.Debug("Redirecting to web browser.")
 
+		redirect := response.Req.ClientRedirectURL
+		if redirect == "" {
+			redirect = "/web/"
+		}
+
 		res := &ssoCallbackResponse{
 			csrfToken:         response.Req.CSRFToken,
 			username:          response.Username,
 			sessionName:       response.Session.GetName(),
-			clientRedirectURL: response.Req.ClientRedirectURL,
+			clientRedirectURL: redirect,
 		}
 
-		if err := ssoSetWebSessionAndRedirectURL(w, r, res); err != nil {
+		if err := ssoSetWebSessionAndRedirectURL(w, r, res, response.Req.CSRFToken != ""); err != nil {
 			logger.WithError(err).Error("Error setting web session.")
 			return client.LoginFailedRedirectURL
 		}

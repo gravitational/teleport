@@ -52,6 +52,11 @@ func CompareServers(a, b types.Resource) int {
 			return compareApplicationServers(appA, appB)
 		}
 	}
+	if kubeA, ok := a.(types.KubeServer); ok {
+		if kubeB, ok := b.(types.KubeServer); ok {
+			return compareKubernetesServers(kubeA, kubeB)
+		}
+	}
 	if dbA, ok := a.(types.DatabaseServer); ok {
 		if dbB, ok := b.(types.DatabaseServer); ok {
 			return compareDatabaseServers(dbA, dbB)
@@ -91,7 +96,7 @@ func compareServers(a, b types.Server) int {
 	if a.GetUseTunnel() != b.GetUseTunnel() {
 		return Different
 	}
-	if !utils.StringMapsEqual(a.GetLabels(), b.GetLabels()) {
+	if !utils.StringMapsEqual(a.GetStaticLabels(), b.GetStaticLabels()) {
 		return Different
 	}
 	if !cmp.Equal(a.GetCmdLabels(), b.GetCmdLabels()) {
@@ -104,6 +109,9 @@ func compareServers(a, b types.Server) int {
 		return Different
 	}
 	if !cmp.Equal(a.GetKubernetesClusters(), b.GetKubernetesClusters()) {
+		return Different
+	}
+	if !cmp.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
 		return Different
 	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
@@ -133,6 +141,39 @@ func compareApplicationServers(a, b types.AppServer) int {
 	if !cmp.Equal(a.GetApp(), b.GetApp()) {
 		return Different
 	}
+	if !cmp.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
+		return Different
+	}
+	// OnlyTimestampsDifferent check must be after all Different checks.
+	if !a.Expiry().Equal(b.Expiry()) {
+		return OnlyTimestampsDifferent
+	}
+	return Equal
+}
+
+func compareKubernetesServers(a, b types.KubeServer) int {
+	if a.GetKind() != b.GetKind() {
+		return Different
+	}
+	if a.GetName() != b.GetName() {
+		return Different
+	}
+	if a.GetNamespace() != b.GetNamespace() {
+		return Different
+	}
+	if a.GetTeleportVersion() != b.GetTeleportVersion() {
+		return Different
+	}
+	r := a.GetRotation()
+	if !r.Matches(b.GetRotation()) {
+		return Different
+	}
+	if !cmp.Equal(a.GetCluster(), b.GetCluster()) {
+		return Different
+	}
+	if !cmp.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
+		return Different
+	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
@@ -160,6 +201,9 @@ func compareDatabaseServers(a, b types.DatabaseServer) int {
 	if !cmp.Equal(a.GetDatabase(), b.GetDatabase()) {
 		return Different
 	}
+	if !cmp.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
+		return Different
+	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
@@ -178,6 +222,9 @@ func compareWindowsDesktopServices(a, b types.WindowsDesktopService) int {
 		return Different
 	}
 	if a.GetTeleportVersion() != b.GetTeleportVersion() {
+		return Different
+	}
+	if !cmp.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
 		return Different
 	}
 	// OnlyTimestampsDifferent check must be after all Different checks.

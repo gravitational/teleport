@@ -54,10 +54,10 @@ func (c *DesktopCommand) Initialize(app *kingpin.Application, config *service.Co
 }
 
 // TryRun attempts to run subcommands like "desktop ls".
-func (c *DesktopCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
+func (c *DesktopCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case c.desktopList.FullCommand():
-		err = c.ListDesktop(client)
+		err = c.ListDesktop(ctx, client)
 	default:
 		return false, nil
 	}
@@ -66,8 +66,8 @@ func (c *DesktopCommand) TryRun(cmd string, client auth.ClientI) (match bool, er
 
 // ListDesktop prints the list of desktops that have recently sent heartbeats
 // to the cluster.
-func (c *DesktopCommand) ListDesktop(client auth.ClientI) error {
-	desktops, err := client.GetWindowsDesktops(context.TODO(), types.WindowsDesktopFilter{})
+func (c *DesktopCommand) ListDesktop(ctx context.Context, client auth.ClientI) error {
+	desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -75,7 +75,6 @@ func (c *DesktopCommand) ListDesktop(client auth.ClientI) error {
 		desktops: []windowsDesktopAndService{},
 		verbose:  c.verbose,
 	}
-	ctx := context.Background()
 	for _, desktop := range desktops {
 		ds, err := client.GetWindowsDesktopService(ctx, desktop.GetHostID())
 		if err != nil {

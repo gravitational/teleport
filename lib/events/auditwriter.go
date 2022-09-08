@@ -18,6 +18,7 @@ package events
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -414,6 +415,8 @@ func (a *AuditWriter) Complete(ctx context.Context) error {
 }
 
 func (a *AuditWriter) processEvents() {
+	defer a.cancel()
+
 	for {
 		// From the spec:
 		//
@@ -439,22 +442,29 @@ func (a *AuditWriter) processEvents() {
 		case event := <-a.eventsCh:
 			a.buffer = append(a.buffer, event)
 			err := a.stream.EmitAuditEvent(a.cfg.Context, event)
-			if err == nil {
-				continue
+			if err != nil {
+				if IsPermanentEmitError(err) {
+					a.log.WithError(err).WithField("event", event).Warning("Failed to emit audit event due to permanent emit audit event error. Event will be omitted.")
+					continue
+				}
+
+				if isUnrecoverableError(err) {
+					a.log.WithError(err).Debug("Failed to emit audit event.")
+					return
+				}
+
+				a.log.WithError(err).Debug("Failed to emit audit event, attempting to recover stream.")
+				start := time.Now()
+				if err := a.recoverStream(); err != nil {
+					a.log.WithError(err).Warningf("Failed to recover stream.")
+					return
+				}
+				a.log.Debugf("Recovered stream in %v.", time.Since(start))
 			}
-			a.log.WithError(err).Debug("Failed to emit audit event, attempting to recover stream.")
-			start := time.Now()
-			if err := a.recoverStream(); err != nil {
-				a.log.WithError(err).Warningf("Failed to recover stream.")
-				a.cancel()
-				return
-			}
-			a.log.Debugf("Recovered stream in %v.", time.Since(start))
 		case <-a.stream.Done():
 			a.log.Debugf("Stream was closed by the server, attempting to recover.")
 			if err := a.recoverStream(); err != nil {
 				a.log.WithError(err).Warningf("Failed to recover stream.")
-				a.cancel()
 				return
 			}
 		case <-a.closeCtx.Done():
@@ -462,6 +472,40 @@ func (a *AuditWriter) processEvents() {
 			return
 		}
 	}
+}
+
+// IsPermanentEmitError checks if the error contains underlying BadParameter error.
+func IsPermanentEmitError(err error) bool {
+	var (
+		maxDeep            = 50
+		iter               = 0
+		isPerErrRecurCheck func(error) bool
+	)
+
+	isPerErrRecurCheck = func(err error) bool {
+		defer func() { iter++ }()
+		if iter >= maxDeep {
+			return false
+		}
+
+		if trace.IsBadParameter(err) {
+			return true
+		}
+		if !trace.IsAggregate(err) {
+			return false
+		}
+		agg, ok := trace.Unwrap(err).(trace.Aggregate)
+		if !ok {
+			return false
+		}
+		for _, err := range agg.Errors() {
+			if !isPerErrRecurCheck(err) {
+				return false
+			}
+		}
+		return true
+	}
+	return isPerErrRecurCheck(err)
 }
 
 func (a *AuditWriter) recoverStream() error {
@@ -546,6 +590,11 @@ func (a *AuditWriter) tryResumeStream() (apievents.Stream, error) {
 				return nil, trace.ConnectionProblem(a.closeCtx.Err(), "operation has been canceled")
 			}
 		}
+
+		if isUnrecoverableError(err) {
+			return nil, trace.ConnectionProblem(err, "stream cannot be recovered")
+		}
+
 		select {
 		case <-retry.After():
 			a.log.WithError(err).Debug("Retrying to resume stream after backoff.")
@@ -617,4 +666,9 @@ func diff(before, after time.Time) int64 {
 		return 0
 	}
 	return d
+}
+
+// isUnrecoverableError returns if the provided stream error is unrecoverable.
+func isUnrecoverableError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), uploaderReservePartErrorMessage)
 }

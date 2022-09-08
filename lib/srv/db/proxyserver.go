@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
@@ -302,9 +303,9 @@ func (s *ProxyServer) ServeTLS(listener net.Listener) error {
 
 func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	s.log.Debugf("Accepted TLS database connection from %v.", conn.RemoteAddr())
-	tlsConn, ok := conn.(*tls.Conn)
+	tlsConn, ok := conn.(utils.TLSConn)
 	if !ok {
-		return trace.BadParameter("expected *tls.Conn, got %T", conn)
+		return trace.BadParameter("expected utils.TLSConn, got %T", conn)
 	}
 	clientIP, err := utils.ClientIPFromConn(conn)
 	if err != nil {
@@ -323,10 +324,13 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 		return trace.Wrap(err)
 	}
 	switch proxyCtx.Identity.RouteToDatabase.Protocol {
-	case defaults.ProtocolPostgres:
+	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
 		return s.PostgresProxyNoTLS().HandleConnection(s.closeCtx, tlsConn)
 	case defaults.ProtocolMySQL:
-		return s.MySQLProxyNoTLS().HandleConnection(s.closeCtx, tlsConn)
+		version := getMySQLVersionFromServer(proxyCtx.Servers)
+		// Set the version in the context to match a behavior in other handlers.
+		ctx := context.WithValue(s.closeCtx, dbutils.ContextMySQLServerVersion, version)
+		return s.MySQLProxyNoTLS().HandleConnection(ctx, tlsConn)
 	case defaults.ProtocolSQLServer:
 		return s.SQLServerProxy().HandleConnection(s.closeCtx, proxyCtx, tlsConn)
 	}
@@ -340,6 +344,15 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// getMySQLVersionFromServer returns the MySQL version returned by an instance on last connection or
+// the MySQL.ServerVersion set in configuration if the first one is not available.
+// Function picks a random server each time if more than one are available.
+func getMySQLVersionFromServer(servers []types.DatabaseServer) string {
+	count := len(servers)
+	db := servers[rand.Intn(count)].GetDatabase()
+	return db.GetMySQLServerVersion()
 }
 
 // PostgresProxy returns a new instance of the Postgres protocol aware proxy.
@@ -416,6 +429,7 @@ func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext
 			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
 			ServerID: fmt.Sprintf("%v.%v", server.GetHostID(), proxyCtx.Cluster.GetName()),
 			ConnType: types.DatabaseTunnel,
+			ProxyIDs: server.GetProxyIDs(),
 		})
 		if err != nil {
 			// If an agent is down, we'll retry on the next one (if available).
@@ -566,7 +580,7 @@ func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 }
 
 // Authorize authorizes the provided client TLS connection.
-func (s *ProxyServer) Authorize(ctx context.Context, tlsConn *tls.Conn, params common.ConnectParams) (*common.ProxyContext, error) {
+func (s *ProxyServer) Authorize(ctx context.Context, tlsConn utils.TLSConn, params common.ConnectParams) (*common.ProxyContext, error) {
 	ctx, err := s.middleware.WrapContextWithUser(ctx, tlsConn)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -632,7 +646,7 @@ func (s *ProxyServer) getDatabaseServers(ctx context.Context, identity tlsca.Ide
 // getConfigForServer returns TLS config used for establishing connection
 // to a remote database server over reverse tunnel.
 func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Identity, server types.DatabaseServer) (*tls.Config, error) {
-	privateKeyBytes, _, err := native.GenerateKeyPair()
+	privateKey, err := native.GeneratePrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -640,7 +654,7 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	csr, err := tlsca.GenerateCertificateRequestPEM(subject, privateKeyBytes)
+	csr, err := tlsca.GenerateCertificateRequestPEM(subject, privateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -661,7 +675,8 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert, err := tls.X509KeyPair(response.Cert, privateKeyBytes)
+
+	cert, err := privateKey.TLSCertificate(response.Cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

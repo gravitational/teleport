@@ -54,7 +54,7 @@ WriteToBuffer(char* source, size_t len)
 {
 	// NOTE: Modified to emit an event to the Go lib rather than mutate a
 	// global buffer.
-	writeSequenceEvent(source, len);
+	writeSequence(source, len);
 
 	return len;
 }
@@ -99,7 +99,7 @@ ReadConsoleForTermEmul(HANDLE hInput, HANDLE hQuitEvent)
 
 			// NOTE: modified here to emit events directly
 			case WINDOW_BUFFER_SIZE_EVENT:
-				writeResizeEvent(inputRecord.Event.WindowBufferSizeEvent.dwSize);
+				notifyResizeEvent();
 				break;
 			case FOCUS_EVENT:
 				break;

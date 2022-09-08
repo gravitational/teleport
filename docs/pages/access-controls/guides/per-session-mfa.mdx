@@ -17,7 +17,7 @@ their on-disk Teleport certificates.
 <Notice type="note">
   In addition to per-session MFA, enable login MFA in your SSO provider and/or
   for all [local Teleport
-  users](../../setup/reference/authentication.mdx#local-no-authentication-connector)
+  users](../../reference/authentication.mdx#local-no-authentication-connector)
   to improve security.
 </Notice>
 
@@ -41,6 +41,8 @@ their on-disk Teleport certificates.
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+(!docs/pages/includes/tctl.mdx!)
 
 - [WebAuthn configured](webauthn.mdx) on this cluster
 - Second factor hardware device, such as YubiKey or SoloKey
@@ -77,7 +79,7 @@ configuration:
 <Tabs>
 <TabItem label="Static configuration">
 
-Update `teleport.yaml` on the Auth Server to contain:
+Update `teleport.yaml` on the Auth Server to include the following content:
 
 ```yaml
 auth_service:
@@ -89,7 +91,15 @@ auth_service:
 </TabItem>
 <TabItem label="Dynamic resources">
 
-Create a file called `cap.yaml` with the following content:
+Obtain your existing `cluster_auth_preference` resource:
+
+```code
+$ tctl get cap > cap.yaml
+```
+
+If you have not defined a `cluster_auth_preference`, `cap.yaml` will be blank.
+
+Ensure that `cap.yaml` contains the following content:
 
 ```yaml
 kind: cluster_auth_preference
@@ -112,7 +122,15 @@ $ tctl create -f cap.yaml
 </ScopedBlock>
 <ScopedBlock scope="cloud">
 
-Create a file called `cap.yaml` with the following content:
+Obtain your existing `cluster_auth_preference` resource:
+
+```code
+$ tctl get cap > cap.yaml
+```
+
+If you have not defined a `cluster_auth_preference`, `cap.yaml` will be blank.
+
+Ensure that `cap.yaml` contains the following content:
 
 ```yaml
 kind: cluster_auth_preference
@@ -228,6 +246,11 @@ $ tsh ssh prod3.example.com
 # jerry@prod3.example.com >
 ```
 
+<Admonition title="Tip" type="tip">
+If you are using `tsh` in a constrained environment, you can tell it to use
+OTP by doing `tsh --mfa-mode=otp ssh prod3.example.com`.
+</Admonition>
+
 If per-session MFA was enabled cluster-wide, Jerry would be prompted for MFA
 even when logging into `dev1.example.com`.
 
@@ -265,11 +288,10 @@ Current limitations for this feature are:
 - WebAuthn hardware devices aren't currently supported in `tsh` on Windows.
 - Only `tsh ssh` supports per-session MFA authentication for SSH (OpenSSH `ssh`
   does not).
-- Only `kubectl` supports per-session U2F authentication for Kubernetes.
+- Only `kubectl` supports per-session WebAuthn authentication for Kubernetes.
 - Application access clients don't support per-session MFA
   authentication yet, although cluster and role configuration applies to them.
   If you enable per-session MFA checks cluster-wide, you will not be able to
   use Application access. We're working on integrating per-session
   MFA checks for these clients.
-- For Desktop Access, only WebAuthn devices are supported. Teleport does not
-  support U2F devices for Desktop Access MFA.
+- For Desktop Access, only WebAuthn devices are supported.

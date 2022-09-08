@@ -76,7 +76,7 @@ func (l *listener) Accept() (net.Conn, error) {
 // Close closes the connection.
 func (l *listener) Close() error {
 	l.closeFunc()
-	return l.closeContext.Err()
+	return nil
 }
 
 // Addr returns the address of the connection.

@@ -18,11 +18,8 @@ package clusters
 
 import (
 	"context"
-	"os/exec"
 
-	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
-	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/gravitational/trace"
 )
@@ -32,8 +29,13 @@ type CreateGatewayParams struct {
 	TargetURI string
 	// TargetUser is the target user name
 	TargetUser string
+	// TargetSubresourceName points at a subresource of the remote resource, for example a database
+	// name on a database server.
+	TargetSubresourceName string
 	// LocalPort is the gateway local port
-	LocalPort string
+	LocalPort          string
+	CLICommandProvider gateway.CLICommandProvider
+	TCPPortAllocator   gateway.TCPPortAllocator
 }
 
 // CreateGateway creates a gateway
@@ -48,47 +50,23 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 	}
 
 	gw, err := gateway.New(gateway.Config{
-		LocalPort:    params.LocalPort,
-		TargetURI:    params.TargetURI,
-		TargetUser:   params.TargetUser,
-		TargetName:   db.GetName(),
-		Protocol:     db.GetProtocol(),
-		KeyPath:      c.status.KeyPath(),
-		CertPath:     c.status.DatabaseCertPathForCluster("", db.GetName()),
-		Insecure:     c.clusterClient.InsecureSkipVerify,
-		WebProxyAddr: c.clusterClient.WebProxyAddr,
-		Log:          c.Log.WithField("gateway", params.TargetURI),
+		LocalPort:             params.LocalPort,
+		TargetURI:             params.TargetURI,
+		TargetUser:            params.TargetUser,
+		TargetName:            db.GetName(),
+		TargetSubresourceName: params.TargetSubresourceName,
+		Protocol:              db.GetProtocol(),
+		KeyPath:               c.status.KeyPath(),
+		CertPath:              c.status.DatabaseCertPathForCluster(c.clusterClient.SiteName, db.GetName()),
+		Insecure:              c.clusterClient.InsecureSkipVerify,
+		WebProxyAddr:          c.clusterClient.WebProxyAddr,
+		Log:                   c.Log.WithField("gateway", params.TargetURI),
+		CLICommandProvider:    params.CLICommandProvider,
+		TCPPortAllocator:      params.TCPPortAllocator,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cliCommand, err := buildCLICommand(c, gw)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	gw.CLICommand = cliCommand.String()
-
 	return gw, nil
-}
-
-func buildCLICommand(c *Cluster, gw *gateway.Gateway) (*exec.Cmd, error) {
-	routeToDb := tlsca.RouteToDatabase{
-		ServiceName: gw.TargetName,
-		Protocol:    gw.Protocol,
-		Username:    gw.TargetUser,
-	}
-
-	cmd, err := dbcmd.NewCmdBuilder(c.clusterClient, &c.status, &routeToDb, c.URI.GetRootClusterName(),
-		dbcmd.WithLogger(gw.Log),
-		dbcmd.WithLocalProxy(gw.LocalAddress, gw.LocalPortInt(), ""),
-		dbcmd.WithNoTLS(),
-		dbcmd.WithTolerateMissingCLIClient(),
-	).GetConnectCommandNoAbsPath()
-
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return cmd, nil
 }

@@ -91,6 +91,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 			out.Resource = &proto.Event_WebSession{
 				WebSession: r,
 			}
+		case types.KindSnowflakeSession:
+			out.Resource = &proto.Event_SnowflakeSession{
+				SnowflakeSession: r,
+			}
 		default:
 			return nil, trace.BadParameter("only %q supported", types.WebSessionSubKinds)
 		}
@@ -101,6 +105,14 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case *types.RemoteClusterV3:
 		out.Resource = &proto.Event_RemoteCluster{
 			RemoteCluster: r,
+		}
+	case *types.KubernetesServerV3:
+		out.Resource = &proto.Event_KubernetesServer{
+			KubernetesServer: r,
+		}
+	case *types.KubernetesClusterV3:
+		out.Resource = &proto.Event_KubernetesCluster{
+			KubernetesCluster: r,
 		}
 	case *types.AppServerV3:
 		out.Resource = &proto.Event_AppServer{
@@ -149,6 +161,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case *types.WindowsDesktopV3:
 		out.Resource = &proto.Event_WindowsDesktop{
 			WindowsDesktop: r,
+		}
+	case *types.InstallerV1:
+		out.Resource = &proto.Event_Installer{
+			Installer: r,
 		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
@@ -218,6 +234,9 @@ func EventFromGRPC(in proto.Event) (*types.Event, error) {
 	} else if r := in.GetAccessRequest(); r != nil {
 		out.Resource = r
 		return &out, nil
+	} else if r := in.GetSnowflakeSession(); r != nil {
+		out.Resource = r
+		return &out, nil
 	} else if r := in.GetAppSession(); r != nil {
 		out.Resource = r
 		return &out, nil
@@ -264,6 +283,15 @@ func EventFromGRPC(in proto.Event) (*types.Event, error) {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetWindowsDesktop(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetKubernetesServer(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetKubernetesCluster(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetInstaller(); r != nil {
 		out.Resource = r
 		return &out, nil
 	} else {

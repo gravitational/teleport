@@ -21,14 +21,14 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 var clusterNameNotFound = prometheus.NewCounter(
@@ -45,7 +45,7 @@ type ClusterConfigurationService struct {
 
 // NewClusterConfigurationService returns a new ClusterConfigurationService.
 func NewClusterConfigurationService(backend backend.Backend) (*ClusterConfigurationService, error) {
-	err := utils.RegisterPrometheusCollectors(clusterNameNotFound)
+	err := metrics.RegisterPrometheusCollectors(clusterNameNotFound)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -361,6 +361,65 @@ func (s *ClusterConfigurationService) DeleteSessionRecordingConfig(ctx context.C
 	return nil
 }
 
+// GetInstallers retrieves all the install scripts.
+func (s *ClusterConfigurationService) GetInstallers(ctx context.Context) ([]types.Installer, error) {
+	startKey := backend.Key(clusterConfigPrefix, scriptsPrefix, installerPrefix, "")
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var installers []types.Installer
+	for _, item := range result.Items {
+		installer, err := services.UnmarshalInstaller(item.Value)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		installers = append(installers, installer)
+	}
+	return installers, nil
+}
+
+// GetInstaller gets the script of the cluster from the backend.
+func (s *ClusterConfigurationService) GetInstaller(ctx context.Context, name string) (types.Installer, error) {
+	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, scriptsPrefix, installerPrefix, name))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalInstaller(item.Value)
+}
+
+// SetInstaller sets the script of the cluster in the backend
+func (s *ClusterConfigurationService) SetInstaller(ctx context.Context, ins types.Installer) error {
+	value, err := services.MarshalInstaller(ins)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = s.Put(ctx, backend.Item{
+		Key:     backend.Key(clusterConfigPrefix, scriptsPrefix, installerPrefix, ins.GetName()),
+		Value:   value,
+		Expires: ins.Expiry(),
+	})
+	return trace.Wrap(err)
+}
+
+// DeleteInstaller sets the installer script to default script in the backend.
+func (s *ClusterConfigurationService) DeleteInstaller(ctx context.Context, name string) error {
+	return trace.Wrap(
+		s.Delete(ctx, backend.Key(clusterConfigPrefix, scriptsPrefix, installerPrefix, name)))
+}
+
+// DeleteAllInstallers removes all installer resources.
+func (s *ClusterConfigurationService) DeleteAllInstallers(ctx context.Context) error {
+	startKey := backend.Key(clusterConfigPrefix, scriptsPrefix, installerPrefix, "")
+	err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 const (
 	clusterConfigPrefix    = "cluster_configuration"
 	namePrefix             = "name"
@@ -371,4 +430,6 @@ const (
 	auditPrefix            = "audit"
 	networkingPrefix       = "networking"
 	sessionRecordingPrefix = "session_recording"
+	scriptsPrefix          = "scripts"
+	installerPrefix        = "installer"
 )

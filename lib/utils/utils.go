@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math/rand"
 	"net"
 	"net/url"
 	"os"
@@ -37,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -311,6 +313,16 @@ func SplitHostPort(hostname string) (string, string, error) {
 	return host, port, nil
 }
 
+// IsValidHostname checks if a string represents a valid hostname.
+func IsValidHostname(hostname string) bool {
+	for _, label := range strings.Split(hostname, ".") {
+		if len(validation.IsDNS1035Label(label)) > 0 {
+			return false
+		}
+	}
+	return true
+}
+
 // ReadPath reads file contents
 func ReadPath(path string) ([]byte, error) {
 	if path == "" {
@@ -386,30 +398,32 @@ func OpaqueAccessDenied(err error) error {
 	return trace.Wrap(err)
 }
 
-// PortList is a list of TCP port
+// PortList is a list of TCP ports.
 type PortList struct {
-	ports []int
-	mu    sync.Mutex
+	ports []string
+	sync.Mutex
 }
 
 // Pop returns a value from the list, it panics if the value is not there
 func (p *PortList) Pop() string {
-	return strconv.Itoa(p.PopInt())
+	p.Lock()
+	defer p.Unlock()
+	if len(p.ports) == 0 {
+		panic("list is empty")
+	}
+	val := p.ports[len(p.ports)-1]
+	p.ports = p.ports[:len(p.ports)-1]
+	return val
 }
 
 // PopInt returns a value from the list, it panics if not enough values
 // were allocated
 func (p *PortList) PopInt() int {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	l := len(p.ports)
-	if l == 0 {
-		panic("list is empty")
+	i, err := strconv.Atoi(p.Pop())
+	if err != nil {
+		panic(err)
 	}
-	val := p.ports[l-1]
-	p.ports = p.ports[:l-1]
-	return val
+	return i
 }
 
 // PopIntSlice returns a slice of values from the list, it panics if not enough
@@ -427,13 +441,13 @@ const PortStartingNumber = 20000
 
 // GetFreeTCPPorts returns n ports starting from port 20000.
 func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
-	list := make([]int, 0, n)
+	list := make([]string, 0, n)
 	start := PortStartingNumber
 	if len(offset) != 0 {
 		start = offset[0]
 	}
 	for i := start; i < start+n; i++ {
-		list = append(list, i)
+		list = append(list, strconv.Itoa(i))
 	}
 	return PortList{ports: list}, nil
 }
@@ -478,7 +492,18 @@ func ReadOrMakeHostUUID(dataDir string) (string, error) {
 	if !trace.IsNotFound(err) {
 		return "", trace.Wrap(err)
 	}
-	id = uuid.NewString()
+	// Checking error instead of the usual uuid.New() in case uuid generation
+	// fails due to not enough randomness. It's been known to happen happen when
+	// Teleport starts very early in the node initialization cycle and /dev/urandom
+	// isn't ready yet.
+	rawID, err := uuid.NewRandom()
+	if err != nil {
+		return "", trace.BadParameter("" +
+			"Teleport failed to generate host UUID. " +
+			"This may happen if randomness source is not fully initialized when the node is starting up. " +
+			"Please try restarting Teleport again.")
+	}
+	id = rawID.String()
 	if err = WriteHostUUID(dataDir, id); err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -544,6 +569,18 @@ func RemoveFromSlice(slice []string, values ...string) []string {
 	return output
 }
 
+// ChooseRandomString returns a random string from the given slice.
+func ChooseRandomString(slice []string) string {
+	switch len(slice) {
+	case 0:
+		return ""
+	case 1:
+		return slice[0]
+	default:
+		return slice[rand.Intn(len(slice))]
+	}
+}
+
 // CheckCertificateFormatFlag checks if the certificate format is valid.
 func CheckCertificateFormatFlag(s string) (string, error) {
 	switch s {
@@ -593,6 +630,17 @@ func ReadAtMost(r io.Reader, limit int64) ([]byte, error) {
 		return data, ErrLimitReached
 	}
 	return data, nil
+}
+
+// HasPrefixAny determines if any of the string values have the given prefix.
+func HasPrefixAny(prefix string, values []string) bool {
+	for _, val := range values {
+		if strings.HasPrefix(val, prefix) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // ErrLimitReached means that the read limit is reached.

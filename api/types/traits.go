@@ -16,16 +16,5 @@ limitations under the License.
 
 package types
 
-// TraitMapping is a mapping that maps a trait to one or
-// more teleport roles.
-type TraitMapping struct {
-	// Trait is a teleport trait name
-	Trait string `json:"trait"`
-	// Value is trait value to match
-	Value string `json:"value"`
-	// Roles is a list of static teleport roles to map to
-	Roles []string `json:"roles,omitempty"`
-}
-
 // TraitMappingSet is a set of trait mappings
 type TraitMappingSet []TraitMapping

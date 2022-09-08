@@ -18,7 +18,7 @@ import (
 	"context"
 	"sync"
 
-	apiuri "github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 
@@ -32,13 +32,14 @@ func New(cfg Config) (*Service, error) {
 	}
 
 	return &Service{
-		Config: cfg,
+		cfg:      &cfg,
+		gateways: make(map[string]*gateway.Gateway),
 	}, nil
 }
 
 // ListRootClusters returns a list of root clusters
 func (s *Service) ListRootClusters(ctx context.Context) ([]*clusters.Cluster, error) {
-	clusters, err := s.Storage.ReadAll()
+	clusters, err := s.cfg.Storage.ReadAll()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -68,7 +69,7 @@ func (s *Service) ListLeafClusters(ctx context.Context, uri string) ([]clusters.
 
 // AddCluster adds a cluster
 func (s *Service) AddCluster(ctx context.Context, webProxyAddress string) (*clusters.Cluster, error) {
-	cluster, err := s.Storage.Add(ctx, webProxyAddress)
+	cluster, err := s.cfg.Storage.Add(ctx, webProxyAddress)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -89,7 +90,7 @@ func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
 		}
 	}
 
-	if err := s.Storage.Remove(ctx, cluster.Name); err != nil {
+	if err := s.cfg.Storage.Remove(ctx, cluster.ProfileName); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -98,12 +99,7 @@ func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
 
 // ResolveCluster resolves a cluster by URI
 func (s *Service) ResolveCluster(uri string) (*clusters.Cluster, error) {
-	clusterURI, err := apiuri.ParseClusterURI(uri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cluster, err := s.Storage.GetByURI(clusterURI.String())
+	cluster, err := s.cfg.Storage.GetByResourceURI(uri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -126,25 +122,204 @@ func (s *Service) ClusterLogout(ctx context.Context, uri string) error {
 }
 
 // CreateGateway creates a gateway to given targetURI
-func (s *Service) CreateGateway(ctx context.Context, params clusters.CreateGatewayParams) (*gateway.Gateway, error) {
+func (s *Service) CreateGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	cluster, err := s.ResolveCluster(params.TargetURI)
+	gateway, err := s.createGateway(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	gateway, err := cluster.CreateGateway(ctx, params)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	gateway.Open()
-
-	s.gateways = append(s.gateways, gateway)
 
 	return gateway, nil
+}
+
+type GatewayCreator interface {
+	CreateGateway(context.Context, clusters.CreateGatewayParams) (*gateway.Gateway, error)
+}
+
+// createGateway assumes that mu is already held by a public method.
+func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
+	cliCommandProvider := clusters.NewDbcmdCLICommandProvider(s.cfg.Storage, dbcmd.SystemExecer{})
+	clusterCreateGatewayParams := clusters.CreateGatewayParams{
+		TargetURI:             params.TargetURI,
+		TargetUser:            params.TargetUser,
+		TargetSubresourceName: params.TargetSubresourceName,
+		LocalPort:             params.LocalPort,
+		CLICommandProvider:    cliCommandProvider,
+		TCPPortAllocator:      s.cfg.TCPPortAllocator,
+	}
+
+	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, clusterCreateGatewayParams)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	go func() {
+		if err := gateway.Serve(); err != nil {
+			gateway.Log().WithError(err).Warn("Failed to handle a gateway connection.")
+		}
+	}()
+
+	s.gateways[gateway.URI().String()] = gateway
+
+	return gateway, nil
+}
+
+// RemoveGateway removes cluster gateway
+func (s *Service) RemoveGateway(gatewayURI string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	gateway, err := s.findGateway(gatewayURI)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := s.removeGateway(gateway); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// removeGateway assumes that mu is already held by a public method.
+func (s *Service) removeGateway(gateway *gateway.Gateway) error {
+	// If gateway.Close() fails it most likely means it was called on a gateway that was already
+	// closed and that we have a race condition. Let's return an error in that case.
+	if err := gateway.Close(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	delete(s.gateways, gateway.URI().String())
+
+	return nil
+}
+
+// RestartGateway stops a gateway and starts a new one with identical parameters.
+// It also keeps the original URI so that from the perspective of Connect it's still the same
+// gateway but with fresh certs.
+func (s *Service) RestartGateway(ctx context.Context, gatewayURI string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	oldGateway, err := s.findGateway(gatewayURI)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := s.removeGateway(oldGateway); err != nil {
+		return trace.Wrap(err)
+	}
+
+	newGateway, err := s.createGateway(ctx, CreateGatewayParams{
+		TargetURI:             oldGateway.TargetURI(),
+		TargetUser:            oldGateway.TargetUser(),
+		TargetSubresourceName: oldGateway.TargetSubresourceName(),
+		LocalPort:             oldGateway.LocalPort(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// s.createGateway adds a gateway under a random URI, so we need to place the new gateway under
+	// the URI of the old gateway.
+	delete(s.gateways, newGateway.URI().String())
+	newGateway.SetURI(oldGateway.URI())
+	s.gateways[oldGateway.URI().String()] = newGateway
+
+	return nil
+}
+
+// findGateway assumes that mu is already held by a public method.
+func (s *Service) findGateway(gatewayURI string) (*gateway.Gateway, error) {
+	if gateway, ok := s.gateways[gatewayURI]; ok {
+		return gateway, nil
+	}
+
+	return nil, trace.NotFound("gateway is not found: %v", gatewayURI)
+}
+
+// ListGateways lists gateways
+func (s *Service) ListGateways() []gateway.Gateway {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	gws := make([]gateway.Gateway, 0, len(s.gateways))
+	for _, gateway := range s.gateways {
+		gws = append(gws, *gateway)
+	}
+
+	return gws
+}
+
+// SetGatewayTargetSubresourceName updates the TargetSubresourceName field of a gateway stored in
+// s.gateways.
+func (s *Service) SetGatewayTargetSubresourceName(gatewayURI, targetSubresourceName string) (*gateway.Gateway, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	gateway, err := s.findGateway(gatewayURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	gateway.SetTargetSubresourceName(targetSubresourceName)
+
+	return gateway, nil
+}
+
+// SetGatewayLocalPort creates a new gateway with the given port, swaps it with the old gateway
+// under the same URI in s.gateways and then closes the old gateway. It doesn't fetch a fresh db
+// cert.
+//
+// If gateway.NewWithLocalPort fails it's imperative that the current gateway is kept intact. This
+// way if the user attempts to change the port to one that cannot be obtained, they're able to
+// correct that mistake and choose a different port.
+//
+// SetGatewayLocalPort is a noop if port is equal to the existing port.
+func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (*gateway.Gateway, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	oldGateway, err := s.findGateway(gatewayURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if localPort == oldGateway.LocalPort() {
+		return oldGateway, nil
+	}
+
+	newGateway, err := gateway.NewWithLocalPort(*oldGateway, localPort)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.removeGateway(oldGateway); err != nil {
+		// s.removeGateway() fails only if it was called on a gateway that was already close. This
+		// shouldn't happen and would mean that we have a race condition.
+		//
+		// Rather than continuing in presence of the race condition, let's attempt to close the new
+		// gateway (since it shouldn't be used anyway) and return the error.
+		if newGatewayCloseErr := newGateway.Close(); newGatewayCloseErr != nil {
+			newGateway.Log().Warnf(
+				"Failed to close the new gateway after failing to close the old gateway: %v",
+				newGatewayCloseErr,
+			)
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	s.gateways[gatewayURI] = newGateway
+
+	go func() {
+		if err := newGateway.Serve(); err != nil {
+			newGateway.Log().WithError(err).Warn("Failed to handle a gateway connection.")
+		}
+	}()
+
+	return newGateway, nil
 }
 
 // ListServers returns cluster servers
@@ -177,28 +352,6 @@ func (s *Service) ListApps(ctx context.Context, clusterURI string) ([]clusters.A
 	return apps, nil
 }
 
-// RemoveGateway removes cluster gateway
-func (s *Service) RemoveGateway(ctx context.Context, gatewayURI string) error {
-	gateway, err := s.FindGateway(gatewayURI)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	gateway.Close()
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	// remove closed gateway from list
-	for index := range s.gateways {
-		if s.gateways[index] == gateway {
-			s.gateways = append(s.gateways[:index], s.gateways[index+1:]...)
-			return nil
-		}
-	}
-
-	return nil
-}
-
 // ListKubes lists kubernetes clusters
 func (s *Service) ListKubes(ctx context.Context, uri string) ([]clusters.Kube, error) {
 	cluster, err := s.ResolveCluster(uri)
@@ -214,31 +367,6 @@ func (s *Service) ListKubes(ctx context.Context, uri string) ([]clusters.Kube, e
 	return kubes, nil
 }
 
-// FindGateway finds a gateway by URI
-func (s *Service) FindGateway(gatewayURI string) (*gateway.Gateway, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	for _, gateway := range s.gateways {
-		if gateway.URI.String() == gatewayURI {
-			return gateway, nil
-		}
-	}
-
-	return nil, trace.NotFound("gateway is not found: %v", gatewayURI)
-}
-
-// ListGateways lists gateways
-func (s *Service) ListGateways(ctx context.Context) ([]*gateway.Gateway, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	// copy this slice to avoid race conditions when original slice gets modified
-	gateways := make([]*gateway.Gateway, len(s.gateways))
-	copy(gateways, s.gateways)
-	return gateways, nil
-}
-
 // Stop terminates all cluster open connections
 func (s *Service) Stop() {
 	s.mu.RLock()
@@ -251,9 +379,16 @@ func (s *Service) Stop() {
 
 // Service is the daemon service
 type Service struct {
-	Config
+	cfg *Config
+	mu  sync.RWMutex
+	// gateways holds the long-running gateways for resources on different clusters. So far it's been
+	// used mostly for database gateways but it has potential to be used for app access as well.
+	gateways map[string]*gateway.Gateway
+}
 
-	mu sync.RWMutex
-	// gateways is the cluster gateways
-	gateways []*gateway.Gateway
+type CreateGatewayParams struct {
+	TargetURI             string
+	TargetUser            string
+	TargetSubresourceName string
+	LocalPort             string
 }

@@ -93,7 +93,14 @@ A new "Window Indicator" (icon with two arrows) should appear in the bottom left
 ![Window Indicator in bottom left corner of VS Code](../../../img/vscode/window-indicator.png)
 </Figure>
 
-Click on it, and select "Connect to Host...".
+Prior to connecting with a host set the `Remote.SSH: Use Local Server` setting to false in
+the extension setting.
+
+<Figure align="left" bordered caption="VSCode Setting">
+![Remote SSH Extension VS Code Settings](../../../img/vscode/settings.png)
+</Figure>
+
+To connect, click on the icon with two arrows and select "Connect to Host...".
 Select "+ Add New SSH Host..."
 
 For each host you wish to remotely develop on, add an entry like the following:
@@ -150,10 +157,7 @@ connect to the host in VS Code.
 ### Using OpenSSH clients
 
 This guide makes use of `tsh config`, added in Teleport 7.0; refer to the
-[dedicated guide](./openssh.mdx#automatic-setup) for additional information.
-
-[Manually configure an OpenSSH client](./openssh.mdx#manual-setup)
-to use the VS Code's remote SSH extension with older Teleport clients.
+[dedicated guide](./openssh.mdx) for additional information.
 
 ## Further reading
 - [VS Code Remote Development](https://code.visualstudio.com/docs/remote/remote-overview)
