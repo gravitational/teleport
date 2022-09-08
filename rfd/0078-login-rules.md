@@ -109,7 +109,7 @@ for `value`, else it returns `false`.
 
 #### `set.remove(value)`
 
-`set.add(value)` returns a copy of the set with `value` removed.
+`set.remove(value)` returns a copy of the set with `value` removed.
 `set("a", "b", "c").remove("c")` returns `("a", "b")`.
 
 #### `dict(...pairs)`
@@ -145,7 +145,7 @@ its only elements.
 ```
 dict(
   pair("fruits", set("apple")),
-).add("fruits", "banana").add("vegetables", "asparagus", "brocolli")
+).add_values("fruits", "banana").add("vegetables", "asparagus", "brocolli")
 ```
 
 returns
