@@ -3889,12 +3889,7 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 
 			found, err := clt.GetActiveSessionTrackers(ctx)
 			require.NoError(t, err)
-
-			if len(found) == 0 {
-				require.False(t, testCase.hasAccess)
-			} else {
-				require.True(t, testCase.hasAccess)
-			}
+			require.Equal(t, testCase.hasAccess, len(found) != 0)
 		})
 	}
 }
