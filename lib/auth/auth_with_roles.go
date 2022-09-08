@@ -23,11 +23,15 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -1182,6 +1186,10 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]typ
 
 // ListResources returns a paginated list of resources filtered by user access.
 func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	tracer := tracing.DefaultProvider().Tracer("serverWithRoles")
+	ctx, span := tracer.Start(ctx, "ListResources")
+	defer span.End()
+
 	if req.UseSearchAsRoles {
 		clusterName, err := a.authServer.GetClusterName()
 		if err != nil {
@@ -1218,6 +1226,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	// we will be making unnecessary trips and doing needless work of deserializing every
 	// item for every subset.
 	if req.RequiresFakePagination() {
+		span.AddEvent("performing fake pagination")
 		resp, err := a.listResourcesWithSort(ctx, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1248,6 +1257,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 	}
 
+	span.AddEvent("checking action")
 	if err := a.action(req.Namespace, req.ResourceType, actionVerbs...); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1265,25 +1275,30 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	req.SearchKeywords = nil
 	req.PredicateExpression = ""
 
+	span.AddEvent("creating access checker")
 	resourceChecker, err := a.newResourceAccessChecker(req.ResourceType)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	var resp types.ListResourcesResponse
-	if err := a.authServer.IterateResources(ctx, req, func(resource types.ResourceWithLabels) error {
+	span.AddEvent("iterating resources")
+	if err := a.authServer.IterateResources(ctx, req, func(ctx context.Context, resource types.ResourceWithLabels) error {
 		if len(resp.Resources) == limit {
 			resp.NextKey = backend.GetPaginationKey(resource)
 			return ErrDone
 		}
 
+		_, span := tracer.Start(ctx, "CanAccess", oteltrace.WithAttributes(attribute.String("resource", resource.GetName())))
 		if err := resourceChecker.CanAccess(resource); err != nil {
+			span.End()
 			if trace.IsAccessDenied(err) {
 				return nil
 			}
 
 			return trace.Wrap(err)
 		}
+		span.End()
 
 		switch match, err := services.MatchResourceByFilters(resource, filter, nil /* ignore dup matches  */); {
 		case err != nil:
@@ -3764,15 +3779,15 @@ func (a *ServerWithRoles) SignDatabaseCSR(ctx context.Context, req *proto.Databa
 //
 // This certificate can be requested by:
 //
-//  - Cluster administrator using "tctl auth sign --format=db" command locally
-//    on the auth server to produce a certificate for configuring a self-hosted
-//    database.
-//  - Remote user using "tctl auth sign --format=db" command with a remote
-//    proxy (e.g. Teleport Cloud), as long as they can impersonate system
-//    role Db.
-//  - Database service when initiating connection to a database instance to
-//    produce a client certificate.
-//  - Proxy service when generating mTLS files to a database
+//   - Cluster administrator using "tctl auth sign --format=db" command locally
+//     on the auth server to produce a certificate for configuring a self-hosted
+//     database.
+//   - Remote user using "tctl auth sign --format=db" command with a remote
+//     proxy (e.g. Teleport Cloud), as long as they can impersonate system
+//     role Db.
+//   - Database service when initiating connection to a database instance to
+//     produce a client certificate.
+//   - Proxy service when generating mTLS files to a database
 func (a *ServerWithRoles) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
 	// Check if the User can `create` DatabaseCertificates
 	err := a.action(apidefaults.Namespace, types.KindDatabaseCertificate, types.VerbCreate)

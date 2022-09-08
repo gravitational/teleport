@@ -32,6 +32,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -44,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -92,6 +95,8 @@ type GRPCServer struct {
 	*logrus.Entry
 	APIConfig
 	server *grpc.Server
+
+	traceProvider oteltrace.TracerProvider
 
 	// TraceServiceServer exposes the exporter server so that the auth server may
 	// collect and forward spans
@@ -3942,16 +3947,31 @@ func (g *GRPCServer) GenerateCertAuthorityCRL(ctx context.Context, req *proto.Ce
 
 // ListResources retrieves a paginated list of resources.
 func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
+	ctx, span := g.traceProvider.Tracer("grpcServer").Start(
+		ctx,
+		"grpcServer/ListResources",
+		oteltrace.WithAttributes(
+			attribute.String("resource_type", req.ResourceType),
+			attribute.Int("limit", int(req.Limit)),
+			attribute.String("start_key", req.StartKey),
+			attribute.Bool("descending", req.SortBy.IsDesc),
+		),
+	)
+	defer span.End()
+
+	span.AddEvent("authenticating user")
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	span.AddEvent("listing resources")
 	resp, err := auth.ListResources(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	span.AddEvent("building response")
 	protoResp := &proto.ListResourcesResponse{
 		NextKey:    resp.NextKey,
 		Resources:  make([]*proto.PaginatedResource, len(resp.Resources)),
@@ -4270,7 +4290,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Entry: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.Component(teleport.ComponentAuth, teleport.ComponentGRPC),
 		}),
-		server: server,
+		server:        server,
+		traceProvider: tracing.DefaultProvider(),
 	}
 	proto.RegisterAuthServiceServer(server, authServer)
 	collectortracepb.RegisterTraceServiceServer(server, authServer)

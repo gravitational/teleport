@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -2804,15 +2805,20 @@ var ErrDone = errors.New("done iterating")
 // callback function. To stop iteration callers may return ErrDone from the callback function, which will result in
 // a nil return from IterateResources. Any other errors returned from the callback function cause iteration to stop
 // and the error to be returned.
-func (a *Server) IterateResources(ctx context.Context, req proto.ListResourcesRequest, f func(resource types.ResourceWithLabels) error) error {
+func (a *Server) IterateResources(ctx context.Context, req proto.ListResourcesRequest, f func(ctx context.Context, resource types.ResourceWithLabels) error) error {
+	ctx, span := apitracing.DefaultProvider().Tracer("server").Start(ctx, "IterateResources")
+	defer span.End()
+
 	for {
+		span.AddEvent("listing resources")
 		resp, err := a.ListResources(ctx, req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
+		span.AddEvent("executing callback")
 		for _, resource := range resp.Resources {
-			if err := f(resource); err != nil {
+			if err := f(ctx, resource); err != nil {
 				if errors.Is(err, ErrDone) {
 					return nil
 				}
