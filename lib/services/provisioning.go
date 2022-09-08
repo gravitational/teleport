@@ -86,9 +86,23 @@ func UnmarshalProvisionToken(data []byte, opts ...MarshalOption) (types.Provisio
 		if cfg.ID != 0 {
 			v2.SetResourceID(cfg.ID)
 		}
+		// TODO: convert to V3
 		return v2, nil
 	case types.V2:
 		var p types.ProvisionTokenV2
+		if err := utils.FastUnmarshal(data, &p); err != nil {
+			return nil, trace.BadParameter(err.Error())
+		}
+		if err := p.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if cfg.ID != 0 {
+			p.SetResourceID(cfg.ID)
+		}
+		// TODO: Convert to V3
+		return &p, nil
+	case types.V3:
+		var p types.ProvisionTokenV3
 		if err := utils.FastUnmarshal(data, &p); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
@@ -123,8 +137,14 @@ func MarshalProvisionToken(provisionToken types.ProvisionToken, opts ...MarshalO
 			copy.SetResourceID(0)
 			provisionToken = &copy
 		}
-		if cfg.GetVersion() == types.V1 {
-			return utils.FastMarshal(provisionToken.V1())
+		return utils.FastMarshal(provisionToken)
+	case *types.ProvisionTokenV3:
+		if !cfg.PreserveResourceID {
+			// avoid modifying the original object
+			// to prevent unexpected data races
+			copy := *provisionToken
+			copy.SetResourceID(0)
+			provisionToken = &copy
 		}
 		return utils.FastMarshal(provisionToken)
 	default:

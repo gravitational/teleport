@@ -73,14 +73,14 @@ type ProvisionToken interface {
 
 // NewProvisionToken returns a new provision token with the given roles.
 func NewProvisionToken(token string, roles SystemRoles, expires time.Time) (ProvisionToken, error) {
-	return NewProvisionTokenFromSpec(token, expires, ProvisionTokenSpecV2{
+	return NewProvisionTokenFromSpec(token, expires, ProvisionTokenSpecV3{
 		Roles: roles,
 	})
 }
 
 // NewProvisionTokenFromSpec returns a new provision token with the given spec.
-func NewProvisionTokenFromSpec(token string, expires time.Time, spec ProvisionTokenSpecV2) (ProvisionToken, error) {
-	t := &ProvisionTokenV2{
+func NewProvisionTokenFromSpec(token string, expires time.Time, spec ProvisionTokenSpecV3) (ProvisionToken, error) {
+	t := &ProvisionTokenV3{
 		Metadata: Metadata{
 			Name:    token,
 			Expires: &expires,
@@ -90,7 +90,7 @@ func NewProvisionTokenFromSpec(token string, expires time.Time, spec ProvisionTo
 	if err := t.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return t, nil
+	return &ProvisionTokenV2{}, nil
 }
 
 // MustCreateProvisionToken returns a new valid provision token
@@ -179,8 +179,7 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 			}
 		}
 	case JoinMethodOIDCGCP:
-		// TODO: Validate allow rules to ensure that their rules are secure as
-		// per the RFC.
+		return trace.BadParameter("%q join method is compatible with token resource version 3 and higher")
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
 	}
@@ -294,7 +293,7 @@ func (p *ProvisionTokenV2) GetName() string {
 	return p.Metadata.Name
 }
 
-// SetName sets the name of the TrustedCluster.
+// SetName sets the name of the ProvisionTokenV2.
 func (p *ProvisionTokenV2) SetName(e string) {
 	p.Metadata.Name = e
 }
@@ -308,19 +307,10 @@ func (p ProvisionTokenV2) String() string {
 	return fmt.Sprintf("ProvisionToken(Roles=%v, Expires=%v)", p.Spec.Roles, expires)
 }
 
-// ProvisionTokensToV1 converts provision tokens to V1 list
-func ProvisionTokensToV1(in []ProvisionToken) []ProvisionTokenV1 {
-	if in == nil {
-		return nil
-	}
-	out := make([]ProvisionTokenV1, len(in))
-	for i := range in {
-		out[i] = *in[i].V1()
-	}
-	return out
-}
-
-// ProvisionTokensFromV1 converts V1 provision tokens to resource list
+// ProvisionTokensFromV1 converts V1 provision tokens to resource list.
+// This is used to convert ProvisionTokenV1s within the StaticTokens resource
+// to valid ProvisionTokens to be used for the purpose of validating a
+// joining client.
 func ProvisionTokensFromV1(in []ProvisionTokenV1) []ProvisionToken {
 	if in == nil {
 		return nil
@@ -365,4 +355,154 @@ func (p ProvisionTokenV1) String() string {
 	}
 	return fmt.Sprintf("ProvisionToken(Roles=%v, Expires=%v)",
 		p.Roles, expires)
+}
+
+// ProvisionTokenV3 methods
+
+func (p *ProvisionTokenV3) CheckAndSetDefaults() error {
+	switch p.Spec.JoinMethod {
+	case JoinMethodToken:
+	case JoinMethodIAM:
+		providerCfg := p.Spec.GetIAM()
+		if providerCfg == nil {
+			return trace.BadParameter(
+				`"aws_iam" configuration must be provided for join method %q`,
+				JoinMethodIAM,
+			)
+		}
+		if err := providerCfg.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	case JoinMethodEC2:
+		providerCfg := p.Spec.GetEC2()
+		if providerCfg == nil {
+			return trace.BadParameter(
+				`"aws_ec2" configuration must be provided for join method %q`,
+				JoinMethodIAM,
+			)
+		}
+		if err := providerCfg.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	case JoinMethodOIDCGCP:
+		providerCfg := p.Spec.GetOIDCGCP()
+		if providerCfg == nil {
+			return trace.BadParameter(
+				`"oidc_gcp" configuration must be provided for join method %q`,
+				JoinMethodIAM,
+			)
+		}
+		if err := providerCfg.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		return trace.BadParameter(`"join_method" must be specified`)
+
+	}
+	return fmt.Errorf("unimplemented")
+}
+
+// GetRoles returns a list of teleport roles
+// that will be granted to the user of the token
+// in the crendentials
+func (p *ProvisionTokenV3) GetRoles() SystemRoles {
+	return p.Spec.Roles
+}
+
+// SetRoles sets teleport roles
+func (p *ProvisionTokenV3) SetRoles(r SystemRoles) {
+	p.Spec.Roles = r
+}
+
+// SetExpiry sets expiry time for the object
+func (p *ProvisionTokenV3) SetExpiry(expires time.Time) {
+	p.Metadata.SetExpiry(expires)
+}
+
+// Expiry returns object expiry setting
+func (p *ProvisionTokenV3) Expiry() time.Time {
+	return p.Metadata.Expiry()
+}
+
+// GetName returns server name
+func (p *ProvisionTokenV3) GetName() string {
+	return p.Metadata.Name
+}
+
+// SetName sets the name of the ProvisionTokenV3
+func (p *ProvisionTokenV3) SetName(e string) {
+	p.Metadata.Name = e
+}
+
+// String returns the human readable representation of a provisioning token.
+func (p ProvisionTokenV3) String() string {
+	expires := "never"
+	if !p.Expiry().IsZero() {
+		expires = p.Expiry().String()
+	}
+	return fmt.Sprintf("ProvisionToken(Roles=%v, Expires=%v)", p.Spec.Roles, expires)
+}
+
+// GetResourceID returns resource ID
+func (p *ProvisionTokenV3) GetResourceID() int64 {
+	return p.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (p *ProvisionTokenV3) SetResourceID(id int64) {
+	p.Metadata.ID = id
+}
+
+// Validation for provider specific config
+
+func (a *ProvisionTokenSpecV3AWSEC2) CheckAndSetDefaults() error {
+	if len(a.Allow) == 0 {
+		return trace.BadParameter("the %q join method requires defined token allow rules", JoinMethodEC2)
+	}
+	for _, allowRule := range a.Allow {
+		if allowRule.AWSAccount == "" && allowRule.AWSRole == "" {
+			return trace.BadParameter(
+				`allow rule for %q join method must set "aws_account" or "aws_role"`,
+				JoinMethodEC2,
+			)
+		}
+	}
+	if a.AWSIIDTTL == 0 {
+		// default to 5 minute ttl if unspecified
+		a.AWSIIDTTL = Duration(5 * time.Minute)
+	}
+	return nil
+}
+
+func (a *ProvisionTokenSpecV3AWSIAM) CheckAndSetDefaults() error {
+	if len(a.Allow) == 0 {
+		return trace.BadParameter("the %q join method requires defined token allow rules", JoinMethodIAM)
+	}
+	for _, allowRule := range a.Allow {
+		if allowRule.AWSAccount == "" && allowRule.AWSARN == "" {
+			return trace.BadParameter(
+				`allow rule for %q join method must set "aws_account" or "aws_arn"`,
+				JoinMethodEC2,
+			)
+		}
+	}
+	return nil
+}
+
+func (a *ProvisionTokenSpecV3OIDCGoogle) CheckAndSetDefaults() error {
+	for _, allowRule := range a.Allow {
+		projectIDPresent := allowRule.ProjectID != ""
+		projectNumberPresent := allowRule.ProjectNumber != 0
+		subjectPresent := allowRule.Sub != ""
+
+		// Ensure at least one of the three unique fields is present to avoid users creating insecure configurations
+		if !projectIDPresent && !projectNumberPresent && !subjectPresent {
+			return trace.BadParameter(
+				`allow rule for %q join method must set "project_id", "project_number" or "sub""`,
+				JoinMethodOIDCGCP,
+			)
+		}
+
+	}
+	return nil
 }
