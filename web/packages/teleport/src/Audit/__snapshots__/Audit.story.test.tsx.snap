@@ -358,7 +358,7 @@ exports[`list of all events 1`] = `
           </strong>
            - 
           <strong>
-            100
+            126
           </strong>
            of
            
@@ -388,6 +388,7 @@ exports[`list of all events 1`] = `
         </button>
         <button
           class="c9"
+          disabled=""
           title="Next page"
         >
           <span
@@ -3383,7 +3384,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [root] failed to create symbolic link [/tmp/file] on node [[::1]:3022]: [EOF]
+          User [root] failed to create symbolic link [/tmp/file] on node [im-a-server-hostname]: [EOF]
         </td>
         <td
           style="min-width: 120px;"
@@ -3420,7 +3421,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [root] created symbolic link [/tmp/file] on node [[::1]:3022]
+          User [root] created symbolic link [/tmp/file] on node [im-a-server-hostname]
         </td>
         <td
           style="min-width: 120px;"
@@ -3457,7 +3458,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [root] failed to read symbolic link [/tmp/file] on node [[::1]:3022]: [EOF]
+          User [root] failed to read symbolic link [/tmp/file] on node [im-a-server-hostname]: [EOF]
         </td>
         <td
           style="min-width: 120px;"
@@ -3494,7 +3495,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [root] read symbolic link [/tmp/file] on node [[::1]:3022]
+          User [root] read symbolic link [/tmp/file] on node [im-a-server-hostname]
         </td>
         <td
           style="min-width: 120px;"
@@ -3531,7 +3532,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [root] failed to rename file [/tmp/file] on node [[::1]:3022]: [EOF]
+          User [root] failed to rename file [/tmp/file] on node [im-a-server-hostname]: [EOF]
         </td>
         <td
           style="min-width: 120px;"
@@ -3568,7 +3569,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [root] renamed file [/tmp/file] on node [[::1]:3022]
+          User [root] renamed file [/tmp/file] on node [im-a-server-hostname]
         </td>
         <td
           style="min-width: 120px;"
@@ -3605,7 +3606,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [root] failed to query attributes of file [/tmp/file] on node [[::1]:3022]: [EOF]
+          User [root] failed to query attributes of file [/tmp/file] on node [im-a-server-hostname]: [EOF]
         </td>
         <td
           style="min-width: 120px;"
@@ -3642,7 +3643,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [root] queried attributes of file [/tmp/file] on node [[::1]:3022]
+          User [root] queried attributes of file [/tmp/file] on node [im-a-server-hostname]
         </td>
         <td
           style="min-width: 120px;"
@@ -3679,7 +3680,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [root] failed to query absolute path of file [/tmp/file] on node [[::1]:3022]: [EOF]
+          User [root] failed to query absolute path of file [/tmp/file] on node [im-a-server-hostname]: [EOF]
         </td>
         <td
           style="min-width: 120px;"
@@ -3716,7 +3717,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [root] queried absolute path of file [/tmp/file] on node [[::1]:3022]
+          User [root] queried absolute path of file [/tmp/file] on node [im-a-server-hostname]
         </td>
         <td
           style="min-width: 120px;"
@@ -3753,7 +3754,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [root] failed to remove directory [/tmp/file] on node [[::1]:3022]: [EOF]
+          User [root] failed to remove directory [/tmp/file] on node [im-a-server-hostname]: [EOF]
         </td>
         <td
           style="min-width: 120px;"
@@ -3790,7 +3791,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [root] removed directory [/tmp/file] on node [[::1]:3022]
+          User [root] removed directory [/tmp/file] on node [im-a-server-hostname]
         </td>
         <td
           style="min-width: 120px;"
@@ -3827,7 +3828,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [root] failed to create directory [/tmp/file] on node [[::1]:3022]: [EOF]
+          User [root] failed to create directory [/tmp/file] on node [im-a-server-hostname]: [EOF]
         </td>
         <td
           style="min-width: 120px;"
@@ -3864,7 +3865,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [root] created directory [/tmp/file] on node [[::1]:3022]
+          User [root] created directory [/tmp/file] on node [im-a-server-hostname]
         </td>
         <td
           style="min-width: 120px;"
@@ -3901,7 +3902,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [root] failed to remove file [/tmp/file] on node [[::1]:3022]: [EOF]
+          User [root] failed to remove file [/tmp/file] on node [im-a-server-hostname]: [EOF]
         </td>
         <td
           style="min-width: 120px;"
@@ -3938,7 +3939,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [root] removed file [/tmp/file] on node [[::1]:3022]
+          User [root] removed file [/tmp/file] on node [im-a-server-hostname]
         </td>
         <td
           style="min-width: 120px;"
@@ -3975,7 +3976,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [root] failed to read directory [/tmp/file] on node [[::1]:3022]: [EOF]
+          User [root] failed to read directory [/tmp/file] on node [im-a-server-hostname]: [EOF]
         </td>
         <td
           style="min-width: 120px;"
@@ -4012,7 +4013,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [root] read directory [/tmp/file] on node [[::1]:3022]
+          User [root] read directory [/tmp/file] on node [im-a-server-hostname]
         </td>
         <td
           style="min-width: 120px;"
@@ -4049,7 +4050,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [root] failed to open directory [/tmp/file] on node [[::1]:3022]: [EOF]
+          User [root] failed to open directory [/tmp/file] on node [im-a-server-hostname]: [EOF]
         </td>
         <td
           style="min-width: 120px;"
@@ -4086,7 +4087,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [root] opened directory [/tmp/file] on node [[::1]:3022]
+          User [root] opened directory [/tmp/file] on node [im-a-server-hostname]
         </td>
         <td
           style="min-width: 120px;"
@@ -4123,12 +4124,974 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [root] failed to change attributes of file [/tmp/file] on node [[::1]:3022]: [EOF]
+          User [root] failed to change attributes of file [/tmp/file] on node [im-a-server-hostname]: [EOF]
         </td>
         <td
           style="min-width: 120px;"
         >
           2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Fsetstat
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] changed attributes of file [/tmp/file] on node [im-a-server-hostname]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Setstat Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] failed to change attributes of file [/tmp/file] on node [im-a-server-hostname]: [EOF]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Setstat
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] changed attributes of file [/tmp/file] on node [im-a-server-hostname]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Fstat Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] failed to query attributes of file [/tmp/file] on node [im-a-server-hostname]: [EOF]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Fstat
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] queried attributes of file [/tmp/file] on node [im-a-server-hostname]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Lstat Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] failed to query attributes of file [/tmp/file] on node [im-a-server-hostname]: [EOF]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Lstat
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] queried attributes of file [/tmp/file] on node [im-a-server-hostname]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Write Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] failed to write to file [/tmp/file] on node [im-a-server-hostname]: [EOF]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Write
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] wrote to file [/tmp/file] on node [im-a-server-hostname]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Read Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] failed to read from file [/tmp/file] on node [im-a-server-hostname]: [EOF]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Read
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] read from file [/tmp/file] on node [im-a-server-hostname]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Close Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] failed to close file [/tmp/file] on node [im-a-server-hostname]: [EOF]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Close
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] closed file [/tmp/file] on node [im-a-server-hostname]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Open Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] failed to open file [/tmp/file] on node [im-a-server-hostname]: [EOF]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Open
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] opened file [/tmp/file] on node [im-a-server-hostname]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-file_upload c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SCP Upload
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] uploaded a file [~/] to node [192.168.0.105:3022]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-get_app c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SCP Download Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          File download from node [192.168.0.105:3022] failed [exit status 1]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-get_app c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SCP Download
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [admin@example.com] downloaded a file [~/fsdfsdfsdfsdfs] from node [172.31.28.130:3022]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-terminal c10 c15"
+              color="light"
+              font-size="3"
+            />
+            User Joined
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [admin@example.com] has joined the session [56408539-6536-11e9-80a1-427cfde50f5a]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:39:52.434Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-terminal c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Terminal Resize
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [admin@example.com] resized the session [56408539-6536-11e9-80a1-427cfde50f5a] terminal
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:39:52.432Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-terminal c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Session Started
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [admin@example.com] has started a session [56408539-6536-11e9-80a1-427cfde50f5a]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:39:26.676Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-terminal c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Session File Access
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          Program [bash] accessed a file [/etc/profile.d/] within a session [44c6cea8-362f-11ea-83aa-125400432324]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:39:26.676Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-terminal c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Session Network Connection
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          [DENY] Program [bash] was prevented from opening a connection [10.217.136.161 &lt;-&gt; 190.58.129.4:3000] within a session [44c6cea8-362f-11ea-83aa-125400432324]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:39:26.676Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Local Login Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          Local user [fsdfsdf] login failed [user(name="fsdfsdf") not found]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T18:06:32Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Auth Attempt Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [admin@example.com] failed auth attempt: ssh: principal "fsdfdsf" not in the set of valid principals for given certificate: ["root"]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T02:09:06Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Local Login
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          Local user [admin@example.com] successfully logged in
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T00:49:03Z
         </td>
         <td
           align="right"

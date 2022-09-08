@@ -16,7 +16,7 @@ limitations under the License.
 
 import { makeEvent } from 'teleport/services/audit';
 
-// events contains sample JSON's of all supported event types
+// events contains sample JSON's of ALL supported event types
 export const events = [
   {
     cluster_name: 'im-a-cluster-name',
@@ -1971,6 +1971,7 @@ export const events = [
   },
 ].map(makeEvent);
 
+// Do not add new events to this array, add it to `events` list.
 export const eventsSample = [
   {
     code: 'T1004I',
@@ -2031,4 +2032,5 @@ export const eventsSample = [
     data: '{"some": "json"}',
     time: '2019-04-22T19:39:26.676Z',
   },
+  // Do not add new events to this array, add it to `events` list.
 ].map(makeEvent);

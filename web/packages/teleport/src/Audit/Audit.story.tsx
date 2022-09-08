@@ -57,13 +57,13 @@ export const Failed = () => {
   return render(ctx);
 };
 
-export const AllEvents = () => (
+export const AllPossibleEvents = () => (
   <EventList
     clusterId="im-a-cluster"
     events={events}
     fetchMore={() => null}
     fetchStatus={''}
-    pageSize={100}
+    pageSize={1000}
   />
 );
 
