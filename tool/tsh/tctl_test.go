@@ -157,7 +157,7 @@ func TestSetAuthServerFlagWhileLoggedIn(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			ccf := new(common.GlobalCLIFlags)
+			ccf := &common.GlobalCLIFlags{}
 			ccf.AuthServerAddr = tt.authServerFlag
 
 			cfg := new(service.Config)
