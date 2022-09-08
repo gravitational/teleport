@@ -25,10 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -41,80 +38,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )
-
-type templateKubernetesAuthMock struct {
-	auth.ClientI
-	clusterName string
-	t           *testing.T
-}
-
-func (m *templateKubernetesAuthMock) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
-	cn, err := types.NewClusterName(types.ClusterNameSpecV2{
-		ClusterName: m.clusterName,
-		ClusterID:   "aa-bb-cc",
-	})
-	require.NoError(m.t, err)
-	return cn, nil
-}
-
-func (m *templateKubernetesAuthMock) Ping(ctx context.Context) (proto.PingResponse, error) {
-	require.NotNil(m.t, ctx)
-	return proto.PingResponse{
-		ProxyPublicAddr: "tele.blackmesa.gov:443",
-	}, nil
-}
-
-func (m *templateKubernetesAuthMock) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
-	require.NotNil(m.t, ctx)
-	require.Equal(m.t, types.HostCA, caType)
-	require.False(m.t, loadKeys)
-
-	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:        types.HostCA,
-		ClusterName: m.clusterName,
-		ActiveKeys: types.CAKeySet{
-			TLS: []*types.TLSKeyPair{
-				{
-					Cert: []byte(fixtures.TLSCACertPEM),
-					Key:  []byte(fixtures.TLSCAKeyPEM),
-				},
-			},
-			SSH: []*types.SSHKeyPair{
-				{
-					PrivateKey: []byte(fixtures.SSHCAPrivateKey),
-					PublicKey:  []byte(fixtures.SSHCAPublicKey),
-				},
-			},
-		},
-	})
-	require.NoError(m.t, err)
-	return []types.CertAuthority{ca}, nil
-}
-
-type templateKubernetesMockBot struct {
-	mockAuth *templateKubernetesAuthMock
-}
-
-func (t *templateKubernetesMockBot) Client() auth.ClientI {
-	return t.mockAuth
-}
-
-func (t *templateKubernetesMockBot) AuthPing(ctx context.Context) (*proto.PingResponse, error) {
-	ping, err := t.mockAuth.Ping(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return &ping, err
-}
-
-func (t *templateKubernetesMockBot) ProxyPing(ctx context.Context) (*webclient.PingResponse, error) {
-	return &webclient.PingResponse{}, nil
-}
-
-func (t *templateKubernetesMockBot) GetCertAuthorities(ctx context.Context, caType types.CertAuthType) ([]types.CertAuthority, error) {
-	return t.mockAuth.GetCertAuthorities(ctx, caType, false)
-}
 
 // getTestIdent returns a mostly-valid bot Identity without starting up an
 // entire Teleport server instance.
@@ -142,7 +65,7 @@ func getTestIdent(t *testing.T, username string, k8sCluster string) *identity.Id
 		Username:          username,
 		KubernetesUsers:   []string{"foo"},
 		KubernetesGroups:  []string{"bar"},
-		RouteToCluster:    "teleport.localhost.localdomain",
+		RouteToCluster:    mockClusterName,
 		KubernetesCluster: k8sCluster,
 	}
 	subject, err := id.Subject()
@@ -165,7 +88,7 @@ func getTestIdent(t *testing.T, username string, k8sCluster string) *identity.Id
 		CertificateFormat: constants.CertificateFormatStandard,
 		TTL:               time.Minute,
 		AllowedLogins:     []string{"foo"},
-		RouteToCluster:    "teleport.localhost.localdomain",
+		RouteToCluster:    mockClusterName,
 	})
 
 	require.NoError(t, err)
@@ -190,13 +113,12 @@ func getTestIdent(t *testing.T, username string, k8sCluster string) *identity.Id
 // to the saved golden result.
 func TestTemplateKubernetesRender(t *testing.T) {
 	dir := t.TempDir()
-	mockAuth := &templateKubernetesAuthMock{
-		t:           t,
-		clusterName: "teleport.localhost.localdomain",
-	}
-	mockBot := &templateKubernetesMockBot{
-		mockAuth: mockAuth,
-	}
+	mockAuth := newMockAuth(t)
+
+	cfg, err := NewDefaultConfig("example.com")
+	require.NoError(t, err)
+
+	mockBot := newMockBot(cfg, mockAuth)
 	template := TemplateKubernetes{
 		getExecutablePath: func() (string, error) {
 			return "tbot", nil
@@ -220,7 +142,7 @@ func TestTemplateKubernetesRender(t *testing.T) {
 
 	ident := getTestIdent(t, "bot-test", k8sCluster)
 
-	err := template.Render(context.Background(), mockBot, ident, dest)
+	err = template.Render(context.Background(), mockBot, ident, dest)
 	require.NoError(t, err)
 
 	kubeconfigBytes, err := os.ReadFile(filepath.Join(dir, template.Path))

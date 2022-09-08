@@ -53,6 +53,92 @@ var (
 	CertAuthorityTypeExpr = builder.Identifier(`system.catype()`)
 )
 
+// PredicateAllEndWith is a custom function to test if a string ends with a
+// particular suffix. If given a `[]string` as the first argument, all values
+// must have the given suffix (2nd argument).
+func PredicateAllEndWith(a interface{}, b interface{}) predicate.BoolPredicate {
+	return func() bool {
+		// bval is the suffix and must always be a plain string.
+		bval, ok := b.(string)
+		if !ok {
+			return false
+		}
+
+		switch aval := a.(type) {
+		case string:
+			return strings.HasSuffix(aval, bval)
+		case []string:
+			for _, val := range aval {
+				if !strings.HasSuffix(val, bval) {
+					return false
+				}
+			}
+			return true
+		default:
+			return false
+		}
+	}
+}
+
+// PredicateAllEqual is a custom function to test if all entries in a []string
+// are equal to a certain value. This is primarily useful for comparing string
+// fields that are only expected to contain a single, specific value.
+func PredicateAllEqual(a interface{}, b interface{}) predicate.BoolPredicate {
+	return func() bool {
+		// bval is the suffix and must always be a plain string.
+		bval, ok := b.(string)
+		if !ok {
+			return false
+		}
+
+		switch aval := a.(type) {
+		case string:
+			return aval == bval
+		case []string:
+			for _, val := range aval {
+				if val != bval {
+					return false
+				}
+			}
+			return true
+		default:
+			return false
+		}
+	}
+}
+
+// PredicateIsSubset determines if the first parameter is contained within the
+// variadic args.
+func PredicateIsSubset(a interface{}, b ...interface{}) predicate.BoolPredicate {
+	return func() bool {
+		// Populate the set.
+		set := map[string]bool{}
+		for _, bval := range b {
+			s, ok := bval.(string)
+			if !ok {
+				return false
+			}
+
+			set[s] = true
+		}
+
+		switch aval := a.(type) {
+		case string:
+			return set[aval]
+		case []string:
+			for _, v := range aval {
+				if !set[v] {
+					return false
+				}
+			}
+
+			return true
+		default:
+			return false
+		}
+	}
+}
+
 // NewWhereParser returns standard parser for `where` section in access rules.
 func NewWhereParser(ctx RuleContext) (predicate.Parser, error) {
 	return predicate.NewParser(predicate.Def{
@@ -62,8 +148,11 @@ func NewWhereParser(ctx RuleContext) (predicate.Parser, error) {
 			NOT: predicate.Not,
 		},
 		Functions: map[string]interface{}{
-			"equals":   predicate.Equals,
-			"contains": predicate.Contains,
+			"equals":       predicate.Equals,
+			"contains":     predicate.Contains,
+			"all_end_with": PredicateAllEndWith,
+			"all_equal":    PredicateAllEqual,
+			"is_subset":    PredicateIsSubset,
 			// system.catype is a function that returns cert authority type,
 			// it returns empty values for unrecognized values to
 			// pass static rule checks.
@@ -181,6 +270,8 @@ type Context struct {
 	Session events.AuditEvent
 	// SSHSession is an optional (active) SSH session.
 	SSHSession *session.Session
+	// HostCert is an optional host certificate.
+	HostCert *HostCertContext
 }
 
 // String returns user friendly representation of this context
@@ -205,6 +296,8 @@ const (
 	ImpersonateRoleIdentifier = "impersonate_role"
 	// ImpersonateUserIdentifier is a user to impersonate
 	ImpersonateUserIdentifier = "impersonate_user"
+	// HostCertIdentifier refers to a host certificate being created.
+	HostCertIdentifier = "host_cert"
 )
 
 // GetResource returns resource specified in the context,
@@ -246,6 +339,14 @@ func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
 		// Do not expose the original session.Session, instead transform it into a
 		// ctxSession so the exposed fields match our desired API.
 		return predicate.GetFieldByTag(toCtxSession(ctx.SSHSession), teleport.JSON, fields[1:])
+	case HostCertIdentifier:
+		var hostCert *HostCertContext
+		if ctx.HostCert == nil {
+			hostCert = emptyHostCert
+		} else {
+			hostCert = ctx.HostCert
+		}
+		return predicate.GetFieldByTag(hostCert, teleport.JSON, fields[1:])
 	default:
 		return nil, trace.NotFound("%v is not defined", strings.Join(fields, "."))
 	}
@@ -293,11 +394,27 @@ func toCtxSession(s *session.Session) ctxSession {
 	}
 }
 
+// HostCertContext is used to evaluate the `where` condition on a `host_cert`
+// pseudo-resource. These resources only exist for RBAC purposes and do not
+// exist in the database.
+type HostCertContext struct {
+	HostID      string           `json:"host_id"`
+	NodeName    string           `json:"node_name"`
+	Principals  []string         `json:"principals"`
+	ClusterName string           `json:"cluster_name"`
+	Role        types.SystemRole `json:"role"`
+	TTL         time.Duration    `json:"ttl"`
+}
+
 // emptyResource is used when no resource is specified
 var emptyResource = &EmptyResource{}
 
 // emptyUser is used when no user is specified
 var emptyUser = &types.UserV2{}
+
+// emptyHostCert is an empty host certificate used when no host cert is
+// specified
+var emptyHostCert = &HostCertContext{}
 
 // EmptyResource is used to represent a use case when no resource
 // is specified in the rules matcher
