@@ -630,7 +630,6 @@ github.com/gravitational/roundtrip v1.0.1/go.mod h1:qccpLd30tAJVSpx7aOEEnws4ZT3n
 github.com/gravitational/sftp v1.13.6-0.20220706192634-fe0df089a5e3 h1:D6um8saAfTIVcD3iyeXZw6YPSkZXEkaRH8qNmICL7LA=
 github.com/gravitational/sftp v1.13.6-0.20220706192634-fe0df089a5e3/go.mod h1:wHDZ0IZX6JcBYRK1TH9bcVq8G7TLpVHYIGJRFnmPfxg=
 github.com/gravitational/trace v1.1.16-0.20220114165159-14a9a7dd6aaf/go.mod h1:zXqxTI6jXDdKnlf8s+nT+3c8LrwUEy3yNpO4XJL90lA=
-github.com/gravitational/trace v1.1.17/go.mod h1:n0ijrq6psJY0sOI/NzLp+xdd8xl79jjwzVOFHDY6+kQ=
 github.com/gravitational/trace v1.1.19-0.20220627095334-f3550c86f648 h1:077EB1f9UVtnwjyVR+IiVB9Dls4YAKLjhtY9xBggMp8=
 github.com/gravitational/trace v1.1.19-0.20220627095334-f3550c86f648/go.mod h1:n0ijrq6psJY0sOI/NzLp+xdd8xl79jjwzVOFHDY6+kQ=
 github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c h1:C2iWDiod8vQ3YnOiCdMP9qYeg2UifQ8KSk36r0NswSE=
@@ -1845,8 +1844,8 @@ google.golang.org/grpc v1.45.0/go.mod h1:lN7owxKUQEqMfSyQikvvk5tf/6zMPsrK+ONuO11
 google.golang.org/grpc v1.46.0/go.mod h1:vN9eftEi1UMyUsIF80+uQXhHjbXYbm0uXoFCACuMGWk=
 google.golang.org/grpc v1.46.2/go.mod h1:vN9eftEi1UMyUsIF80+uQXhHjbXYbm0uXoFCACuMGWk=
 google.golang.org/grpc v1.47.0/go.mod h1:vN9eftEi1UMyUsIF80+uQXhHjbXYbm0uXoFCACuMGWk=
-google.golang.org/grpc v1.48.0 h1:rQOsyJ/8+ufEDJd/Gdsz7HG220Mh9HAhFHRGnIjda0w=
-google.golang.org/grpc v1.48.0/go.mod h1:vN9eftEi1UMyUsIF80+uQXhHjbXYbm0uXoFCACuMGWk=
+google.golang.org/grpc v1.49.0 h1:WTLtQzmQori5FUH25Pq4WT22oCsv8USpQ+F6rqtsmxw=
+google.golang.org/grpc v1.49.0/go.mod h1:ZgQEeidpAuNRZ8iRrlBKXZQP1ghovWIVhdJRyCDK+GI=
 google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.1.0/go.mod h1:6Kw0yEErY5E/yWrBtf03jp27GLLJujG4z/JK95pnjjw=
 google.golang.org/grpc/examples v0.0.0-20200723182653-9106c3fff523/go.mod h1:5j1uub0jRGhRiSghIlrThmBUgcgLXOVJQ/l1getT4uo=
 google.golang.org/grpc/examples v0.0.0-20210424002626-9572fd6faeae h1:qvsHH4rznMyt8C0umnWLr/oTJPjYrtZ2OMnPZaYLIK8=
