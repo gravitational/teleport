@@ -398,7 +398,7 @@ find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r fi
   products="$name"
   if [ "$name" = "tsh" ]; then
     products="teleport teleport-ent"
-  elif [ "$name" = "Teleport Connect" ]; then
+  elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
     description="Teleport Connect"
     products="teleport teleport-ent"
   fi
