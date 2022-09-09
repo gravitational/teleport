@@ -25,7 +25,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
-	"strconv"
 	"testing"
 	"time"
 
@@ -967,18 +966,20 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 type ProxyConfig struct {
 	// Name is a proxy name
 	Name string
-	// SSHPort is SSH proxy port
-	SSHPort int
-	// WebPort is web proxy port
-	WebPort int
-	// ReverseTunnelPort is a port for reverse tunnel addresses
-	ReverseTunnelPort int
+	// SSHAddr is SSH proxy port
+	SSHAddr string
+	// WebAddr is web proxy port
+	WebAddr string
+	// ReverseTunneAddr is a port for reverse tunnel addresses
+	ReverseTunneAddr string
 	// Disable the web service
 	DisableWebService bool
 	// Disable the web ui
 	DisableWebInterface bool
 	// Disable ALPN routing
 	DisableALPNSNIListener bool
+	// FileDescriptors holds FDs to be injected into the Teleport process
+	FileDescriptors []service.FileDescriptor
 }
 
 // StartProxy starts another Proxy Server and connects it to the cluster.
@@ -1006,7 +1007,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error)
 	tconf.SSH.Enabled = false
 
 	tconf.Proxy.Enabled = true
-	tconf.Proxy.SSHAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", cfg.SSHPort))
+	tconf.Proxy.SSHAddr.Addr = cfg.SSHAddr
 	tconf.Proxy.PublicAddrs = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
@@ -1017,13 +1018,14 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error)
 			Addr:        Host,
 		},
 	}
-	tconf.Proxy.ReverseTunnelListenAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", cfg.ReverseTunnelPort))
-	tconf.Proxy.WebAddr.Addr = net.JoinHostPort(i.Hostname, fmt.Sprintf("%v", cfg.WebPort))
+	tconf.Proxy.ReverseTunnelListenAddr.Addr = cfg.ReverseTunneAddr
+	tconf.Proxy.WebAddr.Addr = cfg.WebAddr
 	tconf.Proxy.DisableReverseTunnel = false
 	tconf.Proxy.DisableWebService = cfg.DisableWebService
 	tconf.Proxy.DisableWebInterface = cfg.DisableWebInterface
 	tconf.Proxy.DisableALPNSNIListener = cfg.DisableALPNSNIListener
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	tconf.FileDescriptors = cfg.FileDescriptors
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
@@ -1214,15 +1216,6 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		return nil, err
 	}
 
-	proxyConf := &i.Config.Proxy
-	var proxyHost string
-	if !proxyConf.SSHAddr.IsEmpty() {
-		proxyHost, _, err = net.SplitHostPort(proxyConf.SSHAddr.Addr)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
 	var webProxyAddr string
 	var sshProxyAddr string
 
@@ -1230,8 +1223,8 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		webProxyAddr = i.Web
 		sshProxyAddr = i.SSHProxy
 	} else {
-		webProxyAddr = net.JoinHostPort(proxyHost, strconv.Itoa(cfg.Proxy.WebPort))
-		sshProxyAddr = net.JoinHostPort(proxyHost, strconv.Itoa(cfg.Proxy.SSHPort))
+		webProxyAddr = cfg.Proxy.WebAddr
+		sshProxyAddr = cfg.Proxy.SSHAddr
 	}
 
 	fwdAgentMode := client.ForwardAgentNo
