@@ -53,20 +53,11 @@ type ProvisionToken interface {
 	GetRoles() SystemRoles
 	// SetRoles sets teleport roles
 	SetRoles(SystemRoles)
-	// GetAllowRules returns the list of allow rules
-	GetAllowRules() []*TokenRule
-	// GetAWSIIDTTL returns the TTL of EC2 IIDs
-	GetAWSIIDTTL() Duration
-	// GetJoinMethod returns joining method that must be used with this token.
-	GetJoinMethod() JoinMethod
 	// GetBotName returns the BotName field which must be set for joining bots.
 	GetBotName() string
-
 	// GetSuggestedLabels returns the set of labels that the resource should add when adding itself to the cluster
 	GetSuggestedLabels() Labels
 
-	// V1 returns V1 version of the resource
-	V1() *ProvisionTokenV1
 	// String returns user friendly representation of the resource
 	String() string
 }
@@ -90,7 +81,7 @@ func NewProvisionTokenFromSpec(token string, expires time.Time, spec ProvisionTo
 	if err := t.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &t, nil
+	return t, nil
 }
 
 // MustCreateProvisionToken returns a new valid provision token
@@ -264,20 +255,6 @@ func (p *ProvisionTokenV2) GetSuggestedLabels() Labels {
 	return p.Spec.SuggestedLabels
 }
 
-// V1 returns V1 version of the resource
-func (p *ProvisionTokenV2) V1() *ProvisionTokenV1 {
-	return &ProvisionTokenV1{
-		Roles:   p.Spec.Roles,
-		Expires: p.Metadata.Expiry(),
-		Token:   p.Metadata.Name,
-	}
-}
-
-// V2 returns V2 version of the resource
-func (p *ProvisionTokenV2) V2() *ProvisionTokenV2 {
-	return p
-}
-
 // SetExpiry sets expiry time for the object
 func (p *ProvisionTokenV2) SetExpiry(expires time.Time) {
 	p.Metadata.SetExpiry(expires)
@@ -317,27 +294,22 @@ func ProvisionTokensFromV1(in []ProvisionTokenV1) []ProvisionToken {
 	}
 	out := make([]ProvisionToken, len(in))
 	for i := range in {
-		out[i] = in[i].V2()
+		out[i] = in[i].V3()
 	}
 	return out
 }
 
-// V1 returns V1 version of the resource
-func (p *ProvisionTokenV1) V1() *ProvisionTokenV1 {
-	return p
-}
-
-// V2 returns V2 version of the resource
-func (p *ProvisionTokenV1) V2() *ProvisionTokenV2 {
-	t := &ProvisionTokenV2{
-		Kind:    KindToken,
-		Version: V2,
+// V3 returns V3 version of the v1 token resource
+// This allows the embedded V1 tokens within a StaticToken to be used as a ProvisionToken
+func (p *ProvisionTokenV1) V3() *ProvisionTokenV3 {
+	t := &ProvisionTokenV3{
 		Metadata: Metadata{
 			Name:      p.Token,
 			Namespace: defaults.Namespace,
 		},
-		Spec: ProvisionTokenSpecV2{
-			Roles: p.Roles,
+		Spec: ProvisionTokenSpecV3{
+			Roles:      p.Roles,
+			JoinMethod: JoinMethodToken,
 		},
 	}
 	if !p.Expires.IsZero() {
@@ -385,7 +357,6 @@ func (p *ProvisionTokenV3) CheckAndSetDefaults() error {
 	}
 
 	switch p.Spec.JoinMethod {
-	case JoinMethodToken:
 	case JoinMethodIAM:
 		providerCfg := p.Spec.GetIAM()
 		if providerCfg == nil {
@@ -419,6 +390,7 @@ func (p *ProvisionTokenV3) CheckAndSetDefaults() error {
 		if err := providerCfg.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+	case JoinMethodToken:
 	default:
 		return trace.BadParameter(`"join_method" must be specified`)
 
@@ -486,6 +458,31 @@ func (p *ProvisionTokenV3) GetResourceID() int64 {
 // SetResourceID sets resource ID
 func (p *ProvisionTokenV3) SetResourceID(id int64) {
 	p.Metadata.ID = id
+}
+
+// GetVersion returns resource version
+func (p *ProvisionTokenV3) GetVersion() string {
+	return p.Version
+}
+
+// GetMetadata returns metadata
+func (p *ProvisionTokenV3) GetMetadata() Metadata {
+	return p.Metadata
+}
+
+// SetMetadata sets resource metadata
+func (p *ProvisionTokenV3) SetMetadata(meta Metadata) {
+	p.Metadata = meta
+}
+
+// GetJoinMethod returns joining method that must be used with this token.
+func (p *ProvisionTokenV3) GetJoinMethod() JoinMethod {
+	return p.Spec.JoinMethod
+}
+
+// GetSuggestedLabels returns the labels the resource should set when using this token
+func (p *ProvisionTokenV3) GetSuggestedLabels() Labels {
+	return p.Spec.SuggestedLabels
 }
 
 // String returns the human readable representation of a provisioning token.

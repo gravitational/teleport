@@ -82,12 +82,11 @@ func UnmarshalProvisionToken(data []byte, opts ...MarshalOption) (types.Provisio
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		v2 := p.V2()
+		v3 := p.V3()
 		if cfg.ID != 0 {
-			v2.SetResourceID(cfg.ID)
+			v3.SetResourceID(cfg.ID)
 		}
-		// TODO: convert to V3
-		return v2, nil
+		return v3, nil
 	case types.V2:
 		var p types.ProvisionTokenV2
 		if err := utils.FastUnmarshal(data, &p); err != nil {
@@ -99,7 +98,12 @@ func UnmarshalProvisionToken(data []byte, opts ...MarshalOption) (types.Provisio
 		if cfg.ID != 0 {
 			p.SetResourceID(cfg.ID)
 		}
-		// TODO: Convert to V3
+		// For now, V2 and V3 will be supported, so V2 does not need to be
+		// migrated to V3 just yet. At a later date once V2 is deprecated,
+		// we should convert V2 to V3 here.
+		// Migrating V2 straight to V3 without a warning period may cause
+		// unexpected behaviour for users who submit a V2 spec and then
+		// discover a V3 resource being returned.
 		return &p, nil
 	case types.V3:
 		var p types.ProvisionTokenV3
@@ -114,7 +118,10 @@ func UnmarshalProvisionToken(data []byte, opts ...MarshalOption) (types.Provisio
 		}
 		return &p, nil
 	}
-	return nil, trace.BadParameter("server resource version %v is not supported", h.Version)
+	return nil, trace.BadParameter(
+		"server resource version %v is not supported",
+		h.Version,
+	)
 }
 
 // MarshalProvisionToken marshals the ProvisionToken resource to JSON.
@@ -130,6 +137,9 @@ func MarshalProvisionToken(provisionToken types.ProvisionToken, opts ...MarshalO
 
 	switch provisionToken := provisionToken.(type) {
 	case *types.ProvisionTokenV2:
+		// V2 continues to be supported. At a later date, once deprecation has
+		// been announced we should reject the marshalling of V2 specifications
+		// to prevent them entering the store.
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
@@ -148,6 +158,8 @@ func MarshalProvisionToken(provisionToken types.ProvisionToken, opts ...MarshalO
 		}
 		return utils.FastMarshal(provisionToken)
 	default:
-		return nil, trace.BadParameter("unrecognized provision token version %T", provisionToken)
+		return nil, trace.BadParameter(
+			"unrecognized provision token version %T", provisionToken,
+		)
 	}
 }
