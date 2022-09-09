@@ -49,7 +49,7 @@ func ConvertCommandError(cmd *exec.Cmd, err error, peakStderr string) error {
 	lowerCaseStderr := strings.ToLower(peakStderr)
 	if strings.Contains(lowerCaseStderr, "access to db denied") {
 		fmtString := "'%s' exited with the error above. Use 'tsh db ls' to see your available logins, " +
-			"or ask your Teleport administrator to check the audit log."
+			"or ask your Teleport administrator to grant you access."
 		return trace.AccessDenied(fmtString, cmd.Path)
 	}
 	return trace.Wrap(err)
