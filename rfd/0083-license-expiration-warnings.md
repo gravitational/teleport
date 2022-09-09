@@ -35,6 +35,7 @@ TSH - on “tsh login”, in “tsh status”
 When the user uses either the “tsh login” or ‘tsh status” commands the appropriate license warning will be displayed. (see examples below)
 TCTL - “tctl status”
 When the user uses the “tctl status” command the appropriate license warning will be displayed.
+The warnings are to be displayed 90 days prior to the license expiring.
 After expiration all tsh and tctl commands will display the license expiry warning.
 
 ### Example outputs
