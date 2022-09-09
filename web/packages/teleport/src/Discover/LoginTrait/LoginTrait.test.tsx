@@ -22,32 +22,46 @@ import { MemoryRouter } from 'react-router';
 
 import TeleportContext from 'teleport/teleportContext';
 import ContextProvider from 'teleport/TeleportContextProvider';
+import makeAcl from 'teleport/services/user/makeAcl';
 
 import LoginTrait from './LoginTrait';
 
-import type { User } from 'teleport/services/user';
+import type { User, UserContext } from 'teleport/services/user';
 import type { NodeMeta } from '../useDiscover';
 
 describe('login trait comp behavior', () => {
-  const ctx = new TeleportContext();
-  const userSvc = ctx.userService;
+  const setup = (mockUserContext: Partial<UserContext>, mockUser: User) => {
+    const ctx = new TeleportContext();
+    ctx.storeUser.setState(mockUserContext);
+    const userSvc = ctx.userService;
 
-  const Component = () => (
-    <MemoryRouter>
-      <ContextProvider ctx={ctx}>
-        <LoginTrait
-          agentMeta={mockedNodeMeta}
-          updateAgentMeta={() => null}
-          nextStep={() => null}
-        />
-      </ContextProvider>
-    </MemoryRouter>
-  );
+    jest.spyOn(userSvc, 'fetchUser').mockResolvedValue(mockUser);
+    jest.spyOn(userSvc, 'updateUser').mockResolvedValue(null);
+    jest.spyOn(userSvc, 'applyUserTraits').mockResolvedValue(null);
+
+    render(
+      <MemoryRouter>
+        <ContextProvider ctx={ctx}>
+          <LoginTrait
+            agentMeta={mockedNodeMeta}
+            updateAgentMeta={() => null}
+            nextStep={() => null}
+            selectedAgentKind="server"
+            onSelectResource={() => null}
+          />
+        </ContextProvider>
+      </MemoryRouter>
+    );
+
+    return { userSvc };
+  };
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
 
   test('add a new login with no existing logins', async () => {
-    jest.spyOn(userSvc, 'fetchUser').mockResolvedValue(mockUser);
-
-    render(<Component />);
+    setup(userContext, mockUser);
 
     // Expect no checkboxes to be rendered.
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
@@ -61,18 +75,7 @@ describe('login trait comp behavior', () => {
   });
 
   test('add a new login with existing logins', async () => {
-    const user = {
-      ...mockUser,
-      traits: {
-        ...mockUser.traits,
-        logins: ['apple', 'banana'],
-      },
-    };
-
-    jest.spyOn(userSvc, 'fetchUser').mockResolvedValue(user);
-    jest.spyOn(userSvc, 'updateUser').mockResolvedValue(null);
-
-    render(<Component />);
+    const { userSvc } = setup(userContext, mockUserWithLoginTrait);
 
     // Test existing logins to be rendered.
     await waitFor(() => {
@@ -94,9 +97,36 @@ describe('login trait comp behavior', () => {
 
     fireEvent.click(screen.getByText(/next/i));
     expect(userSvc.updateUser).toHaveBeenCalledWith({
-      ...user,
-      traits: { ...user.traits, logins: [...user.traits.logins, 'carrot'] },
+      ...mockUserWithLoginTrait,
+      traits: {
+        ...mockUserWithLoginTrait.traits,
+        logins: [...mockUserWithLoginTrait.traits.logins, 'carrot'],
+      },
     });
+  });
+
+  test('skipping api calls without perms', async () => {
+    const { userSvc } = setup(
+      { ...userContext, acl: makeAcl({ users: { edit: false } }) },
+      mockUserWithLoginTrait
+    );
+    await waitFor(() => {
+      expect(screen.getAllByRole('checkbox')).toHaveLength(2);
+    });
+    fireEvent.click(screen.getByText(/next/i));
+    expect(userSvc.updateUser).not.toHaveBeenCalled();
+  });
+
+  test('skipping api calls when user used sso', async () => {
+    const { userSvc } = setup(
+      { ...userContext, authType: 'sso' },
+      mockUserWithLoginTrait
+    );
+    await waitFor(() => {
+      expect(screen.getAllByRole('checkbox')).toHaveLength(2);
+    });
+    fireEvent.click(screen.getByText(/next/i));
+    expect(userSvc.updateUser).not.toHaveBeenCalled();
   });
 });
 
@@ -114,6 +144,14 @@ const mockUser: User = {
   },
 };
 
+const mockUserWithLoginTrait: User = {
+  ...mockUser,
+  traits: {
+    ...mockUser.traits,
+    logins: ['apple', 'banana'],
+  },
+};
+
 const mockedNodeMeta: NodeMeta = {
   resourceName: 'resource-name',
   node: {
@@ -125,4 +163,9 @@ const mockedNodeMeta: NodeMeta = {
     addr: '',
     tunnel: false,
   },
+};
+
+const userContext = {
+  acl: makeAcl({ users: { edit: true } }),
+  authType: 'local' as const,
 };

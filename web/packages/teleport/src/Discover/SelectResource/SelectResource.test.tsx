@@ -23,6 +23,8 @@ import { render, screen } from 'design/utils/testing';
 import { SelectResource } from 'teleport/Discover/SelectResource/SelectResource';
 import { Access, Acl, makeUserContext } from 'teleport/services/user';
 
+import type { AgentKind } from '../useDiscover';
+
 const fullAccess: Access = {
   list: true,
   read: true,
@@ -73,18 +75,20 @@ const userContextJson = {
 };
 
 describe('select resource', () => {
-  function create(resource: string, userAcl: Acl) {
+  function create(resource: AgentKind, userAcl: Acl) {
     const userContext = makeUserContext({
       ...userContextJson,
       userAcl,
     });
 
     return render(
-      <MemoryRouter initialEntries={[{ state: { entity: resource } }]}>
+      <MemoryRouter>
         <SelectResource
           userContext={userContext}
           isEnterprise={false}
           nextStep={() => null}
+          selectedResource={resource}
+          onSelectResource={() => null}
         />
       </MemoryRouter>
     );

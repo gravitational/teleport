@@ -30,6 +30,9 @@ export function useTestConnection({ ctx, props }: Props) {
   const { attempt, run } = useAttempt('');
   const [diagnosis, setDiagnosis] = useState<ConnectionDiagnostic>();
 
+  const access = ctx.storeUser.getConnectionDiagnosticAccess();
+  const canTestConnection = access.create && access.edit && access.read;
+
   function startSshSession(login: string) {
     const meta = props.agentMeta as NodeMeta;
     const url = cfg.getSshConnectRoute({
@@ -62,6 +65,7 @@ export function useTestConnection({ ctx, props }: Props) {
     runConnectionDiagnostic,
     diagnosis,
     nextStep: props.nextStep,
+    canTestConnection,
   };
 }
 

@@ -54,6 +54,10 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.users;
   }
 
+  getConnectionDiagnosticAccess() {
+    return this.state.acl.connectionDiagnostic;
+  }
+
   getAppServerAccess() {
     return this.state.acl.appServers;
   }
@@ -116,20 +120,10 @@ export default class StoreUserContext extends Store<UserContext> {
 
   // hasPrereqAccessToAddAgents checks if user meets the prerequisite
   // access to add an agent:
-  //  - user should be able to edit themselves to update user traits
   //  - user should be able to create provisioning tokens
-  //  - user should be able to read, create and update connection diagnostics
-  //    to test agent connection
   hasPrereqAccessToAddAgents() {
-    const { users, tokens, connectionDiagnostic } = this.state.acl;
-
-    return (
-      users.edit &&
-      tokens.create &&
-      connectionDiagnostic.create &&
-      connectionDiagnostic.edit &&
-      connectionDiagnostic.read
-    );
+    const { tokens } = this.state.acl;
+    return tokens.create;
   }
 
   // hasAccessToAgentQuery checks for at least one valid query permission.

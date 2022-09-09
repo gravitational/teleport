@@ -1,0 +1,7 @@
+kind: role
+spec:
+  allow:
+    # Define OS users.
+    logins:
+    - osUser1
+    - osUser2
