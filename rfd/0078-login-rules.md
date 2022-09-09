@@ -52,7 +52,7 @@ metadata:
 spec:
   # priority can be used to order the evaluation of multiple login rules within
   # a cluster. Lower priorities will be evaluated first. Login rules with the
-  # same priority will be ordered by a lexicographical sort by their names. 
+  # same priority will be ordered by a lexicographical sort by their names.
   priority: 0
 
   # traits is a single predicate expression which must return a dict which will
@@ -260,19 +260,13 @@ to normal traits which are typically reference by `{{external.<trait_name>}}`.
 
 ### When login rules will be parsed and evaluated
 
-Login rules will be evaluated during each user login.
+Login rules will be parsed and evaluated during each user login.
 This will occur after the SSO provider has returned its assertions/claims, and
 before Teleport maps these to internal Teleport roles via `attributes_to_roles` or
 `claims_to_roles` so that transformed traits can be used for this mapping.
 
 An eventual extension to login rules could also return the desired set of
 Teleport roles which the user should have.
-
-The predicate expression should only need to be parsed a single time during the
-first user login, the parsed value can be permanently cached in memory (keyed by
-the full plaintext predicate expression).
-The parsed expression will be evaluated during login with the context of the
-unique user's SAML/OIDC assertions/claims.
 
 During login, the auth server will load all `login_rule` resources in the
 cluster, sort them by `priority` and `name`, and apply all of them in order.
