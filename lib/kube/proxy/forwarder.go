@@ -488,7 +488,6 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		teleportClusterName = f.cfg.ClusterName
 	}
 	isRemoteCluster := f.cfg.ClusterName != teleportClusterName
-
 	if isRemoteCluster && isRemoteUser {
 		return nil, trace.AccessDenied("access denied: remote user can not access remote cluster")
 	}
