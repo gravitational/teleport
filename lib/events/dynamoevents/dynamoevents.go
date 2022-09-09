@@ -93,7 +93,7 @@ var tableSchema = []*dynamodb.AttributeDefinition{
 	},
 }
 
-// Config structure represents DynamoDB confniguration as appears in `storage` section
+// Config structure represents DynamoDB configuration as appears in `storage` section
 // of Teleport YAML
 type Config struct {
 	// Region is where DynamoDB Table will be used to store k/v
@@ -205,9 +205,6 @@ type Log struct {
 	// Backend holds the data backend used.
 	// This is used for locking.
 	backend backend.Backend
-
-	// isBillingModeProvisioned tracks if the table has provisioned capacity or not.
-	isBillingModeProvisioned bool
 }
 
 type event struct {
@@ -317,12 +314,7 @@ func New(ctx context.Context, cfg Config, backend backend.Backend) (*Log, error)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = b.turnOnTimeToLive(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	b.isBillingModeProvisioned, err = b.getBillingModeIsProvisioned(ctx)
+	err = dynamo.TurnOnTimeToLive(ctx, b.svc, b.Tablename, keyExpires)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -867,27 +859,6 @@ func fromWhereExpr(cond *types.WhereExpr, params *condFilterParams) (string, err
 	return "", trace.BadParameter("failed to convert WhereExpr %q to DynamoDB filter expression", cond)
 }
 
-func (l *Log) turnOnTimeToLive(ctx context.Context) error {
-	status, err := l.svc.DescribeTimeToLiveWithContext(ctx, &dynamodb.DescribeTimeToLiveInput{
-		TableName: aws.String(l.Tablename),
-	})
-	if err != nil {
-		return trace.Wrap(convertError(err))
-	}
-	switch aws.StringValue(status.TimeToLiveDescription.TimeToLiveStatus) {
-	case dynamodb.TimeToLiveStatusEnabled, dynamodb.TimeToLiveStatusEnabling:
-		return nil
-	}
-	_, err = l.svc.UpdateTimeToLiveWithContext(ctx, &dynamodb.UpdateTimeToLiveInput{
-		TableName: aws.String(l.Tablename),
-		TimeToLiveSpecification: &dynamodb.TimeToLiveSpecification{
-			AttributeName: aws.String(keyExpires),
-			Enabled:       aws.Bool(true),
-		},
-	})
-	return convertError(err)
-}
-
 // getTableStatus checks if a given table exists
 func (l *Log) getTableStatus(ctx context.Context, tableName string) (tableStatus, error) {
 	_, err := l.svc.DescribeTableWithContext(ctx, &dynamodb.DescribeTableInput{
@@ -901,24 +872,6 @@ func (l *Log) getTableStatus(ctx context.Context, tableName string) (tableStatus
 		return tableStatusError, trace.Wrap(err)
 	}
 	return tableStatusOK, nil
-}
-
-func (l *Log) getBillingModeIsProvisioned(ctx context.Context) (bool, error) {
-	res, err := l.svc.DescribeTableWithContext(ctx, &dynamodb.DescribeTableInput{
-		TableName: aws.String(l.Tablename),
-	})
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	// Guaranteed to be set.
-	table := res.Table
-
-	// Perform pessimistic nil-checks, assume the table is provisioned if they are true.
-	// Otherwise, actually check the billing mode.
-	return table.BillingModeSummary == nil ||
-		table.BillingModeSummary.BillingMode == nil ||
-		*table.BillingModeSummary.BillingMode == dynamodb.BillingModeProvisioned, nil
 }
 
 // indexExists checks if a given index exists on a given table and that it is active or updating.

@@ -76,7 +76,7 @@ func (b *Bot) getReviewers(ctx context.Context, files []github.PullRequestFile) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return b.c.Review.Get(b.c.Environment.Author, docs, code), nil
+	return b.c.Review.Get(b.c.Environment.Author, docs, code, files), nil
 }
 
 func (b *Bot) backportReviewers(ctx context.Context) ([]string, error) {

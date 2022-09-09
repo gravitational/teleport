@@ -34,23 +34,26 @@ func New(path string) ResourceURI {
 }
 
 // NewClusterURI creates a new cluster URI for given cluster name
-func NewClusterURI(clusterName string) ResourceURI {
+func NewClusterURI(profileName string) ResourceURI {
 	return ResourceURI{
-		path: fmt.Sprintf("/clusters/%v", clusterName),
+		path: fmt.Sprintf("/clusters/%v", profileName),
 	}
 }
 
-// ParseClusterURI parses a string and returns cluster URI
+// ParseClusterURI parses a string and returns a cluster URI.
+//
+// If given a resource URI, it'll return the URI of the cluster to which the resource belongs to.
+// If given a leaf cluster resource URI, it'll return the URI of the leaf cluster.
 func ParseClusterURI(path string) (ResourceURI, error) {
 	URI := New(path)
-	rootClusterName := URI.GetRootClusterName()
+	profileName := URI.GetProfileName()
 	leafClusterName := URI.GetLeafClusterName()
 
-	if rootClusterName == "" {
+	if profileName == "" {
 		return URI, trace.BadParameter("missing root cluster name")
 	}
 
-	clusterURI := NewClusterURI(rootClusterName)
+	clusterURI := NewClusterURI(profileName)
 	if leafClusterName != "" {
 		clusterURI = clusterURI.AppendLeafCluster(leafClusterName)
 	}
@@ -70,8 +73,7 @@ type ResourceURI struct {
 	path string
 }
 
-// GetRootClusterName returns root cluster name
-func (r ResourceURI) GetRootClusterName() string {
+func (r ResourceURI) GetProfileName() string {
 	result, ok := pathClusters.Match(r.path + "/")
 	if !ok {
 		return ""

@@ -94,6 +94,9 @@ type accessPoint interface {
 
 	// GenerateCertAuthorityCRL returns an empty CRL for a CA.
 	GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error)
+
+	// ConnectionDiagnosticTraceAppender adds a method to append traces into ConnectionDiagnostics.
+	services.ConnectionDiagnosticTraceAppender
 }
 
 // ReadNodeAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
@@ -839,6 +842,12 @@ type Cache interface {
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 	// ListWindowsDesktops returns a paginated list of windows desktops.
 	ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error)
+
+	// GetInstaller gets installer resource for this cluster
+	GetInstaller(ctx context.Context, name string) (types.Installer, error)
+
+	// GetInstallers gets all the installer resources.
+	GetInstallers(ctx context.Context) ([]types.Installer, error)
 }
 
 type NodeWrapper struct {

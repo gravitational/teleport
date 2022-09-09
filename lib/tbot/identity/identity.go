@@ -27,6 +27,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -197,7 +198,7 @@ func (i *Identity) TLSConfig(cipherSuites []uint16) (*tls.Config, error) {
 	if !i.HasTLSConfig() {
 		return nil, trace.NotFound("no TLS credentials setup for this identity")
 	}
-	tlsCert, err := tls.X509KeyPair(i.TLSCertBytes, i.PrivateKeyBytes)
+	tlsCert, err := keys.X509KeyPair(i.TLSCertBytes, i.PrivateKeyBytes)
 	if err != nil {
 		return nil, trace.BadParameter("failed to parse private key: %v", err)
 	}

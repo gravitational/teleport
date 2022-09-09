@@ -29,10 +29,22 @@ type ConnectionsDiagnostic interface {
 	// CreateConnectionDiagnostic creates a new Connection Diagnostic
 	CreateConnectionDiagnostic(context.Context, types.ConnectionDiagnostic) error
 
+	// UpdateConnectionDiagnostic updates a Connection Diagnostic
+	UpdateConnectionDiagnostic(context.Context, types.ConnectionDiagnostic) error
+
 	// GetConnectionDiagnostic receives a name and returns the Connection Diagnostic matching that name
 	//
 	// If not found, a `trace.NotFound` error is returned
 	GetConnectionDiagnostic(ctx context.Context, name string) (types.ConnectionDiagnostic, error)
+
+	// ConnectionDiagnosticTraceAppender adds a method to append traces into ConnectionDiagnostics.
+	ConnectionDiagnosticTraceAppender
+}
+
+// ConnectionDiagnosticTraceAppender specifies methods to add Traces into a DiagnosticConnection
+type ConnectionDiagnosticTraceAppender interface {
+	// AppendDiagnosticTrace atomically adds a new trace into the ConnectionDiagnostic.
+	AppendDiagnosticTrace(ctx context.Context, name string, t *types.ConnectionDiagnosticTrace) (types.ConnectionDiagnostic, error)
 }
 
 // MarshalConnectionDiagnostic marshals the ConnectionDiagnostic resource to JSON.
