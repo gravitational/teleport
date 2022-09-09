@@ -1115,7 +1115,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -1271,7 +1271,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -1430,7 +1430,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -1609,7 +1609,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -1790,7 +1790,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -1965,7 +1965,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -2132,7 +2132,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -2288,7 +2288,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -2467,7 +2467,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -2642,7 +2642,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -2796,7 +2796,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -2980,7 +2980,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -3164,7 +3164,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -3318,7 +3318,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -3474,7 +3474,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -3644,7 +3644,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -3814,7 +3814,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -3993,7 +3993,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -4177,7 +4177,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -4341,7 +4341,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -5192,6 +5192,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: ca8cd220197c220acb66526a5d5329b0525929e6b4e58ce31f3412da1a1d5e55
+hmac: f2fa0639f22d555aa1bbde0c68bdebfc0ae2e83b0a12db986b50cbabb8fcfbf0
 
 ...
