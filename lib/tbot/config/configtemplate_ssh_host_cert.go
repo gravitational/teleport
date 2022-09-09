@@ -73,7 +73,7 @@ func (c *TemplateSSHHostCert) Describe(destination bot.Destination) []FileDescri
 	return ret
 }
 
-func (t *TemplateSSHHostCert) Render(ctx context.Context, bot Bot, currentIdentity *identity.Identity, destination *DestinationConfig) error {
+func (c *TemplateSSHHostCert) Render(ctx context.Context, bot Bot, currentIdentity *identity.Identity, destination *DestinationConfig) error {
 	dest, err := destination.GetDestination()
 	if err != nil {
 		return trace.Wrap(err)
@@ -101,14 +101,14 @@ func (t *TemplateSSHHostCert) Render(ctx context.Context, bot Bot, currentIdenti
 	// For now, we'll reuse the bot's regular TTL, and hostID and nodeName are
 	// left unset.
 	key.Cert, err = authClient.GenerateHostCert(key.MarshalSSHPublicKey(),
-		"", "", t.Principals,
+		"", "", c.Principals,
 		clusterName, types.RoleNode, botCfg.CertificateTTL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	cfg := identityfile.WriteConfig{
-		OutputPath: t.Prefix,
+		OutputPath: c.Prefix,
 		Writer: &BotConfigWriter{
 			dest: dest,
 		},
