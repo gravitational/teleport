@@ -155,6 +155,7 @@ allow:
 	}
 
 	for _, tc := range tests {
+		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			// Creating the Kubernetes resource. We are using an untyped client to be able to create invalid resources.
