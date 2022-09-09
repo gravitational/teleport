@@ -479,14 +479,14 @@ func verifyConnectionFunc(rootCAs *x509.CertPool) func(cs tls.ConnectionState) e
 // getClientCert signs an ephemeral client certificate used by this
 // server to authenticate with the database instance.
 func (a *dbAuth) getClientCert(ctx context.Context, sessionCtx *Session) (cert *tls.Certificate, cas [][]byte, err error) {
-	privateBytes, _, err := native.GenerateKeyPair()
+	privateKey, err := native.GeneratePrivateKey()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 	// Postgres requires the database username to be encoded as a common
 	// name in the client certificate.
 	subject := pkix.Name{CommonName: sessionCtx.DatabaseUser}
-	csr, err := tlsca.GenerateCertificateRequestPEM(subject, privateBytes)
+	csr, err := tlsca.GenerateCertificateRequestPEM(subject, privateKey)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -500,7 +500,7 @@ func (a *dbAuth) getClientCert(ctx context.Context, sessionCtx *Session) (cert *
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	clientCert, err := tls.X509KeyPair(resp.Cert, privateBytes)
+	clientCert, err := privateKey.TLSCertificate(resp.Cert)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
