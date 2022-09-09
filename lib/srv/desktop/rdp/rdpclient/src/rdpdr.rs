@@ -22,7 +22,7 @@ use crate::errors::{
     invalid_data_error, not_implemented_error, rejected_by_server_error, try_error, NTSTATUS_OK,
     SPECIAL_NO_RESPONSE,
 };
-use crate::{test_debug, util, Messages};
+use crate::{test_debug, util, Encode, Messages};
 use crate::{vchan, Message};
 use crate::{
     FileSystemObject, FileType, Payload, SharedDirectoryAcknowledge, SharedDirectoryCreateRequest,
@@ -1706,6 +1706,9 @@ impl SharedHeader {
             })?,
         })
     }
+}
+
+impl Encode for SharedHeader {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u16::<LittleEndian>(self.component.to_u16().unwrap())?;
@@ -1734,20 +1737,22 @@ impl ClientIdMessage {
         }
     }
 
-    fn encode(&self) -> RdpResult<Message> {
-        let mut w = vec![];
-        w.write_u16::<LittleEndian>(self.version_major)?;
-        w.write_u16::<LittleEndian>(self.version_minor)?;
-        w.write_u32::<LittleEndian>(self.client_id)?;
-        Ok(w)
-    }
-
     fn decode(payload: &mut Payload) -> RdpResult<Self> {
         Ok(Self {
             version_major: payload.read_u16::<LittleEndian>()?,
             version_minor: payload.read_u16::<LittleEndian>()?,
             client_id: payload.read_u32::<LittleEndian>()?,
         })
+    }
+}
+
+impl Encode for ClientIdMessage {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+        w.write_u16::<LittleEndian>(self.version_major)?;
+        w.write_u16::<LittleEndian>(self.version_minor)?;
+        w.write_u32::<LittleEndian>(self.client_id)?;
+        Ok(w)
     }
 }
 
@@ -1811,16 +1816,6 @@ impl ServerCoreCapabilityRequest {
         }
     }
 
-    fn encode(&self) -> RdpResult<Message> {
-        let mut w = vec![];
-        w.write_u16::<LittleEndian>(self.num_capabilities)?;
-        w.write_u16::<LittleEndian>(self.padding)?;
-        for cap in self.capabilities.iter() {
-            w.extend_from_slice(&cap.encode()?);
-        }
-        Ok(w)
-    }
-
     fn decode(payload: &mut Payload) -> RdpResult<Self> {
         let num_capabilities = payload.read_u16::<LittleEndian>()?;
         let padding = payload.read_u16::<LittleEndian>()?;
@@ -1834,6 +1829,17 @@ impl ServerCoreCapabilityRequest {
             padding,
             capabilities,
         })
+    }
+}
+impl Encode for ServerCoreCapabilityRequest {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+        w.write_u16::<LittleEndian>(self.num_capabilities)?;
+        w.write_u16::<LittleEndian>(self.padding)?;
+        for cap in self.capabilities.iter() {
+            w.extend_from_slice(&cap.encode()?);
+        }
+        Ok(w)
     }
 }
 
@@ -2020,7 +2026,9 @@ impl ClientDeviceListAnnounceRequest {
             device_list: vec![],
         }
     }
+}
 
+impl Encode for ClientDeviceListAnnounceRequest {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.device_count)?;
@@ -2075,6 +2083,15 @@ impl ServerDeviceAnnounceResponse {
     }
 }
 
+impl Encode for ServerDeviceAnnounceResponse {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+        w.write_u32::<LittleEndian>(self.device_id)?;
+        w.write_u32::<LittleEndian>(self.result_code)?;
+        Ok(w)
+    }
+}
+
 #[derive(Debug, Clone, ToPrimitive, PartialEq)]
 #[repr(u32)]
 #[allow(non_camel_case_types)]
@@ -2099,7 +2116,9 @@ impl ClientNameRequest {
             computer_name,
         }
     }
+}
 
+impl Encode for ClientNameRequest {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.unicode_flag.clone() as u32)?;
@@ -4118,7 +4137,10 @@ type SharedDirectoryMoveResponseHandler =
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Messages;
+    use crate::{
+        vchan::{ChannelPDUFlags, ChannelPDUHeader},
+        Encode, Messages,
+    };
 
     /// This function can be called at any point during a test, after which
     /// all logs will print if the test fails. It is useful for debugging.
@@ -4170,6 +4192,14 @@ mod tests {
         })
     }
 
+    struct PayloadIn {
+        channel_pdu_header: ChannelPDUHeader,
+        shared_header: SharedHeader,
+        request: Box<dyn Encode>,
+    }
+
+    type ResponseOut = Vec<(PacketId, Box<dyn Encode>)>;
+
     fn create_payload(v: Vec<u8>, pos: u64) -> tpkt::Payload {
         let mut p = Payload::new(v);
         p.set_position(pos);
@@ -4181,74 +4211,190 @@ mod tests {
         assert_eq!(c.read_and_create_reply(payload_in).unwrap(), payload_out)
     }
 
-    /// Incoming payload of:
-    /// SharedHeader { component: RDPDR_CTYP_CORE, packet_id: PAKID_CORE_SERVER_ANNOUNCE }
-    /// ServerAnnounceRequest { version_major: 1, version_minor: 13, client_id: 3 }
-    ///
-    /// Response payload of:
-    /// ClientAnnounceReply ClientIdMessage { version_major: 1, version_minor: 12, client_id: 3 }
-    /// ClientNameRequest { unicode_flag: Ascii, computer_name: "teleport" }
+    fn test_payload_in_to_response_out(
+        c: &mut Client,
+        payload_in: PayloadIn,
+        responses_out: ResponseOut,
+    ) {
+        // encode the incoming payload
+        let mut encoded_payload = payload_in.channel_pdu_header.encode().unwrap();
+        encoded_payload.extend(payload_in.shared_header.encode().unwrap());
+        encoded_payload.extend(payload_in.request.encode().unwrap());
+        let encoded_payload = create_payload(encoded_payload, 0);
+
+        // encode the outgoing responses
+        let mut encoded_responses: Messages = vec![];
+        for (packet_id, resp) in responses_out {
+            encoded_responses.append(
+                &mut c
+                    .add_headers_and_chunkify(packet_id, resp.encode().unwrap())
+                    .unwrap(),
+            );
+        }
+
+        // check that the client processes the payload as expected
+        assert_eq!(
+            c.read_and_create_reply(encoded_payload).unwrap(),
+            encoded_responses
+        )
+    }
+
     fn test_handle_server_announce(c: &mut Client) {
-        init_logger();
-        let h = SharedHeader {
-            component: Component::RDPDR_CTYP_CORE,
-            packet_id: PacketId::PAKID_CORE_SERVER_ANNOUNCE,
-        };
-        let req = ServerAnnounceRequest {
-            version_major: 1,
-            version_minor: 13,
-            client_id: 3,
-        };
-        let mut payload_in = h.encode().unwrap();
-        payload_in.extend(req.encode().unwrap());
-        // assert_eq!(
-        //     payload_in,
-        //     vec![
-        //         2, 240, 128, 104, 0, 1, 3, 236, 240, 20, 12, 0, 0, 0, 3, 0, 0, 0, 114, 68, 110, 73,
-        //         1, 0, 13, 0, 3, 0, 0, 0,
-        //     ]
-        // );
-        test_payload(
+        test_payload_in_to_response_out(
             c,
-            // vec![
-            //     2, 240, 128, 104, 0, 1, 3, 236, 240, 20, 12, 0, 0, 0, 3, 0, 0, 0, 114, 68, 110, 73,
-            //     1, 0, 13, 0, 3, 0, 0, 0,
-            // ],
-            payload_in,
+            PayloadIn {
+                channel_pdu_header: ChannelPDUHeader {
+                    length: 12,
+                    flags: ChannelPDUFlags::CHANNEL_FLAG_FIRST
+                        | ChannelPDUFlags::CHANNEL_FLAG_LAST
+                        | ChannelPDUFlags::CHANNEL_FLAG_ONLY,
+                },
+                shared_header: SharedHeader {
+                    component: Component::RDPDR_CTYP_CORE,
+                    packet_id: PacketId::PAKID_CORE_SERVER_ANNOUNCE,
+                },
+                request: Box::new(ServerAnnounceRequest {
+                    version_major: 1,
+                    version_minor: 13,
+                    client_id: 3,
+                }),
+            },
             vec![
-                vec![
-                    12, 0, 0, 0, 3, 0, 0, 0, 114, 68, 67, 67, 1, 0, 12, 0, 3, 0, 0, 0,
-                ],
-                vec![
-                    25, 0, 0, 0, 3, 0, 0, 0, 114, 68, 78, 67, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0,
-                    116, 101, 108, 101, 112, 111, 114, 116, 0,
-                ],
+                (
+                    PacketId::PAKID_CORE_CLIENTID_CONFIRM,
+                    Box::new(ClientAnnounceReply {
+                        version_major: 1,
+                        version_minor: 12,
+                        client_id: 3,
+                    }),
+                ),
+                (
+                    PacketId::PAKID_CORE_CLIENT_NAME,
+                    Box::new(ClientNameRequest {
+                        unicode_flag: ClientNameRequestUnicodeFlag::Ascii,
+                        computer_name: CString::new("teleport").unwrap(),
+                    }),
+                ),
             ],
-            0,
         );
     }
 
-    /// Incoming payload of:
-    /// SharedHeader { component: RDPDR_CTYP_CORE, packet_id: PAKID_CORE_SERVER_CAPABILITY }
-    /// ServerCoreCapabilityRequest { num_capabilities: 5, padding: 0, capabilities: [CapabilitySet { header: CapabilityHeader { cap_type: CAP_GENERAL_TYPE, length: 44, version: 2 }, data: General(GeneralCapabilitySet { os_type: 2, os_version: 0, protocol_major_version: 1, protocol_minor_version: 13, io_code_1: 65535, io_code_2: 0, extended_pdu: 7, extra_flags_1: 0, extra_flags_2: 0, special_type_device_cap: 2 }) }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_PRINTER_TYPE, length: 8, version: 1 }, data: Printer }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_PORT_TYPE, length: 8, version: 1 }, data: Port }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_DRIVE_TYPE, length: 8, version: 2 }, data: Drive }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_SMARTCARD_TYPE, length: 8, version: 1 }, data: Smartcard }] }
-    ///
-    /// Response payload of:
-    /// ClientCoreCapabilityResponse { num_capabilities: 3, padding: 0, capabilities: [CapabilitySet { header: CapabilityHeader { cap_type: CAP_GENERAL_TYPE, length: 44, version: 2 }, data: General(GeneralCapabilitySet { os_type: 0, os_version: 0, protocol_major_version: 1, protocol_minor_version: 12, io_code_1: 32767, io_code_2: 0, extended_pdu: 3, extra_flags_1: 0, extra_flags_2: 0, special_type_device_cap: 1 }) }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_SMARTCARD_TYPE, length: 8, version: 1 }, data: Smartcard }, CapabilitySet { header: CapabilityHeader { cap_type: CAP_DRIVE_TYPE, length: 8, version: 2 }, data: Drive }] }
     fn test_handle_server_capability(c: &mut Client) {
-        test_payload(
+        test_payload_in_to_response_out(
             c,
-            vec![
-                2, 240, 128, 104, 0, 1, 3, 236, 240, 92, 84, 0, 0, 0, 3, 0, 0, 0, 114, 68, 80, 83,
-                5, 0, 0, 0, 1, 0, 44, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 13, 0, 255, 255,
-                0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 8, 0, 1, 0,
-                0, 0, 3, 0, 8, 0, 1, 0, 0, 0, 4, 0, 8, 0, 2, 0, 0, 0, 5, 0, 8, 0, 1, 0, 0, 0,
-            ],
-            vec![vec![
-                68, 0, 0, 0, 3, 0, 0, 0, 114, 68, 80, 67, 3, 0, 0, 0, 1, 0, 44, 0, 2, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 1, 0, 12, 0, 255, 127, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 1, 0, 0, 0, 5, 0, 8, 0, 1, 0, 0, 0, 4, 0, 8, 0, 2, 0, 0, 0,
-            ]],
-            10,
+            PayloadIn {
+                channel_pdu_header: ChannelPDUHeader {
+                    length: 84,
+                    flags: ChannelPDUFlags::CHANNEL_FLAG_FIRST
+                        | ChannelPDUFlags::CHANNEL_FLAG_LAST
+                        | ChannelPDUFlags::CHANNEL_FLAG_ONLY,
+                },
+                shared_header: SharedHeader {
+                    component: Component::RDPDR_CTYP_CORE,
+                    packet_id: PacketId::PAKID_CORE_SERVER_CAPABILITY,
+                },
+                request: Box::new(ServerCoreCapabilityRequest {
+                    num_capabilities: 5,
+                    padding: 0,
+                    capabilities: vec![
+                        CapabilitySet {
+                            header: CapabilityHeader {
+                                cap_type: CapabilityType::CAP_GENERAL_TYPE,
+                                length: 44,
+                                version: 2,
+                            },
+                            data: Capability::General(GeneralCapabilitySet {
+                                os_type: 2,
+                                os_version: 0,
+                                protocol_major_version: 1,
+                                protocol_minor_version: 13,
+                                io_code_1: 65535,
+                                io_code_2: 0,
+                                extended_pdu: 7,
+                                extra_flags_1: 0,
+                                extra_flags_2: 0,
+                                special_type_device_cap: 2,
+                            }),
+                        },
+                        CapabilitySet {
+                            header: CapabilityHeader {
+                                cap_type: CapabilityType::CAP_PRINTER_TYPE,
+                                length: 8,
+                                version: 1,
+                            },
+                            data: Capability::Printer,
+                        },
+                        CapabilitySet {
+                            header: CapabilityHeader {
+                                cap_type: CapabilityType::CAP_PORT_TYPE,
+                                length: 8,
+                                version: 1,
+                            },
+                            data: Capability::Port,
+                        },
+                        CapabilitySet {
+                            header: CapabilityHeader {
+                                cap_type: CapabilityType::CAP_DRIVE_TYPE,
+                                length: 8,
+                                version: 2,
+                            },
+                            data: Capability::Drive,
+                        },
+                        CapabilitySet {
+                            header: CapabilityHeader {
+                                cap_type: CapabilityType::CAP_SMARTCARD_TYPE,
+                                length: 8,
+                                version: 1,
+                            },
+                            data: Capability::Smartcard,
+                        },
+                    ],
+                }),
+            },
+            vec![(
+                PacketId::PAKID_CORE_CLIENT_CAPABILITY,
+                Box::new(ClientCoreCapabilityResponse {
+                    num_capabilities: 3,
+                    padding: 0,
+                    capabilities: vec![
+                        CapabilitySet {
+                            header: CapabilityHeader {
+                                cap_type: CapabilityType::CAP_GENERAL_TYPE,
+                                length: 44,
+                                version: 2,
+                            },
+                            data: Capability::General(GeneralCapabilitySet {
+                                os_type: 0,
+                                os_version: 0,
+                                protocol_major_version: 1,
+                                protocol_minor_version: 12,
+                                io_code_1: 32767,
+                                io_code_2: 0,
+                                extended_pdu: 3,
+                                extra_flags_1: 0,
+                                extra_flags_2: 0,
+                                special_type_device_cap: 1,
+                            }),
+                        },
+                        CapabilitySet {
+                            header: CapabilityHeader {
+                                cap_type: CapabilityType::CAP_SMARTCARD_TYPE,
+                                length: 8,
+                                version: 1,
+                            },
+                            data: Capability::Smartcard,
+                        },
+                        CapabilitySet {
+                            header: CapabilityHeader {
+                                cap_type: CapabilityType::CAP_DRIVE_TYPE,
+                                length: 8,
+                                version: 2,
+                            },
+                            data: Capability::Drive,
+                        },
+                    ],
+                }),
+            )],
         );
     }
 
@@ -4259,17 +4405,38 @@ mod tests {
     /// Response payload of:
     /// ClientDeviceListAnnounceRequest { device_count: 1, device_list: [DeviceAnnounceHeader { device_type: RDPDR_DTYP_SMARTCARD, device_id: 1, preferred_dos_name: "SCARD", device_data_length: 0, device_data: [] }] }
     fn test_handle_client_id_confirm(c: &mut Client) {
-        test_payload(
+        test_payload_in_to_response_out(
             c,
-            vec![
-                2, 240, 128, 104, 0, 1, 3, 236, 240, 20, 12, 0, 0, 0, 3, 0, 0, 0, 114, 68, 67, 67,
-                1, 0, 13, 0, 3, 0, 0, 0,
-            ],
-            vec![vec![
-                28, 0, 0, 0, 3, 0, 0, 0, 114, 68, 65, 68, 1, 0, 0, 0, 32, 0, 0, 0, 1, 0, 0, 0, 83,
-                67, 65, 82, 68, 0, 0, 0, 0, 0, 0, 0,
-            ]],
-            10,
+            PayloadIn {
+                channel_pdu_header: ChannelPDUHeader {
+                    length: 12,
+                    flags: ChannelPDUFlags::CHANNEL_FLAG_FIRST
+                        | ChannelPDUFlags::CHANNEL_FLAG_LAST
+                        | ChannelPDUFlags::CHANNEL_FLAG_ONLY,
+                },
+                shared_header: SharedHeader {
+                    component: Component::RDPDR_CTYP_CORE,
+                    packet_id: PacketId::PAKID_CORE_CLIENTID_CONFIRM,
+                },
+                request: Box::new(ServerClientIdConfirm {
+                    version_major: 1,
+                    version_minor: 13,
+                    client_id: 3,
+                }),
+            },
+            vec![(
+                PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE,
+                Box::new(ClientDeviceListAnnounceRequest {
+                    device_count: 1,
+                    device_list: vec![DeviceAnnounceHeader {
+                        device_type: DeviceType::RDPDR_DTYP_SMARTCARD,
+                        device_id: 1,
+                        preferred_dos_name: "SCARD".to_string(),
+                        device_data_length: 0,
+                        device_data: vec![],
+                    }],
+                }),
+            )],
         );
     }
 
@@ -4277,14 +4444,25 @@ mod tests {
     /// SharedHeader { component: RDPDR_CTYP_CORE, packet_id: PAKID_CORE_DEVICE_REPLY }
     /// ServerDeviceAnnounceResponse { device_id: 1, result_code: 0 }
     fn test_handle_device_reply(c: &mut Client) {
-        test_payload(
+        test_payload_in_to_response_out(
             c,
-            vec![
-                2, 240, 128, 104, 0, 1, 3, 236, 240, 20, 12, 0, 0, 0, 3, 0, 0, 0, 114, 68, 114,
-                100, 1, 0, 0, 0, 0, 0, 0, 0,
-            ],
+            PayloadIn {
+                channel_pdu_header: ChannelPDUHeader {
+                    length: 12,
+                    flags: ChannelPDUFlags::CHANNEL_FLAG_FIRST
+                        | ChannelPDUFlags::CHANNEL_FLAG_LAST
+                        | ChannelPDUFlags::CHANNEL_FLAG_ONLY,
+                },
+                shared_header: SharedHeader {
+                    component: Component::RDPDR_CTYP_CORE,
+                    packet_id: PacketId::PAKID_CORE_DEVICE_REPLY,
+                },
+                request: Box::new(ServerDeviceAnnounceResponse {
+                    device_id: 1,
+                    result_code: 0,
+                }),
+            },
             vec![],
-            10,
         );
     }
 

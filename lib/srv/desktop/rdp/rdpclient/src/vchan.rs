@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::{errors::invalid_data_error, Message, Messages};
-use crate::{test_debug, Payload};
+use crate::{test_debug, Encode, Payload};
 use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use rdp::core::tpkt;
@@ -169,7 +169,10 @@ impl ChannelPDUHeader {
                 .ok_or_else(|| invalid_data_error("invalid flags in ChannelPDUHeader"))?,
         })
     }
-    pub fn encode(&self) -> RdpResult<Message> {
+}
+
+impl Encode for ChannelPDUHeader {
+    fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.length)?;
         w.write_u32::<LittleEndian>(self.flags.bits())?;
