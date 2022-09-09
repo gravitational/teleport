@@ -385,9 +385,9 @@ func withRegionalEndpoint(useRegionalEndpoint bool) stsIdentityRequestOption {
 	}
 }
 
-func withFipsEndpoint(useFips bool) stsIdentityRequestOption {
+func withFIPSEndpoint(useFIPS bool) stsIdentityRequestOption {
 	return func(cfg *stsIdentityRequestConfig) {
-		if useFips {
+		if useFIPS {
 			cfg.fipsEndpointOption = endpoints.FIPSEndpointStateEnabled
 		} else {
 			cfg.fipsEndpointOption = endpoints.FIPSEndpointStateDisabled
