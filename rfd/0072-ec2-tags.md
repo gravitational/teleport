@@ -43,7 +43,7 @@ Note: Some instance types (specifically non-[Nitro](https://docs.aws.amazon.com/
 
 Namespace prefix: `aws`
 
-#### Throttling
+#### Limits
 
 AWS applies [per-instance throttling to instance metadata requests](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html#instancedata-throttling). Each instance can have at most 50 tags, so with one request to fetch all tag keys and up to 50 requests to fetch tag values, Teleport only needs to make at most 51 instance metadata requests per hour, which should not have throttling issues.
 
@@ -53,9 +53,11 @@ Azure instance metadata (including tags) is always enabled and requires no addit
 
 Namespace prefix: `azure`
 
-#### Throttling
+#### Limits
 
 Azure [throttles instance metadata per-VM at 5 requests/second](https://docs.microsoft.com/en-us/azure/virtual-machines/linux/instance-metadata-service?tabs=linux#rate-limiting). Unlike EC2, Azure instance metadata provides all tag key-value pairs at once, so Teleport only needs to make 1 request per hour.
+
+Azure instances can have at most 50 tags.
 
 ### Special Tags
 
