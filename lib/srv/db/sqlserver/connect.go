@@ -18,6 +18,8 @@ package sqlserver
 
 import (
 	"context"
+	"fmt"
+	"github.com/gravitational/teleport/api/types"
 	"io"
 	"net"
 	"strconv"
@@ -69,9 +71,31 @@ func (c *connector) Connect(ctx context.Context, sessionCtx *common.Session, log
 		return nil, nil, trace.Wrap(err)
 	}
 
+	user := sessionCtx.DatabaseUser
+	password := ""
+
+	switch sessionCtx.Database.GetType() {
+
+	case types.DatabaseTypeRDS:
+		password, err = c.Auth.GetRDSAuthToken(sessionCtx)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+	case types.DatabaseTypeAzure:
+		password, err = c.Auth.GetAzureAccessToken(ctx, sessionCtx)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		user = fmt.Sprintf("%v@%v", sessionCtx.DatabaseUser, sessionCtx.Database.GetAzure().Name)
+	}
+
 	connector := mssql.NewConnectorConfig(msdsn.Config{
 		Host:         host,
 		Port:         portI,
+		User:         user,
+		Password:     password,
 		Database:     sessionCtx.DatabaseName,
 		LoginOptions: options,
 		Encryption:   msdsn.EncryptionRequired,
