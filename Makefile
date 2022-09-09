@@ -33,7 +33,7 @@ ADDFLAGS ?=
 PWD ?= `pwd`
 TELEPORT_DEBUG ?= false
 GITTAG=v$(VERSION)
-BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
+BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s' -trimpath
 CGOFLAG ?= CGO_ENABLED=1
 CGOFLAG_TSH ?= CGO_ENABLED=1
 # Windows requires extra parameters to cross-compile with CGO.
@@ -42,7 +42,7 @@ ARCH ?= amd64
 ifneq ("$(ARCH)","amd64")
 $(error "Building for windows requires ARCH=amd64")
 endif
-BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s' -buildmode=exe
+BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s' -trimpath -buildmode=exe
 CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
 CGOFLAG_TSH = $(CGOFLAG)
 endif
@@ -645,7 +645,7 @@ integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-sh lint-helm lint-api lint-go lint-license lint-rust lint-tools
+lint: lint-sh lint-helm lint-api lint-go lint-license lint-rust lint-tools lint-protos
 
 .PHONY: lint-tools
 lint-tools: lint-build-tooling lint-bot lint-ci-scripts lint-backport
@@ -779,6 +779,14 @@ fix-license: $(ADDLICENSE)
 $(ADDLICENSE):
 	cd && go install github.com/google/addlicense@v1.0.0
 
+# This rule updates version files and Helm snapshots based on the Makefile
+# VERSION variable.
+#
+# Used prior to a release by bumping VERSION in this Makefile and then
+# running "make update-version".
+.PHONY: update-version
+update-version: version test-helm-update-snapshots
+
 # This rule triggers re-generation of version files if Makefile changes.
 .PHONY: version
 version: $(VERSRC)
@@ -889,6 +897,40 @@ enter/centos7:
 enter/teleterm:
 	make -C build.assets enter/teleterm
 
+
+BUF := buf
+
+# protos/all runs build, lint and format on all protos.
+# Use `make grpc` to regenerate protos inside buildbox.
+.PHONY: protos/all
+protos/all: protos/build protos/lint protos/format
+
+.PHONY: protos/build
+protos/build: buf/installed
+	$(BUF) build
+	cd lib/teleterm && $(BUF) build
+
+.PHONY: protos/format
+protos/format: buf/installed
+	$(BUF) format -w
+	cd lib/teleterm && $(BUF) format -w
+
+.PHONY: protos/lint
+protos/lint: buf/installed
+	$(BUF) lint
+	cd api/proto && $(BUF) lint --config=buf-legacy.yaml
+	cd lib/teleterm && $(BUF) lint
+
+.PHONY: lint-protos
+lint-protos: protos/lint
+
+.PHONY: buf/installed
+buf/installed:
+	@if ! type -p $(BUF) >/dev/null; then \
+		echo 'Buf is required to build/format/lint protos. Follow https://docs.buf.build/installation.'; \
+		exit 1; \
+	fi
+
 # grpc generates GRPC stubs from service definitions.
 # This target runs in the buildbox container.
 .PHONY: grpc
@@ -898,7 +940,7 @@ grpc:
 # grpc/host generates GRPC stubs.
 # Unlike grpc, this target runs locally.
 .PHONY: grpc/host
-grpc/host:
+grpc/host: protos/all
 	@build.assets/genproto.sh
 
 print/env:
@@ -920,11 +962,8 @@ grpc-teleterm:
 # grpc-teleterm/host generates GRPC stubs.
 # Unlike grpc-teleterm, this target runs locally.
 .PHONY: grpc-teleterm/host
-grpc-teleterm/host:
-	$(CLANG_FORMAT) -i -style=$(CLANG_FORMAT_STYLE) \
-		lib/teleterm/api/proto/**/*.proto
-
-	cd lib/teleterm && buf generate
+grpc-teleterm/host: protos/all
+	cd lib/teleterm && $(BUF) generate
 
 .PHONY: goinstall
 goinstall:

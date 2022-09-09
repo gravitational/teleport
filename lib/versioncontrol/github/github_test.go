@@ -210,3 +210,67 @@ func TestCachedReleases(t *testing.T) {
 
 	}
 }
+
+func TestLatestStable(t *testing.T) {
+	tts := []struct {
+		pages  []string
+		expect string
+		desc   string
+	}{
+		{
+			pages: []string{
+				page1,
+				page2,
+				page3,
+			},
+			expect: "v10.0.2",
+			desc:   "all cached pages",
+		},
+		{
+			pages: []string{
+				page2,
+				page3,
+			},
+			expect: "v9.3.7",
+			desc:   "earlier pages subset",
+		},
+		{
+			pages: []string{
+				page1,
+			},
+			expect: "v10.0.2",
+			desc:   "page 1 only",
+		},
+		{
+			pages: []string{
+				page2,
+			},
+			expect: "v9.3.7",
+			desc:   "page 2 only",
+		},
+		{
+			pages: []string{
+				page3,
+			},
+			expect: "v9.2.4",
+			desc:   "page 3 only",
+		},
+	}
+
+	for _, tt := range tts {
+		var iter Iterator
+		iter.size = cachedPageSize
+		iter.getPage = func(n, size int) ([]release, error) {
+			if n > len(tt.pages) {
+				return nil, nil
+			}
+			page := tt.pages[n-1]
+			return parsePage([]byte(page))
+		}
+
+		latest, err := latestStable(iter, "v1.2.3")
+		require.NoError(t, err)
+
+		require.Equal(t, tt.expect, latest)
+	}
+}

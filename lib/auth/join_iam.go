@@ -392,9 +392,9 @@ func withRegionalEndpoint(useRegionalEndpoint bool) stsIdentityRequestOption {
 	}
 }
 
-func withFipsEndpoint(useFips bool) stsIdentityRequestOption {
+func withFIPSEndpoint(useFIPS bool) stsIdentityRequestOption {
 	return func(cfg *stsIdentityRequestConfig) {
-		if useFips {
+		if useFIPS {
 			cfg.fipsEndpointOption = endpoints.FIPSEndpointStateEnabled
 		} else {
 			cfg.fipsEndpointOption = endpoints.FIPSEndpointStateDisabled
@@ -458,7 +458,7 @@ func newSTSClient(ctx context.Context, cfg *stsIdentityRequestConfig) (*sts.STS,
 			stsClient = sts.New(sess, awssdk.NewConfig().WithRegion(region))
 		} else {
 			log.Info("Attempting to use the global STS endpoint for the IAM join method. " +
-				"This will probably fail in non-default AWS partitions such as China or GovCloud. " +
+				"This will probably fail in non-default AWS partitions such as China or GovCloud, or if FIPS mode is enabled. " +
 				"Consider setting the AWS_REGION environment variable, setting the region in ~/.aws/config, or enabling the IMDSv2.")
 		}
 	}

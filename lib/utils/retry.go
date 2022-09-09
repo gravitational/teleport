@@ -38,6 +38,11 @@ var HalfJitter = NewHalfJitter()
 // repeated calls.
 var SeventhJitter = NewSeventhJitter()
 
+// FullJitter is a global jitter instance used for one-off jitters.
+// Prefer instantiating a new jitter instance for operations that require
+// repeated calls
+var FullJitter = NewFullJitter()
+
 // Jitter is a function which applies random jitter to a
 // duration.  Used to randomize backoff values.  Must be
 // safe for concurrent usage.
