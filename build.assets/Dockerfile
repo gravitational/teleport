@@ -108,7 +108,6 @@ RUN apt-get update -y --fix-missing && \
         libpam-dev \
         libsqlite3-0 \
         libssl-dev \
-        libudev-dev \
         llvm-10 \
         locales \
         mingw-w64 \
@@ -128,6 +127,7 @@ RUN apt-get update -y --fix-missing && \
         zip \
         zlib1g-dev \
         xauth \
+        libpcsclite-dev \
         && \
     pip3 --no-cache-dir install yamllint && \
     dpkg-reconfigure locales && \
