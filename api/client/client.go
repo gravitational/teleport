@@ -2273,16 +2273,29 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditC
 	return resp, nil
 }
 
+// GetInstaller gets all installer script resources
+func (c *Client) GetInstallers(ctx context.Context) ([]types.Installer, error) {
+	resp, err := c.grpc.GetInstallers(ctx, &empty.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	installers := make([]types.Installer, len(resp.Installers))
+	for i, inst := range resp.Installers {
+		installers[i] = inst
+	}
+	return installers, nil
+}
+
 // GetInstaller gets the cluster installer resource
-func (c *Client) GetInstaller(ctx context.Context) (types.Installer, error) {
-	resp, err := c.grpc.GetInstaller(ctx, &empty.Empty{}, c.callOpts...)
+func (c *Client) GetInstaller(ctx context.Context, name string) (types.Installer, error) {
+	resp, err := c.grpc.GetInstaller(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
 	return resp, nil
 }
 
-// GetInstaller sets the cluster installer resource
+// SetInstaller sets the cluster installer resource
 func (c *Client) SetInstaller(ctx context.Context, inst types.Installer) error {
 	instV1, ok := inst.(*types.InstallerV1)
 	if !ok {
@@ -2292,9 +2305,15 @@ func (c *Client) SetInstaller(ctx context.Context, inst types.Installer) error {
 	return trail.FromGRPC(err)
 }
 
-// GetInstaller deletes the cluster installer resource
-func (c *Client) DeleteInstaller(ctx context.Context) error {
-	_, err := c.grpc.DeleteInstaller(ctx, &empty.Empty{}, c.callOpts...)
+// DeleteInstaller deletes the cluster installer resource
+func (c *Client) DeleteInstaller(ctx context.Context, name string) error {
+	_, err := c.grpc.DeleteInstaller(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteAllInstallers deletes all the installer resources.
+func (c *Client) DeleteAllInstallers(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllInstallers(ctx, &empty.Empty{}, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 
@@ -2948,6 +2967,20 @@ func (c *Client) UpdateConnectionDiagnostic(ctx context.Context, connectionDiagn
 	}
 	_, err := c.grpc.UpdateConnectionDiagnostic(ctx, connectionDiagnosticV1, c.callOpts...)
 	return trail.FromGRPC(err)
+}
+
+// AppendDiagnosticTrace adds a new trace for the given ConnectionDiagnostic.
+func (c *Client) AppendDiagnosticTrace(ctx context.Context, name string, t *types.ConnectionDiagnosticTrace) (types.ConnectionDiagnostic, error) {
+	req := &proto.AppendDiagnosticTraceRequest{
+		Name:  name,
+		Trace: t,
+	}
+	connectionDiagnostic, err := c.grpc.AppendDiagnosticTrace(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return connectionDiagnostic, nil
 }
 
 // GetClusterAlerts loads matching cluster alerts.

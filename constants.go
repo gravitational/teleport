@@ -458,6 +458,9 @@ const (
 	// CertExtensionAllowedResources lists the resources which this certificate
 	// should be allowed to access
 	CertExtensionAllowedResources = "teleport-allowed-resources"
+	// CertExtensionConnectionDiagnosticID contains the ID of the ConnectionDiagnostic.
+	// The Node/Agent will append connection traces to this diagnostic instance.
+	CertExtensionConnectionDiagnosticID = "teleport-connection-diagnostic-id"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag
@@ -774,3 +777,15 @@ const UserSingleUseCertTTL = time.Minute
 // StandardHTTPSPort is the default port used for the https URI scheme,
 // cf. RFC 7230 § 2.7.2.
 const StandardHTTPSPort = 443
+
+const (
+	// WebAPIConnUpgrade is the HTTP web API to make the connection upgrade
+	// call.
+	WebAPIConnUpgrade = "/webapi/connectionupgrade"
+	// WebAPIConnUpgradeHeader is the header used to indicate the requested
+	// connection upgrade types in the connection upgrade API.
+	WebAPIConnUpgradeHeader = "Upgrade"
+	// WebAPIConnUpgradeTypeALPN is a connection upgrade type that specifies
+	// the upgraded connection should be handled by the ALPN handler.
+	WebAPIConnUpgradeTypeALPN = "alpn"
+)

@@ -28,6 +28,7 @@ RUN apt-get update -y --fix-missing && \
         gzip \
         libc6-dev \
         libelf-dev \
+        libpcsclite-dev \
         libpam-dev \
         libsqlite3-0 \
         llvm-10 \
