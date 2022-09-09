@@ -707,7 +707,7 @@ func (s *server) handleNewService(role types.SystemRole, conn net.Conn, sconn *s
 
 	ch, req, err := nch.Accept()
 	if err != nil {
-		s.log.Errorf("Failed to accept on channel: %v.", err)
+		s.log.Errorf("Failed to accept on channel: %v. %s", err, sconn.RemoteAddr())
 		sconn.Close()
 		return
 	}
