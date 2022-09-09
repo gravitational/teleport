@@ -300,10 +300,12 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServiceClientCo
 
 	// --auth-server flag(-s)
 	if len(ccf.AuthServerAddr) != 0 {
-		cfg.AuthServers, err = utils.ParseAddrs(ccf.AuthServerAddr)
+		addrs, err := utils.ParseAddrs(ccf.AuthServerAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		// Overwrite any existing configuration with flag values.
+		cfg.AuthServers = addrs
 	}
 
 	// Config file should take precedence, if available.
