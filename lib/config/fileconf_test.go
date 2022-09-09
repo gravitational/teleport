@@ -600,7 +600,7 @@ func TestDiscoveryConfig(t *testing.T) {
 			expectError:   require.NoError,
 			expectEnabled: require.False,
 			expectedDiscoverySection: Discovery{
-				AWSMatchers: []AWSEC2Matcher{},
+				AWSMatchers: []AWSMatcher{},
 			},
 		},
 		{
@@ -620,7 +620,7 @@ func TestDiscoveryConfig(t *testing.T) {
 				}
 			},
 			expectedDiscoverySection: Discovery{
-				AWSMatchers: []AWSEC2Matcher{
+				AWSMatchers: []AWSMatcher{
 					{
 						Matcher: AWSMatcher{
 							Types:   []string{"ec2"},
@@ -666,7 +666,7 @@ func TestDiscoveryConfig(t *testing.T) {
 				}
 			},
 			expectedDiscoverySection: Discovery{
-				AWSMatchers: []AWSEC2Matcher{
+				AWSMatchers: []AWSMatcher{
 					{
 						Matcher: AWSMatcher{
 							Types:   []string{"ec2"},
@@ -721,7 +721,7 @@ func TestDiscoveryConfig(t *testing.T) {
 				}
 			},
 			expectedDiscoverySection: Discovery{
-				AWSMatchers: []AWSEC2Matcher{
+				AWSMatchers: []AWSMatcher{
 					{
 						SSM: AWSSSM{
 							DocumentName: defaults.AWSInstallerDocument,

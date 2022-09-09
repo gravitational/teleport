@@ -345,7 +345,7 @@ func TestConfigReading(t *testing.T) {
 				EnabledFlag:    "true",
 				ListenAddress:  "",
 			},
-			AWSMatchers: []AWSEC2Matcher{
+			AWSMatchers: []AWSMatcher{
 				{
 					Matcher: AWSMatcher{
 						Types:   []string{"ec2"},
@@ -1244,7 +1244,7 @@ func checkStaticConfig(t *testing.T, conf *FileConfig) {
 		PublicAddr: apiutils.Strings{"luna3:22"},
 	}, cmp.AllowUnexported(Service{})))
 
-	require.Empty(t, cmp.Diff(conf.Discovery, Discovery{AWSMatchers: []AWSEC2Matcher{}}, cmp.AllowUnexported(Service{})))
+	require.Empty(t, cmp.Diff(conf.Discovery, Discovery{AWSMatchers: []AWSMatcher{}}, cmp.AllowUnexported(Service{})))
 
 	require.True(t, conf.Auth.Configured())
 	require.True(t, conf.Auth.Enabled())
@@ -1350,7 +1350,7 @@ func makeConfigFixture() string {
 
 	// discovery service
 	conf.Discovery.EnabledFlag = "true"
-	conf.Discovery.AWSMatchers = []AWSEC2Matcher{
+	conf.Discovery.AWSMatchers = []AWSMatcher{
 		{
 			Matcher: AWSMatcher{Types: []string{"ec2"},
 				Regions: []string{"us-west-1", "us-east-1"},

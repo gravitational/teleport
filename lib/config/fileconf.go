@@ -442,12 +442,13 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 		}
 	}
 
-	matchers := make([]AWSEC2Matcher, 0, len(conf.Discovery.AWSMatchers))
+	matchers := make([]AWSMatcher, 0, len(conf.Discovery.AWSMatchers))
 
 	for _, matcher := range conf.Discovery.AWSMatchers {
 		for _, serviceType := range matcher.Matcher.Types {
-			if serviceType != "ec2" {
-				return trace.BadParameter("currently only EC2 is supported by the discovery service")
+			if !apiutils.SliceContainsStr(constants.SupportedAWSDiscoveryServices, serviceType) {
+				return trace.BadParameter("discovery service type does not support %q, supported resource types are: %v",
+					serviceType, constants.SupportedAWSDiscoveryServices)
 			}
 		}
 
@@ -1119,7 +1120,7 @@ type Discovery struct {
 	Service `yaml:",inline"`
 
 	// AWSMatchers are used to match EC2 instances
-	AWSMatchers []AWSEC2Matcher `yaml:"aws,omitempty"`
+	AWSMatchers []AWSMatcher `yaml:"aws,omitempty"`
 }
 
 // CommandLabel is `command` section of `ssh_service` in the config file
@@ -1248,21 +1249,15 @@ type ResourceMatcher struct {
 	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
 }
 
-// AWSMatcher matches AWS databases.
+// AWSMatcher matches AWS EC2 instances and AWS Databases
 type AWSMatcher struct {
-	// Types are AWS database types to match, "rds", "redshift", "elasticache",
+	// Types are AWS database types to match, "ec2", "rds", "redshift", "elasticache",
 	// or "memorydb".
 	Types []string `yaml:"types,omitempty"`
 	// Regions are AWS regions to query for databases.
 	Regions []string `yaml:"regions,omitempty"`
 	// Tags are AWS tags to match.
 	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
-}
-
-// AWSEC2Matcher matches EC2 instances
-type AWSEC2Matcher struct {
-	// Matcher is used to match EC2 instances based on tags
-	Matcher AWSMatcher `yaml:",inline"`
 	// InstallParams sets the join method when installing on
 	// discovered EC2 nodes
 	InstallParams *InstallParams `yaml:"install,omitempty"`

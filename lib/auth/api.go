@@ -707,7 +707,7 @@ type ReadDiscoveryAccessPoint interface {
 }
 
 // DiscoveryAccessPoint is an API interface implemented by a certificate authority (CA) to be
-// used by a teleport.ComponentApp.
+// used by a teleport.ComponentDiscovery
 type DiscoveryAccessPoint interface {
 	// ReadDiscoveryAccessPoint provides methods to read data
 	ReadDiscoveryAccessPoint

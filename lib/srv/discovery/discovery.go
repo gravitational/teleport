@@ -35,10 +35,15 @@ import (
 )
 
 type Config struct {
-	Clients     cloud.Clients
-	Matchers    []services.AWSMatcher
+	// Clients is an interface for retrieving cloud clients.
+	Clients cloud.Clients
+	// AWSMatchers is a list of AWS EC2 matchers.
+	Matchers []services.AWSMatcher
+	// NodeWatcher is a node watcher.
 	NodeWatcher *services.NodeWatcher
-	Emitter     apievents.Emitter
+	// Emitter is events emitter, used to submit discrete events
+	Emitter apievents.Emitter
+	// AccessPoint is a discovery access point
 	AccessPoint auth.DiscoveryAccessPoint
 }
 
@@ -60,6 +65,7 @@ type Server struct {
 	cancelfn context.CancelFunc
 }
 
+// New initializes a discovery Server
 func New(ctx context.Context, cfg *Config) (*Server, error) {
 	localCtx, cancelfn := context.WithCancel(ctx)
 
@@ -121,7 +127,7 @@ func genInstancesLogStr(instances *server.EC2Instances) string {
 		logInstances.WriteString(aws.StringValue(inst.InstanceId) + ", ")
 	}
 	if len(instances.Instances) > 10 {
-		logInstances.WriteString(fmt.Sprintf("... + %d instance IDs trunksated", len(instances.Instances)-10))
+		logInstances.WriteString(fmt.Sprintf("... + %d instance IDs trunacted", len(instances.Instances)-10))
 	}
 
 	return fmt.Sprintf("[%s]", logInstances.String())
@@ -134,7 +140,7 @@ func (s *Server) handleInstances(instances *server.EC2Instances) error {
 	}
 	s.filterExistingNodes(instances)
 	if len(instances.Instances) == 0 {
-		return trace.NotFound("all fetched nodes already enrolled.")
+		return trace.NotFound("all fetched nodes already enrolled")
 	}
 
 	s.log.Debugf("Running Teleport installation on these instances: AccountID: %s, Instances: [%s]",
