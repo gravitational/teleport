@@ -2426,12 +2426,20 @@ service AuthService {
 
   // GetToken retrieves a token described by the given request.
   rpc GetToken(types.ResourceRequest) returns (types.ProvisionTokenV2);
-  // GetToken retrieves all tokens.
+  // GetTokenV3 retrieves a v3 token described by the given request.
+  rpc GetTokenV3(types.ResourceRequest) returns (types.ProvisionTokenV3);
+  // GetToken retrieves all v2 tokens.
   rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
+  // GetTokensV3 retrieves all v3 tokens.
+  rpc GetTokensV3(google.protobuf.Empty) returns (types.ProvisionTokenV3List);
   // UpsertToken upserts a token in a backend.
   rpc UpsertToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
+  // UpsertTokenV3 upserts a v3 token in a backend.
+  rpc UpsertTokenV3(types.ProvisionTokenV3) returns (google.protobuf.Empty);
   // CreateToken creates a token in a backend.
   rpc CreateToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
+  // CreateTokenV3 creates a v3 token in a backend.
+  rpc CreateTokenV3(types.ProvisionTokenV3) returns (google.protobuf.Empty);
   // GenerateToken generates a new auth token.
   rpc GenerateToken(GenerateTokenRequest) returns (GenerateTokenResponse);
   // DeleteToken deletes an existing token in a backend described by the given request.

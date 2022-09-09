@@ -57,6 +57,8 @@ type ProvisionToken interface {
 	GetBotName() string
 	// GetSuggestedLabels returns the set of labels that the resource should add when adding itself to the cluster
 	GetSuggestedLabels() Labels
+	// GetJoinMethod returns joining method that must be used with this token.
+	GetJoinMethod() JoinMethod
 
 	// String returns user friendly representation of the resource
 	String() string

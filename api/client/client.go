@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"golang.org/x/sync/errgroup"
 	"io"
 	"net"
 	"sync"
@@ -1953,6 +1954,7 @@ func (c *Client) GetToken(ctx context.Context, name string) (types.ProvisionToke
 	if name == "" {
 		return nil, trace.BadParameter("cannot get token, missing name")
 	}
+	// TODO: Concurrently fetch GetTokensV2
 	resp, err := c.grpc.GetToken(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -1962,35 +1964,71 @@ func (c *Client) GetToken(ctx context.Context, name string) (types.ProvisionToke
 
 // GetTokens returns a list of active provision tokens for nodes and users.
 func (c *Client) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
-	resp, err := c.grpc.GetTokens(ctx, &empty.Empty{}, c.callOpts...)
+	eg, egCtx := errgroup.WithContext(ctx)
+
+	var respV2 *types.ProvisionTokenV2List
+	eg.Go(func() error {
+		resp, err := c.grpc.GetTokens(egCtx, &empty.Empty{}, c.callOpts...)
+		if err != nil {
+			return trail.FromGRPC(err)
+		}
+		respV2 = resp
+		return nil
+	})
+	var respV3 *types.ProvisionTokenV3List
+	eg.Go(func() error {
+		resp, err := c.grpc.GetTokensV3(egCtx, &empty.Empty{}, c.callOpts...)
+		if err != nil {
+			return trail.FromGRPC(err)
+		}
+		respV3 = resp
+		return nil
+	})
+
+	err := eg.Wait()
 	if err != nil {
-		return nil, trail.FromGRPC(err)
+		return nil, trace.Wrap(err)
 	}
 
-	tokens := make([]types.ProvisionToken, len(resp.ProvisionTokens))
-	for i, token := range resp.ProvisionTokens {
-		tokens[i] = token
+	tokens := make(
+		[]types.ProvisionToken,
+		0,
+		len(respV2.ProvisionTokens)+len(respV3.ProvisionTokens),
+	)
+	for _, token := range respV2.ProvisionTokens {
+		tokens = append(tokens, token)
+	}
+	for _, token := range respV3.ProvisionTokens {
+		tokens = append(tokens, token)
 	}
 	return tokens, nil
 }
 
 // UpsertToken creates or updates a provision token.
 func (c *Client) UpsertToken(ctx context.Context, token types.ProvisionToken) error {
-	tokenV2, ok := token.(*types.ProvisionTokenV2)
-	if !ok {
+	var err error
+	switch v := token.(type) {
+	case *types.ProvisionTokenV2:
+		_, err = c.grpc.UpsertToken(ctx, v, c.callOpts...)
+	case *types.ProvisionTokenV3:
+		_, err = c.grpc.UpsertTokenV3(ctx, v, c.callOpts...)
+	default:
 		return trace.BadParameter("invalid type %T", token)
 	}
-	_, err := c.grpc.UpsertToken(ctx, tokenV2, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 
 // CreateToken creates a provision token.
 func (c *Client) CreateToken(ctx context.Context, token types.ProvisionToken) error {
-	tokenV2, ok := token.(*types.ProvisionTokenV2)
-	if !ok {
+	var err error
+	switch v := token.(type) {
+	case *types.ProvisionTokenV2:
+		_, err = c.grpc.CreateToken(ctx, v, c.callOpts...)
+	case *types.ProvisionTokenV3:
+		_, err = c.grpc.CreateTokenV3(ctx, v, c.callOpts...)
+	default:
 		return trace.BadParameter("invalid type %T", token)
 	}
-	_, err := c.grpc.CreateToken(ctx, tokenV2, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 
