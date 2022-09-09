@@ -25,6 +25,7 @@ import (
 	utils "github.com/gravitational/teleport/api/utils"
 
 	"github.com/google/uuid"
+	log "github.com/sirupsen/logrus"
 )
 
 // NewPresetEditorRole returns a new pre-defined role for cluster
@@ -72,6 +73,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindConnectionDiagnostic, RW()),
 					types.NewRule(types.KindDatabaseCertificate, RW()),
 					types.NewRule(types.KindInstaller, RW()),
+					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
 		},
@@ -115,6 +117,7 @@ func NewPresetAccessRole() types.Role {
 						Verbs:     []string{types.VerbRead, types.VerbList},
 						Where:     "contains(session.participants, user.metadata.name)",
 					},
+					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
 		},
@@ -152,6 +155,7 @@ func NewPresetAuditorRole() types.Role {
 				Rules: []types.Rule{
 					types.NewRule(types.KindSession, RO()),
 					types.NewRule(types.KindEvent, RO()),
+					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
 		},
@@ -160,9 +164,9 @@ func NewPresetAuditorRole() types.Role {
 	return role
 }
 
-// DefaultAllowRules has the Allow rules that should be set as default when they were no explicitly defined.
+// defaultAllowRules has the Allow rules that should be set as default when they were not explicitly defined.
 // This is used to update the current cluster roles when deploying a new resource.
-func DefaultAllowRules() map[string][]types.Rule {
+func defaultAllowRules() map[string][]types.Rule {
 	return map[string][]types.Rule{
 		teleport.PresetEditorRoleName: {
 			types.NewRule(types.KindConnectionDiagnostic, RW()),
@@ -170,11 +174,10 @@ func DefaultAllowRules() map[string][]types.Rule {
 	}
 }
 
-// AddDefaultAllowRules returns a copy of the received role with a new default allow rule.
-// If the current role already defined one of the resources (either allowing or denying),
-// the role will be returned without setting the default.
+// AddDefaultAllowRules adds default rules to a preset role.
+// Only rules whose resources are not already defined (either allowing or denying) are added.
 func AddDefaultAllowRules(role types.Role) types.Role {
-	defaultRules, ok := DefaultAllowRules()[role.GetName()]
+	defaultRules, ok := defaultAllowRules()[role.GetName()]
 	if !ok || len(defaultRules) == 0 {
 		return role
 	}
@@ -186,6 +189,7 @@ func AddDefaultAllowRules(role types.Role) types.Role {
 			continue
 		}
 
+		log.Debugf("Adding default allow rule %v for role %q", defaultRule, role.GetName())
 		rules := role.GetRules(types.Allow)
 		rules = append(rules, defaultRule)
 		role.SetRules(types.Allow, rules)
