@@ -105,6 +105,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindInstaller},
+		{Kind: types.KindKubernetesCluster},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -143,6 +144,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindInstaller},
+		{Kind: types.KindKubernetesCluster},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -175,6 +177,7 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindDatabase},
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindInstaller},
+		{Kind: types.KindKubernetesCluster},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -254,6 +257,7 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindKubeService},
 		{Kind: types.KindKubeServer},
+		{Kind: types.KindKubernetesCluster},
 	}
 	cfg.QueueSize = defaults.KubernetesQueueSize
 	return cfg
@@ -387,6 +391,7 @@ type Cache struct {
 	presenceCache         services.Presence
 	restrictionsCache     services.Restrictions
 	appsCache             services.Apps
+	kubernetesCache       services.Kubernetes
 	databasesCache        services.Databases
 	appSessionCache       services.AppSession
 	snowflakeSessionCache services.SnowflakeSession
@@ -447,6 +452,7 @@ func (c *Cache) read() (readGuard, error) {
 			presence:         c.presenceCache,
 			restrictions:     c.restrictionsCache,
 			apps:             c.appsCache,
+			kubernetes:       c.kubernetesCache,
 			databases:        c.databasesCache,
 			appSession:       c.appSessionCache,
 			snowflakeSession: c.snowflakeSessionCache,
@@ -467,6 +473,7 @@ func (c *Cache) read() (readGuard, error) {
 		presence:         c.Config.Presence,
 		restrictions:     c.Config.Restrictions,
 		apps:             c.Config.Apps,
+		kubernetes:       c.Config.Kubernetes,
 		databases:        c.Config.Databases,
 		appSession:       c.Config.AppSession,
 		snowflakeSession: c.Config.SnowflakeSession,
@@ -493,6 +500,7 @@ type readGuard struct {
 	snowflakeSession services.SnowflakeSession
 	restrictions     services.Restrictions
 	apps             services.Apps
+	kubernetes       services.Kubernetes
 	databases        services.Databases
 	webSession       types.WebSessionInterface
 	webToken         types.WebTokenInterface
@@ -546,6 +554,8 @@ type Config struct {
 	Restrictions services.Restrictions
 	// Apps is an apps service.
 	Apps services.Apps
+	// Kubernetes is an kubernetes service.
+	Kubernetes services.Kubernetes
 	// Databases is a databases service.
 	Databases services.Databases
 	// SnowflakeSession holds Snowflake sessions.
@@ -701,6 +711,7 @@ func New(config Config) (*Cache, error) {
 		presenceCache:         local.NewPresenceService(config.Backend),
 		restrictionsCache:     local.NewRestrictionsService(config.Backend),
 		appsCache:             local.NewAppService(config.Backend),
+		kubernetesCache:       local.NewKubernetesService(config.Backend),
 		databasesCache:        local.NewDatabasesService(config.Backend),
 		appSessionCache:       local.NewIdentityService(config.Backend),
 		snowflakeSessionCache: local.NewIdentityService(config.Backend),
@@ -851,23 +862,23 @@ func (c *Cache) notify(ctx context.Context, event Event) {
 // and consistently ordered thanks to Raft. Unfortunately, DynamoDB
 // does not provide such a mechanism for its event system, so
 // some tradeoffs have to be made:
-//   a. We assume that events are ordered in regards to the
-//   individual key operations which is the guarantees both Etcd and DynamoDB
-//   provide.
-//   b. Thanks to the init event sent by the server on a successful connect,
-//   and guarantees 1 and 2a, client assumes that once it connects and receives an event,
-//   it will not miss any events, however it can receive stale events.
-//   Event could be stale, if it relates to a change that happened before
-//   the version read by client from the database, for example,
-//   given the event stream: 1. Update a=1 2. Delete a 3. Put a = 2
-//   Client could have subscribed before event 1 happened,
-//   read the value a=2 and then received events 1 and 2 and 3.
-//   The cache will replay all events 1, 2 and 3 and end up in the correct
-//   state 3. If we had a consistent revision number, we could
-//   have skipped 1 and 2, but in the absence of such mechanism in Dynamo
-//   we assume that this cache will eventually end up in a correct state
-//   potentially lagging behind the state of the database.
 //
+//	a. We assume that events are ordered in regards to the
+//	individual key operations which is the guarantees both Etcd and DynamoDB
+//	provide.
+//	b. Thanks to the init event sent by the server on a successful connect,
+//	and guarantees 1 and 2a, client assumes that once it connects and receives an event,
+//	it will not miss any events, however it can receive stale events.
+//	Event could be stale, if it relates to a change that happened before
+//	the version read by client from the database, for example,
+//	given the event stream: 1. Update a=1 2. Delete a 3. Put a = 2
+//	Client could have subscribed before event 1 happened,
+//	read the value a=2 and then received events 1 and 2 and 3.
+//	The cache will replay all events 1, 2 and 3 and end up in the correct
+//	state 3. If we had a consistent revision number, we could
+//	have skipped 1 and 2, but in the absence of such mechanism in Dynamo
+//	we assume that this cache will eventually end up in a correct state
+//	potentially lagging behind the state of the database.
 func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *time.Timer) error {
 	watcher, err := c.Events.NewWatcher(c.ctx, types.Watch{
 		QueueSize:       c.QueueSize,
@@ -1878,6 +1889,32 @@ func (c *Cache) GetApplicationServers(ctx context.Context, namespace string) ([]
 	}
 	defer rg.Release()
 	return rg.presence.GetApplicationServers(ctx, namespace)
+}
+
+// GetKubernetesClusters returns all kubernetes cluster resources.
+func (c *Cache) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesClusters")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.kubernetes.GetKubernetesClusters(ctx)
+}
+
+// GetKubernetesCluster returns the specified kubernetes cluster resource.
+func (c *Cache) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesCluster")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.kubernetes.GetKubernetesCluster(ctx, name)
 }
 
 // GetApps returns all application resources.
