@@ -15,7 +15,6 @@ limitations under the License.
 */
 import React, { useState } from 'react';
 import SlideTabs from 'design/SlideTabs';
-import { useLocation } from 'react-router';
 import { Image, Text, Box, Flex } from 'design';
 
 import AddApp from 'teleport/Apps/AddApp';
@@ -39,7 +38,7 @@ import { KubernetesResource } from './KubernetesResource';
 import { ServerResource } from './ServerResource';
 
 import type { UserContext } from 'teleport/services/user';
-import type { State } from '../useDiscover';
+import type { State, AgentKind } from '../useDiscover';
 import type { AgentStepProps } from '../types';
 import type { TabComponent } from 'design/SlideTabs/SlideTabs';
 
@@ -52,18 +51,14 @@ export default function Container(props: AgentStepProps) {
       userContext={userContext}
       isEnterprise={ctx.isEnterprise}
       nextStep={props.nextStep}
+      selectedResource={props.selectedAgentKind}
+      onSelectResource={props.onSelectResource}
     />
   );
 }
 
 function checkPermissions(acl: Acl, tab: Tab) {
-  const basePermissionsNeeded = [
-    acl.tokens.create,
-    acl.users.edit,
-    acl.connectionDiagnostic.create,
-    acl.connectionDiagnostic.read,
-    acl.connectionDiagnostic.edit,
-  ];
+  const basePermissionsNeeded = [acl.tokens.create];
 
   const permissionsNeeded = [
     ...basePermissionsNeeded,
@@ -74,37 +69,26 @@ function checkPermissions(acl: Acl, tab: Tab) {
   return permissionsNeeded.some(value => !value);
 }
 
-type ValidResourceTypes =
-  | 'application'
-  | 'database'
-  | 'desktop'
-  | 'kubernetes'
-  | 'server';
-
-type Loc = {
-  state: {
-    entity: ValidResourceTypes;
-  };
-};
-
 type Props = {
   userContext: UserContext;
   isEnterprise: boolean;
   nextStep: State['nextStep'];
+  selectedResource: State['selectedAgentKind'];
+  onSelectResource: State['onSelectResource'];
 };
 
 interface Tab extends TabComponent {
   permissionsNeeded: boolean[];
 }
 
-export function SelectResource({ isEnterprise, nextStep, userContext }: Props) {
+export function SelectResource({
+  isEnterprise,
+  nextStep,
+  userContext,
+  selectedResource,
+  onSelectResource,
+}: Props) {
   const { acl } = userContext;
-
-  const location: Loc = useLocation();
-
-  const [selectedResource, setSelectedResource] = useState<ValidResourceTypes>(
-    location?.state?.entity || 'server'
-  );
 
   const [showAddApp, setShowAddApp] = useState(false);
   const [showAddKube, setShowAddKube] = useState(false);
@@ -160,9 +144,7 @@ export function SelectResource({ isEnterprise, nextStep, userContext }: Props) {
       <SlideTabs
         initialSelected={selectedTabIndex}
         tabs={tabs}
-        onChange={index =>
-          setSelectedResource(tabs[index].name as ValidResourceTypes)
-        }
+        onChange={index => onSelectResource(tabs[index].name as AgentKind)}
       />
       {selectedResource === 'database' && (
         <DatabaseResource

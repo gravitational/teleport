@@ -216,7 +216,7 @@ exports[`failed 1`] = `
   <div
     class="c2"
   >
-    Install and configure the Teleport SSH Service on the server you want to add. 
+    Install and configure the Teleport SSH Service.
     <br />
     Run the following command on the server you want to add.
   </div>
@@ -282,7 +282,7 @@ exports[`polling error state 1`] = `
   margin-right: 4px;
 }
 
-.c15 {
+.c16 {
   box-sizing: border-box;
   margin-top: 24px;
 }
@@ -374,7 +374,7 @@ exports[`polling error state 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c16 {
+.c17 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -402,25 +402,25 @@ exports[`polling error state 1`] = `
   width: 165px;
 }
 
-.c16:active {
+.c17:active {
   opacity: 0.56;
 }
 
-.c16:hover,
-.c16:focus {
+.c17:hover,
+.c17:focus {
   background: #651FFF;
 }
 
-.c16:active {
+.c17:active {
   background: #354AA4;
 }
 
-.c16:disabled {
+.c17:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c17 {
+.c18 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -448,16 +448,16 @@ exports[`polling error state 1`] = `
   width: 165px;
 }
 
-.c17:active {
+.c18:active {
   opacity: 0.56;
 }
 
-.c17:hover,
-.c17:focus {
+.c18:hover,
+.c18:focus {
   background: #2C3A73;
 }
 
-.c17:disabled {
+.c18:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -539,6 +539,13 @@ exports[`polling error state 1`] = `
   min-height: auto;
 }
 
+.c15 {
+  padding: 2px 5px;
+  border-radius: 6px;
+  background-color: rgb(255 255 255 / 17%);
+  color: inherit;
+}
+
 .c3 {
   box-sizing: border-box;
   padding: 16px;
@@ -566,7 +573,7 @@ exports[`polling error state 1`] = `
   <div
     class="c2"
   >
-    Install and configure the Teleport SSH Service on the server you want to add. 
+    Install and configure the Teleport SSH Service.
     <br />
     Run the following command on the server you want to add.
   </div>
@@ -636,17 +643,21 @@ exports[`polling error state 1`] = `
         <li>
           The Teleport SSH Service could not join this Teleport cluster. Check the logs for errors by running 
           <br />
-          \`journalctl status teleport\`
+          <mark
+            class="c15"
+          >
+            journalctl status teleport
+          </mark>
         </li>
       </ul>
     </div>
   </div>
   <div
-    class="c15"
+    class="c16"
   >
     
     <button
-      class="c16"
+      class="c17"
       disabled=""
       kind="primary"
       width="165px"
@@ -654,7 +665,7 @@ exports[`polling error state 1`] = `
       Next
     </button>
     <a
-      class="c17"
+      class="c18"
       href="/web"
       kind="secondary"
       mt="3"
@@ -898,7 +909,7 @@ exports[`polling state 1`] = `
   <div
     class="c2"
   >
-    Install and configure the Teleport SSH Service on the server you want to add. 
+    Install and configure the Teleport SSH Service.
     <br />
     Run the following command on the server you want to add.
   </div>
@@ -1202,7 +1213,7 @@ exports[`polling success state 1`] = `
   <div
     class="c2"
   >
-    Install and configure the Teleport SSH Service on the server you want to add. 
+    Install and configure the Teleport SSH Service.
     <br />
     Run the following command on the server you want to add.
   </div>

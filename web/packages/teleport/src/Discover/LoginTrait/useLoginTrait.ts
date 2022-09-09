@@ -29,6 +29,9 @@ export function useLoginTrait({ ctx, props }: Props) {
   const [staticLogins, setStaticLogins] = useState<string[]>([]);
   const [dynamicLogins, setDynamicLogins] = useState<string[]>([]);
 
+  const isSsoUser = ctx.storeUser.state.authType === 'sso';
+  const canEditUser = ctx.storeUser.getUserAccess().edit;
+
   useEffect(() => {
     fetchLoginTraits();
   }, []);
@@ -52,18 +55,28 @@ export function useLoginTrait({ ctx, props }: Props) {
     );
   }
 
+  function updateNodeMeta(logins: string[]) {
+    const meta = props.agentMeta as NodeMeta;
+    props.updateAgentMeta({
+      ...meta,
+      node: { ...meta.node, sshLogins: [...staticLogins, ...logins] },
+    });
+  }
+
   async function nextStep(logins: string[]) {
+    if (isSsoUser || !canEditUser) {
+      updateNodeMeta(dynamicLogins);
+      props.nextStep();
+      return;
+    }
+
     // Currently, fetching user for user traits does not
     // include the statically defined OS usernames, so
     // we combine it manually in memory with the logins
     // we previously fetched through querying for the
     // the newly added resource (which returns 'sshLogins' that
     // includes both dynamic + static logins).
-    const meta = props.agentMeta as NodeMeta;
-    props.updateAgentMeta({
-      ...meta,
-      node: { ...meta.node, sshLogins: [...staticLogins, ...logins] },
-    });
+    updateNodeMeta(logins);
 
     // Update the dynamic logins for the user in backend.
     setAttempt({ status: 'processing' });
@@ -91,6 +104,8 @@ export function useLoginTrait({ ctx, props }: Props) {
     staticLogins,
     addLogin,
     fetchLoginTraits,
+    isSsoUser,
+    canEditUser,
   };
 }
 

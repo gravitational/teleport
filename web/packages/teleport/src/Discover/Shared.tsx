@@ -17,6 +17,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { NavLink } from 'react-router-dom';
+import TextEditor from 'shared/components/TextEditor';
 
 import { Text, ButtonPrimary, Box, ButtonText } from 'design';
 import { ButtonSecondary } from 'design/Button';
@@ -76,9 +77,13 @@ export const ActionButtons = ({
   );
 };
 
+export const ReadOnlyYamlEditor = ({ content }: { content: string }) => {
+  return <TextEditor readOnly={true} data={[{ content, type: 'yaml' }]} />;
+};
+
 export const TextIcon = styled(Text)`
   display: flex;
-  align-items: center;
+  align-items: ${({ alignItems }) => alignItems || 'center'};
 
   .icon {
     margin-right: 8px;
@@ -99,4 +104,11 @@ export const ButtonBlueText = styled(ButtonText)`
   padding-left: 0;
   font-size: inherit;
   min-height: auto;
+`;
+
+export const Mark = styled.mark`
+  padding: 2px 5px;
+  border-radius: 6px;
+  background-color: rgb(255 255 255 / 17%);
+  color: inherit;
 `;

@@ -15,43 +15,31 @@
  */
 
 import { useState } from 'react';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import { useLocation } from 'react-router';
 
 import TeleportContext from 'teleport/teleportContext';
 import session from 'teleport/services/websession';
 import useMain from 'teleport/Main/useMain';
 
 import type { Node } from 'teleport/services/nodes';
-
-import type {
-  JoinMethod,
-  JoinRole,
-  JoinToken,
-  JoinRule,
-} from 'teleport/services/joinToken';
 import type { Feature } from 'teleport/types';
 
 export function useDiscover(ctx: TeleportContext, features: Feature[]) {
   const initState = useMain(features);
-  const { attempt, run } = useAttempt('');
+  const location: Loc = useLocation();
 
-  const [joinToken, setJoinToken] = useState<JoinToken>();
   const [currentStep, setCurrentStep] = useState(0);
-  const [selectedAgentKind, setSelectedAgentKind] = useState<AgentKind>();
+  const [selectedAgentKind, setSelectedAgentKind] = useState<AgentKind>(
+    location?.state?.entity || 'server'
+  );
   const [agentMeta, setAgentMeta] = useState<AgentMeta>();
 
-  function onSelectResource(kind: AgentKind = 'node') {
-    // TODO: hard coded for now for sake of testing the flow.
+  function onSelectResource(kind: AgentKind) {
     setSelectedAgentKind(kind);
-    nextStep();
   }
 
   function nextStep() {
     setCurrentStep(currentStep + 1);
-  }
-
-  function prevStep() {
-    setCurrentStep(currentStep - 1);
   }
 
   function updateAgentMeta(meta: AgentMeta) {
@@ -62,54 +50,27 @@ export function useDiscover(ctx: TeleportContext, features: Feature[]) {
     session.logout();
   }
 
-  function createJoinToken(method: JoinMethod = 'token', rules?: JoinRule[]) {
-    let systemRole: JoinRole;
-    switch (selectedAgentKind) {
-      case 'app':
-        systemRole = 'App';
-        break;
-      case 'db':
-        systemRole = 'Db';
-        break;
-      case 'desktop':
-        systemRole = 'WindowsDesktop';
-        break;
-      case 'kube':
-        systemRole = 'Kube';
-        break;
-      case 'node':
-        systemRole = 'Node';
-        break;
-      default:
-        console;
-    }
-
-    run(() =>
-      ctx.joinTokenService
-        .fetchJoinToken([systemRole], method, rules)
-        .then(setJoinToken)
-    );
-  }
-
   return {
     initAttempt: { status: initState.status, statusText: initState.statusText },
     userMenuItems: ctx.storeNav.getTopMenuItems(),
     username: ctx.storeUser.getUsername(),
     currentStep,
-    selectedAgentKind,
     logout,
-    onSelectResource,
     // Rest of the exported fields are used to prop drill
     // to Step 2+ components.
-    attempt,
-    joinToken,
+    onSelectResource,
+    selectedAgentKind,
     agentMeta,
     updateAgentMeta,
     nextStep,
-    prevStep,
-    createJoinToken,
   };
 }
+
+type Loc = {
+  state: {
+    entity: AgentKind;
+  };
+};
 
 type BaseMeta = {
   resourceName: string;
@@ -130,6 +91,11 @@ type AppMeta = BaseMeta & {
 
 export type AgentMeta = AppMeta | NodeMeta;
 
-export type AgentKind = 'app' | 'db' | 'desktop' | 'kube' | 'node';
+export type AgentKind =
+  | 'application'
+  | 'database'
+  | 'desktop'
+  | 'kubernetes'
+  | 'server';
 
 export type State = ReturnType<typeof useDiscover>;

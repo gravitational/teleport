@@ -17,29 +17,49 @@
 import React from 'react';
 import { render } from 'design/utils/testing';
 
-import {
-  LoadedWithStatic,
-  EmptyWithoutStatic,
-  EmptyWithStatic,
-  Failed,
-} from './LoginTrait.story';
+import * as stories from './LoginTrait.story';
 
-test('loaded with static state', () => {
-  const { container } = render(<LoadedWithStatic />);
+test('no logins and perms', () => {
+  const { container } = render(<stories.NoLoginsAndPerm />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
-test('empty state', () => {
-  const { container } = render(<EmptyWithoutStatic />);
+test('no logins, perms, and is a SSO user', () => {
+  const { container } = render(<stories.NoLoginsAndPermAndSsoUser />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
-test('empty state with static logins', () => {
-  const { container } = render(<EmptyWithStatic />);
+test('logins with no perms', () => {
+  const { container } = render(<stories.NoPerm />);
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('logins and is  SSO user', () => {
+  const { container } = render(<stories.SsoUser />);
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('static and dynamic logins with perms`', () => {
+  const { container } = render(<stories.StaticAndDynamic />);
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('dynamic only logins with perms', () => {
+  const { container } = render(<stories.DynamicOnly />);
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('static only logins with perms', () => {
+  const { container } = render(<stories.StaticOnly />);
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('no logins with perms', () => {
+  const { container } = render(<stories.NoLogins />);
   expect(container.firstChild).toMatchSnapshot();
 });
 
 test('failed', () => {
-  const { container } = render(<Failed />);
+  const { container } = render(<stories.Failed />);
   expect(container.firstChild).toMatchSnapshot();
 });

@@ -30,4 +30,6 @@ const props: AgentStepProps = {
   agentMeta: { resourceName: 'some-resource-name' } as any,
   updateAgentMeta: () => null,
   nextStep: () => null,
+  selectedAgentKind: 'server',
+  onSelectResource: () => null,
 };

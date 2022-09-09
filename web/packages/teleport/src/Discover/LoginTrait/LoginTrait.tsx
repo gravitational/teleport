@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import styled from 'styled-components';
 import {
   Flex,
@@ -34,7 +34,10 @@ import {
   HeaderSubtitle,
   ActionButtons,
   ButtonBlueText,
+  Mark,
+  ReadOnlyYamlEditor,
 } from '../Shared';
+import { loginsAndRuleUsers, logins } from '../templates';
 
 import { useLoginTrait, State } from './useLoginTrait';
 
@@ -54,17 +57,26 @@ export function LoginTrait({
   staticLogins,
   addLogin,
   fetchLoginTraits,
+  canEditUser,
+  isSsoUser,
 }: State) {
   const inputRefs = useRef<HTMLInputElement[]>([]);
   const [newLogin, setNewLogin] = useState('');
   const [showInputBox, setShowInputBox] = useState(false);
+  const [hasCheckedLogins, setHasCheckedLogins] = useState(false);
 
   const hasLogins = staticLogins.length > 0 || dynamicLogins.length > 0;
+  const canAddLoginTraits = !isSsoUser && canEditUser;
+
+  useEffect(() => {
+    setHasCheckedLogins(hasLogins);
+  }, [hasLogins]);
 
   function onAddLogin() {
     addLogin(newLogin);
     setNewLogin('');
     setShowInputBox(false);
+    setHasCheckedLogins(true);
   }
 
   function onProceed() {
@@ -103,61 +115,128 @@ export function LoginTrait({
       break;
 
     case 'success':
-      $content = (
-        <>
-          {!hasLogins && (
-            <CheckboxWrapper>
-              <Text
-                css={`
-                  font-style: italic;
-                  overflow: visible;
-                `}
-              >
-                No OS users added
-              </Text>
-            </CheckboxWrapper>
-          )}
-          {/* static logins cannot be modified */}
-          {staticLogins.map((login, index) => {
-            const id = `${login}${index}`;
-            return (
-              <CheckboxWrapper key={index} className="disabled">
-                <CheckboxInput
-                  type="checkbox"
-                  name={login}
-                  id={id}
-                  defaultChecked
-                />
-                <Label htmlFor={id}>{login}</Label>
+      if (isSsoUser && !hasLogins) {
+        $content = (
+          <>
+            <Text mt={4} width="100px">
+              You don’t have any allowed OS users defined.
+              <br />
+              Please ask your Teleport administrator to update your role and add
+              the required OS users (logins).
+            </Text>
+            <EditorLogins />
+          </>
+        );
+      } else if (!canAddLoginTraits && !hasLogins) {
+        $content = (
+          <>
+            <Text mt={4} width="100px">
+              You don’t have any allowed OS users or permission to add new OS
+              users.
+              <br />
+              Please ask your Teleport administrator to update your role to
+              either add the required OS users (logins) or add the{' '}
+              <Mark>users</Mark>
+              rule:
+            </Text>
+            <EditorLoginsAndRuleUsers />
+          </>
+        );
+      } else {
+        $content = (
+          <>
+            {!hasLogins && (
+              <CheckboxWrapper>
+                <Text
+                  css={`
+                    font-style: italic;
+                    overflow: visible;
+                  `}
+                >
+                  No OS users added
+                </Text>
               </CheckboxWrapper>
-            );
-          })}
-          {dynamicLogins.map((login, index) => {
-            const id = `${login}${index}`;
-            return (
-              <CheckboxWrapper key={index}>
-                <CheckboxInput
-                  type="checkbox"
-                  name={login}
-                  id={id}
-                  ref={el => (inputRefs.current[index] = el)}
-                  defaultChecked
-                />
-                <Label htmlFor={id}>{login}</Label>
-              </CheckboxWrapper>
-            );
-          })}
-          {showInputBox ? (
-            <AddLoginInput
-              newLogin={newLogin}
-              addLogin={onAddLogin}
-              setNewLogin={setNewLogin}
-            />
-          ) : (
-            <AddLoginButton setShowInputBox={setShowInputBox} />
-          )}
-        </>
-      );
+            )}
+            {/* static logins cannot be modified */}
+            {staticLogins.map((login, index) => {
+              const id = `${login}${index}`;
+              return (
+                <CheckboxWrapper key={index} className="disabled">
+                  <CheckboxInput
+                    type="checkbox"
+                    name={login}
+                    id={id}
+                    defaultChecked
+                  />
+                  <Label htmlFor={id}>{login}</Label>
+                </CheckboxWrapper>
+              );
+            })}
+            {dynamicLogins.map((login, index) => {
+              const id = `${login}${index}`;
+              return (
+                <CheckboxWrapper
+                  key={index}
+                  className={!canAddLoginTraits ? 'disabled' : ''}
+                >
+                  <CheckboxInput
+                    type="checkbox"
+                    name={login}
+                    id={id}
+                    ref={el => (inputRefs.current[index] = el)}
+                    defaultChecked
+                    onChange={() =>
+                      setHasCheckedLogins(
+                        staticLogins.length > 0 ||
+                          inputRefs.current.some(i => i.checked)
+                      )
+                    }
+                  />
+                  <Label htmlFor={id}>{login}</Label>
+                </CheckboxWrapper>
+              );
+            })}
+            {canAddLoginTraits && (
+              <>
+                {showInputBox ? (
+                  <AddLoginInput
+                    newLogin={newLogin}
+                    addLogin={onAddLogin}
+                    setNewLogin={setNewLogin}
+                  />
+                ) : (
+                  <AddLoginButton setShowInputBox={setShowInputBox} />
+                )}
+              </>
+            )}
+            {!isSsoUser && !canEditUser && (
+              <>
+                <Text mt={4}>
+                  You don't have permission to add new OS users.
+                  <br />
+                  If you don't see the OS user that you require, please ask your
+                  Teleport administrator to update your role to either add the
+                  required OS users (logins) or add the <Mark>users</Mark> rule:
+                </Text>
+                <EditorLoginsAndRuleUsers />
+              </>
+            )}
+            {isSsoUser && (
+              <>
+                <Text mt={4}>
+                  SSO users are not able to add new OS users.
+                  <br />
+                  If you don't see the OS user that you require, please ask your
+                  Teleport administrator to update your role to add the required
+                  OS users (logins):
+                </Text>
+                <EditorLogins />
+              </>
+            )}
+          </>
+        );
+      }
+
       break;
   }
 
@@ -168,16 +247,13 @@ export function LoginTrait({
         Select the OS users you will use to connect to server.
       </HeaderSubtitle>
       <>
-        <Text bold mb={2}>
-          Select OS Users
-        </Text>
         <Box mb={3}>{$content}</Box>
         <ActionButtons
           onProceed={onProceed}
           disableProceed={
             attempt.status === 'failed' ||
             attempt.status === 'processing' ||
-            !hasLogins
+            !hasCheckedLogins
           }
         />
       </>
@@ -250,6 +326,18 @@ const AddLoginButton = ({
     />
     Add new OS User
   </ButtonText>
+);
+
+const EditorLoginsAndRuleUsers = () => (
+  <Flex minHeight="185px" mt={3}>
+    <ReadOnlyYamlEditor content={loginsAndRuleUsers} />
+  </Flex>
+);
+
+const EditorLogins = () => (
+  <Flex minHeight="115px" mt={3}>
+    <ReadOnlyYamlEditor content={logins} />
+  </Flex>
 );
 
 const CheckboxWrapper = styled(Flex)`

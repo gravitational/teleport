@@ -31,6 +31,7 @@ import {
   ActionButtons,
   TextIcon,
   ButtonBlueText,
+  Mark,
 } from '../Shared';
 
 import { useDownloadScript } from './useDownloadScript';
@@ -56,8 +57,8 @@ export function DownloadScript({
     <Box>
       <Header>Configure Resource</Header>
       <HeaderSubtitle>
-        Install and configure the Teleport SSH Service on the server you want to
-        add. <br />
+        Install and configure the Teleport SSH Service.
+        <br />
         Run the following command on the server you want to add.
       </HeaderSubtitle>
       <ScriptBox
@@ -192,7 +193,7 @@ const TimeoutError = ({
         <li>
           The Teleport SSH Service could not join this Teleport cluster. Check
           the logs for errors by running <br />
-          `journalctl status teleport`
+          <Mark>journalctl status teleport</Mark>
         </li>
       </ul>
     </Box>

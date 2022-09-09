@@ -25,25 +25,60 @@ export default {
   title: 'Teleport/Discover/LoginTrait',
 };
 
-export const LoadedWithStatic = () => (
+export const NoLoginsAndPerm = () => (
+  <MemoryRouter>
+    <LoginTrait
+      {...props}
+      canEditUser={false}
+      staticLogins={[]}
+      dynamicLogins={[]}
+    />
+  </MemoryRouter>
+);
+
+export const NoLoginsAndPermAndSsoUser = () => (
+  <MemoryRouter>
+    <LoginTrait
+      {...props}
+      canEditUser={false}
+      isSsoUser={true}
+      staticLogins={[]}
+      dynamicLogins={[]}
+    />
+  </MemoryRouter>
+);
+
+export const NoPerm = () => (
+  <MemoryRouter>
+    <LoginTrait {...props} canEditUser={false} />
+  </MemoryRouter>
+);
+
+export const SsoUser = () => (
+  <MemoryRouter>
+    <LoginTrait {...props} isSsoUser={true} />
+  </MemoryRouter>
+);
+
+export const StaticAndDynamic = () => (
   <MemoryRouter>
     <LoginTrait {...props} />
   </MemoryRouter>
 );
 
-export const LoadedWithoutStatic = () => (
+export const DynamicOnly = () => (
   <MemoryRouter>
     <LoginTrait {...props} staticLogins={[]} />
   </MemoryRouter>
 );
 
-export const EmptyWithStatic = () => (
+export const StaticOnly = () => (
   <MemoryRouter>
     <LoginTrait {...props} dynamicLogins={[]} />
   </MemoryRouter>
 );
 
-export const EmptyWithoutStatic = () => (
+export const NoLogins = () => (
   <MemoryRouter>
     <LoginTrait {...props} dynamicLogins={[]} staticLogins={[]} />
   </MemoryRouter>
@@ -78,4 +113,6 @@ const props: State = {
   nextStep: () => null,
   addLogin: () => null,
   fetchLoginTraits: () => null,
+  canEditUser: true,
+  isSsoUser: false,
 };

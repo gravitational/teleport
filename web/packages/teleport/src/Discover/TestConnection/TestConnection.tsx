@@ -22,7 +22,15 @@ import Select from 'shared/components/Select';
 
 import useTeleport from 'teleport/useTeleport';
 
-import { Header, ActionButtons, TextIcon, HeaderSubtitle } from '../Shared';
+import {
+  Header,
+  ActionButtons,
+  TextIcon,
+  HeaderSubtitle,
+  Mark,
+  ReadOnlyYamlEditor,
+} from '../Shared';
+import { ruleConnectionDiagnostic } from '../templates';
 
 import { useTestConnection, State } from './useTestConnection';
 
@@ -43,6 +51,7 @@ export function TestConnection({
   runConnectionDiagnostic,
   diagnosis,
   nextStep,
+  canTestConnection,
 }: State) {
   const [usernameOpts] = useState(() =>
     logins.map(l => ({ value: l, label: l }))
@@ -81,7 +90,8 @@ export function TestConnection({
     <Box>
       <Header>Test Connection</Header>
       <HeaderSubtitle>
-        Verify that you can successfully connect to the server you just added.
+        Optionally verify that you can successfully connect to the server you
+        just added.
       </HeaderSubtitle>
       <StyledBox mb={5}>
         <Text bold>Step 1</Text>
@@ -104,14 +114,30 @@ export function TestConnection({
           Verify that the server is accessible
         </Text>
         <Flex alignItems="center" mt={3}>
-          <ButtonSecondary
-            width="200px"
-            onClick={() => runConnectionDiagnostic(selectedOpt.value)}
-            disabled={attempt.status === 'processing'}
-          >
-            {diagnosis ? 'Restart Test' : 'Test Connection'}
-          </ButtonSecondary>
-          <Box ml={4}>{$diagnosisStateComponent}</Box>
+          {canTestConnection ? (
+            <>
+              <ButtonSecondary
+                width="200px"
+                onClick={() => runConnectionDiagnostic(selectedOpt.value)}
+                disabled={attempt.status === 'processing'}
+              >
+                {diagnosis ? 'Restart Test' : 'Test Connection'}
+              </ButtonSecondary>
+              <Box ml={4}>{$diagnosisStateComponent}</Box>
+            </>
+          ) : (
+            <Box>
+              <Text>
+                You don't have permission to test connection.
+                <br />
+                Please ask your Teleport administrator to update your role and
+                add the <Mark>connection_diagnostic</Mark> rule:
+              </Text>
+              <Flex minHeight="155px" mt={3}>
+                <ReadOnlyYamlEditor content={ruleConnectionDiagnostic} />
+              </Flex>
+            </Box>
+          )}
         </Flex>
         {showDiagnosisOutput && (
           <Box mt={3}>
@@ -123,11 +149,12 @@ export function TestConnection({
                   if (trace.status === 'failed') {
                     return (
                       <>
-                        <TextIcon>
+                        <TextIcon alignItems="baseline">
                           <Icons.CircleCross mr={1} color="danger" />
                           {trace.details}
+                          <br />
+                          {trace.error}
                         </TextIcon>
-                        <Box mt={2}>{trace.error}</Box>
                       </>
                     );
                   }
@@ -162,16 +189,11 @@ export function TestConnection({
         <ButtonSecondary
           width="200px"
           onClick={() => startSshSession(selectedOpt.value)}
-          disabled={attempt.status !== 'success' || !diagnosis?.success}
         >
           Start Session
         </ButtonSecondary>
       </StyledBox>
-      <ActionButtons
-        onProceed={nextStep}
-        lastStep={true}
-        disableProceed={attempt.status !== 'success' || !diagnosis?.success}
-      />
+      <ActionButtons onProceed={nextStep} lastStep={true} />
     </Box>
   );
 }
