@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/trace"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/stretchr/testify/require"
 )
 
@@ -133,7 +134,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 		requestTokenName         string
 		tokenSpec                types.ProvisionTokenSpecV2
 		stsClient                stsClient
-		fips                     bool
+		iamRegisterOptions       []iamRegisterOption
 		challengeResponseOptions []challengeResponseOption
 		challengeResponseErr     error
 		assertError              require.ErrorAssertionFunc
@@ -445,14 +446,17 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 					Arn:     "arn:aws::1111",
 				}),
 			},
-			fips: true,
+			iamRegisterOptions: []iamRegisterOption{
+				withFips(true),
+				withAuthVersion(&semver.Version{Major: 12}),
+			},
 			challengeResponseOptions: []challengeResponseOption{
 				withHost("sts-fips.us-east-1.amazonaws.com"),
 			},
 			assertError: require.NoError,
 		},
 		{
-			desc:             "fips fail",
+			desc:             "non-fips client pass v11",
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
 			tokenSpec: types.ProvisionTokenSpecV2{
@@ -472,7 +476,40 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 					Arn:     "arn:aws::1111",
 				}),
 			},
-			fips: true,
+			iamRegisterOptions: []iamRegisterOption{
+				withFips(true),
+				withAuthVersion(&semver.Version{Major: 11}),
+			},
+			challengeResponseOptions: []challengeResponseOption{
+				withHost("sts.us-east-1.amazonaws.com"),
+			},
+			assertError: require.NoError,
+		},
+		{
+			desc:             "non-fips client fail v12",
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: "1234",
+						AWSARN:     "arn:aws::1111",
+					},
+				},
+				JoinMethod: types.JoinMethodIAM,
+			},
+			stsClient: &mockClient{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(awsIdentity{
+					Account: "1234",
+					Arn:     "arn:aws::1111",
+				}),
+			},
+			iamRegisterOptions: []iamRegisterOption{
+				withFips(true),
+				withAuthVersion(&semver.Version{Major: 12}),
+			},
 			challengeResponseOptions: []challengeResponseOption{
 				withHost("sts.us-east-1.amazonaws.com"),
 			},
@@ -491,11 +528,6 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			require.NoError(t, a.UpsertToken(ctx, token))
 			defer func() {
 				require.NoError(t, a.DeleteToken(ctx, token.GetName()))
-			}()
-
-			a.fips = tc.fips
-			defer func() {
-				a.fips = false
 			}()
 
 			requestContext := context.Background()
@@ -521,7 +553,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 					StsIdentityRequest: identityRequest.Bytes(),
 				}
 				return req, tc.challengeResponseErr
-			})
+			}, tc.iamRegisterOptions...)
 			tc.assertError(t, err)
 		})
 	}
