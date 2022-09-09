@@ -358,12 +358,12 @@ exports[`list of all events 1`] = `
           </strong>
            - 
           <strong>
-            90
+            126
           </strong>
            of
            
           <strong>
-            90
+            126
           </strong>
         </div>
         <button
@@ -3351,6 +3351,1338 @@ exports[`list of all events 1`] = `
           style="min-width: 120px;"
         >
           2020-01-13T18:05:53.919Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Symlink Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] failed to create symbolic link [/tmp/file] on node [im-a-server-hostname]: [EOF]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Symlink
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] created symbolic link [/tmp/file] on node [im-a-server-hostname]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Readlink Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] failed to read symbolic link [/tmp/file] on node [im-a-server-hostname]: [EOF]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Readlink
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] read symbolic link [/tmp/file] on node [im-a-server-hostname]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Rename Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] failed to rename file [/tmp/file] on node [im-a-server-hostname]: [EOF]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Rename
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] renamed file [/tmp/file] on node [im-a-server-hostname]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Stat Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] failed to query attributes of file [/tmp/file] on node [im-a-server-hostname]: [EOF]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Stat
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] queried attributes of file [/tmp/file] on node [im-a-server-hostname]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Realpath Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] failed to query absolute path of file [/tmp/file] on node [im-a-server-hostname]: [EOF]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Realpath
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] queried absolute path of file [/tmp/file] on node [im-a-server-hostname]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Rmdir Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] failed to remove directory [/tmp/file] on node [im-a-server-hostname]: [EOF]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Rmdir
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] removed directory [/tmp/file] on node [im-a-server-hostname]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Mkdir Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] failed to create directory [/tmp/file] on node [im-a-server-hostname]: [EOF]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Mkdir
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] created directory [/tmp/file] on node [im-a-server-hostname]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Remove Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] failed to remove file [/tmp/file] on node [im-a-server-hostname]: [EOF]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Remove
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] removed file [/tmp/file] on node [im-a-server-hostname]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Readdir Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] failed to read directory [/tmp/file] on node [im-a-server-hostname]: [EOF]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Readdir
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] read directory [/tmp/file] on node [im-a-server-hostname]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Opendir Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] failed to open directory [/tmp/file] on node [im-a-server-hostname]: [EOF]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Opendir
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] opened directory [/tmp/file] on node [im-a-server-hostname]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Fsetstat Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] failed to change attributes of file [/tmp/file] on node [im-a-server-hostname]: [EOF]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Fsetstat
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] changed attributes of file [/tmp/file] on node [im-a-server-hostname]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Setstat Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] failed to change attributes of file [/tmp/file] on node [im-a-server-hostname]: [EOF]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Setstat
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] changed attributes of file [/tmp/file] on node [im-a-server-hostname]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Fstat Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] failed to query attributes of file [/tmp/file] on node [im-a-server-hostname]: [EOF]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Fstat
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] queried attributes of file [/tmp/file] on node [im-a-server-hostname]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Lstat Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] failed to query attributes of file [/tmp/file] on node [im-a-server-hostname]: [EOF]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Lstat
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] queried attributes of file [/tmp/file] on node [im-a-server-hostname]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Write Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] failed to write to file [/tmp/file] on node [im-a-server-hostname]: [EOF]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Write
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] wrote to file [/tmp/file] on node [im-a-server-hostname]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Read Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] failed to read from file [/tmp/file] on node [im-a-server-hostname]: [EOF]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Read
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] read from file [/tmp/file] on node [im-a-server-hostname]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Close Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] failed to close file [/tmp/file] on node [im-a-server-hostname]: [EOF]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Close
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] closed file [/tmp/file] on node [im-a-server-hostname]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Open Failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] failed to open file [/tmp/file] on node [im-a-server-hostname]: [EOF]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-folder-plus c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SFTP Open
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [root] opened file [/tmp/file] on node [im-a-server-hostname]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2019-04-22T19:41:23Z
         </td>
         <td
           align="right"

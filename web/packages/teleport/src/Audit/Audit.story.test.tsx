@@ -1,7 +1,7 @@
 import React from 'react';
 import { render } from 'design/utils/testing';
 
-import { LoadedSample, AllEvents } from './Audit.story';
+import { LoadedSample, AllPossibleEvents } from './Audit.story';
 
 test('loaded audit log screen', async () => {
   const { container, findByText } = render(<LoadedSample />);
@@ -10,6 +10,6 @@ test('loaded audit log screen', async () => {
 });
 
 test('list of all events', async () => {
-  const { container } = render(<AllEvents />);
+  const { container } = render(<AllPossibleEvents />);
   expect(container).toMatchSnapshot();
 });
