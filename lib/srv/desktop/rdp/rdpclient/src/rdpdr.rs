@@ -4131,6 +4131,15 @@ mod tests {
     use super::*;
     use crate::Messages;
 
+    /// This function can be called at any point during a test, after which
+    /// all logs will print if the test fails. It is useful for debugging.
+    ///
+    /// https://docs.rs/env_logger/0.7.1/env_logger/#capturing-logs-in-tests
+    #[allow(dead_code)]
+    fn init_logger() {
+        let _ = env_logger::builder().is_test(true).try_init();
+    }
+
     #[test]
     fn test_to_windows_time() {
         // Cross checked against
@@ -4266,12 +4275,36 @@ mod tests {
         );
     }
 
+    /// Incoming payload of:
+    /// SharedHeader { component: RDPDR_CTYP_CORE, packet_id: PAKID_CORE_DEVICE_IOREQUEST }
+    /// DeviceControlRequest { header: DeviceIoRequest { device_id: 1, file_id: 1, completion_id: 1, major_function: IRP_MJ_DEVICE_CONTROL, minor_function: IRP_MN_NONE }, output_buffer_length: 256, input_buffer_length: 4, io_control_code: SCARD_IOCTL_ACCESSSTARTEDEVENT, padding: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }
+    ///
+    /// Response payload of:
+    /// DeviceControlResponse { header: DeviceIoResponse { device_id: 1, completion_id: 1, io_status: 0 }, output_buffer_length: 24, output_buffer: [1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }
+    fn test_scard_ioctl_accessstartedevent(c: &mut Client) {
+        test_payload(
+            c,
+            vec![
+                2, 240, 128, 104, 0, 1, 3, 236, 240, 68, 60, 0, 0, 0, 3, 0, 0, 0, 114, 68, 82, 73,
+                1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 14, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 4, 0, 0,
+                0, 224, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 80,
+                212, 89, 121,
+            ],
+            vec![vec![
+                44, 0, 0, 0, 3, 0, 0, 0, 114, 68, 67, 73, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 24,
+                0, 0, 0, 1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0,
+            ]],
+        );
+    }
+
     #[test]
     fn test_smartcard_initialization() {
         let mut c = client();
         test_handle_server_announce(&mut c);
         test_handle_server_capability(&mut c);
         test_handle_client_id_confirm(&mut c);
+        test_scard_ioctl_accessstartedevent(&mut c);
         test_handle_device_reply(&mut c);
         // TODO(isaiah): the remainder of the initialization sequence
     }
