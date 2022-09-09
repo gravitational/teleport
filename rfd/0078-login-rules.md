@@ -308,6 +308,99 @@ provide a set of input traits to test with.
 The command will report any syntax errors, and will print the output traits for
 the given input.
 
+### Protobuf Type Definitions
+
+```
+// login_rules.proto
+package types;
+...
+
+// LoginRuleV1 is a login_rule resource to configure rules and logic which should
+// run during Teleport user login.
+message LoginRuleV1 {
+  // kind is a resource kind
+  string kind = 1;
+  // sub_kind is an optional resource sub kind, used in some resources
+  string sub_kind = 2;
+  // version is a resource version
+  string version = 3;
+  // metadata is resource metadata
+  Metadata metadata = 4 [(gogoproto.nullable) = false];
+
+  // spec is the login rule specification
+  LoginRuleSpecV1 spec = 5 [(gogoproto.nullable) = false];
+}
+
+// LoginRuleSpecV1 is a login rule specification.
+message LoginRuleSpecV1 {
+  // priority is the priority of the login rule relative to other login rules in
+  // the same cluster. Login rules with a lower priority will be evaluated first.
+  string priority = 1;
+
+  // traits is a predicate expression should return the desired traits for the
+  // user upon login.
+  string traits = 2;
+}
+```
+
+### Protobuf Service Definitions
+
+The CRUD endpoints for the `login_rule` resource will be added to the existing
+`AuthService`.
+
+```
+// authservice.proto
+package proto;
+...
+
+message GetLoginRulesRequest {
+};
+
+message GetLoginRulesResponse {
+  repeated types.LoginRuleV1 login_rules = 1;
+};
+
+service AuthService {
+    ...
+
+    // GetLoginRule retrieves a login rule described by the given request.
+    rpc GetLoginRule(types.ResourceRequest) returns (types.LoginRuleV1);
+
+    // GetLoginRules retrieves all login rules.
+    rpc GetLoginRules(types.GetLoginRulesRequest) returns (GetLoginRulesResponse);
+
+    // CreateLoginRule creates a login rule in a backend if it does not already
+    // exist.
+    rpc CreateLoginRule(types.LoginRuleV1) returns (google.protobuf.Empty);
+
+    // UpsertLoginRule upserts a login rule in a backend.
+    rpc UpsertLoginRule(types.LoginRuleV1) returns (google.protobuf.Empty);
+
+    // DeleteLoginRule deletes an existing login rule in the backend.
+    rpc DeleteToken(types.ResourceRequest) returns (google.protobuf.Empty);
+};
+```
+
+### Resource RBAC
+
+The new resource `login_rule` will support the standard RBAC verbs
+`list`, `create`, `read`, `update`, and `delete`.
+These will all be added to the preset `editor` role for new and existing
+clusters.
+
+These can be defined in a role like
+```
+kind: role
+version: v5
+metadata:
+  name: example
+spec:
+  allow:
+    rules:
+      - resources: [login_rule]
+        verbs: [list, create, read, update, delete]
+```
+
 ### Future Work
 
 The existing `claims_to_roles` and `attributes_to_roles` offer only a simple
