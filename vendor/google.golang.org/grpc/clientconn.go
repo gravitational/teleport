@@ -146,6 +146,10 @@ func DialContext(ctx context.Context, target string, opts ...DialOption) (conn *
 	cc.safeConfigSelector.UpdateConfigSelector(&defaultConfigSelector{nil})
 	cc.ctx, cc.cancel = context.WithCancel(context.Background())
 
+	for _, opt := range extraDialOptions {
+		opt.apply(&cc.dopts)
+	}
+
 	for _, opt := range opts {
 		opt.apply(&cc.dopts)
 	}
@@ -708,8 +712,8 @@ func (cc *ClientConn) newAddrConn(addrs []resolver.Address, opts balancer.NewSub
 	ac.ctx, ac.cancel = context.WithCancel(cc.ctx)
 	// Track ac in cc. This needs to be done before any getTransport(...) is called.
 	cc.mu.Lock()
+	defer cc.mu.Unlock()
 	if cc.conns == nil {
-		cc.mu.Unlock()
 		return nil, ErrClientConnClosing
 	}
 
@@ -728,7 +732,6 @@ func (cc *ClientConn) newAddrConn(addrs []resolver.Address, opts balancer.NewSub
 	})
 
 	cc.conns[ac] = struct{}{}
-	cc.mu.Unlock()
 	return ac, nil
 }
 
@@ -801,15 +804,30 @@ func (ac *addrConn) connect() error {
 	return nil
 }
 
+func equalAddresses(a, b []resolver.Address) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, v := range a {
+		if !v.Equal(b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
 // tryUpdateAddrs tries to update ac.addrs with the new addresses list.
-//
-// If ac is Connecting, it returns false. The caller should tear down the ac and
-// create a new one. Note that the backoff will be reset when this happens.
 //
 // If ac is TransientFailure, it updates ac.addrs and returns true. The updated
 // addresses will be picked up by retry in the next iteration after backoff.
 //
 // If ac is Shutdown or Idle, it updates ac.addrs and returns true.
+//
+// If the addresses is the same as the old list, it does nothing and returns
+// true.
+//
+// If ac is Connecting, it returns false. The caller should tear down the ac and
+// create a new one. Note that the backoff will be reset when this happens.
 //
 // If ac is Ready, it checks whether current connected address of ac is in the
 // new addrs list.
@@ -824,6 +842,10 @@ func (ac *addrConn) tryUpdateAddrs(addrs []resolver.Address) bool {
 		ac.state == connectivity.TransientFailure ||
 		ac.state == connectivity.Idle {
 		ac.addrs = addrs
+		return true
+	}
+
+	if equalAddresses(ac.addrs, addrs) {
 		return true
 	}
 
@@ -907,14 +929,10 @@ func (cc *ClientConn) healthCheckConfig() *healthCheckConfig {
 }
 
 func (cc *ClientConn) getTransport(ctx context.Context, failfast bool, method string) (transport.ClientTransport, func(balancer.DoneInfo), error) {
-	t, done, err := cc.blockingpicker.pick(ctx, failfast, balancer.PickInfo{
+	return cc.blockingpicker.pick(ctx, failfast, balancer.PickInfo{
 		Ctx:            ctx,
 		FullMethodName: method,
 	})
-	if err != nil {
-		return nil, nil, toRPCErr(err)
-	}
-	return t, done, nil
 }
 
 func (cc *ClientConn) applyServiceConfigAndBalancer(sc *ServiceConfig, configSelector iresolver.ConfigSelector, addrs []resolver.Address) {
@@ -1223,6 +1241,7 @@ func (ac *addrConn) createTransport(addr resolver.Address, copts transport.Conne
 		ac.mu.Lock()
 		defer ac.mu.Unlock()
 		defer connClosed.Fire()
+		defer hcancel()
 		if !hcStarted || hctx.Err() != nil {
 			// We didn't start the health check or set the state to READY, so
 			// no need to do anything else here.
@@ -1233,7 +1252,6 @@ func (ac *addrConn) createTransport(addr resolver.Address, copts transport.Conne
 			// state, since there may be a new transport in this addrConn.
 			return
 		}
-		hcancel()
 		ac.transport = nil
 		// Refresh the name resolver
 		ac.cc.resolveNow(resolver.ResolveNowOptions{})
@@ -1256,6 +1274,7 @@ func (ac *addrConn) createTransport(addr resolver.Address, copts transport.Conne
 	newTr, err := transport.NewClientTransport(connectCtx, ac.cc.ctx, addr, copts, func() { prefaceReceived.Fire() }, onGoAway, onClose)
 	if err != nil {
 		// newTr is either nil, or closed.
+		hcancel()
 		channelz.Warningf(logger, ac.channelzID, "grpc: addrConn.createTransport failed to connect to %s. Err: %v", addr, err)
 		return err
 	}
