@@ -286,7 +286,7 @@ impl Client {
 
     fn handle_device_io_request(&mut self, payload: &mut Payload) -> RdpResult<Messages> {
         let device_io_request = DeviceIoRequest::decode(payload)?;
-        let major_function = device_io_request.major_function.clone();
+        let major_function = device_io_request.major_function;
 
         // Smartcard control only uses IRP_MJ_DEVICE_CONTROL; directory control uses IRP_MJ_DEVICE_CONTROL along with
         // all the other MajorFunctions supported by this Client. Therefore if we receive any major function when drive
@@ -601,9 +601,8 @@ impl Client {
         device_io_request: DeviceIoRequest,
         payload: &mut Payload,
     ) -> RdpResult<Messages> {
-        let minor_function = device_io_request.minor_function.clone();
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L650
-        match minor_function {
+        match device_io_request.minor_function {
             MinorFunction::IRP_MN_QUERY_DIRECTORY => {
                 let rdp_req = ServerDriveQueryDirectoryRequest::decode(device_io_request, payload)?;
                 debug!("received RDP: {:?}", rdp_req);
@@ -2195,6 +2194,18 @@ impl DeviceIoRequest {
     }
 }
 
+impl Encode for DeviceIoRequest {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+        w.write_u32::<LittleEndian>(self.device_id)?;
+        w.write_u32::<LittleEndian>(self.file_id)?;
+        w.write_u32::<LittleEndian>(self.completion_id)?;
+        w.write_u32::<LittleEndian>(self.major_function as u32)?;
+        w.write_u32::<LittleEndian>(self.minor_function as u32)?;
+        Ok(w)
+    }
+}
+
 /// 2.2.1.4.5 Device Control Request (DR_CONTROL_REQ)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/30662c80-ec6e-4ed1-9004-2e6e367bb59f
 #[derive(Debug)]
@@ -2221,6 +2232,19 @@ impl DeviceControlRequest {
             io_control_code,
             padding,
         })
+    }
+}
+
+impl Encode for DeviceControlRequest {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = self.header.encode()?;
+        w.write_u32::<LittleEndian>(self.output_buffer_length)?;
+        w.write_u32::<LittleEndian>(self.input_buffer_length)?;
+        w.write_u32::<LittleEndian>(self.io_control_code)?;
+        for u8 in self.padding {
+            w.write_u8(u8)?;
+        }
+        Ok(w)
     }
 }
 
@@ -2266,7 +2290,9 @@ impl DeviceControlResponse {
             output_buffer: output,
         }
     }
+}
 
+impl Encode for DeviceControlResponse {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.extend_from_slice(&self.header.encode()?);
@@ -4136,7 +4162,10 @@ type SharedDirectoryMoveResponseHandler =
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{
+        scard::{IoctlCode, ScardAccessStartedEvent_Call},
+        *,
+    };
     use crate::{
         vchan::{ChannelPDUFlags, ChannelPDUHeader},
         Encode, Messages,
@@ -4144,6 +4173,8 @@ mod tests {
 
     /// This function can be called at any point during a test, after which
     /// all logs will print if the test fails. It is useful for debugging.
+    ///
+    /// Tests must be called like `RUST_LOG=debug cargo test`.
     ///
     /// https://docs.rs/env_logger/0.7.1/env_logger/#capturing-logs-in-tests
     #[allow(dead_code)]
@@ -4196,6 +4227,7 @@ mod tests {
         channel_pdu_header: ChannelPDUHeader,
         shared_header: SharedHeader,
         request: Box<dyn Encode>,
+        scard_ctl: Option<Box<dyn Encode>>,
     }
 
     type ResponseOut = Vec<(PacketId, Box<dyn Encode>)>;
@@ -4204,11 +4236,6 @@ mod tests {
         let mut p = Payload::new(v);
         p.set_position(pos);
         tpkt::Payload::Raw(p)
-    }
-
-    fn test_payload(c: &mut Client, payload_in: Vec<u8>, payload_out: Messages, pos: u64) {
-        let payload_in = create_payload(payload_in, pos);
-        assert_eq!(c.read_and_create_reply(payload_in).unwrap(), payload_out)
     }
 
     fn test_payload_in_to_response_out(
@@ -4220,6 +4247,9 @@ mod tests {
         let mut encoded_payload = payload_in.channel_pdu_header.encode().unwrap();
         encoded_payload.extend(payload_in.shared_header.encode().unwrap());
         encoded_payload.extend(payload_in.request.encode().unwrap());
+        if let Some(scard_ctl) = payload_in.scard_ctl {
+            encoded_payload.extend(scard_ctl.encode().unwrap());
+        }
         let encoded_payload = create_payload(encoded_payload, 0);
 
         // encode the outgoing responses
@@ -4258,6 +4288,7 @@ mod tests {
                     version_minor: 13,
                     client_id: 3,
                 }),
+                scard_ctl: None,
             },
             vec![
                 (
@@ -4350,6 +4381,7 @@ mod tests {
                         },
                     ],
                 }),
+                scard_ctl: None,
             },
             vec![(
                 PacketId::PAKID_CORE_CLIENT_CAPABILITY,
@@ -4376,6 +4408,7 @@ mod tests {
                                 special_type_device_cap: 1,
                             }),
                         },
+                        // TODO(isaiah): These last two capabilities aren't actually getting encoded and sent back.
                         CapabilitySet {
                             header: CapabilityHeader {
                                 cap_type: CapabilityType::CAP_SMARTCARD_TYPE,
@@ -4398,12 +4431,6 @@ mod tests {
         );
     }
 
-    /// Incoming payload of:
-    /// SharedHeader { component: RDPDR_CTYP_CORE, packet_id: PAKID_CORE_CLIENTID_CONFIRM }
-    /// ServerClientIdConfirm { version_major: 1, version_minor: 13, client_id: 3 }
-    ///
-    /// Response payload of:
-    /// ClientDeviceListAnnounceRequest { device_count: 1, device_list: [DeviceAnnounceHeader { device_type: RDPDR_DTYP_SMARTCARD, device_id: 1, preferred_dos_name: "SCARD", device_data_length: 0, device_data: [] }] }
     fn test_handle_client_id_confirm(c: &mut Client) {
         test_payload_in_to_response_out(
             c,
@@ -4423,6 +4450,7 @@ mod tests {
                     version_minor: 13,
                     client_id: 3,
                 }),
+                scard_ctl: None,
             },
             vec![(
                 PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE,
@@ -4440,9 +4468,6 @@ mod tests {
         );
     }
 
-    /// Incoming payload of:
-    /// SharedHeader { component: RDPDR_CTYP_CORE, packet_id: PAKID_CORE_DEVICE_REPLY }
-    /// ServerDeviceAnnounceResponse { device_id: 1, result_code: 0 }
     fn test_handle_device_reply(c: &mut Client) {
         test_payload_in_to_response_out(
             c,
@@ -4461,32 +4486,58 @@ mod tests {
                     device_id: 1,
                     result_code: 0,
                 }),
+                scard_ctl: None,
             },
             vec![],
         );
     }
 
-    /// Incoming payload of:
-    /// SharedHeader { component: RDPDR_CTYP_CORE, packet_id: PAKID_CORE_DEVICE_IOREQUEST }
-    /// DeviceControlRequest { header: DeviceIoRequest { device_id: 1, file_id: 1, completion_id: 1, major_function: IRP_MJ_DEVICE_CONTROL, minor_function: IRP_MN_NONE }, output_buffer_length: 256, input_buffer_length: 4, io_control_code: SCARD_IOCTL_ACCESSSTARTEDEVENT, padding: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }
-    ///
-    /// Response payload of:
-    /// DeviceControlResponse { header: DeviceIoResponse { device_id: 1, completion_id: 1, io_status: 0 }, output_buffer_length: 24, output_buffer: [1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }
     fn test_scard_ioctl_accessstartedevent(c: &mut Client) {
-        test_payload(
+        test_payload_in_to_response_out(
             c,
-            vec![
-                2, 240, 128, 104, 0, 1, 3, 236, 240, 68, 60, 0, 0, 0, 3, 0, 0, 0, 114, 68, 82, 73,
-                1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 14, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 4, 0, 0,
-                0, 224, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 80,
-                212, 89, 121,
-            ],
-            vec![vec![
-                44, 0, 0, 0, 3, 0, 0, 0, 114, 68, 67, 73, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 24,
-                0, 0, 0, 1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0,
-            ]],
-            10,
+            PayloadIn {
+                channel_pdu_header: ChannelPDUHeader {
+                    length: 60,
+                    flags: ChannelPDUFlags::CHANNEL_FLAG_FIRST
+                        | ChannelPDUFlags::CHANNEL_FLAG_LAST
+                        | ChannelPDUFlags::CHANNEL_FLAG_ONLY,
+                },
+                shared_header: SharedHeader {
+                    component: Component::RDPDR_CTYP_CORE,
+                    packet_id: PacketId::PAKID_CORE_DEVICE_IOREQUEST,
+                },
+                request: Box::new(DeviceControlRequest {
+                    header: DeviceIoRequest {
+                        device_id: 1,
+                        file_id: 1,
+                        completion_id: 1,
+                        major_function: MajorFunction::IRP_MJ_DEVICE_CONTROL,
+                        minor_function: MinorFunction::IRP_MN_NONE,
+                    },
+                    output_buffer_length: 256,
+                    input_buffer_length: 4,
+                    io_control_code: IoctlCode::SCARD_IOCTL_ACCESSSTARTEDEVENT as u32,
+                    padding: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                }),
+                scard_ctl: Some(Box::new(ScardAccessStartedEvent_Call {
+                    _unused: 3234823568,
+                })),
+            },
+            vec![(
+                PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
+                Box::new(DeviceControlResponse {
+                    header: DeviceIoResponse {
+                        device_id: 1,
+                        completion_id: 1,
+                        io_status: 0,
+                    },
+                    output_buffer_length: 24,
+                    output_buffer: vec![
+                        1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0,
+                    ],
+                }),
+            )],
         );
     }
 

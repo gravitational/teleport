@@ -66,7 +66,7 @@ pub fn vec_u8_debug(v: &[u8]) -> String {
 macro_rules! test_debug {
     // debug!("a {} event", "log")
     ($($arg:tt)+) => {
-        if true { // Note to reviewers: this should be false in any PRs
+        if false { // Note to reviewers: this should be false in any PRs
             (log!(log::Level::Debug, $($arg)+))
         }
     }

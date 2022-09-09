@@ -13,8 +13,8 @@
 // limitations under the License.
 
 use crate::errors::{invalid_data_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE};
-use crate::Payload;
 use crate::{piv, Message};
+use crate::{Encode, Payload};
 use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use iso7816::command::Command as CardCommand;
@@ -329,7 +329,7 @@ const TRANSMIT_DATA_LIMIT: usize = 1024;
 
 #[derive(Debug, FromPrimitive, ToPrimitive)]
 #[allow(non_camel_case_types)]
-enum IoctlCode {
+pub enum IoctlCode {
     SCARD_IOCTL_ESTABLISHCONTEXT = 0x00090014,
     SCARD_IOCTL_RELEASECONTEXT = 0x00090018,
     SCARD_IOCTL_ISVALIDCONTEXT = 0x0009001C,
@@ -517,8 +517,8 @@ impl RPCETypeHeader {
 
 #[derive(Debug)]
 #[allow(non_camel_case_types, dead_code)]
-struct ScardAccessStartedEvent_Call {
-    _unused: u32,
+pub(crate) struct ScardAccessStartedEvent_Call {
+    pub _unused: u32,
 }
 
 impl ScardAccessStartedEvent_Call {
@@ -526,6 +526,14 @@ impl ScardAccessStartedEvent_Call {
         Ok(Self {
             _unused: payload.read_u32::<LittleEndian>()?,
         })
+    }
+}
+
+impl Encode for ScardAccessStartedEvent_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+        w.write_u32::<LittleEndian>(self._unused)?;
+        Ok(w)
     }
 }
 
