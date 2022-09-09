@@ -477,7 +477,7 @@ func registerUsingIAMMethod(joinServiceClient joinServiceClient, token string, p
 		{
 			desc: "regional",
 			opts: []stsIdentityRequestOption{
-				withFipsEndpoint(params.FIPS),
+				withFIPSEndpoint(params.FIPS),
 				withRegionalEndpoint(true),
 			},
 		},
@@ -487,7 +487,7 @@ func registerUsingIAMMethod(joinServiceClient joinServiceClient, token string, p
 				// Global endpoint does not support FIPS, this is a fallback
 				// when joining a cluster with an auth server on an older
 				// version which does not yet support regional endpoints.
-				withFipsEndpoint(false),
+				withFIPSEndpoint(false),
 				withRegionalEndpoint(false),
 			},
 		},
