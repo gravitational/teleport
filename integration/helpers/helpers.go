@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package integration
+package helpers
 
 import (
 	"context"
@@ -29,38 +29,35 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integration/helpers"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh/agent"
 )
 
-const (
-	Loopback = "127.0.0.1"
-	Host     = "localhost"
-)
-
 // commandOptions controls how the SSH command is built.
-type commandOptions struct {
-	forwardAgent bool
-	forcePTY     bool
-	controlPath  string
-	socketPath   string
-	proxyPort    string
-	nodePort     string
-	command      string
+type CommandOptions struct {
+	ForwardAgent bool
+	ForcePTY     bool
+	ControlPath  string
+	SocketPath   string
+	ProxyPort    string
+	NodePort     string
+	Command      string
 }
 
-// externalSSHCommand runs an external SSH command (if an external ssh binary
+// ExternalSSHCommand runs an external SSH command (if an external ssh binary
 // exists) with the passed in parameters.
-func externalSSHCommand(o commandOptions) (*exec.Cmd, error) {
+func ExternalSSHCommand(o CommandOptions) (*exec.Cmd, error) {
 	var execArgs []string
 
 	// Don't check the host certificate as part of the testing an external SSH
@@ -69,30 +66,30 @@ func externalSSHCommand(o commandOptions) (*exec.Cmd, error) {
 	execArgs = append(execArgs, "-oUserKnownHostsFile=/dev/null")
 
 	// ControlMaster is often used by applications like Ansible.
-	if o.controlPath != "" {
+	if o.ControlPath != "" {
 		execArgs = append(execArgs, "-oControlMaster=auto")
 		execArgs = append(execArgs, "-oControlPersist=1s")
 		execArgs = append(execArgs, "-oConnectTimeout=2")
-		execArgs = append(execArgs, fmt.Sprintf("-oControlPath=%v", o.controlPath))
+		execArgs = append(execArgs, fmt.Sprintf("-oControlPath=%v", o.ControlPath))
 	}
 
 	// The -tt flag is used to force PTY allocation. It's often used by
 	// applications like Ansible.
-	if o.forcePTY {
+	if o.ForcePTY {
 		execArgs = append(execArgs, "-tt")
 	}
 
 	// Connect to node on the passed in port.
-	execArgs = append(execArgs, fmt.Sprintf("-p %v", o.nodePort))
+	execArgs = append(execArgs, fmt.Sprintf("-p %v", o.NodePort))
 
 	// Build proxy command.
 	proxyCommand := []string{"ssh"}
 	proxyCommand = append(proxyCommand, "-oStrictHostKeyChecking=no")
 	proxyCommand = append(proxyCommand, "-oUserKnownHostsFile=/dev/null")
-	if o.forwardAgent {
+	if o.ForwardAgent {
 		proxyCommand = append(proxyCommand, "-oForwardAgent=yes")
 	}
-	proxyCommand = append(proxyCommand, fmt.Sprintf("-p %v", o.proxyPort))
+	proxyCommand = append(proxyCommand, fmt.Sprintf("-p %v", o.ProxyPort))
 	proxyCommand = append(proxyCommand, `%r@localhost -s proxy:%h:%p`)
 
 	// Add in ProxyCommand option, needed for all Teleport connections.
@@ -100,7 +97,7 @@ func externalSSHCommand(o commandOptions) (*exec.Cmd, error) {
 
 	// Add in the host to connect to and the command to run when connected.
 	execArgs = append(execArgs, Host)
-	execArgs = append(execArgs, o.command)
+	execArgs = append(execArgs, o.Command)
 
 	// Find the OpenSSH binary.
 	sshpath, err := exec.LookPath("ssh")
@@ -113,15 +110,15 @@ func externalSSHCommand(o commandOptions) (*exec.Cmd, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cmd.Env = []string{fmt.Sprintf("SSH_AUTH_SOCK=%v", o.socketPath)}
+	cmd.Env = []string{fmt.Sprintf("SSH_AUTH_SOCK=%v", o.SocketPath)}
 
 	return cmd, nil
 }
 
-// createAgent creates a SSH agent with the passed in private key and
+// CreateAgent creates a SSH agent with the passed in private key and
 // certificate that can be used in tests. This is useful so tests don't
 // clobber your system agent.
-func createAgent(me *user.User, key *client.Key) (*teleagent.AgentServer, string, string, error) {
+func CreateAgent(me *user.User, key *client.Key) (*teleagent.AgentServer, string, string, error) {
 	// create a path to the unix socket
 	sockDirName := "int-test"
 	sockName := "agent.sock"
@@ -151,7 +148,7 @@ func createAgent(me *user.User, key *client.Key) (*teleagent.AgentServer, string
 	return teleAgent, teleAgent.Dir, teleAgent.Path, nil
 }
 
-func closeAgent(teleAgent *teleagent.AgentServer, socketDirPath string) error {
+func CloseAgent(teleAgent *teleagent.AgentServer, socketDirPath string) error {
 	err := teleAgent.Close()
 	if err != nil {
 		return trace.Wrap(err)
@@ -165,8 +162,8 @@ func closeAgent(teleAgent *teleagent.AgentServer, socketDirPath string) error {
 	return nil
 }
 
-// getLocalIP gets the non-loopback IP address of this host.
-func getLocalIP() (string, error) {
+// GetLocalIP gets the non-loopback IP address of this host.
+func GetLocalIP() (string, error) {
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -188,7 +185,7 @@ func getLocalIP() (string, error) {
 	return "", trace.NotFound("No non-loopback local IP address found")
 }
 
-func MustCreateUserIdentityFile(t *testing.T, tc *helpers.TeleInstance, username string, ttl time.Duration) string {
+func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) string {
 	key, err := libclient.GenerateRSAKey()
 	require.NoError(t, err)
 	key.ClusterName = tc.Secrets.SiteName
@@ -215,4 +212,54 @@ func MustCreateUserIdentityFile(t *testing.T, tc *helpers.TeleInstance, username
 	})
 	require.NoError(t, err)
 	return idPath
+}
+
+// WaitForProxyCount waits a set time for the proxy count in clusterName to
+// reach some value.
+func WaitForProxyCount(t *TeleInstance, clusterName string, count int) error {
+	var counts map[string]int
+	start := time.Now()
+	for time.Since(start) < 17*time.Second {
+		counts = t.RemoteClusterWatcher.Counts()
+		if counts[clusterName] == count {
+			return nil
+		}
+
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	return trace.BadParameter("proxy count on %v: %v (wanted %v)", clusterName, counts[clusterName], count)
+}
+
+func WaitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime time.Time, eventType string) []apievents.AuditEvent {
+	max := time.Second
+	timeout := time.After(max)
+	bf, err := utils.NewLinear(utils.LinearConfig{
+		Step: max / 10,
+		Max:  max,
+	})
+	if err != nil {
+		t.Fatalf("failed to create linear backoff: %v", err)
+	}
+	for {
+		events, _, err := cli.SearchEvents(startTime, time.Now().Add(time.Hour), apidefaults.Namespace, []string{eventType}, 100, types.EventOrderAscending, "")
+		if err != nil {
+			t.Fatalf("failed to call SearchEvents: %v", err)
+		}
+		if len(events) != 0 {
+			return events
+		}
+		select {
+		case <-bf.After():
+			bf.Inc()
+		case <-timeout:
+			t.Fatalf("event type %q not found after %v", eventType, max)
+		}
+	}
+}
+
+func MustGetCurrentUser(t *testing.T) *user.User {
+	user, err := user.Current()
+	require.NoError(t, err)
+	return user
 }

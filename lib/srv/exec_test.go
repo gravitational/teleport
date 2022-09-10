@@ -23,11 +23,12 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 )
 
 // TestEmitExecAuditEvent make sure the full command and exit code for a
@@ -35,7 +36,7 @@ import (
 func TestEmitExecAuditEvent(t *testing.T) {
 	t.Parallel()
 
-	srv := newMockServer(t)
+	srv := NewMockServer(t)
 	scx := newExecServerContext(t, srv)
 
 	expectedUsr, err := user.Current()
@@ -110,7 +111,7 @@ func TestLoginDefsParser(t *testing.T) {
 }
 
 func newExecServerContext(t *testing.T, srv Server) *ServerContext {
-	scx := newTestServerContext(t, srv, nil)
+	scx := NewTestServerContext(t, srv, nil)
 
 	term, err := newLocalTerminal(scx)
 	require.NoError(t, err)
