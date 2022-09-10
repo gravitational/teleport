@@ -1055,6 +1055,7 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 				Params: services.InstallerParams{
 					JoinMethod: matcher.InstallParams.JoinParams.Method,
 					JoinToken:  matcher.InstallParams.JoinParams.TokenName,
+					ScriptName: matcher.InstallParams.ScriptName,
 				},
 				SSM: &services.AWSSSM{DocumentName: matcher.SSM.DocumentName},
 			})

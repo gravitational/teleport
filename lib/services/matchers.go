@@ -42,6 +42,9 @@ type InstallerParams struct {
 	JoinMethod types.JoinMethod
 	// JoinToken is the token to use when joining the cluster
 	JoinToken string
+	// ScriptName is the name of the teleport script for the EC2
+	// instance to execute
+	ScriptName string
 }
 
 // AWSMatcher matches AWS databases.
