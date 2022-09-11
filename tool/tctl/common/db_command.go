@@ -85,7 +85,7 @@ func (c *DBCommand) ListDatabases(ctx context.Context, client auth.ClientI) erro
 	return nil
 }
 
-var dbMessageTemplate = template.Must(template.New("db").Parse(`The invite token: {{.token}}.
+var dbMessageTemplate = template.Must(template.New("db").Parse(`The invite token: {{.token}}
 This token will expire in {{.minutes}} minutes.
 
 Fill out and run this command on a node to start proxying the database:
