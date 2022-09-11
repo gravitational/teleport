@@ -161,3 +161,29 @@ cluster, read our [Teleport Diagnostics](../reference/metrics.mdx) guide.
 For additional sources of Teleport support, please see the
 [Teleport Support and Education Center](https://goteleport.com/support/).
 
+## Common Issues
+
+### `teleport.cluster.local`
+
+It is common to see references to `teleport.cluster.local` within logs and
+errors in Teleport. This is a special value that is used within Teleport for two
+purposes and seeing it within your logs is not necessarily an indication that
+anything is incorrect.
+
+Firstly, Teleport uses this value within certificates (as a DNS Subject
+Alternative Name) issued to the Auth and Proxy Service. Teleport clients can 
+then use this value to validate the service's certificates during the TLS 
+handshake regardless of the service address as long as the client already has a 
+copy of the cluster's certificate authorities. This is important as there are
+often multiple different ways that a client can connect to the Auth Service and
+these are not always via the same address.
+
+Secondly, this value is used by clients as part of the URL when making gRPC or 
+HTTP requests to the Teleport API. This is because the Teleport API client uses
+special logic to open the connection to the Auth Service to make the request,
+rather than connecting to a single address as a typical client may do. This 
+special logic is necessary for the client to be able to support connecting to a 
+list of Auth Services or to be able to connect to the Auth Service through a 
+tunnel via the Proxy Service. This means that `teleport.cluster.local` appears 
+in log messages that show the URL of a request made to the Auth Service, and 
+does not explicitly indicate that something is misconfigured.

@@ -1024,6 +1024,11 @@ deb:
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p deb -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e deb; fi
 
+# check binary compatibility with different OSes
+.PHONY: test-compat
+test-compat:
+	./build.assets/build-test-compat.sh
+
 # update Helm chart versions
 # this isn't a 'proper' semver regex but should cover most cases
 # the order of parameters in sed's extended regex mode matters; the
