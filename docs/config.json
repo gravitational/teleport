@@ -958,6 +958,7 @@
     },
     "teleport": {
       "major_version": "9",
+      "version": "9.3.18",
       "golang": "1.17",
       "plugin": {
         "version": "9.3.18"
