@@ -125,6 +125,19 @@ func (a *Server) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRe
 	return &req, nil
 }
 
+func (a *Server) getSAMLConnectorAndProviderByID(ctx context.Context, connectorID string) (types.SAMLConnector, *saml2.SAMLServiceProvider, error) {
+	connector, err := a.Identity.GetSAMLConnector(ctx, connectorID, true)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	provider, err := a.getSAMLProvider(connector)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return connector, provider, nil
+}
+
 func (a *Server) getSAMLConnectorAndProvider(ctx context.Context, req types.SAMLAuthRequest) (types.SAMLConnector, *saml2.SAMLServiceProvider, error) {
 	if req.SSOTestFlow {
 		if req.ConnectorSpec == nil {
@@ -157,16 +170,7 @@ func (a *Server) getSAMLConnectorAndProvider(ctx context.Context, req types.SAML
 	}
 
 	// regular execution flow
-	connector, err := a.GetSAMLConnector(ctx, req.ConnectorID, true)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	provider, err := a.getSAMLProvider(connector)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	return connector, provider, nil
+	return a.getSAMLConnectorAndProviderByID(ctx, req.ConnectorID)
 }
 
 func (a *Server) getSAMLProvider(conn types.SAMLConnector) (*saml2.SAMLServiceProvider, error) {
@@ -224,7 +228,12 @@ func (a *Server) calculateSAMLUser(diagCtx *ssoDiagContext, connector types.SAML
 		return nil, trace.Wrap(err)
 	}
 	roleTTL := roles.AdjustSessionTTL(apidefaults.MaxCertDuration)
-	p.sessionTTL = utils.MinTTL(roleTTL, request.CertTTL)
+
+	if request != nil {
+		p.sessionTTL = utils.MinTTL(roleTTL, request.CertTTL)
+	} else {
+		p.sessionTTL = roleTTL
+	}
 
 	return &p, nil
 }
@@ -325,16 +334,12 @@ func ParseSAMLInResponseTo(response string) (string, error) {
 		return "", trace.BadParameter("unable to parse response")
 	}
 
-	// teleport only supports sending party initiated flows (Teleport sends an
-	// AuthnRequest to the IdP and gets a SAMLResponse from the IdP). identity
-	// provider initiated flows (where Teleport gets an unsolicited SAMLResponse
-	// from the IdP) are not supported.
+	// Try to find the InResponseTo attribute in the SAML response. If we can't find this, return
+	// a predictable error message so the caller may choose interpret it as an IdP-initiated payload.
 	el := doc.Root()
 	responseTo := el.SelectAttr("InResponseTo")
 	if responseTo == nil {
-		message := "teleport does not support initiating login from a SAML identity provider, login must be initiated from either the Teleport Web UI or CLI"
-		log.Infof(message)
-		return "", trace.NotImplemented(message)
+		return "", trace.NotFound("missing InResponseTo attribute")
 	}
 	if responseTo.Value == "" {
 		return "", trace.BadParameter("InResponseTo can not be empty")
@@ -363,7 +368,7 @@ type SAMLAuthResponse struct {
 }
 
 // ValidateSAMLResponse consumes attribute statements from SAML identity provider
-func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string) (*SAMLAuthResponse, error) {
+func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string, connectorID string) (*SAMLAuthResponse, error) {
 	event := &apievents.UserLogin{
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
@@ -373,7 +378,7 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string) 
 
 	diagCtx := a.newSSODiagContext(types.KindSAML)
 
-	auth, err := a.validateSAMLResponse(ctx, diagCtx, samlResponse)
+	auth, err := a.validateSAMLResponse(ctx, diagCtx, samlResponse, connectorID)
 	diagCtx.info.Error = trace.UserMessage(err)
 
 	diagCtx.writeToBackend(ctx)
@@ -417,22 +422,51 @@ func (a *Server) ValidateSAMLResponse(ctx context.Context, samlResponse string) 
 	return auth, nil
 }
 
-func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagContext, samlResponse string) (*SAMLAuthResponse, error) {
+func (a *Server) checkIDPInitiatedSAML(ctx context.Context, connector types.SAMLConnector, assertion *saml2.AssertionInfo) error {
+	if !connector.GetAllowIDPInitiated() {
+		return trace.AccessDenied("IdP initiated SAML is not allowed by the connector configuration")
+	}
+
+	// Not all IdP's provide these variables, replay mitigation is best effort.
+	if assertion.SessionIndex != "" || assertion.SessionNotOnOrAfter == nil {
+		return nil
+	}
+
+	err := a.unstable.RecognizeSSOAssertion(ctx, connector.GetName(), assertion.SessionIndex, assertion.NameID, *assertion.SessionNotOnOrAfter)
+	return trace.Wrap(err)
+}
+
+func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagContext, samlResponse string, connectorID string) (*SAMLAuthResponse, error) {
+	idpInitiated := false
+	var connector types.SAMLConnector
+	var provider *saml2.SAMLServiceProvider
+	var request *types.SAMLAuthRequest
 	requestID, err := ParseSAMLInResponseTo(samlResponse)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	diagCtx.requestID = requestID
+	switch {
+	case trace.IsNotFound(err):
+		if connectorID == "" {
+			return nil, trace.BadParameter("ACS URI did not include a valid SAML connector ID parameter")
+		}
 
-	request, err := a.GetSAMLAuthRequest(ctx, requestID)
-	if err != nil {
-		return nil, trace.Wrap(err, "Failed to get SAML Auth Request")
-	}
-	diagCtx.info.TestFlow = request.SSOTestFlow
+		idpInitiated = true
+		connector, provider, err = a.getSAMLConnectorAndProviderByID(ctx, connectorID)
+		if err != nil {
+			return nil, trace.Wrap(err, "Failed to get SAML connector and provider")
+		}
+	case err != nil:
+		trace.Wrap(err)
+	default:
+		diagCtx.requestID = requestID
+		request, err = a.Identity.GetSAMLAuthRequest(ctx, requestID)
+		if err != nil {
+			return nil, trace.Wrap(err, "Failed to get SAML Auth Request")
+		}
 
-	connector, provider, err := a.getSAMLConnectorAndProvider(ctx, *request)
-	if err != nil {
-		return nil, trace.Wrap(err, "Failed to get SAML connector and provider")
+		diagCtx.info.TestFlow = request.SSOTestFlow
+		connector, provider, err = a.getSAMLConnectorAndProvider(ctx, *request)
+		if err != nil {
+			return nil, trace.Wrap(err, "Failed to get SAML connector and provider")
+		}
 	}
 
 	assertionInfo, err := provider.RetrieveAssertionInfo(samlResponse)
@@ -442,6 +476,16 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 
 	if assertionInfo != nil {
 		diagCtx.info.SAMLAssertionInfo = (*types.AssertionInfo)(assertionInfo)
+	}
+
+	if idpInitiated {
+		if err := a.checkIDPInitiatedSAML(ctx, connector, assertionInfo); err != nil {
+			if trace.IsAccessDenied(err) {
+				log.Warnf("Failed to process IdP-initiated login request. IdP-initiated login is disabled for this connector: %v.", err)
+			}
+
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	if assertionInfo.WarningInfo.InvalidTime {
@@ -492,14 +536,13 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 		SessionTTL:    types.Duration(params.sessionTTL),
 	}
 
-	user, err := a.createSAMLUser(params, request.SSOTestFlow)
+	user, err := a.createSAMLUser(params, request != nil && request.SSOTestFlow)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to create user from provided parameters.")
 	}
 
 	// Auth was successful, return session, certificate, etc. to caller.
 	auth := &SAMLAuthResponse{
-		Req: *request,
 		Identity: types.ExternalIdentity{
 			ConnectorID: params.connectorName,
 			Username:    params.username,
@@ -507,14 +550,22 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 		Username: user.GetName(),
 	}
 
+	if request != nil {
+		auth.Req = *request
+	} else {
+		auth.Req = types.SAMLAuthRequest{
+			CreateWebSession: true,
+		}
+	}
+
 	// In test flow skip signing and creating web sessions.
-	if request.SSOTestFlow {
+	if request != nil && request.SSOTestFlow {
 		diagCtx.info.Success = true
 		return auth, nil
 	}
 
 	// If the request is coming from a browser, create a web session.
-	if request.CreateWebSession {
+	if request == nil || request.CreateWebSession {
 		session, err := a.createWebSession(ctx, types.NewWebSessionRequest{
 			User:       user.GetName(),
 			Roles:      user.GetRoles(),
@@ -530,7 +581,7 @@ func (a *Server) validateSAMLResponse(ctx context.Context, diagCtx *ssoDiagConte
 	}
 
 	// If a public key was provided, sign it and return a certificate.
-	if len(request.PublicKey) != 0 {
+	if request != nil && len(request.PublicKey) != 0 {
 		sshCert, tlsCert, err := a.createSessionCert(user, params.sessionTTL, request.PublicKey, request.Compatibility, request.RouteToCluster, request.KubernetesCluster)
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create session certificate.")

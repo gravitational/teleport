@@ -1180,7 +1180,7 @@ func (s *ServicesTestSuite) SemaphoreFlakiness(t *testing.T) {
 
 	cfg := services.SemaphoreLockConfig{
 		Service:  wrapper,
-		Expiry:   time.Second,
+		Expiry:   time.Hour,
 		TickRate: time.Millisecond * 50,
 		Params: types.AcquireSemaphoreRequest{
 			SemaphoreKind: types.SemaphoreKindConnection,
@@ -1201,7 +1201,7 @@ func (s *ServicesTestSuite) SemaphoreFlakiness(t *testing.T) {
 			continue
 		case <-lock.Done():
 			t.Fatalf("Lost semaphore lock: %v", lock.Wait())
-		case <-time.After(time.Second):
+		case <-time.After(time.Second * 30):
 			t.Fatalf("Timeout waiting for renewals")
 		}
 	}

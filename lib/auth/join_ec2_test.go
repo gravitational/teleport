@@ -180,7 +180,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					&types.TokenRule{
+					{
 						AWSAccount: instance1.account,
 						AWSRegions: []string{instance1.region},
 					},
@@ -202,11 +202,11 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					&types.TokenRule{
+					{
 						AWSAccount: instance2.account,
 						AWSRegions: []string{instance2.region},
 					},
-					&types.TokenRule{
+					{
 						AWSAccount: instance1.account,
 						AWSRegions: []string{instance1.region},
 					},
@@ -228,7 +228,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					&types.TokenRule{
+					{
 						AWSAccount: instance1.account,
 						AWSRegions: []string{"us-east-1", instance1.region, "us-east-2"},
 					},
@@ -250,7 +250,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					&types.TokenRule{
+					{
 						AWSAccount: instance1.account,
 					},
 				},
@@ -271,7 +271,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					&types.TokenRule{
+					{
 						AWSAccount: "bad account",
 						AWSRegions: []string{instance1.region},
 					},
@@ -293,7 +293,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					&types.TokenRule{
+					{
 						AWSAccount: instance1.account,
 						AWSRegions: []string{"bad region"},
 					},
@@ -315,7 +315,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					&types.TokenRule{
+					{
 						AWSAccount: instance1.account,
 						AWSRegions: []string{instance1.region},
 					},
@@ -337,7 +337,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					&types.TokenRule{
+					{
 						AWSAccount: instance1.account,
 						AWSRegions: []string{instance1.region},
 					},
@@ -358,7 +358,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					&types.TokenRule{
+					{
 						AWSAccount: instance1.account,
 						AWSRegions: []string{instance1.region},
 					},
@@ -380,7 +380,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					&types.TokenRule{
+					{
 						AWSAccount: instance2.account,
 						AWSRegions: []string{instance2.region},
 					},
@@ -402,7 +402,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					&types.TokenRule{
+					{
 						AWSAccount: instance2.account,
 						AWSRegions: []string{instance2.region},
 					},
@@ -424,7 +424,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					&types.TokenRule{
+					{
 						AWSAccount: instance1.account,
 						AWSRegions: []string{instance1.region},
 					},
@@ -446,7 +446,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					&types.TokenRule{
+					{
 						AWSAccount: instance1.account,
 						AWSRegions: []string{instance1.region},
 					},
@@ -468,7 +468,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					&types.TokenRule{
+					{
 						AWSAccount: instance1.account,
 						AWSRegions: []string{instance1.region},
 					},
@@ -490,7 +490,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					&types.TokenRule{
+					{
 						AWSAccount: instance1.account,
 						AWSRegions: []string{instance1.region},
 					},
@@ -513,7 +513,7 @@ func TestAuth_RegisterUsingToken_EC2(t *testing.T) {
 			tokenSpec: types.ProvisionTokenSpecV2{
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
-					&types.TokenRule{
+					{
 						AWSAccount: instance1.account,
 						AWSRegions: []string{instance1.region},
 					},
@@ -595,7 +595,7 @@ func TestHostUniqueCheck(t *testing.T) {
 				types.RoleApp,
 			},
 			Allow: []*types.TokenRule{
-				&types.TokenRule{
+				{
 					AWSAccount: instance1.account,
 					AWSRegions: []string{instance1.region},
 				},

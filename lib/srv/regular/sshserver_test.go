@@ -185,7 +185,6 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		SetNamespace(apidefaults.Namespace),
 		SetEmitter(nodeClient),
 		SetShell("/bin/sh"),
-		SetSessionServer(nodeClient),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetLabels(
 			map[string]string{"foo": "bar"},
@@ -664,7 +663,7 @@ func TestAgentForward(t *testing.T) {
 			return true
 		}
 		return false
-	}, 5*time.Second, 10*time.Millisecond, "failed to read socket path")
+	}, 10*time.Second, 100*time.Millisecond, "failed to read socket path")
 
 	// try dialing the ssh agent socket:
 	file, err := net.Dial("unix", socketPath)
@@ -705,10 +704,10 @@ func TestAgentForward(t *testing.T) {
 	// clt must be nullified to prevent double-close during test cleanup
 	f.ssh.clt = nil
 	require.Eventually(t, func() bool {
-		_, err := net.Dial("unix", socketPath)
+		_, err := clientAgent.List()
 		return err != nil
 	},
-		150*time.Millisecond, 50*time.Millisecond,
+		10*time.Second, 100*time.Millisecond,
 		"expected socket to be closed, still could dial")
 }
 
@@ -1193,7 +1192,6 @@ func TestProxyRoundRobin(t *testing.T) {
 		utils.NetAddr{},
 		proxyClient,
 		SetProxyMode("", reverseTunnelServer, proxyClient),
-		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
@@ -1314,7 +1312,6 @@ func TestProxyDirectAccess(t *testing.T) {
 		utils.NetAddr{},
 		proxyClient,
 		SetProxyMode("", reverseTunnelServer, proxyClient),
-		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
@@ -1485,7 +1482,6 @@ func TestLimiter(t *testing.T) {
 		nodeClient,
 		SetLimiter(limiter),
 		SetShell("/bin/sh"),
-		SetSessionServer(nodeClient),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
@@ -1973,7 +1969,6 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		utils.NetAddr{},
 		proxyClient,
 		SetProxyMode("", reverseTunnelServer, proxyClient),
-		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),

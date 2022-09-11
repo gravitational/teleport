@@ -157,12 +157,30 @@ proxy_service:
   web_listen_addr: webhost
   tunnel_listen_addr: tunnelhost:1001
   peer_listen_addr: peerhost:1234
+  peer_public_addr: peer.example:1234
   public_addr: web3:443
   postgres_public_addr: postgres.example:5432
   mysql_listen_addr: webhost:3336
   mysql_public_addr: mysql.example:3306
   mongo_listen_addr: webhost:27017
   mongo_public_addr: mongo.example:27017
+
+db_service:
+  enabled: yes
+  resources:
+    - labels:
+        "*": "*"
+  azure:
+    - subscriptions: ["sub1", "sub2"]
+      resource_groups: ["group1", "group2"]
+      types: ["postgres", "mysql"]
+      regions: ["eastus", "centralus"]
+      tags:
+        "a": "b"
+    - types: ["postgres", "mysql"]
+      regions: ["westus"]
+      tags:
+        "c": "d"
 `
 
 // NoServicesConfigString is a configuration file with no services enabled

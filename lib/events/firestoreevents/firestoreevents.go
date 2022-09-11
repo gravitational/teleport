@@ -23,13 +23,13 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/genproto/googleapis/firestore/admin/v1"
-
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/genproto/googleapis/firestore/admin/v1"
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -127,9 +127,6 @@ const (
 
 	// sessionIDDocProperty is used internally to query for records and matches the key in the event struct tag
 	sessionIDDocProperty = "sessionID"
-
-	// eventIndexDocProperty is used internally to query for records and matches the key in the event struct tag
-	eventIndexDocProperty = "eventIndex"
 
 	// createdAtDocProperty is used internally to query for records and matches the key in the event struct tag
 	createdAtDocProperty = "createdAt"
@@ -272,7 +269,7 @@ type event struct {
 // New returns new instance of Firestore backend.
 // It's an implementation of backend API's NewFunc
 func New(cfg EventsConfig) (*Log, error) {
-	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -422,22 +419,6 @@ func (l *Log) searchEventsWithFilter(fromUTC, toUTC time.Time, namespace string,
 		}
 	}
 
-	modifyquery := func(query firestore.Query) firestore.Query {
-		if len(filter.eventTypes) > 0 {
-			query = query.Where(eventTypeDocProperty, "in", filter.eventTypes)
-		}
-
-		if lastKey != "" {
-			query = query.StartAfter(checkpointTime, checkpointParts[1])
-		}
-
-		if sessionID != "" {
-			query = query.Where(sessionIDDocProperty, "==", sessionID)
-		}
-
-		return query
-	}
-
 	var firestoreOrdering firestore.Direction
 	switch order {
 	case types.EventOrderAscending:
@@ -448,13 +429,25 @@ func (l *Log) searchEventsWithFilter(fromUTC, toUTC time.Time, namespace string,
 		return nil, "", trace.BadParameter("invalid event order: %v", order)
 	}
 
-	query := modifyquery(l.svc.Collection(l.CollectionName).
+	query := l.svc.Collection(l.CollectionName).
 		Where(eventNamespaceDocProperty, "==", apidefaults.Namespace).
 		Where(createdAtDocProperty, ">=", fromUTC.Unix()).
-		Where(createdAtDocProperty, "<=", toUTC.Unix()).
-		OrderBy(createdAtDocProperty, firestoreOrdering)).
-		OrderBy(firestore.DocumentID, firestore.Asc).
-		Limit(limit)
+		Where(createdAtDocProperty, "<=", toUTC.Unix())
+
+	if sessionID != "" {
+		query = query.Where(sessionIDDocProperty, "==", sessionID)
+	}
+
+	if len(filter.eventTypes) > 0 {
+		query = query.Where(eventTypeDocProperty, "in", filter.eventTypes)
+	}
+
+	query = query.OrderBy(createdAtDocProperty, firestoreOrdering).
+		OrderBy(firestore.DocumentID, firestore.Asc)
+
+	if lastKey != "" {
+		query = query.StartAfter(checkpointTime, checkpointParts[1])
+	}
 
 	start := time.Now()
 	docSnaps, err := query.Documents(l.svcContext).GetAll()
@@ -548,36 +541,30 @@ func (l *Log) getIndexParent() string {
 }
 
 func (l *Log) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
-	tuples := make([]*firestorebk.IndexTuple, 0)
-	tuples = append(tuples, &firestorebk.IndexTuple{
-		FirstField:       eventNamespaceDocProperty,
-		SecondField:      createdAtDocProperty,
-		SecondFieldOrder: admin.Index_IndexField_ASCENDING,
-		ThirdField:       firestore.DocumentID,
-		ThirdFieldOrder:  admin.Index_IndexField_ASCENDING,
-	})
-	tuples = append(tuples, &firestorebk.IndexTuple{
-		FirstField:       eventNamespaceDocProperty,
-		SecondField:      createdAtDocProperty,
-		SecondFieldOrder: admin.Index_IndexField_DESCENDING,
-		ThirdField:       firestore.DocumentID,
-		ThirdFieldOrder:  admin.Index_IndexField_ASCENDING,
-	})
-	tuples = append(tuples, &firestorebk.IndexTuple{
-		FirstField:       eventTypeDocProperty,
-		SecondField:      createdAtDocProperty,
-		SecondFieldOrder: admin.Index_IndexField_ASCENDING,
-	})
-	tuples = append(tuples, &firestorebk.IndexTuple{
-		FirstField:       eventTypeDocProperty,
-		SecondField:      createdAtDocProperty,
-		SecondFieldOrder: admin.Index_IndexField_DESCENDING,
-	})
-	tuples = append(tuples, &firestorebk.IndexTuple{
-		FirstField:       sessionIDDocProperty,
-		SecondField:      eventIndexDocProperty,
-		SecondFieldOrder: admin.Index_IndexField_ASCENDING,
-	})
+	tuples := firestorebk.IndexList{}
+	tuples.Index(
+		firestorebk.Field(eventNamespaceDocProperty, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(createdAtDocProperty, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(firestore.DocumentID, admin.Index_IndexField_ASCENDING),
+	)
+	tuples.Index(
+		firestorebk.Field(eventNamespaceDocProperty, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(createdAtDocProperty, admin.Index_IndexField_DESCENDING),
+		firestorebk.Field(firestore.DocumentID, admin.Index_IndexField_ASCENDING),
+	)
+	tuples.Index(
+		firestorebk.Field(eventNamespaceDocProperty, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(eventTypeDocProperty, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(createdAtDocProperty, admin.Index_IndexField_DESCENDING),
+		firestorebk.Field(firestore.DocumentID, admin.Index_IndexField_ASCENDING),
+	)
+	tuples.Index(
+		firestorebk.Field(eventNamespaceDocProperty, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(eventTypeDocProperty, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(sessionIDDocProperty, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(createdAtDocProperty, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(firestore.DocumentID, admin.Index_IndexField_ASCENDING),
+	)
 	err := firestorebk.EnsureIndexes(l.svcContext, adminSvc, tuples, l.getIndexParent())
 	return trace.Wrap(err)
 }

@@ -28,7 +28,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
-	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
@@ -39,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/app/common"
-	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
@@ -215,7 +213,7 @@ func (s *SigningService) prepareSignedRequest(r *http.Request, re *endpoints.Res
 	}
 	rewriteHeaders(r, reqCopy)
 	// Sign the copy of the request.
-	signer := v4.NewSigner(s.getSigningCredentials(s.Session, sessionCtx))
+	signer := awsutils.NewSigner(s.getSigningCredentials(s.Session, sessionCtx), re.SigningName)
 	_, err = signer.Sign(reqCopy, bytes.NewReader(payload), re.SigningName, re.SigningRegion, s.Clock.Now())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -226,7 +224,7 @@ func (s *SigningService) prepareSignedRequest(r *http.Request, re *endpoints.Res
 func rewriteHeaders(r *http.Request, reqCopy *http.Request) {
 	for key, values := range r.Header {
 		// Remove Teleport app headers.
-		if appcommon.IsReservedHeader(key) {
+		if common.IsReservedHeader(key) {
 			continue
 		}
 		for _, v := range values {

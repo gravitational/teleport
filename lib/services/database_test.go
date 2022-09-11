@@ -22,21 +22,22 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/types"
-	awsutils "github.com/gravitational/teleport/api/utils/aws"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/utils"
-
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 // TestDatabaseUnmarshal verifies a database resource can be unmarshaled.
@@ -100,6 +101,62 @@ spec:
   uri: "localhost:5432"
   ca_cert: |
 %v`
+
+// TestDatabaseFromAzureDBServer tests converting an Azure DB Server to a database resource.
+func TestDatabaseFromAzureDBServer(t *testing.T) {
+	subscription := "sub1"
+	resourceGroup := "defaultRG"
+	resourceType := "Microsoft.DBforMySQL/servers"
+	name := "testdb"
+	id := fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/%v/%v",
+		subscription,
+		resourceGroup,
+		resourceType,
+		name,
+	)
+
+	server := azure.DBServer{
+		ID:       id,
+		Location: "eastus",
+		Name:     name,
+		Port:     "3306",
+		Properties: azure.ServerProperties{
+			FullyQualifiedDomainName: name + ".mysql" + types.AzureEndpointSuffix,
+			UserVisibleState:         string(armmysql.ServerStateReady),
+			Version:                  string(armmysql.ServerVersionFive7),
+		},
+		Protocol: defaults.ProtocolMySQL,
+		Tags: map[string]string{
+			"foo": "bar",
+		},
+	}
+
+	expected, err := types.NewDatabaseV3(types.Metadata{
+		Name:        "testdb",
+		Description: "Azure MySQL server in eastus",
+		Labels: map[string]string{
+			types.OriginLabel:   types.OriginCloud,
+			labelRegion:         "eastus",
+			labelEngine:         "Microsoft.DBforMySQL/servers",
+			labelEngineVersion:  "5.7",
+			labelResourceGroup:  "defaultRG",
+			labelSubscriptionID: "sub1",
+			"foo":               "bar",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMySQL,
+		URI:      "testdb.mysql.database.azure.com:3306",
+		Azure: types.Azure{
+			Name:       "testdb",
+			ResourceID: id,
+		},
+	})
+	require.NoError(t, err)
+
+	actual, err := NewDatabaseFromAzureServer(&server)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
 
 // TestDatabaseFromRDSInstance tests converting an RDS instance to a database resource.
 func TestDatabaseFromRDSInstance(t *testing.T) {
@@ -601,17 +658,28 @@ func TestIsRDSInstanceSupported(t *testing.T) {
 	}
 }
 
+func TestAzureTagsToLabels(t *testing.T) {
+	azureTags := map[string]string{
+		"Env":     "dev",
+		"foo:bar": "some-id",
+		"Name":    "test",
+	}
+	labels := azureTagsToLabels(azureTags)
+	require.Equal(t, map[string]string{"Name": "test", "Env": "dev",
+		"foo:bar": "some-id"}, labels)
+}
+
 func TestRDSTagsToLabels(t *testing.T) {
 	rdsTags := []*rds.Tag{
-		&rds.Tag{
+		{
 			Key:   aws.String("Env"),
 			Value: aws.String("dev"),
 		},
-		&rds.Tag{
+		{
 			Key:   aws.String("aws:cloudformation:stack-id"),
 			Value: aws.String("some-id"),
 		},
-		&rds.Tag{
+		{
 			Key:   aws.String("Name"),
 			Value: aws.String("test"),
 		},
@@ -1295,6 +1363,14 @@ func TestGetLabelEngineVersion(t *testing.T) {
 			name:   "missing labels",
 			labels: map[string]string{},
 			want:   "",
+		},
+		{
+			name: "azure-mysql-8.0.0",
+			labels: map[string]string{
+				labelEngine:        AzureEngineMySQL,
+				labelEngineVersion: "8.0.0",
+			},
+			want: "8.0.0",
 		},
 	}
 

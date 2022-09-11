@@ -277,8 +277,8 @@ func TestPortsParsing(t *testing.T) {
 	// parse invalid spec:
 	spec = []string{"foo", "bar"}
 	ports, err = ParsePortForwardSpec(spec)
-	require.Nil(t, ports)
-	require.ErrorContains(t, err, "Invalid port forwarding spec:")
+	require.Empty(t, ports)
+	require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 }
 
 func TestDynamicPortsParsing(t *testing.T) {
@@ -421,6 +421,42 @@ func TestWebProxyHostPort(t *testing.T) {
 			gotHost, gotPort := c.WebProxyHostPort()
 			require.Equal(t, tt.wantHost, gotHost)
 			require.Equal(t, tt.wantPort, gotPort)
+		})
+	}
+}
+
+func TestGetKubeTLSServerName(t *testing.T) {
+	tests := []struct {
+		name          string
+		kubeProxyAddr string
+		want          string
+	}{
+		{
+			name:          "ipv4 format, API domain should be used",
+			kubeProxyAddr: "127.0.0.1",
+			want:          "kube.teleport.cluster.local",
+		},
+		{
+			name:          "empty host, API domain should be used",
+			kubeProxyAddr: "",
+			want:          "kube.teleport.cluster.local",
+		},
+		{
+			name:          "ipv4 unspecified, API domain should be used ",
+			kubeProxyAddr: "0.0.0.0",
+			want:          "kube.teleport.cluster.local",
+		},
+		{
+			name:          "valid hostname",
+			kubeProxyAddr: "example.com",
+			want:          "kube.example.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := GetKubeTLSServerName(tt.kubeProxyAddr)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }

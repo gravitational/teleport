@@ -44,7 +44,6 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -346,7 +345,7 @@ func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI auth.C
 // generateSnowflakeKey exports DatabaseCA public key in the format required by Snowflake
 // Ref: https://docs.snowflake.com/en/user-guide/key-pair-auth.html#step-2-generate-a-public-key
 func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI auth.ClientI) error {
-	key, err := client.NewKey()
+	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -411,7 +410,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI auth.Clie
 	principals := strings.Split(a.genHost, ",")
 
 	// generate a keypair
-	key, err := client.NewKey()
+	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -422,7 +421,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI auth.Clie
 	}
 	clusterName := cn.GetClusterName()
 
-	key.Cert, err = clusterAPI.GenerateHostCert(key.Pub,
+	key.Cert, err = clusterAPI.GenerateHostCert(key.MarshalSSHPublicKey(),
 		"", "", principals,
 		clusterName, types.RoleNode, 0)
 	if err != nil {
@@ -456,7 +455,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI auth.Clie
 // generateDatabaseKeys generates a new unsigned key and signs it with Teleport
 // CA for database access.
 func (a *AuthCommand) generateDatabaseKeys(ctx context.Context, clusterAPI auth.ClientI) error {
-	key, err := client.NewKey()
+	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -585,7 +584,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 	}
 
 	// generate a keypair:
-	key, err := client.NewKey()
+	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -659,7 +658,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 	reqExpiry := time.Now().UTC().Add(a.genTTL)
 	// Request signed certs from `auth` server.
 	certs, err := clusterAPI.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		PublicKey:         key.Pub,
+		PublicKey:         key.MarshalSSHPublicKey(),
 		Username:          a.genUser,
 		Expires:           reqExpiry,
 		Format:            certificateFormat,
@@ -681,12 +680,25 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 	}
 	key.TrustedCA = auth.AuthoritiesToTrustedCerts(hostCAs)
 
+	networkConfig, err := clusterAPI.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	kubeTLSServerName := ""
+	// Is TLS routing enabled?
+	if networkConfig.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex {
+		// If we're in multiplexed mode get SNI name for kube from single multiplexed proxy addr
+		kubeTLSServerName = client.GetKubeTLSServerName(a.config.Proxy.WebAddr.Host())
+	}
+
 	// write the cert+private key to the output:
 	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
 		OutputPath:           a.output,
 		Key:                  key,
 		Format:               a.outputFormat,
 		KubeProxyAddr:        a.proxyAddr,
+		KubeTLSServerName:    kubeTLSServerName,
 		OverwriteDestination: a.signOverwrite,
 	})
 	if err != nil {
@@ -810,7 +822,7 @@ func (a *AuthCommand) checkProxyAddr(clusterAPI auth.ClientI) error {
 		}
 		uaddr, err := utils.ParseAddr(addr)
 		if err != nil {
-			logrus.Warningf("Invalid public address on the proxy %q: %q: %v.", p.GetName(), addr, err)
+			log.Warningf("Invalid public address on the proxy %q: %q: %v.", p.GetName(), addr, err)
 			continue
 		}
 		u := url.URL{

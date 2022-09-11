@@ -96,7 +96,7 @@ func NewExecRequest(ctx *ServerContext, command string) (Exec, error) {
 
 	// When in recording mode, return an *remoteExec which will execute the
 	// command on a remote host. This is used by in-memory forwarding nodes.
-	if services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) == true {
+	if services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
 		return &remoteExec{
 			ctx:     ctx,
 			command: command,
@@ -241,6 +241,10 @@ func (e *localExec) transformSecureCopy() error {
 	_, f := filepath.Split(args[0])
 	if f != teleport.SCP {
 		return nil
+	}
+
+	if err := e.Ctx.CheckFileCopyingAllowed(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// for scp requests update the command to execute to launch teleport with

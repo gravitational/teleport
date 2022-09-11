@@ -266,6 +266,13 @@ const (
 	// KindDatabaseCertificate is a resource to control Database Certificates generation
 	KindDatabaseCertificate = "database_certificate"
 
+	// KindInstaller is a resource that holds a node installer script
+	// used to install teleport on discovered nodes
+	KindInstaller = "installer"
+
+	// KindClusterAlert is a resource that conveys a cluster-level alert message.
+	KindClusterAlert = "cluster_alert"
+
 	// V5 is the fifth version of resources.
 	V5 = "v5"
 
@@ -429,6 +436,16 @@ const (
 
 	// BotGenerationLabel is a label used to record the certificate generation counter.
 	BotGenerationLabel = "teleport.internal/bot-generation"
+
+	// InternalResourceIDLabel is a label used to store an ID to correlate between two resources
+	// A pratical example of this is to create a correlation between a Node Provision Token and the Node that used that token to join the cluster
+	InternalResourceIDLabel = "teleport.internal/resource-id"
+
+	// AlertOnLogin is an internal label that indicates an alert should be displayed to users on login
+	AlertOnLogin = "teleport.internal/alert-on-login"
+
+	// AlertPermitAll is an internal label that indicates that an alert is suitable for display to all users.
+	AlertPermitAll = "teleport.internal/alert-permit-all"
 )
 
 // RequestableResourceKinds lists all Teleport resource kinds users can request access to.

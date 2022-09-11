@@ -39,18 +39,20 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/server"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
@@ -91,13 +93,12 @@ type Server struct {
 	addr      utils.NetAddr
 	hostname  string
 
-	srv           *sshutils.Server
-	shell         string
-	getRotation   services.RotationGetter
-	authService   srv.AccessPoint
-	reg           *srv.SessionRegistry
-	sessionServer rsession.Service
-	limiter       *limiter.Limiter
+	srv         *sshutils.Server
+	shell       string
+	getRotation services.RotationGetter
+	authService srv.AccessPoint
+	reg         *srv.SessionRegistry
+	limiter     *limiter.Limiter
 
 	inventoryHandle inventory.DownstreamHandle
 
@@ -198,6 +199,10 @@ type Server struct {
 	// x11 is the X11 forwarding configuration for the server
 	x11 *x11.ServerConfig
 
+	// allowFileCopying indicates whether the ssh server is allowed to handle
+	// remote file operations via SCP or SFTP.
+	allowFileCopying bool
+
 	// lockWatcher is the server's lock watcher.
 	lockWatcher *services.LockWatcher
 
@@ -215,8 +220,14 @@ type Server struct {
 
 	// users is used to start the automatic user deletion loop
 	users srv.HostUsers
+
+	// cloudWatcher periodically retrieves cloud resources, currently
+	// only EC2
+	cloudWatcher *server.Watcher
 	// awsMatchers are used to match EC2 instances
 	awsMatchers []services.AWSMatcher
+	// clients is used to retrieve clients used for AWS EC2 discovery
+	clients cloud.Clients
 
 	// tracerProvider is used to create tracers capable
 	// of starting spans.
@@ -252,13 +263,6 @@ func (s *Server) GetAccessPoint() srv.AccessPoint {
 	return s.authService
 }
 
-func (s *Server) GetSessionServer() rsession.Service {
-	if s.isAuditedAtProxy() {
-		return rsession.NewDiscardSessionServer()
-	}
-	return s.sessionServer
-}
-
 // GetUtmpPath returns the optional override of the utmp and wtmp path.
 func (s *Server) GetUtmpPath() (string, string) {
 	return s.utmpPath, s.wtmpPath
@@ -275,14 +279,25 @@ func (s *Server) UseTunnel() bool {
 	return s.useTunnel
 }
 
-// GetBPF returns the BPF service used by enhanced session recording.
-func (s *Server) GetBPF() bpf.BPF {
-	return s.ebpf
+// OpenBPFSession will start monitoring all events within a session and
+// emitting them to the Audit Log.
+func (s *Server) OpenBPFSession(ctx *srv.ServerContext) (uint64, error) {
+	return s.ebpf.OpenSession(ctx)
 }
 
-// GetRestrictedSessionManager returns the manager for restricting user activity.
-func (s *Server) GetRestrictedSessionManager() restricted.Manager {
-	return s.restrictedMgr
+// CloseBPFSession will stop monitoring events for a particular session.
+func (s *Server) CloseBPFSession(ctx *srv.ServerContext) error {
+	return s.ebpf.CloseSession(ctx)
+}
+
+// OpenRestrictedSession  starts enforcing restrictions for a cgroup with cgroupID
+func (s *Server) OpenRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {
+	s.restrictedMgr.OpenSession(ctx, cgroupID)
+}
+
+// CloseRestrictedSession stops enforcing restrictions for a cgroup with cgroupID
+func (s *Server) CloseRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {
+	s.restrictedMgr.CloseSession(ctx, cgroupID)
 }
 
 // GetLockWatcher gets the server's lock watcher.
@@ -300,24 +315,6 @@ func (s *Server) GetCreateHostUser() bool {
 // host user provisioning
 func (s *Server) GetHostUsers() srv.HostUsers {
 	return s.users
-}
-
-// isAuditedAtProxy returns true if sessions are being recorded at the proxy
-// and this is a Teleport node.
-func (s *Server) isAuditedAtProxy() bool {
-	// always be safe, better to double record than not record at all
-	recConfig, err := s.GetAccessPoint().GetSessionRecordingConfig(s.ctx)
-	if err != nil {
-		return false
-	}
-
-	isRecordAtProxy := services.IsRecordAtProxy(recConfig.GetMode())
-	isTeleportNode := s.Component() == teleport.ComponentNode
-
-	if isRecordAtProxy && isTeleportNode {
-		return true
-	}
-	return false
 }
 
 // ServerOption is a functional option passed to the server
@@ -439,14 +436,6 @@ func SetRotationGetter(getter services.RotationGetter) ServerOption {
 func SetShell(shell string) ServerOption {
 	return func(s *Server) error {
 		s.shell = shell
-		return nil
-	}
-}
-
-// SetSessionServer represents realtime session registry server
-func SetSessionServer(sessionServer rsession.Service) ServerOption {
-	return func(s *Server) error {
-		s.sessionServer = sessionServer
 		return nil
 	}
 }
@@ -648,6 +637,15 @@ func SetX11ForwardingConfig(xc *x11.ServerConfig) ServerOption {
 	}
 }
 
+// SetAllowFileCopying sets whether the server is allowed to handle
+// SCP/SFTP requests.
+func SetAllowFileCopying(allow bool) ServerOption {
+	return func(s *Server) error {
+		s.allowFileCopying = allow
+		return nil
+	}
+}
+
 // SetConnectedProxyGetter sets the ConnectedProxyGetter.
 func SetConnectedProxyGetter(getter *reversetunnel.ConnectedProxyGetter) ServerOption {
 	return func(s *Server) error {
@@ -681,6 +679,14 @@ func SetTracerProvider(provider oteltrace.TracerProvider) ServerOption {
 	}
 }
 
+// SetCloudClients returns a server option that sets cloud API clients
+func SetCloudClients(clients cloud.Clients) ServerOption {
+	return func(s *Server) error {
+		s.clients = clients
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(addr utils.NetAddr,
 	hostname string,
@@ -692,7 +698,7 @@ func New(addr utils.NetAddr,
 	auth auth.ClientI,
 	options ...ServerOption,
 ) (*Server, error) {
-	err := utils.RegisterPrometheusCollectors(userSessionLimitHitCount)
+	err := metrics.RegisterPrometheusCollectors(userSessionLimitHitCount)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -800,6 +806,17 @@ func New(addr utils.NetAddr,
 	// common term handlers
 	s.termHandlers = &srv.TermHandlers{
 		SessionRegistry: s.reg,
+	}
+
+	if len(s.awsMatchers) != 0 {
+		if s.clients == nil {
+			s.clients = cloud.NewClients()
+		}
+
+		s.cloudWatcher, err = server.NewCloudWatcher(s.ctx, s.awsMatchers, s.clients)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	server, err := sshutils.NewServer(
@@ -1376,6 +1393,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 	scx.ChannelType = teleport.ChanDirectTCPIP
 	scx.SrcAddr = net.JoinHostPort(req.Orig, strconv.Itoa(int(req.OrigPort)))
 	scx.DstAddr = net.JoinHostPort(req.Host, strconv.Itoa(int(req.Port)))
+	scx.SetAllowFileCopying(s.allowFileCopying)
 	defer scx.Close()
 
 	channel = scx.TrackActivity(channel)
@@ -1512,6 +1530,7 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 	scx.IsTestStub = s.isTestStub
 	scx.AddCloser(ch)
 	scx.ChannelType = teleport.ChanSession
+	scx.SetAllowFileCopying(s.allowFileCopying)
 	defer scx.Close()
 
 	ch = scx.TrackActivity(ch)
@@ -1750,7 +1769,7 @@ func (s *Server) handleAgentForwardNode(req *ssh.Request, ctx *srv.ServerContext
 func (s *Server) handleAgentForwardProxy(req *ssh.Request, ctx *srv.ServerContext) error {
 	// Forwarding an agent to the proxy is only supported when the proxy is in
 	// recording mode.
-	if services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) == false {
+	if !services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
 		return trace.BadParameter("agent forwarding to proxy only supported in recording mode")
 	}
 
@@ -1831,7 +1850,7 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 }
 
 func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) error {
-	sb, err := s.parseSubsystemRequest(req, serverContext)
+	sb, err := s.parseSubsystemRequest(req, ch, serverContext)
 	if err != nil {
 		serverContext.Warnf("Failed to parse subsystem request: %v: %v.", req, err)
 		return trace.Wrap(err)
@@ -1934,6 +1953,7 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 	}
 	scx.IsTestStub = s.isTestStub
 	scx.AddCloser(ch)
+	scx.SetAllowFileCopying(s.allowFileCopying)
 	defer scx.Close()
 
 	ch = scx.TrackActivity(ch)
@@ -2044,7 +2064,7 @@ func (s *Server) replyError(ch ssh.Channel, req *ssh.Request, err error) {
 	}
 }
 
-func (s *Server) parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext) (srv.Subsystem, error) {
+func (s *Server) parseSubsystemRequest(req *ssh.Request, ch ssh.Channel, ctx *srv.ServerContext) (srv.Subsystem, error) {
 	var r sshutils.SubsystemReq
 	if err := ssh.Unmarshal(req.Payload, &r); err != nil {
 		return nil, trace.BadParameter("failed to parse subsystem request: %v", err)
@@ -2056,6 +2076,13 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext)
 	case s.proxyMode && strings.HasPrefix(r.Name, "proxysites"):
 		return parseProxySitesSubsys(r.Name, s)
 	case r.Name == sftpSubsystem:
+		if err := ctx.CheckFileCopyingAllowed(); err != nil {
+			// Add an extra newline here to separate this error message
+			// from a potential OpenSSH error message
+			writeStderr(ch, err.Error()+"\n")
+			return nil, trace.Wrap(err)
+		}
+
 		return newSFTPSubsys()
 	default:
 		return nil, trace.BadParameter("unrecognized subsystem: %v", r.Name)

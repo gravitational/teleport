@@ -104,6 +104,11 @@ type AccessChecker interface {
 	// PermitX11Forwarding returns true if this RoleSet allows X11 Forwarding.
 	PermitX11Forwarding() bool
 
+	// CanCopyFiles returns true if the role set has enabled remote file
+	// operations via SCP or SFTP. Remote file operations are disabled if
+	// one or more of the roles in the set has disabled it.
+	CanCopyFiles() bool
+
 	// CertificateFormat returns the most permissive certificate format in a
 	// RoleSet.
 	CertificateFormat() string
@@ -389,7 +394,7 @@ func AccessInfoFromLocalIdentity(identity tlsca.Identity, access UserGetter) (*A
 			return nil, trace.Wrap(err)
 		}
 
-		log.Warnf("Failed to find roles or traits in x509 identity for %v. Fetching	"+
+		log.Warnf("Failed to find roles in x509 identity for %v. Fetching "+
 			"from backend. If the identity provider allows username changes, this can "+
 			"potentially allow an attacker to change the role of the existing user.",
 			identity.Username)

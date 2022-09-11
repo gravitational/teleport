@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -164,7 +165,7 @@ func NewServer(
 	ah AuthMethods,
 	opts ...ServerOption,
 ) (*Server, error) {
-	err := utils.RegisterPrometheusCollectors(proxyConnectionLimitHitCount)
+	err := metrics.RegisterPrometheusCollectors(proxyConnectionLimitHitCount)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -406,7 +407,6 @@ func (s *Server) trackUserConnections(delta int32) int32 {
 //
 // this is the foundation of all SSH connections in Teleport (between clients
 // and proxies, proxies and servers, servers and auth, etc).
-//
 func (s *Server) HandleConnection(conn net.Conn) {
 	// initiate an SSH connection, note that we don't need to close the conn here
 	// in case of error as ssh server takes care of this

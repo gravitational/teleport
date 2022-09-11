@@ -6,14 +6,13 @@
 
 import * as grpc from "grpc";
 import * as v1_service_pb from "../v1/service_pb";
-import * as google_protobuf_empty_pb from "google-protobuf/google/protobuf/empty_pb";
+import * as v1_app_pb from "../v1/app_pb";
+import * as v1_auth_settings_pb from "../v1/auth_settings_pb";
 import * as v1_cluster_pb from "../v1/cluster_pb";
 import * as v1_database_pb from "../v1/database_pb";
 import * as v1_gateway_pb from "../v1/gateway_pb";
 import * as v1_kube_pb from "../v1/kube_pb";
-import * as v1_app_pb from "../v1/app_pb";
 import * as v1_server_pb from "../v1/server_pb";
-import * as v1_auth_settings_pb from "../v1/auth_settings_pb";
 
 interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedServiceImplementation> {
     listRootClusters: ITerminalServiceService_IListRootClusters;

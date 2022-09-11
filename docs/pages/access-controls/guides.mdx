@@ -1,5 +1,5 @@
 ---
-title: Configure Access 
+title: Cluster Access and RBAC
 description: How to configure access to specific resources in your infrastructure or your Teleport cluster as a whole.
 layout: tocless-doc
 ---
@@ -9,32 +9,12 @@ infrastructure as well as how they can access those resources. Once you have
 deployed a Teleport cluster, configure access controls to achieve the right
 security policies for your organization.
 
-<TileSet>
-  <Tile title="Dual Authorization" href="./guides/dual-authz.mdx" icon="lock">
-  Protect access to critical resources with dual authorization.
-  </Tile>
-  <Tile title="Role Templates" icon="lock" href="./guides/role-templates.mdx">
-  Set up dynamic access policies with role templates.
-  </Tile>
-  <Tile title="Impersonating Teleport Users" href="./guides/impersonation.mdx"
-  icon="lock">
-  Create certificates for other users with impersonation.
-  </Tile>
-  <Tile title="Passwordless" icon="lock" href="./guides/passwordless.mdx">
-  Use passwordless authentication (Preview).
-  </Tile>
-  <Tile href="./guides/webauthn.mdx" title="WebAuthn" icon="lock">
-  Add two-factor authentication through WebAuthn.
-  </Tile>
-  <Tile href="./guides/per-session-mfa.mdx" title="Per-Session MFA" icon="lock">
-  Per-session multi-mactor authentication.
-  </Tile>
-  <Tile href="./guides/locking.mdx" title="Locking" icon="lock">
-  Lock access to active user sessions or hosts.
-  </Tile>
-  <Tile href="./guides/moderated-sessions.mdx" title="Moderated Sessions"
-  icon="lock">
-  Require session auditors and allow fine-grained live session access.
-  </Tile>
-</TileSet>
+- [Dual Authorization](./guides/dual-authz.mdx): Protect access to critical resources with dual authorization.
+- [Role Templates](./guides/role-templates.mdx): Set up dynamic access policies with role templates.
+- [Impersonating Teleport Users](./guides/impersonation.mdx): Create certificates for other users with impersonation.
+- [Passwordless](./guides/passwordless.mdx): Use passwordless authentication (Preview).
+- [WebAuthn](./guides/webauthn.mdx): Add two-factor authentication through WebAuthn.
+- [Per-Session MFA](./guides/per-session-mfa.mdx): Per-session multi-mactor authentication.
+- [Locking](./guides/locking.mdx): Lock access to active user sessions or hosts.
+- [Moderated Sessions](./guides/moderated-sessions.mdx): Require session auditors and allow fine-grained live session access.
 

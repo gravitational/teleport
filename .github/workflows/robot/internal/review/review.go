@@ -20,6 +20,8 @@ import (
 	"encoding/json"
 	"log"
 	"math/rand"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/.github/workflows/robot/internal/github"
@@ -33,13 +35,21 @@ type Reviewer struct {
 	Team string `json:"team"`
 	// Owner is true if the reviewer is a code or docs owner (required for all reviews).
 	Owner bool `json:"owner"`
+	// PreferredReviewerFor contains a list of file paths that this reviewer
+	// should be selected to review.
+	PreferredReviewerFor []string `json:"preferredReviewerFor,omitempty"`
+}
+
+// Rand allows to override randon number generator in tests.
+type Rand interface {
+	Intn(int) int
 }
 
 // Config holds code reviewer configuration.
 type Config struct {
 	// Rand is a random number generator. It is not safe for cryptographic
 	// operations.
-	Rand *rand.Rand
+	Rand Rand
 
 	// CodeReviewers and CodeReviewersOmit is a map of code reviews and code
 	// reviewers to omit.
@@ -121,7 +131,7 @@ func (r *Assignments) IsInternal(author string) bool {
 }
 
 // Get will return a list of code reviewers for a given author.
-func (r *Assignments) Get(author string, docs bool, code bool) []string {
+func (r *Assignments) Get(author string, docs bool, code bool, files []github.PullRequestFile) []string {
 	var reviewers []string
 
 	// TODO: consider existing review assignments here
@@ -131,10 +141,10 @@ func (r *Assignments) Get(author string, docs bool, code bool) []string {
 	case docs && code:
 		log.Printf("Assign: Found docs and code changes.")
 		reviewers = append(reviewers, r.getDocsReviewers(author)...)
-		reviewers = append(reviewers, r.getCodeReviewers(author)...)
+		reviewers = append(reviewers, r.getCodeReviewers(author, files)...)
 	case !docs && code:
 		log.Printf("Assign: Found code changes.")
-		reviewers = append(reviewers, r.getCodeReviewers(author)...)
+		reviewers = append(reviewers, r.getCodeReviewers(author, files)...)
 	case docs && !code:
 		log.Printf("Assign: Found docs changes.")
 		reviewers = append(reviewers, r.getDocsReviewers(author)...)
@@ -158,13 +168,62 @@ func (r *Assignments) getDocsReviewers(author string) []string {
 	return reviewers
 }
 
-func (r *Assignments) getCodeReviewers(author string) []string {
+func (r *Assignments) getCodeReviewers(author string, files []github.PullRequestFile) []string {
+	// Obtain full sets of reviewers.
 	setA, setB := r.getCodeReviewerSets(author)
 
-	return []string{
-		setA[r.c.Rand.Intn(len(setA))],
-		setB[r.c.Rand.Intn(len(setB))],
+	// Sort the sets to get predictable order. It doesn't matter in real use
+	// because selection is randomized but helps in tests.
+	sort.Strings(setA)
+	sort.Strings(setB)
+
+	// See if there are preferred reviewers for the changeset.
+	preferredSetA := r.getPreferredReviewers(setA, files)
+	preferredSetB := r.getPreferredReviewers(setB, files)
+
+	// All preferred reviewers should be requested reviews. If there are none,
+	// pick from the overall set at random.
+	resultingSetA := preferredSetA
+	if len(resultingSetA) == 0 {
+		resultingSetA = append(resultingSetA, setA[r.c.Rand.Intn(len(setA))])
 	}
+	resultingSetB := preferredSetB
+	if len(resultingSetB) == 0 {
+		resultingSetB = append(resultingSetB, setB[r.c.Rand.Intn(len(setB))])
+	}
+
+	return append(resultingSetA, resultingSetB...)
+}
+
+// getPreferredReviewers returns a list of reviewers that would be preferrable
+// to review the provided changeset.
+func (r *Assignments) getPreferredReviewers(set []string, files []github.PullRequestFile) (preferredReviewers []string) {
+	// To avoid assigning too many reviewers iterate over paths that we have
+	// preferred reviewers for and see if any of them are among the changeset.
+	for path, reviewers := range r.getPreferredReviewersMap(set) {
+		for _, file := range files {
+			if strings.HasPrefix(file.Name, path) {
+				reviewer := reviewers[r.c.Rand.Intn(len(reviewers))]
+				log.Printf("Picking %v as preferred reviewer for %v which matches %v.", reviewer, file.Name, path)
+				preferredReviewers = append(preferredReviewers, reviewer)
+				break
+			}
+		}
+	}
+	return preferredReviewers
+}
+
+// getPreferredReviewersMap builds a map of preferred reviewers for file paths.
+func (r *Assignments) getPreferredReviewersMap(set []string) map[string][]string {
+	m := make(map[string][]string)
+	for _, name := range set {
+		if reviewer, ok := r.c.CodeReviewers[name]; ok {
+			for _, path := range reviewer.PreferredReviewerFor {
+				m[path] = append(m[path], name)
+			}
+		}
+	}
+	return m
 }
 
 func (r *Assignments) getAdminReviewers(author string) []string {
@@ -272,7 +331,10 @@ func (r *Assignments) checkCodeReviews(author string, reviews []github.Review) e
 	// return an error.
 	v, ok := r.c.CodeReviewers[author]
 	if !ok {
-		return trace.BadParameter("rejecting checking external review")
+		v, ok = r.c.DocsReviewers[author]
+		if !ok {
+			return trace.BadParameter("rejecting checking external review")
+		}
 	}
 
 	// Cloud and Internal get reviews from the Core team. Other teams do own
