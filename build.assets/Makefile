@@ -22,8 +22,8 @@ TEST_KUBE ?=
 OS ?= linux
 ARCH ?= amd64
 BUILDBOX_VERSION ?= teleport10
-GOLANG_VERSION ?= go1.18.3
-RUST_VERSION ?= 1.58.1 # don't bump this without checking GLIBC compatibility
+GOLANG_VERSION ?= go1.18.6
+RUST_VERSION ?= 1.63.0 # don't bump this without checking GLIBC compatibility
 NODE_VERSION ?= 16.13.2
 BORINGCRYPTO_RUNTIME=$(GOLANG_VERSION)b7
 LIBBPF_VERSION ?= 0.7.0-teleport
@@ -56,7 +56,7 @@ BUILDBOX_TELETERM=public.ecr.aws/gravitational/teleport-buildbox-teleterm:$(BUIL
 BUILDBOX_NAME=$(BUILDBOX)
 BUILDBOX_FIPS_NAME=$(BUILDBOX_FIPS)
 
-DOCSBOX=quay.io/gravitational/next:main
+DOCSBOX=public.ecr.aws/gravitational/docs
 
 ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)

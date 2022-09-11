@@ -352,10 +352,10 @@ fn connect_rdp_inner(
             }
             Err(_) => {
                 // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
-                return Err(RdpError::TryError(format!(
+                Err(RdpError::TryError(format!(
                     "path contained characters that couldn't be converted to a C string: {:?}",
                     req.path
-                )));
+                )))
             }
         }
     });
@@ -386,10 +386,10 @@ fn connect_rdp_inner(
                 }
                 Err(_) => {
                     // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
-                    return Err(RdpError::TryError(format!(
+                    Err(RdpError::TryError(format!(
                         "path contained characters that couldn't be converted to a C string: {:?}",
                         req.path
-                    )));
+                    )))
                 }
             }
         });
@@ -419,10 +419,10 @@ fn connect_rdp_inner(
                 }
                 Err(_) => {
                     // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
-                    return Err(RdpError::TryError(format!(
+                    Err(RdpError::TryError(format!(
                         "path contained characters that couldn't be converted to a C string: {:?}",
                         req.path
-                    )));
+                    )))
                 }
             }
         });
@@ -451,10 +451,10 @@ fn connect_rdp_inner(
             }
             Err(_) => {
                 // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
-                return Err(RdpError::TryError(format!(
+                Err(RdpError::TryError(format!(
                     "path contained characters that couldn't be converted to a C string: {:?}",
                     req.path
-                )));
+                )))
             }
         }
     });
@@ -484,12 +484,10 @@ fn connect_rdp_inner(
                 }
                 Ok(())
             }
-            Err(_) => {
-                return Err(RdpError::TryError(format!(
-                    "path contained characters that couldn't be converted to a C string: {:?}",
-                    req.path
-                )));
-            }
+            Err(_) => Err(RdpError::TryError(format!(
+                "path contained characters that couldn't be converted to a C string: {:?}",
+                req.path
+            ))),
         }
     });
 
@@ -519,12 +517,10 @@ fn connect_rdp_inner(
                 }
                 Ok(())
             }
-            Err(_) => {
-                return Err(RdpError::TryError(format!(
-                    "path contained characters that couldn't be converted to a C string: {:?}",
-                    req.path
-                )));
-            }
+            Err(_) => Err(RdpError::TryError(format!(
+                "path contained characters that couldn't be converted to a C string: {:?}",
+                req.path
+            ))),
         }
     });
 
@@ -552,19 +548,15 @@ fn connect_rdp_inner(
                     }
                     Ok(())
                 }
-                Err(_) => {
-                    return Err(RdpError::TryError(format!(
-                            "new_path contained characters that couldn't be converted to a C string: {:?}",
-                            req.new_path
-                        )));
-                }
+                Err(_) => Err(RdpError::TryError(format!(
+                    "new_path contained characters that couldn't be converted to a C string: {:?}",
+                    req.new_path
+                ))),
             },
-            Err(_) => {
-                return Err(RdpError::TryError(format!(
-                    "original_path contained characters that couldn't be converted to a C string: {:?}",
-                    req.original_path
-                )));
-            }
+            Err(_) => Err(RdpError::TryError(format!(
+                "original_path contained characters that couldn't be converted to a C string: {:?}",
+                req.original_path
+            ))),
         }
     });
 
@@ -1391,7 +1383,7 @@ unsafe fn from_go_array<T: Clone>(data: *mut T, len: u32) -> Vec<T> {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum CGOErrCode {
     ErrCodeSuccess = 0,
     ErrCodeFailure = 1,
@@ -1549,14 +1541,14 @@ impl From<CGOFileSystemObject> for FileSystemObject {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum FileType {
     File = 0,
     Directory = 1,
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum TdpErrCode {
     /// nil (no error, operation succeeded)
     Nil = 0,
