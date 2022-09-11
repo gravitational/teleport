@@ -41,13 +41,3 @@ for example in the case of a timeout).
         	            	exit code 1
         	Test:       	TestSSHAccessRequest
 ```
-
-## Update the Flaky Test Tracker meta-issue
-
-After submitting this issue, add a comment to our `Flaky Test Tracker` issue (https://github.com/gravitational/teleport/issues/9492) in the format:
-
-`TestName`: https://github.com/gravitational/teleport/issues/<issue-number>
-
-See https://github.com/gravitational/teleport/issues/9492#issuecomment-1158937319 for an example.
-
-**Delete this section, submit the issue, and add the comment**
