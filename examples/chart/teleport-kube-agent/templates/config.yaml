@@ -20,7 +20,7 @@ metadata:
 data:
   teleport.yaml: |
     teleport:
-  {{- if .Values.joinParams }}
+  {{- if ne .Values.joinParams.method "token" }}
       join_params:
         token_name: "{{ .Values.joinParams.tokenName }}"
         method: "{{ .Values.joinParams.method }}"
