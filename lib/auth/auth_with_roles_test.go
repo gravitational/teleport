@@ -3658,6 +3658,10 @@ func TestGenerateHostCert(t *testing.T) {
 	_, pub, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
+	noError := func(err error) bool {
+		return err == nil
+	}
+
 	for _, test := range []struct {
 		desc       string
 		principals []string
@@ -3682,11 +3686,13 @@ func TestGenerateHostCert(t *testing.T) {
 		{
 			desc:       "allowed",
 			principals: []string{"foo.example.com"},
+			expect:     noError,
 		},
 		{
 			desc:       "allowed-subset",
 			principals: []string{"foo.example.com"},
 			where:      `is_subset(host_cert.principals, "foo.example.com", "bar.example.com")`,
+			expect:     noError,
 		},
 		{
 			desc:       "disallowed-subset",
@@ -3698,6 +3704,7 @@ func TestGenerateHostCert(t *testing.T) {
 			desc:       "allowed-all-equal",
 			principals: []string{"foo.example.com"},
 			where:      `all_equal(host_cert.principals, "foo.example.com")`,
+			expect:     noError,
 		},
 		{
 			desc:       "disallowed-all-equal",
@@ -3709,6 +3716,7 @@ func TestGenerateHostCert(t *testing.T) {
 			desc:       "allowed-all-end-with",
 			principals: []string{"node.foo.example.com"},
 			where:      `all_end_with(host_cert.principals, ".foo.example.com")`,
+			expect:     noError,
 		},
 		{
 			desc:       "disallowed-all-end-with",
@@ -3721,6 +3729,7 @@ func TestGenerateHostCert(t *testing.T) {
 			principals: []string{"foo.example.com"},
 			where:      `all_end_with(host_cert.principals, ".example.com")`,
 			denyWhere:  `is_subset(host_cert.principals, "bar.example.com", "baz.example.com")`,
+			expect:     noError,
 		},
 		{
 			desc:       "disallowed-complex",
@@ -3733,6 +3742,7 @@ func TestGenerateHostCert(t *testing.T) {
 			desc:       "allowed-multiple",
 			principals: []string{"bar.example.com", "foo.example.com"},
 			where:      `is_subset(host_cert.principals, "foo.example.com", "bar.example.com")`,
+			expect:     noError,
 		},
 		{
 			desc:       "disallowed-multiple",
@@ -3773,11 +3783,7 @@ func TestGenerateHostCert(t *testing.T) {
 			require.NoError(t, err)
 
 			_, err = client.GenerateHostCert(pub, "", "", test.principals, clusterName, types.RoleNode, 0)
-			if test.expect == nil {
-				require.NoError(t, err)
-			} else {
-				require.True(t, test.expect(err))
-			}
+			require.True(t, test.expect(err))
 		})
 	}
 }

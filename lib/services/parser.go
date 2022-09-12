@@ -108,8 +108,8 @@ func PredicateAllEqual(a interface{}, b interface{}) predicate.BoolPredicate {
 }
 
 // PredicateIsSubset determines if the first parameter is contained within the
-// variadic args. Only strings are supported; the first parameter may either
-// be a string or list of strings.
+// variadic args. The first argument may either by `string` or `[]string`, and
+// the variadic args may only be `string`.
 func PredicateIsSubset(a interface{}, b ...interface{}) predicate.BoolPredicate {
 	return func() bool {
 		// Populate the set.
