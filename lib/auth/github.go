@@ -24,6 +24,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/coreos/go-oidc/oauth2"
@@ -43,10 +44,31 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-const githubOrgsURL = "https://github.com/orgs"
-
 // ErrGithubNoTeams results from a github user not belonging to any teams.
 var ErrGithubNoTeams = trace.BadParameter("user does not belong to any teams configured in connector; the configuration may have typos.")
+
+// githubConnectorMutex is a mutex for the Github auth connector creator.
+var githubConnectorMutex sync.RWMutex
+
+// GithubAuthCreator creates a new Github connector.
+type GithubAuthCreator func(string, types.GithubConnectorSpecV3) (types.GithubConnector, error)
+
+// githubAuthCreator is the factory function that will create Github auth connectors.
+var githubAuthCreator GithubAuthCreator
+
+// RegisterGithubAuthCreator registers a function to create Github auth connectors.
+func RegisterGithubAuthCreator(creator GithubAuthCreator) {
+	githubConnectorMutex.Lock()
+	defer githubConnectorMutex.Unlock()
+	githubAuthCreator = creator
+}
+
+// NewGithubConnector creates a new Github auth connector.
+func NewGithubConnector(name string, spec types.GithubConnectorSpecV3) (types.GithubConnector, error) {
+	githubConnectorMutex.RLock()
+	defer githubConnectorMutex.RUnlock()
+	return githubAuthCreator(name, spec)
+}
 
 // CreateGithubAuthRequest creates a new request for Github OAuth2 flow
 func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) (*types.GithubAuthRequest, error) {
@@ -144,7 +166,7 @@ func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, u
 
 	for org := range orgs {
 		usesSSO, err := utils.FnCacheGet(ctx, orgCache, org, func(ctx context.Context) (bool, error) {
-			return orgUsesExternalSSO(ctx, org, client)
+			return orgUsesExternalSSO(ctx, conn.GetEndpointURL(), org, client)
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -163,12 +185,12 @@ func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, u
 
 // orgUsesExternalSSO returns true if the Github organization org
 // uses external SSO.
-func orgUsesExternalSSO(ctx context.Context, org string, client httpRequester) (bool, error) {
+func orgUsesExternalSSO(ctx context.Context, endpointURL, org string, client httpRequester) (bool, error) {
 	// A Github organization will have a "sso" page reachable if it
 	// supports external SSO. There doesn't seem to be any way to get this
 	// information from the Github REST API without being an owner of the
 	// Github organization, so check if this exists instead.
-	ssoURL := fmt.Sprintf("%s/%s/sso", githubOrgsURL, url.PathEscape(org))
+	ssoURL := fmt.Sprintf("https://%s/orgs/%s/sso", endpointURL, url.PathEscape(org))
 
 	const retries = 3
 	var resp *http.Response
@@ -365,7 +387,7 @@ func (a *Server) getGithubConnectorAndClient(ctx context.Context, request types.
 		}
 
 		// stateless test flow
-		connector, err := types.NewGithubConnector(request.ConnectorID, *request.ConnectorSpec)
+		connector, err := NewGithubConnector(request.ConnectorID, *request.ConnectorSpec)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
