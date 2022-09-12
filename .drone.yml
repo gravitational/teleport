@@ -943,8 +943,8 @@ steps:
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - $OutputsDir = "$Workspace/outputs"
-  - $relcliUrl = 'https://cdn.cloud.gravitational.io/relcli-windows-v1.1.70-justinas.1.exe'
-  - $relcliSha256 = '8966ebfac7e61e677fe43c0d54b04895e4ee068e80b678bff577ee8a6d9b19cd'
+  - $relcliUrl = 'https://cdn.teleport.dev/relcli-v1.1.70-beta.2-windows.exe'
+  - $relcliSha256 = '6b96852a5e9704b66025cffc71cfe7fe7a2aa7131277a96bccce7e890a2d5a0c'
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Get-Relcli -Url $relcliUrl -Sha256 $relcliSha256 -Workspace $Workspace
   - Register-Artifacts -Workspace $Workspace -Outputs $OutputsDir
@@ -7073,6 +7073,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 37dd096ebea66375b54d3f283b02713c468e302adf40bba590031b9030977494
+hmac: 441dec90c25c8e444fb7b1a4419a0c5e218d7083801e39a9147ca59b58027bd2
 
 ...

@@ -24,8 +24,8 @@ const (
 	teleportSrc       = `/go/src/github.com/gravitational/teleport`
 	webappsSrc        = `/go/src/github.com/gravitational/webapps`
 
-	relcliUrl    = `https://cdn.cloud.gravitational.io/relcli-windows-v1.1.70-justinas.1.exe`
-	relcliSha256 = `8966ebfac7e61e677fe43c0d54b04895e4ee068e80b678bff577ee8a6d9b19cd`
+	relcliURL    = `https://cdn.teleport.dev/relcli-v1.1.70-beta.2-windows.exe`
+	relcliSha256 = `6b96852a5e9704b66025cffc71cfe7fe7a2aa7131277a96bccce7e890a2d5a0c`
 )
 
 func newWindowsPipeline(name string) pipeline {
@@ -255,7 +255,7 @@ func windowsRegisterArtifactsStep(workspace string) step {
 			`$Workspace = "` + perBuildWorkspace + `"`,
 			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
 			`$OutputsDir = "$Workspace/outputs"`,
-			`$relcliUrl = '` + relcliUrl + `'`,
+			`$relcliUrl = '` + relcliURL + `'`,
 			`$relcliSha256 = '` + relcliSha256 + `'`,
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 			`Get-Relcli -Url $relcliUrl -Sha256 $relcliSha256 -Workspace $Workspace`,
