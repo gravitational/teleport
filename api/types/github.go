@@ -27,6 +27,11 @@ import (
 	"github.com/gravitational/trace"
 )
 
+const githubURL = "github.com"
+
+// ErrGitHubEndpointURLUsed results from endpoint_url field being set in Teleport OSS.
+var ErrGitHubEndpointURLUsed = trace.BadParameter("endpoint_url is an enterprise only feature")
+
 // GithubConnector defines an interface for a Github OAuth2 connector
 type GithubConnector interface {
 	// ResourceWithSecrets is a common interface for all resources
@@ -60,6 +65,8 @@ type GithubConnector interface {
 	GetDisplay() string
 	// SetDisplay sets the connector display name
 	SetDisplay(string)
+	// GetEndpointURL returns the endpoint URL
+	GetEndpointURL() string
 }
 
 // NewGithubConnector creates a new Github connector from name and spec
@@ -180,6 +187,11 @@ func (c *GithubConnectorV3) CheckAndSetDefaults() error {
 		return trace.BadParameter("team_to_logins or team_to_roles mapping is invalid, no mappings defined.")
 	}
 
+	// this check must be last
+	if c.Spec.EndpointURL != "" {
+		return ErrGitHubEndpointURLUsed
+	}
+
 	return nil
 }
 
@@ -245,6 +257,11 @@ func (c *GithubConnectorV3) GetDisplay() string {
 // SetDisplay sets the connector display name
 func (c *GithubConnectorV3) SetDisplay(display string) {
 	c.Spec.Display = display
+}
+
+// GetEndpointURL returns the endpoint URL
+func (c *GithubConnectorV3) GetEndpointURL() string {
+	return githubURL
 }
 
 // MapClaims returns a list of logins based on the provided claims,

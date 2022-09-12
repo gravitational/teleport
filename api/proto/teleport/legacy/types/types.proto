@@ -3392,6 +3392,7 @@ message GithubConnectorSpecV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "teams_to_roles"
   ];
+  string EndpointURL = 7 [(gogoproto.jsontag) = "endpoint_url"];
 }
 
 // GithubAuthRequest is the request to start Github OAuth2 flow.
