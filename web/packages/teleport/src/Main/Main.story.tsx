@@ -41,7 +41,7 @@ export function OSS() {
     <Flex my={-3} mx={-4}>
       <ContextProvider ctx={state.ctx}>
         <Router history={state.history}>
-          <Main {...state} />
+          <Main customBanners={[]} {...state} />
         </Router>
       </ContextProvider>
     </Flex>
@@ -85,8 +85,10 @@ function useMainStory() {
   const statusText = '';
 
   return {
+    alerts: [],
     history,
     ctx,
+    dismissAlert: () => {},
     status,
     statusText,
   };

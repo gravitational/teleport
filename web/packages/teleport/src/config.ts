@@ -111,6 +111,7 @@ const cfg = {
     applicationsPath:
       '/v1/webapi/sites/:clusterId/apps?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
     clustersPath: '/v1/webapi/sites',
+    clusterAlertsPath: '/v1/webapi/sites/:clusterId/alerts',
     clusterEventsPath: `/v1/webapi/sites/:clusterId/events/search?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?&include=:include?`,
     clusterEventsRecordingsPath: `/v1/webapi/sites/:clusterId/events/search/sessions?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?`,
 
@@ -172,6 +173,12 @@ const cfg = {
 
   getAppFqdnUrl(params: UrlAppParams) {
     return generatePath(cfg.api.appFqdnPath, { ...params });
+  },
+
+  getClusterAlertsUrl(clusterId: string) {
+    return generatePath(cfg.api.clusterAlertsPath, {
+      clusterId,
+    });
   },
 
   getClusterEventsUrl(clusterId: string, params: UrlClusterEventsParams) {

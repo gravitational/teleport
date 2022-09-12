@@ -26,9 +26,11 @@ import useTeleport from 'teleport/useTeleport';
 import getFeatures from 'teleport/features';
 import { UserMenuNav } from 'teleport/components/UserMenuNav';
 import * as main from 'teleport/Main';
+import { MainContainer } from 'teleport/Main/MainContainer';
 import * as sideNav from 'teleport/SideNav';
 import { TopBarContainer } from 'teleport/TopBar';
 import { FeatureBox } from 'teleport/components/Layout';
+import { BannerList } from 'teleport/components/BannerList';
 import cfg from 'teleport/config';
 
 import { useDiscover, State } from './useDiscover';
@@ -40,6 +42,7 @@ import { Finished } from './Finished';
 
 import type { AgentKind } from './useDiscover';
 import type { AgentStepComponent } from './types';
+import type { BannerType } from 'teleport/components/BannerList/BannerList';
 
 export const agentViews: Record<AgentKind, AgentStepComponent[]> = {
   application: [SelectResource],
@@ -72,6 +75,9 @@ export default function Container() {
 }
 
 export function Discover({
+  alerts = [],
+  customBanners = [],
+  dismissAlert,
   initAttempt,
   userMenuItems,
   username,
@@ -86,50 +92,74 @@ export function Discover({
     AgentComponent = agentViews[selectedAgentKind][currentStep];
   }
 
+  // The backend defines the severity as an integer value with the current
+  // pre-defined values: LOW: 0; MEDIUM: 5; HIGH: 10
+  const mapSeverity = (severity: number) => {
+    if (severity < 5) {
+      return 'info';
+    }
+    if (severity < 10) {
+      return 'warning';
+    }
+    return 'danger';
+  };
+
+  const banners: BannerType[] = alerts.map(alert => ({
+    message: alert.spec.message,
+    severity: mapSeverity(alert.spec.severity),
+    id: alert.metadata.name,
+  }));
+
   return (
-    <MainContainer>
-      <Prompt
-        message={nextLocation => {
-          if (nextLocation.pathname === cfg.routes.discover) return true;
-          return 'Are you sure you want to exit the “Add New Resource” workflow? You’ll have to start from the beginning next time.';
-        }}
-        when={currentStep > 0}
-      />
-      {initAttempt.status === 'processing' && (
-        <main.StyledIndicator>
-          <Indicator />
-        </main.StyledIndicator>
-      )}
-      {initAttempt.status === 'failed' && (
-        <Danger>{initAttempt.statusText}</Danger>
-      )}
-      {initAttempt.status === 'success' && (
-        <>
-          <SideNavAgentConnect
-            currentStep={currentStep}
-            // TODO: hack to not show titles for unfinished flows.
-            stepTitles={
-              agentViews[selectedAgentKind].length > 1 ? agentStepTitles : []
-            }
-          />
-          <main.HorizontalSplit>
-            <TopBarContainer>
-              <Text typography="h5" bold>
-                Manage Access
-              </Text>
-              <UserMenuNav
-                navItems={userMenuItems}
-                logout={logout}
-                username={username}
-              />
-            </TopBarContainer>
-            <FeatureBox pt={4}>
-              {AgentComponent && <AgentComponent {...agentProps} />}
-            </FeatureBox>
-          </main.HorizontalSplit>
-        </>
-      )}
-    </MainContainer>
+    <BannerList
+      banners={banners}
+      customBanners={customBanners}
+      onBannerDismiss={dismissAlert}
+    >
+      <MainContainer>
+        <Prompt
+          message={nextLocation => {
+            if (nextLocation.pathname === cfg.routes.discover) return true;
+            return 'Are you sure you want to exit the “Add New Resource” workflow? You’ll have to start from the beginning next time.';
+          }}
+          when={currentStep > 0}
+        />
+        {initAttempt.status === 'processing' && (
+          <main.StyledIndicator>
+            <Indicator />
+          </main.StyledIndicator>
+        )}
+        {initAttempt.status === 'failed' && (
+          <Danger>{initAttempt.statusText}</Danger>
+        )}
+        {initAttempt.status === 'success' && (
+          <>
+            <SideNavAgentConnect
+              currentStep={currentStep}
+              // TODO: hack to not show titles for unfinished flows.
+              stepTitles={
+                agentViews[selectedAgentKind].length > 1 ? agentStepTitles : []
+              }
+            />
+            <main.HorizontalSplit>
+              <TopBarContainer>
+                <Text typography="h5" bold>
+                  Manage Access
+                </Text>
+                <UserMenuNav
+                  navItems={userMenuItems}
+                  logout={logout}
+                  username={username}
+                />
+              </TopBarContainer>
+              <FeatureBox pt={4}>
+                {AgentComponent && <AgentComponent {...agentProps} />}
+              </FeatureBox>
+            </main.HorizontalSplit>
+          </>
+        )}
+      </MainContainer>
+    </BannerList>
   );
 }
 
@@ -246,14 +276,4 @@ const StyledNav = styled(sideNav.Nav)`
 
 const StyledNavContent = styled(sideNav.Content)`
   padding: 20px 32px 32px 32px;
-`;
-
-// TODO (lisa) we should look into reducing this width.
-// Any smaller than this will produce a double stacked horizontal scrollbar
-// making navigation harder.
-//
-// Our SelectResource component is the widest and can use some space
-// tightening. Also look into shrinking the side nav if possible.
-const MainContainer = styled(main.MainContainer)`
-  min-width: 1460px;
 `;

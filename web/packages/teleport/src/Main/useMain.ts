@@ -19,10 +19,12 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 
 import useTeleport from 'teleport/useTeleport';
 import { Feature } from 'teleport/types';
+import { useAlerts } from 'teleport/components/BannerList/useAlerts';
 
 export default function useMain(features: Feature[]) {
   const ctx = useTeleport();
   const { attempt, setAttempt, run } = useAttempt('processing');
+  const { alerts, dismissAlert } = useAlerts();
 
   useEffect(() => {
     // Two routes that uses this hook that can trigger this effect:
@@ -44,7 +46,10 @@ export default function useMain(features: Feature[]) {
   }, []);
 
   return {
+    alerts,
+    customBanners: [],
     ctx,
+    dismissAlert,
     status: attempt.status,
     statusText: attempt.statusText,
   };

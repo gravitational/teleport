@@ -51,6 +51,9 @@ export function useDiscover(ctx: TeleportContext, features: Feature[]) {
   }
 
   return {
+    alerts: initState.alerts,
+    customBanners: initState.customBanners,
+    dismissAlert: initState.dismissAlert,
     initAttempt: { status: initState.status, statusText: initState.statusText },
     userMenuItems: ctx.storeNav.getTopMenuItems(),
     username: ctx.storeUser.getUsername(),
