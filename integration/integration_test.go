@@ -1839,9 +1839,9 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	require.NoError(t, err)
 
 	// Wait for both cluster to see each other via reverse tunnels.
-	require.Eventually(t, waitForClusters(a.Tunnel, 2), 10*time.Second, 1*time.Second,
+	require.Eventually(t, helpers.WaitForClusters(a.Tunnel, 2), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
-	require.Eventually(t, waitForClusters(b.Tunnel, 2), 10*time.Second, 1*time.Second,
+	require.Eventually(t, helpers.WaitForClusters(b.Tunnel, 2), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
 	var (
@@ -1898,7 +1898,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	require.True(t, ok)
 
 	// wait for active tunnel connections to be established
-	waitForActiveTunnelConnections(t, b.Tunnel, a.Secrets.SiteName, 1)
+	helpers.WaitForActiveTunnelConnections(t, b.Tunnel, a.Secrets.SiteName, 1)
 
 	// via tunnel b->a:
 	tc, err = b.NewClient(helpers.ClientConfig{
@@ -1998,9 +1998,9 @@ func testTwoClustersProxy(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, a.Start())
 
 	// Wait for both cluster to see each other via reverse tunnels.
-	require.Eventually(t, waitForClusters(a.Tunnel, 1), 10*time.Second, 1*time.Second,
+	require.Eventually(t, helpers.WaitForClusters(a.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
-	require.Eventually(t, waitForClusters(b.Tunnel, 1), 10*time.Second, 1*time.Second,
+	require.Eventually(t, helpers.WaitForClusters(b.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
 	// make sure the reverse tunnel went through the proxy
@@ -2045,9 +2045,9 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 	sshPort, _, _ := a.StartNodeAndProxy(t, "cluster-a-node")
 
 	// Wait for both cluster to see each other via reverse tunnels.
-	require.Eventually(t, waitForClusters(a.Tunnel, 1), 10*time.Second, 1*time.Second,
+	require.Eventually(t, helpers.WaitForClusters(a.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
-	require.Eventually(t, waitForClusters(b.Tunnel, 1), 10*time.Second, 1*time.Second,
+	require.Eventually(t, helpers.WaitForClusters(b.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
 	cmd := []string{"echo", "hello world"}
@@ -2089,9 +2089,9 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, a.Start())
 
 	// Wait for both cluster to see each other via reverse tunnels.
-	require.Eventually(t, waitForClusters(a.Tunnel, 1), 10*time.Second, 1*time.Second,
+	require.Eventually(t, helpers.WaitForClusters(a.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
-	require.Eventually(t, waitForClusters(b.Tunnel, 1), 10*time.Second, 1*time.Second,
+	require.Eventually(t, helpers.WaitForClusters(b.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
 	// try to execute an SSH command using the same old client to site-B
@@ -2182,15 +2182,15 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// try and upsert a trusted cluster
-	tryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
-	waitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
+	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
 	sshPort, _, _ := aux.StartNodeAndProxy(t, "aux-node")
 
 	// Wait for both cluster to see each other via reverse tunnels.
-	require.Eventually(t, waitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
+	require.Eventually(t, helpers.WaitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
-	require.Eventually(t, waitForClusters(aux.Tunnel, 1), 10*time.Second, 1*time.Second,
+	require.Eventually(t, helpers.WaitForClusters(aux.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
 	// Make sure that GetNodes returns nodes in the remote site. This makes
@@ -2321,34 +2321,6 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 	// stop clusters and remaining nodes
 	require.NoError(t, main.StopAll())
 	require.NoError(t, aux.StopAll())
-}
-
-// tryCreateTrustedCluster performs several attempts to create a trusted cluster,
-// retries on connection problems and access denied errors to let caches
-// propagate and services to start
-//
-// Duplicated in tool/tsh/tsh_test.go
-func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster) {
-	ctx := context.TODO()
-	for i := 0; i < 10; i++ {
-		log.Debugf("Will create trusted cluster %v, attempt %v.", trustedCluster, i)
-		_, err := authServer.UpsertTrustedCluster(ctx, trustedCluster)
-		if err == nil {
-			return
-		}
-		if trace.IsConnectionProblem(err) {
-			log.Debugf("Retrying on connection problem: %v.", err)
-			time.Sleep(500 * time.Millisecond)
-			continue
-		}
-		if trace.IsAccessDenied(err) {
-			log.Debugf("Retrying on access denied: %v.", err)
-			time.Sleep(500 * time.Millisecond)
-			continue
-		}
-		require.FailNow(t, "Terminating on unexpected problem", "%v.", err)
-	}
-	require.FailNow(t, "Timeout creating trusted cluster")
 }
 
 // trustedClusterTest is a test setup for trusted clusters tests
@@ -2528,15 +2500,15 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	require.NoError(t, err)
 
 	// try and upsert a trusted cluster
-	tryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
-	waitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
+	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
 	sshPort, _, _ := aux.StartNodeAndProxy(t, "aux-node")
 
 	// Wait for both cluster to see each other via reverse tunnels.
-	require.Eventually(t, waitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
+	require.Eventually(t, helpers.WaitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
-	require.Eventually(t, waitForClusters(aux.Tunnel, 1), 10*time.Second, 1*time.Second,
+	require.Eventually(t, helpers.WaitForClusters(aux.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
 	cmd := []string{"echo", "hello world"}
@@ -2628,7 +2600,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	require.Equal(t, clusterAux, remoteClusters[0].GetName())
 
 	// Wait for both cluster to see each other via reverse tunnels.
-	require.Eventually(t, waitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
+	require.Eventually(t, helpers.WaitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
 	// connection and client should recover and work again
@@ -2647,27 +2619,6 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	// stop clusters and remaining nodes
 	require.NoError(t, main.StopAll())
 	require.NoError(t, aux.StopAll())
-}
-
-func waitForClusters(tun reversetunnel.Server, expected int) func() bool {
-	return func() bool {
-		clusters, err := tun.GetSites()
-		if err != nil {
-			return false
-		}
-
-		// Check the expected number of clusters are connected, and they have all
-		// connected with the past 10 seconds.
-		if len(clusters) >= expected {
-			for _, cluster := range clusters {
-				if time.Since(cluster.GetLastConnected()).Seconds() > 10.0 {
-					return false
-				}
-			}
-		}
-
-		return true
-	}
 }
 
 func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
@@ -2736,8 +2687,8 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// try and upsert a trusted cluster
-	tryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
-	waitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
+	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
 	// Create a Teleport instance with a node that dials back to the aux cluster.
 	tunnelNodeHostname := "cluster-aux-node"
@@ -2760,13 +2711,13 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// Wait for both cluster to see each other via reverse tunnels.
-	require.Eventually(t, waitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
+	require.Eventually(t, helpers.WaitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
-	require.Eventually(t, waitForClusters(aux.Tunnel, 1), 10*time.Second, 1*time.Second,
+	require.Eventually(t, helpers.WaitForClusters(aux.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
 	// Wait for both nodes to show up before attempting to dial to them.
-	err = waitForNodeCount(ctx, main, clusterAux, 2)
+	err = helpers.WaitForNodeCount(ctx, main, clusterAux, 2)
 	require.NoError(t, err)
 
 	cmd := []string{"echo", "hello world"}
@@ -2853,9 +2804,9 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, remote.Start())
 
 	// Wait for both cluster to see each other via reverse tunnels.
-	require.Eventually(t, waitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
+	require.Eventually(t, helpers.WaitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
-	require.Eventually(t, waitForClusters(remote.Tunnel, 1), 10*time.Second, 1*time.Second,
+	require.Eventually(t, helpers.WaitForClusters(remote.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
 	// Helper function for adding a new proxy to "main".
@@ -2916,7 +2867,7 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	// ensure that initial proxy's tunnel has been established
-	waitForActiveTunnelConnections(t, main.Tunnel, "cluster-remote", 1)
+	helpers.WaitForActiveTunnelConnections(t, main.Tunnel, "cluster-remote", 1)
 	// execute the connection via initial proxy; should not fail
 	testProxyConn(nil, false)
 
@@ -2986,12 +2937,13 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, remote.Start())
 
 	// Wait for both cluster to see each other via reverse tunnels.
-	require.Eventually(t, waitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
+	require.Eventually(t, helpers.WaitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
-	require.Eventually(t, waitForClusters(remote.Tunnel, 1), 10*time.Second, 1*time.Second,
+	require.Eventually(t, helpers.WaitForClusters(remote.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
 	// start second proxy
+	// TODO(tcsc): Replace use of deprecated NewPortSlice() with preconfigured listeners
 	nodePorts := helpers.NewPortSlice(3)
 	proxyReverseTunnelPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
 	proxyConfig := helpers.ProxyConfig{
@@ -3009,8 +2961,8 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 
 	// At this point the main cluster should observe two tunnels
 	// connected to it from remote cluster
-	waitForActiveTunnelConnections(t, main.Tunnel, "cluster-remote", 1)
-	waitForActiveTunnelConnections(t, secondProxy, "cluster-remote", 1)
+	helpers.WaitForActiveTunnelConnections(t, main.Tunnel, "cluster-remote", 1)
+	helpers.WaitForActiveTunnelConnections(t, secondProxy, "cluster-remote", 1)
 
 	// execute the connection via first proxy
 	cfg := helpers.ClientConfig{
@@ -3040,7 +2992,7 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 
 	// Now disconnect the main proxy and make sure it will reconnect eventually.
 	require.NoError(t, lb.RemoveBackend(mainProxyAddr))
-	waitForActiveTunnelConnections(t, secondProxy, "cluster-remote", 1)
+	helpers.WaitForActiveTunnelConnections(t, secondProxy, "cluster-remote", 1)
 
 	// Requests going via main proxy should fail.
 	_, err = runCommand(t, main, []string{"echo", "hello world"}, cfg, 1)
@@ -3058,8 +3010,8 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 	lb.AddBackend(mainProxyAddr)
 
 	// Once the proxy is added a matching tunnel connection should be created.
-	waitForActiveTunnelConnections(t, main.Tunnel, "cluster-remote", 1)
-	waitForActiveTunnelConnections(t, secondProxy, "cluster-remote", 1)
+	helpers.WaitForActiveTunnelConnections(t, main.Tunnel, "cluster-remote", 1)
+	helpers.WaitForActiveTunnelConnections(t, secondProxy, "cluster-remote", 1)
 
 	// Requests going via main proxy should succeed.
 	output, err = runCommand(t, main, []string{"echo", "hello world"}, cfg, 40)
@@ -3161,8 +3113,8 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// Wait for active tunnel connections to be established.
-	waitForActiveTunnelConnections(t, main.Tunnel, helpers.Site, 0)
-	waitForActiveTunnelConnections(t, proxyTunnel, helpers.Site, 1)
+	helpers.WaitForActiveTunnelConnections(t, main.Tunnel, helpers.Site, 0)
+	helpers.WaitForActiveTunnelConnections(t, proxyTunnel, helpers.Site, 1)
 
 	// Execute the connection via first proxy.
 	cfg := helpers.ClientConfig{
@@ -3186,8 +3138,8 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 
 	// stop the proxy to collapse the tunnel
 	require.NoError(t, main.StopProxy())
-	waitForActiveTunnelConnections(t, main.Tunnel, helpers.Site, 0)
-	waitForActiveTunnelConnections(t, proxyTunnel, helpers.Site, 0)
+	helpers.WaitForActiveTunnelConnections(t, main.Tunnel, helpers.Site, 0)
+	helpers.WaitForActiveTunnelConnections(t, proxyTunnel, helpers.Site, 0)
 
 	// Requests going via both proxy will fail.
 	_, err = runCommand(t, main, []string{"echo", "hello world"}, cfg, 1)
@@ -3202,8 +3154,8 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 	// start the proxy again and ensure the tunnel is re-established
 	proxyTunnel, err = main.StartProxy(proxyConfig)
 	require.NoError(t, err)
-	waitForActiveTunnelConnections(t, main.Tunnel, helpers.Site, 0)
-	waitForActiveTunnelConnections(t, proxyTunnel, helpers.Site, 1)
+	helpers.WaitForActiveTunnelConnections(t, main.Tunnel, helpers.Site, 0)
+	helpers.WaitForActiveTunnelConnections(t, proxyTunnel, helpers.Site, 1)
 
 	// Requests going to the connected proxy should succeed.
 	_, err = runCommand(t, main, []string{"echo", "hello world"}, cfg, 1)
@@ -3300,8 +3252,8 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	// Wait for active tunnel connections to be established.
-	waitForActiveTunnelConnections(t, main.Tunnel, helpers.Site, 1)
-	waitForActiveTunnelConnections(t, proxyTunnel, helpers.Site, 1)
+	helpers.WaitForActiveTunnelConnections(t, main.Tunnel, helpers.Site, 1)
+	helpers.WaitForActiveTunnelConnections(t, proxyTunnel, helpers.Site, 1)
 
 	// Execute the connection via first proxy.
 	cfg := helpers.ClientConfig{
@@ -3330,7 +3282,7 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 
 	// Remove second proxy from LB.
 	require.NoError(t, lb.RemoveBackend(*proxyTwoBackend))
-	waitForActiveTunnelConnections(t, main.Tunnel, helpers.Site, 1)
+	helpers.WaitForActiveTunnelConnections(t, main.Tunnel, helpers.Site, 1)
 
 	// Requests going via main proxy will succeed. Requests going via second
 	// proxy will fail.
@@ -3342,8 +3294,8 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 
 	// Add second proxy to LB, both should have a connection.
 	lb.AddBackend(*proxyTwoBackend)
-	waitForActiveTunnelConnections(t, main.Tunnel, helpers.Site, 1)
-	waitForActiveTunnelConnections(t, proxyTunnel, helpers.Site, 1)
+	helpers.WaitForActiveTunnelConnections(t, main.Tunnel, helpers.Site, 1)
+	helpers.WaitForActiveTunnelConnections(t, proxyTunnel, helpers.Site, 1)
 
 	// Requests going via both proxies will succeed.
 	output, err = runCommand(t, main, []string{"echo", "hello world"}, cfg, 1)
@@ -3358,100 +3310,6 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	err = main.StopAll()
 	require.NoError(t, err)
-}
-
-// waitForActiveTunnelConnections waits for remote cluster to report a minimum number of active connections
-func waitForActiveTunnelConnections(t *testing.T, tunnel reversetunnel.Server, clusterName string, expectedCount int) {
-	require.Eventually(t, func() bool {
-		cluster, err := tunnel.GetSite(clusterName)
-		if err != nil {
-			return false
-		}
-		return cluster.GetTunnelsCount() >= expectedCount
-	},
-		30*time.Second,
-		time.Second,
-		"Active tunnel connections did not reach %v in the expected time frame", expectedCount,
-	)
-}
-
-// waitForActivePeerProxyConnections waits for remote cluster to report a minimum number of active proxy peer connections
-func waitForActivePeerProxyConnections(t *testing.T, tunnel reversetunnel.Server, expectedCount int) {
-	require.Eventually(t, func() bool {
-		return tunnel.GetProxyPeerClient().GetConnectionsCount() >= expectedCount
-	},
-		30*time.Second,
-		time.Second,
-		"Peer proxy connections did not reach %v in the expected time frame", expectedCount,
-	)
-}
-
-// waitForNodeCount waits for a certain number of nodes to show up in the remote site.
-func waitForNodeCount(ctx context.Context, t *helpers.TeleInstance, clusterName string, count int) error {
-	const (
-		deadline     = time.Second * 30
-		iterWaitTime = time.Second
-	)
-
-	err := utils.RetryStaticFor(deadline, iterWaitTime, func() error {
-		remoteSite, err := t.Tunnel.GetSite(clusterName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		accessPoint, err := remoteSite.CachingAccessPoint()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		nodes, err := accessPoint.GetNodes(ctx, defaults.Namespace)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if len(nodes) == count {
-			return nil
-		}
-		return trace.BadParameter("did not find %v nodes", count)
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// waitForTunnelConnections waits for remote tunnels connections
-func waitForTunnelConnections(t *testing.T, authServer *auth.Server, clusterName string, expectedCount int) {
-	var conns []types.TunnelConnection
-	for i := 0; i < 30; i++ {
-		// to speed things up a bit, bypass the auth cache
-		conns, err := authServer.Services.GetTunnelConnections(clusterName)
-		require.NoError(t, err)
-		if len(conns) == expectedCount {
-			return
-		}
-		time.Sleep(1 * time.Second)
-	}
-	require.Len(t, conns, expectedCount)
-}
-
-// waitAppServerTunnel waits for application server tunnel connections.
-func waitAppServerTunnel(t *testing.T, tunnel reversetunnel.Server, clusterName, serverUUID string) {
-	t.Helper()
-	cluster, err := tunnel.GetSite(clusterName)
-	require.NoError(t, err)
-
-	require.Eventually(t, func() bool {
-		conn, err := cluster.Dial(reversetunnel.DialParams{
-			From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: "@web-proxy"},
-			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
-			ServerID: fmt.Sprintf("%v.%v", serverUUID, clusterName),
-			ConnType: types.AppTunnel,
-		})
-		if err != nil {
-			return false
-		}
-
-		require.NoError(t, conn.Close())
-		return true
-	}, 10*time.Second, time.Second)
 }
 
 // TestExternalClient tests if we can connect to a node in a Teleport
@@ -4406,8 +4264,8 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
-	tryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
-	waitForTunnelConnections(t, svc.GetAuthServer(), aux.Secrets.SiteName, 1)
+	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	helpers.WaitForTunnelConnections(t, svc.GetAuthServer(), aux.Secrets.SiteName, 1)
 
 	// capture credentials before reload has started to simulate old client
 	initialCreds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
@@ -6364,8 +6222,8 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 	t.Cleanup(func() { leaf.StopAll() })
 
 	require.NoError(t, trustedCluster.CheckAndSetDefaults())
-	tryCreateTrustedCluster(t, leaf.Process.GetAuthServer(), trustedCluster)
-	waitForTunnelConnections(t, root.Process.GetAuthServer(), leafName, 1)
+	helpers.TryCreateTrustedCluster(t, leaf.Process.GetAuthServer(), trustedCluster)
+	helpers.WaitForTunnelConnections(t, root.Process.GetAuthServer(), leafName, 1)
 
 	_, _, rootProxySSHPort := root.StartNodeAndProxy(t, "root-zero")
 	_, _, _ = leaf.StartNodeAndProxy(t, "leaf-zero")
@@ -6375,8 +6233,8 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 		extraServices(t, root, leaf)
 	}
 
-	require.Eventually(t, waitForClusters(root.Tunnel, 1), 10*time.Second, 1*time.Second)
-	require.Eventually(t, waitForClusters(leaf.Tunnel, 1), 10*time.Second, 1*time.Second)
+	require.Eventually(t, helpers.WaitForClusters(root.Tunnel, 1), 10*time.Second, 1*time.Second)
+	require.Eventually(t, helpers.WaitForClusters(leaf.Tunnel, 1), 10*time.Second, 1*time.Second)
 
 	// Create client.
 	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{

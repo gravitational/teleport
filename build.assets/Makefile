@@ -26,7 +26,7 @@ BUILDBOX_VERSION ?= teleport11
 # NOTE: Windows Drone scripts hardcode $GOLANG_VERSION rather than drawing it
 #       from here at build time, so any changes here must be reflected in
 #       `dronegen/windows.go`
-GOLANG_VERSION ?= go1.18.3
+GOLANG_VERSION ?= go1.18.6
 
 # NOTE: Windows Drone scripts hardcode $NODE_VERSION rather than drawing it
 #       from here at build time, so any changes here must be reflected in
