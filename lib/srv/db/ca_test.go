@@ -72,6 +72,15 @@ func TestInitCACert(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	memoryDB, err := types.NewDatabaseV3(types.Metadata{
+		Name: "memorydb",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolRedis,
+		URI:      "localhost:5432",
+		AWS:      types.AWS{Region: "us-east-1", MemoryDB: types.MemoryDB{ClusterName: "cluster"}},
+	})
+	require.NoError(t, err)
+
 	cloudSQL, err := types.NewDatabaseV3(types.Metadata{
 		Name: "cloud-sql",
 	}, types.DatabaseSpecV3{
@@ -91,7 +100,7 @@ func TestInitCACert(t *testing.T) {
 	require.NoError(t, err)
 
 	allDatabases := []types.Database{
-		selfHosted, rds, rdsWithCert, redshift, cloudSQL, azureMySQL,
+		selfHosted, rds, rdsWithCert, redshift, cloudSQL, azureMySQL, memoryDB,
 	}
 
 	tests := []struct {
@@ -117,6 +126,11 @@ func TestInitCACert(t *testing.T) {
 		{
 			desc:     "should download Redshift CA when it's not set",
 			database: redshift.GetName(),
+			cert:     fixtures.TLSCACertPEM,
+		},
+		{
+			desc:     "should download MemoryDB CA when it's not set",
+			database: memoryDB.GetName(),
 			cert:     fixtures.TLSCACertPEM,
 		},
 		{
@@ -206,7 +220,7 @@ func setupPostgres(ctx context.Context, t *testing.T, cfg *setupTLSTestCfg) *tes
 	testCtx.createUserAndRole(ctx, t, "bob", "admin", []string{types.Wildcard}, []string{types.Wildcard})
 
 	if cfg.injectValidCA {
-		cfg.caCert = string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert)
+		cfg.caCert = string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert)
 	}
 
 	postgresServer, err := postgres.NewTestServer(common.TestServerConfig{
@@ -252,7 +266,7 @@ func setupMySQL(ctx context.Context, t *testing.T, cfg *setupTLSTestCfg) *testCo
 	testCtx.createUserAndRole(ctx, t, "bob", "admin", []string{types.Wildcard}, []string{types.Wildcard})
 
 	if cfg.injectValidCA {
-		cfg.caCert = string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert)
+		cfg.caCert = string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert)
 	}
 
 	mysqlServer, err := mysql.NewTestServer(common.TestServerConfig{
@@ -297,7 +311,7 @@ func setupMongo(ctx context.Context, t *testing.T, cfg *setupTLSTestCfg) *testCo
 	testCtx.createUserAndRole(ctx, t, "bob", "admin", []string{types.Wildcard}, []string{types.Wildcard})
 
 	if cfg.injectValidCA {
-		cfg.caCert = string(testCtx.hostCA.GetActiveKeys().TLS[0].Cert)
+		cfg.caCert = string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert)
 	}
 
 	mongoServer, err := mongodb.NewTestServer(common.TestServerConfig{

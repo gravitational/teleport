@@ -26,13 +26,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/artifacts"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/changes"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/etcd"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/git"
 	"github.com/gravitational/teleport/.cloudbuild/scripts/internal/secrets"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -80,14 +81,13 @@ func innerMain() error {
 	moduleCacheDir := filepath.Join(os.TempDir(), gomodcacheDir)
 	gomodcache := fmt.Sprintf("GOMODCACHE=%s", moduleCacheDir)
 
-	log.Println("Analysing code changes")
+	log.Println("Analyzing code changes")
 	ch, err := changes.Analyze(args.workspace, args.targetBranch, args.commitSHA)
 	if err != nil {
 		return trace.Wrap(err, "Failed analyzing code")
 	}
 
-	hasOnlyDocChanges := ch.Docs && (!ch.Code)
-	if hasOnlyDocChanges {
+	if !ch.Code {
 		log.Println("No code changes detected. Skipping tests.")
 		return nil
 	}

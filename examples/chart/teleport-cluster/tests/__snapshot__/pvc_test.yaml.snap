@@ -1,3 +1,18 @@
+creates a PersistentVolumeClaim when chartMode=custom:
+  1: |
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Gi
 creates a PersistentVolumeClaim when chartMode=standalone:
   1: |
     apiVersion: v1
@@ -13,6 +28,21 @@ creates a PersistentVolumeClaim when chartMode=standalone:
       resources:
         requests:
           storage: 10Gi
+creates a PersistentVolumeClaim with values from custom-customsize.yaml:
+  1: |
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 50Gi
 creates a PersistentVolumeClaim with values from standalone-customsize.yaml:
   1: |
     apiVersion: v1

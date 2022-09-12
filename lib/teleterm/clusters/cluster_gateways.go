@@ -29,8 +29,13 @@ type CreateGatewayParams struct {
 	TargetURI string
 	// TargetUser is the target user name
 	TargetUser string
+	// TargetSubresourceName points at a subresource of the remote resource, for example a database
+	// name on a database server.
+	TargetSubresourceName string
 	// LocalPort is the gateway local port
-	LocalPort string
+	LocalPort          string
+	CLICommandProvider gateway.CLICommandProvider
+	TCPPortAllocator   gateway.TCPPortAllocator
 }
 
 // CreateGateway creates a gateway
@@ -45,17 +50,19 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 	}
 
 	gw, err := gateway.New(gateway.Config{
-		LocalPort:    params.LocalPort,
-		TargetURI:    params.TargetURI,
-		TargetUser:   params.TargetUser,
-		TargetName:   db.GetName(),
-		Protocol:     db.GetProtocol(),
-		KeyPath:      c.status.KeyPath(),
-		CACertPath:   c.status.CACertPathForCluster(c.Name),
-		CertPath:     c.status.DatabaseCertPathForCluster("", db.GetName()),
-		Insecure:     c.clusterClient.InsecureSkipVerify,
-		WebProxyAddr: c.clusterClient.WebProxyAddr,
-		Log:          c.Log.WithField("gateway", params.TargetURI),
+		LocalPort:             params.LocalPort,
+		TargetURI:             params.TargetURI,
+		TargetUser:            params.TargetUser,
+		TargetName:            db.GetName(),
+		TargetSubresourceName: params.TargetSubresourceName,
+		Protocol:              db.GetProtocol(),
+		KeyPath:               c.status.KeyPath(),
+		CertPath:              c.status.DatabaseCertPathForCluster(c.clusterClient.SiteName, db.GetName()),
+		Insecure:              c.clusterClient.InsecureSkipVerify,
+		WebProxyAddr:          c.clusterClient.WebProxyAddr,
+		Log:                   c.Log.WithField("gateway", params.TargetURI),
+		CLICommandProvider:    params.CLICommandProvider,
+		TCPPortAllocator:      params.TCPPortAllocator,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -23,12 +23,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/utils/prompt"
 )
 
 // promptWebauthn provides indirection for tests.
@@ -48,21 +48,65 @@ func (p *mfaPrompt) PromptPIN() (string, error) {
 	return p.LoginPrompt.PromptPIN()
 }
 
+// PromptMFAChallengeOpts groups optional settings for PromptMFAChallenge.
+type PromptMFAChallengeOpts struct {
+	// PromptDevicePrefix is an optional prefix printed before "security key" or
+	// "device". It is used to emphasize between different kinds of devices, like
+	// registered vs new.
+	PromptDevicePrefix string
+	// Quiet suppresses users prompts.
+	Quiet bool
+	// AllowStdinHijack allows stdin hijack during MFA prompts.
+	// Stdin hijack provides a better login UX, but it can be difficult to reason
+	// about and is often a source of bugs.
+	// Do not set this options unless you deeply understand what you are doing.
+	// If false then only the strongest auth method is prompted.
+	AllowStdinHijack bool
+	// AuthenticatorAttachment specifies the desired authenticator attachment.
+	AuthenticatorAttachment wancli.AuthenticatorAttachment
+	// PreferOTP favors OTP challenges, if applicable.
+	// Takes precedence over AuthenticatorAttachment settings.
+	PreferOTP bool
+}
+
+// promptMFAStandalone is used to mock PromptMFAChallenge for tests.
+var promptMFAStandalone = PromptMFAChallenge
+
 // PromptMFAChallenge prompts the user to complete MFA authentication
 // challenges.
-// If promptDevicePrefix is set, it will be printed in prompts before "security
-// key" or "device". This is used to emphasize between different kinds of
-// devices, like registered vs new.
-// PromptMFAChallenge makes an attempt to read OTPs from prompt.Stdin and
-// abandons the read if the user chooses WebAuthn instead. For this reason
-// callers must use prompt.Stdin exclusively after calling this function.
-func PromptMFAChallenge(
-	ctx context.Context,
-	proxyAddr string, c *proto.MFAAuthenticateChallenge, promptDevicePrefix string, quiet bool) (*proto.MFAAuthenticateResponse, error) {
+// If proxyAddr is empty, the TeleportClient.WebProxyAddr is used.
+// See client.PromptMFAChallenge.
+func (tc *TeleportClient) PromptMFAChallenge(
+	ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge,
+	applyOpts func(opts *PromptMFAChallengeOpts)) (*proto.MFAAuthenticateResponse, error) {
+	addr := proxyAddr
+	if addr == "" {
+		addr = tc.WebProxyAddr
+	}
+
+	opts := &PromptMFAChallengeOpts{
+		AuthenticatorAttachment: tc.AuthenticatorAttachment,
+		PreferOTP:               tc.PreferOTP,
+	}
+	if applyOpts != nil {
+		applyOpts(opts)
+	}
+
+	return promptMFAStandalone(ctx, c, addr, opts)
+}
+
+// PromptMFAChallenge prompts the user to complete MFA authentication
+// challenges.
+func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, proxyAddr string, opts *PromptMFAChallengeOpts) (*proto.MFAAuthenticateResponse, error) {
 	// Is there a challenge present?
 	if c.TOTP == nil && c.WebauthnChallenge == nil {
 		return &proto.MFAAuthenticateResponse{}, nil
 	}
+	if opts == nil {
+		opts = &PromptMFAChallengeOpts{}
+	}
+	promptDevicePrefix := opts.PromptDevicePrefix
+	quiet := opts.Quiet
 
 	hasTOTP := c.TOTP != nil
 	hasWebauthn := c.WebauthnChallenge != nil
@@ -74,6 +118,18 @@ func PromptMFAChallenge(
 	case !wancli.HasPlatformSupport():
 		// Do not prompt for hardware devices, it won't work.
 		hasWebauthn = false
+	}
+
+	// Tweak enabled/disabled methods according to opts.
+	switch {
+	case hasTOTP && opts.PreferOTP:
+		hasWebauthn = false
+	case hasWebauthn && opts.AuthenticatorAttachment != wancli.AttachmentAuto:
+		// Prefer Webauthn if an specific attachment was requested.
+		hasTOTP = false
+	case hasWebauthn && !opts.AllowStdinHijack:
+		// Use strongest auth if hijack is not allowed.
+		hasTOTP = false
 	}
 
 	var numGoroutines int
@@ -112,13 +168,11 @@ func PromptMFAChallenge(
 			defer otpWait.Done()
 			defer wg.Done()
 			const kind = "TOTP"
+
+			// Let Webauthn take the prompt, it knows better if it's necessary.
 			var msg string
-			if !quiet {
-				if hasWebauthn {
-					msg = fmt.Sprintf("Tap any %[1]ssecurity key or enter a code from a %[1]sOTP device", promptDevicePrefix, promptDevicePrefix)
-				} else {
-					msg = fmt.Sprintf("Enter an OTP code from a %sdevice", promptDevicePrefix)
-				}
+			if !quiet && !hasWebauthn {
+				msg = fmt.Sprintf("Enter an OTP code from a %sdevice", promptDevicePrefix)
 			}
 
 			otp, err := prompt.Password(otpCtx, os.Stderr, prompt.Stdin(), msg)
@@ -135,8 +189,6 @@ func PromptMFAChallenge(
 				},
 			}
 		}()
-	} else if !quiet {
-		fmt.Fprintf(os.Stderr, "Tap any %ssecurity key\n", promptDevicePrefix)
 	}
 
 	// Fire Webauthn goroutine.
@@ -151,16 +203,24 @@ func PromptMFAChallenge(
 			log.Debugf("WebAuthn: prompting devices with origin %q", origin)
 
 			prompt := wancli.NewDefaultPrompt(ctx, os.Stderr)
-			prompt.FirstTouchMessage = "" // First prompt printed above.
 			prompt.SecondTouchMessage = fmt.Sprintf("Tap your %ssecurity key to complete login", promptDevicePrefix)
+			switch {
+			case quiet:
+				// Do not prompt.
+				prompt.FirstTouchMessage = ""
+				prompt.SecondTouchMessage = ""
+			case hasTOTP: // Webauthn + OTP
+				prompt.FirstTouchMessage = fmt.Sprintf("Tap any %ssecurity key or enter a code from a %sOTP device", promptDevicePrefix, promptDevicePrefix)
+			default: // Webauthn only
+				prompt.FirstTouchMessage = fmt.Sprintf("Tap any %ssecurity key", promptDevicePrefix)
+			}
 			mfaPrompt := &mfaPrompt{LoginPrompt: prompt, otpCancelAndWait: func() {
 				otpCancel()
 				otpWait.Wait()
 			}}
 
-			const user = ""
 			resp, _, err := promptWebauthn(ctx, origin, wanlib.CredentialAssertionFromProto(c.WebauthnChallenge), mfaPrompt, &wancli.LoginOpts{
-				User: user,
+				AuthenticatorAttachment: opts.AuthenticatorAttachment,
 			})
 			respC <- response{kind: "WEBAUTHN", resp: resp, err: err}
 		}()

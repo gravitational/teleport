@@ -117,7 +117,6 @@ func TestChaosUpload(t *testing.T) {
 
 	scanPeriod := 10 * time.Second
 	uploader, err := NewUploader(UploaderConfig{
-		Context:    ctx,
 		ScanDir:    scanDir,
 		ScanPeriod: scanPeriod,
 		Streamer:   faultyStreamer,
@@ -125,7 +124,7 @@ func TestChaosUpload(t *testing.T) {
 		AuditLog:   &events.DiscardAuditLog{},
 	})
 	require.NoError(t, err)
-	go uploader.Serve()
+	go uploader.Serve(ctx)
 	// wait until uploader blocks on the clock
 	clock.BlockUntil(1)
 
@@ -173,11 +172,7 @@ func TestChaosUpload(t *testing.T) {
 	scansCh := make(chan error, parallelStreams)
 	for i := 0; i < parallelStreams; i++ {
 		go func() {
-			if err := uploader.uploadCompleter.CheckUploads(ctx); err != nil {
-				scansCh <- trace.Wrap(err)
-				return
-			}
-			_, err := uploader.Scan()
+			_, err := uploader.Scan(ctx)
 			scansCh <- trace.Wrap(err)
 		}()
 	}
@@ -206,7 +201,7 @@ func TestChaosUpload(t *testing.T) {
 
 	for i := 0; i < parallelStreams; i++ {
 		// do scans to catch remaining uploads
-		_, err = uploader.Scan()
+		_, err = uploader.Scan(ctx)
 		require.NoError(t, err)
 
 		// wait for the upload events

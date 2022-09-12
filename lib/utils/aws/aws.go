@@ -22,6 +22,7 @@ import (
 	"io"
 	"net/http"
 	"net/textproto"
+	"sort"
 	"strings"
 	"time"
 
@@ -159,6 +160,17 @@ func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials)
 	if err != nil {
 		return trace.BadParameter(err.Error())
 	}
+
+	// Verifies the request is signed by the expected access key ID.
+	credValue, err := credentials.Get()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if sigV4.KeyID != credValue.AccessKeyID {
+		return trace.AccessDenied("AccessKeyID does not match")
+	}
+
 	// Read the request body and replace the body ready with a new reader that will allow reading the body again
 	// by HTTP Transport.
 	payload, err := GetAndReplaceReqBody(req)
@@ -178,7 +190,7 @@ func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials)
 		return trace.BadParameter(err.Error())
 	}
 
-	signer := v4.NewSigner(credentials)
+	signer := NewSigner(credentials, sigV4.Service)
 	_, err = signer.Sign(reqCopy, bytes.NewReader(payload), sigV4.Service, sigV4.Region, t)
 	if err != nil {
 		return trace.Wrap(err)
@@ -195,6 +207,20 @@ func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials)
 		return trace.AccessDenied("signature verification failed")
 	}
 	return nil
+}
+
+// NewSigner creates a new V4 signer.
+func NewSigner(credentials *credentials.Credentials, signingServiceName string) *v4.Signer {
+	options := func(s *v4.Signer) {
+		// s3 and s3control requests are signed with URL unescaped (found by
+		// searching "DisableURIPathEscaping" in "aws-sdk-go/service"). Both
+		// services use "s3" as signing name. See description of
+		// "DisableURIPathEscaping" for more details.
+		if signingServiceName == "s3" {
+			s.DisableURIPathEscaping = true
+		}
+	}
+	return v4.NewSigner(credentials, options)
 }
 
 // filterHeaders removes request headers that are not in the headers list.
@@ -214,7 +240,7 @@ func filterHeaders(r *http.Request, headers []string) {
 // specified AWS account ID.
 //
 // If AWS account ID is empty, all roles are returned.
-func FilterAWSRoles(arns []string, accountID string) (result []Role) {
+func FilterAWSRoles(arns []string, accountID string) (result Roles) {
 	for _, roleARN := range arns {
 		parsed, err := arn.Parse(roleARN)
 		if err != nil || (accountID != "" && parsed.AccountID != accountID) {
@@ -233,6 +259,7 @@ func FilterAWSRoles(arns []string, accountID string) (result []Role) {
 			continue
 		}
 		result = append(result, Role{
+			Name:    strings.Join(parts[1:], "/"),
 			Display: parts[numParts-1],
 			ARN:     roleARN,
 		})
@@ -242,8 +269,41 @@ func FilterAWSRoles(arns []string, accountID string) (result []Role) {
 
 // Role describes an AWS IAM role for AWS console access.
 type Role struct {
+	// Name is the full role name with the entire path.
+	Name string `json:"name"`
 	// Display is the role display name.
 	Display string `json:"display"`
 	// ARN is the full role ARN.
 	ARN string `json:"arn"`
+}
+
+// Roles is a slice of roles.
+type Roles []Role
+
+// Sort sorts the roles by their display names.
+func (roles Roles) Sort() {
+	sort.SliceStable(roles, func(x, y int) bool {
+		return strings.ToLower(roles[x].Display) < strings.ToLower(roles[y].Display)
+	})
+}
+
+// FindRoleByARN finds the role with the provided ARN.
+func (roles Roles) FindRoleByARN(arn string) (Role, bool) {
+	for _, role := range roles {
+		if role.ARN == arn {
+			return role, true
+		}
+	}
+	return Role{}, false
+}
+
+// FindRolesByName finds all roles matching the provided name.
+func (roles Roles) FindRolesByName(name string) (result Roles) {
+	for _, role := range roles {
+		// Match either full name or the display name.
+		if role.Display == name || role.Name == name {
+			result = append(result, role)
+		}
+	}
+	return
 }

@@ -22,8 +22,13 @@ import (
 	"net"
 	"time"
 
+	oteltrace "go.opentelemetry.io/otel/trace"
+
+	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/observability/tracing"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 
 	"github.com/gravitational/trace"
@@ -52,13 +57,33 @@ func newDirectDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 	}
 }
 
+// tracedDialer ensures that the provided ContextDialerFunc is given a context
+// which contains tracing information. In the event that a grpc dial occurs without
+// a grpc.WithBlock dialing option, the context provided to the dial function will
+// be context.Background(), which doesn't contain any tracing information. To get around
+// this limitation, any tracing context from the provided context.Context will be extracted
+// and used instead.
+func tracedDialer(ctx context.Context, fn ContextDialerFunc) ContextDialerFunc {
+	return func(dialCtx context.Context, network, addr string) (net.Conn, error) {
+		traceCtx := dialCtx
+		if spanCtx := oteltrace.SpanContextFromContext(dialCtx); !spanCtx.IsValid() {
+			traceCtx = oteltrace.ContextWithSpanContext(traceCtx, oteltrace.SpanContextFromContext(ctx))
+		}
+
+		traceCtx, span := tracing.DefaultProvider().Tracer("dialer").Start(traceCtx, "client/DirectDial")
+		defer span.End()
+
+		return fn(traceCtx, network, addr)
+	}
+}
+
 // NewDialer makes a new dialer that connects to an Auth server either directly or via an HTTP proxy, depending
 // on the environment.
-func NewDialer(keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
-	return ContextDialerFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
+func NewDialer(ctx context.Context, keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
+	return tracedDialer(ctx, func(ctx context.Context, network, addr string) (net.Conn, error) {
 		dialer := newDirectDialer(keepAlivePeriod, dialTimeout)
-		if proxyAddr := GetProxyAddress(addr); proxyAddr != "" {
-			return DialProxyWithDialer(ctx, proxyAddr, addr, dialer)
+		if proxyURL := proxy.GetProxyURL(addr); proxyURL != nil {
+			return DialProxyWithDialer(ctx, proxyURL, addr, dialer)
 		}
 		return dialer.DialContext(ctx, network, addr)
 	})
@@ -92,7 +117,7 @@ func newTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Dur
 			return nil, trace.Wrap(err)
 		}
 
-		sconn, err := sshConnect(conn, ssh, dialTimeout, addr)
+		sconn, err := sshConnect(ctx, conn, ssh, dialTimeout, addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -119,7 +144,7 @@ func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeou
 
 		}
 
-		host, err := webclient.ExtractHost(tunnelAddr)
+		host, _, err := webclient.ParseHostPort(tunnelAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -132,7 +157,7 @@ func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeou
 			return nil, trace.Wrap(err)
 		}
 
-		sconn, err := sshConnect(tlsConn, ssh, dialTimeout, tunnelAddr)
+		sconn, err := sshConnect(ctx, tlsConn, ssh, dialTimeout, tunnelAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -141,9 +166,9 @@ func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeou
 }
 
 // sshConnect upgrades the underling connection to ssh and connects to the Auth service.
-func sshConnect(conn net.Conn, ssh ssh.ClientConfig, dialTimeout time.Duration, addr string) (net.Conn, error) {
+func sshConnect(ctx context.Context, conn net.Conn, ssh ssh.ClientConfig, dialTimeout time.Duration, addr string) (net.Conn, error) {
 	ssh.Timeout = dialTimeout
-	sconn, err := sshutils.NewClientConnWithDeadline(conn, addr, &ssh)
+	sconn, err := tracessh.NewClientConnWithDeadline(ctx, conn, addr, &ssh)
 	if err != nil {
 		return nil, trace.NewAggregate(err, conn.Close())
 	}

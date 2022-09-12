@@ -26,27 +26,26 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/gorilla/websocket"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/unicode"
 
 	"github.com/gravitational/teleport"
 	authproto "github.com/gravitational/teleport/api/client/proto"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
-	"github.com/gogo/protobuf/proto"
-	"github.com/gorilla/websocket"
-	"github.com/sirupsen/logrus"
 )
 
 // TerminalRequest describes a request to create a web-based terminal
@@ -77,13 +76,16 @@ type TerminalRequest struct {
 	InteractiveCommand []string `json:"-"`
 
 	// KeepAliveInterval is the interval for sending ping frames to web client.
+	// This value is pulled from the cluster network config and
+	// guaranteed to be set to a nonzero value as it's enforced by the configuration.
 	KeepAliveInterval time.Duration
 }
 
 // AuthProvider is a subset of the full Auth API.
 type AuthProvider interface {
-	GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]events.EventFields, error)
+	GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error)
 }
 
 // NewTerminal creates a web-based terminal based on WebSockets and returns a
@@ -116,6 +118,17 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		return nil, trace.BadParameter("invalid server name %q: %v", req.Server, err)
 	}
 
+	var join bool
+	_, err = authProvider.GetSessionTracker(ctx, string(req.SessionID))
+	switch {
+	case trace.IsNotFound(err):
+		join = false
+	case err != nil:
+		return nil, trace.Wrap(err)
+	default:
+		join = true
+	}
+
 	return &TerminalHandler{
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentWebsocket,
@@ -129,6 +142,7 @@ func NewTerminal(ctx context.Context, req TerminalRequest, authProvider AuthProv
 		encoder:      unicode.UTF8.NewEncoder(),
 		decoder:      unicode.UTF8.NewDecoder(),
 		wsLock:       &sync.Mutex{},
+		join:         join,
 	}, nil
 }
 
@@ -154,7 +168,7 @@ type TerminalHandler struct {
 	hostUUID string
 
 	// sshSession holds the "shell" SSH channel to the node.
-	sshSession *ssh.Session
+	sshSession *tracessh.Session
 
 	// terminalContext is used to signal when the terminal sesson is closing.
 	terminalContext context.Context
@@ -178,6 +192,9 @@ type TerminalHandler struct {
 	closeOnce sync.Once
 
 	wsLock *sync.Mutex
+
+	// join is set if we're joining an existing session
+	join bool
 }
 
 // Serve builds a connect to the remote node and then pumps back two types of
@@ -203,6 +220,7 @@ func (t *TerminalHandler) Serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ws.SetReadDeadline(deadlineForInterval(t.params.KeepAliveInterval))
 	t.handler(ws, r)
 }
 
@@ -219,6 +237,33 @@ func (t *TerminalHandler) Close() error {
 		t.terminalCancel()
 	})
 	return nil
+}
+
+// startPingLoop starts a loop that will continuously send a ping frame through the websocket
+// to prevent the connection between web client and teleport proxy from becoming idle.
+// Interval is determined by the keep_alive_interval config set by user (or default).
+// Loop will terminate when there is an error sending ping frame or when terminal session is closed.
+func (t *TerminalHandler) startPingLoop(ws *websocket.Conn) {
+	t.log.Debugf("Starting websocket ping loop with interval %v.", t.params.KeepAliveInterval)
+	tickerCh := time.NewTicker(t.params.KeepAliveInterval)
+	defer tickerCh.Stop()
+
+	for {
+		select {
+		case <-tickerCh.C:
+			// A short deadline is used here to detect a broken connection quickly.
+			// If this is just a temporary issue, we will retry shortly anyway.
+			deadline := time.Now().Add(time.Second)
+			if err := ws.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
+				t.log.Errorf("Unable to send ping frame to web client: %v.", err)
+				t.Close()
+				return
+			}
+		case <-t.terminalContext.Done():
+			t.log.Debug("Terminating websocket ping loop.")
+			return
+		}
+	}
 }
 
 // handler is the main websocket loop. It creates a Teleport client and then
@@ -244,6 +289,15 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 
 	t.log.Debugf("Creating websocket stream for %v.", t.params.SessionID)
 
+	// Update the read deadline upon receiving a pong message.
+	ws.SetPongHandler(func(_ string) error {
+		ws.SetReadDeadline(deadlineForInterval(t.params.KeepAliveInterval))
+		return nil
+	})
+
+	// Start sending ping frames through websocket to client.
+	go t.startPingLoop(ws)
+
 	// Pump raw terminal in/out and audit events into the websocket.
 	go t.streamTerminal(ws, tc)
 	go t.streamEvents(ws, tc)
@@ -264,8 +318,13 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*clie
 	// communicate over the websocket.
 	stream := t.asTerminalStream(ws)
 
+	if t.join {
+		clientConfig.HostLogin = teleport.SSHSessionJoinPrincipal
+	} else {
+		clientConfig.HostLogin = t.params.Login
+	}
+
 	clientConfig.ForwardAgent = client.ForwardAgentLocal
-	clientConfig.HostLogin = t.params.Login
 	clientConfig.Namespace = t.params.Namespace
 	clientConfig.Stdout = stream
 	clientConfig.Stderr = stream
@@ -291,9 +350,9 @@ func (t *TerminalHandler) makeClient(ws *websocket.Conn, r *http.Request) (*clie
 	// Save the *ssh.Session after the shell has been created. The session is
 	// used to update all other parties window size to that of the web client and
 	// to allow future window changes.
-	tc.OnShellCreated = func(s *ssh.Session, c *ssh.Client, _ io.ReadWriteCloser) (bool, error) {
+	tc.OnShellCreated = func(s *tracessh.Session, c *tracessh.Client, _ io.ReadWriteCloser) (bool, error) {
 		t.sshSession = s
-		t.windowChange(&t.params.Term)
+		t.windowChange(r.Context(), &t.params.Term)
 
 		return false, nil
 	}
@@ -312,7 +371,7 @@ func (t *TerminalHandler) issueSessionMFACerts(tc *client.TeleportClient, ws *we
 	}
 	defer pc.Close()
 
-	priv, err := ssh.ParsePrivateKey(t.ctx.session.GetPriv())
+	pk, err := keys.ParsePrivateKey(t.ctx.session.GetPriv())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -321,10 +380,9 @@ func (t *TerminalHandler) issueSessionMFACerts(tc *client.TeleportClient, ws *we
 		RouteToCluster: t.params.Cluster,
 		NodeName:       t.params.Server,
 		ExistingCreds: &client.Key{
-			Pub:     ssh.MarshalAuthorizedKey(priv.PublicKey()),
-			Priv:    t.ctx.session.GetPriv(),
-			Cert:    t.ctx.session.GetPub(),
-			TLSCert: t.ctx.session.GetTLSCert(),
+			PrivateKey: pk,
+			Cert:       t.ctx.session.GetPub(),
+			TLSCert:    t.ctx.session.GetTLSCert(),
 		},
 	}, promptMFAChallenge(ws, t.wsLock, protobufMFACodec{}))
 	if err != nil {
@@ -489,19 +547,12 @@ func (t *TerminalHandler) streamEvents(ws *websocket.Conn, tc *client.TeleportCl
 
 // windowChange is called when the browser window is resized. It sends a
 // "window-change" channel request to the server.
-func (t *TerminalHandler) windowChange(params *session.TerminalParams) {
+func (t *TerminalHandler) windowChange(ctx context.Context, params *session.TerminalParams) {
 	if t.sshSession == nil {
 		return
 	}
 
-	_, err := t.sshSession.SendRequest(
-		sshutils.WindowChangeRequest,
-		false,
-		ssh.Marshal(sshutils.WinChangeReqParams{
-			W: uint32(params.W),
-			H: uint32(params.H),
-		}))
-	if err != nil {
+	if err := t.sshSession.WindowChange(ctx, params.H, params.W); err != nil {
 		t.log.Error(err)
 	}
 }
@@ -643,7 +694,7 @@ func (t *TerminalHandler) read(out []byte, ws *websocket.Conn) (n int, err error
 
 		// Send the window change request in a goroutine so reads are not blocked
 		// by network connectivity issues.
-		go t.windowChange(params)
+		go t.windowChange(context.TODO(), params)
 
 		return 0, nil
 	default:
@@ -674,12 +725,14 @@ func (w *terminalStream) Read(out []byte) (n int, err error) {
 	return w.terminal.read(out, w.ws)
 }
 
-// SetReadDeadline sets the network read deadline on the underlying websocket.
-func (w *terminalStream) SetReadDeadline(t time.Time) error {
-	return w.ws.SetReadDeadline(t)
-}
-
 // Close the websocket.
 func (w *terminalStream) Close() error {
 	return w.ws.Close()
+}
+
+// deadlineForInterval returns a suitable network read deadline for a given ping interval.
+// We chose to take the current time plus twice the interval to allow the timeframe of one interval
+// to wait for a returned pong message.
+func deadlineForInterval(interval time.Duration) time.Time {
+	return time.Now().Add(interval * 2)
 }

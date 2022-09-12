@@ -51,6 +51,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ssooidc"
 	"github.com/aws/aws-sdk-go/service/timestreamquery"
 
+	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 
 	"github.com/gravitational/trace"
@@ -63,6 +64,16 @@ func resolveEndpoint(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
 	awsAuthHeader, err := awsutils.ParseSigV4(r.Header.Get(awsutils.AuthorizationHeader))
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Use X-Forwarded-Host header if it is a valid AWS endpoint.
+	forwardedHost := r.Header.Get("X-Forwarded-Host")
+	if awsapiutils.IsAWSEndpoint(forwardedHost) {
+		return &endpoints.ResolvedEndpoint{
+			URL:           "https://" + forwardedHost,
+			SigningRegion: awsAuthHeader.Region,
+			SigningName:   awsAuthHeader.Service,
+		}, nil
 	}
 
 	// aws-sdk-go maintains a mapping of service endpoints which can be looked

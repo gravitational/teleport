@@ -63,11 +63,11 @@ tests:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
-            - matchExpressions:
-              - key: gravitational.io/dedicated
-                operator: In
-                values:
-                - teleport
+              - matchExpressions:
+                  - key: gravitational.io/dedicated
+                    operator: In
+                    values:
+                      - teleport
     asserts:
       - isNotNull:
           path: spec.template.spec.affinity
@@ -115,6 +115,40 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  - it: should set securityContext when set in values
+    values:
+      - ../.lint/security-context.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.privileged
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsGroup
+          value: 99
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 99
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should not set securityContext when is empty object (default value)
+    values:
+      - ../.lint/security-context-empty.yaml
+    asserts:
+      - isNull:
+          path: spec.template.spec.containers[0].securityContext
+      - matchSnapshot:
+          path: spec.template.spec
+
   # we can't use the dynamic chart version or appVersion as a variable in the tests,
   # so we override it manually and check that gets set instead
   # this saves us having to update the test every time we cut a new release
@@ -126,7 +160,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: quay.io/gravitational/teleport-ent:8.3.4
+          value: public.ecr.aws/gravitational/teleport-ent:8.3.4
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
@@ -149,7 +183,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: quay.io/gravitational/teleport:8.3.4
+          value: public.ecr.aws/gravitational/teleport:8.3.4
       - notContains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
@@ -309,6 +343,45 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  - it: should have Recreate strategy in standalone mode
+    set:
+      chartMode: standalone
+      clusterName: helm-lint.example.com
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should not have strategy in AWS mode
+    values:
+      - ../.lint/aws-ha.yaml
+    asserts:
+      - isNull:
+          path: spec.template.spec.strategy
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should not have strategy in GCP mode
+    values:
+      - ../.lint/gcp-ha.yaml
+    asserts:
+      - isNull:
+          path: spec.template.spec.strategy
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should not have strategy in custom mode
+    set:
+      chartMode: custom
+      clusterName: helm-lint.example.com
+    asserts:
+      - isNull:
+          path: spec.template.spec.strategy
+      - matchSnapshot:
+          path: spec.template.spec
+
   - it: should mount extraVolumes and extraVolumeMounts
     values:
       - ../.lint/volumes.yaml
@@ -375,17 +448,14 @@ tests:
           path: spec.template.spec
 
   - it: should set environment when extraEnv set in values
-    set:
-      clusterName: helm-lint.example.com
-      extraEnv:
-        - name: SSL_CERT_FILE
-          value: "/etc/tls/some-cert-file.pem"
+    values:
+      - ../.lint/extra-env.yaml
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
-            name: SSL_CERT_FILE
-            value: "/etc/tls/some-cert-file.pem"
+            name: SOME_ENVIRONMENT_VARIABLE
+            value: "some-value"
       - matchSnapshot:
           path: spec.template.spec
 
@@ -393,10 +463,7 @@ tests:
     values:
       - ../.lint/initcontainers.yaml
       - ../.lint/resources.yaml
-    set:
-      extraEnv:
-        - name: SSL_CERT_FILE
-          value: "/etc/tls/some-cert-file.pem"
+      - ../.lint/extra-env.yaml
     asserts:
       - contains:
           path: spec.template.spec.initContainers[0].args
@@ -458,10 +525,12 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
-  - it: should add PersistentVolumeClaim as volume when in standalone mode
+  - it: should add PersistentVolumeClaim as volume when in standalone mode and persistence.enabled is true
     set:
       chartMode: standalone
       clusterName: helm-lint.example.com
+      persistence:
+        enabled: true
     asserts:
       - contains:
           path: spec.template.spec.volumes
@@ -472,11 +541,114 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
-  - it: should add named PersistentVolumeClaim as volume when in standalone mode and standalone.existingClaimName is set
+  - it: should not add PersistentVolumeClaim as volume when in standalone mode and persistence.enabled is false
+    set:
+      chartMode: standalone
+      clusterName: helm-lint.example.com
+      persistence:
+        enabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: RELEASE-NAME
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should add PersistentVolumeClaim as volume when in custom mode and persistence.enabled is true
+    set:
+      chartMode: custom
+      clusterName: helm-lint.example.com
+      persistence:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: RELEASE-NAME
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should not add PersistentVolumeClaim as volume when in custom mode and persistence.enabled is false
+    set:
+      chartMode: custom
+      clusterName: helm-lint.example.com
+      persistence:
+        enabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: RELEASE-NAME
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should add an operator side-car when operator is enabled
+    values:
+      - ../.lint/operator.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: operator
+      - matchSnapshot:
+          path: spec.template.spec.containers[1]
+
+  - it: should add named PersistentVolumeClaim as volume when in standalone mode, persistence.existingClaimName is set and persistence.enabled is true
     values:
       - ../.lint/standalone-existingpvc.yaml
     asserts:
       - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: teleport-storage
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should not add named PersistentVolumeClaim as volume when in standalone mode, persistence.existingClaimName is set but persistence.enabled is false
+    values:
+      - ../.lint/standalone-existingpvc.yaml
+    set:
+      persistence:
+        enabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: teleport-storage
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should add named PersistentVolumeClaim as volume when in custom mode and persistence.existingClaimName is set
+    values:
+      - ../.lint/standalone-existingpvc.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: teleport-storage
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should not add named PersistentVolumeClaim as volume when in custom mode, persistence.existingClaimName is set and persistence.enabled is false
+    values:
+      - ../.lint/standalone-existingpvc.yaml
+    set:
+      persistence:
+        enabled: false
+    asserts:
+      - notContains:
           path: spec.template.spec.volumes
           content:
             name: data
@@ -509,19 +681,6 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
-  - it: should add emptyDir for data in custom mode
-    set:
-      chartMode: custom
-      clusterName: helm-lint.example.com
-    asserts:
-      - contains:
-          path: spec.template.spec.volumes
-          content:
-            name: data
-            emptyDir: {}
-      - matchSnapshot:
-          path: spec.template.spec
-
   - it: should set priorityClassName when set in values
     values:
       - ../.lint/priority-class-name.yaml
@@ -542,5 +701,140 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].readinessProbe.timeoutSeconds
           value: 5
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should not mount TLS secrets when when highAvailability.certManager.enabled is false and tls.existingSecretName is not set
+    set:
+      clusterName: helm-lint-test-cluster
+    asserts:
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls
+            secret:
+              secretName: teleport-tls
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls
+            name: teleport-tls
+            readOnly: true
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should mount cert-manager TLS secret when highAvailability.certManager.enabled is true
+    values:
+      - ../.lint/cert-manager.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls
+            secret:
+              secretName: teleport-tls
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls
+            name: teleport-tls
+            readOnly: true
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should mount tls.existingSecretName when set in values
+    values:
+      - ../.lint/existing-tls-secret.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls
+            secret:
+              secretName: helm-lint-existing-tls-secret
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls
+            name: teleport-tls
+            readOnly: true
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should mount tls.existingCASecretName and set environment when set in values
+    values:
+      - ../.lint/existing-tls-secret-with-ca.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls
+            secret:
+              secretName: helm-lint-existing-tls-secret
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls-ca
+            secret:
+              secretName: helm-lint-existing-tls-secret-ca
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls
+            name: teleport-tls
+            readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls-ca
+            name: teleport-tls-ca
+            readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSL_CERT_FILE
+            value: /etc/teleport-tls-ca/ca.pem
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should mount tls.existingCASecretName and set extra environment when set in values
+    values:
+      - ../.lint/existing-tls-secret-with-ca.yaml
+      - ../.lint/extra-env.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls
+            secret:
+              secretName: helm-lint-existing-tls-secret
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls-ca
+            secret:
+              secretName: helm-lint-existing-tls-secret-ca
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls
+            name: teleport-tls
+            readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls-ca
+            name: teleport-tls-ca
+            readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SSL_CERT_FILE
+            value: /etc/teleport-tls-ca/ca.pem
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SOME_ENVIRONMENT_VARIABLE
+            value: some-value
       - matchSnapshot:
           path: spec.template.spec

@@ -39,6 +39,9 @@ func U2FLogin(ctx context.Context, origin string, assertion *wanlib.CredentialAs
 		return nil, trace.BadParameter("origin required")
 	case assertion == nil:
 		return nil, trace.BadParameter("assertion required")
+	case len(assertion.Response.AllowedCredentials) == 0 &&
+		assertion.Response.UserVerification == protocol.VerificationRequired:
+		return nil, trace.BadParameter("Passwordless not supported in U2F mode. Please install a recent version of tsh.")
 	case len(assertion.Response.Challenge) == 0:
 		return nil, trace.BadParameter("assertion challenge required")
 	case assertion.Response.RelyingPartyID == "":

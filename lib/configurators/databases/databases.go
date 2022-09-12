@@ -38,8 +38,12 @@ type BootstrapFlags struct {
 	AttachToRole string
 	// ForceRDSPermissions forces the presence of RDS permissions.
 	ForceRDSPermissions bool
-	// ForceAuroraPermissions forces the presence of Redshift permissions.
+	// ForceRedshiftPermissions forces the presence of Redshift permissions.
 	ForceRedshiftPermissions bool
+	// ForceElastiCachePermissions forces the presence of ElastiCache permissions.
+	ForceElastiCachePermissions bool
+	// ForceMemoryDBPermissions forces the presence of MemoryDB permissions.
+	ForceMemoryDBPermissions bool
 }
 
 // Configurator responsible for generating a list of actions that needs to be

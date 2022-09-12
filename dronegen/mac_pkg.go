@@ -20,11 +20,13 @@ import (
 	"strings"
 )
 
-func darwinPkgPipeline(name, makeTarget string, pkgGlobs []string) pipeline {
+func darwinPkgPipeline(name, makeTarget string, pkgGlobs []string, extraQualifications []string) pipeline {
 	b := buildType{
 		arch: "amd64",
 		os:   "darwin",
 	}
+	artifactConfig := onlyBinaries
+
 	p := newDarwinPipeline(name)
 	p.Trigger = triggerTag
 	p.DependsOn = []string{"build-darwin-amd64"}
@@ -36,7 +38,7 @@ func darwinPkgPipeline(name, makeTarget string, pkgGlobs []string) pipeline {
 				"WORKSPACE_DIR":      {raw: p.Workspace.Path},
 				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
-			Commands: darwinTagCheckoutCommands(),
+			Commands: darwinTagCheckoutCommands(artifactConfig),
 		},
 		{
 			Name: "Download built tarball artifacts from S3",
@@ -88,12 +90,12 @@ func darwinPkgPipeline(name, makeTarget string, pkgGlobs []string) pipeline {
 		},
 		{
 			Name:     "Register artifacts",
-			Commands: tagCreateReleaseAssetCommands(b),
+			Commands: tagCreateReleaseAssetCommands(b, ".pkg installer", extraQualifications),
 			Failure:  "ignore",
 			Environment: map[string]value{
 				"WORKSPACE_DIR": {raw: p.Workspace.Path},
-				"RELEASES_CERT": value{fromSecret: "RELEASES_CERT_STAGING"},
-				"RELEASES_KEY":  value{fromSecret: "RELEASES_KEY_STAGING"},
+				"RELEASES_CERT": {fromSecret: "RELEASES_CERT_STAGING"},
+				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY_STAGING"},
 			},
 		},
 		cleanUpExecStorageStep(p.Workspace.Path),
@@ -103,11 +105,11 @@ func darwinPkgPipeline(name, makeTarget string, pkgGlobs []string) pipeline {
 }
 
 func darwinTeleportPkgPipeline() pipeline {
-	return darwinPkgPipeline("build-darwin-amd64-pkg", "pkg", []string{"build/teleport*.pkg", "e/build/teleport-ent*.pkg"})
+	return darwinPkgPipeline("build-darwin-amd64-pkg", "pkg", []string{"build/teleport*.pkg", "e/build/teleport-ent*.pkg"}, nil)
 }
 
 func darwinTshPkgPipeline() pipeline {
-	return darwinPkgPipeline("build-darwin-amd64-pkg-tsh", "pkg-tsh", []string{"build/tsh*.pkg"})
+	return darwinPkgPipeline("build-darwin-amd64-pkg-tsh", "pkg-tsh", []string{"build/tsh*.pkg"}, []string{"tsh client only"})
 }
 
 func darwinTagDownloadArtifactCommands() []string {

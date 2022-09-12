@@ -29,6 +29,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
@@ -144,7 +145,7 @@ func TestRootUsernameLimit(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// upack holds all ssh signing artefacts needed for signing and checking user keys
+// upack holds all ssh signing artifacts needed for signing and checking user keys
 type upack struct {
 	// key is a raw private user key
 	key []byte
@@ -206,7 +207,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	require.NoError(t, err)
 
 	// set up host private key and certificate
-	priv, pub, err := s.server.Auth().GenerateKeyPair("")
+	priv, pub, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
@@ -262,12 +263,11 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 		nodeDir,
 		"",
 		utils.NetAddr{},
-		nil,
+		s.nodeClient,
 		regular.SetUUID(s.nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(s.nodeClient),
 		regular.SetShell("/bin/sh"),
-		regular.SetSessionServer(s.nodeClient),
 		regular.SetPAMConfig(&pam.Config{Enabled: false}),
 		regular.SetLabels(
 			map[string]string{"foo": "bar"},
@@ -276,7 +276,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 					Period:  types.NewDuration(time.Millisecond),
 					Command: []string{"expr", "1", "+", "3"},
 				},
-			},
+			}, nil,
 		),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetRestrictedSessionManager(&restricted.NOP{}),
@@ -293,7 +293,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 
 func newUpack(ctx context.Context, s *SrvCtx, username string, allowedLogins []string, allowedLabels types.Labels) (*upack, error) {
 	auth := s.server.Auth()
-	upriv, upub, err := auth.GenerateKeyPair("")
+	upriv, upub, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

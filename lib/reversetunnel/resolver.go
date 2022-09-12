@@ -26,34 +26,41 @@ import (
 )
 
 // Resolver looks up reverse tunnel addresses
-type Resolver func() (*utils.NetAddr, error)
+type Resolver func(ctx context.Context) (*utils.NetAddr, error)
 
 // CachingResolver wraps the provided Resolver with one that will cache the previous result
 // for 3 seconds to reduce the number of resolutions in an effort to mitigate potentially
 // overwhelming the Resolver source.
-func CachingResolver(resolver Resolver, clock clockwork.Clock) (Resolver, error) {
+func CachingResolver(ctx context.Context, resolver Resolver, clock clockwork.Clock) (Resolver, error) {
 	cache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:   3 * time.Second,
-		Clock: clock,
+		TTL:     3 * time.Second,
+		Clock:   clock,
+		Context: ctx,
 	})
 	if err != nil {
 		return nil, err
 	}
-	return func() (*utils.NetAddr, error) {
-		a, err := cache.Get(context.TODO(), "resolver", func() (interface{}, error) {
-			return resolver()
+	return func(ctx context.Context) (*utils.NetAddr, error) {
+		a, err := cache.Get(ctx, "resolver", func(ctx context.Context) (interface{}, error) {
+			return resolver(ctx)
 		})
 		if err != nil {
 			return nil, err
 		}
-		return a.(*utils.NetAddr), nil
+		addr := a.(*utils.NetAddr)
+		if addr != nil {
+			// make a copy to avoid a data race when the caching resolver is shared by goroutines.
+			addrCopy := *addr
+			return &addrCopy, nil
+		}
+		return addr, nil
 	}, nil
 }
 
 // WebClientResolver returns a Resolver which uses the web proxy to
 // discover where the SSH reverse tunnel server is running.
-func WebClientResolver(ctx context.Context, addrs []utils.NetAddr, insecureTLS bool) Resolver {
-	return func() (*utils.NetAddr, error) {
+func WebClientResolver(addrs []utils.NetAddr, insecureTLS bool) Resolver {
+	return func(ctx context.Context) (*utils.NetAddr, error) {
 		var errs []error
 		for _, addr := range addrs {
 			// In insecure mode, any certificate is accepted. In secure mode the hosts
@@ -87,7 +94,7 @@ func StaticResolver(address string) Resolver {
 		addr.Addr = utils.ReplaceUnspecifiedHost(addr, defaults.HTTPListenPort)
 	}
 
-	return func() (*utils.NetAddr, error) {
+	return func(context.Context) (*utils.NetAddr, error) {
 		return addr, err
 	}
 }

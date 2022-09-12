@@ -1,0 +1,62 @@
+{/* 
+TODO: Since we can't control the directory level of the page that uses this
+partial, and it is currently not possible to include absolute paths to MDX 
+files in partials, this partial uses relative URL paths instead.
+*/}
+<Tabs>
+<TabItem scope={["oss"]} label="Open Source">
+
+- A running Teleport cluster. For details on how to set this up, see one of our
+  [Getting Started](/docs/getting-started) guides. 
+
+- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=).
+
+  ```code
+  $ tctl version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+
+  $ tsh version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  ```
+
+  See [Installation](/docs/installation.mdx) for details.
+
+</TabItem>
+<TabItem
+  scope={["enterprise"]} label="Enterprise">
+
+- A running Teleport cluster. For details on how to set this up, see our Enterprise
+  [Getting Started](/docs/enterprise/getting-started) guide.
+
+- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=),
+  which you can download by visiting the
+  [customer portal](https://dashboard.gravitational.com/web/login).
+
+  ```code
+  $ tctl version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  
+  $ tsh version
+  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  ```
+
+</TabItem>
+<TabItem scope={["cloud"]}
+  label="Teleport Cloud">
+
+- A Teleport Cloud account. If you do not have one, visit the
+  [sign up page](https://goteleport.com/signup/) to begin your free trial.
+
+- The `tctl` admin tool and `tsh` client tool version >= (=cloud.version=).
+  To download these tools, visit the [Downloads](/docs/cloud/downloads) page.
+
+  ```code
+  $ tctl version
+  # Teleport v(=cloud.version=) go(=teleport.golang=)
+  
+  $ tsh version
+  # Teleport v(=cloud.version=) go(=teleport.golang=)
+  ```
+
+</TabItem>
+</Tabs>

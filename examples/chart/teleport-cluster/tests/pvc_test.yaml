@@ -14,6 +14,18 @@ tests:
           of: PersistentVolumeClaim
       - matchSnapshot: {}
 
+  - it: creates a PersistentVolumeClaim when chartMode=custom
+    set:
+      chartMode: custom
+    asserts:
+      - template: pvc.yaml
+        hasDocuments:
+          count: 1
+      - template: pvc.yaml
+        isKind:
+          of: PersistentVolumeClaim
+      - matchSnapshot: {}
+
   - it: creates a PersistentVolumeClaim with values from standalone-customsize.yaml
     values:
       - ../.lint/standalone-customsize.yaml
@@ -27,10 +39,32 @@ tests:
           value: 50Gi
       - matchSnapshot: {}
 
+  - it: creates a PersistentVolumeClaim with values from custom-customsize.yaml
+    values:
+      - ../.lint/custom-customsize.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PersistentVolumeClaim
+      - equal:
+          path: spec.resources.requests.storage
+          value: 50Gi
+      - matchSnapshot: {}
+
   - it: does not create a PersistentVolumeClaim when chartMode=standalone and existingClaimName is not blank
     set:
       chartMode: standalone
-      standalone:
+      persistence:
+        existingClaimName: test-claim
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: does not create a PersistentVolumeClaim when chartMode=custom and existingClaimName is not blank
+    set:
+      chartMode: custom
+      persistence:
         existingClaimName: test-claim
     asserts:
       - hasDocuments:
@@ -39,6 +73,13 @@ tests:
   - it: does not create a PersistentVolumeClaim with values from standalone-existingpvc.yaml
     values:
       - ../.lint/standalone-existingpvc.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: does not create a PersistentVolumeClaim with values from custom-existingpvc.yaml
+    values:
+      - ../.lint/custom-existingpvc.yaml
     asserts:
       - hasDocuments:
           count: 0
@@ -53,13 +94,6 @@ tests:
   - it: does not create a PersistentVolumeClaim when chartMode=gcp
     set:
       chartMode: gcp
-    asserts:
-      - hasDocuments:
-          count: 0
-
-  - it: does not create a PersistentVolumeClaim when chartMode=custom
-    set:
-      chartMode: custom
     asserts:
       - hasDocuments:
           count: 0

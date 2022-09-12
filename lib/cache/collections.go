@@ -18,7 +18,7 @@ package cache
 
 import (
 	"context"
-	"strings"
+	"fmt"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -33,13 +33,11 @@ type collection interface {
 	// will apply said resources to the cache.  fetch *must*
 	// not mutate cache state outside of the apply function.
 	fetch(ctx context.Context) (apply func(ctx context.Context) error, err error)
-	// process processes event
+	// processEvent processes event
 	processEvent(ctx context.Context, e types.Event) error
 	// watchKind returns a watch
 	// required for this collection
 	watchKind() types.WatchKind
-	// erase erases all data in the collection
-	erase(ctx context.Context) error
 }
 
 // setupCollections returns a mapping of collections
@@ -90,6 +88,11 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
 			collections[resourceKind] = &sessionRecordingConfig{watch: watch, Cache: c}
+		case types.KindInstaller:
+			if c.ClusterConfig == nil {
+				return nil, trace.BadParameter("missing parameter ClusterConfig")
+			}
+			collections[resourceKind] = &installerConfig{watch: watch, Cache: c}
 		case types.KindUser:
 			if c.Users == nil {
 				return nil, trace.BadParameter("missing parameter Users")
@@ -157,6 +160,11 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 					return nil, trace.BadParameter("missing parameter AppSession")
 				}
 				collections[resourceKind] = &appSession{watch: watch, Cache: c}
+			case types.KindSnowflakeSession:
+				if c.SnowflakeSession == nil {
+					return nil, trace.BadParameter("missing parameter SnowflakeSession")
+				}
+				collections[resourceKind] = &snowflakeSession{watch: watch, Cache: c}
 			case types.KindWebSession:
 				if c.WebSession == nil {
 					return nil, trace.BadParameter("missing parameter WebSession")
@@ -173,6 +181,11 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
 			collections[resourceKind] = &kubeService{watch: watch, Cache: c}
+		case types.KindKubeServer:
+			if c.Presence == nil {
+				return nil, trace.BadParameter("missing parameter Presence")
+			}
+			collections[resourceKind] = &kubeServer{watch: watch, Cache: c}
 		case types.KindDatabaseServer:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
@@ -260,6 +273,13 @@ type resourceKind struct {
 	kind    string
 	subkind string
 	version string
+}
+
+func (r resourceKind) String() string {
+	if r.subkind == "" {
+		return r.kind
+	}
+	return fmt.Sprintf("%s/%s", r.kind, r.subkind)
 }
 
 type accessRequest struct {
@@ -477,7 +497,7 @@ func (c *reverseTunnel) erase(ctx context.Context) error {
 }
 
 func (c *reverseTunnel) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	resources, err := c.Presence.GetReverseTunnels()
+	resources, err := c.Presence.GetReverseTunnels(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -792,26 +812,6 @@ type certAuthority struct {
 	filter types.CertAuthorityFilter
 }
 
-// erase erases all data in the collection
-func (c *certAuthority) erase(ctx context.Context) error {
-	if err := c.trustCache.DeleteAllCertAuthorities(types.UserCA); err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-	}
-	if err := c.trustCache.DeleteAllCertAuthorities(types.HostCA); err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-	}
-	if err := c.trustCache.DeleteAllCertAuthorities(types.JWTSigner); err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
 func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
 	applyHostCAs, err := c.fetchCertAuthorities(ctx, types.HostCA)
 	if err != nil {
@@ -820,6 +820,18 @@ func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Conte
 
 	applyUserCAs, err := c.fetchCertAuthorities(ctx, types.UserCA)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// DELETE IN 11.0.
+	// missingDatabaseCA is needed only when leaf cluster v9 is connected
+	// to root cluster v10. Database CA has been added in v10, so older
+	// clusters don't have it and fetchCertAuthorities() returns an error.
+	missingDatabaseCA := false
+	applyDatabaseCAs, err := c.fetchCertAuthorities(ctx, types.DatabaseCA)
+	if trace.IsBadParameter(err) {
+		missingDatabaseCA = true
+	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -835,6 +847,17 @@ func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Conte
 		if err := applyUserCAs(ctx); err != nil {
 			return trace.Wrap(err)
 		}
+		if !missingDatabaseCA {
+			if err := applyDatabaseCAs(ctx); err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			if err := c.trustCache.DeleteAllCertAuthorities(types.DatabaseCA); err != nil {
+				if !trace.IsNotFound(err) {
+					return trace.Wrap(err)
+				}
+			}
+		}
 		return trace.Wrap(applyJWTSigners(ctx))
 	}, nil
 }
@@ -842,12 +865,6 @@ func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Conte
 func (c *certAuthority) fetchCertAuthorities(ctx context.Context, caType types.CertAuthType) (apply func(ctx context.Context) error, err error) {
 	authorities, err := c.Trust.GetCertAuthorities(ctx, caType, c.watch.LoadSecrets)
 	if err != nil {
-		// DELETE IN: 5.1
-		//
-		// All clusters will support JWT signers in 5.1.
-		if strings.Contains(err.Error(), "authority type is not supported") {
-			return func(ctx context.Context) error { return nil }, nil
-		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -1653,6 +1670,70 @@ func (a *appSession) watchKind() types.WatchKind {
 	return a.watch
 }
 
+type snowflakeSession struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (a *snowflakeSession) erase(ctx context.Context) error {
+	if err := a.snowflakeSessionCache.DeleteAllSnowflakeSessions(ctx); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (a *snowflakeSession) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	resources, err := a.SnowflakeSession.GetSnowflakeSessions(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return func(ctx context.Context) error {
+		if err := a.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		for _, resource := range resources {
+			if err := a.snowflakeSessionCache.UpsertSnowflakeSession(ctx, resource); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}, nil
+}
+
+func (a *snowflakeSession) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		err := a.snowflakeSessionCache.DeleteSnowflakeSession(ctx, types.DeleteSnowflakeSessionRequest{
+			SessionID: event.Resource.GetName(),
+		})
+		if err != nil {
+			// Resource could be missing in the cache expired or not created, if the
+			// first consumed event is deleted.
+			if !trace.IsNotFound(err) {
+				a.Warningf("Failed to delete resource %v.", err)
+				return trace.Wrap(err)
+			}
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.WebSession)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		if err := a.snowflakeSessionCache.UpsertSnowflakeSession(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		a.Warningf("Skipping unsupported event type %v.", event.Type)
+	}
+	return nil
+}
+
+func (a *snowflakeSession) watchKind() types.WatchKind {
+	return a.watch
+}
+
 type webSession struct {
 	*Cache
 	watch types.WatchKind
@@ -1779,6 +1860,7 @@ func (r *webToken) watchKind() types.WatchKind {
 	return r.watch
 }
 
+// DELETE in 13.0
 type kubeService struct {
 	*Cache
 	watch types.WatchKind
@@ -1837,6 +1919,72 @@ func (c *kubeService) processEvent(ctx context.Context, event types.Event) error
 }
 
 func (c *kubeService) watchKind() types.WatchKind {
+	return c.watch
+}
+
+type kubeServer struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (c *kubeServer) erase(ctx context.Context) error {
+	if err := c.presenceCache.DeleteAllKubernetesServers(ctx); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (c *kubeServer) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	resources, err := c.Presence.GetKubernetesServers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return func(ctx context.Context) error {
+		if err := c.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, resource := range resources {
+			if _, err := c.presenceCache.UpsertKubernetesServer(ctx, resource); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}, nil
+}
+
+func (c *kubeServer) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+
+		err := c.presenceCache.DeleteKubernetesServer(
+			ctx,
+			event.Resource.GetMetadata().Description, // Cache passes host ID via description field.
+			event.Resource.GetName(),
+		)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				c.Warningf("Failed to delete resource %v.", err)
+				return trace.Wrap(err)
+			}
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.KubeServer)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		if _, err := c.presenceCache.UpsertKubernetesServer(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		c.Warningf("Skipping unsupported event type %v.", event.Type)
+	}
+	return nil
+}
+
+func (c *kubeServer) watchKind() types.WatchKind {
 	return c.watch
 }
 
@@ -2109,6 +2257,66 @@ func (c *sessionRecordingConfig) processEvent(ctx context.Context, event types.E
 }
 
 func (c *sessionRecordingConfig) watchKind() types.WatchKind {
+	return c.watch
+}
+
+type installerConfig struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (c *installerConfig) erase(ctx context.Context) error {
+	if err := c.clusterConfigCache.DeleteAllInstallers(ctx); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (c *installerConfig) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	resources, err := c.ClusterConfig.GetInstallers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return func(ctx context.Context) error {
+		if err := c.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		for _, res := range resources {
+			if err := c.clusterConfigCache.SetInstaller(ctx, res); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}, nil
+}
+
+func (c *installerConfig) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		err := c.clusterConfigCache.DeleteInstaller(ctx, event.Resource.GetName())
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				c.Warningf("Failed to delete resource %v.", err)
+				return trace.Wrap(err)
+			}
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.Installer)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		if err := c.clusterConfigCache.SetInstaller(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		c.Warningf("Skipping unsupported event type %v.", event.Type)
+	}
+	return nil
+}
+
+func (c *installerConfig) watchKind() types.WatchKind {
 	return c.watch
 }
 

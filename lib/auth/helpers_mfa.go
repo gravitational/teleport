@@ -36,8 +36,9 @@ type TestDevice struct {
 	TOTPSecret string
 	Key        *mocku2f.Key
 
-	clock  clockwork.Clock
-	origin string
+	clock        clockwork.Clock
+	origin       string
+	passwordless bool
 }
 
 // TestDeviceOpt is a creation option for TestDevice.
@@ -46,6 +47,12 @@ type TestDeviceOpt func(d *TestDevice)
 func WithTestDeviceClock(clock clockwork.Clock) TestDeviceOpt {
 	return func(d *TestDevice) {
 		d.clock = clock
+	}
+}
+
+func WithPasswordless() TestDeviceOpt {
+	return func(d *TestDevice) {
+		d.passwordless = true
 	}
 }
 
@@ -224,6 +231,11 @@ func (d *TestDevice) solveRegisterWebauthn(c *proto.MFARegisterChallenge) (*prot
 		return nil, trace.Wrap(err)
 	}
 	d.Key.PreferRPID = true
+
+	if d.passwordless {
+		d.Key.AllowResidentKey = true
+		d.Key.SetUV = true
+	}
 
 	resp, err := d.Key.SignCredentialCreation(d.Origin(), wanlib.CredentialCreationFromProto(c.GetWebauthn()))
 	if err != nil {

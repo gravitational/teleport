@@ -24,10 +24,12 @@ import (
 )
 
 // TestMarshalMapConsistency ensures serialized byte comparisons succeed
-// after multiple serialize/deserialize round trips. Some JSON marshalling
+// after multiple serialize/deserialize round trips. Some JSON marshaling
 // backends don't sort map keys for performance reasons, which can make
 // operations that depend on the byte ordering fail (e.g. CompareAndSwap).
 func TestMarshalMapConsistency(t *testing.T) {
+	t.Parallel()
+
 	value := map[string]string{
 		types.TeleportNamespace + "/foo": "1234",
 		types.TeleportNamespace + "/bar": "5678",

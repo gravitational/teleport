@@ -56,6 +56,9 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindOIDC, RW()),
 					types.NewRule(types.KindSAML, RW()),
 					types.NewRule(types.KindGithub, RW()),
+					types.NewRule(types.KindOIDCRequest, RW()),
+					types.NewRule(types.KindSAMLRequest, RW()),
+					types.NewRule(types.KindGithubRequest, RW()),
 					types.NewRule(types.KindClusterAuditConfig, RW()),
 					types.NewRule(types.KindClusterAuthPreference, RW()),
 					types.NewRule(types.KindAuthConnector, RW()),
@@ -65,6 +68,9 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindTrustedCluster, RW()),
 					types.NewRule(types.KindRemoteCluster, RW()),
 					types.NewRule(types.KindToken, RW()),
+					types.NewRule(types.KindConnectionDiagnostic, RW()),
+					types.NewRule(types.KindDatabaseCertificate, RW()),
+					types.NewRule(types.KindInstaller, RW()),
 				},
 			},
 		},
@@ -116,6 +122,7 @@ func NewPresetAccessRole() types.Role {
 	role.SetWindowsLogins(types.Allow, []string{teleport.TraitInternalWindowsLoginsVariable})
 	role.SetKubeUsers(types.Allow, []string{teleport.TraitInternalKubeUsersVariable})
 	role.SetKubeGroups(types.Allow, []string{teleport.TraitInternalKubeGroupsVariable})
+	role.SetAWSRoleARNs(types.Allow, []string{teleport.TraitInternalAWSRoleARNs})
 	return role
 }
 

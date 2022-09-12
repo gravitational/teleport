@@ -64,6 +64,10 @@ const (
 	// RecoveryCodeUseFailureCode is an event code for when a
 	// recovery code was not used successfully.
 	RecoveryCodeUseFailureCode = "T1009W"
+	// UserSSOTestFlowLoginCode is the successful SSO test flow user login event code.
+	UserSSOTestFlowLoginCode = "T1010I"
+	// UserSSOTestFlowLoginFailureCode is the unsuccessful SSO test flow user login event code.
+	UserSSOTestFlowLoginFailureCode = "T1011W"
 
 	// BillingCardCreateCode is an event code for when a user creates a new credit card.
 	BillingCardCreateCode = "TBL00I"
@@ -92,6 +96,18 @@ const (
 	SessionUploadCode = "T2005I"
 	// SessionDataCode is the session data event code.
 	SessionDataCode = "T2006I"
+	// AppSessionStartCode is the application session start code.
+	AppSessionStartCode = "T2007I"
+	// AppSessionChunkCode is the application session chunk create code.
+	AppSessionChunkCode = "T2008I"
+	// AppSessionRequestCode is the application request/response code.
+	AppSessionRequestCode = "T2009I"
+	// SessionConnectCode is the session connect event code.
+	SessionConnectCode = "T2010I"
+	// AppSessionEndCode is the application session end event code.
+	AppSessionEndCode = "T2011I"
+	// SessionRecordingAccessCode is the session recording view data event code.
+	SessionRecordingAccessCode = "T2012I"
 
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"
@@ -99,16 +115,6 @@ const (
 	AppUpdateCode = "TAP04I"
 	// AppDeleteCode is the app.delete event code.
 	AppDeleteCode = "TAP05I"
-
-	// AppSessionStartCode is the application session start code.
-	AppSessionStartCode = "T2007I"
-	// AppSessionChunkCode is the application session chunk create code.
-	AppSessionChunkCode = "T2008I"
-	// AppSessionRequestCode is the application request/response code.
-	AppSessionRequestCode = "T2009I"
-
-	// SessionConnectCode is the session connect event code.
-	SessionConnectCode = "T2010I"
 
 	// DatabaseSessionStartCode is the database session start event code.
 	DatabaseSessionStartCode = "TDB00I"
@@ -120,6 +126,8 @@ const (
 	DatabaseSessionQueryCode = "TDB02I"
 	// DatabaseSessionQueryFailedCode is the database query failure event code.
 	DatabaseSessionQueryFailedCode = "TDB02W"
+	// DatabaseSessionMalformedPacketCode is the db.session.malformed_packet event code.
+	DatabaseSessionMalformedPacketCode = "TDB06I"
 
 	// PostgresParseCode is the db.session.postgres.statements.parse event code.
 	PostgresParseCode = "TPG00I"
@@ -146,6 +154,23 @@ const (
 	MySQLStatementFetchCode = "TMY05I"
 	// MySQLStatementBulkExecuteCode is the db.session.mysql.statements.bulk_execute event code.
 	MySQLStatementBulkExecuteCode = "TMY06I"
+	// MySQLInitDBCode is the db.session.mysql.init_db event code.
+	MySQLInitDBCode = "TMY07I"
+	// MySQLCreateDBCode is the db.session.mysql.create_db event code.
+	MySQLCreateDBCode = "TMY08I"
+	// MySQLDropDBCode is the db.session.mysql.drop_db event code.
+	MySQLDropDBCode = "TMY09I"
+	// MySQLShutDownCode is the db.session.mysql.shut_down event code.
+	MySQLShutDownCode = "TMY10I"
+	// MySQLProcessKillCode is the db.session.mysql.process_kill event code.
+	MySQLProcessKillCode = "TMY11I"
+	// MySQLDebugCode is the db.session.mysql.debug event code.
+	MySQLDebugCode = "TMY12I"
+	// MySQLRefreshCode is the db.session.mysql.refresh event code.
+	MySQLRefreshCode = "TMY13I"
+
+	// SQLServerRPCRequestCode is the db.session.sqlserver.rpc_request event code.
+	SQLServerRPCRequestCode = "TMS00I"
 
 	// DatabaseCreateCode is the db.create event code.
 	DatabaseCreateCode = "TDB03I"
@@ -200,6 +225,44 @@ const (
 	// ExecCode).
 	KubeRequestCode = "T3009I"
 
+	// The following codes correspond to SFTP file operations.
+	SFTPOpenCode            = "TS001I"
+	SFTPOpenFailureCode     = "TS001E"
+	SFTPCloseCode           = "TS002I"
+	SFTPCloseFailureCode    = "TS002E"
+	SFTPReadCode            = "TS003I"
+	SFTPReadFailureCode     = "TS003E"
+	SFTPWriteCode           = "TS004I"
+	SFTPWriteFailureCode    = "TS004E"
+	SFTPLstatCode           = "TS005I"
+	SFTPLstatFailureCode    = "TS005E"
+	SFTPFstatCode           = "TS006I"
+	SFTPFstatFailureCode    = "TS006E"
+	SFTPSetstatCode         = "TS007I"
+	SFTPSetstatFailureCode  = "TS007E"
+	SFTPFsetstatCode        = "TS008I"
+	SFTPFsetstatFailureCode = "TS008E"
+	SFTPOpendirCode         = "TS009I"
+	SFTPOpendirFailureCode  = "TS009E"
+	SFTPReaddirCode         = "TS010I"
+	SFTPReaddirFailureCode  = "TS010E"
+	SFTPRemoveCode          = "TS011I"
+	SFTPRemoveFailureCode   = "TS011E"
+	SFTPMkdirCode           = "TS012I"
+	SFTPMkdirFailureCode    = "TS012E"
+	SFTPRmdirCode           = "TS013I"
+	SFTPRmdirFailureCode    = "TS013E"
+	SFTPRealpathCode        = "TS014I"
+	SFTPRealpathFailureCode = "TS014E"
+	SFTPStatCode            = "TS015I"
+	SFTPStatFailureCode     = "TS015E"
+	SFTPRenameCode          = "TS016I"
+	SFTPRenameFailureCode   = "TS016E"
+	SFTPReadlinkCode        = "TS017I"
+	SFTPReadlinkFailureCode = "TS017E"
+	SFTPSymlinkCode         = "TS018I"
+	SFTPSymlinkFailureCode  = "TS018E"
+
 	// SessionCommandCode is a session command code.
 	SessionCommandCode = "T4000I"
 	// SessionDiskCode is a session disk code.
@@ -215,6 +278,8 @@ const (
 	AccessRequestReviewCode = "T5002I"
 	// AccessRequestDeleteCode is the access request deleted code.
 	AccessRequestDeleteCode = "T5003I"
+	// AccessRequestResourceSearchCode is the access request resource search code.
+	AccessRequestResourceSearchCode = "T5004I"
 
 	// ResetPasswordTokenCreateCode is the token create event code.
 	ResetPasswordTokenCreateCode = "T6000I"
@@ -262,6 +327,9 @@ const (
 	// RenewableCertificateGenerationMismatchCode is the renewable cert
 	// generation mismatch code.
 	RenewableCertificateGenerationMismatchCode = "TCB00W"
+
+	// UpgradeWindowStartUpdatedCode is the edit code of UpgradeWindowStartUpdateEvent.
+	UpgradeWindowStartUpdatedCode = "TUW01I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

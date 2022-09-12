@@ -13,6 +13,9 @@ export class Cluster extends jspb.Message {
     getName(): string;
     setName(value: string): Cluster;
 
+    getProxyHost(): string;
+    setProxyHost(value: string): Cluster;
+
     getConnected(): boolean;
     setConnected(value: boolean): Cluster;
 
@@ -40,6 +43,7 @@ export namespace Cluster {
     export type AsObject = {
         uri: string,
         name: string,
+        proxyHost: string,
         connected: boolean,
         leaf: boolean,
         loggedInUser?: LoggedInUser.AsObject,

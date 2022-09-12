@@ -17,15 +17,20 @@ limitations under the License.
 package service
 
 import (
+	"context"
 	"crypto/tls"
-	"math"
 	"path/filepath"
+	"strings"
 
 	"github.com/coreos/go-semver/semver"
+	"github.com/google/uuid"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
@@ -33,8 +38,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -44,6 +51,8 @@ import (
 // reconnectToAuthService continuously attempts to reconnect to the auth
 // service until succeeds or process gets shut down
 func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*Connector, error) {
+	// TODO(fspmarshall): we should probably have a longer retry period for Instance certs
+	// in order to avoid catastrophic load in the event of an auth server downgrade.
 	retry, err := utils.NewLinear(utils.LinearConfig{
 		First:  utils.HalfJitter(process.Config.MaxRetryPeriod / 10),
 		Step:   process.Config.MaxRetryPeriod / 5,
@@ -55,30 +64,59 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 		return nil, trace.Wrap(err)
 	}
 
+	// assertionID is used by the Instance cert migration logic.
+	var assertionID string
+
 	for {
-		connector, err := process.connectToAuthService(role)
-		if err == nil {
-			// if connected and client is present, make sure the connector's
-			// client works, by using call that should succeed at all times
-			if connector.Client != nil {
-				pingResponse, err := connector.Client.Ping(process.ExitContext())
-				if err := process.compareVersions(&pingResponse); err != nil {
-					process.log.Debugf("Error comparing formats: %v", err)
+		connector, connectErr := process.connectToAuthService(role, systemRoleAssertionID(assertionID))
+		if connectErr == nil {
+			if connector.Client == nil {
+				// Should only hit this if called with RoleAuth or RoleAdmin, which are both local and do not get a
+				// client, so it does not make sense to call reconnectToAuthService.
+				return nil, trace.BadParameter("reconnectToAuthService got a connector with no client, this is a logic error")
+			}
+
+			// If connected, make sure the connector's client works by using
+			// a call that should succeed at all times (Ping).
+			pingResponse, pingErr := connector.Client.Ping(process.ExitContext())
+			if pingErr == nil {
+				// Return a helpful message and don't retry if ping was successful but auth server is too old.
+				// Auth is not going to get any younger.
+				if compareErr := process.authServerTooOld(&pingResponse); compareErr != nil {
+					return nil, trace.Wrap(compareErr)
 				}
 
-				if err == nil {
-					process.setClusterFeatures(pingResponse.GetServerFeatures())
-					process.log.Infof("%v: features loaded from auth server: %+v", role, pingResponse.GetServerFeatures())
-					return connector, nil
-				}
+				// Set cluster features and return successfully with a working connector.
+				process.setClusterFeatures(pingResponse.GetServerFeatures())
+				process.log.Infof("%v: features loaded from auth server: %+v", role, pingResponse.GetServerFeatures())
+				process.setAuthSubjectiveAddr(pingResponse.RemoteAddr)
+				return connector, nil
+			}
 
-				process.log.Debugf("Connected client %v failed to execute test call: %v. Node or proxy credentials are out of sync.", role, err)
-				if err := connector.Client.Close(); err != nil {
-					process.log.Debugf("Failed to close the client: %v.", err)
-				}
+			// Ping failed, close the client and continue the loop.
+			process.log.Debugf("Connected client %v failed to execute test call: %v. Node or proxy credentials are out of sync.", role, pingErr)
+			if err := connector.Client.Close(); err != nil {
+				process.log.Debugf("Failed to close the client: %v.", err)
 			}
 		}
-		process.log.Errorf("%v failed to establish connection to cluster: %v.", role, err)
+
+		// clear assertion ID
+		assertionID = ""
+
+		switch {
+		case role == types.RoleInstance && connectErr != nil && strings.Contains(connectErr.Error(), auth.TokenExpiredOrNotFound):
+			process.log.Infof("Token too old for direct instance cert request, will attempt to use system role assertions.")
+			id, assertionErr := process.assertSystemRoles()
+			if assertionErr == nil {
+				assertionID = id
+			} else {
+				process.log.Errorf("Failed to perform system role assertions: %v", assertionErr)
+			}
+		case role == types.RoleNode && connectErr != nil && strings.Contains(connectErr.Error(), auth.TokenExpiredOrNotFound):
+			process.log.Error("Can not join the cluster as node, the token expired or not found. Regenerate the token and try again.")
+		case connectErr != nil:
+			process.log.Errorf("%v failed to establish connection to cluster: %v.", role, connectErr)
+		}
 
 		// Used for testing that auth service will attempt to reconnect in the provided duration.
 		select {
@@ -99,25 +137,63 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 	}
 }
 
-func (process *TeleportProcess) compareVersions(resp *proto.PingResponse) error {
+func (process *TeleportProcess) assertSystemRoles() (assertionID string, err error) {
+	assertionID = uuid.New().String()
+	irm := process.getInstanceRoleEventMapping()
+	for role, eventName := range irm {
+		event, err := process.WaitForEvent(process.ExitContext(), eventName)
+		if err != nil {
+			return "", trace.Errorf("process is exiting")
+		}
+
+		conn, ok := (event.Payload).(*Connector)
+		if !ok {
+			return "", trace.BadParameter("unsupported connector type: %T", event.Payload)
+		}
+
+		err = conn.Client.UnstableAssertSystemRole(process.ExitContext(), proto.UnstableSystemRoleAssertion{
+			ServerID:    process.Config.HostUUID,
+			AssertionID: assertionID,
+			SystemRole:  role,
+		})
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+	}
+
+	return assertionID, nil
+}
+
+func (process *TeleportProcess) authServerTooOld(resp *proto.PingResponse) error {
 	serverVersion, err := semver.NewVersion(resp.ServerVersion)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.BadParameter("failed to parse reported auth server version as semver: %v", err)
 	}
-	teleportVersion, err := semver.NewVersion(teleport.Version)
+
+	version := teleport.Version
+	if process.Config.TeleportVersion != "" {
+		version = process.Config.TeleportVersion
+	}
+	teleportVersion, err := semver.NewVersion(version)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.BadParameter("failed to parse local teleport version as semver: %v", err)
 	}
-	if math.Abs(float64(serverVersion.Major-teleportVersion.Major)) > 1 {
-		process.log.Warnf("Only versions %d and %d are supported, auth server is %s.", teleportVersion.Major, teleportVersion.Major-1, serverVersion.Major)
+
+	if serverVersion.Major < teleportVersion.Major {
+		if process.Config.SkipVersionCheck {
+			process.log.Warnf("Only versions %d and greater are supported, but auth server is version %d.", teleportVersion.Major, serverVersion.Major)
+			return nil
+		}
+		return trace.NotImplemented("only versions %d and greater are supported, but auth server is version %d. To connect anyway pass the '--skip-version-check' flag.", teleportVersion.Major, serverVersion.Major)
 	}
+
 	return nil
 }
 
 // connectToAuthService attempts to login into the auth servers specified in the
 // configuration and receive credentials.
-func (process *TeleportProcess) connectToAuthService(role types.SystemRole) (*Connector, error) {
-	connector, err := process.connect(role)
+func (process *TeleportProcess) connectToAuthService(role types.SystemRole, opts ...certOption) (*Connector, error) {
+	connector, err := process.connect(role, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -127,11 +203,30 @@ func (process *TeleportProcess) connectToAuthService(role types.SystemRole) (*Co
 	return connector, nil
 }
 
-func (process *TeleportProcess) connect(role types.SystemRole) (conn *Connector, err error) {
+type certOption func(*certOptions)
+
+func systemRoleAssertionID(id string) certOption {
+	return func(opts *certOptions) {
+		opts.systemRoleAssertionID = id
+	}
+}
+
+type certOptions struct {
+	systemRoleAssertionID string
+}
+
+func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOption) (conn *Connector, err error) {
+	var options certOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
 	state, err := process.storage.GetState(role)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
+		}
+		if options.systemRoleAssertionID != "" {
+			return process.firstTimeConnectWithAssertions(role, options.systemRoleAssertionID)
 		}
 		// no state recorded - this is the first connect
 		// process will try to connect with the security token.
@@ -143,7 +238,6 @@ func (process *TeleportProcess) connect(role types.SystemRole) (conn *Connector,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	rotation := state.Spec.Rotation
 
 	switch rotation.State {
@@ -160,6 +254,15 @@ func (process *TeleportProcess) connect(role types.SystemRole) (conn *Connector,
 		process.log.Infof("Connecting to the cluster %v with TLS client certificate.", identity.ClusterName)
 		clt, err := process.newClient(process.Config.AuthServers, identity)
 		if err != nil {
+			// In the event that a user is attempting to connect a machine to
+			// a different cluster it will give a cryptic warning about an
+			// unknown certificate authority. Unfortunately we cannot intercept
+			// this error as it comes from the http package before a request is
+			// made. So provide a more user friendly error as a hint of what
+			// they can do to resolve the issue.
+			if strings.Contains(err.Error(), "certificate signed by unknown authority") {
+				process.log.Errorf("Was this node already registered to a different cluster? To join this node to a new cluster, remove `%s` and try again", process.Config.DataDir)
+			}
 			return nil, trace.Wrap(err)
 		}
 		return &Connector{
@@ -287,7 +390,7 @@ func (process *TeleportProcess) generateKeyPair(role types.SystemRole, reason st
 		return &keyPair, nil
 	}
 	process.log.Debugf("Generating new key pair for %v %v.", role, reason)
-	privPEM, pubSSH, err := process.Config.Keygen.GenerateKeyPair("")
+	privPEM, pubSSH, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -329,29 +432,118 @@ func (process *TeleportProcess) getCertAuthority(conn *Connector, id types.CertA
 // In case if auth servers, the role is 'TeleportAdmin' and instead of using
 // TLS client this method uses the local auth server.
 func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals []string, dnsNames []string, rotation types.Rotation) (*auth.Identity, error) {
-	if conn.ClientIdentity.ID.Role == types.RoleAdmin || conn.ClientIdentity.ID.Role == types.RoleAuth {
-		return auth.GenerateIdentity(process.localAuth, conn.ClientIdentity.ID, additionalPrincipals, dnsNames)
+	id := conn.ClientIdentity.ID
+	if id.NodeName == "" {
+		id.NodeName = process.Config.Hostname
+	}
+	if id.Role == types.RoleAdmin || id.Role == types.RoleAuth {
+		return auth.GenerateIdentity(process.localAuth, id, additionalPrincipals, dnsNames)
 	}
 	const reason = "re-register"
-	keyPair, err := process.generateKeyPair(conn.ClientIdentity.ID.Role, reason)
+	keyPair, err := process.generateKeyPair(id.Role, reason)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	var systemRoles []types.SystemRole
+	if id.Role == types.RoleInstance {
+		systemRoles = process.getInstanceRoles()
+	}
 	identity, err := auth.ReRegister(auth.ReRegisterParams{
 		Client:               conn.Client,
-		ID:                   conn.ClientIdentity.ID,
+		ID:                   id,
 		AdditionalPrincipals: additionalPrincipals,
 		PrivateKey:           keyPair.PrivateKey,
 		PublicTLSKey:         keyPair.PublicTLSKey,
 		PublicSSHKey:         keyPair.PublicSSHKey,
 		DNSNames:             dnsNames,
 		Rotation:             rotation,
+		SystemRoles:          systemRoles,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	process.deleteKeyPair(conn.ClientIdentity.ID.Role, reason)
+	process.deleteKeyPair(id.Role, reason)
 	return identity, nil
+}
+
+// firstTimeConnectWithAssertions is similar to a re-register in practice since it uses an authenticated client, but in
+// this case we use an authenticated client with a *different* role than the one we are acquiring certs for.
+func (process *TeleportProcess) firstTimeConnectWithAssertions(role types.SystemRole, assertionID string) (*Connector, error) {
+	connectors := process.getConnectors()
+	if len(connectors) == 0 {
+		return nil, trace.BadParameter("no connectors found")
+	}
+
+	conn := connectors[0]
+
+	id := auth.IdentityID{
+		Role:     role,
+		HostUUID: process.Config.HostUUID,
+		NodeName: process.Config.Hostname,
+	}
+	additionalPrincipals, dnsNames, err := process.getAdditionalPrincipals(role)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	systemRoles := process.getInstanceRoles()
+
+	const reason = "connect-with-assertions"
+	keyPair, err := process.generateKeyPair(role, reason)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	identity, err := auth.ReRegister(auth.ReRegisterParams{
+		Client:                        conn.Client,
+		ID:                            id,
+		AdditionalPrincipals:          additionalPrincipals,
+		PrivateKey:                    keyPair.PrivateKey,
+		PublicTLSKey:                  keyPair.PublicTLSKey,
+		PublicSSHKey:                  keyPair.PublicSSHKey,
+		DNSNames:                      dnsNames,
+		SystemRoles:                   systemRoles,
+		UnstableSystemRoleAssertionID: assertionID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	process.deleteKeyPair(role, reason)
+
+	clt, err := process.newClient(process.Config.AuthServers, identity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connector := &Connector{
+		ClientIdentity: identity,
+		ServerIdentity: identity,
+		Client:         clt,
+	}
+
+	// Sync local rotation state to match the remote rotation state.
+	ca, err := process.getCertAuthority(connector, types.CertAuthID{
+		DomainName: connector.ClientIdentity.ClusterName,
+		Type:       types.HostCA,
+	}, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = process.storage.WriteIdentity(auth.IdentityCurrent, *identity)
+	if err != nil {
+		process.log.Warningf("Failed to write %v identity: %v.", role, err)
+	}
+
+	err = process.storage.WriteState(role, auth.StateV2{
+		Spec: auth.StateSpecV2{
+			Rotation: ca.GetRotation(),
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	process.log.Infof("The process successfully wrote the credentials and state of %v to the disk.", role)
+	return connector, nil
 }
 
 func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connector, error) {
@@ -369,13 +561,20 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		// Auth service is on the same host, no need to go though the invitation
 		// procedure.
 		process.log.Debugf("This server has local Auth server started, using it to add role to the cluster.")
-		identity, err = auth.LocalRegister(id, process.getLocalAuth(), additionalPrincipals, dnsNames, process.Config.AdvertiseIP)
+		var systemRoles []types.SystemRole
+		if role == types.RoleInstance {
+			// normally this is taken from the join token, but if we're dealing with a local auth server, we
+			// need to determine the roles for the instance cert ourselves.
+			systemRoles = process.getInstanceRoles()
+		}
+
+		identity, err = auth.LocalRegister(id, process.getLocalAuth(), additionalPrincipals, dnsNames, process.Config.AdvertiseIP, systemRoles)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else {
 		// Auth server is remote, so we need a provisioning token.
-		if process.Config.Token == "" {
+		if !process.Config.HasToken() {
 			return nil, trace.BadParameter("%v must join a cluster and needs a provisioning token", role)
 		}
 
@@ -386,8 +585,13 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			return nil, trace.Wrap(err)
 		}
 
+		token, err := process.Config.Token()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		certs, err := auth.Register(auth.RegisterParams{
-			Token:                process.Config.Token,
+			Token:                token,
 			ID:                   id,
 			Servers:              process.Config.AuthServers,
 			AdditionalPrincipals: additionalPrincipals,
@@ -400,8 +604,13 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			GetHostCredentials:   client.HostCredentials,
 			Clock:                process.Clock,
 			JoinMethod:           process.Config.JoinMethod,
+			CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
+			FIPS:                 process.Config.FIPS,
 		})
 		if err != nil {
+			if utils.IsUntrustedCertErr(err) {
+				return nil, trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
+			}
 			return nil, trace.Wrap(err)
 		}
 
@@ -462,14 +671,10 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 // takes action if necessary
 func (process *TeleportProcess) periodicSyncRotationState() error {
 	// start rotation only after teleport process has started
-	eventC := make(chan Event, 1)
-	process.WaitForEvent(process.ExitContext(), TeleportReadyEvent, eventC)
-	select {
-	case <-eventC:
-		process.log.Infof("The new service has started successfully. Starting syncing rotation status with period %v.", process.Config.PollingPeriod)
-	case <-process.GracefulExitContext().Done():
+	if _, err := process.WaitForEvent(process.GracefulExitContext(), TeleportReadyEvent); err != nil {
 		return nil
 	}
+	process.log.Infof("The new service has started successfully. Starting syncing rotation status with period %v.", process.Config.PollingPeriod)
 
 	periodic := interval.New(interval.Config{
 		Duration:      process.Config.RotationConnectionInterval,
@@ -848,18 +1053,16 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 
 	logger := process.log.WithField("auth-addrs", utils.NetAddrsToStrings(authServers))
 	logger.Debug("Attempting to connect to Auth Server directly.")
-	directClient, err := process.newClientDirect(authServers, tlsConfig)
-	if err == nil {
+	directClient, directErr := process.newClientDirect(authServers, tlsConfig, identity.ID.Role)
+	if directErr == nil {
 		logger.Debug("Connected to Auth Server with direct connection.")
 		return directClient, nil
 	}
 	logger.Debug("Failed to connect to Auth Server directly.")
-	// store err in directLogger, only log it if tunnel dial fails.
-	directErrLogger := logger.WithError(err)
 
 	// Don't attempt to connect through a tunnel as a proxy or auth server.
 	if identity.ID.Role == types.RoleAuth || identity.ID.Role == types.RoleProxy {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(directErr)
 	}
 
 	logger.Debug("Attempting to discover reverse tunnel address.")
@@ -871,9 +1074,18 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 	}
 	tunnelClient, err := process.newClientThroughTunnel(authServers, tlsConfig, sshClientConfig)
 	if err != nil {
-		directErrLogger.Debug("Failed to connect to Auth Server directly.")
-		logger.WithError(err).Debug("Failed to connect to Auth Server through tunnel.")
-		return nil, trace.Errorf("Failed to connect to Auth Server directly or over tunnel, no methods remaining.")
+		process.log.Errorf("Node failed to establish connection to Teleport Proxy. We have tried the following endpoints:")
+		process.log.Errorf("- connecting to auth server directly: %v", directErr)
+		if trace.IsConnectionProblem(err) && strings.Contains(err.Error(), "connection refused") {
+			err = trace.Wrap(err, "This is the alternative port we tried and it's not configured.")
+		}
+		process.log.Errorf("- connecting to auth server through tunnel: %v", err)
+		collectedErrs := trace.NewAggregate(directErr, err)
+		if utils.IsUntrustedCertErr(collectedErrs) {
+			collectedErrs = trace.WrapWithMessage(collectedErrs, utils.SelfSignedCertsMsg)
+		}
+		return nil, trace.WrapWithMessage(collectedErrs,
+			"Failed to connect to Auth Server directly or over tunnel, no methods remaining.")
 	}
 
 	logger.Debug("Connected to Auth Server through tunnel.")
@@ -881,9 +1093,9 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 }
 
 func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAddr, tlsConfig *tls.Config, sshConfig *ssh.ClientConfig) (*auth.Client, error) {
-	resolver := reversetunnel.WebClientResolver(process.ExitContext(), authServers, lib.IsInsecureDevMode())
+	resolver := reversetunnel.WebClientResolver(authServers, lib.IsInsecureDevMode())
 
-	resolver, err := reversetunnel.CachingResolver(resolver, process.Clock)
+	resolver, err := reversetunnel.CachingResolver(process.ExitContext(), resolver, process.Clock)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -898,10 +1110,12 @@ func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAd
 		return nil, trace.Wrap(err)
 	}
 	clt, err := auth.NewClient(apiclient.Config{
-		Dialer: dialer,
+		Context: process.ExitContext(),
+		Dialer:  dialer,
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -909,7 +1123,7 @@ func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAd
 
 	// Check connectivity to cluster. If the request fails, unwrap the error to
 	// get the underlying error.
-	_, err = clt.GetLocalClusterName()
+	_, err = clt.GetDomainName(context.TODO())
 	if err != nil {
 		if err2 := clt.Close(); err2 != nil {
 			process.log.WithError(err2).Warn("Failed to close Auth Server tunnel client.")
@@ -920,23 +1134,38 @@ func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAd
 	return clt, nil
 }
 
-func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tlsConfig *tls.Config) (*auth.Client, error) {
+func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tlsConfig *tls.Config, role types.SystemRole) (*auth.Client, error) {
 	var cltParams []roundtrip.ClientParam
 	if process.Config.ClientTimeout != 0 {
 		cltParams = []roundtrip.ClientParam{auth.ClientTimeout(process.Config.ClientTimeout)}
 	}
 
+	var dialOpts []grpc.DialOption
+	if role == types.RoleProxy {
+		grpcMetrics := metrics.CreateGRPCClientMetrics(process.Config.Metrics.GRPCClientLatency, prometheus.Labels{teleport.TagClient: "teleport-proxy"})
+		if err := metrics.RegisterPrometheusCollectors(grpcMetrics); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		dialOpts = append(dialOpts, []grpc.DialOption{
+			grpc.WithUnaryInterceptor(om.UnaryClientInterceptor(grpcMetrics)),
+			grpc.WithStreamInterceptor(om.StreamClientInterceptor(grpcMetrics)),
+		}...)
+	}
+
 	clt, err := auth.NewClient(apiclient.Config{
-		Addrs: utils.NetAddrsToStrings(authServers),
+		Context: process.ExitContext(),
+		Addrs:   utils.NetAddrsToStrings(authServers),
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},
+		CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
+		DialOpts:             dialOpts,
 	}, cltParams...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if _, err := clt.GetLocalClusterName(); err != nil {
+	if _, err := clt.GetDomainName(context.TODO()); err != nil {
 		if err2 := clt.Close(); err2 != nil {
 			process.log.WithError(err2).Warn("Failed to close direct Auth Server client.")
 		}

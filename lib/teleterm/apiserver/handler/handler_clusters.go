@@ -89,6 +89,7 @@ func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
 	return &api.Cluster{
 		Uri:       cluster.URI.String(),
 		Name:      cluster.Name,
+		ProxyHost: cluster.GetProxyHost(),
 		Connected: cluster.Connected(),
 		LoggedInUser: &api.LoggedInUser{
 			Name:      loggedInUser.Name,

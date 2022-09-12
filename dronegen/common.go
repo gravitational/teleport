@@ -19,6 +19,19 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"strings"
+)
+
+const (
+	// StagingRegistry is the staging registry images are pushed to before being promoted to the production registry.
+	StagingRegistry = "146628656107.dkr.ecr.us-west-2.amazonaws.com"
+
+	// ProductionRegistry is the production image registry that hosts are customer facing container images.
+	ProductionRegistry = "public.ecr.aws"
+
+	// ProductionRegistryQuay is the production image registry that hosts images on quay.io. Will be deprecated in the future.
+	// See RFD 73 - https://github.com/gravitational/teleport/blob/c18c09f5d562dd46a509154eab4295ad39decc3c/rfd/0073-public-image-registry.md
+	ProductionRegistryQuay = "quay.io"
 )
 
 var (
@@ -31,6 +44,11 @@ var (
 		Event: triggerRef{Include: []string{"tag"}},
 		Ref:   triggerRef{Include: []string{"refs/tags/v*"}},
 		Repo:  triggerRef{Include: []string{"gravitational/*"}},
+	}
+	triggerPromote = trigger{
+		Event:  triggerRef{Include: []string{"promote"}},
+		Target: triggerRef{Include: []string{"production"}},
+		Repo:   triggerRef{Include: []string{"gravitational/*"}},
 	}
 
 	volumeDocker = volume{
@@ -86,6 +104,87 @@ type buildType struct {
 	windowsUnsigned bool
 }
 
+// Description provides a human-facing description of the artifact, e.g.:
+//
+//	Windows 64-bit (tsh client only)
+//	Linux ARMv7 (32-bit)
+//	MacOS Intel .pkg installer
+func (b *buildType) Description(packageType string, extraQualifications ...string) string {
+	var result string
+
+	var os string
+	var arch string
+	var darwinArch string
+	var bitness int
+	var qualifications []string
+
+	switch b.os {
+	case "linux":
+		os = "Linux"
+	case "darwin":
+		os = "MacOS"
+	case "windows":
+		os = "Windows"
+	default:
+		panic(fmt.Sprintf("unhandled OS: %s", b.os))
+	}
+
+	switch b.arch {
+	case "arm64":
+		arch = "ARM64/ARMv8"
+		darwinArch = "Apple Silicon"
+		bitness = 64
+	case "amd64":
+		darwinArch = "Intel"
+		bitness = 64
+
+	case "arm":
+		arch = "ARMv7"
+		fallthrough
+	case "386":
+		bitness = 32
+
+	default:
+		panic(fmt.Sprintf("unhandled arch: %s", b.arch))
+	}
+
+	if b.centos7 {
+		qualifications = append(qualifications, "RHEL/CentOS 7.x compatible")
+	}
+	if b.fips {
+		qualifications = append(qualifications, "FedRAMP/FIPS")
+	}
+
+	qualifications = append(qualifications, extraQualifications...)
+
+	result = os
+
+	if b.os == "darwin" {
+		result += fmt.Sprintf(" %s", darwinArch)
+	} else {
+		// arch is implicit for Windows/Linux i386/amd64
+		if arch == "" {
+			result += fmt.Sprintf(" %d-bit", bitness)
+		} else {
+			result += fmt.Sprintf(" %s (%d-bit)", arch, bitness)
+		}
+	}
+
+	if packageType != "" {
+		result += fmt.Sprintf(" %s", packageType)
+	}
+
+	if len(qualifications) > 0 {
+		result += fmt.Sprintf(" (%s)", strings.Join(qualifications, ", "))
+	}
+	return result
+}
+
+func (b *buildType) hasTeleportConnect() bool {
+	return (b.os == "darwin" && b.arch == "amd64") ||
+		(b.os == "linux" && b.arch == "amd64" && !b.centos7 && !b.fips)
+}
+
 // dockerService generates a docker:dind service
 // It includes the Docker socket volume by default, plus any extra volumes passed in
 func dockerService(v ...volumeRef) service {
@@ -112,15 +211,23 @@ func dockerVolumeRefs(v ...volumeRef) []volumeRef {
 // releaseMakefileTarget gets the correct Makefile target for a given arch/fips/centos combo
 func releaseMakefileTarget(b buildType) string {
 	makefileTarget := fmt.Sprintf("release-%s", b.arch)
-	if b.centos7 {
+	// All x86_64 binaries are built on CentOS 7 now for better glibc compatibility.
+	if b.centos7 || b.arch == "amd64" {
 		makefileTarget += "-centos7"
 	}
 	if b.fips {
 		makefileTarget += "-fips"
 	}
-	if b.os == "windows" && b.windowsUnsigned {
-		makefileTarget = "release-windows-unsigned"
+
+	// Override Windows targets.
+	if b.os == "windows" {
+		if b.windowsUnsigned {
+			makefileTarget = "release-windows-unsigned"
+		} else {
+			makefileTarget = "release-windows"
+		}
 	}
+
 	return makefileTarget
 }
 

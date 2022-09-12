@@ -51,7 +51,7 @@ func (s *Config) CheckAndSetDefaults() error {
 	if s.Directory == "" {
 		return trace.BadParameter("missing parameter Directory")
 	}
-	if utils.IsDir(s.Directory) == false {
+	if !utils.IsDir(s.Directory) {
 		return trace.BadParameter("path %q does not exist or is not a directory", s.Directory)
 	}
 	if s.OnBeforeComplete == nil {

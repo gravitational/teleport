@@ -18,6 +18,7 @@ package services
 
 import (
 	"crypto"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
 	"time"
@@ -28,6 +29,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -53,6 +55,8 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 	switch ca.GetType() {
 	case types.UserCA, types.HostCA:
 		err = checkUserOrHostCA(ca)
+	case types.DatabaseCA:
+		err = checkDatabaseCA(ca)
 	case types.JWTSigner:
 		err = checkJWTKeys(ca)
 	default:
@@ -84,6 +88,39 @@ func checkUserOrHostCA(cai types.CertAuthority) error {
 	}
 	_, err := parseRoleMap(ca.GetRoleMap())
 	return trace.Wrap(err)
+}
+
+// checkDatabaseCA checks if provided certificate authority contains a valid TLS key pair.
+// This function is used to verify Database CA.
+func checkDatabaseCA(cai types.CertAuthority) error {
+	ca, ok := cai.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unknown CA type %T", cai)
+	}
+
+	if len(ca.Spec.ActiveKeys.TLS) == 0 && len(ca.Spec.TLSKeyPairs) == 0 {
+		return trace.BadParameter("DB certificate authority missing TLS key pairs")
+	}
+
+	for _, pair := range ca.GetTrustedTLSKeyPairs() {
+		if len(pair.Key) > 0 && pair.KeyType == types.PrivateKeyType_RAW {
+			var err error
+			if len(pair.Cert) > 0 {
+				_, err = tls.X509KeyPair(pair.Cert, pair.Key)
+			} else {
+				_, err = utils.ParsePrivateKey(pair.Key)
+			}
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		_, err := tlsca.ParseCertificatePEM(pair.Cert)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
 }
 
 func checkJWTKeys(cai types.CertAuthority) error {
@@ -161,8 +198,6 @@ func GetSSHCheckingKeys(ca types.CertAuthority) [][]byte {
 type HostCertParams struct {
 	// CASigner is the signer that will sign the public key of the host with the CA private key.
 	CASigner ssh.Signer
-	// CASigningAlg is the signature algorithm used by the CA private key.
-	CASigningAlg string
 	// PublicHostKey is the public key of the host
 	PublicHostKey []byte
 	// HostID is used by Teleport to uniquely identify a node within a cluster
@@ -181,8 +216,8 @@ type HostCertParams struct {
 
 // Check checks parameters for errors
 func (c HostCertParams) Check() error {
-	if c.CASigner == nil || c.CASigningAlg == "" {
-		return trace.BadParameter("CASigner and CASigningAlg are required")
+	if c.CASigner == nil {
+		return trace.BadParameter("CASigner is required")
 	}
 	if c.HostID == "" && len(c.Principals) == 0 {
 		return trace.BadParameter("HostID [%q] or Principals [%q] are required",
@@ -217,8 +252,6 @@ type ChangePasswordReq struct {
 type UserCertParams struct {
 	// CASigner is the signer that will sign the public key of the user with the CA private key
 	CASigner ssh.Signer
-	// CASigningAlg is the signature algorithm used by the CA private key.
-	CASigningAlg string
 	// PublicUserKey is the public key of the user
 	PublicUserKey []byte
 	// TTL defines how long a certificate is valid for
@@ -235,6 +268,8 @@ type UserCertParams struct {
 	PermitAgentForwarding bool
 	// PermitPortForwarding permits port forwarding.
 	PermitPortForwarding bool
+	// PermitFileCopying permits the use of SCP/SFTP.
+	PermitFileCopying bool
 	// Roles is a list of roles assigned to this user
 	Roles []string
 	// CertificateFormat is the format of the SSH certificate.
@@ -253,6 +288,8 @@ type UserCertParams struct {
 	MFAVerified string
 	// ClientIP is an IP of the client to embed in the certificate.
 	ClientIP string
+	// SourceIP is an IP that certificate should be pinned to.
+	SourceIP string
 	// DisallowReissue flags that any attempt to request new certificates while
 	// authenticated with this cert should be denied.
 	DisallowReissue bool
@@ -262,15 +299,19 @@ type UserCertParams struct {
 	Renewable bool
 	// Generation counts the number of times a certificate has been renewed.
 	Generation uint64
+	// AllowedResourceIDs lists the resources the user should be able to access.
+	AllowedResourceIDs string
+	// ConnectionDiagnosticID references the ConnectionDiagnostic that we should use to append traces when testing a Connection.
+	ConnectionDiagnosticID string
 }
 
 // CheckAndSetDefaults checks the user certificate parameters
 func (c *UserCertParams) CheckAndSetDefaults() error {
-	if c.CASigner == nil || c.CASigningAlg == "" {
-		return trace.BadParameter("CASigner and CASigningAlg are required")
+	if c.CASigner == nil {
+		return trace.BadParameter("CASigner is required")
 	}
-	if c.TTL < defaults.MinCertDuration {
-		c.TTL = defaults.MinCertDuration
+	if c.TTL < apidefaults.MinCertDuration {
+		c.TTL = apidefaults.MinCertDuration
 	}
 	if len(c.AllowedLogins) == 0 {
 		return trace.BadParameter("AllowedLogins are required")
@@ -278,10 +319,12 @@ func (c *UserCertParams) CheckAndSetDefaults() error {
 	return nil
 }
 
-// CertPoolFromCertAuthorities returns certificate pools from TLS certificates
-// set up in the certificate authorities list
-func CertPoolFromCertAuthorities(cas []types.CertAuthority) (*x509.CertPool, error) {
+// CertPoolFromCertAuthorities returns a certificate pool from the TLS certificates
+// set up in the certificate authorities list, as well as the number of certificates
+// that were added to the pool.
+func CertPoolFromCertAuthorities(cas []types.CertAuthority) (*x509.CertPool, int, error) {
 	certPool := x509.NewCertPool()
+	count := 0
 	for _, ca := range cas {
 		keyPairs := ca.GetTrustedTLSKeyPairs()
 		if len(keyPairs) == 0 {
@@ -290,12 +333,13 @@ func CertPoolFromCertAuthorities(cas []types.CertAuthority) (*x509.CertPool, err
 		for _, keyPair := range keyPairs {
 			cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, 0, trace.Wrap(err)
 			}
 			certPool.AddCert(cert)
+			count++
 		}
 	}
-	return certPool, nil
+	return certPool, count, nil
 }
 
 // CertPool returns certificate pools from TLS certificates
@@ -358,6 +402,18 @@ func UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (types.CertAuth
 		if cfg.ID != 0 {
 			ca.SetResourceID(cfg.ID)
 		}
+		// Correct problems with existing CAs that contain non-UTC times, which
+		// causes panics when doing a gogoproto Clone; should only ever be
+		// possible with LastRotated, but we enforce it on all the times anyway.
+		// See https://github.com/gogo/protobuf/issues/519 .
+		if ca.Spec.Rotation != nil {
+			apiutils.UTC(&ca.Spec.Rotation.Started)
+			apiutils.UTC(&ca.Spec.Rotation.LastRotated)
+			apiutils.UTC(&ca.Spec.Rotation.Schedule.UpdateClients)
+			apiutils.UTC(&ca.Spec.Rotation.Schedule.UpdateServers)
+			apiutils.UTC(&ca.Spec.Rotation.Schedule.Standby)
+		}
+
 		return &ca, nil
 	}
 

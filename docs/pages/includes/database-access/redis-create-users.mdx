@@ -1,0 +1,34 @@
+Each Redis user must be protected by a strong password. We recommend using OpenSSL to generate passwords:
+
+```shell
+openssl rand -hex 32
+```
+
+<Admonition type="note">
+  If you have access to Redis you can also generate a password by using the below command from the Redis console:
+
+  ```
+  ACL GENPASS
+  ```
+</Admonition>
+
+Create a `users.acl` file, which defines users for your Redis deployment, passwords required to log in as a given user,
+and sets of ACL rules. Redis allows you to provide passwords in plaintext or an SHA256 hash.
+We strongly recommend using an SHA256 hash instead of plaintext passwords.
+
+You can use the command below to generate an SHA256 hash from a password.
+```shell
+echo -n STRONG_GENERATED_PASSWORD | sha256sum
+```
+
+```text
+user alice on #57639ed88a85996453555f22f5aa4147b4c9614056585d931e5d976f610651e9 allcommands allkeys
+user default off
+```
+
+For more ACL examples refer to the [Redis documentation](https://redis.io/docs/manual/security/acl/).
+
+<Admonition type="warning">
+  It's very important to either disable or protect with a password the `default` user. Otherwise, everyone with access
+  to the database can log in as the `default` user, which by default has administrator privileges.
+</Admonition>

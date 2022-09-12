@@ -24,8 +24,10 @@ import (
 
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/trace"
 )
 
 type Keygen struct {
@@ -40,15 +42,25 @@ func New() *Keygen {
 
 // NewWithClock creates a new key generator with the specified configuration
 func NewWithClock(clock clockwork.Clock) *Keygen {
-	inner := native.New(context.Background(), native.PrecomputeKeys(0), native.SetClock(clock))
+	inner := native.New(context.Background(), native.SetClock(clock))
 	return &Keygen{Keygen: inner, clock: clock}
 }
 
-func (n *Keygen) GetNewKeyPairFromPool() ([]byte, []byte, error) {
-	return n.GenerateKeyPair("")
+// GeneratePrivateKey generates a new PrivateKey.
+func (n *Keygen) GeneratePrivateKey() (*keys.PrivateKey, error) {
+	priv, _, err := n.GenerateKeyPair()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return keys.ParsePrivateKey(priv)
 }
 
-func (n *Keygen) GenerateKeyPair(passphrase string) ([]byte, []byte, error) {
+func (n *Keygen) GetNewKeyPairFromPool() ([]byte, []byte, error) {
+	return n.GenerateKeyPair()
+}
+
+func (n *Keygen) GenerateKeyPair() ([]byte, []byte, error) {
 	randomKey := testPairs[(random.Int() % len(testPairs))]
 	return randomKey.Priv, randomKey.Pub, nil
 }

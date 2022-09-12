@@ -44,6 +44,27 @@ func (s *Handler) ListDatabases(ctx context.Context, req *api.ListDatabasesReque
 	return response, nil
 }
 
+// ListDatabaseUsers is used to list database user suggestions when the user is attempting to
+// establish a connection to a database through Teleterm.
+//
+// The list is based on whatever we can deduce from the role set, so it's similar to the behavior of
+// `tsh db ls -v`, with the exception that Teleterm is interested only in the allowed usernames.
+func (s *Handler) ListDatabaseUsers(ctx context.Context, req *api.ListDatabaseUsersRequest) (*api.ListDatabaseUsersResponse, error) {
+	cluster, err := s.DaemonService.ResolveCluster(req.DbUri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	dbUsers, err := cluster.GetAllowedDatabaseUsers(ctx, req.DbUri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &api.ListDatabaseUsersResponse{
+		Users: dbUsers,
+	}, nil
+}
+
 func newAPIDatabase(db clusters.Database) *api.Database {
 	apiLabels := APILabels{}
 	for name, value := range db.GetAllLabels() {

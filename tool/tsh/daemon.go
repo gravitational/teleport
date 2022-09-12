@@ -18,11 +18,11 @@ package main
 
 import (
 	"context"
-	"os"
-	"syscall"
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/teleterm"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/trace"
 )
@@ -33,11 +33,17 @@ func onDaemonStart(cf *CLIConf) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	err := teleterm.Start(ctx, teleterm.Config{
+	// Use info-level daemon-grade logging for the daemon running in non-debug mode.
+	// tsh already sets debug-level CLI-grade logging when running in debug mode.
+	if !cf.Debug {
+		utils.InitLogger(utils.LoggingForDaemon, logrus.InfoLevel)
+	}
+
+	err := teleterm.Serve(ctx, teleterm.Config{
 		HomeDir:            homeDir,
+		CertsDir:           cf.DaemonCertsDir,
 		Addr:               cf.DaemonAddr,
 		InsecureSkipVerify: cf.InsecureSkipVerify,
-		ShutdownSignals:    []os.Signal{os.Interrupt, syscall.SIGTERM},
 	})
 	if err != nil {
 		return trace.Wrap(err)

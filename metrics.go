@@ -230,4 +230,10 @@ const (
 
 	// TagType is a prometheus label for type of resource or tunnel connected
 	TagType = "type"
+
+	// TagServer is a prometheus label to indicate what server the metric is tied to
+	TagServer = "server"
+
+	// TagClient is a prometheus label to indicate what client the metric is tied to
+	TagClient = "client"
 )

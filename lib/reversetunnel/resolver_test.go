@@ -53,7 +53,7 @@ func TestStaticResolver(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			addr, err := StaticResolver(tt.address)()
+			addr, err := StaticResolver(tt.address)(context.Background())
 			tt.errorAssertionFn(t, err)
 			if err != nil {
 				return
@@ -107,7 +107,7 @@ func TestResolveViaWebClient(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv(defaults.TunnelPublicAddrEnvar, tt.address)
-			addr, err := WebClientResolver(context.Background(), tt.addrs, true)()
+			addr, err := WebClientResolver(tt.addrs, true)(context.Background())
 			tt.errorAssertionFn(t, err)
 			if err != nil {
 				return
@@ -119,7 +119,7 @@ func TestResolveViaWebClient(t *testing.T) {
 }
 
 func TestCachingResolver(t *testing.T) {
-	randomResolver := func() (*utils.NetAddr, error) {
+	randomResolver := func(context.Context) (*utils.NetAddr, error) {
 		return &utils.NetAddr{
 			Addr:        uuid.New().String(),
 			AddrNetwork: uuid.New().String(),
@@ -128,25 +128,36 @@ func TestCachingResolver(t *testing.T) {
 	}
 
 	clock := clockwork.NewFakeClock()
-	resolver, err := CachingResolver(randomResolver, clock)
+	resolver, err := CachingResolver(context.Background(), randomResolver, clock)
 	require.NoError(t, err)
 
-	addr, err := resolver()
+	// This is a data race check.
+	// We start a goroutine that mutates the underlying NetAddr, but without invalidating the cache.
+	// The caching resolver must return a pointer to a copy of the NetAddr to avoid a data race.
+	go func() {
+		addr, err := resolver(context.Background())
+		require.NoError(t, err)
+		// data race check: write to *addr
+		addr.Addr = ""
+	}()
+
+	addr, err := resolver(context.Background())
 	require.NoError(t, err)
 
-	addr2, err := resolver()
+	addr2, err := resolver(context.Background())
 	require.NoError(t, err)
 
+	// data race check: read from *addr
 	require.Equal(t, addr, addr2)
 
 	clock.Advance(time.Hour)
 
-	addr3, err := resolver()
+	addr3, err := resolver(context.Background())
 	require.NoError(t, err)
 
 	require.NotEqual(t, addr2, addr3)
 
-	addr4, err := resolver()
+	addr4, err := resolver(context.Background())
 	require.NoError(t, err)
 
 	require.Equal(t, addr3, addr4)

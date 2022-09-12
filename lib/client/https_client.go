@@ -24,28 +24,33 @@ import (
 	"net/url"
 
 	"github.com/gravitational/teleport"
+	apiproxy "github.com/gravitational/teleport/api/client/proxy"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/utils"
-	"golang.org/x/net/http/httpproxy"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"golang.org/x/net/http/httpproxy"
 )
 
 func NewInsecureWebClient() *http.Client {
 	// Because Teleport clients can't be configured (yet), they take the default
 	// list of cipher suites from Go.
 	tlsConfig := utils.TLSConfig(nil)
-	tlsConfig.InsecureSkipVerify = true
-
-	return &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: tlsConfig,
-			Proxy: func(req *http.Request) (*url.URL, error) {
-				return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
-			},
+	transport := http.Transport{
+		TLSClientConfig: tlsConfig,
+		Proxy: func(req *http.Request) (*url.URL, error) {
+			return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
 		},
+	}
+	return &http.Client{
+		Transport: otelhttp.NewTransport(
+			apiproxy.NewHTTPFallbackRoundTripper(&transport, true /* insecure */),
+			otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
+		),
 	}
 }
 
@@ -56,12 +61,15 @@ func newClientWithPool(pool *x509.CertPool) *http.Client {
 	tlsConfig.RootCAs = pool
 
 	return &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: tlsConfig,
-			Proxy: func(req *http.Request) (*url.URL, error) {
-				return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
+		Transport: otelhttp.NewTransport(
+			&http.Transport{
+				TLSClientConfig: tlsConfig,
+				Proxy: func(req *http.Request) (*url.URL, error) {
+					return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
+				},
 			},
-		},
+			otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
+		),
 	}
 }
 

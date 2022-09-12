@@ -21,23 +21,10 @@ import (
 )
 
 func main() {
-	// Note: these commands should be kept in sync with e/tool/tctl/main.go.
-	commands := []common.CLICommand{
-		&common.UserCommand{},
-		&common.NodeCommand{},
-		&common.TokenCommand{},
-		&common.AuthCommand{},
-		&common.ResourceCommand{},
-		&common.StatusCommand{},
-		&common.TopCommand{},
-		&common.AccessRequestCommand{},
-		&common.AppsCommand{},
-		&common.DBCommand{},
-		&common.KubeCommand{},
-		&common.DesktopCommand{},
-		&common.AccessCommand{},
-		&common.LockCommand{},
-		&common.BotsCommand{},
-	}
+
+	// aggregate common and oss-specific command variants
+	commands := common.Commands()
+	commands = append(commands, common.OSSCommands()...)
+
 	common.Run(commands)
 }

@@ -17,34 +17,22 @@ limitations under the License.
 package jwt
 
 import (
-	"os"
 	"testing"
 	"time"
 
-	"github.com/jonboulle/clockwork"
-
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+	josejwt "gopkg.in/square/go-jose.v2/jwt"
 
-	"gopkg.in/check.v1"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 )
 
-func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
-	os.Exit(m.Run())
-}
-
-type Suite struct{}
-
-var _ = check.Suite(&Suite{})
-
-func TestJWT(t *testing.T) { check.TestingT(t) }
-
-func (s *Suite) TestSignAndVerify(c *check.C) {
+func TestSignAndVerify(t *testing.T) {
 	_, privateBytes, err := GenerateKeyPair()
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	privateKey, err := utils.ParsePrivateKey(privateBytes)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	clock := clockwork.NewFakeClockAt(time.Now())
 
@@ -55,7 +43,7 @@ func (s *Suite) TestSignAndVerify(c *check.C) {
 		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: "example.com",
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Sign a token with the new key.
 	token, err := key.Sign(SignParams{
@@ -64,7 +52,7 @@ func (s *Suite) TestSignAndVerify(c *check.C) {
 		Expires:  clock.Now().Add(1 * time.Minute),
 		URI:      "http://127.0.0.1:8080",
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Verify that the token can be validated and values match expected values.
 	claims, err := key.Verify(VerifyParams{
@@ -72,20 +60,20 @@ func (s *Suite) TestSignAndVerify(c *check.C) {
 		RawToken: token,
 		URI:      "http://127.0.0.1:8080",
 	})
-	c.Assert(err, check.IsNil)
-	c.Assert(claims.Username, check.Equals, "foo@example.com")
-	c.Assert(claims.Roles, check.DeepEquals, []string{"foo", "bar"})
+	require.NoError(t, err)
+	require.Equal(t, claims.Username, "foo@example.com")
+	require.Equal(t, claims.Roles, []string{"foo", "bar"})
 }
 
 // TestPublicOnlyVerify checks that a non-signing key used to validate a JWT
 // can be created.
-func (s *Suite) TestPublicOnlyVerify(c *check.C) {
+func TestPublicOnlyVerify(t *testing.T) {
 	publicBytes, privateBytes, err := GenerateKeyPair()
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	privateKey, err := utils.ParsePrivateKey(privateBytes)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	publicKey, err := utils.ParsePublicKey(publicBytes)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	clock := clockwork.NewFakeClockAt(time.Now())
 
@@ -95,7 +83,7 @@ func (s *Suite) TestPublicOnlyVerify(c *check.C) {
 		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: "example.com",
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Sign a token with the new key.
 	token, err := key.Sign(SignParams{
@@ -104,7 +92,7 @@ func (s *Suite) TestPublicOnlyVerify(c *check.C) {
 		Expires:  clock.Now().Add(1 * time.Minute),
 		URI:      "http://127.0.0.1:8080",
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Create a new key that can only verify tokens and make sure the token
 	// values match the expected values.
@@ -113,15 +101,15 @@ func (s *Suite) TestPublicOnlyVerify(c *check.C) {
 		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: "example.com",
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	claims, err := key.Verify(VerifyParams{
 		Username: "foo@example.com",
 		URI:      "http://127.0.0.1:8080",
 		RawToken: token,
 	})
-	c.Assert(err, check.IsNil)
-	c.Assert(claims.Username, check.Equals, "foo@example.com")
-	c.Assert(claims.Roles, check.DeepEquals, []string{"foo", "bar"})
+	require.NoError(t, err)
+	require.Equal(t, claims.Username, "foo@example.com")
+	require.Equal(t, claims.Roles, []string{"foo", "bar"})
 
 	// Make sure this key returns an error when trying to sign.
 	_, err = key.Sign(SignParams{
@@ -130,15 +118,15 @@ func (s *Suite) TestPublicOnlyVerify(c *check.C) {
 		Expires:  clock.Now().Add(1 * time.Minute),
 		URI:      "http://127.0.0.1:8080",
 	})
-	c.Assert(err, check.NotNil)
+	require.Error(t, err)
 }
 
 // TestExpiry checks that token expiration works.
-func (s *Suite) TestExpiry(c *check.C) {
+func TestExpiry(t *testing.T) {
 	_, privateBytes, err := GenerateKeyPair()
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	privateKey, err := utils.ParsePrivateKey(privateBytes)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	clock := clockwork.NewFakeClockAt(time.Now())
 
@@ -149,7 +137,7 @@ func (s *Suite) TestExpiry(c *check.C) {
 		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: "example.com",
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Sign a token with a 1 minute expiration.
 	token, err := key.Sign(SignParams{
@@ -158,7 +146,7 @@ func (s *Suite) TestExpiry(c *check.C) {
 		Expires:  clock.Now().Add(1 * time.Minute),
 		URI:      "http://127.0.0.1:8080",
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Verify that the token is still valid.
 	claims, err := key.Verify(VerifyParams{
@@ -166,9 +154,10 @@ func (s *Suite) TestExpiry(c *check.C) {
 		URI:      "http://127.0.0.1:8080",
 		RawToken: token,
 	})
-	c.Assert(err, check.IsNil)
-	c.Assert(claims.Username, check.Equals, "foo@example.com")
-	c.Assert(claims.Roles, check.DeepEquals, []string{"foo", "bar"})
+	require.NoError(t, err)
+	require.Equal(t, claims.Username, "foo@example.com")
+	require.Equal(t, claims.Roles, []string{"foo", "bar"})
+	require.Equal(t, claims.IssuedAt, josejwt.NewNumericDate(clock.Now()))
 
 	// Advance time by two minutes and verify the token is no longer valid.
 	clock.Advance(2 * time.Minute)
@@ -177,5 +166,5 @@ func (s *Suite) TestExpiry(c *check.C) {
 		URI:      "http://127.0.0.1:8080",
 		RawToken: token,
 	})
-	c.Assert(err, check.NotNil)
+	require.Error(t, err)
 }

@@ -19,7 +19,7 @@ package protocol
 import (
 	"github.com/gravitational/trace"
 
-	"github.com/siddontang/go-mysql/mysql"
+	"github.com/go-mysql-org/go-mysql/mysql"
 )
 
 // StatementPreparePacket represents the COM_STMT_PREPARE command.

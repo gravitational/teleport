@@ -76,3 +76,150 @@ func TestDatabaseStatus(t *testing.T) {
 	database.SetStatusAWS(awsMeta)
 	require.Equal(t, awsMeta, database.GetAWS())
 }
+
+func TestDatabaseElastiCacheEndpoint(t *testing.T) {
+	t.Run("valid URI", func(t *testing.T) {
+		database, err := NewDatabaseV3(Metadata{
+			Name: "elasticache",
+		}, DatabaseSpecV3{
+			Protocol: "redis",
+			URI:      "clustercfg.my-redis-cluster.xxxxxx.cac1.cache.amazonaws.com:6379",
+		})
+
+		require.NoError(t, err)
+		require.Equal(t, AWS{
+			Region: "ca-central-1",
+			ElastiCache: ElastiCache{
+				ReplicationGroupID:       "my-redis-cluster",
+				TransitEncryptionEnabled: true,
+				EndpointType:             "configuration",
+			},
+		}, database.GetAWS())
+		require.True(t, database.IsElastiCache())
+		require.True(t, database.IsAWSHosted())
+		require.True(t, database.IsCloudHosted())
+	})
+
+	t.Run("invalid URI", func(t *testing.T) {
+		database, err := NewDatabaseV3(Metadata{
+			Name: "elasticache",
+		}, DatabaseSpecV3{
+			Protocol: "redis",
+			URI:      "some.endpoint.cache.amazonaws.com:6379",
+			AWS: AWS{
+				Region: "us-east-5",
+				ElastiCache: ElastiCache{
+					ReplicationGroupID: "some-id",
+				},
+			},
+		})
+
+		// A warning is logged, no error is returned, and AWS metadata is not
+		// updated.
+		require.NoError(t, err)
+		require.Equal(t, AWS{
+			Region: "us-east-5",
+			ElastiCache: ElastiCache{
+				ReplicationGroupID: "some-id",
+			},
+		}, database.GetAWS())
+	})
+}
+
+func TestDatabaseMemoryDBEndpoint(t *testing.T) {
+	t.Run("valid URI", func(t *testing.T) {
+		database, err := NewDatabaseV3(Metadata{
+			Name: "memorydb",
+		}, DatabaseSpecV3{
+			Protocol: "redis",
+			URI:      "clustercfg.my-memorydb.xxxxxx.memorydb.us-east-1.amazonaws.com:6379",
+		})
+
+		require.NoError(t, err)
+		require.Equal(t, AWS{
+			Region: "us-east-1",
+			MemoryDB: MemoryDB{
+				ClusterName:  "my-memorydb",
+				TLSEnabled:   true,
+				EndpointType: "cluster",
+			},
+		}, database.GetAWS())
+		require.True(t, database.IsMemoryDB())
+		require.True(t, database.IsAWSHosted())
+		require.True(t, database.IsCloudHosted())
+	})
+
+	t.Run("invalid URI", func(t *testing.T) {
+		database, err := NewDatabaseV3(Metadata{
+			Name: "memorydb",
+		}, DatabaseSpecV3{
+			Protocol: "redis",
+			URI:      "some.endpoint.memorydb.amazonaws.com:6379",
+			AWS: AWS{
+				Region: "us-east-5",
+				MemoryDB: MemoryDB{
+					ClusterName: "clustername",
+				},
+			},
+		})
+
+		// A warning is logged, no error is returned, and AWS metadata is not
+		// updated.
+		require.NoError(t, err)
+		require.Equal(t, AWS{
+			Region: "us-east-5",
+			MemoryDB: MemoryDB{
+				ClusterName: "clustername",
+			},
+		}, database.GetAWS())
+	})
+}
+
+func TestMySQLVersionValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("correct config", func(t *testing.T) {
+		database, err := NewDatabaseV3(Metadata{
+			Name: "test",
+		}, DatabaseSpecV3{
+			Protocol: "mysql",
+			URI:      "localhost:5432",
+			MySQL: MySQLOptions{
+				ServerVersion: "8.0.18",
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "8.0.18", database.GetMySQLServerVersion())
+	})
+
+	t.Run("incorrect config - wrong protocol", func(t *testing.T) {
+		_, err := NewDatabaseV3(Metadata{
+			Name: "test",
+		}, DatabaseSpecV3{
+			Protocol: "Postgres",
+			URI:      "localhost:5432",
+			MySQL: MySQLOptions{
+				ServerVersion: "8.0.18",
+			},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "ServerVersion")
+	})
+}
+
+func TestMySQLServerVersion(t *testing.T) {
+	t.Parallel()
+
+	database, err := NewDatabaseV3(Metadata{
+		Name: "test",
+	}, DatabaseSpecV3{
+		Protocol: "mysql",
+		URI:      "localhost:5432",
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, "", database.GetMySQLServerVersion())
+
+	database.SetMySQLServerVersion("8.0.1")
+	require.Equal(t, "8.0.1", database.GetMySQLServerVersion())
+}
