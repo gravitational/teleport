@@ -53,15 +53,6 @@ func (a *Server) UpsertRole(ctx context.Context, role types.Role) error {
 
 // DeleteRole deletes a role and emits a related audit event.
 func (a *Server) DeleteRole(ctx context.Context, name string) error {
-	role, err := types.NewRole(name, types.RoleSpecV5{})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := a.checkRoleRulesConstraint(ctx, role, "delete"); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// check if this role is used by CA or Users
 	users, err := a.Services.GetUsers(false)
 	if err != nil {
