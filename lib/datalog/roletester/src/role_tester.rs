@@ -105,10 +105,11 @@ fn create_error_ptr(e: String) -> Output {
 ///
 /// This function should not be called if input is invalid
 #[no_mangle]
-pub unsafe extern "C" fn process_access(input: *mut c_uchar, input_len: size_t) -> *mut Output {
+pub unsafe extern "C" fn process_access(input: *const c_uchar, input_len: size_t) -> *mut Output {
     let mut runtime = Crepe::new();
-    let b = slice::from_raw_parts_mut(input, input_len);
-    let r = match types::Facts::decode(BytesMut::from(&b[..])) {
+
+    let b = slice::from_raw_parts(input, input_len);
+    let r = match types::Facts::decode(BytesMut::from(b)) {
         Ok(b) => b,
         Err(e) => return Box::into_raw(Box::new(create_error_ptr(e.to_string()))),
     };
