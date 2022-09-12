@@ -67,7 +67,7 @@ If you specify a role here, you may also need to specify some other settings whi
 
 `authToken` provides a Teleport join token which will be used to join the Teleport instance to a Teleport cluster.
 
-This value **must** be provided for the chart to work. The token that you use must also be valid for every Teleport service that you
+This value **must** be provided for the chart to work, if you don't want to used other join methods. The token that you use must also be valid for every Teleport service that you
 are trying to add with the `teleport-kube-agent` chart. Here are a few examples:
 
 | Services | Service Name | `tctl tokens add` example | `teleport.yaml` static token example |
@@ -101,6 +101,22 @@ fail to join the Teleport cluster.
   ```
   </TabItem>
 </Tabs>
+
+## `joinParams`
+`joinParams` provides an alternative to Teleport join token, which nowadays teleport suppots agents to join using EC2 Identity Document, or via AWS IAM Role.
+### `joinParams.method`
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `token` | Yes |
+
+`joinParams.method` will define which method will be used for the nodes to join the cluster. By default this helm-chart sets to token, which will use the traditional `authToken`. The values that could be set are `iam` if node should join using [AWS IAM role](https://goteleport.com/docs/management/guides/joining-nodes-aws-iam/) or `ec2` if the node should join using [EC2 Identity Document](https://goteleport.com/docs/management/guides/joining-nodes-aws-iam/). 
+
+### `joinParams.tokenName`
+| Type | Default value | Required? |
+| - | - | - |
+| `string` | `nil` | When `joinParams.method` is not set to "token" |
+
+`joinParams.tokenName` this value is the name of the token created on the Teleport Cluster. If your token created on Teleport cluster is called `iam-token` you should set `joinParams.tokenName` as `iam-token`.
 
 ## `proxyAddr`
 
