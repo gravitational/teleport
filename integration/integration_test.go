@@ -36,7 +36,6 @@ import (
 	"reflect"
 	"regexp"
 	"runtime/pprof"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -2779,7 +2778,7 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 	username := suite.Me.Username
 
 	// create load balancer for main cluster proxies
-	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, helpers.NewPortStr()))
+	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, "0"))
 	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
 	require.NoError(t, err)
 	require.NoError(t, lb.Listen())
@@ -2913,7 +2912,7 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 	username := suite.Me.Username
 
 	// create load balancer for main cluster proxies
-	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(helpers.NewPortValue())))
+	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, "0"))
 	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
 	require.NoError(t, err)
 	require.NoError(t, lb.Listen())
@@ -3040,7 +3039,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
 
 	// Create and start load balancer for proxies.
-	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(helpers.NewPortValue())))
+	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, "0"))
 	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
 	require.NoError(t, err)
 	require.NoError(t, lb.Listen())
@@ -3155,7 +3154,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 	// Requests going via both proxy will fail.
 	timeoutCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer invoke(cancel)
-	_, err = runCommand(t, main, []string{"echo", "hello world"}, cfg, 1)
+	_, err = runCommandWithContext(timeoutCtx, t, main, []string{"echo", "hello world"}, cfg, 1)
 	require.Error(t, err)
 
 	timeoutCtx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
@@ -3195,7 +3194,7 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 	defer lib.SetInsecureDevMode(false)
 
 	// Create and start load balancer for proxies.
-	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(helpers.NewPortValue())))
+	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, "0"))
 	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
 	require.NoError(t, err)
 	err = lb.Listen()
@@ -3586,7 +3585,7 @@ func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// start a ssh server that presents a host key instead of a certificate
-			nodePort := helpers.NewPortValue()
+			nodePort := newPortValue()
 			sshNode, err := helpers.NewDiscardServer(Host, nodePort, hostSigner)
 			require.NoError(t, err)
 			err = sshNode.Start()
@@ -4666,7 +4665,7 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 	defer teleport.StopAll()
 
 	// Create and start a Teleport node.
-	nodeSSHPort := helpers.NewPortValue()
+	nodeSSHPort := newPortValue()
 	nodeConfig := func() *service.Config {
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = "server-02"
@@ -5722,7 +5721,7 @@ func runCommandWithContext(ctx context.Context, t *testing.T, instance *helpers.
 	return output.String(), nil
 }
 
-// invoke makes it easier invoke 
+// invoke makes it easier invoke
 func invoke(cancel context.CancelFunc) {
 	cancel()
 }
@@ -6310,7 +6309,7 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 				Enabled: true,
 			}
 			conf.SSH.Addr = utils.NetAddr{
-				Addr: fmt.Sprintf("%s:%d", Host, helpers.NewPortValue()),
+				Addr: helpers.NewListenerOn(t, Host, service.ListenerNodeSSH, &conf.FileDescriptors),
 			}
 			conf.Proxy.Enabled = false
 
