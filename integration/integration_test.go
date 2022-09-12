@@ -3153,9 +3153,14 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 	helpers.WaitForActiveTunnelConnections(t, proxyTunnel, helpers.Site, 0)
 
 	// Requests going via both proxy will fail.
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer invoke(cancel)
 	_, err = runCommand(t, main, []string{"echo", "hello world"}, cfg, 1)
 	require.Error(t, err)
-	_, err = runCommand(t, main, []string{"echo", "hello world"}, cfgProxy, 1)
+
+	timeoutCtx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer invoke(cancel)
+	_, err = runCommandWithContext(timeoutCtx, t, main, []string{"echo", "hello world"}, cfgProxy, 1)
 	require.Error(t, err)
 
 	// wait for the node to reach a degraded state
@@ -5686,11 +5691,7 @@ func runCommandWithCertReissue(t *testing.T, instance *helpers.TeleInstance, cmd
 	return nil
 }
 
-// runCommand is a shortcut for running SSH command, it creates a client
-// connected to proxy of the passed in instance, runs the command, and returns
-// the result. If multiple attempts are requested, a 250 millisecond delay is
-// added between them before giving up.
-func runCommand(t *testing.T, instance *helpers.TeleInstance, cmd []string, cfg helpers.ClientConfig, attempts int) (string, error) {
+func runCommandWithContext(ctx context.Context, t *testing.T, instance *helpers.TeleInstance, cmd []string, cfg helpers.ClientConfig, attempts int) (string, error) {
 	tc, err := instance.NewClient(cfg)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -5707,7 +5708,7 @@ func runCommand(t *testing.T, instance *helpers.TeleInstance, cmd []string, cfg 
 	}()
 	tc.Stdout = write
 	for i := 0; i < attempts; i++ {
-		err = tc.SSH(context.TODO(), cmd, false)
+		err = tc.SSH(ctx, cmd, false)
 		if err == nil {
 			break
 		}
@@ -5719,6 +5720,19 @@ func runCommand(t *testing.T, instance *helpers.TeleInstance, cmd []string, cfg 
 	}
 	<-doneC
 	return output.String(), nil
+}
+
+// invoke makes it easier invoke 
+func invoke(cancel context.CancelFunc) {
+	cancel()
+}
+
+// runCommand is a shortcut for running SSH command, it creates a client
+// connected to proxy of the passed in instance, runs the command, and returns
+// the result. If multiple attempts are requested, a 250 millisecond delay is
+// added between them before giving up.
+func runCommand(t *testing.T, instance *helpers.TeleInstance, cmd []string, cfg helpers.ClientConfig, attempts int) (string, error) {
+	return runCommandWithContext(context.TODO(), t, instance, cmd, cfg, attempts)
 }
 
 type InstanceConfigOption func(t *testing.T, config *helpers.InstanceConfig)
