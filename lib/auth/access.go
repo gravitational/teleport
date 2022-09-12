@@ -151,32 +151,51 @@ func (a *Server) DeleteLock(ctx context.Context, lockName string) error {
 
 // checkRoleRulesConstraint checks if the request will result in having
 // no roles with rules to upsert roles.
-func (a *Server) checkRoleRulesConstraint(ctx context.Context, role types.Role, request string) error {
-	// check if it's the last role with access to create or edit roles
-	rolesWithPermission, err := a.getRolesWithUpdateRolesRule(ctx)
+func (s *Server) checkRoleRulesConstraint(ctx context.Context, targetRole types.Role, request string) error {
+	rolesWithUpdateRolesRule, err := s.getRolesWithUpdateRolesRule(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if Contains(rolesWithPermission, role.GetName()) && len(rolesWithPermission) == 1 {
-		if roleHasUpdateRolesRule(role) {
-			return nil
-		}
-		log.Warnf("Failed to %s last role with permissions to upsert roles", request)
-		return trace.BadParameter("failed to %s last role with permissions to upsert roles", request)
+	isRoleLoosingUpdateRolesRule := Contains(rolesWithUpdateRolesRule, targetRole.GetName()) && !roleHasUpdateRolesRule(targetRole)
+
+	if !isRoleLoosingUpdateRolesRule {
+		return nil
 	}
-	return nil
+
+	allUsers, err := s.Identity.GetUsers(false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	localUsersWithPermissionToEditRoles := Filter(allUsers, func(u types.User) bool {
+		isLocalUser := u.GetCreatedBy().Connector == nil
+
+		rolesWithoutTarget := Filter(u.GetRoles(), func(role string) bool {
+			return role != targetRole.GetName()
+		})
+
+		return isLocalUser && Some(rolesWithoutTarget, func(role string) bool {
+			return Contains(rolesWithUpdateRolesRule, role)
+		})
+	})
+
+	if len(localUsersWithPermissionToEditRoles) > 0 {
+		return nil
+	}
+
+	log.Warnf("Failed to %s update role. This operation will cause no user to be able to edit roles.", request)
+	return trace.BadParameter("Failed to %s update role. This operation will cause no user to be able to edit roles.", request)
 }
 
-// returns a list of roles that
-// have a update rule associated to the role resource.
+// returns a list of roles that have a update rule associated to the role resource.
 func (a *Server) getRolesWithUpdateRolesRule(ctx context.Context) ([]string, error) {
 	allRoles, err := a.Access.GetRoles(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var getRolesWithUpdateRolesRule = Filter(allRoles, roleHasUpdateRolesRule)
+	getRolesWithUpdateRolesRule := Filter(allRoles, roleHasUpdateRolesRule)
 
 	return Map(getRolesWithUpdateRolesRule, func(r types.Role) string {
 		return r.GetName()

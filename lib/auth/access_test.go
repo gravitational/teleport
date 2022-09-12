@@ -83,7 +83,7 @@ func TestRoleConstraints(t *testing.T) {
 			Rules: []types.Rule{
 				{
 					Resources: []string{types.KindRole},
-					Verbs:     []string{types.VerbCreate, types.VerbUpdate},
+					Verbs:     []string{types.VerbUpdate},
 				},
 			},
 		},
@@ -92,7 +92,7 @@ func TestRoleConstraints(t *testing.T) {
 			Rules: []types.Rule{
 				{
 					Resources: []string{types.KindRole},
-					Verbs:     []string{types.VerbCreate, types.VerbUpdate},
+					Verbs:     []string{types.VerbUpdate},
 				},
 			},
 		},
@@ -101,7 +101,7 @@ func TestRoleConstraints(t *testing.T) {
 			Rules: []types.Rule{
 				{
 					Resources: []string{types.KindUser},
-					Verbs:     []string{types.VerbCreate, types.VerbUpdate},
+					Verbs:     []string{types.VerbUpdate},
 				},
 			},
 		},
@@ -121,9 +121,26 @@ func TestRoleConstraints(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// remove upsert rules from test-role-2.
+	// create and insert users
+	user1, err := types.NewUser("user-1")
+	require.NoError(t, err)
+	user1.SetRoles([]string{testRoles[0].Name})
+	err = p.a.CreateUser(ctx, user1)
+	require.NoError(t, err)
+
+	user2, err := types.NewUser("user-2")
+	require.NoError(t, err)
+	user2.SetRoles([]string{testRoles[1].Name})
+	err = p.a.CreateUser(ctx, user2)
+	require.NoError(t, err)
+
+	userSSO, err := types.NewUser("user-sso")
+	require.NoError(t, err)
+	userSSO.SetRoles([]string{testRoles[0].Name})
+
+	// remove update rules from test-role-2.
 	// the operation will succeed because test-role-1 still has rules
-	// to upsert roles.
+	// to update roles and user that is using it.
 	role, err := types.NewRoleV3(testRoles[1].Name, types.RoleSpecV5{
 		Options: types.RoleOptions{},
 		Allow:   types.RoleConditions{},
@@ -133,9 +150,9 @@ func TestRoleConstraints(t *testing.T) {
 	err = p.a.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
-	// remove upsert rules from test-role-1.
+	// remove update rules from test-role-1.
 	// the operation will fail because test-role-1 is the only role left that has
-	// rules to upsert roles.
+	// rules to update roles.
 	role, err = types.NewRoleV3(testRoles[0].Name, types.RoleSpecV5{
 		Options: types.RoleOptions{},
 		Allow:   types.RoleConditions{},
@@ -145,7 +162,7 @@ func TestRoleConstraints(t *testing.T) {
 	err = p.a.UpsertRole(ctx, role)
 	require.Error(t, err)
 
-	// remove upsert rules from test-role-3.
+	// remove update rules from test-role-3.
 	// this is a control operation that shows that other resource types
 	// are not affected by the "role resource constraints".
 	role, err = types.NewRoleV3(testRoles[2].Name, types.RoleSpecV5{
@@ -159,7 +176,7 @@ func TestRoleConstraints(t *testing.T) {
 
 	// delete test-role-1.
 	// the operation will fail because test-role-1 is the only role left that has
-	// rules to upsert roles.
+	// rules to update roles.
 	err = p.a.DeleteRole(ctx, testRoles[0].Name)
 	require.Error(t, err)
 

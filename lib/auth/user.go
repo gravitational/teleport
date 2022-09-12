@@ -233,7 +233,7 @@ func (s *Server) DeleteUser(ctx context.Context, username string) error {
 }
 
 // checkUserRoleConstraint checks if the request will result in having
-// no users with access to upsert roles.
+// no users with access to update roles.
 func (s *Server) checkUserRoleConstraint(ctx context.Context, user types.User, request string) error {
 	rolesWithUpdateRolesRule, err := s.getRolesWithUpdateRolesRule(ctx)
 	if err != nil {
@@ -245,8 +245,8 @@ func (s *Server) checkUserRoleConstraint(ctx context.Context, user types.User, r
 		return trace.Wrap(err)
 	}
 
-	var localUsersWithPermissionToEditRoles = Filter(allUsers, func(u types.User) bool {
-		var isLocalUser = u.GetCreatedBy().Connector == nil
+	localUsersWithPermissionToEditRoles := Filter(allUsers, func(u types.User) bool {
+		isLocalUser := u.GetCreatedBy().Connector == nil
 
 		return isLocalUser && Some(u.GetRoles(), func(role string) bool {
 			return Contains(rolesWithUpdateRolesRule, role)
@@ -257,20 +257,20 @@ func (s *Server) checkUserRoleConstraint(ctx context.Context, user types.User, r
 		return nil
 	}
 
-	var isUserWithPermissionToEditRoles = Some(localUsersWithPermissionToEditRoles, func(u types.User) bool {
+	isUserWithPermissionToEditRoles := Some(localUsersWithPermissionToEditRoles, func(u types.User) bool {
 		return user.GetName() == u.GetName()
 	})
 
-	var isUpdatedUserWithPermissionToEditRoles = Some(user.GetRoles(), func(role string) bool {
+	isUpdatedUserWithPermissionToEditRoles := Some(user.GetRoles(), func(role string) bool {
 		return Contains(rolesWithUpdateRolesRule, role)
 	})
 
-	var isUserLoosingPermissionToEditRoles = isUserWithPermissionToEditRoles && !isUpdatedUserWithPermissionToEditRoles
+	isUserLoosingPermissionToEditRoles := isUserWithPermissionToEditRoles && !isUpdatedUserWithPermissionToEditRoles
 
 	if !isUserLoosingPermissionToEditRoles {
 		return nil
 	}
 
-	log.Warnf("Failed to %s last user with with permissions to upsert roles", request)
-	return trace.BadParameter("failed to %s last user with permissions to upsert roles", request)
+	log.Warnf("Failed to %s last user with with permissions to update roles", request)
+	return trace.BadParameter("failed to %s last user with permissions to update roles", request)
 }
