@@ -1,21 +1,25 @@
 ---
 title: Configure Teleport to Automatically Discover EC2 instances
-description: How to configure Teleport to install itself EC2 instances.
+description: How to configure Teleport to install itself on EC2 instances.
 ---
 
-Teleport's SSH Service can be configured to automatically discover, and install
-Teleport on newly provisioned EC2 nodes.
+Teleport can be configured to run a discovery service that will
+connect to EC2 and automatically discover instances. It will then
+execute an install script on these discovered instances using AWS
+Systems Manger, that will install Teleport, start it and join the
+cluster.
 
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- AWS account with EC2 instances and permissions to create and attach IAM policies as well as permission to create System Manager documents.
-- A running Teleport Node. See the [Server Access Getting Started Guide](../getting-started.mdx) for how to add a Node to your Teleport cluster.
+- AWS account with EC2 instances and permissions to create and attach IAM policies as well as permission to create Systems Manager documents.
+
+<!-- - A running Teleport Node. See the [Server Access Getting Started Guide](../getting-started.mdx) for how to add a Node to your Teleport cluster. -->
 
 ## Step 1/4. Create an EC2 invite token
 
-When discovering EC2 nodes Teleport makes use of EC2 invite tokens for
+When discovering EC2 nodes Teleport makes use of IAM invite tokens for
 authenticating joining Nodes.
 
 Create the file `token.yaml`:
@@ -47,7 +51,7 @@ Add the token to the Teleport cluster with:
 tctl create -f token.yaml
 ```
 
-More documentation on EC2 invite tokens can be found [here](../../management/guides/joining-nodes-aws-iam.mdx)
+More documentation on IAM invite tokens can be found [here](../../management/guides/joining-nodes-aws-iam.mdx)
 
 ## Step 2/4. Create an AWS Systems Manager Document
 
@@ -86,7 +90,7 @@ mainSteps:
 Here, `teleport.example.com` should be substituted with the public proxy URL of the
 Teleport cluster.
 
-When Teleport executes the System Manager document it will provide the `token`
+When Teleport executes the Systems Manager document it will provide the `token`
 and `scriptName` parameters with defaults.
 
 - `{{ scriptName }}` will by default evaluate to `default-installer`
@@ -95,8 +99,10 @@ and `scriptName` parameters with defaults.
 
 ## Step 3/4. Set up AWS IAM credentials
 
-The Teleport Discovery Node requires an IAM policy with permissions to
-send System Manager commands and retrieve EC2 instances:
+In order for Teleport to send commands to EC2 instances, the node
+performing discovery requires an IAM policy with permissions to
+execute Systems Manager commands and retrieve EC2 instances:
+
 ```js
 {
     "Version": "2012-10-17",
