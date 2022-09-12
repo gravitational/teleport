@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -429,7 +430,7 @@ func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []service
 }
 
 // decodePEM sorts out specified PEM file into certificates and private keys.
-func decodePEM(pemPath string) (certs []pem.Block, keys []pem.Block, err error) {
+func decodePEM(pemPath string) (certs []pem.Block, privs []pem.Block, err error) {
 	bytes, err := os.ReadFile(pemPath)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -443,9 +444,11 @@ func decodePEM(pemPath string) (certs []pem.Block, keys []pem.Block, err error) 
 		switch block.Type {
 		case "CERTIFICATE":
 			certs = append(certs, *block)
-		case "RSA PRIVATE KEY":
-			keys = append(keys, *block)
+		case keys.PKCS1PrivateKeyType:
+			privs = append(privs, *block)
+		case keys.PKCS8PrivateKeyType:
+			privs = append(privs, *block)
 		}
 	}
-	return certs, keys, nil
+	return certs, privs, nil
 }
