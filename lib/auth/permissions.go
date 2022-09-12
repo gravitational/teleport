@@ -310,6 +310,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		RouteToDatabase:   u.Identity.RouteToDatabase,
 		MFAVerified:       u.Identity.MFAVerified,
 		ClientIP:          u.Identity.ClientIP,
+		PrivateKeyPolicy:  u.Identity.PrivateKeyPolicy,
 	}
 
 	return &Context{
