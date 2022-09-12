@@ -720,6 +720,7 @@ kubernetes_service:
     labels:
       env: "prod"
     # Optional Dynamic Labels
+    commands:
     - name: "os"
        command: ["/usr/bin/uname"]
        period: "5s"
