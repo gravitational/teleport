@@ -743,7 +743,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 	// check if the error is a private key policy error.
 	if privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(err); err == nil {
 		// The current private key was rejected due to an unmet key policy requirement.
-		fmt.Fprintf(tc.Stderr, "Request failed, private key policy %q not met. Relogging in with YubiKey generated private key...\n", privateKeyPolicy)
+		fmt.Fprintf(tc.Stderr, "Private key policy %q not met. Relogging in with YubiKey generated private key...\n", privateKeyPolicy)
 
 		// The current private key was rejected due to an unmet key policy requirement.
 		// Set the private key policy to the expected value and re-login.
@@ -3399,7 +3399,7 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 		// check if the error is a private key policy error, and relogin if it is.
 		if privateKeyPolicy, parseErr := keys.ParsePrivateKeyPolicyError(err); parseErr == nil {
 			// The current private key was rejected due to an unmet key policy requirement.
-			fmt.Fprintf(tc.Stderr, "Login failed, private key policy %q not met. Retrying with YubiKey generated private key...\n", privateKeyPolicy)
+			fmt.Fprintf(tc.Stderr, "Private key policy %q not met. Retrying with YubiKey generated private key...\n", privateKeyPolicy)
 
 			// Set the private key policy to the expected value and re-login.
 			priv, err = tc.GetNewLoginKey(ctx, privateKeyPolicy)
