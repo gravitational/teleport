@@ -827,15 +827,17 @@ type FileSystemObject struct {
 	LastModified uint64
 	Size         uint64
 	FileType     uint32
+	IsEmpty      uint8
 	Path         string
 }
 
-func (s FileSystemObject) Encode() ([]byte, error) {
+func (f FileSystemObject) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
-	binary.Write(buf, binary.BigEndian, s.LastModified)
-	binary.Write(buf, binary.BigEndian, s.Size)
-	binary.Write(buf, binary.BigEndian, s.FileType)
-	if err := encodeString(buf, s.Path); err != nil {
+	binary.Write(buf, binary.BigEndian, f.LastModified)
+	binary.Write(buf, binary.BigEndian, f.Size)
+	binary.Write(buf, binary.BigEndian, f.FileType)
+	buf.WriteByte(f.IsEmpty)
+	if err := encodeString(buf, f.Path); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return buf.Bytes(), nil
@@ -844,6 +846,7 @@ func (s FileSystemObject) Encode() ([]byte, error) {
 func decodeFileSystemObject(in peekReader) (FileSystemObject, error) {
 	var lastModified, size uint64
 	var fileType uint32
+	var isEmpty uint8
 	err := binary.Read(in, binary.BigEndian, &lastModified)
 	if err != nil {
 		return FileSystemObject{}, trace.Wrap(err)
@@ -856,6 +859,10 @@ func decodeFileSystemObject(in peekReader) (FileSystemObject, error) {
 	if err != nil {
 		return FileSystemObject{}, trace.Wrap(err)
 	}
+	isEmpty, err = in.ReadByte()
+	if err != nil {
+		return FileSystemObject{}, trace.Wrap(err)
+	}
 	path, err := decodeString(in, tdpMaxPathLength)
 	if err != nil {
 		return FileSystemObject{}, trace.Wrap(err)
@@ -865,6 +872,7 @@ func decodeFileSystemObject(in peekReader) (FileSystemObject, error) {
 		LastModified: lastModified,
 		Size:         size,
 		FileType:     fileType,
+		IsEmpty:      isEmpty,
 		Path:         path,
 	}, nil
 }
