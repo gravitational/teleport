@@ -27,15 +27,15 @@ export function Switchback({
   const roles = assumedRoles.join(', ');
 
   return (
-    <Flex height="48px" bg="secondary.light" justifyContent="center">
+    <Flex height="38px" bg="secondary.light" justifyContent="center">
       {attempt.status === 'failed' && (
         <ErrorAlert err={attempt.statusText} onClose={onErrorConfirm} />
       )}
       <Flex alignItems="center">
         <Box
           borderRadius="20px"
-          py={1}
-          px={3}
+          py={0}
+          px={2}
           mr={2}
           color="secondary.main"
           bg="light"

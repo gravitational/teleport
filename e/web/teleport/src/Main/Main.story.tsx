@@ -76,6 +76,8 @@ function useMainStory() {
   const statusText = '';
 
   return {
+    alerts: [],
+    customBanners: [],
     history,
     ctx,
     status,
