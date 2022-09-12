@@ -34,6 +34,7 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/gizak/termui/v3 v3.1.0
 	github.com/go-ldap/ldap/v3 v3.4.1
+	github.com/go-logr/logr v1.2.3
 	github.com/go-mysql-org/go-mysql v1.5.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/gokyle/hotp v0.0.0-20160218004637-c180d57d286b
@@ -42,6 +43,7 @@ require (
 	github.com/google/go-cmp v0.5.8
 	github.com/google/gops v0.3.14
 	github.com/google/uuid v1.3.0
+	github.com/gorilla/websocket v1.4.2
 	github.com/gravitational/configure v0.0.0-20180808141939-c3428bd84c23
 	github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70
 	github.com/gravitational/kingpin v2.1.11-0.20220506065057-8b7839c62700+incompatible
@@ -114,7 +116,11 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/api v0.23.3
 	k8s.io/apimachinery v0.23.3
+	k8s.io/apiserver v0.23.3
 	k8s.io/client-go v0.23.3
+	k8s.io/klog/v2 v2.80.1
+	k8s.io/kubectl v0.23.3
+	k8s.io/utils v0.0.0-20211116205334-6203023598ed
 )
 
 require (
@@ -149,7 +155,6 @@ require (
 	github.com/felixge/httpsnoop v1.0.2 // indirect
 	github.com/form3tech-oss/jwt-go v3.2.3+incompatible // indirect
 	github.com/go-asn1-ber/asn1-ber v1.5.1 // indirect
-	github.com/go-logr/logr v1.2.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
@@ -196,7 +201,6 @@ require (
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/ryszard/goskiplist v0.0.0-20150312221310-2dfbae5fcf46 // indirect
 	github.com/satori/go.uuid v1.2.0 // indirect
-	github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500 // indirect
 	github.com/siddontang/go v0.0.0-20180604090527-bdc77568d726 // indirect
 	github.com/siddontang/go-log v0.0.0-20180807004314-8d05993dda07 // indirect
@@ -224,11 +228,7 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
-	k8s.io/apiserver v0.23.3 // indirect
-	k8s.io/klog/v2 v2.80.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20211115234752-e816edb12b65 // indirect
-	k8s.io/kubectl v0.23.3 // indirect
-	k8s.io/utils v0.0.0-20211116205334-6203023598ed // indirect
 	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
 	sigs.k8s.io/json v0.0.0-20211020170558-c049b76a60c6 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.1 // indirect
