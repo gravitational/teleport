@@ -1143,7 +1143,7 @@ See https://kubernetes.io/docs/concepts/configuration/secret/#tls-secrets for mo
 
 `tls.existingCASecretName` sets the `SSL_CERT_FILE` environment variable to load a trusted CA or bundle in PEM format into Teleport pods.
 This can be set to inject a root and/or intermediate CA so that Teleport can build a full trust chain on startup.
-This can also be used trust private CAs when contatcing an OIDC provider, a s3 compatible backends, or any external service without
+This can also be used to trust private CAs when contacting an OIDC provider, a s3 compatible backend, or any external service without
 modifying the teleport base image.
 
 This is likely to be needed
