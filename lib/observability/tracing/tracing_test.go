@@ -248,7 +248,8 @@ func TestTraceProvider(t *testing.T) {
 	tlsCertificate, err := generateTLSCertificate()
 	require.NoError(t, err)
 	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{tlsCertificate},
+		Certificates:       []tls.Certificate{tlsCertificate},
+		InsecureSkipVerify: true,
 	}
 
 	cases := []struct {
