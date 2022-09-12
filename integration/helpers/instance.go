@@ -983,10 +983,10 @@ type ProxyConfig struct {
 }
 
 // StartProxy starts another Proxy Server and connects it to the cluster.
-func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error) {
+func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, *service.TeleportProcess, error) {
 	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName+"-"+cfg.Name)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	i.tempDirs = append(i.tempDirs, dataDir)
 
@@ -1031,7 +1031,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error)
 	// compose this "cluster".
 	process, err := service.NewTeleport(tconf, service.WithIMDSClient(&DisabledIMDSClient{}))
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	i.Nodes = append(i.Nodes, process)
 
@@ -1045,7 +1045,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error)
 	// Start the process and block until the expected events have arrived.
 	receivedEvents, err := StartAndWait(process, expectedEvents)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	log.Debugf("Teleport proxy (in instance %v) started: %v/%v events received.",
@@ -1058,12 +1058,12 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error)
 		case service.ProxyReverseTunnelReady:
 			ts, ok := re.Payload.(reversetunnel.Server)
 			if ok {
-				return ts, nil
+				return ts, process, nil
 			}
 		}
 	}
 
-	return nil, nil
+	return nil, nil, nil
 }
 
 // Reset re-creates the teleport instance based on the same configuration

@@ -2823,7 +2823,7 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 		newConfig.ReverseTunneAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyTunnel, &newConfig.FileDescriptors)
 		reverseTunnelAddr = newConfig.ReverseTunneAddr
 
-		newProxy, err := main.StartProxy(newConfig)
+		newProxy, _, err := main.StartProxy(newConfig)
 		require.NoError(t, err)
 
 		// add proxy as a backend to the load balancer
@@ -2952,7 +2952,7 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 	proxyConfig.WebAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyWeb, &proxyConfig.FileDescriptors)
 	proxyConfig.ReverseTunneAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyTunnel, &proxyConfig.FileDescriptors)
 
-	secondProxy, err := main.StartProxy(proxyConfig)
+	secondProxy, _, err := main.StartProxy(proxyConfig)
 	require.NoError(t, err)
 
 	// add second proxy as a backend to the load balancer
@@ -3078,16 +3078,29 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 		DisableWebInterface:    true,
 		DisableALPNSNIListener: true,
 	}
-	proxyConfig.SSHAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerNodeSSH, &proxyConfig.FileDescriptors)
-	proxyConfig.WebAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyWeb, &proxyConfig.FileDescriptors)
-	proxyConfig.ReverseTunneAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyTunnel, &proxyConfig.FileDescriptors)
+	proxyConfig.SSHAddr = helpers.NewListener(t, service.ListenerNodeSSH, &proxyConfig.FileDescriptors)
+	proxyConfig.WebAddr = helpers.NewListener(t, service.ListenerProxyWeb, &proxyConfig.FileDescriptors)
+	proxyConfig.ReverseTunneAddr = helpers.NewListener(t, service.ListenerProxyTunnel, &proxyConfig.FileDescriptors)
 
-	proxyTunnel, err := main.StartProxy(proxyConfig)
+	proxyTunnel, firstProxy, err := main.StartProxy(proxyConfig)
+	require.NoError(t, err)
+
+	// The Listener FDs injected into the first proxy instance will be closed
+	// when that instance is stopped later in in the test, rendering them all
+	// invalid. This will make the tunnel fail when it attempts to re-open once
+	// a second proxy is started. We can't just inject a totally new listener
+	// config into the second proxy when it starts, or the tunnel end points
+	// be able to  find it.
+	//
+	// The least bad option is to duplicate all of the first proxy's Listener
+	// FDs and inject those duplicates prior to startiung the second proxy
+	// instance.
+	fdCache, err := firstProxy.ExportFileDescriptors()
 	require.NoError(t, err)
 
 	proxyOneBackend := utils.MustParseAddr(main.ReverseTunnel)
 	lb.AddBackend(*proxyOneBackend)
-	proxyTwoBackend := utils.MustParseAddr(net.JoinHostPort(Loopback, helpers.PortStr(t, proxyConfig.ReverseTunneAddr)))
+	proxyTwoBackend := utils.MustParseAddr(proxyConfig.ReverseTunneAddr)
 	lb.AddBackend(*proxyTwoBackend)
 
 	// Create a Teleport instance with a Node.
@@ -3098,7 +3111,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 		tconf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
-				Addr:        net.JoinHostPort(Loopback, helpers.PortStr(t, proxyConfig.WebAddr)),
+				Addr:        proxyConfig.WebAddr,
 			},
 		}
 		tconf.Auth.Enabled = false
@@ -3150,7 +3163,8 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err, "timed out waiting for node to become degraded")
 
 	// start the proxy again and ensure the tunnel is re-established
-	proxyTunnel, err = main.StartProxy(proxyConfig)
+	proxyConfig.FileDescriptors = fdCache
+	proxyTunnel, _, err = main.StartProxy(proxyConfig)
 	require.NoError(t, err)
 	helpers.WaitForActiveTunnelConnections(t, main.Tunnel, helpers.Site, 0)
 	helpers.WaitForActiveTunnelConnections(t, proxyTunnel, helpers.Site, 1)
@@ -3217,7 +3231,7 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 	proxyConfig.WebAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyWeb, &proxyConfig.FileDescriptors)
 	proxyConfig.ReverseTunneAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyTunnel, &proxyConfig.FileDescriptors)
 
-	proxyTunnel, err := main.StartProxy(proxyConfig)
+	proxyTunnel, _, err := main.StartProxy(proxyConfig)
 	require.NoError(t, err)
 
 	proxyOneBackend := utils.MustParseAddr(main.ReverseTunnel)
