@@ -93,9 +93,11 @@ spec:
         - mountPath: /etc/teleport
           name: "config"
           readOnly: true
+        {{- if eq .Values.joinParams.method "token" }}
         - mountPath: /etc/teleport-secrets
           name: "auth-token"
           readOnly: true
+        {{- end }}
         - mountPath: /var/lib/teleport
           name: "{{ .Release.Name }}-teleport-data"
           {{- if .Values.tls.existingCASecretName }}
@@ -183,9 +185,11 @@ spec:
         - mountPath: /etc/teleport
           name: "config"
           readOnly: true
+        {{- if eq .Values.joinParams.method "token" }}
         - mountPath: /etc/teleport-secrets
           name: "auth-token"
           readOnly: true
+        {{- end }}
 {{- if .Values.storage.enabled }}
         - mountPath: /var/lib/teleport
           name: "{{ .Release.Name }}-teleport-data"
@@ -205,9 +209,11 @@ spec:
       - name: "config"
         configMap:
           name: {{ .Release.Name }}
+      {{- if eq .Values.joinParams.method "token" }}
       - name: "auth-token"
         secret:
           secretName: {{ .Values.secretName }}
+      {{- end }}
 {{- if not .Values.storage.enabled }}
       - name: "data"
         emptyDir: {}
