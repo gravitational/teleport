@@ -46,9 +46,3 @@ func newPortValue() int {
 func newPortStr() string {
 	return ports.Pop()
 }
-
-// newPortSlice fetches several ports from the pool at once.
-// Deprecated: Use helpers.NewListener() and friends instead.
-func newPortSlice(n int) []int {
-	return ports.PopIntSlice(n)
-}
