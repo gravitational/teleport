@@ -235,7 +235,7 @@ func (s *Server) DeleteUser(ctx context.Context, username string) error {
 // checkUserRoleConstraint checks if the request will result in having
 // no users with access to upsert roles.
 func (s *Server) checkUserRoleConstraint(ctx context.Context, user types.User, request string) error {
-	rolesWithUpsertRolesRule, err := s.getRolesWithUpsertRolesRule(ctx)
+	rolesWithUpdateRolesRule, err := s.getRolesWithUpdateRolesRule(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -245,29 +245,32 @@ func (s *Server) checkUserRoleConstraint(ctx context.Context, user types.User, r
 		return trace.Wrap(err)
 	}
 
-	localUsersWithPermissionToUpsertRole := make(map[string]struct{})
-	for _, u := range allUsers {
+	var localUsersWithPermissionToEditRoles = Filter(allUsers, func(u types.User) bool {
 		var isLocalUser = u.GetCreatedBy().Connector == nil
 
-		if isLocalUser {
-			for _, r := range u.GetRoles() {
-				if _, ok := rolesWithUpsertRolesRule[r]; ok {
-					localUsersWithPermissionToUpsertRole[u.GetName()] = struct{}{}
-					break
-				}
-			}
-		}
+		return isLocalUser && Some(u.GetRoles(), func(role string) bool {
+			return Contains(rolesWithUpdateRolesRule, role)
+		})
+	})
+
+	if len(localUsersWithPermissionToEditRoles) > 1 {
+		return nil
 	}
 
-	if _, ok := localUsersWithPermissionToUpsertRole[user.GetName()]; ok && len(localUsersWithPermissionToUpsertRole) == 1 {
-		for _, r := range user.GetRoles() {
-			if _, ok := rolesWithUpsertRolesRule[r]; ok {
-				return nil
-			}
-		}
-		log.Warnf("Failed to %s last user with with permissions to upsert roles", request)
-		return trace.BadParameter("failed to %s last user with permissions to upsert roles", request)
+	var isUserWithPermissionToEditRoles = Some(localUsersWithPermissionToEditRoles, func(u types.User) bool {
+		return user.GetName() == u.GetName()
+	})
+
+	var isUpdatedUserWithPermissionToEditRoles = Some(user.GetRoles(), func(role string) bool {
+		return Contains(rolesWithUpdateRolesRule, role)
+	})
+
+	var isUserLoosingPermissionToEditRoles = isUserWithPermissionToEditRoles && !isUpdatedUserWithPermissionToEditRoles
+
+	if !isUserLoosingPermissionToEditRoles {
+		return nil
 	}
 
-	return nil
+	log.Warnf("Failed to %s last user with with permissions to upsert roles", request)
+	return trace.BadParameter("failed to %s last user with permissions to upsert roles", request)
 }

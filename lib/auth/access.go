@@ -162,13 +162,13 @@ func (a *Server) DeleteLock(ctx context.Context, lockName string) error {
 // no roles with rules to upsert roles.
 func (a *Server) checkRoleRulesConstraint(ctx context.Context, role types.Role, request string) error {
 	// check if it's the last role with access to create or edit roles
-	rolesWithPermission, err := a.getRolesWithUpsertRolesRule(ctx)
+	rolesWithPermission, err := a.getRolesWithUpdateRolesRule(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if _, ok := rolesWithPermission[role.GetName()]; ok && len(rolesWithPermission) == 1 {
-		if roleHasUpsertRolesRule(role) {
+	if Contains(rolesWithPermission, role.GetName()) && len(rolesWithPermission) == 1 {
+		if roleHasUpdateRolesRule(role) {
 			return nil
 		}
 		log.Warnf("Failed to %s last role with permissions to upsert roles", request)
@@ -177,38 +177,32 @@ func (a *Server) checkRoleRulesConstraint(ctx context.Context, role types.Role, 
 	return nil
 }
 
-// getRolesWithUpsertRolesRule returns a list of roles that
-// have a create and update rule associated to the role resource.
-func (a *Server) getRolesWithUpsertRolesRule(ctx context.Context) (map[string]struct{}, error) {
+// returns a list of roles that
+// have a update rule associated to the role resource.
+func (a *Server) getRolesWithUpdateRolesRule(ctx context.Context) ([]string, error) {
 	allRoles, err := a.Access.GetRoles(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	roles := make(map[string]struct{})
-	for _, role := range allRoles {
-		if roleHasUpsertRolesRule(role) {
-			roles[role.GetName()] = struct{}{}
-		}
-	}
+	var getRolesWithUpdateRolesRule = Filter(allRoles, roleHasUpdateRolesRule)
 
-	return roles, nil
+	return Map(getRolesWithUpdateRolesRule, func(r types.Role) string {
+		return r.GetName()
+	}), nil
 }
 
-// roleHasUpsertRolesRule returns true if the role parameter
-// has a create and update rule associated to the role resource.
-func roleHasUpsertRolesRule(role types.Role) bool {
-	rules := role.GetRules(types.Allow)
-	for _, rule := range rules {
+// checks if role has permission to edit roles
+func roleHasUpdateRolesRule(role types.Role) bool {
+	return Some(role.GetRules(types.Allow), func(rule types.Rule) bool {
 		if !rule.HasResource(types.KindRole) {
-			continue
+			return false
 		}
 
-		if !rule.HasVerb(types.VerbCreate) || !rule.HasVerb(types.VerbUpdate) {
-			continue
+		if !rule.HasVerb(types.VerbUpdate) {
+			return false
 		}
+
 		return true
-
-	}
-	return false
+	})
 }
