@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -131,7 +132,7 @@ type InitConfig struct {
 	Databases services.Databases
 
 	// Status is a service that manages cluster status info.
-	Status services.Status
+	Status services.StatusInternal
 
 	// Roles is a set of roles to create
 	Roles []types.Role
@@ -746,7 +747,8 @@ func (i *Identity) TLSConfig(cipherSuites []uint16) (*tls.Config, error) {
 	if !i.HasTLSConfig() {
 		return nil, trace.NotFound("no TLS credentials setup for this identity")
 	}
-	tlsCert, err := tls.X509KeyPair(i.TLSCertBytes, i.KeyBytes)
+
+	tlsCert, err := keys.X509KeyPair(i.TLSCertBytes, i.KeyBytes)
 	if err != nil {
 		return nil, trace.BadParameter("failed to parse private key: %v", err)
 	}

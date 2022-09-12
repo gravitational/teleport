@@ -1051,7 +1051,7 @@ func CreateUserAndRole(clt clt, username string, allowedLogins []string) (types.
 		return nil, nil, trace.Wrap(err)
 	}
 	role := services.RoleForUser(user)
-	role.SetLogins(types.Allow, []string{user.GetName()})
+	role.SetLogins(types.Allow, allowedLogins)
 	err = clt.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

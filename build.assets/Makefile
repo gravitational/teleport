@@ -8,6 +8,11 @@ HOSTNAME=buildbox
 SRCDIR=/go/src/github.com/gravitational/teleport
 GOMODCACHE ?= /tmp/gomodcache
 DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e GOMODCACHE=$(GOMODCACHE)
+
+# delete after webapps migration to teleport
+WEBAPPSSRCDIR=/go/src/github.com/gravitational/webapps
+WEBAPPSDOCKERFLAGS := $(DOCKERFLAGS) -v "$$(pwd)/../../webapps":$(WEBAPPSSRCDIR)
+
 ADDFLAGS ?=
 BATSFLAGS :=
 NOROOT=-u $$(id -u):$$(id -g)
@@ -17,9 +22,18 @@ TEST_KUBE ?=
 OS ?= linux
 ARCH ?= amd64
 BUILDBOX_VERSION ?= teleport11
-GOLANG_VERSION ?= go1.18.3
-RUST_VERSION ?= 1.58.1 # don't bump this without checking GLIBC compatibility
+
+# NOTE: Windows Drone scripts hardcode $GOLANG_VERSION rather than drawing it
+#       from here at build time, so any changes here must be reflected in
+#       `dronegen/windows.go`
+GOLANG_VERSION ?= go1.18.6
+
+# NOTE: Windows Drone scripts hardcode $NODE_VERSION rather than drawing it
+#       from here at build time, so any changes here must be reflected in
+#       `dronegen/windows.go`
 NODE_VERSION ?= 16.13.2
+
+RUST_VERSION ?= 1.63.0 # don't bump this without checking GLIBC compatibility
 BORINGCRYPTO_RUNTIME=$(GOLANG_VERSION)b7
 LIBBPF_VERSION ?= 0.7.0-teleport
 
@@ -36,6 +50,7 @@ RUNTIME_ARCH := $(RUNTIME_ARCH_$(HOST_ARCH))
 # Newer version of protoc have removed JS support that breaks our Teleterm build.
 # Related issue: https://github.com/protocolbuffers/protobuf-javascript/issues/105
 PROTOC_VER ?= 3.20.1
+# Keep in sync with api/proto/buf.yaml (and buf.lock).
 GOGO_PROTO_TAG ?= v1.3.2
 
 BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:$(BUILDBOX_VERSION)
@@ -227,19 +242,37 @@ buildbox-teleterm: buildbox
 		--cache-from $(BUILDBOX_TELETERM) \
 		--tag $(BUILDBOX_TELETERM) -f Dockerfile-teleterm .
 
+
+CONNECT_VERSION ?= $(VERSION)
+ifeq ($(CONNECT_VERSION),)
+CONNECT_VERSION := $(BUILDBOX_VERSION)-dev
+endif
+
+#
+# Builds Teleport Connect inside the buildbox-teleterm container.
+#
+#   Note: this assumes that gravitational/webapps already exists on the filesystem
+#         and is a sibling directory to Teleport. This is temporary and will be
+#         resolved when the webapps code is moved into this repository.
+#
+.PHONY:teleterm
+teleterm: buildbox-teleterm
+	docker run $(WEBAPPSDOCKERFLAGS) $(NOROOT) $(BUILDBOX_TELETERM) \
+		bash -c "cd ../webapps && export CONNECT_TSH_BIN_PATH=\$$PWD/../teleport/build/tsh && yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$(CONNECT_VERSION)"
+
 # grpc generates GRPC stubs from inside the buildbox
 .PHONY: grpc
 grpc: buildbox
 	docker run \
 		$(DOCKERFLAGS) -e CLANG_FORMAT=/usr/bin/clang-format-10 -t $(BUILDBOX) \
-		make -C /go/src/github.com/gravitational/teleport buildbox-grpc
+		make -C /go/src/github.com/gravitational/teleport grpc/host
 
 # grpc-teleterm generates GRPC stubs for Teleterm from inside buildbox-teleterm
 .PHONY: grpc-teleterm
 grpc-teleterm: buildbox-teleterm
 	docker run \
 		$(DOCKERFLAGS) -e CLANG_FORMAT=/usr/bin/clang-format-10 -t $(BUILDBOX_TELETERM) \
-		make -C /go/src/github.com/gravitational/teleport buildbox-grpc-teleterm
+		make -C /go/src/github.com/gravitational/teleport grpc-teleterm/host
 
 #
 # Removes the docker image
@@ -344,6 +377,15 @@ enter-root: buildbox
 enter/centos7: buildbox
 	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_CENTOS7) /bin/bash
+
+#
+# Starts shell inside the teleterm container
+#
+.PHONY:enter/teleterm
+enter/teleterm: buildbox-teleterm
+	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
+		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_TELETERM) /bin/bash
+
 #
 # Create a Teleport package using the build container.
 # Don't use this target directly; call named Makefile targets like release-amd64.

@@ -199,6 +199,10 @@ type Server struct {
 	// x11 is the X11 forwarding configuration for the server
 	x11 *x11.ServerConfig
 
+	// allowFileCopying indicates whether the ssh server is allowed to handle
+	// remote file operations via SCP or SFTP.
+	allowFileCopying bool
+
 	// lockWatcher is the server's lock watcher.
 	lockWatcher *services.LockWatcher
 
@@ -275,14 +279,25 @@ func (s *Server) UseTunnel() bool {
 	return s.useTunnel
 }
 
-// GetBPF returns the BPF service used by enhanced session recording.
-func (s *Server) GetBPF() bpf.BPF {
-	return s.ebpf
+// OpenBPFSession will start monitoring all events within a session and
+// emitting them to the Audit Log.
+func (s *Server) OpenBPFSession(ctx *srv.ServerContext) (uint64, error) {
+	return s.ebpf.OpenSession(ctx)
 }
 
-// GetRestrictedSessionManager returns the manager for restricting user activity.
-func (s *Server) GetRestrictedSessionManager() restricted.Manager {
-	return s.restrictedMgr
+// CloseBPFSession will stop monitoring events for a particular session.
+func (s *Server) CloseBPFSession(ctx *srv.ServerContext) error {
+	return s.ebpf.CloseSession(ctx)
+}
+
+// OpenRestrictedSession  starts enforcing restrictions for a cgroup with cgroupID
+func (s *Server) OpenRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {
+	s.restrictedMgr.OpenSession(ctx, cgroupID)
+}
+
+// CloseRestrictedSession stops enforcing restrictions for a cgroup with cgroupID
+func (s *Server) CloseRestrictedSession(ctx *srv.ServerContext, cgroupID uint64) {
+	s.restrictedMgr.CloseSession(ctx, cgroupID)
 }
 
 // GetLockWatcher gets the server's lock watcher.
@@ -618,6 +633,15 @@ func SetNodeWatcher(nodeWatcher *services.NodeWatcher) ServerOption {
 func SetX11ForwardingConfig(xc *x11.ServerConfig) ServerOption {
 	return func(s *Server) error {
 		s.x11 = xc
+		return nil
+	}
+}
+
+// SetAllowFileCopying sets whether the server is allowed to handle
+// SCP/SFTP requests.
+func SetAllowFileCopying(allow bool) ServerOption {
+	return func(s *Server) error {
+		s.allowFileCopying = allow
 		return nil
 	}
 }
@@ -1369,6 +1393,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 	scx.ChannelType = teleport.ChanDirectTCPIP
 	scx.SrcAddr = net.JoinHostPort(req.Orig, strconv.Itoa(int(req.OrigPort)))
 	scx.DstAddr = net.JoinHostPort(req.Host, strconv.Itoa(int(req.Port)))
+	scx.SetAllowFileCopying(s.allowFileCopying)
 	defer scx.Close()
 
 	channel = scx.TrackActivity(channel)
@@ -1505,6 +1530,7 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 	scx.IsTestStub = s.isTestStub
 	scx.AddCloser(ch)
 	scx.ChannelType = teleport.ChanSession
+	scx.SetAllowFileCopying(s.allowFileCopying)
 	defer scx.Close()
 
 	ch = scx.TrackActivity(ch)
@@ -1824,7 +1850,7 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 }
 
 func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) error {
-	sb, err := s.parseSubsystemRequest(req, serverContext)
+	sb, err := s.parseSubsystemRequest(req, ch, serverContext)
 	if err != nil {
 		serverContext.Warnf("Failed to parse subsystem request: %v: %v.", req, err)
 		return trace.Wrap(err)
@@ -1927,6 +1953,7 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 	}
 	scx.IsTestStub = s.isTestStub
 	scx.AddCloser(ch)
+	scx.SetAllowFileCopying(s.allowFileCopying)
 	defer scx.Close()
 
 	ch = scx.TrackActivity(ch)
@@ -2037,7 +2064,7 @@ func (s *Server) replyError(ch ssh.Channel, req *ssh.Request, err error) {
 	}
 }
 
-func (s *Server) parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext) (srv.Subsystem, error) {
+func (s *Server) parseSubsystemRequest(req *ssh.Request, ch ssh.Channel, ctx *srv.ServerContext) (srv.Subsystem, error) {
 	var r sshutils.SubsystemReq
 	if err := ssh.Unmarshal(req.Payload, &r); err != nil {
 		return nil, trace.BadParameter("failed to parse subsystem request: %v", err)
@@ -2049,6 +2076,13 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext)
 	case s.proxyMode && strings.HasPrefix(r.Name, "proxysites"):
 		return parseProxySitesSubsys(r.Name, s)
 	case r.Name == sftpSubsystem:
+		if err := ctx.CheckFileCopyingAllowed(); err != nil {
+			// Add an extra newline here to separate this error message
+			// from a potential OpenSSH error message
+			writeStderr(ch, err.Error()+"\n")
+			return nil, trace.Wrap(err)
+		}
+
 		return newSFTPSubsys()
 	default:
 		return nil, trace.BadParameter("unrecognized subsystem: %v", r.Name)

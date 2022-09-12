@@ -462,6 +462,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 			Addr:        Host,
 		},
 	}
+	tconf.SSH.AllowFileCopying = true
 	tconf.Auth.ListenAddr.Addr = i.Auth
 	tconf.Auth.PublicAddrs = []utils.NetAddr{
 		{
@@ -519,7 +520,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 	tconf.Keygen = testauthority.New()
 	tconf.MaxRetryPeriod = defaults.HighResPollingPeriod
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	tconf.FileDescriptors = i.Fds
+	tconf.FileDescriptors = append(tconf.FileDescriptors, i.Fds...)
 
 	i.Config = tconf
 	return tconf, nil
@@ -962,6 +963,7 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 }
 
 // ProxyConfig is a set of configuration parameters for Proxy
+// TODO(tcsc): Add file descriptor slice to inject FDs into proxy process
 type ProxyConfig struct {
 	// Name is a proxy name
 	Name string
@@ -1286,7 +1288,7 @@ func (i *TeleInstance) NewClient(cfg ClientConfig) (*client.TeleportClient, erro
 
 	// Add key to client and update CAs that will be trusted (equivalent to
 	// updating "known hosts" with OpenSSH.
-	_, err = tc.AddKey(&creds.Key)
+	err = tc.AddKey(&creds.Key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
