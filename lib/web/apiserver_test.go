@@ -4704,7 +4704,6 @@ type webPack struct {
 	server  *auth.TestServer
 	node    *regular.Server
 	clock   clockwork.FakeClock
-	ctx     context.Context
 }
 
 type proxy struct {
