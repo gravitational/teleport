@@ -446,15 +446,7 @@ func (ns *NodeSession) updateTerminalSize(ctx context.Context, s *tracessh.Sessi
 			}
 
 			// Send the "window-change" request over the channel.
-			_, err = s.SendRequest(
-				ctx,
-				sshutils.WindowChangeRequest,
-				false,
-				ssh.Marshal(sshutils.WinChangeReqParams{
-					W: uint32(currWidth),
-					H: uint32(currHeight),
-				}))
-			if err != nil {
+			if err = s.WindowChange(ctx, int(currHeight), int(currWidth)); err != nil {
 				log.Warnf("Unable to send %v reqest: %v.", sshutils.WindowChangeRequest, err)
 				continue
 			}
