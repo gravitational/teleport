@@ -240,6 +240,8 @@ func NewListenerOn(t *testing.T, hostAddr string, ty service.ListenerType, fds *
 		File:    lf,
 	})
 
+	fmt.Printf("New Listener %s %s\n", ty, addr)
+
 	return addr
 }
 
