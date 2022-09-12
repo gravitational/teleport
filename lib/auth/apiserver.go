@@ -45,7 +45,6 @@ import (
 type APIConfig struct {
 	PluginRegistry plugin.Registry
 	AuthServer     *Server
-	SessionService session.Service
 	AuditLog       events.IAuditLog
 	Authorizer     Authorizer
 	Emitter        apievents.Emitter
@@ -102,7 +101,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 
 	// Generating certificates for user and host authorities
 	srv.POST("/:version/ca/host/certs", srv.withAuth(srv.generateHostCert))
-	srv.POST("/:version/ca/user/certs", srv.withAuth(srv.generateUserCert)) // DELETE IN: 4.2.0
 
 	// Operations on users
 	srv.GET("/:version/users", srv.withAuth(srv.getUsers))
@@ -112,7 +110,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// Passwords and sessions
 	srv.POST("/:version/users", srv.withAuth(srv.upsertUser))
 	srv.PUT("/:version/users/:user/web/password", srv.withAuth(srv.changePassword))
-	srv.POST("/:version/users/:user/web/password", srv.withAuth(srv.upsertPassword))
 	srv.POST("/:version/users/:user/web/password/check", srv.withRate(srv.withAuth(srv.checkPassword)))
 	srv.POST("/:version/users/:user/web/sessions", srv.withAuth(srv.createWebSession))
 	srv.POST("/:version/users/:user/web/authenticate", srv.withAuth(srv.authenticateWebUser))
@@ -155,11 +152,6 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/tokens/register", srv.withAuth(srv.registerUsingToken))
 
 	// Active sessions
-	srv.POST("/:version/namespaces/:namespace/sessions", srv.withAuth(srv.createSession))
-	srv.PUT("/:version/namespaces/:namespace/sessions/:id", srv.withAuth(srv.updateSession))
-	srv.DELETE("/:version/namespaces/:namespace/sessions/:id", srv.withAuth(srv.deleteSession))
-	srv.GET("/:version/namespaces/:namespace/sessions", srv.withAuth(srv.getSessions))
-	srv.GET("/:version/namespaces/:namespace/sessions/:id", srv.withAuth(srv.getSession))
 	srv.GET("/:version/namespaces/:namespace/sessions/:id/stream", srv.withAuth(srv.getSessionChunk))
 	srv.GET("/:version/namespaces/:namespace/sessions/:id/events", srv.withAuth(srv.getSessionEvents))
 
@@ -230,8 +222,7 @@ func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 		auth := &ServerWithRoles{
 			authServer: s.AuthServer,
 			context:    *authContext,
-			sessions:   s.SessionService,
-			alog:       s.AuthServer.IAuditLog,
+			alog:       s.AuthServer,
 		}
 		version := p.ByName("version")
 		if version == "" {
@@ -499,36 +490,6 @@ func (s *APIServer) getWebSession(auth ClientI, w http.ResponseWriter, r *http.R
 	return rawMessage(services.MarshalWebSession(sess, services.WithVersion(version)))
 }
 
-// DELETE IN: 4.2.0
-type generateUserCertReq struct {
-	Key           []byte        `json:"key"`
-	User          string        `json:"user"`
-	TTL           time.Duration `json:"ttl"`
-	Compatibility string        `json:"compatibility,omitempty"`
-}
-
-// DELETE IN: 4.2.0
-func (s *APIServer) generateUserCert(auth ClientI, w http.ResponseWriter, r *http.Request, _ httprouter.Params, version string) (interface{}, error) {
-	var req *generateUserCertReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	certificateFormat, err := utils.CheckCertificateFormatFlag(req.Compatibility)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	certs, err := auth.GenerateUserCerts(r.Context(), proto.UserCertsRequest{
-		PublicKey: req.Key,
-		Username:  req.User,
-		Expires:   s.Now().UTC().Add(req.TTL),
-		Format:    certificateFormat,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return string(certs.SSH), nil
-}
-
 type WebSessionReq struct {
 	// User is the user name associated with the session id.
 	User string `json:"user"`
@@ -539,19 +500,15 @@ type WebSessionReq struct {
 	// Switchback is a flag to indicate if user is wanting to switchback from an assumed role
 	// back to their default role.
 	Switchback bool `json:"switchback"`
+	// ReloadUser is a flag to indicate if user needs to be refetched from the backend
+	// to apply new user changes e.g. user traits were updated.
+	ReloadUser bool `json:"reload_user"`
 }
 
 func (s *APIServer) createWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req WebSessionReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// DELETE IN 8.0: proxy v5 sends request with no user field.
-	// And since proxy v6, request will come with user field set, so grabbing user
-	// by param is not required.
-	if req.User == "" {
-		req.User = p.ByName("user")
 	}
 
 	if req.PrevSessionID != "" {
@@ -561,10 +518,12 @@ func (s *APIServer) createWebSession(auth ClientI, w http.ResponseWriter, r *htt
 		}
 		return sess, nil
 	}
+
 	sess, err := auth.CreateWebSession(r.Context(), req.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return rawMessage(services.MarshalWebSession(sess, services.WithVersion(version)))
 }
 
@@ -574,7 +533,7 @@ func (s *APIServer) authenticateWebUser(auth ClientI, w http.ResponseWriter, r *
 		return nil, trace.Wrap(err)
 	}
 	req.Username = p.ByName("user")
-	sess, err := auth.AuthenticateWebUser(req)
+	sess, err := auth.AuthenticateWebUser(r.Context(), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -587,7 +546,7 @@ func (s *APIServer) authenticateSSHUser(auth ClientI, w http.ResponseWriter, r *
 		return nil, trace.Wrap(err)
 	}
 	req.Username = p.ByName("user")
-	return auth.AuthenticateSSHUser(req)
+	return auth.AuthenticateSSHUser(r.Context(), req)
 }
 
 // changePassword updates users password based on the old password.
@@ -602,25 +561,6 @@ func (s *APIServer) changePassword(auth ClientI, w http.ResponseWriter, r *http.
 	}
 
 	return message(fmt.Sprintf("password has been changed for user %q", req.User)), nil
-}
-
-type upsertPasswordReq struct {
-	Password string `json:"password"`
-}
-
-func (s *APIServer) upsertPassword(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *upsertPasswordReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	user := p.ByName("user")
-	err := auth.UpsertPassword(user, []byte(req.Password))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return message(fmt.Sprintf("password for for user %q upserted", user)), nil
 }
 
 type upsertUserRawReq struct {
@@ -898,82 +838,6 @@ func (s *APIServer) deleteCertAuthority(auth ClientI, w http.ResponseWriter, r *
 	return message(fmt.Sprintf("cert '%v' deleted", id)), nil
 }
 
-type createSessionReq struct {
-	Session session.Session `json:"session"`
-}
-
-func (s *APIServer) createSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *createSessionReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	namespace := p.ByName("namespace")
-	if !types.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-	req.Session.Namespace = namespace
-	if err := auth.CreateSession(req.Session); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-type updateSessionReq struct {
-	Update session.UpdateRequest `json:"update"`
-}
-
-func (s *APIServer) updateSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	var req *updateSessionReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	namespace := p.ByName("namespace")
-	if !types.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-	req.Update.Namespace = namespace
-	if err := auth.UpdateSession(req.Update); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-func (s *APIServer) deleteSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	err := auth.DeleteSession(p.ByName("namespace"), session.ID(p.ByName("id")))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-func (s *APIServer) getSessions(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	namespace := p.ByName("namespace")
-	if !types.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-	sessions, err := auth.GetSessions(namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sessions, nil
-}
-
-func (s *APIServer) getSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	sid, err := session.ParseID(p.ByName("id"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	namespace := p.ByName("namespace")
-	if !types.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-	se, err := auth.GetSession(namespace, *sid)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return se, nil
-}
-
 type createOIDCAuthRequestReq struct {
 	Req types.OIDCAuthRequest `json:"req"`
 }
@@ -1067,7 +931,8 @@ func (s *APIServer) createSAMLAuthRequest(auth ClientI, w http.ResponseWriter, r
 }
 
 type validateSAMLResponseReq struct {
-	Response string `json:"response"`
+	Response    string `json:"response"`
+	ConnectorID string `json:"connector_id,omitempty"`
 }
 
 // samlAuthRawResponse is returned when auth server validated callback parameters
@@ -1095,7 +960,7 @@ func (s *APIServer) validateSAMLResponse(auth ClientI, w http.ResponseWriter, r 
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	response, err := auth.ValidateSAMLResponse(r.Context(), req.Response)
+	response, err := auth.ValidateSAMLResponse(r.Context(), req.Response, req.ConnectorID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

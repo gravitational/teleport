@@ -72,12 +72,21 @@ func (b *Bot) Check(ctx context.Context) error {
 	if large {
 		comment := fmt.Sprintf("@%v - this PR is large and will require admin approval to merge. "+
 			"Consider breaking it up into a series smaller changes.", b.c.Environment.Author)
-		b.c.GitHub.CreateComment(ctx,
+
+		// try to avoid spamming the author by checking if the specified comment already exists
+		comments, _ := b.c.GitHub.ListComments(ctx,
 			b.c.Environment.Organization,
 			b.c.Environment.Repository,
 			b.c.Environment.Number,
-			comment,
 		)
+		if !contains(comments, comment) {
+			b.c.GitHub.CreateComment(ctx,
+				b.c.Environment.Organization,
+				b.c.Environment.Repository,
+				b.c.Environment.Number,
+				comment,
+			)
+		}
 	}
 
 	if err := b.c.Review.CheckInternal(b.c.Environment.Author, reviews, docs, code, large); err != nil {
@@ -90,6 +99,15 @@ func (b *Bot) Check(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func contains(ss []string, s string) bool {
+	for i := range ss {
+		if ss[i] == s {
+			return true
+		}
+	}
+	return false
 }
 
 // dismissReviewers removes stale review requests from an approved pull request.

@@ -7,8 +7,10 @@
         "roles",
         "kubeClusterName",
         "apps",
+        "appResources",
         "awsDatabases",
         "databases",
+        "databaseResources",
         "teleportVersionOverride",
         "insecureSkipProxyTLSVerify",
         "existingDataVolume",
@@ -17,6 +19,8 @@
         "image",
         "clusterRoleName",
         "clusterRoleBindingName",
+        "roleName",
+        "roleBindingName",
         "serviceAccountName",
         "secretName",
         "log",
@@ -73,6 +77,21 @@
                 "additionalProperties": true
             }
         },
+        "appResources": {
+            "$id": "#/properties/appResources",
+            "type": "array",
+            "default": [],
+            "required": [
+                "labels"
+            ],
+            "properties": {
+                "labels": {
+                    "$id": "#/properties/appResources/labels",
+                    "type": "object"
+                },
+                "additionalProperties": false
+            }
+        },
         "awsDatabases": {
             "$id": "#/properties/awsDatabases",
             "type": "array",
@@ -106,15 +125,52 @@
             "type": "array",
             "default": []
         },
+        "databaseResources": {
+            "$id": "#/properties/databaseResources",
+            "type": "array",
+            "default": [],
+            "required": [
+                "labels"
+            ],
+            "properties": {
+                "labels": {
+                    "$id": "#/properties/databaseResources/labels",
+                    "type": "object"
+                },
+                "additionalProperties": false
+            }
+        },
         "teleportVersionOverride": {
             "$id": "#/properties/teleportVersionOverride",
             "type": "string",
             "default": ""
         },
+        "caPin": {
+            "$id": "#/properties/caPin",
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": []
+        },
         "insecureSkipProxyTLSVerify": {
             "$id": "#/properties/insecureSkipProxyTLSVerify",
             "type": "boolean",
             "default": false
+        },
+        "tls": {
+            "$id": "#/properties/tls",
+            "type": "object",
+            "required": [
+                "existingCASecretName"
+            ],
+            "properties": {
+                "existingCASecretName": {
+                    "$id": "#/properties/tls/properties/existingCASecretName",
+                    "type": "string",
+                    "default": ""
+                }
+            }
         },
         "existingDataVolume": {
             "$id": "#/properties/existingDataVolume",
@@ -143,7 +199,7 @@
         "image": {
             "$id": "#/properties/image",
             "type": "string",
-            "default": "quay.io/gravitational/teleport"
+            "default": "public.ecr.aws/gravitational/teleport"
         },
         "imagePullSecrets": {
             "$id": "#/properties/imagePullSecrets",
@@ -162,6 +218,16 @@
         },
         "clusterRoleBindingName": {
             "$id": "#/properties/clusterRoleBindingName",
+            "type": "string",
+            "default": ""
+        },
+        "roleName": {
+            "$id": "#/properties/roleName",
+            "type": "string",
+            "default": ""
+        },
+        "roleBindingName": {
+            "$id": "#/properties/roleBindingName",
             "type": "string",
             "default": ""
         },
@@ -275,6 +341,16 @@
                 },
                 "clusterRoleBinding": {
                     "$id": "#/properties/extraLabels/properties/clusterRoleBinding",
+                    "type": "object",
+                    "default": {}
+                },
+                "role": {
+                    "$id": "#/properties/extraLabels/properties/role",
+                    "type": "object",
+                    "default": {}
+                },
+                "roleBinding": {
+                    "$id": "#/properties/extraLabels/properties/roleBinding",
                     "type": "object",
                     "default": {}
                 },

@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"strings"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -88,12 +87,6 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 
 	addr, err := t.Resolver(ctx)
 	if err != nil {
-		if strings.Contains(err.Error(), "certificate is not trusted") {
-			err = trace.Wrap(
-				err,
-				"Your proxy certificate is not trusted or expired. Please update the certificate or follow this guide for self-signed certs: https://goteleport.com/docs/setup/admin/self-signed-certs",
-			)
-		}
 		t.Log.Errorf("Failed to resolve tunnel address: %v", err)
 		return nil, trace.Wrap(err)
 	}
@@ -162,7 +155,7 @@ type transport struct {
 	kubeDialAddr utils.NetAddr
 
 	// sconn is a SSH connection to the remote host. Used for dial back nodes.
-	sconn ssh.Conn
+	sconn sshutils.Conn
 
 	// reverseTunnelServer holds all reverse tunnel connections.
 	reverseTunnelServer Server

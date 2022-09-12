@@ -10,6 +10,9 @@
 {{- if and .Values.acme .Values.tls.existingSecretName }}
 {{- fail "Cannot set both acme.enabled and tls.existingSecretName, choose one or the other" }}
 {{- end }}
+{{- define "imageVersion" -}}
+{{ if .Values.teleportVersionOverride }}{{ .Values.teleportVersionOverride }}{{ else }}{{ .Chart.Version }}{{ end }}
+{{- end }}
   {{- $persistence := (coalesce .Values.standalone .Values.persistence) -}}
 apiVersion: apps/v1
 kind: Deployment
@@ -119,7 +122,7 @@ spec:
 {{- end }}
       containers:
       - name: "teleport"
-        image: "{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ if .Values.teleportVersionOverride }}{{ .Values.teleportVersionOverride }}{{ else }}{{ .Chart.Version }}{{ end }}"
+        image: '{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ template "imageVersion" . }}'
         imagePullPolicy: {{ .Values.imagePullPolicy }}
         {{- if or .Values.extraEnv .Values.tls.existingCASecretName }}
         env:
@@ -205,6 +208,42 @@ spec:
 {{- if .Values.extraVolumeMounts }}
   {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
 {{- end }}
+{{ if .Values.operator.enabled }}
+      - name: "operator"
+        image: '{{ .Values.operator.image }}:{{ template "imageVersion" . }}'
+        imagePullPolicy: {{ .Values.imagePullPolicy }}
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+{{- if .Values.operator.resources }}
+        resources:
+  {{- toYaml .Values.operator.resources | nindent 10 }}
+{{- end }}
+        volumeMounts:
+  {{- if .Values.highAvailability.certManager.enabled }}
+        - mountPath: /etc/teleport-tls
+          name: "teleport-tls"
+          readOnly: true
+  {{- else if .Values.tls.existingSecretName }}
+        - mountPath: /etc/teleport-tls
+          name: "teleport-tls"
+          readOnly: true
+  {{- end }}
+        - mountPath: /etc/teleport
+          name: "config"
+          readOnly: true
+        - mountPath: /var/lib/teleport
+          name: "data"
+{{ end }}
       volumes:
 {{- if .Values.enterprise }}
       - name: license

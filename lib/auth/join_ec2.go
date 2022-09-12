@@ -203,12 +203,12 @@ func proxyExists(ctx context.Context, presence services.Presence, hostID string)
 }
 
 func kubeExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
-	kubes, err := presence.GetKubeServices(ctx)
+	kubes, err := presence.GetKubernetesServers(ctx)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
 	for _, kube := range kubes {
-		if kube.GetName() == hostID {
+		if kube.GetHostID() == hostID {
 			return true, nil
 		}
 	}

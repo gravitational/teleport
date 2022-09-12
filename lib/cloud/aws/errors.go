@@ -21,6 +21,7 @@ import (
 	"net/http"
 
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/gravitational/trace"
 )
 
@@ -43,6 +44,31 @@ func ConvertRequestFailureError(err error) error {
 	}
 
 	return err // Return unmodified.
+}
+
+// ConvertIAMError converts common errors from IAM clients to trace errors.
+func ConvertIAMError(err error) error {
+	// By error code.
+	if awsErr, ok := err.(awserr.Error); ok {
+		switch awsErr.Code() {
+		case iam.ErrCodeUnmodifiableEntityException:
+			return trace.AccessDenied(awsErr.Error())
+
+		case iam.ErrCodeNoSuchEntityException:
+			return trace.NotFound(awsErr.Error())
+
+		case iam.ErrCodeMalformedPolicyDocumentException,
+			iam.ErrCodeInvalidInputException,
+			iam.ErrCodeDeleteConflictException:
+			return trace.BadParameter(awsErr.Error())
+
+		case iam.ErrCodeLimitExceededException:
+			return trace.LimitExceeded(awsErr.Error())
+		}
+	}
+
+	// By status code.
+	return ConvertRequestFailureError(err)
 }
 
 // ParseMetadataClientError converts a failed instance metadata service call to a trace error.

@@ -215,7 +215,6 @@ func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard *dynam
 	defer ticker.Stop()
 	iterator := shardIterator.ShardIterator
 	shardID := aws.StringValue(shard.ShardId)
-	b.signalWatchStart()
 	for {
 		select {
 		case <-ctx.Done():
@@ -356,45 +355,4 @@ func (b *Backend) asyncPollShard(ctx context.Context, streamArn *string, shard *
 		}
 	}()
 	err = b.pollShard(ctx, streamArn, shard, eventsC, initC)
-}
-
-func (b *Backend) turnOnTimeToLive(ctx context.Context) error {
-	status, err := b.svc.DescribeTimeToLiveWithContext(ctx, &dynamodb.DescribeTimeToLiveInput{
-		TableName: aws.String(b.TableName),
-	})
-	if err != nil {
-		return trace.Wrap(convertError(err))
-	}
-	switch aws.StringValue(status.TimeToLiveDescription.TimeToLiveStatus) {
-	case dynamodb.TimeToLiveStatusEnabled, dynamodb.TimeToLiveStatusEnabling:
-		return nil
-	}
-	_, err = b.svc.UpdateTimeToLiveWithContext(ctx, &dynamodb.UpdateTimeToLiveInput{
-		TableName: aws.String(b.TableName),
-		TimeToLiveSpecification: &dynamodb.TimeToLiveSpecification{
-			AttributeName: aws.String(ttlKey),
-			Enabled:       aws.Bool(true),
-		},
-	})
-	return convertError(err)
-}
-
-func (b *Backend) turnOnStreams(ctx context.Context) error {
-	status, err := b.svc.DescribeTableWithContext(ctx, &dynamodb.DescribeTableInput{
-		TableName: aws.String(b.TableName),
-	})
-	if err != nil {
-		return trace.Wrap(convertError(err))
-	}
-	if status.Table.StreamSpecification != nil && aws.BoolValue(status.Table.StreamSpecification.StreamEnabled) {
-		return nil
-	}
-	_, err = b.svc.UpdateTableWithContext(ctx, &dynamodb.UpdateTableInput{
-		TableName: aws.String(b.TableName),
-		StreamSpecification: &dynamodb.StreamSpecification{
-			StreamEnabled:  aws.Bool(true),
-			StreamViewType: aws.String(dynamodb.StreamViewTypeNewImage),
-		},
-	})
-	return convertError(err)
 }

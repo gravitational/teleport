@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"time"
 
@@ -304,6 +305,20 @@ func handleSFTPEvent(reqPacket sftp.RequestPacket) (*apievents.SFTP, bool) {
 		}
 		if reqPacket.Attributes.Permissions != nil {
 			event.Attributes.Permissions = (*uint32)(reqPacket.Attributes.Permissions)
+		}
+	}
+	if reqPacket.Err != nil {
+		// If possible, strip the filename from the error message. The
+		// path will be included in audit events already, no need to
+		// make the error message longer than it needs to be.
+		var pathErr *fs.PathError
+		var linkErr *os.LinkError
+		if errors.As(reqPacket.Err, &pathErr) {
+			event.Error = pathErr.Err.Error()
+		} else if errors.As(reqPacket.Err, &linkErr) {
+			event.Error = linkErr.Err.Error()
+		} else {
+			event.Error = reqPacket.Err.Error()
 		}
 	}
 

@@ -29,6 +29,8 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/bpf"
 	api "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/srv"
+
 	"github.com/gravitational/trace"
 )
 
@@ -67,22 +69,24 @@ type auditEventBlockedIPv6 struct {
 
 // newNetworkAuditEvent creates events.SessionNetwork, filling in common fields
 // from the SessionContext
-func newNetworkAuditEvent(ctx *bpf.SessionContext, hdr *auditEventHeader) events.SessionNetwork {
+func newNetworkAuditEvent(ctx *srv.ServerContext, hdr *auditEventHeader) events.SessionNetwork {
+
+	sessionID := ctx.SessionID()
 	return events.SessionNetwork{
 		Metadata: events.Metadata{
 			Type: api.SessionNetworkEvent,
 			Code: api.SessionNetworkCode,
 		},
 		ServerMetadata: events.ServerMetadata{
-			ServerID:        ctx.ServerID,
-			ServerNamespace: ctx.Namespace,
+			ServerID:        ctx.GetServer().HostUUID(),
+			ServerNamespace: ctx.GetServer().GetNamespace(),
 		},
 		SessionMetadata: events.SessionMetadata{
-			SessionID: ctx.SessionID,
+			SessionID: sessionID.String(),
 		},
 		UserMetadata: events.UserMetadata{
-			User:  ctx.User,
-			Login: ctx.Login,
+			User:  ctx.Identity.TeleportUser,
+			Login: ctx.Identity.Login,
 		},
 		BPFMetadata: events.BPFMetadata{
 			CgroupID: hdr.CGroupID,
@@ -117,7 +121,7 @@ func ip6String(ip net.IP) string {
 }
 
 // parseAuditEvent parses the body of the audit event
-func parseAuditEvent(buf *bytes.Buffer, hdr *auditEventHeader, ctx *bpf.SessionContext) (events.AuditEvent, error) {
+func parseAuditEvent(buf *bytes.Buffer, hdr *auditEventHeader, ctx *srv.ServerContext) (events.AuditEvent, error) {
 	switch hdr.EventType {
 	case BlockedIP4:
 		var body auditEventBlockedIPv4
@@ -143,8 +147,8 @@ func parseAuditEvent(buf *bytes.Buffer, hdr *auditEventHeader, ctx *bpf.SessionC
 
 		event := newNetworkAuditEvent(ctx, hdr)
 		event.DstPort = int32(body.DstPort)
-		event.DstAddr = ip6String(net.IP(body.DstIP[:]))
-		event.SrcAddr = ip6String(net.IP(body.SrcIP[:]))
+		event.DstAddr = ip6String(body.DstIP[:])
+		event.SrcAddr = ip6String(body.SrcIP[:])
 		event.TCPVersion = 6
 		event.Operation = events.SessionNetwork_NetworkOperation(body.Op)
 		event.Action = events.EventAction_DENIED

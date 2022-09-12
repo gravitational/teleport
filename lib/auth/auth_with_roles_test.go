@@ -24,22 +24,22 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/installers"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -123,160 +123,6 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 			require.WithinDuration(t, start.Add(test.expiresIn), x509.NotAfter, 1*time.Second)
 		})
 	}
-}
-
-func renewBotCerts(
-	srv *TestTLSServer, tlsCert tls.Certificate, botUser string,
-	publicKey []byte, privateKey []byte,
-) (*Client, *proto.Certs, tls.Certificate, error) {
-	client := srv.NewClientWithCert(tlsCert)
-
-	certs, err := client.GenerateUserCerts(context.Background(), proto.UserCertsRequest{
-		PublicKey: publicKey,
-		Username:  botUser,
-		Expires:   time.Now().Add(1 * time.Hour),
-	})
-	if err != nil {
-		return nil, nil, tls.Certificate{}, trace.Wrap(err)
-	}
-
-	// Make sure to overwrite tlsCert with the new certs.
-	tlsCert, err = tls.X509KeyPair(certs.TLS, privateKey)
-	if err != nil {
-		return nil, nil, tls.Certificate{}, trace.Wrap(err)
-	}
-
-	return client, certs, tlsCert, nil
-}
-
-// TestBotCertificateGenerationCheck ensures bot cert generation checks work
-// in ordinary conditions, with several rapid renewals.
-func TestBotCertificateGenerationCheck(t *testing.T) {
-	t.Parallel()
-	srv := newTestTLSServer(t)
-
-	_, err := CreateRole(context.Background(), srv.Auth(), "example", types.RoleSpecV5{})
-	require.NoError(t, err)
-
-	// Create a new bot.
-	bot, err := srv.Auth().createBot(context.Background(), &proto.CreateBotRequest{
-		Name:  "test",
-		Roles: []string{"example"},
-	})
-	require.NoError(t, err)
-
-	privateKey, publicKey, err := native.GenerateKeyPair()
-	require.NoError(t, err)
-	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
-	require.NoError(t, err)
-	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
-	require.NoError(t, err)
-
-	certs, err := Register(RegisterParams{
-		Token: bot.TokenID,
-		ID: IdentityID{
-			Role: types.RoleBot,
-		},
-		Servers:      []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
-		PublicTLSKey: tlsPublicKey,
-		PublicSSHKey: publicKey,
-	})
-	require.NoError(t, err)
-
-	tlsCert, err := tls.X509KeyPair(certs.TLS, privateKey)
-	require.NoError(t, err)
-
-	// Renew the cert a bunch of times.
-	for i := 0; i < 10; i++ {
-		_, certs, tlsCert, err = renewBotCerts(srv, tlsCert, bot.UserName, publicKey, privateKey)
-		require.NoError(t, err)
-
-		// Parse the Identity
-		impersonatedTLSCert, err := tlsca.ParseCertificatePEM(certs.TLS)
-		require.NoError(t, err)
-		impersonatedIdent, err := tlsca.FromSubject(impersonatedTLSCert.Subject, impersonatedTLSCert.NotAfter)
-		require.NoError(t, err)
-
-		// Cert must be renewable.
-		require.True(t, impersonatedIdent.Renewable)
-		require.False(t, impersonatedIdent.DisallowReissue)
-
-		// Initial certs have generation=1 and we start the loop with a renewal, so add 2
-		require.Equal(t, uint64(i+2), impersonatedIdent.Generation)
-	}
-}
-
-// TestBotCertificateGenerationStolen simulates a stolen renewable certificate
-// where a generation check is expected to fail.
-func TestBotCertificateGenerationStolen(t *testing.T) {
-	t.Parallel()
-	srv := newTestTLSServer(t)
-
-	_, err := CreateRole(context.Background(), srv.Auth(), "example", types.RoleSpecV5{})
-	require.NoError(t, err)
-
-	// Create a new bot.
-	bot, err := srv.Auth().createBot(context.Background(), &proto.CreateBotRequest{
-		Name:  "test",
-		Roles: []string{"example"},
-	})
-	require.NoError(t, err)
-
-	privateKey, publicKey, err := native.GenerateKeyPair()
-	require.NoError(t, err)
-	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
-	require.NoError(t, err)
-	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
-	require.NoError(t, err)
-
-	certs, err := Register(RegisterParams{
-		Token: bot.TokenID,
-		ID: IdentityID{
-			Role: types.RoleBot,
-		},
-		Servers:      []utils.NetAddr{*utils.MustParseAddr(srv.Addr().String())},
-		PublicTLSKey: tlsPublicKey,
-		PublicSSHKey: publicKey,
-	})
-	require.NoError(t, err)
-
-	tlsCert, err := tls.X509KeyPair(certs.TLS, privateKey)
-	require.NoError(t, err)
-
-	// Renew the certs once (e.g. this is the actual bot process)
-	_, certsReal, _, err := renewBotCerts(srv, tlsCert, bot.UserName, publicKey, privateKey)
-	require.NoError(t, err)
-
-	// Check the generation, it should be 2.
-	impersonatedTLSCert, err := tlsca.ParseCertificatePEM(certsReal.TLS)
-	require.NoError(t, err)
-	impersonatedIdent, err := tlsca.FromSubject(impersonatedTLSCert.Subject, impersonatedTLSCert.NotAfter)
-	require.NoError(t, err)
-	require.Equal(t, uint64(2), impersonatedIdent.Generation)
-
-	// Meanwhile, the initial set of certs was stolen. Let's try to renew those.
-	_, _, _, err = renewBotCerts(srv, tlsCert, bot.UserName, publicKey, privateKey)
-	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err))
-
-	// The user should now be locked.
-	locks, err := srv.Auth().GetLocks(context.Background(), true, types.LockTarget{
-		User: "bot-test",
-	})
-	require.NoError(t, err)
-	require.NotEmpty(t, locks)
-}
-
-// TestBotNoRoles attempts to create a bot with an empty role list.
-func TestBotNoRoles(t *testing.T) {
-	t.Parallel()
-	srv := newTestTLSServer(t)
-
-	// Create a new bot without roles specified. This should fail.
-	_, err := srv.Auth().createBot(context.Background(), &proto.CreateBotRequest{
-		Name: "test",
-	})
-	require.True(t, trace.IsBadParameter(err))
 }
 
 // TestSSOUserCanReissueCert makes sure that SSO user can reissue certificate
@@ -480,6 +326,98 @@ func TestSAMLAuthRequest(t *testing.T) {
 	}
 }
 
+func TestInstaller(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	_, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV5{})
+	require.NoError(t, err)
+
+	_, err = CreateRole(ctx, srv.Auth(), "test-read", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindInstaller},
+					Verbs:     []string{types.VerbRead},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = CreateRole(ctx, srv.Auth(), "test-update", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindInstaller},
+					Verbs:     []string{types.VerbUpdate, types.VerbCreate},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = CreateRole(ctx, srv.Auth(), "test-delete", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindInstaller},
+					Verbs:     []string{types.VerbDelete},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	user, err := CreateUser(srv.Auth(), "testuser")
+	require.NoError(t, err)
+
+	inst, err := types.NewInstallerV1(installers.InstallerScriptName, "contents")
+	require.NoError(t, err)
+	err = srv.Auth().SetInstaller(ctx, inst)
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		roles           []string
+		assert          require.ErrorAssertionFunc
+		installerAction func(*Client) error
+	}{{
+		roles:  []string{"test-empty"},
+		assert: require.Error,
+		installerAction: func(c *Client) error {
+			_, err := c.GetInstaller(ctx, installers.InstallerScriptName)
+			return err
+		},
+	}, {
+		roles:  []string{"test-read"},
+		assert: require.NoError,
+		installerAction: func(c *Client) error {
+			_, err := c.GetInstaller(ctx, installers.InstallerScriptName)
+			return err
+		},
+	}, {
+		roles:  []string{"test-update"},
+		assert: require.NoError,
+		installerAction: func(c *Client) error {
+			inst, err := types.NewInstallerV1(installers.InstallerScriptName, "new-contents")
+			require.NoError(t, err)
+			return c.SetInstaller(ctx, inst)
+		},
+	}, {
+		roles:  []string{"test-delete"},
+		assert: require.NoError,
+		installerAction: func(c *Client) error {
+			err := c.DeleteInstaller(ctx, installers.InstallerScriptName)
+			return err
+		},
+	}} {
+		user.SetRoles(tc.roles)
+		err = srv.Auth().UpsertUser(user)
+		require.NoError(t, err)
+
+		client, err := srv.NewClient(TestUser(user.GetName()))
+		require.NoError(t, err)
+		tc.assert(t, tc.installerAction(client))
+	}
+}
+
 func TestOIDCAuthRequest(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
@@ -574,7 +512,8 @@ func TestOIDCAuthRequest(t *testing.T) {
 					Roles: []string{"access"},
 				},
 			},
-		}}
+		},
+	}
 
 	tests := []struct {
 		desc               string
@@ -898,7 +837,6 @@ func TestSSODiagnosticInfo(t *testing.T) {
 	info, err = clientPriv.GetSSODiagnosticInfo(ctx, types.KindSAML, "ABC123")
 	require.NoError(t, err)
 	require.Equal(t, &infoCreate, info)
-
 }
 
 func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
@@ -922,10 +860,21 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	loginsTraitsRole, err := CreateRole(ctx, srv.Auth(), "test-access-traits", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			Logins: []string{"{{internal.logins}}"},
+		},
+	})
+	require.NoError(t, err)
+
 	impersonatorRole, err := CreateRole(ctx, srv.Auth(), "test-impersonator", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Impersonate: &types.ImpersonateConditions{
-				Roles: []string{accessFooRole.GetName(), accessBarRole.GetName()},
+				Roles: []string{
+					accessFooRole.GetName(),
+					accessBarRole.GetName(),
+					loginsTraitsRole.GetName(),
+				},
 			},
 		},
 	})
@@ -959,6 +908,7 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 	tests := []struct {
 		desc             string
 		username         string
+		userTraits       wrappers.Traits
 		roles            []string
 		roleRequests     []string
 		useRoleRequests  bool
@@ -975,12 +925,32 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			expectPrincipals: []string{"foo", "bar"},
 		},
 		{
-			desc:             "requesting a subset of allowed roles",
-			username:         "bob",
+			desc:     "requesting a subset of allowed roles",
+			username: "bob",
+			userTraits: wrappers.Traits{
+				// We don't expect this login trait to appear in the principals
+				// as "test-access-foo" does not contain {{internal.logins}}
+				constants.TraitLogins: []string{"trait-login"},
+			},
 			roles:            []string{emptyRole.GetName(), impersonatorRole.GetName()},
 			roleRequests:     []string{accessFooRole.GetName()},
 			useRoleRequests:  true,
 			expectPrincipals: []string{"foo"},
+		},
+		{
+			// Users traits should be preserved in role impersonation
+			desc:     "requesting a role preserves user traits",
+			username: "ash",
+			userTraits: wrappers.Traits{
+				constants.TraitLogins: []string{"trait-login"},
+			},
+			roles: []string{
+				emptyRole.GetName(),
+				impersonatorRole.GetName(),
+			},
+			roleRequests:     []string{loginsTraitsRole.GetName()},
+			useRoleRequests:  true,
+			expectPrincipals: []string{"trait-login"},
 		},
 		{
 			// Users not using role requests should keep their own roles
@@ -1061,6 +1031,9 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			})
 			for _, role := range tt.roles {
 				user.AddRole(role)
+			}
+			if tt.userTraits != nil {
+				user.SetTraits(tt.userTraits)
 			}
 			err = srv.Auth().UpsertUser(user)
 			require.NoError(t, err)
@@ -1264,8 +1237,9 @@ func TestGenerateDatabaseCert(t *testing.T) {
 	}
 
 	// Generate CSR once for speed sake.
-	priv, _, err := native.GenerateKeyPair()
+	priv, err := native.GeneratePrivateKey()
 	require.NoError(t, err)
+
 	csr, err := tlsca.GenerateCertificateRequestPEM(pkix.Name{CommonName: "test"}, priv)
 	require.NoError(t, err)
 
@@ -1539,6 +1513,109 @@ func TestGetAndList_Nodes(t *testing.T) {
 	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
 }
 
+// TestStreamSessionEvents_User ensures that when a user streams a session's events, it emits an audit event.
+func TestStreamSessionEvents_User(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	username := "user"
+	user, _, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// ignore the response as we don't want the events or the error (the session will not exist)
+	_, _ = clt.StreamSessionEvents(ctx, "44c6cea8-362f-11ea-83aa-125400432324", 0)
+
+	// we need to wait for a short period to ensure the event is returned
+	time.Sleep(500 * time.Millisecond)
+
+	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(
+		srv.Clock().Now().Add(-time.Hour),
+		srv.Clock().Now().Add(time.Hour),
+		defaults.Namespace,
+		[]string{events.SessionRecordingAccessEvent},
+		1,
+		types.EventOrderDescending,
+		"",
+	)
+	require.NoError(t, err)
+
+	event := searchEvents[0].(*apievents.SessionRecordingAccess)
+	require.Equal(t, username, event.User)
+}
+
+// TestStreamSessionEvents_Builtin ensures that when a builtin role streams a session's events, it does not emit
+// an audit event.
+func TestStreamSessionEvents_Builtin(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	identity := TestBuiltin(types.RoleProxy)
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// ignore the response as we don't want the events or the error (the session will not exist)
+	_, _ = clt.StreamSessionEvents(ctx, "44c6cea8-362f-11ea-83aa-125400432324", 0)
+
+	// we need to wait for a short period to ensure the event is returned
+	time.Sleep(500 * time.Millisecond)
+
+	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(
+		srv.Clock().Now().Add(-time.Hour),
+		srv.Clock().Now().Add(time.Hour),
+		defaults.Namespace,
+		[]string{events.SessionRecordingAccessEvent},
+		1,
+		types.EventOrderDescending,
+		"",
+	)
+	require.NoError(t, err)
+
+	require.Equal(t, 0, len(searchEvents))
+}
+
+// TestGetSessionEvents ensures that when a user streams a session's events, it emits an audit event.
+func TestGetSessionEvents(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestTLSServer(t)
+
+	username := "user"
+	user, _, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// ignore the response as we don't want the events or the error (the session will not exist)
+	_, _ = clt.GetSessionEvents(defaults.Namespace, "44c6cea8-362f-11ea-83aa-125400432324", 0, false)
+
+	// we need to wait for a short period to ensure the event is returned
+	time.Sleep(500 * time.Millisecond)
+
+	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(
+		srv.Clock().Now().Add(-time.Hour),
+		srv.Clock().Now().Add(time.Hour),
+		defaults.Namespace,
+		[]string{events.SessionRecordingAccessEvent},
+		1,
+		types.EventOrderDescending,
+		"",
+	)
+	require.NoError(t, err)
+
+	event := searchEvents[0].(*apievents.SessionRecordingAccess)
+	require.Equal(t, username, event.User)
+}
+
 // TestAPILockedOut tests Auth API when there are locks involved.
 func TestAPILockedOut(t *testing.T) {
 	t.Parallel()
@@ -1595,7 +1672,6 @@ func serverWithAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.
 
 	return &ServerWithRoles{
 		authServer: srv.AuthServer,
-		sessions:   srv.SessionServer,
 		alog:       srv.AuditLog,
 		context:    *authContext,
 	}
@@ -2258,7 +2334,6 @@ func TestReplaceRemoteLocksRBAC(t *testing.T) {
 
 			s := &ServerWithRoles{
 				authServer: srv.AuthServer,
-				sessions:   srv.SessionServer,
 				alog:       srv.AuditLog,
 				context:    *authContext,
 			}
@@ -2452,7 +2527,6 @@ func TestKindClusterConfig(t *testing.T) {
 		require.NoError(t, err, trace.DebugReport(err))
 		s := &ServerWithRoles{
 			authServer: srv.AuthServer,
-			sessions:   srv.SessionServer,
 			alog:       srv.AuditLog,
 			context:    *authContext,
 		}
@@ -2600,6 +2674,132 @@ func TestGetAndList_KubeServices(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resp.Resources, len(testResources))
 	require.Empty(t, cmp.Diff(testResources, resp.Resources))
+}
+
+func TestGetAndList_KubernetesServers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create test kube servers.
+	for i := 0; i < 5; i++ {
+		// insert legacy kube servers
+		name := uuid.NewString()
+		cluster, err := types.NewKubernetesClusterV3(
+			types.Metadata{
+				Name: name, Labels: map[string]string{"name": name},
+			},
+			types.KubernetesClusterSpecV3{},
+		)
+		require.NoError(t, err)
+
+		kubeServer, err := types.NewKubernetesServerV3(
+			types.Metadata{
+				Name: name, Labels: map[string]string{"name": name},
+			},
+
+			types.KubernetesServerSpecV3{
+				HostID:   name,
+				Hostname: "test",
+				Cluster:  cluster,
+			},
+		)
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertKubernetesServer(ctx, kubeServer)
+		require.NoError(t, err)
+	}
+
+	testServers, err := srv.Auth().GetKubernetesServers(ctx)
+	require.NoError(t, err)
+	require.Len(t, testServers, 5)
+
+	testResources := make([]types.ResourceWithLabels, len(testServers))
+	for i, server := range testServers {
+		testResources[i] = server
+	}
+
+	// create user, role, and client
+	username := "user"
+	user, role, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	listRequest := proto.ListResourcesRequest{
+		Namespace: defaults.Namespace,
+		// Guarantee that the list will all the servers.
+		Limit:        int32(len(testServers) + 1),
+		ResourceType: types.KindKubeServer,
+	}
+
+	// permit user to get all kubernetes service
+	role.SetKubernetesLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err := clt.GetKubernetesServers(ctx)
+	require.NoError(t, err)
+	require.Len(t, testServers, len(testServers))
+	require.Empty(t, cmp.Diff(testServers, servers))
+	resp, err := clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, len(testResources))
+	require.Empty(t, cmp.Diff(testResources, resp.Resources))
+
+	// Test various filtering.
+	baseRequest := proto.ListResourcesRequest{
+		Namespace:    defaults.Namespace,
+		Limit:        int32(len(testServers) + 1),
+		ResourceType: types.KindKubeServer,
+	}
+
+	// Test label match.
+	withLabels := baseRequest
+	withLabels.Labels = map[string]string{"name": testServers[0].GetName()}
+	resp, err = clt.ListResources(ctx, withLabels)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
+
+	// Test search keywords match.
+	withSearchKeywords := baseRequest
+	withSearchKeywords.SearchKeywords = []string{"name", testServers[0].GetName()}
+	resp, err = clt.ListResources(ctx, withSearchKeywords)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
+
+	// Test expression match.
+	withExpression := baseRequest
+	withExpression.PredicateExpression = fmt.Sprintf(`labels.name == "%s"`, testServers[0].GetName())
+	resp, err = clt.ListResources(ctx, withExpression)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
+
+	// deny user to get the first kubernetes service
+	role.SetKubernetesLabels(types.Deny, types.Labels{"name": {testServers[0].GetName()}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetKubernetesServers(ctx)
+	require.NoError(t, err)
+	require.Len(t, servers, len(testServers)-1)
+	require.Empty(t, cmp.Diff(testServers[1:], servers))
+	resp, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, len(testResources)-1)
+	require.Empty(t, cmp.Diff(testResources[1:], resp.Resources))
+
+	// deny user to get all databases
+	role.SetKubernetesLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
+	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+	servers, err = clt.GetKubernetesServers(ctx)
+	require.NoError(t, err)
+	require.Len(t, servers, 0)
+	require.Empty(t, cmp.Diff(testServers[:0], servers))
+	resp, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 0)
+	require.Empty(t, cmp.Diff(testResources[:0], resp.Resources))
 }
 
 func TestListResources_NeedTotalCountFlag(t *testing.T) {
@@ -2886,7 +3086,6 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 
 	s := &ServerWithRoles{
 		authServer: srv.AuthServer,
-		sessions:   srv.SessionServer,
 		alog:       srv.AuditLog,
 		context:    *authContext,
 	}
@@ -3282,7 +3481,6 @@ func TestListResources_WithRoles(t *testing.T) {
 	createRole := func(ctx context.Context, t *testing.T, srv *Server, name string, labels map[string]apiutils.Strings) {
 		role, err := types.NewRoleV3(name, types.RoleSpecV5{
 			Allow: types.RoleConditions{
-				Logins: []string{"root"},
 				NodeLabels: types.Labels{
 					"*": []string{types.Wildcard},
 				},
