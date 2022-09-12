@@ -773,21 +773,25 @@ discovery_service:
     enabled: yes
     aws:
        # AWS resource types. Valid options are:
-       # 'ec2 - discovers and registers AWS EC2 instances
+       # ec2 - discovers and registers AWS EC2 instances
      - types: ["ec2"]
        # AWS regions to register EC2 instances from
        regions: ["eu-central-1"]
        # AWS resource tags to match when registering EC2 instances
        tags:
          "*": "*"
-       # install is used to provide parameters to the AWS SSM Document
+       # Optional section: install is used to provide parameters to the AWS SSM Document. 
+       # If the install section isnt provided the below defaults are used.
        install:
          join_params:
            # token_name is the name of the Teleport invite token to use.
+           # Optional, defaults to: "aws-discovery-iam-token".
            token_name:  "aws-discovery-iam-token"
          # script_name is the name of the Teleport install script to use.
+         # Optional, defaults to: "default-installer".
          script_name: "default-installer"
-       # ssm is used to configure which AWS SSM document to use
+       # Optional section: ssm is used to configure which AWS SSM document to use
+       # If the ssm section isnt provided the below defaults are used.
        ssm:
          # document_name is the name of the SSM document that should be
          # executed when installing teleport on matching nodes
