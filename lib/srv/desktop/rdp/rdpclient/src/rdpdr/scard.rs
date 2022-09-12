@@ -629,8 +629,8 @@ impl Long_Return {
 
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
-struct EstablishContext_Call {
-    scope: Scope,
+pub(crate) struct EstablishContext_Call {
+    pub(crate) scope: Scope,
 }
 
 impl EstablishContext_Call {
@@ -646,9 +646,19 @@ impl EstablishContext_Call {
     }
 }
 
-#[derive(Debug, FromPrimitive, ToPrimitive)]
+impl Encode for EstablishContext_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+        w.write_u32::<LittleEndian>(self.scope as u32)?;
+        Ok(w)
+    }
+}
+
+#[derive(Debug, FromPrimitive, ToPrimitive, Copy, Clone)]
 #[allow(non_camel_case_types)]
-enum Scope {
+pub(crate) enum Scope {
     SCARD_SCOPE_USER = 0x00000000,
     SCARD_SCOPE_TERMINAL = 0x00000001,
     SCARD_SCOPE_SYSTEM = 0x00000002,
