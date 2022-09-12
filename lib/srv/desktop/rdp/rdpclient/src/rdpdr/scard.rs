@@ -518,10 +518,14 @@ impl RPCETypeHeader {
 #[derive(Debug)]
 #[allow(non_camel_case_types, dead_code)]
 pub(crate) struct ScardAccessStartedEvent_Call {
-    pub _unused: u32,
+    _unused: u32,
 }
 
 impl ScardAccessStartedEvent_Call {
+    pub(crate) fn new(unused: u32) -> Self {
+        Self { _unused: unused }
+    }
+
     fn decode(payload: &mut Payload) -> RdpResult<Self> {
         Ok(Self {
             _unused: payload.read_u32::<LittleEndian>()?,
@@ -630,10 +634,14 @@ impl Long_Return {
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
 pub(crate) struct EstablishContext_Call {
-    pub(crate) scope: Scope,
+    scope: Scope,
 }
 
 impl EstablishContext_Call {
+    pub(crate) fn new(scope: Scope) -> Self {
+        Self { scope }
+    }
+
     fn decode(payload: &mut Payload) -> RdpResult<Self> {
         let _header = RPCEStreamHeader::decode(payload)?;
         let _header = RPCETypeHeader::decode(payload)?;
@@ -689,7 +697,7 @@ impl EstablishContext_Return {
 }
 
 #[derive(Debug)]
-struct Context {
+pub(crate) struct Context {
     length: u32,
     // Shortcut: we always create 4-byte context values.
     // The spec allows this field to have variable length.
@@ -697,7 +705,7 @@ struct Context {
 }
 
 impl Context {
-    fn new(val: u32) -> Self {
+    pub(crate) fn new(val: u32) -> Self {
         Self {
             length: 4,
             value: val,
@@ -758,15 +766,36 @@ fn decode_ptr(payload: &mut Payload, index: &mut u32) -> RdpResult<u32> {
 
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
-struct ListReaders_Call {
+pub(crate) struct ListReaders_Call {
     context: Context,
+    groups_ptr_length: u32,
     groups_length: u32,
+    groups_ptr: u32,
     groups: Vec<String>,
     readers_is_null: bool,
     readers_size: u32,
 }
 
 impl ListReaders_Call {
+    pub(crate) fn new(
+        context: Context,
+        groups_ptr_length: u32,
+        groups_length: u32,
+        groups_ptr: u32,
+        groups: Vec<String>,
+        readers_is_null: bool,
+        readers_size: u32,
+    ) -> Self {
+        Self {
+            context,
+            groups_ptr_length,
+            groups_length,
+            groups_ptr,
+            groups,
+            readers_is_null,
+            readers_size,
+        }
+    }
     fn decode(payload: &mut Payload) -> RdpResult<Self> {
         let _header = RPCEStreamHeader::decode(payload)?;
         let _header = RPCETypeHeader::decode(payload)?;
@@ -783,6 +812,8 @@ impl ListReaders_Call {
         if groups_ptr == 0 {
             return Ok(Self {
                 context,
+                groups_ptr_length,
+                groups_ptr,
                 groups_length: 0,
                 groups: Vec::new(),
                 readers_is_null,
@@ -797,12 +828,32 @@ impl ListReaders_Call {
         } else {
             Ok(Self {
                 context,
+                groups_ptr_length,
+                groups_ptr,
                 groups_length,
                 groups,
                 readers_is_null,
                 readers_size,
             })
         }
+    }
+}
+
+impl Encode for ListReaders_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+        let mut index = 0;
+        self.context.encode_ptr(&mut index, &mut w)?;
+        encode_ptr(self.groups_ptr_length, &mut index, &mut w)?; // takes care of encoding groups_ptr
+        let readers_is_null = if self.readers_is_null { 1 } else { 0 };
+        w.write_u32::<LittleEndian>(readers_is_null)?;
+        w.write_u32::<LittleEndian>(self.readers_size)?;
+        self.context.encode_value(&mut w)?;
+        w.write_u32::<LittleEndian>(self.groups_length)?;
+        w.extend(encode_multistring_unicode(&self.groups)?);
+        Ok(w)
     }
 }
 

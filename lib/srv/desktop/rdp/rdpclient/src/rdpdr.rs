@@ -4154,7 +4154,10 @@ type SharedDirectoryMoveResponseHandler =
 #[cfg(test)]
 mod tests {
     use super::{
-        scard::{EstablishContext_Call, IoctlCode, ScardAccessStartedEvent_Call, Scope},
+        scard::{
+            Context, EstablishContext_Call, IoctlCode, ListReaders_Call,
+            ScardAccessStartedEvent_Call, Scope,
+        },
         *,
     };
     use crate::{
@@ -4509,9 +4512,7 @@ mod tests {
                     input_buffer_length: 4,
                     io_control_code: IoctlCode::SCARD_IOCTL_ACCESSSTARTEDEVENT as u32,
                 }),
-                scard_ctl: Some(Box::new(ScardAccessStartedEvent_Call {
-                    _unused: 3234823568,
-                })),
+                scard_ctl: Some(Box::new(ScardAccessStartedEvent_Call::new(3234823568))),
             },
             vec![(
                 PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
@@ -4557,9 +4558,9 @@ mod tests {
                     input_buffer_length: 24,
                     io_control_code: IoctlCode::SCARD_IOCTL_ESTABLISHCONTEXT as u32,
                 }),
-                scard_ctl: Some(Box::new(EstablishContext_Call {
-                    scope: Scope::SCARD_SCOPE_SYSTEM,
-                })),
+                scard_ctl: Some(Box::new(EstablishContext_Call::new(
+                    Scope::SCARD_SCOPE_SYSTEM,
+                ))),
             },
             vec![(
                 PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
@@ -4579,6 +4580,62 @@ mod tests {
         );
     }
 
+    fn test_scard_ioctl_listreadersw(c: &mut Client) {
+        init_logger();
+        test_payload_in_to_response_out(
+            c,
+            PayloadIn {
+                channel_pdu_header: ChannelPDUHeader {
+                    length: 144,
+                    flags: ChannelPDUFlags::CHANNEL_FLAG_FIRST
+                        | ChannelPDUFlags::CHANNEL_FLAG_LAST
+                        | ChannelPDUFlags::CHANNEL_FLAG_ONLY,
+                },
+                shared_header: SharedHeader {
+                    component: Component::RDPDR_CTYP_CORE,
+                    packet_id: PacketId::PAKID_CORE_DEVICE_IOREQUEST,
+                },
+                request: Box::new(DeviceControlRequest {
+                    header: DeviceIoRequest {
+                        device_id: 1,
+                        file_id: 1,
+                        completion_id: 1,
+                        major_function: MajorFunction::IRP_MJ_DEVICE_CONTROL,
+                        minor_function: MinorFunction::IRP_MN_NONE,
+                    },
+                    output_buffer_length: 2048,
+                    input_buffer_length: 88,
+                    io_control_code: IoctlCode::SCARD_IOCTL_LISTREADERSW as u32,
+                }),
+                scard_ctl: Some(Box::new(ListReaders_Call::new(
+                    Context::new(1),
+                    36,
+                    36,
+                    131076,
+                    vec!["SCard$AllReaders".to_string()],
+                    false,
+                    4294967295,
+                ))),
+            },
+            vec![(
+                PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
+                Box::new(DeviceControlResponse {
+                    header: DeviceIoResponse {
+                        device_id: 1,
+                        completion_id: 1,
+                        io_status: 0,
+                    },
+                    output_buffer_length: 56,
+                    output_buffer: vec![
+                        1, 16, 8, 0, 204, 204, 204, 204, 40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20,
+                        0, 0, 0, 0, 0, 2, 0, 20, 0, 0, 0, 84, 0, 101, 0, 108, 0, 101, 0, 112, 0,
+                        111, 0, 114, 0, 116, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    ],
+                }),
+            )],
+        );
+    }
+
     #[test]
     fn test_smartcard_initialization() {
         let mut c = client();
@@ -4588,6 +4645,7 @@ mod tests {
         test_handle_device_reply(&mut c);
         test_scard_ioctl_accessstartedevent(&mut c);
         test_scard_ioctl_establishcontext(&mut c);
+        test_scard_ioctl_listreadersw(&mut c);
         // TODO(isaiah): the remainder of the initialization sequence
     }
 }
