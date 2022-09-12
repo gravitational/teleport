@@ -204,14 +204,14 @@ but the session will remain open. This discards all input from session participa
 ## Backwards compatibility with Server Access
 
 Moderated Session RBAC controls were added to the role specification in version 5
-(`version: v5` in the yaml definition.)
+(`version: v5` in the YAML definition).
 Previously, Server Access did not include controls over which users can join a
 session.
-To avoid breaking functionality for users with only roles on V4 or older, RBAC
-access checks will only be enforced if the user has at least one V5 role.
+To avoid breaking functionality for users with only roles on v4 or older, RBAC
+access checks will only be enforced if the user has at least one v5 role.
 
-New roles will be created as V5 by default, and older roles can by updated with
-`tctl` or from the web UI by modifying the `version` field.
+New roles will be created as v5 by default, and older roles can by updated with
+`tctl` or from the Web UI by modifying the `version` field.
 
 ## MFA-based presence
 
