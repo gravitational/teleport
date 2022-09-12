@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -277,7 +278,7 @@ func TestRegister_Bot(t *testing.T) {
 	_, err := createBotRole(context.Background(), srv.Auth(), "test", "bot-test", []string{})
 	require.NoError(t, err)
 
-	_, err = createBotUser(context.Background(), srv.Auth(), botName, botResourceName)
+	_, err = createBotUser(context.Background(), srv.Auth(), botName, botResourceName, wrappers.Traits{})
 	require.NoError(t, err)
 
 	later := srv.Clock().Now().Add(4 * time.Hour)

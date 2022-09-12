@@ -1,0 +1,371 @@
+---
+title: Resource Access Requests
+description: Teleport allows users to request access to specific resources from the CLI or UI. Requests can be escalated via ChatOps or anywhere else via our flexible Authorization Workflow API.
+h1: Teleport Resource Access Requests
+---
+
+<Admonition type="tip" title="Preview">
+  Resource Access Requests are currently in Preview.
+</Admonition>
+
+With Teleport Resource Access Requests, users can request access to specific
+resources without needing to know anything about the roles or RBAC controls used
+under the hood.
+The Access Request API makes it easy to dynamically approve or deny these
+requests.
+
+<ScopedBlock scope={["oss"]}>
+
+Just-in-time Access Requests are a feature of Teleport Enterprise.
+Open-source Teleport users can get a preview of how Access Requests work by
+requesting a role via the Teleport CLI. Full Access Request functionality,
+including Resource Access Requests and an intuitive and searchable UI are
+available in Teleport Enterprise.
+
+</ScopedBlock>
+
+## Prerequisites
+
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+
+(!docs/pages/includes/tctl.mdx!)
+
+<Admonition type="warning">
+All `teleport` instances in the cluster must be running Teleport `v10.0.0` or
+greater in order for Resource Access Requests to be properly enforced.
+Older versions of `teleport` will only do RBAC checks based on roles and will
+not respect resource restrictions.
+It is not recommended to enable Resource Access Requests by setting any
+`search_as_roles` until all `teleport` instances in your cluster have been
+upgraded to version 10.
+</Admonition>
+
+## Step 1/8. Create the requester role
+
+This role allows the requester to search for resources accessible by the
+`access` role (all resources by default) and request access to them.
+
+```yaml
+# requester.yaml
+kind: role
+version: v5
+metadata:
+  name: requester
+spec:
+  allow:
+    request:
+      search_as_roles:
+        - access
+```
+
+```code
+$ tctl create requester.yaml
+```
+
+## Step 2/8. Create the reviewer role
+
+This role allows the reviewer to approve all requests for the `access` role.
+
+```yaml
+# reviewer.yaml
+kind: role
+version: v5
+metadata:
+  name: reviewer
+spec:
+  allow:
+    review_requests:
+      roles:
+        - access
+```
+
+```code
+$ tctl create reviewer.yaml
+```
+
+## Step 3/8. Grant the roles to users
+
+Grant the `requester` and `reviewer` roles to existing users, or create new
+users to test this feature.
+Make sure the requester has a valid `login` so that they can view and access SSH
+nodes.
+
+```code
+$ tctl users add alice --roles requester --logins alice
+$ tctl users add bob --roles reviewer
+```
+
+For the rest of the guide we will assume that the `requester` role has been
+granted to a user named `alice` and the `reviewer` role has been granted to a
+user named `bob`.
+
+## Step 4/8. Search for resources
+
+First, log in as `alice`.
+
+```code
+$ tsh login --proxy teleport.example.com --user alice
+```
+
+Notice that `tsh ls` returns an empty list, because `alice` does not have access to any resources by default.
+```code
+$ tsh ls
+Node Name Address Labels
+--------- ------- ------
+```
+
+Then try searching for all available ssh nodes.
+
+```code
+$ tsh request search --kind node
+Name                                 Hostname    Labels       Resource ID
+------------------------------------ ----------- ------------ ------------------------------------------------------
+b1168402-9340-421a-a344-af66a6675738 iot         test=test    /teleport.example.com/node/b1168402-9340-421a-a344-af66a6675738
+bbb56211-7b54-4f9e-bee9-b68ea156be5f node        test=test    /teleport.example.com/node/bbb56211-7b54-4f9e-bee9-b68ea156be5f
+ 
+To request access to these resources, run
+> tsh request create --resource /teleport.example.com/node/b1168402-9340-421a-a344-af66a6675738 --resource /teleport.example.com/node/bbb56211-7b54-4f9e-bee9-b68ea156be5f \
+    --reason <request reason>
+```
+
+You can search for resources of kind `node`, `kube_cluster`, `db`, `app`, and `windows_desktop`.
+Advanced filters and queries are supported, see our
+[filtering reference](../../reference/cli.mdx#resource-filtering).
+
+Try narrowing your search to a specific resource you want to access.
+
+```code
+$ tsh request search --kind node --search iot
+Name                                 Hostname    Labels       Resource ID
+------------------------------------ ----------- ------------ ------------------------------------------------------
+b1168402-9340-421a-a344-af66a6675738 iot         test=test    /teleport.example.com/node/b1168402-9340-421a-a344-af66a6675738
+ 
+To request access to these resources, run
+> tsh request create --resource /teleport.example.com/node/b1168402-9340-421a-a344-af66a6675738 \
+    --reason <request reason>
+```
+
+## Step 5/8. Request access to a resource
+
+Copy the command output by `tsh request search` in the previous step, optionally filling in a request reason.
+
+```code
+$ tsh request create --resource /teleport.example.com/node/bbb56211-7b54-4f9e-bee9-b68ea156be5f \
+    --reason "responding to incident 123"
+Creating request...
+Request ID: f406f5d8-3c2a-428f-8547-a1d091a4ddab
+Username:   alice
+Roles:      access
+Resources:  ["/teleport.example.com/node/bbb56211-7b54-4f9e-bee9-b68ea156be5f"]
+Reason:     "responding to incident 123"
+Reviewers:  [none] (suggested)
+Status:     PENDING
+ 
+hint: use 'tsh login --request-id=<request-id>' to login with an approved request
+ 
+Waiting for request approval...
+
+```
+
+The command will automatically wait until the request is approved.
+
+## Step 6/8. Approve the Access Request
+
+First, log in as `bob`.
+
+```code
+$ tsh login --proxy teleport.example.com --user bob
+```
+
+Then list, review, and approve the Access Request.
+
+```code
+$ tsh request ls
+ID                                   User  Roles  Resources                   Created At (UTC)    Status
+------------------------------------ ----- ------ --------------------------- ------------------- -------
+f406f5d8-3c2a-428f-8547-a1d091a4ddab alice access ["/teleport.example.... [+] 23 Jun 22 18:25 UTC PENDING
+ 
+[+] Requested resources truncated, use `tsh request show <request-id>` to view the full list
+ 
+hint: use 'tsh request show <request-id>' for additional details
+      use 'tsh login --request-id=<request-id>' to login with an approved request
+$ tsh request show f406f5d8-3c2a-428f-8547-a1d091a4ddab
+Request ID: f406f5d8-3c2a-428f-8547-a1d091a4ddab
+Username:   alice
+Roles:      access
+Resources:  ["/teleport.example.com/node/bbb56211-7b54-4f9e-bee9-b68ea156be5f"]
+Reason:     "responding to incident 123"
+Reviewers:  [none] (suggested)
+Status:     PENDING
+ 
+hint: use 'tsh login --request-id=<request-id>' to login with an approved request
+$ tsh request review --approve f406f5d8-3c2a-428f-8547-a1d091a4ddab
+Successfully submitted review.  Request state: APPROVED
+```
+
+<Notice type="tip">
+Check out our
+[Access Request Integrations](#integrating-with-an-external-tool)
+to notify the right people about new Access Requests.
+</Notice>
+
+## Step 7/8. Access the requested resource
+
+`alice`'s `tsh request create` command should resolve now that the request has been approved.
+
+```code
+$ tsh request create --resource /teleport.example.com/node/bbb56211-7b54-4f9e-bee9-b68ea156be5f \
+    --reason "responding to incident 123"
+Creating request...
+Request ID: f406f5d8-3c2a-428f-8547-a1d091a4ddab
+Username:   alice
+Roles:      access
+Resources:  ["/teleport.example.com/node/bbb56211-7b54-4f9e-bee9-b68ea156be5f"]
+Reason:     "responding to incident 123"
+Reviewers:  [none] (suggested)
+Status:     PENDING
+ 
+hint: use 'tsh login --request-id=<request-id>' to login with an approved request
+ 
+Waiting for request approval...
+ 
+Approval received, getting updated certificates...
+ 
+> Profile URL:        https://teleport.example.com
+  Logged in as:       alice
+  Active requests:    f406f5d8-3c2a-428f-8547-a1d091a4ddab
+  Cluster:            teleport.example.com
+  Roles:              access, requester
+  Logins:             alice
+  Kubernetes:         disabled
+  Allowed Resources:  ["/teleport.example.com/node/bbb56211-7b54-4f9e-bee9-b68ea156be5f"]
+  Valid until:        2022-06-23 22:46:22 -0700 PDT [valid for 11h16m0s]
+  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+```
+
+`alice` can now view and access the node.
+
+```code
+$ tsh ls
+Node Name Address   Labels
+--------- --------- ---------
+iot       [::]:3022 test=test
+ 
+$ tsh ssh alice@iot
+iot:~ alice$
+```
+
+## Step 8/8. Resume regular access
+
+While logged in with a resource access request, users will be blocked from access to any other resources.
+This is necessary because their certificate now contains an elevated role,
+so it is restricted to only allow access to the resources they were specifically approved for.
+Use the `tsh request drop` command to "drop" the request and resume regular access.
+
+```code
+$ tsh request drop
+```
+
+## Next Steps
+
+### Automatically request access for SSH
+
+Once you have configured Resource Access Requests,
+`tsh ssh` is able to automatically create a Resource Access Request for you when access is denied,
+allowing you to skip the `tsh request search` and `tsh request create` steps.
+
+```code
+$ tsh ssh alice@iot
+ERROR: access denied to alice connecting to iot on cluster teleport.example.com
+
+You do not currently have access to alice@iot, attempting to request access.
+
+Enter request reason: please
+Creating request...
+Request ID: ab43fc70-e893-471b-872e-ae65eb24fd76
+Username:   alice
+Roles:      access
+Resources:  ["/teleport.example.com/node/bbb56211-7b54-4f9e-bee9-b68ea156be5f"]
+Reason:     "please"
+Reviewers:  [none] (suggested)
+Status:     PENDING
+
+hint: use 'tsh login --request-id=<request-id>' to login with an approved request
+
+Waiting for request approval...
+ 
+Approval received, reason="okay"
+Getting updated certificates...
+ 
+iot:~ alice$
+```
+
+### Restrict the resources a user can request access to
+
+Create a role which can only access SSH nodes labeled `env:staging`.
+
+```yaml
+# staging-access.yaml
+kind: role
+version: v5
+metadata:
+  name: staging-access
+spec:
+  allow:
+    node_labels:
+      env: staging
+    logins:
+      - "{{internal.logins}}"
+  options:
+    # Only allows the requester to use this role for 1 hour from time of request.
+    max_session_ttl: 1h
+```
+
+```code
+$ tctl create staging-access.yaml
+```
+
+Update the `requester` and `reviewer` roles to reference `staging-access`
+instead of the default `access` role.
+
+```yaml
+# requester.yaml
+kind: role
+version: v5
+metadata:
+  name: requester
+spec:
+  allow:
+    request:
+      search_as_roles:
+        - staging-access
+      # Requires 2 approvals for the request.
+      thresholds:
+        - approve: 2
+          deny: 1
+```
+
+```yaml
+# reviewer.yaml
+kind: role
+version: v5
+metadata:
+  name: reviewer
+spec:
+  allow:
+    review_requests:
+      roles:
+        - staging-access
+```
+
+```code
+$ tctl create -f requester.yaml
+$ tctl create -f reviewer.yaml
+```
+
+The `requester` will now only be able to search for or request access to
+resources accessible by the `staging-access` role.
+
+### Integrating with an External Tool
+(!docs/pages/includes/access-request-integrations.mdx!)
+

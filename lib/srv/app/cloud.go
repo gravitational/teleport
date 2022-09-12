@@ -22,10 +22,13 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/tlsca"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds"
 	"github.com/aws/aws-sdk-go/aws/credentials/ssocreds"
@@ -52,6 +55,8 @@ type AWSSigninRequest struct {
 	TargetURL string
 	// Issuer is the application public URL.
 	Issuer string
+	// ExternalID is the AWS external ID.
+	ExternalID string
 }
 
 // CheckAndSetDefaults validates the request.
@@ -64,7 +69,7 @@ func (r *AWSSigninRequest) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 	if r.TargetURL == "" {
-		r.TargetURL = consoleURL
+		return trace.BadParameter("missing TargetURL")
 	}
 	if r.Issuer == "" {
 		return trace.BadParameter("missing Issuer")
@@ -128,6 +133,7 @@ func (c *cloud) GetAWSSigninURL(req AWSSigninRequest) (*AWSSigninResponse, error
 		return nil, trace.Wrap(err)
 	}
 
+	federationURL := getFederationURL(req.TargetURL)
 	signinToken, err := c.getAWSSigninToken(&req, federationURL)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -192,6 +198,10 @@ func (c *cloud) getAWSSigninToken(req *AWSSigninRequest, endpoint string, option
 		// https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html
 		if temporarySession {
 			creds.Duration = duration
+		}
+
+		if req.ExternalID != "" {
+			creds.ExternalID = aws.String(req.ExternalID)
 		}
 	})
 	stsCredentials, err := stscreds.NewCredentials(c.cfg.Session, req.Identity.RouteToApp.AWSRoleARN, options...).Get()
@@ -326,11 +336,29 @@ type federationResponse struct {
 	SigninToken string `json:"SigninToken"`
 }
 
+// getFederationURL picks the AWS federation endpoint based on the AWS
+// partition of the target URL.
+//
+// https://docs.aws.amazon.com/general/latest/gr/signin-service.html
+// https://docs.amazonaws.cn/en_us/aws/latest/userguide/endpoints-Beijing.html
+func getFederationURL(targetURL string) string {
+	// TODO(greedy52) support region based sign-in.
+	switch {
+	// AWS GovCloud (US) Partition.
+	case strings.HasPrefix(targetURL, constants.AWSUSGovConsoleURL):
+		return "https://signin.amazonaws-us-gov.com/federation"
+
+	// AWS China Partition.
+	case strings.HasPrefix(targetURL, constants.AWSCNConsoleURL):
+		return "https://signin.amazonaws.cn/federation"
+
+	// AWS Standard Partition.
+	default:
+		return "https://signin.aws.amazon.com/federation"
+	}
+}
+
 const (
-	// federationURL is the AWS federation endpoint.
-	federationURL = "https://signin.aws.amazon.com/federation"
-	// consoleURL is the default AWS console destination.
-	consoleURL = "https://console.aws.amazon.com/ec2/v2/home"
 	// maxSessionDuration is the max federation session duration, which is 12
 	// hours. The federation endpoint will error out if we request more.
 	//

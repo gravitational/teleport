@@ -1,4 +1,5 @@
 {{- if not (eq .Values.chartMode "custom") -}}
+  {{- $authentication := mustMergeOverwrite .Values.authentication (default dict .Values.authenticationSecondFactor) -}}
   {{- $logLevel := (coalesce .Values.logLevel .Values.log.level "INFO") -}}
 apiVersion: v1
 kind: ConfigMap
@@ -33,6 +34,18 @@ data:
         {{- end }}
         audit_sessions_uri: s3://{{ required "aws.sessionRecordingBucket is required in chart values" .Values.aws.sessionRecordingBucket }}
         continuous_backups: {{ required "aws.backups is required in chart values" .Values.aws.backups }}
+        {{- if .Values.aws.dynamoAutoScaling }}
+        auto_scaling: true
+        read_min_capacity: {{ required "aws.readMinCapacity is required when aws.dynamoAutoScaling is true" .Values.aws.readMinCapacity }}
+        read_max_capacity: {{ required "aws.readMaxCapacity is required when aws.dynamoAutoScaling is true" .Values.aws.readMaxCapacity }}
+        read_target_value: {{ required "aws.readTargetValue is required when aws.dynamoAutoScaling is true" .Values.aws.readTargetValue }}
+        write_min_capacity: {{ required "aws.writeMinCapacity is required when aws.dynamoAutoScaling is true" .Values.aws.writeMinCapacity }}
+        write_max_capacity: {{ required "aws.writeMaxCapacity is required when aws.dynamoAutoScaling is true" .Values.aws.writeMaxCapacity }}
+        write_target_value: {{ required "aws.writeTargetValue is required when aws.dynamoAutoScaling is true" .Values.aws.writeTargetValue }}
+        {{- else }}
+        auto_scaling: false
+        {{- end }}
+
   {{- else if eq .Values.chartMode "gcp" }}
       storage:
         type: firestore
@@ -55,25 +68,33 @@ data:
       license_file: '/var/lib/license/license.pem'
   {{- end }}
       authentication:
-        type: {{ required "authenticationType is required in chart values" .Values.authenticationType }}
-  {{- if .Values.authenticationSecondFactor }}
-    {{- if .Values.authenticationSecondFactor.secondFactor }}
-        second_factor: {{ .Values.authenticationSecondFactor.secondFactor }}
-    {{- end }}
-    {{- if not (or (eq .Values.authenticationSecondFactor.secondFactor "off") (eq .Values.authenticationSecondFactor.secondFactor "otp")) }}
+        type: "{{ required "authentication.type is required in chart values" (coalesce .Values.authenticationType $authentication.type) }}"
+        local_auth: {{ $authentication.localAuth }}
+  {{- if $authentication.connectorName }}
+        connector_name: "{{ $authentication.connectorName }}"
+  {{- end }}
+  {{- if $authentication.lockingMode }}
+        locking_mode: "{{ $authentication.lockingMode }}"
+  {{- end }}
+  {{- if $authentication.secondFactor }}
+        second_factor: "{{ $authentication.secondFactor }}"
+    {{- if not (or (eq $authentication.secondFactor "off") (eq $authentication.secondFactor "otp")) }}
         webauthn:
           rp_id: {{ required "clusterName is required in chart values" .Values.clusterName }}
-      {{- if .Values.authenticationSecondFactor.webauthn }}
-        {{- if .Values.authenticationSecondFactor.webauthn.attestationAllowedCas }}
+      {{- if $authentication.webauthn }}
+        {{- if $authentication.webauthn.attestationAllowedCas }}
           attestation_allowed_cas:
-          {{- toYaml .Values.authenticationSecondFactor.webauthn.attestationAllowedCas | nindent 12 }}
+          {{- toYaml $authentication.webauthn.attestationAllowedCas | nindent 12 }}
         {{- end }}
-        {{- if .Values.authenticationSecondFactor.webauthn.attestationDeniedCas }}
+        {{- if $authentication.webauthn.attestationDeniedCas }}
           attestation_denied_cas:
-          {{- toYaml .Values.authenticationSecondFactor.webauthn.attestationDeniedCas | nindent 12 }}
+          {{- toYaml $authentication.webauthn.attestationDeniedCas | nindent 12 }}
         {{- end }}
       {{- end }}
     {{- end }}
+  {{- end }}
+  {{- if .Values.sessionRecording }}
+      session_recording: {{ .Values.sessionRecording }}
   {{- end }}
   {{- if eq .Values.proxyListenerMode "multiplex" }}
       proxy_listener_mode: multiplex
@@ -95,17 +116,41 @@ data:
     {{- toYaml .Values.labels | nindent 8 }}
   {{- end }}
     proxy_service:
+  {{- if .Values.publicAddr }}
+      public_addr: {{- toYaml .Values.publicAddr | nindent 8 }}
+  {{- else }}
       public_addr: '{{ required "clusterName is required in chart values" .Values.clusterName }}:443'
+  {{- end }}
+  {{- if .Values.sshPublicAddr }}
+      ssh_public_addr: {{- toYaml .Values.sshPublicAddr | nindent 8 }}
+  {{- end }}
+  {{- if .Values.tunnelPublicAddr }}
+      tunnel_public_addr: {{- toYaml .Values.tunnelPublicAddr | nindent 8 }}
+  {{- end }}
   {{- if not .Values.proxyListenerMode }}
       kube_listen_addr: 0.0.0.0:3026
+    {{- if .Values.kubePublicAddr }}
+      kube_public_addr: {{- toYaml .Values.kubePublicAddr | nindent 8 }}
+    {{- end }}
       mysql_listen_addr: 0.0.0.0:3036
+    {{- if .Values.mysqlPublicAddr }}
+      mysql_public_addr: {{- toYaml .Values.mysqlPublicAddr | nindent 8 }}
+    {{- end }}
     {{- if .Values.separatePostgresListener }}
       postgres_listen_addr: 0.0.0.0:5432
+      {{- if .Values.postgresPublicAddr }}
+      postgres_public_addr: {{- toYaml .Values.postgresPublicAddr | nindent 8 }}
+      {{- else }}
       postgres_public_addr: {{ .Values.clusterName }}:5432
+      {{- end }}
     {{- end }}
     {{- if .Values.separateMongoListener }}
       mongo_listen_addr: 0.0.0.0:27017
+      {{- if .Values.mongoPublicAddr }}
+      mongo_public_addr: {{- toYaml .Values.mongoPublicAddr | nindent 8 }}
+      {{- else }}
       mongo_public_addr: {{ .Values.clusterName }}:27017
+      {{- end }}
     {{- end }}
   {{- end }}
       enabled: true

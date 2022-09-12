@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
@@ -48,12 +49,12 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ..
 			options.Client().
 				ApplyURI("mongodb://" + config.Address).
 				SetTLSConfig(tlsConfig).
-				SetDirect(true).
 				// Mongo client connects in background so set a short heartbeat
 				// interval and server selection timeout so access errors are
 				// returned to the client quicker.
 				SetHeartbeatInterval(500 * time.Millisecond).
-				SetServerSelectionTimeout(5 * time.Second),
+				// Setting load balancer disables the topology selection logic.
+				SetLoadBalanced(true),
 		}, opts...)...)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -89,16 +90,14 @@ func TestServerWireVersion(wireVersion int) TestServerOption {
 }
 
 // NewTestServer returns a new instance of a test MongoDB server.
-func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*TestServer, error) {
-	address := "localhost:0"
-	if config.Address != "" {
-		address = config.Address
-	}
-	listener, err := net.Listen("tcp", address)
+func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (svr *TestServer, err error) {
+	err = config.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	_, port, err := net.SplitHostPort(listener.Addr().String())
+	defer config.CloseOnError(&err)
+
+	port, err := config.Port()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -113,7 +112,7 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*T
 	server := &TestServer{
 		cfg: config,
 		// MongoDB uses regular TLS handshake so standard TLS listener will work.
-		listener: tls.NewListener(listener, tlsConfig),
+		listener: tls.NewListener(config.Listener, tlsConfig),
 		port:     port,
 		log:      log,
 	}
@@ -293,6 +292,7 @@ func makeIsMasterReply(wireVersion int) ([]byte, error) {
 		"ok":             1,
 		"maxWireVersion": wireVersion,
 		"compression":    []string{"zlib"},
+		"serviceId":      primitive.NewObjectID(),
 	})
 }
 

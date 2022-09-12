@@ -99,16 +99,22 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 			name: "keep alive kubernetes server",
 			mode: HeartbeatModeKube,
 			makeServer: func() types.Resource {
-				return &types.ServerV2{
+				return &types.KubernetesServerV3{
 					Kind:    types.KindKubeService,
 					Version: types.V2,
 					Metadata: types.Metadata{
 						Namespace: apidefaults.Namespace,
 						Name:      "1",
 					},
-					Spec: types.ServerSpecV2{
-						Addr:     "127.0.0.1:1234",
-						Hostname: "2",
+					Spec: types.KubernetesServerSpecV3{
+						Hostname: "127.0.0.1:1234",
+						Cluster: &types.KubernetesClusterV3{
+							Metadata: types.Metadata{
+								Namespace: apidefaults.Namespace,
+								Name:      "1",
+							},
+							Spec: types.KubernetesClusterSpecV3{},
+						},
 					},
 				}
 			},
@@ -376,6 +382,14 @@ func (f *fakeAnnouncer) UpsertKubeService(ctx context.Context, s types.Server) e
 }
 
 func (f *fakeAnnouncer) UpsertKubeServiceV2(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
+	f.upsertCalls[HeartbeatModeKube]++
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &types.KeepAlive{}, f.err
+}
+
+func (f *fakeAnnouncer) UpsertKubernetesServer(ctx context.Context, s types.KubeServer) (*types.KeepAlive, error) {
 	f.upsertCalls[HeartbeatModeKube]++
 	if f.err != nil {
 		return nil, f.err

@@ -19,11 +19,14 @@ package config
 import (
 	"bytes"
 	"math"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -78,22 +81,24 @@ func TestAuthSection(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		desc                 string
-		mutate               func(cfgMap)
-		expectError          require.ErrorAssertionFunc
-		expectEnabled        require.BoolAssertionFunc
-		expectIdleMsg        require.ValueAssertionFunc
-		expectMotd           require.ValueAssertionFunc
-		expectWebIdleTimeout require.ValueAssertionFunc
+		desc                    string
+		mutate                  func(cfgMap)
+		expectError             require.ErrorAssertionFunc
+		expectEnabled           require.BoolAssertionFunc
+		expectIdleMsg           require.ValueAssertionFunc
+		expectMotd              require.ValueAssertionFunc
+		expectWebIdleTimeout    require.ValueAssertionFunc
+		expectProxyPingInterval require.ValueAssertionFunc
 	}{
 		{
-			desc:                 "Default",
-			mutate:               func(cfg cfgMap) {},
-			expectError:          require.NoError,
-			expectEnabled:        require.True,
-			expectIdleMsg:        require.Empty,
-			expectMotd:           require.Empty,
-			expectWebIdleTimeout: require.Empty,
+			desc:                    "Default",
+			mutate:                  func(cfg cfgMap) {},
+			expectError:             require.NoError,
+			expectEnabled:           require.True,
+			expectIdleMsg:           require.Empty,
+			expectMotd:              require.Empty,
+			expectWebIdleTimeout:    require.Empty,
+			expectProxyPingInterval: require.Empty,
 		}, {
 			desc: "Enabled",
 			mutate: func(cfg cfgMap) {
@@ -135,6 +140,19 @@ func TestAuthSection(t *testing.T) {
 				cfg["auth_service"].(cfgMap)["web_idle_timeout"] = "potato"
 			},
 			expectError: require.Error,
+		}, {
+			desc: "Proxy ping interval",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["proxy_ping_interval"] = "10s"
+			},
+			expectError:             require.NoError,
+			expectProxyPingInterval: requireEqual(types.Duration(10 * time.Second)),
+		}, {
+			desc: "Proxy ping interval (invalid)",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["proxy_ping_interval"] = "potato"
+			},
+			expectError: require.Error,
 		},
 	}
 
@@ -159,6 +177,10 @@ func TestAuthSection(t *testing.T) {
 
 			if tt.expectWebIdleTimeout != nil {
 				tt.expectWebIdleTimeout(t, cfg.Auth.WebIdleTimeout)
+			}
+
+			if tt.expectProxyPingInterval != nil {
+				tt.expectProxyPingInterval(t, cfg.Auth.ProxyPingInterval)
 			}
 		})
 	}
@@ -322,11 +344,78 @@ func TestAuthenticationSection(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			text := bytes.NewBuffer(editConfig(t, tt.mutate))
-
 			cfg, err := ReadConfig(text)
 			tt.expectError(t, err)
 
 			require.Empty(t, cmp.Diff(cfg.Auth.Authentication, tt.expected))
+		})
+	}
+}
+
+func TestAuthenticationConfig_HandleSecondFactorOffOnWithoutQoutes(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		desc               string
+		input              string
+		expectError        require.ErrorAssertionFunc
+		expectSecondFactor require.ValueAssertionFunc
+	}{
+		{desc: "handle off with quotes", input: `
+auth_service:
+  enabled: yes
+  authentication:
+    type: local
+    second_factor: "off"
+teleport:
+  nodename: testing
+ssh_service:
+  enabled: yes`,
+			expectError:        require.NoError,
+			expectSecondFactor: requireEqual(constants.SecondFactorOff)},
+		{desc: "handle off without quotes", input: `
+auth_service:
+  enabled: yes
+  authentication:
+    type: local
+    second_factor: off
+teleport:
+  nodename: testing
+ssh_service:
+  enabled: yes`,
+			expectError:        require.NoError,
+			expectSecondFactor: requireEqual(constants.SecondFactorOff)},
+		{desc: "handle on without quotes", input: `
+auth_service:
+  enabled: yes
+  authentication:
+    type: local
+    second_factor: on
+teleport:
+  nodename: testing
+ssh_service:
+  enabled: yes`,
+			expectError:        require.NoError,
+			expectSecondFactor: requireEqual(constants.SecondFactorOn)},
+		{desc: "unsupported numeric type as second_factor", input: `
+auth_service:
+  enabled: yes
+  authentication:
+    type: local
+    second_factor: 4.4
+teleport:
+  nodename: testing
+ssh_service:
+  enabled: yes`,
+			expectError: require.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			cfg, err := ReadConfig(strings.NewReader(tt.input))
+			tt.expectError(t, err)
+			if tt.expectSecondFactor != nil {
+				tt.expectSecondFactor(t, cfg.Auth.Authentication.SecondFactor)
+			}
 		})
 	}
 }
@@ -399,6 +488,8 @@ func TestSSHSection(t *testing.T) {
 		expectError               require.ErrorAssertionFunc
 		expectEnabled             require.BoolAssertionFunc
 		expectAllowsTCPForwarding require.BoolAssertionFunc
+		expectFileCopying         require.BoolAssertionFunc
+		expectedAWSSection        []AWSEC2Matcher
 	}{
 		{
 			desc:                      "default",
@@ -444,6 +535,153 @@ func TestSSHSection(t *testing.T) {
 				cfg["ssh_service"].(cfgMap)["port_forwarding"] = "banana"
 			},
 			expectError: require.Error,
+		}, {
+			desc: "File copying is enabled",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["ssh_file_copy"] = true
+			},
+			expectError:       require.NoError,
+			expectEnabled:     require.True,
+			expectFileCopying: require.True,
+		}, {
+			desc: "File copying is disabled",
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["ssh_file_copy"] = false
+			},
+			expectError:       require.NoError,
+			expectEnabled:     require.True,
+			expectFileCopying: require.False,
+		}, {
+			desc:              "File copying is enabled by default",
+			mutate:            func(cfg cfgMap) {},
+			expectError:       require.NoError,
+			expectEnabled:     require.True,
+			expectFileCopying: require.True,
+		}, {
+			desc:        "AWS section is filled with defaults",
+			expectError: require.NoError,
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["enabled"] = "yes"
+				cfg["ssh_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":   []string{"ec2"},
+						"regions": []string{"eu-central-1"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+					},
+				}
+			},
+			expectedAWSSection: []AWSEC2Matcher{
+				{
+					Matcher: AWSMatcher{
+						Types:   []string{"ec2"},
+						Regions: []string{"eu-central-1"},
+						Tags: map[string]apiutils.Strings{
+							"discover_teleport": []string{"yes"},
+						},
+					},
+					InstallParams: &InstallParams{
+						JoinParams: JoinParams{
+							TokenName: defaults.IAMInviteTokenName,
+							Method:    types.JoinMethodIAM,
+						},
+						ScriptName: installers.InstallerScriptName,
+					},
+					SSM: AWSSSM{DocumentName: defaults.AWSInstallerDocument},
+				},
+			},
+		}, {
+			desc:        "AWS section is filled with custom configs",
+			expectError: require.NoError,
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["enabled"] = "yes"
+				cfg["ssh_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":   []string{"ec2"},
+						"regions": []string{"eu-central-1"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"install": cfgMap{
+							"join_params": cfgMap{
+								"token_name": "hello-iam-a-token",
+								"method":     "iam",
+							},
+							"script_name": "installer-custom",
+						},
+						"ssm": cfgMap{
+							"document_name": "hello_document",
+						},
+					},
+				}
+			},
+			expectedAWSSection: []AWSEC2Matcher{
+				{
+					Matcher: AWSMatcher{
+						Types:   []string{"ec2"},
+						Regions: []string{"eu-central-1"},
+						Tags: map[string]apiutils.Strings{
+							"discover_teleport": []string{"yes"},
+						},
+					},
+					InstallParams: &InstallParams{
+						JoinParams: JoinParams{
+							TokenName: "hello-iam-a-token",
+							Method:    types.JoinMethodIAM,
+						},
+						ScriptName: "installer-custom",
+					},
+					SSM: AWSSSM{DocumentName: "hello_document"},
+				},
+			},
+		}, {
+			desc:        "AWS section is filled with invalid join method",
+			expectError: require.Error,
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["enabled"] = "yes"
+				cfg["ssh_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"install": cfgMap{
+							"join_params": cfgMap{
+								"token_name": "hello-iam-a-token",
+								"method":     "token",
+							},
+						},
+					},
+				}
+			},
+			expectedAWSSection: nil,
+		},
+		{
+			desc:        "AWS section is filled with no token",
+			expectError: require.NoError,
+			mutate: func(cfg cfgMap) {
+				cfg["ssh_service"].(cfgMap)["enabled"] = "yes"
+				cfg["ssh_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"install": cfgMap{
+							"join_params": cfgMap{
+								"method": "iam",
+							},
+						},
+					},
+				}
+			},
+			expectedAWSSection: []AWSEC2Matcher{
+				{
+					SSM: AWSSSM{
+						DocumentName: defaults.AWSInstallerDocument,
+					},
+					InstallParams: &InstallParams{
+						JoinParams: JoinParams{
+							TokenName: defaults.IAMInviteTokenName,
+							Method:    types.JoinMethodIAM,
+						},
+						ScriptName: installers.InstallerScriptName,
+					},
+				},
+			},
 		},
 	}
 
@@ -460,6 +698,14 @@ func TestSSHSection(t *testing.T) {
 
 			if testCase.expectAllowsTCPForwarding != nil {
 				testCase.expectAllowsTCPForwarding(t, cfg.SSH.AllowTCPForwarding())
+			}
+
+			if testCase.expectFileCopying != nil {
+				testCase.expectFileCopying(t, cfg.SSH.SSHFileCopy())
+			}
+
+			if testCase.expectedAWSSection != nil {
+				require.Equal(t, testCase.expectedAWSSection, cfg.SSH.AWSMatchers)
 			}
 		})
 	}

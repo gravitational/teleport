@@ -28,11 +28,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // printShutdownStatus prints running services until shut down
@@ -52,7 +52,6 @@ func (process *TeleportProcess) printShutdownStatus(ctx context.Context) {
 // WaitForSignals waits for system signals and processes them.
 // Should not be called twice by the process.
 func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
-
 	sigC := make(chan os.Signal, 1024)
 	// Note: SIGKILL can't be trapped.
 	signal.Notify(sigC,
@@ -64,9 +63,12 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 		syscall.SIGHUP,  // graceful restart procedure
 		syscall.SIGCHLD, // collect child status
 	)
+	defer signal.Stop(sigC)
 
 	serviceErrorsC := make(chan Event, 10)
-	process.WaitForEvent(ctx, ServiceExitedWithErrorEvent, serviceErrorsC)
+	eventCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	process.ListenForEvents(eventCtx, ServiceExitedWithErrorEvent, serviceErrorsC)
 
 	// Block until a signal is received or handler got an error.
 	// Notice how this handler is serialized - it will only receive
@@ -200,7 +202,7 @@ func (process *TeleportProcess) closeImportedDescriptors(prefix string) error {
 
 // importOrCreateListener imports listener passed by the parent process (happens during live reload)
 // or creates a new listener if there was no listener registered
-func (process *TeleportProcess) importOrCreateListener(typ listenerType, address string) (net.Listener, error) {
+func (process *TeleportProcess) importOrCreateListener(typ ListenerType, address string) (net.Listener, error) {
 	l, err := process.importListener(typ, address)
 	if err == nil {
 		process.log.Infof("Using file descriptor %v %v passed by the parent process.", typ, address)
@@ -230,7 +232,7 @@ func (process *TeleportProcess) importSignalPipe() (*os.File, error) {
 
 // importListener imports listener passed by the parent process, if no listener is found
 // returns NotFound, otherwise removes the file from the list
-func (process *TeleportProcess) importListener(typ listenerType, address string) (net.Listener, error) {
+func (process *TeleportProcess) importListener(typ ListenerType, address string) (net.Listener, error) {
 	process.Lock()
 	defer process.Unlock()
 
@@ -252,7 +254,7 @@ func (process *TeleportProcess) importListener(typ listenerType, address string)
 }
 
 // createListener creates listener and adds to a list of tracked listeners
-func (process *TeleportProcess) createListener(typ listenerType, address string) (net.Listener, error) {
+func (process *TeleportProcess) createListener(typ ListenerType, address string) (net.Listener, error) {
 	listenersClosed := func() bool {
 		process.Lock()
 		defer process.Unlock()
@@ -296,7 +298,7 @@ func (process *TeleportProcess) createListener(typ listenerType, address string)
 }
 
 // getListenerNeedsLock tries to get an existing listener that matches the type/addr.
-func (process *TeleportProcess) getListenerNeedsLock(typ listenerType, address string) (listener net.Listener, ok bool) {
+func (process *TeleportProcess) getListenerNeedsLock(typ ListenerType, address string) (listener net.Listener, ok bool) {
 	for _, l := range process.registeredListeners {
 		if l.typ == typ && l.address == address {
 			return l.listener, true
@@ -357,7 +359,7 @@ func importFileDescriptors(log logrus.FieldLogger) ([]FileDescriptor, error) {
 // within teleport process, can be passed to child process
 type registeredListener struct {
 	// Type is a listener type, e.g. auth:ssh
-	typ listenerType
+	typ ListenerType
 	// Address is an address listener is serving on, e.g. 127.0.0.1:3025
 	address string
 	// Listener is a file listener object

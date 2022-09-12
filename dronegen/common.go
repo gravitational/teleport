@@ -22,6 +22,18 @@ import (
 	"strings"
 )
 
+const (
+	// StagingRegistry is the staging registry images are pushed to before being promoted to the production registry.
+	StagingRegistry = "146628656107.dkr.ecr.us-west-2.amazonaws.com"
+
+	// ProductionRegistry is the production image registry that hosts are customer facing container images.
+	ProductionRegistry = "public.ecr.aws"
+
+	// ProductionRegistryQuay is the production image registry that hosts images on quay.io. Will be deprecated in the future.
+	// See RFD 73 - https://github.com/gravitational/teleport/blob/c18c09f5d562dd46a509154eab4295ad39decc3c/rfd/0073-public-image-registry.md
+	ProductionRegistryQuay = "quay.io"
+)
+
 var (
 	triggerPush = trigger{
 		Event:  triggerRef{Include: []string{"push"}, Exclude: []string{"pull_request"}},
@@ -93,9 +105,10 @@ type buildType struct {
 }
 
 // Description provides a human-facing description of the artifact, e.g.:
-//   Windows 64-bit (tsh client only)
-//   Linux ARMv7 (32-bit)
-//   MacOS Intel .pkg installer
+//
+//	Windows 64-bit (tsh client only)
+//	Linux ARMv7 (32-bit)
+//	MacOS Intel .pkg installer
 func (b *buildType) Description(packageType string, extraQualifications ...string) string {
 	var result string
 
@@ -168,7 +181,8 @@ func (b *buildType) Description(packageType string, extraQualifications ...strin
 }
 
 func (b *buildType) hasTeleportConnect() bool {
-	return b.os == "darwin" && b.arch == "amd64"
+	return (b.os == "darwin" && b.arch == "amd64") ||
+		(b.os == "linux" && b.arch == "amd64" && !b.centos7 && !b.fips)
 }
 
 // dockerService generates a docker:dind service

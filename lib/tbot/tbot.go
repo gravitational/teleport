@@ -222,12 +222,22 @@ func (b *Bot) Run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	// Maintain a context that we can cancel if the bot is running in one shot.
+	ctx, cancel := context.WithCancel(ctx)
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
 		return trace.Wrap(b.caRotationLoop(egCtx))
 	})
 	eg.Go(func() error {
-		return trace.Wrap(b.renewLoop(egCtx))
+		err := b.renewLoop(egCtx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// If `renewLoop` exits with nil, the bot is running in "one-shot", so
+		// we should indicate to other long-running processes that they can
+		// finish up.
+		cancel()
+		return nil
 	})
 
 	return eg.Wait()

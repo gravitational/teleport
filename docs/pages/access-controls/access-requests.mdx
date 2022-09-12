@@ -1,0 +1,40 @@
+---
+title: Just-in-Time Access Requests
+description: Teleport allows users to request new access capabilities from the CLI or UI. Requests can be escalated via ChatOps or anywhere else via our flexible Authorization Workflow API.
+layout: tocless-doc
+---
+
+Teleport Just-in-Time Access Requests allow any user to request access to
+a resource or role depending on need. The request can then be approved or
+denied based on a configurable number of approvers.
+
+Just-in-Time Access Requests are a powerful way to implement the principle of
+least privilege in your organization, leaving an attacker with no permanent
+admins to target. Users receive elevated privileges for a limited period of
+time. And aside from their reviewer privileges, users who review requests can
+have limited access to cluster resources.
+
+<ScopedBlock scope={["oss"]}>
+
+Just-in-Time Access Requests are a feature of Teleport Enterprise.
+Open-source Teleport users can get a preview of how Access Requests work by
+requesting a role via the Teleport CLI. Full Access Request functionality,
+including Resource Access Requests and an intuitive and searchable UI are
+available in Teleport Enterprise.
+
+</ScopedBlock>
+
+## Resource Access Requests
+
+With Resource Access Requests, engineers can easily get access to only the
+individual resources they need, when they need it.
+
+[Get started with Resource Access Requests](./access-requests/resource-requests.mdx).
+
+## Role Access Requests
+
+Role Access Requests balance security and flexibility. Engineers can request
+temporary credentials with elevated roles in order to perform critical
+system-wide tasks.
+
+[Get started with Role Access Requests](./access-requests/role-requests.mdx).
