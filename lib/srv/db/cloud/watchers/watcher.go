@@ -165,8 +165,8 @@ func makeFetchers(ctx context.Context, config *WatcherConfig) (result []Fetcher,
 	return result, nil
 }
 
-func makeAWSFetchers(clients common.CloudClients, matchers []services.AWSMatcher) (result []Fetcher, err error) {
-	type makeFetcherFunc func(common.CloudClients, string, types.Labels) (Fetcher, error)
+func makeAWSFetchers(clients cloud.Clients, matchers []services.AWSMatcher) (result []Fetcher, err error) {
+	type makeFetcherFunc func(cloud.Clients, string, types.Labels) (Fetcher, error)
 	makeFetcherFuncs := map[string][]makeFetcherFunc{
 		services.AWSMatcherRDS:         {makeRDSInstanceFetcher, makeRDSAuroraFetcher},
 		services.AWSMatcherRedshift:    {makeRedshiftFetcher},
@@ -194,7 +194,7 @@ func makeAWSFetchers(clients common.CloudClients, matchers []services.AWSMatcher
 	return result, nil
 }
 
-func makeAzureFetchers(ctx context.Context, clients common.CloudClients, matchers []services.AzureMatcher) (result []Fetcher, err error) {
+func makeAzureFetchers(ctx context.Context, clients cloud.Clients, matchers []services.AzureMatcher) (result []Fetcher, err error) {
 	for _, matcher := range matchers {
 		for _, matcherType := range matcher.Types {
 			for _, sub := range matcher.Subscriptions {

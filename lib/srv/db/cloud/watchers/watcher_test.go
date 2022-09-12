@@ -40,11 +40,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/db/cloud"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
 // TestWatcher tests cloud databases watcher.
@@ -347,7 +343,7 @@ func TestWatcher(t *testing.T) {
 					ResourceTags:   types.Labels{"env": []string{"prod"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				AzureMySQLPerSub: map[string]azure.DBServersClient{
 					subscription1: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
 						DBServers: []*armmysql.Server{azMySQLServer1, azMySQLServer2, azMySQLServer3, azMySQLServer5},
@@ -379,7 +375,7 @@ func TestWatcher(t *testing.T) {
 					ResourceTags:   types.Labels{"env": []string{"prod"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				AzureMySQLPerSub: map[string]azure.DBServersClient{
 					subscription1: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
 						DBServers: []*armmysql.Server{azMySQLServer1},
@@ -413,7 +409,7 @@ func TestWatcher(t *testing.T) {
 					ResourceTags:   types.Labels{"*": []string{"*"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				AzureMySQL: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
 					DBServers: []*armmysql.Server{
 						azMySQLServer1,
@@ -441,7 +437,7 @@ func TestWatcher(t *testing.T) {
 					ResourceTags:   types.Labels{"*": []string{"*"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				AzureMySQL: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
 					DBServers: []*armmysql.Server{
 						azMySQLServer1,
@@ -470,7 +466,7 @@ func TestWatcher(t *testing.T) {
 					ResourceTags:   types.Labels{"*": []string{"*"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				AzureMySQLPerSub: map[string]azure.DBServersClient{
 					subscription1: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
 						DBServers: []*armmysql.Server{azMySQLServer1},
@@ -503,7 +499,7 @@ func TestWatcher(t *testing.T) {
 					ResourceTags:   types.Labels{"*": []string{"*"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				AzureMySQL: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
 					DBServers: []*armmysql.Server{
 						azMySQLServer1,
@@ -543,7 +539,7 @@ func TestWatcher(t *testing.T) {
 					ResourceTags: types.Labels{"*": []string{"*"}},
 				},
 			},
-			clients: &common.TestCloudClients{
+			clients: &clients.TestCloudClients{
 				RDS: &cloud.RDSMock{
 					DBClusters: []*rds.DBCluster{auroraCluster1},
 				},
@@ -609,7 +605,7 @@ func TestWatcher(t *testing.T) {
 		}
 		watcher, err := NewWatcher(ctx,
 			WatcherConfig{
-				Clients: &common.TestCloudClients{
+				Clients: &clients.TestCloudClients{
 					AzureMySQLPerSub: map[string]azure.DBServersClient{
 						subscription1: azure.NewMySQLServersClient(&azure.ARMMySQLMock{
 							DBServers: []*armmysql.Server{azMySQLServer1},

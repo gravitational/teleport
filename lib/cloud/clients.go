@@ -110,7 +110,7 @@ func NewClients() Clients {
 }
 
 // cloudClients implements CloudClients
-var _ CloudClients = (*cloudClients)(nil)
+var _ Clients = (*cloudClients)(nil)
 
 type cloudClients struct {
 	// awsSessions is a map of cached AWS sessions per region.
@@ -436,7 +436,7 @@ func (c *cloudClients) initAzureSubscriptionsClient() (*azure.SubscriptionClient
 }
 
 // TestCloudClients implements CloudClients
-var _ CloudClients = (*TestCloudClients)(nil)
+var _ Clients = (*TestCloudClients)(nil)
 
 // TestCloudClients are used in tests.
 type TestCloudClients struct {
