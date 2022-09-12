@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors.
+Copyright 2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,26 +17,230 @@ limitations under the License.
 package proxy
 
 import (
+	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
-	"strings"
+	"net/http/httptest"
 	"time"
 
-	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/utils"
+
+	"golang.org/x/net/http2"
+
+	"k8s.io/apiserver/pkg/util/wsstream"
+	"k8s.io/client-go/tools/remotecommand"
+
 	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	spdystream "k8s.io/apimachinery/pkg/util/httpstream/spdy"
-	remotecommandconsts "k8s.io/apimachinery/pkg/util/remotecommand"
-	"k8s.io/apiserver/pkg/util/wsstream"
-	"k8s.io/client-go/tools/remotecommand"
-	utilexec "k8s.io/client-go/util/exec"
 )
+
+const (
+	// The SPDY subprotocol "v4.channel.k8s.io" is used for remote command
+	// attachment/execution. It is the 4th version of the subprotocol and
+	// adds support for exit codes.
+	StreamProtocolV4Name = "v4.channel.k8s.io"
+
+	// DefaultStreamCreationTimeout
+	DefaultStreamCreationTimeout = 30 * time.Second
+
+	IdleTimeout = 15 * time.Minute
+	// Name of header that specifies stream type
+	StreamType = "streamType"
+	// Value for streamType header for stdin stream
+	StreamTypeStdin = "stdin"
+	// Value for streamType header for stdout stream
+	StreamTypeStdout = "stdout"
+	// Value for streamType header for stderr stream
+	StreamTypeStderr = "stderr"
+	// Value for streamType header for data stream
+	StreamTypeData = "data"
+	// Value for streamType header for error stream
+	StreamTypeError = "error"
+	// Value for streamType header for terminal resize stream
+	StreamTypeResize = "resize"
+
+	// CloseStreamMessage is an expected keyword if stdin is enable and the
+	// underlying protocol does not support half closed streams.
+	// It is only required for websockets.
+	CloseStreamMessage = "\r\nexit_message\r\n"
+)
+
+// statusScheme is private scheme for the decoding here until someone fixes the TODO in NewConnection
+var statusScheme = runtime.NewScheme()
+
+// ParameterCodec knows about query parameters used with the meta v1 API spec.
+var statusCodecs = serializer.NewCodecFactory(statusScheme)
+
+type KubeMockServer struct {
+	router *httprouter.Router
+	log    *log.Entry
+	server *httptest.Server
+	TLS    *tls.Config
+	Addr   net.Addr
+	URL    string
+	CA     []byte
+}
+
+// NewKubeAPIMock creates Kubernetes API server for handling exec calls.
+// For now it just supports exec via SPDY protocol and returns the following content into the available streams:
+// {containerName}\n
+// {stdinDump}
+// The output returns the container followed by a dump of the data received from stdin.
+// More endpoints can be configured
+// TODO(tigrato): add support for other endpoints
+func NewKubeAPIMock() (*KubeMockServer, error) {
+
+	s := &KubeMockServer{
+		router: httprouter.New(),
+		log:    log.NewEntry(log.New()),
+	}
+	s.setup()
+	if err := http2.ConfigureServer(s.server.Config, &http2.Server{}); err != nil {
+		return nil, err
+	}
+	s.server.StartTLS()
+	s.TLS = s.server.TLS
+	s.Addr = s.server.Listener.Addr()
+	s.URL = s.server.URL
+	return s, nil
+}
+
+func (s *KubeMockServer) setup() {
+	s.router.UseRawPath = true
+	s.router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", s.withWriter(s.exec))
+	s.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", s.withWriter(s.exec))
+	s.server = httptest.NewUnstartedServer(s.router)
+	s.server.EnableHTTP2 = true
+}
+
+func (s *KubeMockServer) Close() error {
+	s.server.Close()
+	return nil
+}
+
+func (s *KubeMockServer) withWriter(handler httplib.HandlerFunc) httprouter.Handle {
+	return httplib.MakeHandlerWithErrorWriter(handler, s.formatResponseError)
+}
+
+func (s *KubeMockServer) formatResponseError(rw http.ResponseWriter, respErr error) {
+	status := &metav1.Status{
+		Status: metav1.StatusFailure,
+		// Don't trace.Unwrap the error, in case it was wrapped with a
+		// user-friendly message. The underlying root error is likely too
+		// low-level to be useful.
+		Message: respErr.Error(),
+		Code:    int32(trace.ErrorToCode(respErr)),
+	}
+	data, err := runtime.Encode(statusCodecs.LegacyCodec(), status)
+	if err != nil {
+		s.log.Warningf("Failed encoding error into kube Status object: %v", err)
+		trace.WriteError(rw, respErr)
+		return
+	}
+	rw.Header().Set("Content-Type", "application/json")
+	// Always write InternalServerError, that's the only code that kubectl will
+	// parse the Status object for. The Status object has the real status code
+	// embedded.
+	rw.WriteHeader(http.StatusInternalServerError)
+	if _, err := rw.Write(data); err != nil {
+		s.log.Warningf("Failed writing kube error response body: %v", err)
+	}
+}
+
+func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp interface{}, err error) {
+
+	q := req.URL.Query()
+
+	request := remoteCommandRequest{
+		podNamespace:       p.ByName("podNamespace"),
+		podName:            p.ByName("podName"),
+		containerName:      q.Get("container"),
+		cmd:                q["command"],
+		stdin:              utils.AsBool(q.Get("stdin")),
+		stdout:             utils.AsBool(q.Get("stdout")),
+		stderr:             utils.AsBool(q.Get("stderr")),
+		tty:                utils.AsBool(q.Get("tty")),
+		httpRequest:        req,
+		httpResponseWriter: w,
+		context:            req.Context(),
+		pingPeriod:         defaults.HighResPollingPeriod,
+		onResize:           func(remotecommand.TerminalSize) {},
+	}
+
+	proxy, err := createRemoteCommandProxy(request)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxy.Close()
+
+	if request.stdout {
+		if _, err := proxy.stdoutStream.Write([]byte(request.containerName + "\n")); err != nil {
+			s.log.WithError(err).Errorf("unable to send to stdout")
+		}
+	}
+
+	if request.stderr {
+		if _, err := proxy.stderrStream.Write([]byte(request.containerName + "\n")); err != nil {
+			s.log.WithError(err).Errorf("unable to send to stderr")
+		}
+	}
+
+	if request.stdin {
+		buffer := make([]byte, 32*1024)
+		for {
+			buffer = buffer[:cap(buffer)]
+			n, err := proxy.stdinStream.Read(buffer)
+			if err == io.EOF && n == 0 {
+				break
+			} else if err != nil && n == 0 {
+				s.log.WithError(err).Errorf("unable to receive from stdin")
+				break
+			}
+
+			buffer = buffer[:n]
+			// Unfortunately, K8S Websocket protocol does not support half closed streams,
+			// i.e. indicating that nothing else will be sent via stdin. If the server
+			// reads the stdin stream until io.EOF is received, it will block on reading.
+			// This issue is being tracked by https://github.com/kubernetes/kubernetes/issues/89899
+			// In order to prevent this issue, and uniquely for the purpose of testing,
+			// this server expects an exit keyword specified by CloseStreamMessage.
+			// Once the exit is received, the server stops reading stdin.
+			if bytes.Equal(buffer, []byte(CloseStreamMessage)) {
+				break
+			}
+
+			if request.stdout {
+				if _, err := proxy.stdoutStream.Write(buffer); err != nil {
+					s.log.WithError(err).Errorf("unable to send to stdout")
+				}
+			}
+
+			if request.stderr {
+				if _, err := proxy.stderrStream.Write(buffer); err != nil {
+					s.log.WithError(err).Errorf("unable to send to stdout")
+				}
+			}
+
+		}
+
+	}
+
+	return nil, nil
+}
 
 // remoteCommandRequest is a request to execute a remote command
 type remoteCommandRequest struct {
@@ -55,57 +259,20 @@ type remoteCommandRequest struct {
 	pingPeriod         time.Duration
 }
 
-func (req remoteCommandRequest) eventPodMeta(ctx context.Context, creds *kubeCreds) apievents.KubernetesPodMetadata {
-	meta := apievents.KubernetesPodMetadata{
-		KubernetesPodName:       req.podName,
-		KubernetesPodNamespace:  req.podNamespace,
-		KubernetesContainerName: req.containerName,
-	}
-	if creds == nil || creds.kubeClient == nil {
-		return meta
-	}
-
-	// Optionally, try to get more info about the pod.
-	//
-	// This can fail if a user has set tight RBAC rules for teleport. Failure
-	// here shouldn't prevent a session from starting.
-	pod, err := creds.kubeClient.CoreV1().Pods(req.podNamespace).Get(ctx, req.podName, metav1.GetOptions{})
-	if err != nil {
-		log.WithError(err).Debugf("Failed fetching pod from kubernetes API; skipping additional metadata on the audit event")
-		return meta
-	}
-	meta.KubernetesNodeName = pod.Spec.NodeName
-
-	// If a container name was provided, find its image name.
-	if req.containerName != "" {
-		for _, c := range pod.Spec.Containers {
-			if c.Name == req.containerName {
-				meta.KubernetesContainerImage = c.Image
-				break
-			}
-		}
-	}
-	// If no container name was provided, use the default one.
-	if req.containerName == "" && len(pod.Spec.Containers) > 0 {
-		meta.KubernetesContainerName = pod.Spec.Containers[0].Name
-		meta.KubernetesContainerImage = pod.Spec.Containers[0].Image
-	}
-	return meta
-}
-
 func createRemoteCommandProxy(req remoteCommandRequest) (*remoteCommandProxy, error) {
 	var (
 		proxy *remoteCommandProxy
 		err   error
 	)
 	if wsstream.IsWebSocketRequest(req.httpRequest) {
-		proxy, err = createWebSocketStreams(req)
-	} else {
-		proxy, err = createSPDYStreams(req)
+		return nil, fmt.Errorf("only SPDY streams upgrades are supported")
 	}
+
+	proxy, err = createSPDYStreams(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if proxy.resizeStream != nil {
 		proxy.resizeQueue = newTermQueue(req.context, req.onResize)
 		go proxy.resizeQueue.handleResizeEvents(proxy.resizeStream)
@@ -198,66 +365,6 @@ func (s *remoteCommandProxy) Close() error {
 		return s.conn.Close()
 	}
 	return nil
-}
-
-func (s *remoteCommandProxy) options() remotecommand.StreamOptions {
-	opts := remotecommand.StreamOptions{
-		Stdout: s.stdoutStream,
-		Stdin:  s.stdinStream,
-		Stderr: s.stderrStream,
-		Tty:    s.tty,
-	}
-	// done to prevent this problem: https://golang.org/doc/faq#nil_error
-	if s.resizeQueue != nil {
-		opts.TerminalSizeQueue = s.resizeQueue
-	}
-	return opts
-}
-
-func (s *remoteCommandProxy) sendStatus(err error) error {
-	if err == nil {
-		return s.writeStatus(&apierrors.StatusError{ErrStatus: metav1.Status{
-			Status: metav1.StatusSuccess,
-		}})
-	}
-	if statusErr, ok := err.(*apierrors.StatusError); ok {
-		return s.writeStatus(statusErr)
-	}
-
-	if exitErr, ok := err.(utilexec.ExitError); ok && exitErr.Exited() {
-		rc := exitErr.ExitStatus()
-		return s.writeStatus(&apierrors.StatusError{ErrStatus: metav1.Status{
-			Status: metav1.StatusFailure,
-			Reason: remotecommandconsts.NonZeroExitCodeReason,
-			Details: &metav1.StatusDetails{
-				Causes: []metav1.StatusCause{
-					{
-						Type:    remotecommandconsts.ExitCodeCauseType,
-						Message: fmt.Sprintf("%d", rc),
-					},
-				},
-			},
-			Message: fmt.Sprintf("command terminated with non-zero exit code: %v", exitErr),
-		}})
-	}
-	// kubernetes client-go errorDecoderV4 parses the metav1.Status and returns the `fmt.Errorf(status.Message)` for every case except
-	// errors with reason =  NonZeroExitCodeReason for which it returns an exec.CodeExitError.
-	// This means when forwarding an exec request to a remote cluster using the `Forwarder.remoteExec` function we only have access
-	// to the status.Message. This happens because the error is sent after the connection was upgraded to a bidirectional stream.
-	// This hack is here to recreate the forbidden message and return it back to the user terminal
-	if strings.Contains(err.Error(), "is forbidden:") {
-		return s.writeStatus(&apierrors.StatusError{
-			ErrStatus: metav1.Status{
-				Status:  metav1.StatusFailure,
-				Code:    http.StatusForbidden,
-				Reason:  metav1.StatusReasonForbidden,
-				Message: err.Error(),
-			},
-		})
-	}
-
-	err = trace.BadParameter("error executing command in container: %v", err)
-	return s.writeStatus(apierrors.NewInternalError(err))
 }
 
 // streamAndReply holds both a Stream and a channel that is closed when the stream's reply frame is
@@ -402,16 +509,6 @@ func v4WriteStatusFunc(stream io.Writer) func(status *apierrors.StatusError) err
 			return err
 		}
 		_, err = stream.Write(bs)
-		return err
-	}
-}
-
-func v1WriteStatusFunc(stream io.Writer) func(status *apierrors.StatusError) error {
-	return func(status *apierrors.StatusError) error {
-		if status.Status().Status == metav1.StatusSuccess {
-			return nil // send error messages
-		}
-		_, err := stream.Write([]byte(status.Error()))
 		return err
 	}
 }
