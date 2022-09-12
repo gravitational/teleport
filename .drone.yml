@@ -39,7 +39,7 @@ name: push-build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.18.3
+  RUNTIME: go1.18.6
   UID: "1000"
 trigger:
   event:
@@ -150,7 +150,7 @@ name: push-build-linux-386
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.18.3
+  RUNTIME: go1.18.6
   UID: "1000"
 trigger:
   event:
@@ -253,7 +253,7 @@ name: push-build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.18.3
+  RUNTIME: go1.18.6
   UID: "1000"
 trigger:
   event:
@@ -360,7 +360,7 @@ name: push-build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.18.3
+  RUNTIME: go1.18.6
   UID: "1000"
 trigger:
   event:
@@ -525,7 +525,7 @@ steps:
   - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.18.3
+    RUNTIME: go1.18.6
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -960,7 +960,7 @@ name: push-build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.18.3
+  RUNTIME: go1.18.6
   UID: "1000"
 trigger:
   event:
@@ -1063,7 +1063,7 @@ name: push-build-linux-arm64
 environment:
   BUILDBOX_VERSION: teleport11
   GID: "1000"
-  RUNTIME: go1.18.3
+  RUNTIME: go1.18.6
   UID: "1000"
 trigger:
   event:
@@ -1694,7 +1694,7 @@ type: kubernetes
 name: build-linux-amd64-centos7
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.18.3
+  RUNTIME: go1.18.6
 trigger:
   event:
     include:
@@ -1807,7 +1807,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -1854,7 +1854,7 @@ type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.18.3
+  RUNTIME: go1.18.6
 trigger:
   event:
     include:
@@ -1966,7 +1966,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -2013,7 +2013,7 @@ type: kubernetes
 name: build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.18.3
+  RUNTIME: go1.18.6
 trigger:
   event:
     include:
@@ -2098,6 +2098,10 @@ steps:
     -o -iname "teleport-connect*.deb" \) -print -exec cp {} /go/artifacts/ \;
   - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256;
     done && ls -l
+  - |-
+    cd /go/artifacts && for FILE in teleport-connect*.deb teleport-connect*.rpm; do
+      sha256sum $FILE > $FILE.sha256;
+    done && ls -l
 - name: Upload to S3
   image: plugins/s3
   settings:
@@ -2134,7 +2138,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -2181,7 +2185,7 @@ type: kubernetes
 name: build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.18.3
+  RUNTIME: go1.18.6
 trigger:
   event:
     include:
@@ -2291,7 +2295,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -2477,7 +2481,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -2665,7 +2669,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -2853,7 +2857,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -3027,7 +3031,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -3074,7 +3078,7 @@ type: kubernetes
 name: build-linux-386
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.18.3
+  RUNTIME: go1.18.6
 trigger:
   event:
     include:
@@ -3184,7 +3188,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -3370,7 +3374,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -3552,7 +3556,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -3657,7 +3661,7 @@ steps:
   - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.18.3
+    RUNTIME: go1.18.6
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -3742,7 +3746,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -3945,7 +3949,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -4129,7 +4133,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -4174,7 +4178,7 @@ type: kubernetes
 name: build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.18.3
+  RUNTIME: go1.18.6
 trigger:
   event:
     include:
@@ -4284,7 +4288,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -4331,7 +4335,7 @@ type: kubernetes
 name: build-linux-arm64
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.18.3
+  RUNTIME: go1.18.6
 trigger:
   event:
     include:
@@ -4441,7 +4445,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -4618,7 +4622,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -4795,7 +4799,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -4981,7 +4985,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -5172,7 +5176,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -5224,7 +5228,7 @@ type: kubernetes
 name: build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport11
-  RUNTIME: go1.18.3
+  RUNTIME: go1.18.6
 trigger:
   event:
     include:
@@ -5337,7 +5341,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -7006,7 +7010,7 @@ steps:
       products="$name"
       if [ "$name" = "tsh" ]; then
         products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" ]; then
+      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
         description="Teleport Connect"
         products="teleport teleport-ent"
       fi
@@ -7050,6 +7054,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 2d50f73226640e621d790dadf4f07b891eeb3e9e11f9b2cc8e93f6d4bed8841b
+hmac: 122d13c57fd07c1ea1baf781df66fe8f867338f089eb2a4636a7aef23a3dee30
 
 ...
