@@ -2215,7 +2215,6 @@ struct DeviceControlRequest {
     output_buffer_length: u32,
     input_buffer_length: u32,
     io_control_code: u32,
-    padding: [u8; 20],
 }
 
 impl DeviceControlRequest {
@@ -2223,14 +2222,12 @@ impl DeviceControlRequest {
         let output_buffer_length = payload.read_u32::<LittleEndian>()?;
         let input_buffer_length = payload.read_u32::<LittleEndian>()?;
         let io_control_code = payload.read_u32::<LittleEndian>()?;
-        let mut padding: [u8; 20] = [0; 20];
-        payload.read_exact(&mut padding)?;
+        payload.seek(SeekFrom::Current(20))?; // padding
         Ok(Self {
             header,
             output_buffer_length,
             input_buffer_length,
             io_control_code,
-            padding,
         })
     }
 }
@@ -2241,8 +2238,8 @@ impl Encode for DeviceControlRequest {
         w.write_u32::<LittleEndian>(self.output_buffer_length)?;
         w.write_u32::<LittleEndian>(self.input_buffer_length)?;
         w.write_u32::<LittleEndian>(self.io_control_code)?;
-        for u8 in self.padding {
-            w.write_u8(u8)?;
+        for _ in 0..20 {
+            w.write_u8(0)?; // padding
         }
         Ok(w)
     }
@@ -4517,7 +4514,6 @@ mod tests {
                     output_buffer_length: 256,
                     input_buffer_length: 4,
                     io_control_code: IoctlCode::SCARD_IOCTL_ACCESSSTARTEDEVENT as u32,
-                    padding: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                 }),
                 scard_ctl: Some(Box::new(ScardAccessStartedEvent_Call {
                     _unused: 3234823568,
