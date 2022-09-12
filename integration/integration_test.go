@@ -5721,7 +5721,8 @@ func runCommandWithContext(ctx context.Context, t *testing.T, instance *helpers.
 	return output.String(), nil
 }
 
-// invoke makes it easier invoke
+// invoke makes it easier to defer multiple cancelFuncs from the same variable
+// without them stomping on one another.
 func invoke(cancel context.CancelFunc) {
 	cancel()
 }
