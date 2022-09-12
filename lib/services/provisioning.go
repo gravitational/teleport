@@ -77,6 +77,9 @@ func UnmarshalProvisionToken(data []byte, opts ...MarshalOption) (types.Provisio
 
 	switch h.Version {
 	case "":
+		// TODO: Determine if we can remove support for V1.
+		// We don't support Marshalling ProvisionTokenV1 any more, and should
+		// probably aim to remove this.
 		var p types.ProvisionTokenV1
 		err := utils.FastUnmarshal(data, &p)
 		if err != nil {
