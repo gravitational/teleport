@@ -2796,7 +2796,7 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 	// switch listen address of the main cluster to load balancer
 	mainProxyAddr := *utils.MustParseAddr(mainSecrets.TunnelAddr)
 	lb.AddBackend(mainProxyAddr)
-	mainSecrets.TunnelAddr = frontend.String()
+	mainSecrets.TunnelAddr = lb.Addr().String()
 	require.NoError(t, remote.Create(t, mainSecrets.AsSlice(), true, nil))
 
 	require.NoError(t, main.Start())
@@ -2930,7 +2930,7 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 	// switch listen address of the main cluster to load balancer
 	mainProxyAddr := *utils.MustParseAddr(mainSecrets.TunnelAddr)
 	lb.AddBackend(mainProxyAddr)
-	mainSecrets.TunnelAddr = frontend.String()
+	mainSecrets.TunnelAddr = lb.Addr().String()
 	require.NoError(t, remote.Create(t, mainSecrets.AsSlice(), true, nil))
 
 	require.NoError(t, main.Start())
@@ -3056,7 +3056,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 		tconf.Proxy.TunnelPublicAddrs = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
-				Addr:        frontend.String(),
+				Addr:        lb.Addr().String(),
 			},
 		}
 		tconf.Proxy.DisableWebService = false
@@ -3212,7 +3212,7 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 		tconf.Proxy.TunnelPublicAddrs = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
-				Addr:        frontend.String(),
+				Addr:        lb.Addr().String(),
 			},
 		}
 		tconf.Proxy.DisableWebService = false
@@ -5721,7 +5721,7 @@ func runCommandWithContext(ctx context.Context, t *testing.T, instance *helpers.
 	return output.String(), nil
 }
 
-// invoke makes it easier to defer multiple cancelFuncs from the same variable
+// invoke makes it easier to defer multiple cancelFuncs held by the same variable
 // without them stomping on one another.
 func invoke(cancel context.CancelFunc) {
 	cancel()
