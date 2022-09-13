@@ -62,22 +62,21 @@ type ProvisionToken interface {
 	// GetSuggestedLabels returns the set of labels that the resource should add when adding itself to the cluster
 	GetSuggestedLabels() Labels
 
-	// V1 returns V1 version of the resource
-	V1() *ProvisionTokenV1
 	// String returns user friendly representation of the resource
 	String() string
 }
 
 // NewProvisionToken returns a new provision token with the given roles.
 func NewProvisionToken(token string, roles SystemRoles, expires time.Time) (ProvisionToken, error) {
-	return NewProvisionTokenFromSpec(token, expires, ProvisionTokenSpecV2{
-		Roles: roles,
+	return NewProvisionTokenFromSpec(token, expires, ProvisionTokenSpecV3{
+		JoinMethod: JoinMethodToken,
+		Roles:      roles,
 	})
 }
 
 // NewProvisionTokenFromSpec returns a new provision token with the given spec.
-func NewProvisionTokenFromSpec(token string, expires time.Time, spec ProvisionTokenSpecV2) (ProvisionToken, error) {
-	t := &ProvisionTokenV2{
+func NewProvisionTokenFromSpec(token string, expires time.Time, spec ProvisionTokenSpecV3) (ProvisionToken, error) {
+	t := &ProvisionTokenV3{
 		Metadata: Metadata{
 			Name:    token,
 			Expires: &expires,
@@ -283,12 +282,12 @@ func (p *ProvisionTokenV2) Expiry() time.Time {
 	return p.Metadata.Expiry()
 }
 
-// GetName returns server name
+// GetName returns token name
 func (p *ProvisionTokenV2) GetName() string {
 	return p.Metadata.Name
 }
 
-// SetName sets the name of the TrustedCluster.
+// SetName sets the name of the ProvisionToken.
 func (p *ProvisionTokenV2) SetName(e string) {
 	p.Metadata.Name = e
 }
@@ -302,46 +301,34 @@ func (p ProvisionTokenV2) String() string {
 	return fmt.Sprintf("ProvisionToken(Roles=%v, Expires=%v)", p.Spec.Roles, expires)
 }
 
-// ProvisionTokensToV1 converts provision tokens to V1 list
-func ProvisionTokensToV1(in []ProvisionToken) []ProvisionTokenV1 {
-	if in == nil {
-		return nil
-	}
-	out := make([]ProvisionTokenV1, len(in))
-	for i := range in {
-		out[i] = *in[i].V1()
-	}
-	return out
-}
-
 // ProvisionTokensFromV1 converts V1 provision tokens to resource list
+// This exists to allow the ProvisionTokenV1s embedded within the StaticTokens
+// specification to be converted to something that implements the
+// ProvisionToken interface, so that they can be used as part of the join
+// process in the same way that a ProvisionToken can be.
 func ProvisionTokensFromV1(in []ProvisionTokenV1) []ProvisionToken {
 	if in == nil {
 		return nil
 	}
 	out := make([]ProvisionToken, len(in))
 	for i := range in {
-		out[i] = in[i].V2()
+		out[i] = in[i].V3()
 	}
 	return out
 }
 
-// V1 returns V1 version of the resource
-func (p *ProvisionTokenV1) V1() *ProvisionTokenV1 {
-	return p
-}
-
-// V2 returns V2 version of the resource
-func (p *ProvisionTokenV1) V2() *ProvisionTokenV2 {
-	t := &ProvisionTokenV2{
+// V3 returns V3 version of the ProvisionTokenV1 resource.
+func (p *ProvisionTokenV1) V3() *ProvisionTokenV3 {
+	t := &ProvisionTokenV3{
 		Kind:    KindToken,
-		Version: V2,
+		Version: V3,
 		Metadata: Metadata{
 			Name:      p.Token,
 			Namespace: defaults.Namespace,
 		},
-		Spec: ProvisionTokenSpecV2{
-			Roles: p.Roles,
+		Spec: ProvisionTokenSpecV3{
+			Roles:      p.Roles,
+			JoinMethod: JoinMethodToken,
 		},
 	}
 	if !p.Expires.IsZero() {
@@ -359,4 +346,231 @@ func (p ProvisionTokenV1) String() string {
 	}
 	return fmt.Sprintf("ProvisionToken(Roles=%v, Expires=%v)",
 		p.Roles, expires)
+}
+
+// ProvisionTokenV3 methods
+
+// setStaticFields sets static resource header and metadata fields.
+func (p *ProvisionTokenV3) setStaticFields() {
+	p.Kind = KindToken
+	p.Version = V3
+}
+
+func (p *ProvisionTokenV3) CheckAndSetDefaults() error {
+	p.setStaticFields()
+	if err := p.Metadata.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(p.Spec.Roles) == 0 {
+		return trace.BadParameter("provisioning token is missing roles")
+	}
+	if err := SystemRoles(p.Spec.Roles).Check(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if p.Spec.BotName == "" && SystemRoles(p.Spec.Roles).Include(RoleBot) {
+		return trace.BadParameter("token with role %q must set bot_name", RoleBot)
+	} else if p.Spec.BotName != "" && !SystemRoles(p.Spec.Roles).Include(RoleBot) {
+		return trace.BadParameter("can only set bot_name on token with role %q", RoleBot)
+	}
+
+	switch p.Spec.JoinMethod {
+	case JoinMethodIAM:
+		providerCfg := p.Spec.GetIAM()
+		if providerCfg == nil {
+			return trace.BadParameter(
+				`"aws_iam" configuration must be provided for join method %q`,
+				JoinMethodIAM,
+			)
+		}
+		if err := providerCfg.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	case JoinMethodEC2:
+		providerCfg := p.Spec.GetEC2()
+		if providerCfg == nil {
+			return trace.BadParameter(
+				`"aws_ec2" configuration must be provided for join method %q`,
+				JoinMethodIAM,
+			)
+		}
+		if err := providerCfg.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	case JoinMethodToken:
+	default:
+		return trace.BadParameter(`"join_method" must be specified`)
+
+	}
+	return fmt.Errorf("unimplemented")
+}
+
+// GetAllowRules returns the list of allow rules
+func (p *ProvisionTokenV3) GetAllowRules() []*TokenRule {
+	// For now, we convert the V3 rules to V2 rules, to allow the auth server
+	// implementation to remain the same with the introduction of V3.
+	// GCP OIDC PR will swap the auth server to use the V3 rules and this
+	// method will be gotten ridden of.
+	rules := []*TokenRule{}
+	switch v := p.Spec.ProviderConfiguration.(type) {
+	case *ProvisionTokenSpecV3_EC2:
+		for _, rule := range v.EC2.Allow {
+			rules = append(rules, &TokenRule{
+				AWSAccount: rule.Account,
+				AWSRegions: rule.Regions,
+				AWSRole:    rule.Role,
+			})
+		}
+	case *ProvisionTokenSpecV3_IAM:
+		for _, rule := range v.IAM.Allow {
+			rules = append(rules, &TokenRule{
+				AWSAccount: rule.Account,
+				AWSARN:     rule.ARN,
+			})
+		}
+	}
+	return rules
+}
+
+// GetAWSIIDTTL returns the TTL of EC2 IIDs
+func (p *ProvisionTokenV3) GetAWSIIDTTL() Duration {
+	ec2 := p.Spec.GetEC2()
+	if ec2 == nil {
+		// TODO: This should be safe, but double check.
+		return 0
+	}
+	return ec2.IIDTTL
+}
+
+// GetRoles returns a list of teleport roles
+// that will be granted to the user of the token
+// in the crendentials
+func (p *ProvisionTokenV3) GetRoles() SystemRoles {
+	return p.Spec.Roles
+}
+
+// SetRoles sets teleport roles
+func (p *ProvisionTokenV3) SetRoles(r SystemRoles) {
+	p.Spec.Roles = r
+}
+
+// SetExpiry sets expiry time for the object
+func (p *ProvisionTokenV3) SetExpiry(expires time.Time) {
+	p.Metadata.SetExpiry(expires)
+}
+
+// Expiry returns object expiry setting
+func (p *ProvisionTokenV3) Expiry() time.Time {
+	return p.Metadata.Expiry()
+}
+
+// GetName returns server name
+func (p *ProvisionTokenV3) GetName() string {
+	return p.Metadata.Name
+}
+
+// SetName sets the name of the ProvisionTokenV3
+func (p *ProvisionTokenV3) SetName(e string) {
+	p.Metadata.Name = e
+}
+
+// GetBotName returns the BotName field which must be set for joining bots.
+func (p *ProvisionTokenV3) GetBotName() string {
+	return p.Spec.BotName
+}
+
+// GetKind returns resource kind
+func (p *ProvisionTokenV3) GetKind() string {
+	return p.Kind
+}
+
+// GetSubKind returns resource sub kind
+func (p *ProvisionTokenV3) GetSubKind() string {
+	return p.SubKind
+}
+
+// SetSubKind sets resource subkind
+func (p *ProvisionTokenV3) SetSubKind(s string) {
+	p.SubKind = s
+}
+
+// GetResourceID returns resource ID
+func (p *ProvisionTokenV3) GetResourceID() int64 {
+	return p.Metadata.ID
+}
+
+// SetResourceID sets resource ID
+func (p *ProvisionTokenV3) SetResourceID(id int64) {
+	p.Metadata.ID = id
+}
+
+// GetVersion returns resource version
+func (p *ProvisionTokenV3) GetVersion() string {
+	return p.Version
+}
+
+// GetMetadata returns metadata
+func (p *ProvisionTokenV3) GetMetadata() Metadata {
+	return p.Metadata
+}
+
+// SetMetadata sets resource metadata
+func (p *ProvisionTokenV3) SetMetadata(meta Metadata) {
+	p.Metadata = meta
+}
+
+// GetJoinMethod returns joining method that must be used with this token.
+func (p *ProvisionTokenV3) GetJoinMethod() JoinMethod {
+	return p.Spec.JoinMethod
+}
+
+// GetSuggestedLabels returns the labels the resource should set when using this token
+func (p *ProvisionTokenV3) GetSuggestedLabels() Labels {
+	return p.Spec.SuggestedLabels
+}
+
+// String returns the human readable representation of a provisioning token.
+func (p ProvisionTokenV3) String() string {
+	expires := "never"
+	if !p.Expiry().IsZero() {
+		expires = p.Expiry().String()
+	}
+	return fmt.Sprintf("ProvisionToken(Roles=%v, Expires=%v)", p.Spec.Roles, expires)
+}
+
+// Validation for provider specific config
+
+func (a *ProvisionTokenSpecV3AWSEC2) CheckAndSetDefaults() error {
+	if len(a.Allow) == 0 {
+		return trace.BadParameter("the %q join method requires defined token allow rules", JoinMethodEC2)
+	}
+	for _, allowRule := range a.Allow {
+		if allowRule.Account == "" && allowRule.Role == "" {
+			return trace.BadParameter(
+				`allow rule for %q join method must set "account" or "role"`,
+				JoinMethodEC2,
+			)
+		}
+	}
+	if a.IIDTTL == 0 {
+		// default to 5 minute ttl if unspecified
+		a.IIDTTL = Duration(5 * time.Minute)
+	}
+	return nil
+}
+
+func (a *ProvisionTokenSpecV3AWSIAM) CheckAndSetDefaults() error {
+	if len(a.Allow) == 0 {
+		return trace.BadParameter("the %q join method requires defined token allow rules", JoinMethodIAM)
+	}
+	for _, allowRule := range a.Allow {
+		if allowRule.Account == "" && allowRule.ARN == "" {
+			return trace.BadParameter(
+				`allow rule for %q join method must set "account" or "arn"`,
+				JoinMethodEC2,
+			)
+		}
+	}
+	return nil
 }
