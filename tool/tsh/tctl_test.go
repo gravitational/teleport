@@ -27,8 +27,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/service"
-	toolcommon "github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/lib/utils"
+	toolcommon "github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/tool/tctl/common"
 )
 
