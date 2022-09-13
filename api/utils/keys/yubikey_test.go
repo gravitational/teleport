@@ -1,5 +1,5 @@
-//go:build !linux || libpcsclite
-// +build !linux libpcsclite
+//go:build libpcsclite
+// +build libpcsclite
 
 /*
 Copyright 2022 Gravitational, Inc.
