@@ -377,7 +377,7 @@ func NewTeleportLabProduct(cloneDirectory string, version *releaseVersion, telep
 		SupportedArchs:   teleport.SupportedArchs,
 		DockerfileArgBuilder: func(arch string) []string {
 			return []string{
-				fmt.Sprintf("BASE_IMAGE=%s", teleport.BuildLocalImageName(arch, version)),
+				fmt.Sprintf("BASE_IMAGE=%s", teleport.BuildLocalRegistryImageName(arch, version)),
 			}
 		},
 		ImageNameBuilder: func(repo, tag string) string { return defaultImageTagBuilder(repo, name, tag) },
@@ -533,6 +533,11 @@ func (p *product) BuildLocalImageName(arch string, version *releaseVersion) stri
 	return fmt.Sprintf("%s-%s-%s", p.Name, version.MajorVersion, arch)
 }
 
+func (p *product) BuildLocalRegistryImageName(arch string, version *releaseVersion) string {
+	localRegistry := "drone-docker-registry:5000"
+	return fmt.Sprintf("%s/%s", localRegistry, p.BuildLocalImageName(arch, version))
+}
+
 func (p *product) BuildSteps(version *releaseVersion, setupStepNames []string) []step {
 	containerRepos := GetContainerRepos()
 
@@ -569,29 +574,24 @@ func (p *product) GetBuildStepName(arch string, version *releaseVersion) string 
 }
 
 func (p *product) createBuildStep(arch string, version *releaseVersion) (step, *buildStepOutput) {
-	buildCachePath := "/go/buildx-cache"
-	imageName := p.BuildLocalImageName(arch, version)
-	builderName := fmt.Sprintf("%s-builder", imageName)
+	localImageName := p.BuildLocalImageName(arch, version)
+	localRegistryImageName := p.BuildLocalRegistryImageName(arch, version)
+	builderName := fmt.Sprintf("%s-builder", localImageName)
 
 	buildCommand := "docker buildx build"
-	buildCommand += " --load"
+	buildCommand += " --push" // This will push to local registry only
 	buildCommand += fmt.Sprintf(" --builder %q", builderName)
 	if p.DockerfileTarget != "" {
 		buildCommand += fmt.Sprintf(" --target %q", p.DockerfileTarget)
 	}
 	buildCommand += fmt.Sprintf(" --platform %q", "linux/"+arch)
-	buildCommand += fmt.Sprintf(" --tag %q", imageName)
+	buildCommand += fmt.Sprintf(" --tag %q", localRegistryImageName)
 	buildCommand += fmt.Sprintf(" --file %q", p.DockerfilePath)
 	if p.DockerfileArgBuilder != nil {
 		for _, buildArg := range p.DockerfileArgBuilder(arch) {
 			buildCommand += fmt.Sprintf(" --build-arg %q", buildArg)
 		}
 	}
-	// This buildx `docker-container` driver (which is required for multiarch builds)
-	// does not support the normal `docker image` cache. This caches layers between
-	// steps via the filesystem.
-	buildCommand += fmt.Sprintf(" --cache-from type=local,src=%q", buildCachePath)
-	buildCommand += fmt.Sprintf(" --cache-to type=local,dest=%q", buildCachePath)
 	buildCommand += " " + p.WorkingDirectory
 
 	step := step{
@@ -604,7 +604,6 @@ func (p *product) createBuildStep(arch string, version *releaseVersion) (step, *
 			},
 		},
 		Commands: []string{
-			fmt.Sprintf("mkdir -pv %q", buildCachePath),
 			"docker run --privileged --rm tonistiigi/binfmt --install all",
 			fmt.Sprintf("mkdir -pv %q && cd %q", p.WorkingDirectory, p.WorkingDirectory),
 			fmt.Sprintf("docker buildx create --driver %q --name %q", "docker-container", builderName),
@@ -615,7 +614,7 @@ func (p *product) createBuildStep(arch string, version *releaseVersion) (step, *
 
 	return step, &buildStepOutput{
 		StepName:       step.Name,
-		BuiltImageName: imageName,
+		BuiltImageName: localRegistryImageName,
 		BuiltImageArch: arch,
 		Version:        version,
 		Product:        p,
@@ -788,6 +787,7 @@ func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput) (step
 		Volumes:     dockerVolumeRefs(),
 		Environment: cr.Environment,
 		Commands: cr.buildCommandsWithLogin([]string{
+			fmt.Sprintf("docker pull %q", buildStepDetails.BuiltImageName), // Pull from local image repo
 			fmt.Sprintf("docker tag %q %q", buildStepDetails.BuiltImageName, archImageName),
 			fmt.Sprintf("docker push %q", archImageName),
 		}),
