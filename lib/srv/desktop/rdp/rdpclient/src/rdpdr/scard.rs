@@ -522,6 +522,7 @@ pub(crate) struct ScardAccessStartedEvent_Call {
 }
 
 impl ScardAccessStartedEvent_Call {
+    #[allow(dead_code)]
     pub(crate) fn new(unused: u32) -> Self {
         Self { _unused: unused }
     }
@@ -638,6 +639,7 @@ pub(crate) struct EstablishContext_Call {
 }
 
 impl EstablishContext_Call {
+    #[allow(dead_code)]
     pub(crate) fn new(scope: Scope) -> Self {
         Self { scope }
     }
@@ -777,6 +779,7 @@ pub(crate) struct ListReaders_Call {
 }
 
 impl ListReaders_Call {
+    #[allow(dead_code)]
     pub(crate) fn new(
         context: Context,
         groups_ptr_length: u32,
@@ -796,6 +799,7 @@ impl ListReaders_Call {
             readers_size,
         }
     }
+
     fn decode(payload: &mut Payload) -> RdpResult<Self> {
         let _header = RPCEStreamHeader::decode(payload)?;
         let _header = RPCETypeHeader::decode(payload)?;
