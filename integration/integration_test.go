@@ -2819,14 +2819,14 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 		}
 		newConfig.SSHAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerNodeSSH, &newConfig.FileDescriptors)
 		newConfig.WebAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyWeb, &newConfig.FileDescriptors)
-		newConfig.ReverseTunneAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyTunnel, &newConfig.FileDescriptors)
-		reverseTunnelAddr = newConfig.ReverseTunneAddr
+		newConfig.ReverseTunnelAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyTunnel, &newConfig.FileDescriptors)
+		reverseTunnelAddr = newConfig.ReverseTunnelAddr
 
 		newProxy, _, err := main.StartProxy(newConfig)
 		require.NoError(t, err)
 
 		// add proxy as a backend to the load balancer
-		lb.AddBackend(*utils.MustParseAddr(newConfig.ReverseTunneAddr))
+		lb.AddBackend(*utils.MustParseAddr(newConfig.ReverseTunnelAddr))
 		return newProxy, newConfig
 	}
 
@@ -2949,13 +2949,13 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 	}
 	proxyConfig.SSHAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerNodeSSH, &proxyConfig.FileDescriptors)
 	proxyConfig.WebAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyWeb, &proxyConfig.FileDescriptors)
-	proxyConfig.ReverseTunneAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyTunnel, &proxyConfig.FileDescriptors)
+	proxyConfig.ReverseTunnelAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyTunnel, &proxyConfig.FileDescriptors)
 
 	secondProxy, _, err := main.StartProxy(proxyConfig)
 	require.NoError(t, err)
 
 	// add second proxy as a backend to the load balancer
-	lb.AddBackend(*utils.MustParseAddr(proxyConfig.ReverseTunneAddr))
+	lb.AddBackend(*utils.MustParseAddr(proxyConfig.ReverseTunnelAddr))
 
 	// At this point the main cluster should observe two tunnels
 	// connected to it from remote cluster
@@ -3079,7 +3079,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 	}
 	proxyConfig.SSHAddr = helpers.NewListener(t, service.ListenerNodeSSH, &proxyConfig.FileDescriptors)
 	proxyConfig.WebAddr = helpers.NewListener(t, service.ListenerProxyWeb, &proxyConfig.FileDescriptors)
-	proxyConfig.ReverseTunneAddr = helpers.NewListener(t, service.ListenerProxyTunnel, &proxyConfig.FileDescriptors)
+	proxyConfig.ReverseTunnelAddr = helpers.NewListener(t, service.ListenerProxyTunnel, &proxyConfig.FileDescriptors)
 
 	proxyTunnel, firstProxy, err := main.StartProxy(proxyConfig)
 	require.NoError(t, err)
@@ -3099,7 +3099,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 
 	proxyOneBackend := utils.MustParseAddr(main.ReverseTunnel)
 	lb.AddBackend(*proxyOneBackend)
-	proxyTwoBackend := utils.MustParseAddr(proxyConfig.ReverseTunneAddr)
+	proxyTwoBackend := utils.MustParseAddr(proxyConfig.ReverseTunnelAddr)
 	lb.AddBackend(*proxyTwoBackend)
 
 	// Create a Teleport instance with a Node.
@@ -3233,14 +3233,14 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 	}
 	proxyConfig.SSHAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerNodeSSH, &proxyConfig.FileDescriptors)
 	proxyConfig.WebAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyWeb, &proxyConfig.FileDescriptors)
-	proxyConfig.ReverseTunneAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyTunnel, &proxyConfig.FileDescriptors)
+	proxyConfig.ReverseTunnelAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyTunnel, &proxyConfig.FileDescriptors)
 
 	proxyTunnel, _, err := main.StartProxy(proxyConfig)
 	require.NoError(t, err)
 
 	proxyOneBackend := utils.MustParseAddr(main.ReverseTunnel)
 	lb.AddBackend(*proxyOneBackend)
-	proxyTwoBackend := utils.MustParseAddr(proxyConfig.ReverseTunneAddr)
+	proxyTwoBackend := utils.MustParseAddr(proxyConfig.ReverseTunnelAddr)
 	lb.AddBackend(*proxyTwoBackend)
 
 	// Create a Teleport instance with a Node.

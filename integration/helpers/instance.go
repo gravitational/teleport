@@ -966,12 +966,12 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 type ProxyConfig struct {
 	// Name is a proxy name
 	Name string
-	// SSHAddr is SSH proxy port
+	// SSHAddr the address the node ssh service should listen on
 	SSHAddr string
-	// WebAddr is web proxy port
+	// WebAddr the address the web service should listen on
 	WebAddr string
-	// ReverseTunneAddr is a port for reverse tunnel addresses
-	ReverseTunneAddr string
+	// ReverseTunnelAddr the address the reverse proxy service should listen on
+	ReverseTunnelAddr string
 	// Disable the web service
 	DisableWebService bool
 	// Disable the web ui
@@ -1018,7 +1018,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, *servi
 			Addr:        Host,
 		},
 	}
-	tconf.Proxy.ReverseTunnelListenAddr.Addr = cfg.ReverseTunneAddr
+	tconf.Proxy.ReverseTunnelListenAddr.Addr = cfg.ReverseTunnelAddr
 	tconf.Proxy.WebAddr.Addr = cfg.WebAddr
 	tconf.Proxy.DisableReverseTunnel = false
 	tconf.Proxy.DisableWebService = cfg.DisableWebService
