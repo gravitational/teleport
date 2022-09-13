@@ -214,6 +214,19 @@ func dockerService(v ...volumeRef) service {
 	}
 }
 
+// Starts a container registry service at `drone-docker-registry:5000`
+// This can be pushed/pulled to via `docker push/pull drone-docker-registry:5000/image:tag`
+func dockerRegistryService() service {
+	// The name of this service must match k8s.io/apimachinery/pkg/util/validation `IsDNS1123Subdomain`
+	// so that it is resolvable
+	// See https://github.com/drone-runners/drone-runner-kube/blob/master/engine/compiler/compiler.go#L398
+	// for details
+	return service{
+		Name:  "drone-docker-registry",
+		Image: "registry:2",
+	}
+}
+
 // dockerVolumes returns a slice of volumes
 // It includes the Docker socket volume by default, plus any extra volumes passed in
 func dockerVolumes(v ...volume) []volume {
@@ -259,6 +272,18 @@ func waitForDockerStep() step {
 			`timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'`,
 		},
 		Volumes: dockerVolumeRefs(),
+	}
+}
+
+// waitForDockerStep returns a step which checks that the Docker registry is ready
+func waitForDockerRegistryStep() step {
+	return step{
+		Name:  "Wait for docker registry",
+		Image: "alpine",
+		Commands: []string{
+			"apk add curl",
+			`timeout 30s /bin/sh -c 'while [ "$(curl -s -o /dev/null -w %{http_code} http://drone-docker-registry:5000/)" != "200" ]; do sleep 1; done'`,
+		},
 	}
 }
 

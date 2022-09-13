@@ -5232,6 +5232,15 @@ steps:
     path: /var/run
   depends_on:
   - Find the latest available semver for v10
+- name: Wait for docker registry
+  image: alpine
+  commands:
+  - apk add curl
+  - timeout 30s /bin/sh -c 'while [ "$(curl -s -o /dev/null -w %{http_code} http://drone-docker-registry:5000/)"
+    != "200" ]; do sleep 1; done'
+  depends_on:
+  - Find the latest available semver for v10
+  - Wait for docker
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -5244,6 +5253,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
 - name: Download "teleport" Dockerfile and DEB artifacts from APT
   image: ubuntu:22.04
   commands:
@@ -5306,6 +5316,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Build teleport image "teleport-v10-amd64"
   image: docker
@@ -5328,6 +5339,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport" Dockerfile and DEB artifacts from APT
 - name: Build teleport image "teleport-v10-arm"
@@ -5351,6 +5363,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport" Dockerfile and DEB artifacts from APT
 - name: Build teleport image "teleport-v10-arm64"
@@ -5374,6 +5387,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport" Dockerfile and DEB artifacts from APT
 - name: Tag and push "quay.io/fred_heinecke/teleport:10-amd64" to Quay
@@ -5681,6 +5695,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Build teleport-ent image "teleport-ent-v10-amd64"
   image: docker
@@ -5703,6 +5718,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport-ent" Dockerfile and DEB artifacts from APT
 - name: Build teleport-ent image "teleport-ent-v10-arm"
@@ -5726,6 +5742,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport-ent" Dockerfile and DEB artifacts from APT
 - name: Build teleport-ent image "teleport-ent-v10-arm64"
@@ -5749,6 +5766,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport-ent" Dockerfile and DEB artifacts from APT
 - name: Tag and push "quay.io/fred_heinecke/teleport-ent:10-amd64" to Quay
@@ -6041,6 +6059,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Build teleport-ent-fips image "teleport-ent-fips-v10-amd64"
   image: docker
@@ -6063,6 +6082,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport-ent-fips" Dockerfile and DEB artifacts from APT
 - name: Tag and push "quay.io/fred_heinecke/teleport-ent:10-fips-amd64" to Quay
@@ -6205,6 +6225,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Build teleport image "teleport-v10-amd64"
 - name: Build teleport-lab image "teleport-lab-v10-arm"
@@ -6227,6 +6248,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Build teleport image "teleport-v10-arm"
 - name: Build teleport-lab image "teleport-lab-v10-arm64"
@@ -6249,6 +6271,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Build teleport image "teleport-v10-arm64"
 - name: Tag and push "quay.io/fred_heinecke/teleport-lab:10-amd64" to Quay
@@ -6516,6 +6539,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Build teleport-operator image "teleport-operator-v10-arm"
   image: docker
@@ -6538,6 +6562,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Build teleport-operator image "teleport-operator-v10-arm64"
   image: docker
@@ -6560,6 +6585,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Tag and push "quay.io/fred_heinecke/teleport-operator:10-amd64" to Quay
   image: docker
@@ -6815,6 +6841,10 @@ services:
   volumes:
   - name: dockersock
     path: /var/run
+- name: drone-docker-registry
+  image: registry:2
+  privileged: false
+  volumes: []
 volumes:
 - name: dockersock
   temp: {}
@@ -6866,6 +6896,15 @@ steps:
     path: /var/run
   depends_on:
   - Find the latest available semver for v10
+- name: Wait for docker registry
+  image: alpine
+  commands:
+  - apk add curl
+  - timeout 30s /bin/sh -c 'while [ "$(curl -s -o /dev/null -w %{http_code} http://drone-docker-registry:5000/)"
+    != "200" ]; do sleep 1; done'
+  depends_on:
+  - Find the latest available semver for v10
+  - Wait for docker
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -6878,6 +6917,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
 - name: Download "teleport" Dockerfile and DEB artifacts from APT
   image: ubuntu:22.04
   commands:
@@ -6940,6 +6980,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Build teleport image "teleport-v10-amd64"
   image: docker
@@ -6962,6 +7003,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport" Dockerfile and DEB artifacts from APT
 - name: Build teleport image "teleport-v10-arm"
@@ -6985,6 +7027,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport" Dockerfile and DEB artifacts from APT
 - name: Build teleport image "teleport-v10-arm64"
@@ -7008,6 +7051,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport" Dockerfile and DEB artifacts from APT
 - name: Tag and push "quay.io/fred_heinecke/teleport:10-amd64" to Quay
@@ -7315,6 +7359,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Build teleport-ent image "teleport-ent-v10-amd64"
   image: docker
@@ -7337,6 +7382,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport-ent" Dockerfile and DEB artifacts from APT
 - name: Build teleport-ent image "teleport-ent-v10-arm"
@@ -7360,6 +7406,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport-ent" Dockerfile and DEB artifacts from APT
 - name: Build teleport-ent image "teleport-ent-v10-arm64"
@@ -7383,6 +7430,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport-ent" Dockerfile and DEB artifacts from APT
 - name: Tag and push "quay.io/fred_heinecke/teleport-ent:10-amd64" to Quay
@@ -7675,6 +7723,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Build teleport-ent-fips image "teleport-ent-fips-v10-amd64"
   image: docker
@@ -7697,6 +7746,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport-ent-fips" Dockerfile and DEB artifacts from APT
 - name: Tag and push "quay.io/fred_heinecke/teleport-ent:10-fips-amd64" to Quay
@@ -7839,6 +7889,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Build teleport image "teleport-v10-amd64"
 - name: Build teleport-lab image "teleport-lab-v10-arm"
@@ -7861,6 +7912,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Build teleport image "teleport-v10-arm"
 - name: Build teleport-lab image "teleport-lab-v10-arm64"
@@ -7883,6 +7935,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Build teleport image "teleport-v10-arm64"
 - name: Tag and push "quay.io/fred_heinecke/teleport-lab:10-amd64" to Quay
@@ -8150,6 +8203,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Build teleport-operator image "teleport-operator-v10-arm"
   image: docker
@@ -8172,6 +8226,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Build teleport-operator image "teleport-operator-v10-arm64"
   image: docker
@@ -8194,6 +8249,7 @@ steps:
   depends_on:
   - Find the latest available semver for v10
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Tag and push "quay.io/fred_heinecke/teleport-operator:10-amd64" to Quay
   image: docker
@@ -8449,6 +8505,10 @@ services:
   volumes:
   - name: dockersock
     path: /var/run
+- name: drone-docker-registry
+  image: registry:2
+  privileged: false
+  volumes: []
 volumes:
 - name: dockersock
   temp: {}
@@ -8499,6 +8559,15 @@ steps:
     path: /var/run
   depends_on:
   - Find the latest available semver for v9
+- name: Wait for docker registry
+  image: alpine
+  commands:
+  - apk add curl
+  - timeout 30s /bin/sh -c 'while [ "$(curl -s -o /dev/null -w %{http_code} http://drone-docker-registry:5000/)"
+    != "200" ]; do sleep 1; done'
+  depends_on:
+  - Find the latest available semver for v9
+  - Wait for docker
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -8511,6 +8580,7 @@ steps:
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
+  - Wait for docker registry
 - name: Download "teleport" Dockerfile and DEB artifacts from APT
   image: ubuntu:22.04
   commands:
@@ -8573,6 +8643,7 @@ steps:
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Build teleport image "teleport-v9-amd64"
   image: docker
@@ -8595,6 +8666,7 @@ steps:
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport" Dockerfile and DEB artifacts from APT
 - name: Build teleport image "teleport-v9-arm"
@@ -8618,6 +8690,7 @@ steps:
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport" Dockerfile and DEB artifacts from APT
 - name: Build teleport image "teleport-v9-arm64"
@@ -8641,6 +8714,7 @@ steps:
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport" Dockerfile and DEB artifacts from APT
 - name: Tag and push "quay.io/fred_heinecke/teleport:9-amd64" to Quay
@@ -8948,6 +9022,7 @@ steps:
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Build teleport-ent image "teleport-ent-v9-amd64"
   image: docker
@@ -8970,6 +9045,7 @@ steps:
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport-ent" Dockerfile and DEB artifacts from APT
 - name: Build teleport-ent image "teleport-ent-v9-arm"
@@ -8993,6 +9069,7 @@ steps:
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport-ent" Dockerfile and DEB artifacts from APT
 - name: Build teleport-ent image "teleport-ent-v9-arm64"
@@ -9016,6 +9093,7 @@ steps:
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport-ent" Dockerfile and DEB artifacts from APT
 - name: Tag and push "quay.io/fred_heinecke/teleport-ent:9-amd64" to Quay
@@ -9308,6 +9386,7 @@ steps:
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Build teleport-ent-fips image "teleport-ent-fips-v9-amd64"
   image: docker
@@ -9330,6 +9409,7 @@ steps:
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport-ent-fips" Dockerfile and DEB artifacts from APT
 - name: Tag and push "quay.io/fred_heinecke/teleport-ent:9-fips-amd64" to Quay
@@ -9471,6 +9551,7 @@ steps:
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Build teleport image "teleport-v9-amd64"
 - name: Build teleport-lab image "teleport-lab-v9-arm"
@@ -9493,6 +9574,7 @@ steps:
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Build teleport image "teleport-v9-arm"
 - name: Build teleport-lab image "teleport-lab-v9-arm64"
@@ -9515,6 +9597,7 @@ steps:
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Build teleport image "teleport-v9-arm64"
 - name: Tag and push "quay.io/fred_heinecke/teleport-lab:9-amd64" to Quay
@@ -9782,6 +9865,7 @@ steps:
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Build teleport-operator image "teleport-operator-v9-arm"
   image: docker
@@ -9804,6 +9888,7 @@ steps:
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Build teleport-operator image "teleport-operator-v9-arm64"
   image: docker
@@ -9826,6 +9911,7 @@ steps:
   depends_on:
   - Find the latest available semver for v9
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Tag and push "quay.io/fred_heinecke/teleport-operator:9-amd64" to Quay
   image: docker
@@ -10080,6 +10166,10 @@ services:
   volumes:
   - name: dockersock
     path: /var/run
+- name: drone-docker-registry
+  image: registry:2
+  privileged: false
+  volumes: []
 volumes:
 - name: dockersock
   temp: {}
@@ -10130,6 +10220,15 @@ steps:
     path: /var/run
   depends_on:
   - Find the latest available semver for v8
+- name: Wait for docker registry
+  image: alpine
+  commands:
+  - apk add curl
+  - timeout 30s /bin/sh -c 'while [ "$(curl -s -o /dev/null -w %{http_code} http://drone-docker-registry:5000/)"
+    != "200" ]; do sleep 1; done'
+  depends_on:
+  - Find the latest available semver for v8
+  - Wait for docker
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -10142,6 +10241,7 @@ steps:
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
+  - Wait for docker registry
 - name: Download "teleport" Dockerfile and DEB artifacts from APT
   image: ubuntu:22.04
   commands:
@@ -10204,6 +10304,7 @@ steps:
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Build teleport image "teleport-v8-amd64"
   image: docker
@@ -10226,6 +10327,7 @@ steps:
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport" Dockerfile and DEB artifacts from APT
 - name: Build teleport image "teleport-v8-arm"
@@ -10249,6 +10351,7 @@ steps:
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport" Dockerfile and DEB artifacts from APT
 - name: Build teleport image "teleport-v8-arm64"
@@ -10272,6 +10375,7 @@ steps:
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport" Dockerfile and DEB artifacts from APT
 - name: Tag and push "quay.io/fred_heinecke/teleport:8-amd64" to Quay
@@ -10579,6 +10683,7 @@ steps:
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Build teleport-ent image "teleport-ent-v8-amd64"
   image: docker
@@ -10601,6 +10706,7 @@ steps:
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport-ent" Dockerfile and DEB artifacts from APT
 - name: Build teleport-ent image "teleport-ent-v8-arm"
@@ -10624,6 +10730,7 @@ steps:
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport-ent" Dockerfile and DEB artifacts from APT
 - name: Build teleport-ent image "teleport-ent-v8-arm64"
@@ -10647,6 +10754,7 @@ steps:
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport-ent" Dockerfile and DEB artifacts from APT
 - name: Tag and push "quay.io/fred_heinecke/teleport-ent:8-amd64" to Quay
@@ -10939,6 +11047,7 @@ steps:
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Build teleport-ent-fips image "teleport-ent-fips-v8-amd64"
   image: docker
@@ -10961,6 +11070,7 @@ steps:
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport-ent-fips" Dockerfile and DEB artifacts from APT
 - name: Tag and push "quay.io/fred_heinecke/teleport-ent:8-fips-amd64" to Quay
@@ -11102,6 +11212,7 @@ steps:
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Build teleport image "teleport-v8-amd64"
 - name: Build teleport-lab image "teleport-lab-v8-arm"
@@ -11124,6 +11235,7 @@ steps:
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Build teleport image "teleport-v8-arm"
 - name: Build teleport-lab image "teleport-lab-v8-arm64"
@@ -11146,6 +11258,7 @@ steps:
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Build teleport image "teleport-v8-arm64"
 - name: Tag and push "quay.io/fred_heinecke/teleport-lab:8-amd64" to Quay
@@ -11413,6 +11526,7 @@ steps:
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Build teleport-operator image "teleport-operator-v8-arm"
   image: docker
@@ -11435,6 +11549,7 @@ steps:
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Build teleport-operator image "teleport-operator-v8-arm64"
   image: docker
@@ -11457,6 +11572,7 @@ steps:
   depends_on:
   - Find the latest available semver for v8
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Tag and push "quay.io/fred_heinecke/teleport-operator:8-amd64" to Quay
   image: docker
@@ -11711,6 +11827,10 @@ services:
   volumes:
   - name: dockersock
     path: /var/run
+- name: drone-docker-registry
+  image: registry:2
+  privileged: false
+  volumes: []
 volumes:
 - name: dockersock
   temp: {}
@@ -11770,6 +11890,16 @@ steps:
   depends_on:
   - Verify build is tagged
   - Check if tag is prerelease
+- name: Wait for docker registry
+  image: alpine
+  commands:
+  - apk add curl
+  - timeout 30s /bin/sh -c 'while [ "$(curl -s -o /dev/null -w %{http_code} http://drone-docker-registry:5000/)"
+    != "200" ]; do sleep 1; done'
+  depends_on:
+  - Verify build is tagged
+  - Check if tag is prerelease
+  - Wait for docker
 - name: Check out code
   image: alpine/git:latest
   commands:
@@ -11783,6 +11913,7 @@ steps:
   - Verify build is tagged
   - Check if tag is prerelease
   - Wait for docker
+  - Wait for docker registry
 - name: Download "teleport" Dockerfile and DEB artifacts from APT
   image: ubuntu:22.04
   commands:
@@ -11843,6 +11974,7 @@ steps:
   - Verify build is tagged
   - Check if tag is prerelease
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Build teleport image "teleport-v10-amd64"
   image: docker
@@ -11866,6 +11998,7 @@ steps:
   - Verify build is tagged
   - Check if tag is prerelease
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport" Dockerfile and DEB artifacts from APT
 - name: Build teleport image "teleport-v10-arm"
@@ -11890,6 +12023,7 @@ steps:
   - Verify build is tagged
   - Check if tag is prerelease
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport" Dockerfile and DEB artifacts from APT
 - name: Build teleport image "teleport-v10-arm64"
@@ -11914,6 +12048,7 @@ steps:
   - Verify build is tagged
   - Check if tag is prerelease
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport" Dockerfile and DEB artifacts from APT
 - name: Tag and push "quay.io/fred_heinecke/teleport:10-amd64" to Quay
@@ -12219,6 +12354,7 @@ steps:
   - Verify build is tagged
   - Check if tag is prerelease
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Build teleport-ent image "teleport-ent-v10-amd64"
   image: docker
@@ -12242,6 +12378,7 @@ steps:
   - Verify build is tagged
   - Check if tag is prerelease
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport-ent" Dockerfile and DEB artifacts from APT
 - name: Build teleport-ent image "teleport-ent-v10-arm"
@@ -12266,6 +12403,7 @@ steps:
   - Verify build is tagged
   - Check if tag is prerelease
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport-ent" Dockerfile and DEB artifacts from APT
 - name: Build teleport-ent image "teleport-ent-v10-arm64"
@@ -12290,6 +12428,7 @@ steps:
   - Verify build is tagged
   - Check if tag is prerelease
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport-ent" Dockerfile and DEB artifacts from APT
 - name: Tag and push "quay.io/fred_heinecke/teleport-ent:10-amd64" to Quay
@@ -12582,6 +12721,7 @@ steps:
   - Verify build is tagged
   - Check if tag is prerelease
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Build teleport-ent-fips image "teleport-ent-fips-v10-amd64"
   image: docker
@@ -12605,6 +12745,7 @@ steps:
   - Verify build is tagged
   - Check if tag is prerelease
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Download "teleport-ent-fips" Dockerfile and DEB artifacts from APT
 - name: Tag and push "quay.io/fred_heinecke/teleport-ent:10-fips-amd64" to Quay
@@ -12748,6 +12889,7 @@ steps:
   - Verify build is tagged
   - Check if tag is prerelease
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Build teleport image "teleport-v10-amd64"
 - name: Build teleport-lab image "teleport-lab-v10-arm"
@@ -12771,6 +12913,7 @@ steps:
   - Verify build is tagged
   - Check if tag is prerelease
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Build teleport image "teleport-v10-arm"
 - name: Build teleport-lab image "teleport-lab-v10-arm64"
@@ -12794,6 +12937,7 @@ steps:
   - Verify build is tagged
   - Check if tag is prerelease
   - Wait for docker
+  - Wait for docker registry
   - Check out code
   - Build teleport image "teleport-v10-arm64"
 - name: Tag and push "quay.io/fred_heinecke/teleport-lab:10-amd64" to Quay
@@ -13062,6 +13206,7 @@ steps:
   - Verify build is tagged
   - Check if tag is prerelease
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Build teleport-operator image "teleport-operator-v10-arm"
   image: docker
@@ -13085,6 +13230,7 @@ steps:
   - Verify build is tagged
   - Check if tag is prerelease
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Build teleport-operator image "teleport-operator-v10-arm64"
   image: docker
@@ -13108,6 +13254,7 @@ steps:
   - Verify build is tagged
   - Check if tag is prerelease
   - Wait for docker
+  - Wait for docker registry
   - Check out code
 - name: Tag and push "quay.io/fred_heinecke/teleport-operator:10-amd64" to Quay
   image: docker
@@ -13363,6 +13510,10 @@ services:
   volumes:
   - name: dockersock
     path: /var/run
+- name: drone-docker-registry
+  image: registry:2
+  privileged: false
+  volumes: []
 volumes:
 - name: dockersock
   temp: {}
@@ -13845,6 +13996,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: ec001d15763a2d9a17f750730a8a25d38dd626253f18abec38ea8409467161b9
+hmac: d7512b704799348aa7d59f527546890b1f0a5b6da135c9b1a57dcb12908acd17
 
 ...

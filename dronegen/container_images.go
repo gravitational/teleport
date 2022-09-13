@@ -228,7 +228,10 @@ func (rv *releaseVersion) buildVersionPipeline(triggerSetupSteps []step) pipelin
 
 	pipeline := newKubePipeline(pipelineName)
 	pipeline.Workspace = workspace{Path: "/go"}
-	pipeline.Services = []service{dockerService()}
+	pipeline.Services = []service{
+		dockerService(),
+		dockerRegistryService(),
+	}
 	pipeline.Volumes = dockerVolumes()
 	pipeline.Environment = map[string]value{
 		"DEBIAN_FRONTEND": {
@@ -268,6 +271,7 @@ func (rv *releaseVersion) buildSteps(setupStepNames []string) []step {
 
 	setupSteps := []step{
 		waitForDockerStep(),
+		waitForDockerRegistryStep(),
 		cloneRepoStep(clonedRepoPath, rv.ShellVersion),
 	}
 	for _, setupStep := range setupSteps {
