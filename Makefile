@@ -35,33 +35,6 @@ TELEPORT_DEBUG ?= false
 GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s' -trimpath
 CGOFLAG ?= CGO_ENABLED=1
-CGOFLAG_TSH ?= CGO_ENABLED=1
-# Windows requires extra parameters to cross-compile with CGO.
-ifeq ("$(OS)","windows")
-ARCH ?= amd64
-ifneq ("$(ARCH)","amd64")
-$(error "Building for windows requires ARCH=amd64")
-endif
-BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s' -trimpath -buildmode=exe
-CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
-CGOFLAG_TSH = $(CGOFLAG)
-endif
-
-ifeq ("$(OS)","linux")
-# Link static version of libgcc to reduce system dependencies.
-CGOFLAG ?= CGO_ENABLED=1 CGO_LDFLAGS="-Wl,--as-needed"
-CGOFLAG_TSH ?= CGO_ENABLED=1 CGO_LDFLAGS="-Wl,--as-needed"
-# ARM builds need to specify the correct C compiler
-ifeq ("$(ARCH)","arm")
-CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
-CGOFLAG_TSH = $(CGOFLAG)
-endif
-# ARM64 builds need to specify the correct C compiler
-ifeq ("$(ARCH)","arm64")
-CGOFLAG = CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc
-CGOFLAG_TSH = $(CGOFLAG)
-endif
-endif
 
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
@@ -121,8 +94,7 @@ RS_BPF_BUILDDIR := lib/restrictedsession/bytecode
 CLANG_BPF_SYS_INCLUDES = $(shell $(CLANG) -v -E - </dev/null 2>&1 \
 	| sed -n '/<...> search starts here:/,/End of search list./{ s| \(/.*\)|-idirafter \1|p }')
 
-CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic -lbpf -lelf -lz -Wl,-Bdynamic -Wl,--as-needed"
-CGOFLAG_TSH = CGO_ENABLED=1
+BPF_LIBS = -lbpf -lelf -lz
 endif
 endif
 endif
@@ -189,7 +161,7 @@ LIBPCSCLITE_MESSAGE := without libpcsclite
 ifeq ("$(LIBPCSCLITE)", "yes")
 LIBPCSCLITE_MESSAGE := with libpcsclite
 LIBPCSCLITE_BUILD_TAG := libpcsclite
-CGOFLAG_TSH = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic -lpcsclite -Wl,-Bdynamic -Wl,--as-needed"
+PCSC_LIBS = -lpcsclite
 endif
 
 # Reproducible builds are only available on select targets, and only when OS=linux.
@@ -221,6 +193,33 @@ export
 TEST_LOG_DIR = ${abspath ./test-logs}
 
 CLANG_FORMAT_STYLE = '{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
+
+# Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
+ifeq ("$(OS)","linux")
+ifeq ("$(ARCH)","amd64")
+# Link static version of libgcc (--as-needed) and other libraries (bpf, pcsc) to reduce system dependencies.
+CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(BPF_LIBS) $(PCSC_LIBS) -Wl,-Bdynamic -Wl,--as-needed"
+CGOFLAG_TSH = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(PCSC_LIBS) -Wl,-Bdynamic -Wl,--as-needed"
+else ifeq ("$(ARCH)","arm")
+# ARM builds need to specify the correct C compiler
+CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
+else ifeq ("$(ARCH)","arm64")
+# ARM64 builds need to specify the correct C compiler
+CGOFLAG = CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc
+endif
+endif
+
+# Windows requires extra parameters to cross-compile with CGO.
+ifeq ("$(OS)","windows")
+ARCH ?= amd64
+ifneq ("$(ARCH)","amd64")
+$(error "Building for windows requires ARCH=amd64")
+endif
+CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
+BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s' -trimpath -buildmode=exe
+endif
+
+CGOFLAG_TSH ?= $(CGOFLAG)
 
 #
 # 'make all' builds all 3 executables and places them in the current directory.
