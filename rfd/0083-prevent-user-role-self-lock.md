@@ -62,7 +62,7 @@ When a user locks themselves are unable to further manage the teleport cluster. 
 
 Further, for our Cloud offering, we don't perform account resets as a policy. The only recourse for a customer is to delete their cluster & deploy a new one. This inevitably leads to data loss.
 
-On-prem customers could work around this "locked out" state by manually instrumenting the auth process using tctl.
+On-prem customers could work around this "locked out" state by running `tctl` locally on the auth server to create a new admin user.
 
 ## Details
 
