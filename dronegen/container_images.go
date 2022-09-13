@@ -579,7 +579,7 @@ func (p *product) createBuildStep(arch string, version *releaseVersion) (step, *
 	builderName := fmt.Sprintf("%s-builder", localImageName)
 
 	buildCommand := "docker buildx build"
-	buildCommand += " --push" // This will push to local registry only
+	buildCommand += " --load"
 	buildCommand += fmt.Sprintf(" --builder %q", builderName)
 	if p.DockerfileTarget != "" {
 		buildCommand += fmt.Sprintf(" --target %q", p.DockerfileTarget)
@@ -609,6 +609,7 @@ func (p *product) createBuildStep(arch string, version *releaseVersion) (step, *
 			fmt.Sprintf("docker buildx create --driver %q --name %q", "docker-container", builderName),
 			buildCommand,
 			fmt.Sprintf("docker buildx rm %q", builderName),
+			fmt.Sprintf("docker push %q", localRegistryImageName), // This will push to local registry only
 		},
 	}
 
@@ -787,7 +788,6 @@ func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput) (step
 		Volumes:     dockerVolumeRefs(),
 		Environment: cr.Environment,
 		Commands: cr.buildCommandsWithLogin([]string{
-			fmt.Sprintf("docker pull %q", buildStepDetails.BuiltImageName), // Pull from local image repo
 			fmt.Sprintf("docker tag %q %q", buildStepDetails.BuiltImageName, archImageName),
 			fmt.Sprintf("docker push %q", archImageName),
 		}),
