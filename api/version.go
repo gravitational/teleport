@@ -3,7 +3,7 @@
 package api
 
 const (
-	Version = "11.0.0-gzdunek.45"
+	Version = "11.0.0-gzdunek.46"
 )
 
 // Gitref variable is automatically set to the output of git-describe
