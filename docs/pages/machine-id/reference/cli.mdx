@@ -93,6 +93,27 @@ $ tbot init \
     --bot-user=teleport \
     --reader-user=jenkins
 ```
+## `tbot configure`
+
+Writes a configuration file with the options specified using the commandline 
+parameters to STDOUT or a path on disk. This file can then be used to control
+the behaviour of `tbot`. 
+
+It is preferable to generate a configuration, and then use this with `tbot`
+rather than directly providing parameters to `tbot start`.
+
+| Flag                 | Description                                                                                            |
+|----------------------|--------------------------------------------------------------------------------------------------------|
+| `-d/--debug`         | Enable verbose logging to stderr.                                                                      |
+| `-o/--output`        | Path to write configuration file to. If not provided, the generated configuration is output to STDOUT. |
+| `-a/--auth-server`   | Address of the Teleport Auth Server (on-prem installs) or Teleport Cloud tenant.                       |
+| `--ca-pin`           | CA pin to validate the Teleport Auth Server; used on first connect.                                    |
+| `--certificate-ttl`  | TTL of short-lived machine certificates.                                                               |
+| `--data-dir`         | Directory to store internal bot data. Access to this directory should be limited.                      |
+| `--join-method`      | Method to use to join the cluster. Can be `token` or `iam`.                                            |
+| `--oneshot`          | If set, quit after the first renewal.                                                                  |
+| `--renewal-interval` | Interval at which short-lived certificates are renewed; must be less than the certificate TTL.         |
+| `--token`            | A bot join token, if attempting to onboard a new bot; used on first connect. Can also be an absolute path to a file containing the token. |
 
 ## `tbot db`
 
