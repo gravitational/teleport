@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/jonboulle/clockwork"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -67,18 +68,36 @@ type ConnectionContext struct {
 
 	// clientLastActive records the last time there was activity from the client.
 	clientLastActive time.Time
+
+	clock clockwork.Clock
+}
+
+type ConnectionContextOption func(c *ConnectionContext)
+
+// SetConnectionContextClock sets the connection context's internal clock.
+func SetConnectionContextClock(clock clockwork.Clock) ConnectionContextOption {
+	return func(c *ConnectionContext) {
+		c.clock = clock
+	}
 }
 
 // NewConnectionContext creates a new ConnectionContext and a child context.Context
 // instance which will be canceled when the ConnectionContext is closed.
-func NewConnectionContext(ctx context.Context, nconn net.Conn, sconn *ssh.ServerConn) (context.Context, *ConnectionContext) {
+func NewConnectionContext(ctx context.Context, nconn net.Conn, sconn *ssh.ServerConn, opts ...ConnectionContextOption) (context.Context, *ConnectionContext) {
 	ctx, cancel := context.WithCancel(ctx)
-	return ctx, &ConnectionContext{
+	ccx := &ConnectionContext{
 		NetConn:    nconn,
 		ServerConn: sconn,
 		env:        make(map[string]string),
 		cancel:     cancel,
+		clock:      clockwork.NewRealClock(),
 	}
+
+	for _, opt := range opts {
+		opt(ccx)
+	}
+
+	return ctx, ccx
 }
 
 // agentChannel implements the extended teleteleagent.Agent interface,
@@ -201,7 +220,7 @@ func (c *ConnectionContext) GetClientLastActive() time.Time {
 func (c *ConnectionContext) UpdateClientActivity() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.clientLastActive = time.Now().UTC()
+	c.clientLastActive = c.clock.Now().UTC()
 }
 
 // AddCloser adds any closer in ctx that will be called
