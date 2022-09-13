@@ -35,6 +35,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -843,7 +844,7 @@ func (s *Server) newHTTPServer() *http.Server {
 	s.authMiddleware.Wrap(s)
 
 	return &http.Server{
-		Handler:           s.authMiddleware,
+		Handler:           httplib.MakeTracingHandler(s.authMiddleware, teleport.ComponentApp),
 		ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
 		ErrorLog:          utils.NewStdlogger(s.log.Error, teleport.ComponentApp),
 	}
