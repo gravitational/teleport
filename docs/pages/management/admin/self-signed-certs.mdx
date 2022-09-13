@@ -31,7 +31,9 @@ Additionally, self-signed certificates can cause problems when interacting with 
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-## Self-Signed Certs: `teleport`
+## How to use self-signed certs with Teleport binaries
+
+### `teleport`
 
 When running a Teleport service with `teleport`, if the service you are starting is configured to point to
 the Teleport Proxy Service endpoint and the Proxy Service is using self-signed certificates, then `teleport` will need
@@ -86,7 +88,7 @@ running it: via the `teleport` CLI, using a Helm chart, or via systemd:
 
 </Tabs>
 
-## Self-Signed Certs: `tctl`
+### `tctl`
 When running `tctl` remotely via the Teleport Proxy Service, if the Proxy Service is using self-signed 
 certificates, then `tctl` will not trust the certificate from the Proxy Service.
 To disable certificate verification use:
@@ -103,7 +105,7 @@ self-signed certificates, then `tctl` will not trust the certificate from the Pr
 error message about
 untrusted or invalid certificates, unless `--insecure` is also passed to `tctl`.
 
-## Self-Signed Certs: `tsh`
+### `tsh`
 When running `tsh`, you must specify the Teleport Proxy Service address for `tsh` to connect to.
 If the Teleport Proxy Service is using self-signed certificates, then `tsh` will not trust the Proxy Service 
 certificate.
