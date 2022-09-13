@@ -5326,8 +5326,8 @@ steps:
   - mkdir -pv "/tmp/teleport-v10-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v10-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-v10-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-v10-amd64-builder"
-    --config "/tmp/teleport-v10-amd64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-v10-amd64-builder" --config "/tmp/teleport-v10-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v10-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-v10-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/amd64/$(cat
@@ -5353,8 +5353,8 @@ steps:
   - mkdir -pv "/tmp/teleport-v10-arm-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v10-arm-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-v10-arm-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-v10-arm-builder"
-    --config "/tmp/teleport-v10-arm-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-v10-arm-builder" --config "/tmp/teleport-v10-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "drone-docker-registry:5000/teleport-v10-arm" --file
     "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm/$(cat
@@ -5380,8 +5380,8 @@ steps:
   - mkdir -pv "/tmp/teleport-v10-arm64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v10-arm64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-v10-arm64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-v10-arm64-builder"
-    --config "/tmp/teleport-v10-arm64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-v10-arm64-builder" --config "/tmp/teleport-v10-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v10-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag "drone-docker-registry:5000/teleport-v10-arm64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm64/$(cat
@@ -5723,8 +5723,8 @@ steps:
   - mkdir -pv "/tmp/teleport-ent-v10-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v10-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-ent-v10-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-ent-v10-amd64-builder"
-    --config "/tmp/teleport-ent-v10-amd64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-ent-v10-amd64-builder" --config "/tmp/teleport-ent-v10-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v10-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-ent-v10-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/amd64/$(cat
@@ -5750,8 +5750,8 @@ steps:
   - mkdir -pv "/tmp/teleport-ent-v10-arm-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v10-arm-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-ent-v10-arm-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm-builder"
-    --config "/tmp/teleport-ent-v10-arm-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-ent-v10-arm-builder" --config "/tmp/teleport-ent-v10-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "drone-docker-registry:5000/teleport-ent-v10-arm"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm/$(cat
@@ -5777,8 +5777,8 @@ steps:
   - mkdir -pv "/tmp/teleport-ent-v10-arm64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v10-arm64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-ent-v10-arm64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm64-builder"
-    --config "/tmp/teleport-ent-v10-arm64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-ent-v10-arm64-builder" --config "/tmp/teleport-ent-v10-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v10-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag "drone-docker-registry:5000/teleport-ent-v10-arm64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm64/$(cat
@@ -6105,8 +6105,8 @@ steps:
   - mkdir -pv "/tmp/teleport-ent-fips-v10-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-fips-v10-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-ent-fips-v10-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v10-amd64-builder"
-    --config "/tmp/teleport-ent-fips-v10-amd64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-ent-fips-v10-amd64-builder" --config "/tmp/teleport-ent-fips-v10-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-fips-v10-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-ent-fips-v10-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent-fips/amd64/$(cat
@@ -6255,8 +6255,8 @@ steps:
   - mkdir -pv "/tmp/teleport-lab-v10-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v10-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v10-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-lab-v10-amd64-builder"
-    --config "/tmp/teleport-lab-v10-amd64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-lab-v10-amd64-builder" --config "/tmp/teleport-lab-v10-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-lab-v10-amd64-builder" --platform
     "linux/amd64" --tag "drone-docker-registry:5000/teleport-lab-v10-amd64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
@@ -6282,8 +6282,8 @@ steps:
   - mkdir -pv "/tmp/teleport-lab-v10-arm-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm-builder"
-    --config "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-lab-v10-arm-builder" --config "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-lab-v10-arm-builder" --platform
     "linux/arm" --tag "drone-docker-registry:5000/teleport-lab-v10-arm" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
     --build-arg "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-arm" /tmp/build
@@ -6308,8 +6308,8 @@ steps:
   - mkdir -pv "/tmp/teleport-lab-v10-arm64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v10-arm64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v10-arm64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm64-builder"
-    --config "/tmp/teleport-lab-v10-arm64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-lab-v10-arm64-builder" --config "/tmp/teleport-lab-v10-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-lab-v10-arm64-builder" --platform
     "linux/arm64" --tag "drone-docker-registry:5000/teleport-lab-v10-arm64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
@@ -6588,8 +6588,8 @@ steps:
   - mkdir -pv "/tmp/teleport-operator-v10-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v10-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-operator-v10-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-operator-v10-amd64-builder"
-    --config "/tmp/teleport-operator-v10-amd64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-operator-v10-amd64-builder" --config "/tmp/teleport-operator-v10-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v10-amd64-builder" --platform
     "linux/amd64" --tag "drone-docker-registry:5000/teleport-operator-v10-amd64" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-x86-64-linux-gnu"
@@ -6614,8 +6614,8 @@ steps:
   - mkdir -pv "/tmp/teleport-operator-v10-arm-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v10-arm-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-operator-v10-arm-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm-builder"
-    --config "/tmp/teleport-operator-v10-arm-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-operator-v10-arm-builder" --config "/tmp/teleport-operator-v10-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v10-arm-builder" --platform
     "linux/arm" --tag "drone-docker-registry:5000/teleport-operator-v10-arm" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf"
@@ -6640,8 +6640,8 @@ steps:
   - mkdir -pv "/tmp/teleport-operator-v10-arm64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v10-arm64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-operator-v10-arm64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm64-builder"
-    --config "/tmp/teleport-operator-v10-arm64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-operator-v10-arm64-builder" --config "/tmp/teleport-operator-v10-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v10-arm64-builder" --platform
     "linux/arm64" --tag "drone-docker-registry:5000/teleport-operator-v10-arm64" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu"
@@ -7070,8 +7070,8 @@ steps:
   - mkdir -pv "/tmp/teleport-v10-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v10-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-v10-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-v10-amd64-builder"
-    --config "/tmp/teleport-v10-amd64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-v10-amd64-builder" --config "/tmp/teleport-v10-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v10-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-v10-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/amd64/$(cat
@@ -7097,8 +7097,8 @@ steps:
   - mkdir -pv "/tmp/teleport-v10-arm-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v10-arm-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-v10-arm-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-v10-arm-builder"
-    --config "/tmp/teleport-v10-arm-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-v10-arm-builder" --config "/tmp/teleport-v10-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "drone-docker-registry:5000/teleport-v10-arm" --file
     "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm/$(cat
@@ -7124,8 +7124,8 @@ steps:
   - mkdir -pv "/tmp/teleport-v10-arm64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v10-arm64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-v10-arm64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-v10-arm64-builder"
-    --config "/tmp/teleport-v10-arm64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-v10-arm64-builder" --config "/tmp/teleport-v10-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v10-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag "drone-docker-registry:5000/teleport-v10-arm64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm64/$(cat
@@ -7467,8 +7467,8 @@ steps:
   - mkdir -pv "/tmp/teleport-ent-v10-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v10-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-ent-v10-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-ent-v10-amd64-builder"
-    --config "/tmp/teleport-ent-v10-amd64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-ent-v10-amd64-builder" --config "/tmp/teleport-ent-v10-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v10-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-ent-v10-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/amd64/$(cat
@@ -7494,8 +7494,8 @@ steps:
   - mkdir -pv "/tmp/teleport-ent-v10-arm-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v10-arm-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-ent-v10-arm-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm-builder"
-    --config "/tmp/teleport-ent-v10-arm-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-ent-v10-arm-builder" --config "/tmp/teleport-ent-v10-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "drone-docker-registry:5000/teleport-ent-v10-arm"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm/$(cat
@@ -7521,8 +7521,8 @@ steps:
   - mkdir -pv "/tmp/teleport-ent-v10-arm64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v10-arm64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-ent-v10-arm64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm64-builder"
-    --config "/tmp/teleport-ent-v10-arm64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-ent-v10-arm64-builder" --config "/tmp/teleport-ent-v10-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v10-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag "drone-docker-registry:5000/teleport-ent-v10-arm64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm64/$(cat
@@ -7849,8 +7849,8 @@ steps:
   - mkdir -pv "/tmp/teleport-ent-fips-v10-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-fips-v10-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-ent-fips-v10-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v10-amd64-builder"
-    --config "/tmp/teleport-ent-fips-v10-amd64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-ent-fips-v10-amd64-builder" --config "/tmp/teleport-ent-fips-v10-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-fips-v10-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-ent-fips-v10-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent-fips/amd64/$(cat
@@ -7999,8 +7999,8 @@ steps:
   - mkdir -pv "/tmp/teleport-lab-v10-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v10-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v10-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-lab-v10-amd64-builder"
-    --config "/tmp/teleport-lab-v10-amd64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-lab-v10-amd64-builder" --config "/tmp/teleport-lab-v10-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-lab-v10-amd64-builder" --platform
     "linux/amd64" --tag "drone-docker-registry:5000/teleport-lab-v10-amd64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
@@ -8026,8 +8026,8 @@ steps:
   - mkdir -pv "/tmp/teleport-lab-v10-arm-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm-builder"
-    --config "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-lab-v10-arm-builder" --config "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-lab-v10-arm-builder" --platform
     "linux/arm" --tag "drone-docker-registry:5000/teleport-lab-v10-arm" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
     --build-arg "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-arm" /tmp/build
@@ -8052,8 +8052,8 @@ steps:
   - mkdir -pv "/tmp/teleport-lab-v10-arm64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v10-arm64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v10-arm64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm64-builder"
-    --config "/tmp/teleport-lab-v10-arm64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-lab-v10-arm64-builder" --config "/tmp/teleport-lab-v10-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-lab-v10-arm64-builder" --platform
     "linux/arm64" --tag "drone-docker-registry:5000/teleport-lab-v10-arm64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
@@ -8332,8 +8332,8 @@ steps:
   - mkdir -pv "/tmp/teleport-operator-v10-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v10-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-operator-v10-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-operator-v10-amd64-builder"
-    --config "/tmp/teleport-operator-v10-amd64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-operator-v10-amd64-builder" --config "/tmp/teleport-operator-v10-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v10-amd64-builder" --platform
     "linux/amd64" --tag "drone-docker-registry:5000/teleport-operator-v10-amd64" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-x86-64-linux-gnu"
@@ -8358,8 +8358,8 @@ steps:
   - mkdir -pv "/tmp/teleport-operator-v10-arm-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v10-arm-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-operator-v10-arm-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm-builder"
-    --config "/tmp/teleport-operator-v10-arm-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-operator-v10-arm-builder" --config "/tmp/teleport-operator-v10-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v10-arm-builder" --platform
     "linux/arm" --tag "drone-docker-registry:5000/teleport-operator-v10-arm" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf"
@@ -8384,8 +8384,8 @@ steps:
   - mkdir -pv "/tmp/teleport-operator-v10-arm64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v10-arm64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-operator-v10-arm64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm64-builder"
-    --config "/tmp/teleport-operator-v10-arm64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-operator-v10-arm64-builder" --config "/tmp/teleport-operator-v10-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v10-arm64-builder" --platform
     "linux/arm64" --tag "drone-docker-registry:5000/teleport-operator-v10-arm64" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu"
@@ -8813,8 +8813,8 @@ steps:
   - mkdir -pv "/tmp/teleport-v9-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v9-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-v9-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-v9-amd64-builder"
-    --config "/tmp/teleport-v9-amd64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-v9-amd64-builder" --config "/tmp/teleport-v9-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v9-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-v9-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/amd64/$(cat
@@ -8840,8 +8840,8 @@ steps:
   - mkdir -pv "/tmp/teleport-v9-arm-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v9-arm-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-v9-arm-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-v9-arm-builder"
-    --config "/tmp/teleport-v9-arm-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-v9-arm-builder" --config "/tmp/teleport-v9-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v9-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "drone-docker-registry:5000/teleport-v9-arm" --file
     "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm/$(cat
@@ -8867,8 +8867,8 @@ steps:
   - mkdir -pv "/tmp/teleport-v9-arm64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v9-arm64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-v9-arm64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-v9-arm64-builder"
-    --config "/tmp/teleport-v9-arm64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-v9-arm64-builder" --config "/tmp/teleport-v9-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v9-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag "drone-docker-registry:5000/teleport-v9-arm64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm64/$(cat
@@ -9210,8 +9210,8 @@ steps:
   - mkdir -pv "/tmp/teleport-ent-v9-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v9-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-ent-v9-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-ent-v9-amd64-builder"
-    --config "/tmp/teleport-ent-v9-amd64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-ent-v9-amd64-builder" --config "/tmp/teleport-ent-v9-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v9-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-ent-v9-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/amd64/$(cat
@@ -9237,8 +9237,8 @@ steps:
   - mkdir -pv "/tmp/teleport-ent-v9-arm-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v9-arm-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-ent-v9-arm-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-ent-v9-arm-builder"
-    --config "/tmp/teleport-ent-v9-arm-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-ent-v9-arm-builder" --config "/tmp/teleport-ent-v9-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v9-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "drone-docker-registry:5000/teleport-ent-v9-arm"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm/$(cat
@@ -9264,8 +9264,8 @@ steps:
   - mkdir -pv "/tmp/teleport-ent-v9-arm64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v9-arm64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-ent-v9-arm64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-ent-v9-arm64-builder"
-    --config "/tmp/teleport-ent-v9-arm64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-ent-v9-arm64-builder" --config "/tmp/teleport-ent-v9-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v9-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag "drone-docker-registry:5000/teleport-ent-v9-arm64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm64/$(cat
@@ -9592,8 +9592,8 @@ steps:
   - mkdir -pv "/tmp/teleport-ent-fips-v9-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-fips-v9-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-ent-fips-v9-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v9-amd64-builder"
-    --config "/tmp/teleport-ent-fips-v9-amd64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-ent-fips-v9-amd64-builder" --config "/tmp/teleport-ent-fips-v9-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-fips-v9-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-ent-fips-v9-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent-fips/amd64/$(cat
@@ -9741,8 +9741,8 @@ steps:
   - mkdir -pv "/tmp/teleport-lab-v9-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v9-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v9-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-lab-v9-amd64-builder"
-    --config "/tmp/teleport-lab-v9-amd64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-lab-v9-amd64-builder" --config "/tmp/teleport-lab-v9-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-lab-v9-amd64-builder" --platform
     "linux/amd64" --tag "drone-docker-registry:5000/teleport-lab-v9-amd64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
@@ -9768,8 +9768,8 @@ steps:
   - mkdir -pv "/tmp/teleport-lab-v9-arm-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v9-arm-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v9-arm-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-lab-v9-arm-builder"
-    --config "/tmp/teleport-lab-v9-arm-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-lab-v9-arm-builder" --config "/tmp/teleport-lab-v9-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-lab-v9-arm-builder" --platform
     "linux/arm" --tag "drone-docker-registry:5000/teleport-lab-v9-arm" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
     --build-arg "BASE_IMAGE=drone-docker-registry:5000/teleport-v9-arm" /tmp/build
@@ -9794,8 +9794,8 @@ steps:
   - mkdir -pv "/tmp/teleport-lab-v9-arm64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v9-arm64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v9-arm64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-lab-v9-arm64-builder"
-    --config "/tmp/teleport-lab-v9-arm64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-lab-v9-arm64-builder" --config "/tmp/teleport-lab-v9-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-lab-v9-arm64-builder" --platform
     "linux/arm64" --tag "drone-docker-registry:5000/teleport-lab-v9-arm64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
@@ -10074,8 +10074,8 @@ steps:
   - mkdir -pv "/tmp/teleport-operator-v9-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v9-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-operator-v9-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-operator-v9-amd64-builder"
-    --config "/tmp/teleport-operator-v9-amd64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-operator-v9-amd64-builder" --config "/tmp/teleport-operator-v9-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v9-amd64-builder" --platform
     "linux/amd64" --tag "drone-docker-registry:5000/teleport-operator-v9-amd64" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-x86-64-linux-gnu"
@@ -10100,8 +10100,8 @@ steps:
   - mkdir -pv "/tmp/teleport-operator-v9-arm-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v9-arm-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-operator-v9-arm-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-operator-v9-arm-builder"
-    --config "/tmp/teleport-operator-v9-arm-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-operator-v9-arm-builder" --config "/tmp/teleport-operator-v9-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v9-arm-builder" --platform
     "linux/arm" --tag "drone-docker-registry:5000/teleport-operator-v9-arm" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf"
@@ -10126,8 +10126,8 @@ steps:
   - mkdir -pv "/tmp/teleport-operator-v9-arm64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v9-arm64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-operator-v9-arm64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-operator-v9-arm64-builder"
-    --config "/tmp/teleport-operator-v9-arm64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-operator-v9-arm64-builder" --config "/tmp/teleport-operator-v9-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v9-arm64-builder" --platform
     "linux/arm64" --tag "drone-docker-registry:5000/teleport-operator-v9-arm64" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu"
@@ -10554,8 +10554,8 @@ steps:
   - mkdir -pv "/tmp/teleport-v8-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v8-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-v8-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-v8-amd64-builder"
-    --config "/tmp/teleport-v8-amd64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-v8-amd64-builder" --config "/tmp/teleport-v8-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v8-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-v8-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/amd64/$(cat
@@ -10581,8 +10581,8 @@ steps:
   - mkdir -pv "/tmp/teleport-v8-arm-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v8-arm-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-v8-arm-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-v8-arm-builder"
-    --config "/tmp/teleport-v8-arm-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-v8-arm-builder" --config "/tmp/teleport-v8-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v8-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "drone-docker-registry:5000/teleport-v8-arm" --file
     "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm/$(cat
@@ -10608,8 +10608,8 @@ steps:
   - mkdir -pv "/tmp/teleport-v8-arm64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v8-arm64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-v8-arm64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-v8-arm64-builder"
-    --config "/tmp/teleport-v8-arm64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-v8-arm64-builder" --config "/tmp/teleport-v8-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v8-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag "drone-docker-registry:5000/teleport-v8-arm64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm64/$(cat
@@ -10951,8 +10951,8 @@ steps:
   - mkdir -pv "/tmp/teleport-ent-v8-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v8-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-ent-v8-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-ent-v8-amd64-builder"
-    --config "/tmp/teleport-ent-v8-amd64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-ent-v8-amd64-builder" --config "/tmp/teleport-ent-v8-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v8-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-ent-v8-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/amd64/$(cat
@@ -10978,8 +10978,8 @@ steps:
   - mkdir -pv "/tmp/teleport-ent-v8-arm-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v8-arm-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-ent-v8-arm-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-ent-v8-arm-builder"
-    --config "/tmp/teleport-ent-v8-arm-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-ent-v8-arm-builder" --config "/tmp/teleport-ent-v8-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v8-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "drone-docker-registry:5000/teleport-ent-v8-arm"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm/$(cat
@@ -11005,8 +11005,8 @@ steps:
   - mkdir -pv "/tmp/teleport-ent-v8-arm64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v8-arm64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-ent-v8-arm64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-ent-v8-arm64-builder"
-    --config "/tmp/teleport-ent-v8-arm64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-ent-v8-arm64-builder" --config "/tmp/teleport-ent-v8-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v8-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag "drone-docker-registry:5000/teleport-ent-v8-arm64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm64/$(cat
@@ -11333,8 +11333,8 @@ steps:
   - mkdir -pv "/tmp/teleport-ent-fips-v8-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-fips-v8-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-ent-fips-v8-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v8-amd64-builder"
-    --config "/tmp/teleport-ent-fips-v8-amd64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-ent-fips-v8-amd64-builder" --config "/tmp/teleport-ent-fips-v8-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-fips-v8-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-ent-fips-v8-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent-fips/amd64/$(cat
@@ -11482,8 +11482,8 @@ steps:
   - mkdir -pv "/tmp/teleport-lab-v8-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v8-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v8-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-lab-v8-amd64-builder"
-    --config "/tmp/teleport-lab-v8-amd64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-lab-v8-amd64-builder" --config "/tmp/teleport-lab-v8-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-lab-v8-amd64-builder" --platform
     "linux/amd64" --tag "drone-docker-registry:5000/teleport-lab-v8-amd64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
@@ -11509,8 +11509,8 @@ steps:
   - mkdir -pv "/tmp/teleport-lab-v8-arm-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v8-arm-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v8-arm-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-lab-v8-arm-builder"
-    --config "/tmp/teleport-lab-v8-arm-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-lab-v8-arm-builder" --config "/tmp/teleport-lab-v8-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-lab-v8-arm-builder" --platform
     "linux/arm" --tag "drone-docker-registry:5000/teleport-lab-v8-arm" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
     --build-arg "BASE_IMAGE=drone-docker-registry:5000/teleport-v8-arm" /tmp/build
@@ -11535,8 +11535,8 @@ steps:
   - mkdir -pv "/tmp/teleport-lab-v8-arm64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v8-arm64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v8-arm64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-lab-v8-arm64-builder"
-    --config "/tmp/teleport-lab-v8-arm64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-lab-v8-arm64-builder" --config "/tmp/teleport-lab-v8-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-lab-v8-arm64-builder" --platform
     "linux/arm64" --tag "drone-docker-registry:5000/teleport-lab-v8-arm64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
@@ -11815,8 +11815,8 @@ steps:
   - mkdir -pv "/tmp/teleport-operator-v8-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v8-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-operator-v8-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-operator-v8-amd64-builder"
-    --config "/tmp/teleport-operator-v8-amd64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-operator-v8-amd64-builder" --config "/tmp/teleport-operator-v8-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v8-amd64-builder" --platform
     "linux/amd64" --tag "drone-docker-registry:5000/teleport-operator-v8-amd64" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-x86-64-linux-gnu"
@@ -11841,8 +11841,8 @@ steps:
   - mkdir -pv "/tmp/teleport-operator-v8-arm-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v8-arm-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-operator-v8-arm-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-operator-v8-arm-builder"
-    --config "/tmp/teleport-operator-v8-arm-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-operator-v8-arm-builder" --config "/tmp/teleport-operator-v8-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v8-arm-builder" --platform
     "linux/arm" --tag "drone-docker-registry:5000/teleport-operator-v8-arm" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf"
@@ -11867,8 +11867,8 @@ steps:
   - mkdir -pv "/tmp/teleport-operator-v8-arm64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v8-arm64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-operator-v8-arm64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-operator-v8-arm64-builder"
-    --config "/tmp/teleport-operator-v8-arm64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-operator-v8-arm64-builder" --config "/tmp/teleport-operator-v8-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v8-arm64-builder" --platform
     "linux/arm64" --tag "drone-docker-registry:5000/teleport-operator-v8-arm64" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu"
@@ -12304,8 +12304,8 @@ steps:
   - mkdir -pv "/tmp/teleport-v10-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v10-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-v10-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-v10-amd64-builder"
-    --config "/tmp/teleport-v10-amd64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-v10-amd64-builder" --config "/tmp/teleport-v10-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v10-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-v10-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/amd64/$DRONE_TAG.deb"
@@ -12332,8 +12332,8 @@ steps:
   - mkdir -pv "/tmp/teleport-v10-arm-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v10-arm-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-v10-arm-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-v10-arm-builder"
-    --config "/tmp/teleport-v10-arm-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-v10-arm-builder" --config "/tmp/teleport-v10-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "drone-docker-registry:5000/teleport-v10-arm" --file
     "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm/$DRONE_TAG.deb"
@@ -12360,8 +12360,8 @@ steps:
   - mkdir -pv "/tmp/teleport-v10-arm64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v10-arm64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-v10-arm64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-v10-arm64-builder"
-    --config "/tmp/teleport-v10-arm64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-v10-arm64-builder" --config "/tmp/teleport-v10-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-v10-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag "drone-docker-registry:5000/teleport-v10-arm64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm64/$DRONE_TAG.deb"
@@ -12702,8 +12702,8 @@ steps:
   - mkdir -pv "/tmp/teleport-ent-v10-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v10-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-ent-v10-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-ent-v10-amd64-builder"
-    --config "/tmp/teleport-ent-v10-amd64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-ent-v10-amd64-builder" --config "/tmp/teleport-ent-v10-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v10-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-ent-v10-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/amd64/$DRONE_TAG.deb"
@@ -12730,8 +12730,8 @@ steps:
   - mkdir -pv "/tmp/teleport-ent-v10-arm-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v10-arm-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-ent-v10-arm-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm-builder"
-    --config "/tmp/teleport-ent-v10-arm-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-ent-v10-arm-builder" --config "/tmp/teleport-ent-v10-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "drone-docker-registry:5000/teleport-ent-v10-arm"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm/$DRONE_TAG.deb"
@@ -12758,8 +12758,8 @@ steps:
   - mkdir -pv "/tmp/teleport-ent-v10-arm64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v10-arm64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-ent-v10-arm64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm64-builder"
-    --config "/tmp/teleport-ent-v10-arm64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-ent-v10-arm64-builder" --config "/tmp/teleport-ent-v10-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-v10-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag "drone-docker-registry:5000/teleport-ent-v10-arm64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm64/$DRONE_TAG.deb"
@@ -13087,8 +13087,8 @@ steps:
   - mkdir -pv "/tmp/teleport-ent-fips-v10-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-fips-v10-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-ent-fips-v10-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v10-amd64-builder"
-    --config "/tmp/teleport-ent-fips-v10-amd64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-ent-fips-v10-amd64-builder" --config "/tmp/teleport-ent-fips-v10-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-ent-fips-v10-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-ent-fips-v10-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent-fips/amd64/$DRONE_TAG.deb"
@@ -13238,8 +13238,8 @@ steps:
   - mkdir -pv "/tmp/teleport-lab-v10-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v10-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v10-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-lab-v10-amd64-builder"
-    --config "/tmp/teleport-lab-v10-amd64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-lab-v10-amd64-builder" --config "/tmp/teleport-lab-v10-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-lab-v10-amd64-builder" --platform
     "linux/amd64" --tag "drone-docker-registry:5000/teleport-lab-v10-amd64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
@@ -13266,8 +13266,8 @@ steps:
   - mkdir -pv "/tmp/teleport-lab-v10-arm-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm-builder"
-    --config "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-lab-v10-arm-builder" --config "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-lab-v10-arm-builder" --platform
     "linux/arm" --tag "drone-docker-registry:5000/teleport-lab-v10-arm" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
     --build-arg "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-arm" /tmp/build
@@ -13293,8 +13293,8 @@ steps:
   - mkdir -pv "/tmp/teleport-lab-v10-arm64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v10-arm64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v10-arm64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm64-builder"
-    --config "/tmp/teleport-lab-v10-arm64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-lab-v10-arm64-builder" --config "/tmp/teleport-lab-v10-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-lab-v10-arm64-builder" --platform
     "linux/arm64" --tag "drone-docker-registry:5000/teleport-lab-v10-arm64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
@@ -13574,8 +13574,8 @@ steps:
   - mkdir -pv "/tmp/teleport-operator-v10-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v10-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-operator-v10-amd64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-operator-v10-amd64-builder"
-    --config "/tmp/teleport-operator-v10-amd64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-operator-v10-amd64-builder" --config "/tmp/teleport-operator-v10-amd64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v10-amd64-builder" --platform
     "linux/amd64" --tag "drone-docker-registry:5000/teleport-operator-v10-amd64" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-x86-64-linux-gnu"
@@ -13601,8 +13601,8 @@ steps:
   - mkdir -pv "/tmp/teleport-operator-v10-arm-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v10-arm-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-operator-v10-arm-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm-builder"
-    --config "/tmp/teleport-operator-v10-arm-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-operator-v10-arm-builder" --config "/tmp/teleport-operator-v10-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v10-arm-builder" --platform
     "linux/arm" --tag "drone-docker-registry:5000/teleport-operator-v10-arm" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf"
@@ -13628,8 +13628,8 @@ steps:
   - mkdir -pv "/tmp/teleport-operator-v10-arm64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v10-arm64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-operator-v10-arm64-builder/buildkitd.toml"
-  - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm64-builder"
-    --config "/tmp/teleport-operator-v10-arm64-builder/buildkitd.toml"
+  - docker buildx create --driver "docker-container" --driver-opt "network=host" --name
+    "teleport-operator-v10-arm64-builder" --config "/tmp/teleport-operator-v10-arm64-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-operator-v10-arm64-builder" --platform
     "linux/arm64" --tag "drone-docker-registry:5000/teleport-operator-v10-arm64" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu"
@@ -14396,6 +14396,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: a0fa0bc33529d44cae691439104bcdbf2618ba9aa06c611fe08b626b5abd11a6
+hmac: e425352cd9d1eca3f4ac0d6ab159147b7c491bc0ee28b149f56d49c9fbb80528
 
 ...

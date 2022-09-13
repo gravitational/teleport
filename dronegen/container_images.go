@@ -582,6 +582,13 @@ func (p *product) createBuildStep(arch string, version *releaseVersion) (step, *
 	buildxConfigFileDir := path.Join("/tmp", builderName)
 	buildxConfigFilePath := path.Join(buildxConfigFileDir, "buildkitd.toml")
 
+	buildxCreateCommand := "docker buildx create"
+	buildxCreateCommand += fmt.Sprintf(" --driver %q", "docker-container")
+	// This is set so that buildx can reach the local registry
+	buildxCreateCommand += fmt.Sprintf(" --driver-opt %q", "network=host")
+	buildxCreateCommand += fmt.Sprintf(" --name %q", builderName)
+	buildxCreateCommand += fmt.Sprintf(" --config %q", buildxConfigFilePath)
+
 	buildCommand := "docker buildx build"
 	buildCommand += " --push"
 	buildCommand += fmt.Sprintf(" --builder %q", builderName)
@@ -613,7 +620,7 @@ func (p *product) createBuildStep(arch string, version *releaseVersion) (step, *
 			fmt.Sprintf("mkdir -pv %q", buildxConfigFileDir),
 			fmt.Sprintf("echo '[registry.%q]' > %q", LocalRegistry, buildxConfigFilePath),
 			fmt.Sprintf("echo '  http = true' >> %q", buildxConfigFilePath),
-			fmt.Sprintf("docker buildx create --driver %q --name %q --config %q", "docker-container", builderName, buildxConfigFilePath),
+			buildxCreateCommand,
 			buildCommand,
 			fmt.Sprintf("docker buildx rm %q", builderName),
 			fmt.Sprintf("rm -rf %q", buildxConfigFileDir),
