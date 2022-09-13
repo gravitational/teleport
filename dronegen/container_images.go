@@ -368,14 +368,13 @@ func NewTeleportProduct(isEnterprise, isFips bool, version *releaseVersion) *pro
 }
 
 func NewTeleportLabProduct(cloneDirectory string, version *releaseVersion, teleport *product) *product {
-	workingDirectory := "/tmp/build"
 	dockerfile := path.Join(cloneDirectory, "docker", "sshd", "Dockerfile")
 	name := "teleport-lab"
 
 	return &product{
 		Name:             name,
 		DockerfilePath:   dockerfile,
-		WorkingDirectory: workingDirectory,
+		WorkingDirectory: cloneDirectory,
 		SupportedArchs:   teleport.SupportedArchs,
 		DockerfileArgBuilder: func(arch string) []string {
 			return []string{
