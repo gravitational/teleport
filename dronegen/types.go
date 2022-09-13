@@ -40,7 +40,7 @@ type pipeline struct {
 	Steps       []step           `yaml:"steps"`
 	Services    []service        `yaml:"services,omitempty"`
 	Volumes     []volume         `yaml:"volumes,omitempty"`
-	// This is currently overriden by the Drone policy config
+	// This is currently overridden by the Drone policy config
 	// See https://github.com/gravitational/ops/blob/main/drone/drone-runner-kube-policy-configmap.yaml
 	// for details
 	Resources pipelineResources `yaml:"resources,omitempty"`

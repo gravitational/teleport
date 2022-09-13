@@ -57,7 +57,7 @@ import (
 // When finishing up your PR check the following:
 // * The testing secrets added to Drone have been removed
 // * `ConfigureForPRTestingOnly` has been set to false, and `make dronegen` has been reran afterwords
-//
+
 const (
 	ConfigureForPRTestingOnly bool   = true
 	TestingSecretPrefix       string = "TEST_"
@@ -289,19 +289,19 @@ func (rv *releaseVersion) buildSteps(setupStepNames []string) []step {
 	return steps
 }
 
-func (rv *releaseVersion) getProducts(clonedRepoPath string) []*product {
+func (rv *releaseVersion) getProducts(clonedRepoPath string) []*Product {
 	ossTeleport := NewTeleportProduct(false, false, rv)
-	teleportProducts := []*product{
+	teleportProducts := []*Product{
 		ossTeleport,                         // OSS
 		NewTeleportProduct(true, false, rv), // Enterprise
 		NewTeleportProduct(true, true, rv),  // Enterprise/FIPS
 	}
-	teleportLabProducts := []*product{
+	teleportLabProducts := []*Product{
 		NewTeleportLabProduct(clonedRepoPath, rv, ossTeleport),
 	}
 	teleportOperatorProduct := NewTeleportOperatorProduct(clonedRepoPath)
 
-	products := make([]*product, 0, len(teleportProducts)+len(teleportLabProducts)+1)
+	products := make([]*Product, 0, len(teleportProducts)+len(teleportLabProducts)+1)
 	products = append(products, teleportProducts...)
 	products = append(products, teleportLabProducts...)
 	products = append(products, teleportOperatorProduct)
@@ -309,7 +309,7 @@ func (rv *releaseVersion) getProducts(clonedRepoPath string) []*product {
 	return products
 }
 
-type product struct {
+type Product struct {
 	Name                 string
 	DockerfilePath       string
 	WorkingDirectory     string
@@ -321,7 +321,7 @@ type product struct {
 	GetRequiredStepNames func(arch string) []string
 }
 
-func NewTeleportProduct(isEnterprise, isFips bool, version *releaseVersion) *product {
+func NewTeleportProduct(isEnterprise, isFips bool, version *releaseVersion) *Product {
 	workingDirectory := "/go/build"
 	downloadURL := "https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/charts/Dockerfile"
 	name := "teleport"
@@ -340,7 +340,7 @@ func NewTeleportProduct(isEnterprise, isFips bool, version *releaseVersion) *pro
 
 	setupStep, debPaths, dockerfilePath := teleportSetupStep(version.ShellVersion, name, workingDirectory, downloadURL, supportedArches)
 
-	return &product{
+	return &Product{
 		Name:             name,
 		DockerfilePath:   dockerfilePath,
 		WorkingDirectory: workingDirectory,
@@ -367,12 +367,12 @@ func NewTeleportProduct(isEnterprise, isFips bool, version *releaseVersion) *pro
 	}
 }
 
-func NewTeleportLabProduct(cloneDirectory string, version *releaseVersion, teleport *product) *product {
+func NewTeleportLabProduct(cloneDirectory string, version *releaseVersion, teleport *Product) *Product {
 	workingDirectory := path.Join(cloneDirectory, "docker", "sshd")
 	dockerfile := path.Join(cloneDirectory, "docker", "sshd", "Dockerfile")
 	name := "teleport-lab"
 
-	return &product{
+	return &Product{
 		Name:             name,
 		DockerfilePath:   dockerfile,
 		WorkingDirectory: workingDirectory,
@@ -389,9 +389,9 @@ func NewTeleportLabProduct(cloneDirectory string, version *releaseVersion, telep
 	}
 }
 
-func NewTeleportOperatorProduct(cloneDirectory string) *product {
+func NewTeleportOperatorProduct(cloneDirectory string) *Product {
 	name := "teleport-operator"
-	return &product{
+	return &Product{
 		Name:             name,
 		DockerfilePath:   path.Join(cloneDirectory, "operator", "Dockerfile"),
 		WorkingDirectory: cloneDirectory,
@@ -531,15 +531,15 @@ func teleportSetupStep(shellVersion, packageName, workingPath, downloadURL strin
 	}, archDestFileMap, dockerfilePath
 }
 
-func (p *product) BuildLocalImageName(arch string, version *releaseVersion) string {
+func (p *Product) BuildLocalImageName(arch string, version *releaseVersion) string {
 	return fmt.Sprintf("%s-%s-%s", p.Name, version.MajorVersion, arch)
 }
 
-func (p *product) BuildLocalRegistryImageName(arch string, version *releaseVersion) string {
+func (p *Product) BuildLocalRegistryImageName(arch string, version *releaseVersion) string {
 	return fmt.Sprintf("%s/%s", LocalRegistry, p.BuildLocalImageName(arch, version))
 }
 
-func (p *product) BuildSteps(version *releaseVersion, setupStepNames []string) []step {
+func (p *Product) BuildSteps(version *releaseVersion, setupStepNames []string) []step {
 	containerRepos := GetContainerRepos()
 
 	steps := make([]step, 0)
@@ -570,11 +570,11 @@ func (p *product) BuildSteps(version *releaseVersion, setupStepNames []string) [
 	return steps
 }
 
-func (p *product) GetBuildStepName(arch string, version *releaseVersion) string {
+func (p *Product) GetBuildStepName(arch string, version *releaseVersion) string {
 	return fmt.Sprintf("Build %s image %q", p.Name, p.BuildLocalImageName(arch, version))
 }
 
-func (p *product) createBuildStep(arch string, version *releaseVersion) (step, *buildStepOutput) {
+func (p *Product) createBuildStep(arch string, version *releaseVersion) (step, *buildStepOutput) {
 	localImageName := p.BuildLocalImageName(arch, version)
 	localRegistryImageName := p.BuildLocalRegistryImageName(arch, version)
 	builderName := fmt.Sprintf("%s-builder", localImageName)
@@ -643,7 +643,7 @@ type buildStepOutput struct {
 	BuiltImageName string
 	BuiltImageArch string
 	Version        *releaseVersion
-	Product        *product
+	Product        *Product
 }
 
 type ContainerRepo struct {
