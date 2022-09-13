@@ -74,6 +74,7 @@ This release of Teleport contains multiple improvements and bug fixes.
 * Improved connection reliability in proxy peering mode. [#15313](https://github.com/gravitational/teleport/pull/15313)
 * Improved error messaging in joined Kubernetes sessions. [#15492](https://github.com/gravitational/teleport/pull/15492)
 * Improved network utilization on proxies. [#15838](https://github.com/gravitational/teleport/pull/15838)
+* Added RDP licensing negotiation [gravitational/rdp-rs#17](https://github.com/gravitational/rdp-rs/pull/17)
 
 ## 10.1.4
 
