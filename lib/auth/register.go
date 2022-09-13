@@ -120,6 +120,8 @@ type RegisterParams struct {
 	ec2IdentityDocument []byte
 	// CircuitBreakerConfig defines how the circuit breaker should behave.
 	CircuitBreakerConfig breaker.Config
+	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
+	FIPS bool
 }
 
 func (r *RegisterParams) setDefaults() {
@@ -470,22 +472,31 @@ func registerUsingIAMMethod(joinServiceClient joinServiceClient, token string, p
 	var errs []error
 	for _, s := range []struct {
 		desc string
-		opt  stsEndpointOption
+		opts []stsIdentityRequestOption
 	}{
 		{
 			desc: "regional",
-			opt:  stsEndpointOptionRegional,
+			opts: []stsIdentityRequestOption{
+				withFIPSEndpoint(params.FIPS),
+				withRegionalEndpoint(true),
+			},
 		},
 		{
 			desc: "global",
-			opt:  stsEndpointOptionGlobal,
+			opts: []stsIdentityRequestOption{
+				// Global endpoint does not support FIPS, this is a fallback
+				// when joining a cluster with an auth server on an older
+				// version which does not yet support regional endpoints.
+				withFIPSEndpoint(false),
+				withRegionalEndpoint(false),
+			},
 		},
 	} {
 		log.Infof("Attempting to register %s with IAM method using %s STS endpoint", params.ID.Role, s.desc)
 		// Call RegisterUsingIAMMethod and pass a callback to respond to the challenge with a signed join request.
 		certs, err := joinServiceClient.RegisterUsingIAMMethod(ctx, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
 			// create the signed sts:GetCallerIdentity request and include the challenge
-			signedRequest, err := createSignedSTSIdentityRequest(ctx, s.opt, challenge)
+			signedRequest, err := createSignedSTSIdentityRequest(ctx, challenge, s.opts...)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
