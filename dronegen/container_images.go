@@ -283,7 +283,7 @@ func (rv *releaseVersion) buildSteps(setupStepNames []string) []step {
 	}
 
 	for _, product := range rv.getProducts(clonedRepoPath) {
-		steps = append(steps, product.BuildSteps(rv, setupStepNames)...)
+		steps = append(steps, product.buildSteps(rv, setupStepNames)...)
 	}
 
 	return steps
@@ -539,7 +539,7 @@ func (p *Product) BuildLocalRegistryImageName(arch string, version *releaseVersi
 	return fmt.Sprintf("%s/%s", LocalRegistry, p.BuildLocalImageName(arch, version))
 }
 
-func (p *Product) BuildSteps(version *releaseVersion, setupStepNames []string) []step {
+func (p *Product) buildSteps(version *releaseVersion, setupStepNames []string) []step {
 	containerRepos := GetContainerRepos()
 
 	steps := make([]step, 0)
