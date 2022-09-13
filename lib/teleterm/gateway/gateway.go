@@ -23,6 +23,7 @@ import (
 	"net"
 	"strconv"
 
+	"github.com/gravitational/teleport/api/utils/keys"
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -74,7 +75,7 @@ func New(cfg Config) (*Gateway, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	cert, err := tls.LoadX509KeyPair(cfg.CertPath, cfg.KeyPath)
+	tlsCert, err := keys.LoadX509KeyPair(cfg.CertPath, cfg.KeyPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -86,7 +87,7 @@ func New(cfg Config) (*Gateway, error) {
 		Listener:           listener,
 		ParentContext:      closeContext,
 		SNI:                address.Host(),
-		Certs:              []tls.Certificate{cert},
+		Certs:              []tls.Certificate{tlsCert},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

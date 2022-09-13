@@ -80,7 +80,7 @@ Run `./install` from `teleport-mattermost` or place the executable in the approp
 </TabItem>
 <TabItem label="Docker">
   ```code
-  $ docker pull quay.io/gravitational/teleport-plugin-mattermost:(=teleport.plugin.version=)
+  $ docker pull public.ecr.aws/gravitational/teleport-plugin-mattermost:(=teleport.plugin.version=)
   ```
 </TabItem>
 </Tabs>
@@ -132,7 +132,7 @@ to connect to Teleport and Mattermost. You will now configure the Mattermost
 plugin to use these credentials and post messages in the right channels for your
 workspace.
 
-The Mattermost plugin usess a config file in TOML format. On the host where you
+The Mattermost plugin uses a config file in TOML format. On the host where you
 will run the Mattermost plugin, generate a boilerplate config by running the
 following commands:
 

@@ -80,7 +80,6 @@ RUN apt-get update -y --fix-missing && \
         libpam-dev \
         libsqlite3-0 \
         libssl-dev \
-        libudev-dev \
         llvm-10 \
         locales \
         mingw-w64 \
