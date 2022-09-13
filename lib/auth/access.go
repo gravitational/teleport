@@ -163,7 +163,7 @@ func (s *Server) checkRoleRulesConstraint(ctx context.Context, targetRole types.
 		return nil
 	}
 
-	allUsers, err := s.Identity.GetUsers(false)
+	allUsers, err := s.Identity.GetUsers(false /* withSecrets */)
 	if err != nil {
 		return trace.Wrap(err)
 	}
