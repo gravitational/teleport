@@ -16,9 +16,7 @@ package keys
 import (
 	"bytes"
 	"crypto"
-	"crypto/x509"
 
-	"github.com/go-piv/piv-go/piv"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
 
@@ -100,35 +98,4 @@ func AttestHardwareKey(req *AttestationRequest) (*AttestationResponse, error) {
 	default:
 		return nil, trace.BadParameter("attestation request type %T", protoReq.GetAttestationRequest())
 	}
-}
-
-// attestYubikey verifies that the given slot certificate chains to the attestation certificate,
-// which chains to a Yubico CA.
-func attestYubikey(req *proto.YubiKeyAttestationRequest) (*AttestationResponse, error) {
-	slotCert, err := x509.ParseCertificate(req.SlotCert)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	attestationCert, err := x509.ParseCertificate(req.AttestationCert)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	attestation, err := piv.Verify(attestationCert, slotCert)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	policy := PrivateKeyPolicyHardwareKey
-	if attestation.TouchPolicy == piv.TouchPolicyAlways || attestation.TouchPolicy == piv.TouchPolicyCached {
-		policy = PrivateKeyPolicyHardwareKeyTouch
-	}
-
-	pubDER, err := x509.MarshalPKIXPublicKey(slotCert.PublicKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &AttestationResponse{
-		PublicKeyDER:     pubDER,
-		PrivateKeyPolicy: policy,
-	}, nil
 }

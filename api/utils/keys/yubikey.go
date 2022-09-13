@@ -483,3 +483,34 @@ func delayedTouchPrompt(ctx context.Context) (cancel func()) {
 
 	return cancel
 }
+
+// attestYubikey verifies that the given slot certificate chains to the attestation certificate,
+// which chains to a Yubico CA.
+func attestYubikey(req *attestation.YubiKeyAttestationRequest) (*AttestationResponse, error) {
+	slotCert, err := x509.ParseCertificate(req.SlotCert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	attestationCert, err := x509.ParseCertificate(req.AttestationCert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	attestation, err := piv.Verify(attestationCert, slotCert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	policy := PrivateKeyPolicyHardwareKey
+	if attestation.TouchPolicy == piv.TouchPolicyAlways || attestation.TouchPolicy == piv.TouchPolicyCached {
+		policy = PrivateKeyPolicyHardwareKeyTouch
+	}
+
+	pubDER, err := x509.MarshalPKIXPublicKey(slotCert.PublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &AttestationResponse{
+		PublicKeyDER:     pubDER,
+		PrivateKeyPolicy: policy,
+	}, nil
+}
