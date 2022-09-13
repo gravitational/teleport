@@ -900,6 +900,40 @@ func TestClusterNodesGet(t *testing.T) {
 	require.Equal(t, nodes, nodes2)
 }
 
+type clusterAlertsGetResponse struct {
+	Alerts []types.ClusterAlert `json:"alerts"`
+}
+
+func TestClusterAlertsGet(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+
+	// generate alert
+	alert, err := types.NewClusterAlert(
+		"test-alert",
+		"test alert message",
+		types.WithAlertSeverity(0),
+		types.WithAlertLabel(types.AlertOnLogin, "yes"),
+		// AlertPermitAll is necessary because the alert is only shown to
+		// admin clients by default.
+		types.WithAlertLabel(types.AlertPermitAll, "yes"),
+	)
+	require.NoError(t, err)
+	err = env.server.Auth().UpsertClusterAlert(context.Background(), alert)
+	require.NoError(t, err)
+
+	// get alerts.
+	clusterName := env.server.ClusterName()
+	pack := env.proxies[0].authPack(t, "test-user@example.com", nil)
+	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "alerts")
+	re, err := pack.clt.Get(context.Background(), endpoint, nil)
+	require.NoError(t, err)
+
+	alerts := clusterAlertsGetResponse{}
+	require.NoError(t, json.Unmarshal(re.Bytes(), &alerts))
+	require.Len(t, alerts.Alerts, 1)
+}
+
 func TestSiteNodeConnectInvalidSessionID(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
