@@ -605,6 +605,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			Clock:                process.Clock,
 			JoinMethod:           process.Config.JoinMethod,
 			CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
+			FIPS:                 process.Config.FIPS,
 		})
 		if err != nil {
 			if utils.IsUntrustedCertErr(err) {
