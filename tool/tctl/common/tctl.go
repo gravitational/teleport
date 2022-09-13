@@ -176,7 +176,7 @@ func TryRun(commands []CLICommand, args []string) error {
 	}
 
 	// configure all commands with Teleport configuration (they share 'cfg')
-	clientConfig, err := applyConfig(&ccf, cfg)
+	clientConfig, err := ApplyConfig(&ccf, cfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -211,12 +211,12 @@ func TryRun(commands []CLICommand, args []string) error {
 	return nil
 }
 
-// applyConfig takes configuration values from the config file and applies them
+// ApplyConfig takes configuration values from the config file and applies them
 // to 'service.Config' object.
 //
 // The returned authclient.Config has the credentials needed to dial the auth
 // server.
-func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, error) {
+func ApplyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, error) {
 	// --debug flag
 	if ccf.Debug {
 		cfg.Debug = ccf.Debug
@@ -244,6 +244,20 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 		}
 	}
 
+	if err = config.ApplyFileConfig(fileConf, cfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// --auth-server flag(-s)
+	if len(ccf.AuthServerAddr) != 0 {
+		addrs, err := utils.ParseAddrs(ccf.AuthServerAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Overwrite any existing configuration with flag values.
+		cfg.AuthServers = addrs
+	}
+
 	// Config file should take precedence, if available.
 	if fileConf == nil && ccf.IdentityFilePath == "" {
 		// No config file or identity file.
@@ -257,17 +271,7 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 			return nil, trace.Wrap(err)
 		}
 	}
-	if err = config.ApplyFileConfig(fileConf, cfg); err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	// --auth-server flag(-s)
-	if len(ccf.AuthServerAddr) != 0 {
-		cfg.AuthServers, err = utils.ParseAddrs(ccf.AuthServerAddr)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
 	// If auth server is not provided on the command line or in file
 	// configuration, use the default.
 	if len(cfg.AuthServers) == 0 {
