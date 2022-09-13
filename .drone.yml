@@ -5317,7 +5317,7 @@ steps:
   - docker buildx build --load --builder "teleport-v10-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag "teleport-v10-amd64" --file "/go/build/Dockerfile"
     --build-arg "DEB_PATH=artifacts/deb/teleport/amd64/$(cat '/go/vars/full-version/v10').deb"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-v10-amd64-builder"
   environment:
@@ -5340,7 +5340,7 @@ steps:
   - docker buildx build --load --builder "teleport-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "teleport-v10-arm" --file "/go/build/Dockerfile"
     --build-arg "DEB_PATH=artifacts/deb/teleport/arm/$(cat '/go/vars/full-version/v10').deb"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-v10-arm-builder"
   environment:
@@ -5363,7 +5363,7 @@ steps:
   - docker buildx build --load --builder "teleport-v10-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag "teleport-v10-arm64" --file "/go/build/Dockerfile"
     --build-arg "DEB_PATH=artifacts/deb/teleport/arm64/$(cat '/go/vars/full-version/v10').deb"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-v10-arm64-builder"
   environment:
@@ -5692,7 +5692,7 @@ steps:
   - docker buildx build --load --builder "teleport-ent-v10-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag "teleport-ent-v10-amd64" --file "/go/build/Dockerfile"
     --build-arg "DEB_PATH=artifacts/deb/teleport-ent/amd64/$(cat '/go/vars/full-version/v10').deb"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-ent-v10-amd64-builder"
   environment:
@@ -5715,7 +5715,7 @@ steps:
   - docker buildx build --load --builder "teleport-ent-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "teleport-ent-v10-arm" --file "/go/build/Dockerfile"
     --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm/$(cat '/go/vars/full-version/v10').deb"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-ent-v10-arm-builder"
   environment:
@@ -5738,7 +5738,7 @@ steps:
   - docker buildx build --load --builder "teleport-ent-v10-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag "teleport-ent-v10-arm64" --file "/go/build/Dockerfile"
     --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm64/$(cat '/go/vars/full-version/v10').deb"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-ent-v10-arm64-builder"
   environment:
@@ -6052,8 +6052,8 @@ steps:
   - docker buildx build --load --builder "teleport-ent-fips-v10-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag "teleport-ent-fips-v10-amd64" --file
     "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent-fips/amd64/$(cat
-    '/go/vars/full-version/v10').deb" --export-cache type=local,dest="/go/buildx-cache"
-    --import-cache type=local,dest="/go/buildx-cache" /go/build
+    '/go/vars/full-version/v10').deb" --cache-from type=local,src="/go/buildx-cache"
+    --cache-to type=local,dest="/go/buildx-cache" /go/build
   - docker buildx rm "teleport-ent-fips-v10-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -6194,8 +6194,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-lab-v10-amd64-builder" --platform
     "linux/amd64" --tag "teleport-lab-v10-amd64" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
-    --build-arg "BASE_IMAGE=teleport-v10-amd64" --export-cache type=local,dest="/go/buildx-cache"
-    --import-cache type=local,dest="/go/buildx-cache" /tmp/build
+    --build-arg "BASE_IMAGE=teleport-v10-amd64" --cache-from type=local,src="/go/buildx-cache"
+    --cache-to type=local,dest="/go/buildx-cache" /tmp/build
   - docker buildx rm "teleport-lab-v10-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -6216,8 +6216,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm-builder"
   - docker buildx build --load --builder "teleport-lab-v10-arm-builder" --platform
     "linux/arm" --tag "teleport-lab-v10-arm" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
-    --build-arg "BASE_IMAGE=teleport-v10-arm" --export-cache type=local,dest="/go/buildx-cache"
-    --import-cache type=local,dest="/go/buildx-cache" /tmp/build
+    --build-arg "BASE_IMAGE=teleport-v10-arm" --cache-from type=local,src="/go/buildx-cache"
+    --cache-to type=local,dest="/go/buildx-cache" /tmp/build
   - docker buildx rm "teleport-lab-v10-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -6238,8 +6238,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm64-builder"
   - docker buildx build --load --builder "teleport-lab-v10-arm64-builder" --platform
     "linux/arm64" --tag "teleport-lab-v10-arm64" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
-    --build-arg "BASE_IMAGE=teleport-v10-arm64" --export-cache type=local,dest="/go/buildx-cache"
-    --import-cache type=local,dest="/go/buildx-cache" /tmp/build
+    --build-arg "BASE_IMAGE=teleport-v10-arm64" --cache-from type=local,src="/go/buildx-cache"
+    --cache-to type=local,dest="/go/buildx-cache" /tmp/build
   - docker buildx rm "teleport-lab-v10-arm64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -6505,7 +6505,7 @@ steps:
   - docker buildx build --load --builder "teleport-operator-v10-amd64-builder" --platform
     "linux/amd64" --tag "teleport-operator-v10-amd64" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
     --build-arg "COMPILER_PACKAGE=gcc-x86-64-linux-gnu" --build-arg "COMPILER_NAME=x86_64-linux-gnu-gcc"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-amd64-builder"
   environment:
@@ -6527,7 +6527,7 @@ steps:
   - docker buildx build --load --builder "teleport-operator-v10-arm-builder" --platform
     "linux/arm" --tag "teleport-operator-v10-arm" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
     --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf" --build-arg "COMPILER_NAME=arm-linux-gnueabihf-gcc"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-arm-builder"
   environment:
@@ -6549,7 +6549,7 @@ steps:
   - docker buildx build --load --builder "teleport-operator-v10-arm64-builder" --platform
     "linux/arm64" --tag "teleport-operator-v10-arm64" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
     --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu" --build-arg "COMPILER_NAME=aarch64-linux-gnu-gcc"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-arm64-builder"
   environment:
@@ -6951,7 +6951,7 @@ steps:
   - docker buildx build --load --builder "teleport-v10-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag "teleport-v10-amd64" --file "/go/build/Dockerfile"
     --build-arg "DEB_PATH=artifacts/deb/teleport/amd64/$(cat '/go/vars/full-version/v10').deb"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-v10-amd64-builder"
   environment:
@@ -6974,7 +6974,7 @@ steps:
   - docker buildx build --load --builder "teleport-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "teleport-v10-arm" --file "/go/build/Dockerfile"
     --build-arg "DEB_PATH=artifacts/deb/teleport/arm/$(cat '/go/vars/full-version/v10').deb"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-v10-arm-builder"
   environment:
@@ -6997,7 +6997,7 @@ steps:
   - docker buildx build --load --builder "teleport-v10-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag "teleport-v10-arm64" --file "/go/build/Dockerfile"
     --build-arg "DEB_PATH=artifacts/deb/teleport/arm64/$(cat '/go/vars/full-version/v10').deb"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-v10-arm64-builder"
   environment:
@@ -7326,7 +7326,7 @@ steps:
   - docker buildx build --load --builder "teleport-ent-v10-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag "teleport-ent-v10-amd64" --file "/go/build/Dockerfile"
     --build-arg "DEB_PATH=artifacts/deb/teleport-ent/amd64/$(cat '/go/vars/full-version/v10').deb"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-ent-v10-amd64-builder"
   environment:
@@ -7349,7 +7349,7 @@ steps:
   - docker buildx build --load --builder "teleport-ent-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "teleport-ent-v10-arm" --file "/go/build/Dockerfile"
     --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm/$(cat '/go/vars/full-version/v10').deb"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-ent-v10-arm-builder"
   environment:
@@ -7372,7 +7372,7 @@ steps:
   - docker buildx build --load --builder "teleport-ent-v10-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag "teleport-ent-v10-arm64" --file "/go/build/Dockerfile"
     --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm64/$(cat '/go/vars/full-version/v10').deb"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-ent-v10-arm64-builder"
   environment:
@@ -7686,8 +7686,8 @@ steps:
   - docker buildx build --load --builder "teleport-ent-fips-v10-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag "teleport-ent-fips-v10-amd64" --file
     "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent-fips/amd64/$(cat
-    '/go/vars/full-version/v10').deb" --export-cache type=local,dest="/go/buildx-cache"
-    --import-cache type=local,dest="/go/buildx-cache" /go/build
+    '/go/vars/full-version/v10').deb" --cache-from type=local,src="/go/buildx-cache"
+    --cache-to type=local,dest="/go/buildx-cache" /go/build
   - docker buildx rm "teleport-ent-fips-v10-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -7828,8 +7828,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-lab-v10-amd64-builder" --platform
     "linux/amd64" --tag "teleport-lab-v10-amd64" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
-    --build-arg "BASE_IMAGE=teleport-v10-amd64" --export-cache type=local,dest="/go/buildx-cache"
-    --import-cache type=local,dest="/go/buildx-cache" /tmp/build
+    --build-arg "BASE_IMAGE=teleport-v10-amd64" --cache-from type=local,src="/go/buildx-cache"
+    --cache-to type=local,dest="/go/buildx-cache" /tmp/build
   - docker buildx rm "teleport-lab-v10-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -7850,8 +7850,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm-builder"
   - docker buildx build --load --builder "teleport-lab-v10-arm-builder" --platform
     "linux/arm" --tag "teleport-lab-v10-arm" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
-    --build-arg "BASE_IMAGE=teleport-v10-arm" --export-cache type=local,dest="/go/buildx-cache"
-    --import-cache type=local,dest="/go/buildx-cache" /tmp/build
+    --build-arg "BASE_IMAGE=teleport-v10-arm" --cache-from type=local,src="/go/buildx-cache"
+    --cache-to type=local,dest="/go/buildx-cache" /tmp/build
   - docker buildx rm "teleport-lab-v10-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -7872,8 +7872,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm64-builder"
   - docker buildx build --load --builder "teleport-lab-v10-arm64-builder" --platform
     "linux/arm64" --tag "teleport-lab-v10-arm64" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
-    --build-arg "BASE_IMAGE=teleport-v10-arm64" --export-cache type=local,dest="/go/buildx-cache"
-    --import-cache type=local,dest="/go/buildx-cache" /tmp/build
+    --build-arg "BASE_IMAGE=teleport-v10-arm64" --cache-from type=local,src="/go/buildx-cache"
+    --cache-to type=local,dest="/go/buildx-cache" /tmp/build
   - docker buildx rm "teleport-lab-v10-arm64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -8139,7 +8139,7 @@ steps:
   - docker buildx build --load --builder "teleport-operator-v10-amd64-builder" --platform
     "linux/amd64" --tag "teleport-operator-v10-amd64" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
     --build-arg "COMPILER_PACKAGE=gcc-x86-64-linux-gnu" --build-arg "COMPILER_NAME=x86_64-linux-gnu-gcc"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-amd64-builder"
   environment:
@@ -8161,7 +8161,7 @@ steps:
   - docker buildx build --load --builder "teleport-operator-v10-arm-builder" --platform
     "linux/arm" --tag "teleport-operator-v10-arm" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
     --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf" --build-arg "COMPILER_NAME=arm-linux-gnueabihf-gcc"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-arm-builder"
   environment:
@@ -8183,7 +8183,7 @@ steps:
   - docker buildx build --load --builder "teleport-operator-v10-arm64-builder" --platform
     "linux/arm64" --tag "teleport-operator-v10-arm64" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
     --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu" --build-arg "COMPILER_NAME=aarch64-linux-gnu-gcc"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-arm64-builder"
   environment:
@@ -8584,7 +8584,7 @@ steps:
   - docker buildx build --load --builder "teleport-v9-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag "teleport-v9-amd64" --file "/go/build/Dockerfile"
     --build-arg "DEB_PATH=artifacts/deb/teleport/amd64/$(cat '/go/vars/full-version/v9').deb"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-v9-amd64-builder"
   environment:
@@ -8606,8 +8606,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-v9-arm-builder"
   - docker buildx build --load --builder "teleport-v9-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "teleport-v9-arm" --file "/go/build/Dockerfile" --build-arg
-    "DEB_PATH=artifacts/deb/teleport/arm/$(cat '/go/vars/full-version/v9').deb" --export-cache
-    type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    "DEB_PATH=artifacts/deb/teleport/arm/$(cat '/go/vars/full-version/v9').deb" --cache-from
+    type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-v9-arm-builder"
   environment:
@@ -8630,7 +8630,7 @@ steps:
   - docker buildx build --load --builder "teleport-v9-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag "teleport-v9-arm64" --file "/go/build/Dockerfile"
     --build-arg "DEB_PATH=artifacts/deb/teleport/arm64/$(cat '/go/vars/full-version/v9').deb"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-v9-arm64-builder"
   environment:
@@ -8959,7 +8959,7 @@ steps:
   - docker buildx build --load --builder "teleport-ent-v9-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag "teleport-ent-v9-amd64" --file "/go/build/Dockerfile"
     --build-arg "DEB_PATH=artifacts/deb/teleport-ent/amd64/$(cat '/go/vars/full-version/v9').deb"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-ent-v9-amd64-builder"
   environment:
@@ -8982,7 +8982,7 @@ steps:
   - docker buildx build --load --builder "teleport-ent-v9-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "teleport-ent-v9-arm" --file "/go/build/Dockerfile"
     --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm/$(cat '/go/vars/full-version/v9').deb"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-ent-v9-arm-builder"
   environment:
@@ -9005,7 +9005,7 @@ steps:
   - docker buildx build --load --builder "teleport-ent-v9-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag "teleport-ent-v9-arm64" --file "/go/build/Dockerfile"
     --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm64/$(cat '/go/vars/full-version/v9').deb"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-ent-v9-arm64-builder"
   environment:
@@ -9319,8 +9319,8 @@ steps:
   - docker buildx build --load --builder "teleport-ent-fips-v9-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag "teleport-ent-fips-v9-amd64" --file
     "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent-fips/amd64/$(cat
-    '/go/vars/full-version/v9').deb" --export-cache type=local,dest="/go/buildx-cache"
-    --import-cache type=local,dest="/go/buildx-cache" /go/build
+    '/go/vars/full-version/v9').deb" --cache-from type=local,src="/go/buildx-cache"
+    --cache-to type=local,dest="/go/buildx-cache" /go/build
   - docker buildx rm "teleport-ent-fips-v9-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -9460,8 +9460,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-lab-v9-amd64-builder"
   - docker buildx build --load --builder "teleport-lab-v9-amd64-builder" --platform
     "linux/amd64" --tag "teleport-lab-v9-amd64" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
-    --build-arg "BASE_IMAGE=teleport-v9-amd64" --export-cache type=local,dest="/go/buildx-cache"
-    --import-cache type=local,dest="/go/buildx-cache" /tmp/build
+    --build-arg "BASE_IMAGE=teleport-v9-amd64" --cache-from type=local,src="/go/buildx-cache"
+    --cache-to type=local,dest="/go/buildx-cache" /tmp/build
   - docker buildx rm "teleport-lab-v9-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -9482,8 +9482,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-lab-v9-arm-builder"
   - docker buildx build --load --builder "teleport-lab-v9-arm-builder" --platform
     "linux/arm" --tag "teleport-lab-v9-arm" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
-    --build-arg "BASE_IMAGE=teleport-v9-arm" --export-cache type=local,dest="/go/buildx-cache"
-    --import-cache type=local,dest="/go/buildx-cache" /tmp/build
+    --build-arg "BASE_IMAGE=teleport-v9-arm" --cache-from type=local,src="/go/buildx-cache"
+    --cache-to type=local,dest="/go/buildx-cache" /tmp/build
   - docker buildx rm "teleport-lab-v9-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -9504,8 +9504,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-lab-v9-arm64-builder"
   - docker buildx build --load --builder "teleport-lab-v9-arm64-builder" --platform
     "linux/arm64" --tag "teleport-lab-v9-arm64" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
-    --build-arg "BASE_IMAGE=teleport-v9-arm64" --export-cache type=local,dest="/go/buildx-cache"
-    --import-cache type=local,dest="/go/buildx-cache" /tmp/build
+    --build-arg "BASE_IMAGE=teleport-v9-arm64" --cache-from type=local,src="/go/buildx-cache"
+    --cache-to type=local,dest="/go/buildx-cache" /tmp/build
   - docker buildx rm "teleport-lab-v9-arm64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -9771,7 +9771,7 @@ steps:
   - docker buildx build --load --builder "teleport-operator-v9-amd64-builder" --platform
     "linux/amd64" --tag "teleport-operator-v9-amd64" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
     --build-arg "COMPILER_PACKAGE=gcc-x86-64-linux-gnu" --build-arg "COMPILER_NAME=x86_64-linux-gnu-gcc"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v9-amd64-builder"
   environment:
@@ -9793,7 +9793,7 @@ steps:
   - docker buildx build --load --builder "teleport-operator-v9-arm-builder" --platform
     "linux/arm" --tag "teleport-operator-v9-arm" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
     --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf" --build-arg "COMPILER_NAME=arm-linux-gnueabihf-gcc"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v9-arm-builder"
   environment:
@@ -9815,7 +9815,7 @@ steps:
   - docker buildx build --load --builder "teleport-operator-v9-arm64-builder" --platform
     "linux/arm64" --tag "teleport-operator-v9-arm64" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
     --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu" --build-arg "COMPILER_NAME=aarch64-linux-gnu-gcc"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v9-arm64-builder"
   environment:
@@ -10215,7 +10215,7 @@ steps:
   - docker buildx build --load --builder "teleport-v8-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag "teleport-v8-amd64" --file "/go/build/Dockerfile"
     --build-arg "DEB_PATH=artifacts/deb/teleport/amd64/$(cat '/go/vars/full-version/v8').deb"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-v8-amd64-builder"
   environment:
@@ -10237,8 +10237,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-v8-arm-builder"
   - docker buildx build --load --builder "teleport-v8-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "teleport-v8-arm" --file "/go/build/Dockerfile" --build-arg
-    "DEB_PATH=artifacts/deb/teleport/arm/$(cat '/go/vars/full-version/v8').deb" --export-cache
-    type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    "DEB_PATH=artifacts/deb/teleport/arm/$(cat '/go/vars/full-version/v8').deb" --cache-from
+    type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-v8-arm-builder"
   environment:
@@ -10261,7 +10261,7 @@ steps:
   - docker buildx build --load --builder "teleport-v8-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag "teleport-v8-arm64" --file "/go/build/Dockerfile"
     --build-arg "DEB_PATH=artifacts/deb/teleport/arm64/$(cat '/go/vars/full-version/v8').deb"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-v8-arm64-builder"
   environment:
@@ -10590,7 +10590,7 @@ steps:
   - docker buildx build --load --builder "teleport-ent-v8-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag "teleport-ent-v8-amd64" --file "/go/build/Dockerfile"
     --build-arg "DEB_PATH=artifacts/deb/teleport-ent/amd64/$(cat '/go/vars/full-version/v8').deb"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-ent-v8-amd64-builder"
   environment:
@@ -10613,7 +10613,7 @@ steps:
   - docker buildx build --load --builder "teleport-ent-v8-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "teleport-ent-v8-arm" --file "/go/build/Dockerfile"
     --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm/$(cat '/go/vars/full-version/v8').deb"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-ent-v8-arm-builder"
   environment:
@@ -10636,7 +10636,7 @@ steps:
   - docker buildx build --load --builder "teleport-ent-v8-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag "teleport-ent-v8-arm64" --file "/go/build/Dockerfile"
     --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm64/$(cat '/go/vars/full-version/v8').deb"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-ent-v8-arm64-builder"
   environment:
@@ -10950,8 +10950,8 @@ steps:
   - docker buildx build --load --builder "teleport-ent-fips-v8-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag "teleport-ent-fips-v8-amd64" --file
     "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent-fips/amd64/$(cat
-    '/go/vars/full-version/v8').deb" --export-cache type=local,dest="/go/buildx-cache"
-    --import-cache type=local,dest="/go/buildx-cache" /go/build
+    '/go/vars/full-version/v8').deb" --cache-from type=local,src="/go/buildx-cache"
+    --cache-to type=local,dest="/go/buildx-cache" /go/build
   - docker buildx rm "teleport-ent-fips-v8-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -11091,8 +11091,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-lab-v8-amd64-builder"
   - docker buildx build --load --builder "teleport-lab-v8-amd64-builder" --platform
     "linux/amd64" --tag "teleport-lab-v8-amd64" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
-    --build-arg "BASE_IMAGE=teleport-v8-amd64" --export-cache type=local,dest="/go/buildx-cache"
-    --import-cache type=local,dest="/go/buildx-cache" /tmp/build
+    --build-arg "BASE_IMAGE=teleport-v8-amd64" --cache-from type=local,src="/go/buildx-cache"
+    --cache-to type=local,dest="/go/buildx-cache" /tmp/build
   - docker buildx rm "teleport-lab-v8-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -11113,8 +11113,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-lab-v8-arm-builder"
   - docker buildx build --load --builder "teleport-lab-v8-arm-builder" --platform
     "linux/arm" --tag "teleport-lab-v8-arm" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
-    --build-arg "BASE_IMAGE=teleport-v8-arm" --export-cache type=local,dest="/go/buildx-cache"
-    --import-cache type=local,dest="/go/buildx-cache" /tmp/build
+    --build-arg "BASE_IMAGE=teleport-v8-arm" --cache-from type=local,src="/go/buildx-cache"
+    --cache-to type=local,dest="/go/buildx-cache" /tmp/build
   - docker buildx rm "teleport-lab-v8-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -11135,8 +11135,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-lab-v8-arm64-builder"
   - docker buildx build --load --builder "teleport-lab-v8-arm64-builder" --platform
     "linux/arm64" --tag "teleport-lab-v8-arm64" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
-    --build-arg "BASE_IMAGE=teleport-v8-arm64" --export-cache type=local,dest="/go/buildx-cache"
-    --import-cache type=local,dest="/go/buildx-cache" /tmp/build
+    --build-arg "BASE_IMAGE=teleport-v8-arm64" --cache-from type=local,src="/go/buildx-cache"
+    --cache-to type=local,dest="/go/buildx-cache" /tmp/build
   - docker buildx rm "teleport-lab-v8-arm64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -11402,7 +11402,7 @@ steps:
   - docker buildx build --load --builder "teleport-operator-v8-amd64-builder" --platform
     "linux/amd64" --tag "teleport-operator-v8-amd64" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
     --build-arg "COMPILER_PACKAGE=gcc-x86-64-linux-gnu" --build-arg "COMPILER_NAME=x86_64-linux-gnu-gcc"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v8-amd64-builder"
   environment:
@@ -11424,7 +11424,7 @@ steps:
   - docker buildx build --load --builder "teleport-operator-v8-arm-builder" --platform
     "linux/arm" --tag "teleport-operator-v8-arm" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
     --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf" --build-arg "COMPILER_NAME=arm-linux-gnueabihf-gcc"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v8-arm-builder"
   environment:
@@ -11446,7 +11446,7 @@ steps:
   - docker buildx build --load --builder "teleport-operator-v8-arm64-builder" --platform
     "linux/arm64" --tag "teleport-operator-v8-arm64" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
     --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu" --build-arg "COMPILER_NAME=aarch64-linux-gnu-gcc"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v8-arm64-builder"
   environment:
@@ -11853,8 +11853,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-v10-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag "teleport-v10-amd64" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=artifacts/deb/teleport/amd64/$DRONE_TAG.deb" --export-cache
-    type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --build-arg "DEB_PATH=artifacts/deb/teleport/amd64/$DRONE_TAG.deb" --cache-from
+    type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-v10-amd64-builder"
   environment:
@@ -11877,8 +11877,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-v10-arm-builder"
   - docker buildx build --load --builder "teleport-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "teleport-v10-arm" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=artifacts/deb/teleport/arm/$DRONE_TAG.deb" --export-cache
-    type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --build-arg "DEB_PATH=artifacts/deb/teleport/arm/$DRONE_TAG.deb" --cache-from
+    type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-v10-arm-builder"
   environment:
@@ -11901,8 +11901,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-v10-arm64-builder"
   - docker buildx build --load --builder "teleport-v10-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag "teleport-v10-arm64" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=artifacts/deb/teleport/arm64/$DRONE_TAG.deb" --export-cache
-    type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --build-arg "DEB_PATH=artifacts/deb/teleport/arm64/$DRONE_TAG.deb" --cache-from
+    type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-v10-arm64-builder"
   environment:
@@ -12229,8 +12229,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-ent-v10-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag "teleport-ent-v10-amd64" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=artifacts/deb/teleport-ent/amd64/$DRONE_TAG.deb" --export-cache
-    type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --build-arg "DEB_PATH=artifacts/deb/teleport-ent/amd64/$DRONE_TAG.deb" --cache-from
+    type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-ent-v10-amd64-builder"
   environment:
@@ -12253,8 +12253,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm-builder"
   - docker buildx build --load --builder "teleport-ent-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "teleport-ent-v10-arm" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm/$DRONE_TAG.deb" --export-cache
-    type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm/$DRONE_TAG.deb" --cache-from
+    type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-ent-v10-arm-builder"
   environment:
@@ -12277,8 +12277,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm64-builder"
   - docker buildx build --load --builder "teleport-ent-v10-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag "teleport-ent-v10-arm64" --file "/go/build/Dockerfile"
-    --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm64/$DRONE_TAG.deb" --export-cache
-    type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm64/$DRONE_TAG.deb" --cache-from
+    type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-ent-v10-arm64-builder"
   environment:
@@ -12593,7 +12593,7 @@ steps:
   - docker buildx build --load --builder "teleport-ent-fips-v10-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag "teleport-ent-fips-v10-amd64" --file
     "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent-fips/amd64/$DRONE_TAG.deb"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/build
   - docker buildx rm "teleport-ent-fips-v10-amd64-builder"
   environment:
@@ -12736,8 +12736,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-amd64-builder"
   - docker buildx build --load --builder "teleport-lab-v10-amd64-builder" --platform
     "linux/amd64" --tag "teleport-lab-v10-amd64" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
-    --build-arg "BASE_IMAGE=teleport-v10-amd64" --export-cache type=local,dest="/go/buildx-cache"
-    --import-cache type=local,dest="/go/buildx-cache" /tmp/build
+    --build-arg "BASE_IMAGE=teleport-v10-amd64" --cache-from type=local,src="/go/buildx-cache"
+    --cache-to type=local,dest="/go/buildx-cache" /tmp/build
   - docker buildx rm "teleport-lab-v10-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -12759,8 +12759,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm-builder"
   - docker buildx build --load --builder "teleport-lab-v10-arm-builder" --platform
     "linux/arm" --tag "teleport-lab-v10-arm" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
-    --build-arg "BASE_IMAGE=teleport-v10-arm" --export-cache type=local,dest="/go/buildx-cache"
-    --import-cache type=local,dest="/go/buildx-cache" /tmp/build
+    --build-arg "BASE_IMAGE=teleport-v10-arm" --cache-from type=local,src="/go/buildx-cache"
+    --cache-to type=local,dest="/go/buildx-cache" /tmp/build
   - docker buildx rm "teleport-lab-v10-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -12782,8 +12782,8 @@ steps:
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm64-builder"
   - docker buildx build --load --builder "teleport-lab-v10-arm64-builder" --platform
     "linux/arm64" --tag "teleport-lab-v10-arm64" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
-    --build-arg "BASE_IMAGE=teleport-v10-arm64" --export-cache type=local,dest="/go/buildx-cache"
-    --import-cache type=local,dest="/go/buildx-cache" /tmp/build
+    --build-arg "BASE_IMAGE=teleport-v10-arm64" --cache-from type=local,src="/go/buildx-cache"
+    --cache-to type=local,dest="/go/buildx-cache" /tmp/build
   - docker buildx rm "teleport-lab-v10-arm64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
@@ -13050,7 +13050,7 @@ steps:
   - docker buildx build --load --builder "teleport-operator-v10-amd64-builder" --platform
     "linux/amd64" --tag "teleport-operator-v10-amd64" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
     --build-arg "COMPILER_PACKAGE=gcc-x86-64-linux-gnu" --build-arg "COMPILER_NAME=x86_64-linux-gnu-gcc"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-amd64-builder"
   environment:
@@ -13073,7 +13073,7 @@ steps:
   - docker buildx build --load --builder "teleport-operator-v10-arm-builder" --platform
     "linux/arm" --tag "teleport-operator-v10-arm" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
     --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf" --build-arg "COMPILER_NAME=arm-linux-gnueabihf-gcc"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-arm-builder"
   environment:
@@ -13096,7 +13096,7 @@ steps:
   - docker buildx build --load --builder "teleport-operator-v10-arm64-builder" --platform
     "linux/arm64" --tag "teleport-operator-v10-arm64" --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile"
     --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu" --build-arg "COMPILER_NAME=aarch64-linux-gnu-gcc"
-    --export-cache type=local,dest="/go/buildx-cache" --import-cache type=local,dest="/go/buildx-cache"
+    --cache-from type=local,src="/go/buildx-cache" --cache-to type=local,dest="/go/buildx-cache"
     /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-arm64-builder"
   environment:
@@ -13845,6 +13845,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 79446a2b84aa6cc053597db940b332d0f3f5036e7df8451e810ca231b6e9ceed
+hmac: ec001d15763a2d9a17f750730a8a25d38dd626253f18abec38ea8409467161b9
 
 ...

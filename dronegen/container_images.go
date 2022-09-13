@@ -586,8 +586,8 @@ func (p *product) createBuildStep(arch string, version *releaseVersion) (step, *
 	// This buildx `docker-container` driver (which is required for multiarch builds)
 	// does not support the normal `docker image` cache. This caches layers between
 	// steps via the filesystem.
-	buildCommand += fmt.Sprintf(" --export-cache type=local,dest=%q", buildCachePath)
-	buildCommand += fmt.Sprintf(" --import-cache type=local,dest=%q", buildCachePath)
+	buildCommand += fmt.Sprintf(" --cache-from type=local,src=%q", buildCachePath)
+	buildCommand += fmt.Sprintf(" --cache-to type=local,dest=%q", buildCachePath)
 	buildCommand += " " + p.WorkingDirectory
 
 	step := step{
