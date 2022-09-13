@@ -17,13 +17,14 @@ Additionally, self-signed certificates can cause problems when interacting with 
 `teleport`, `tsh`, or `tctl`.
 
 <Notice type="warning" title="DO NOT USE THIS IN PRODUCTION">
-  **DO NOT USE SELF-SIGNED CERTS IN PRODUCTION**
+  **DO NOT USE SELF-SIGNED CERTIFICATES IN PRODUCTION**
 
-  It is not recommended to run Teleport in production with self-signed certificates.
-  It is important to [properly configure certificates](#configuring-certificates-properly) from a trusted
-  [Certificate Authority](https://goteleport.com/blog/ssh-certificate-authorities-explained/)
-  to prevent a [Man-In-The-Middle (MITM)](https://en.wikipedia.org/wiki/Man-in-the-middle_attack) attack.
-
+  Configuring your cluster to trust self-signed certificates
+  makes it easier for attackers to intercept communications
+  between the Proxy Service and clients, since there is no
+  way to verify the authenticity of the certificates.
+  It is therefore important to [properly configure certificates](#configuring-certificates-properly)
+  when using Teleport in production.
 </Notice>
 
 ## Prerequisites
