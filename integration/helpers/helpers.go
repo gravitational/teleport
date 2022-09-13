@@ -28,7 +28,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -40,12 +42,9 @@ import (
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/teleagent"
-
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh/agent"
 )
 
-// commandOptions controls how the SSH command is built.
+// CommandOptions controls how the SSH command is built.
 type CommandOptions struct {
 	ForwardAgent bool
 	ForcePTY     bool
