@@ -58,7 +58,7 @@ However, requiring a second admin to guard this situation is not good for user e
 
 ## Why
 
-When a user locks themselves are unable to further manage the teleport cluster. We want to prevent that since this is bad for the user experience and prevents them from using the product.
+When a user locks themselves out, they are unable to further manage the teleport cluster. We want to prevent that since this is bad for the user experience and prevents them from using the product.
 
 Further, for our Cloud offering, we don't perform account resets as a policy. The only recourse for a customer is to delete their cluster & deploy a new one. This inevitably leads to data loss.
 
