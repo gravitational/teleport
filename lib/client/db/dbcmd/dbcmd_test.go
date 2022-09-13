@@ -739,7 +739,7 @@ func TestGetConnectCommandNoAbsPathIsNoopWhenGivenRelativePath(t *testing.T) {
 }
 
 func TestConvertCommandError(t *testing.T) {
-        t.Parallel()
+	t.Parallel()
 	homePath := t.TempDir()
 	conf := &client.Config{
 		HomePath:     homePath,
