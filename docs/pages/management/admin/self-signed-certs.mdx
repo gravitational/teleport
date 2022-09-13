@@ -65,13 +65,38 @@ running it: via the `teleport` CLI, using a Helm chart, or via systemd:
     <TabItem label="Helm chart">
     For deploying a cluster, set
     [extraArgs](../../reference/helm-reference/teleport-cluster.mdx#extraargs)
-    to include the extra argument: `--insecure`.
+    to include the extra argument: `--insecure`:
+    <Tabs>
+      <TabItem label="values.yaml">
+      ```yaml
+      extraArgs:
+      - "--insecure"
+      ```
+      </TabItem>
+      <TabItem label="--set">
+      ```code
+      $ --set "extraArgs={--insecure}"
+      ```
+      </TabItem>
+    </Tabs>
     
     
     For a Helm Kube Agent, set the 
     [insecureSkipProxyTLSVerify
     ](../../reference/helm-reference/teleport-kube-agent.mdx#insecureskipproxytlsverify)
-    flag to `true`.
+    flag to `true`:
+    <Tabs>
+      <TabItem label="values.yaml">
+      ```yaml
+      insecureSkipProxyTLSVerify: true
+      ```
+      </TabItem>
+      <TabItem label="--set">
+      ```code
+      $ --set insecureSkipProxyTLSVerify=true
+      ```
+      </TabItem>
+    </Tabs>
     </TabItem>
 
     <TabItem label="Running teleport via systemd">
