@@ -102,10 +102,15 @@ running it: via the `teleport` CLI, using a Helm chart, or via systemd:
     <TabItem label="systemd">
     Edit the `systemd` Teleport unit file to include `--insecure` in the `ExecStart` line, for example:
     
-    `ExecStart=/usr/local/bin/teleport start --pid-file=/run/teleport.pid --insecure`
+    ```text
+    ExecStart=/usr/local/bin/teleport start --pid-file=/run/teleport.pid --insecure
+    ```
     
-    You also need to run `sudo systemctl daemon-reload` and then `sudo systemctl restart teleport.service`
-    for your change to take effect.
+    You also need to reload the daemon for your changes to take effect:
+    ```sh
+    $ sudo systemctl daemon-reload
+    $ sudo systemctl restart teleport.service
+    ```
     
     See [create a systemd service](./daemon.mdx#step-23-create-and-configure-a-systemd-service) for
     more information.
