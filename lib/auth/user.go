@@ -265,7 +265,7 @@ func (s *Server) checkUserRoleConstraint(ctx context.Context, user types.User, r
 		return Contains(rolesWithUpdateRolesRule, role)
 	})
 
-	isUserLoosingPermissionToEditRoles := isUserWithPermissionToEditRoles && !isUpdatedUserWithPermissionToEditRoles
+	isUserLosingPermissionToEditRoles := isUserWithPermissionToEditRoles && !isUpdatedUserWithPermissionToEditRoles
 
 	if !isUserLoosingPermissionToEditRoles {
 		return nil
