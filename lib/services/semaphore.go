@@ -184,6 +184,14 @@ Outer:
 				l.retry.Inc()
 				select {
 				case <-l.retry.After():
+				case tick = <-l.ticker.C:
+					// check to make sure that we still have some time on the lease. the default tick rate would have
+					// us waking _as_ the lease expires here, but if we're working with a higher tick rate, its worth
+					// retrying again.
+					if !lease.Expires.After(tick) {
+						leaseCancel()
+						return
+					}
 				case <-leaseContext.Done():
 					leaseCancel() // demanded by linter
 					return

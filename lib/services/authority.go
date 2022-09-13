@@ -301,6 +301,8 @@ type UserCertParams struct {
 	Generation uint64
 	// AllowedResourceIDs lists the resources the user should be able to access.
 	AllowedResourceIDs string
+	// ConnectionDiagnosticID references the ConnectionDiagnostic that we should use to append traces when testing a Connection.
+	ConnectionDiagnosticID string
 }
 
 // CheckAndSetDefaults checks the user certificate parameters

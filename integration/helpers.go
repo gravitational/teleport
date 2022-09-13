@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+
 	"github.com/gravitational/teleport/lib/client"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
@@ -418,7 +419,7 @@ type UserCreds struct {
 
 // SetupUserCreds sets up user credentials for client
 func SetupUserCreds(tc *client.TeleportClient, proxyHost string, creds UserCreds) error {
-	_, err := tc.AddKey(&creds.Key)
+	err := tc.AddKey(&creds.Key)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -481,13 +482,13 @@ type UserCredsRequest struct {
 
 // GenerateUserCreds generates key to be used by client
 func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
-	priv, pub, err := testauthority.New().GenerateKeyPair()
+	priv, err := testauthority.New().GeneratePrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	a := req.Process.GetAuthServer()
 	sshCert, x509Cert, err := a.GenerateUserTestCerts(
-		pub, req.Username, time.Hour, constants.CertificateFormatStandard, req.RouteToCluster, req.SourceIP)
+		priv.MarshalSSHPublicKey(), req.Username, time.Hour, constants.CertificateFormatStandard, req.RouteToCluster, req.SourceIP)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -505,10 +506,9 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 	return &UserCreds{
 		HostCA: ca,
 		Key: client.Key{
-			Priv:    priv,
-			Pub:     pub,
-			Cert:    sshCert,
-			TLSCert: x509Cert,
+			PrivateKey: priv,
+			Cert:       sshCert,
+			TLSCert:    x509Cert,
 		},
 	}, nil
 }
@@ -1412,7 +1412,7 @@ func (i *TeleInstance) NewClient(cfg ClientConfig) (*client.TeleportClient, erro
 
 	// Add key to client and update CAs that will be trusted (equivalent to
 	// updating "known hosts" with OpenSSH.
-	_, err = tc.AddKey(&creds.Key)
+	err = tc.AddKey(&creds.Key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1688,33 +1688,22 @@ func externalSSHCommand(o commandOptions) (*exec.Cmd, error) {
 // createAgent creates a SSH agent with the passed in private key and
 // certificate that can be used in tests. This is useful so tests don't
 // clobber your system agent.
-func createAgent(me *user.User, privateKeyByte []byte, certificateBytes []byte) (*teleagent.AgentServer, string, string, error) {
+func createAgent(me *user.User, key *client.Key) (*teleagent.AgentServer, string, string, error) {
 	// create a path to the unix socket
 	sockDirName := "int-test"
 	sockName := "agent.sock"
 
-	// transform the key and certificate bytes into something the agent can understand
-	publicKey, _, _, _, err := ssh.ParseAuthorizedKey(certificateBytes)
+	agentKey, err := key.AsAgentKey()
 	if err != nil {
 		return nil, "", "", trace.Wrap(err)
-	}
-	privateKey, err := ssh.ParseRawPrivateKey(privateKeyByte)
-	if err != nil {
-		return nil, "", "", trace.Wrap(err)
-	}
-	agentKey := agent.AddedKey{
-		PrivateKey:       privateKey,
-		Certificate:      publicKey.(*ssh.Certificate),
-		Comment:          "",
-		LifetimeSecs:     0,
-		ConfirmBeforeUse: false,
 	}
 
-	// create a (unstarted) agent and add the key to it
+	// create a (unstarted) agent and add the agent key(s) to it
 	keyring := agent.NewKeyring()
 	if err := keyring.Add(agentKey); err != nil {
 		return nil, "", "", trace.Wrap(err)
 	}
+
 	teleAgent := teleagent.NewServer(func() (teleagent.Agent, error) {
 		return teleagent.NopCloser(keyring), nil
 	})
@@ -1821,18 +1810,14 @@ func genUserKey() (*client.Key, error) {
 	}
 
 	keygen := testauthority.New()
-	priv, pub, err := keygen.GenerateKeyPair()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cryptoPub, err := sshutils.CryptoPublicKey(pub)
+	priv, err := keygen.GeneratePrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	clock := clockwork.NewRealClock()
 	tlsCert, err := ca.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     clock,
-		PublicKey: cryptoPub,
+		PublicKey: priv.Public(),
 		Subject: pkix.Name{
 			CommonName: "teleport-user",
 		},
@@ -1843,9 +1828,8 @@ func genUserKey() (*client.Key, error) {
 	}
 
 	return &client.Key{
-		Priv:    priv,
-		Pub:     pub,
-		TLSCert: tlsCert,
+		PrivateKey: priv,
+		TLSCert:    tlsCert,
 		TrustedCA: []auth.TrustedCerts{{
 			TLSCertificates: [][]byte{caCert},
 		}},
@@ -1892,12 +1876,12 @@ func (d *disabledIMDSClient) GetTagValue(ctx context.Context, key string) (strin
 }
 
 func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) string {
-	key, err := libclient.NewKey()
+	key, err := libclient.GenerateRSAKey()
 	require.NoError(t, err)
 	key.ClusterName = tc.Secrets.SiteName
 
 	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCerts(
-		key.Pub, username, ttl,
+		key.MarshalSSHPublicKey(), username, ttl,
 		constants.CertificateFormatStandard,
 		tc.Secrets.SiteName, "",
 	)

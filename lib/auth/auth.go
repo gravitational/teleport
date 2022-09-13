@@ -20,7 +20,6 @@ limitations under the License.
 // * Authority server itself that implements signing and acl logic
 // * HTTP server wrapper for authority server
 // * HTTP client wrapper
-//
 package auth
 
 import (
@@ -37,6 +36,7 @@ import (
 	insecurerand "math/rand"
 	"net"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -52,6 +52,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/mod/semver"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -82,6 +83,8 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
+	vc "github.com/gravitational/teleport/lib/versioncontrol"
+	"github.com/gravitational/teleport/lib/versioncontrol/github"
 )
 
 const (
@@ -162,6 +165,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.AssertionReplayService == nil {
+		cfg.AssertionReplayService = local.NewAssertionReplayService(cfg.Backend)
+	}
 	if cfg.KeyStoreConfig.RSAKeyPairSource == nil {
 		native.PrecomputeKeys()
 		cfg.KeyStoreConfig.RSAKeyPairSource = native.GenerateKeyPair
@@ -201,7 +207,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		WindowsDesktops:       cfg.WindowsDesktops,
 		SessionTrackerService: cfg.SessionTrackerService,
 		ConnectionsDiagnostic: cfg.ConnectionsDiagnostic,
-		Status:                cfg.Status,
+		StatusInternal:        cfg.Status,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -218,7 +224,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		closeCtx:        closeCtx,
 		emitter:         cfg.Emitter,
 		streamer:        cfg.Streamer,
-		unstable:        local.NewUnstableService(cfg.Backend),
+		unstable:        local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
 		Services:        services,
 		Cache:           services,
 		keyStore:        keyStore,
@@ -252,7 +258,7 @@ type Services struct {
 	services.WindowsDesktops
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
-	services.Status
+	services.StatusInternal
 	types.Events
 	events.IAuditLog
 }
@@ -332,8 +338,8 @@ var (
 // Server keeps the cluster together. It acts as a certificate authority (CA) for
 // a cluster and:
 //   - generates the keypair for the node it's running on
-//	 - invites other SSH nodes to a cluster, by issuing invite tokens
-//	 - adds other SSH nodes to a cluster, by checking their token and signing their keys
+//   - invites other SSH nodes to a cluster, by issuing invite tokens
+//   - adds other SSH nodes to a cluster, by checking their token and signing their keys
 //   - same for users and their sessions
 //   - checks public keys to see if they're signed by it (can be trusted or not)
 type Server struct {
@@ -451,6 +457,24 @@ func (a *Server) runPeriodicOperations() {
 	defer ticker.Stop()
 	defer heartbeatCheckTicker.Stop()
 	defer promTicker.Stop()
+
+	firstReleaseCheck := utils.FullJitter(time.Hour * 6)
+
+	// this environment variable is "unstable" since it will be deprecated
+	// by an upcoming tctl command. currently exists for testing purposes only.
+	if os.Getenv("TELEPORT_UNSTABLE_VC_SYNC_ON_START") == "yes" {
+		firstReleaseCheck = utils.HalfJitter(time.Second * 10)
+	}
+
+	// note the use of FullJitter for the releases check interval. this lets us ensure
+	// that frequent restarts don't prevent checks from happening despite the infrequent
+	// effective check rate.
+	releaseCheck := interval.New(interval.Config{
+		Duration:      time.Hour * 24,
+		FirstDuration: firstReleaseCheck,
+		Jitter:        utils.NewFullJitter(),
+	})
+	defer releaseCheck.Stop()
 	for {
 		select {
 		case <-a.closeCtx.Done():
@@ -478,8 +502,94 @@ func (a *Server) runPeriodicOperations() {
 			heartbeatsMissedByAuth.Set(float64(missedKeepAliveCount))
 		case <-promTicker.C:
 			a.updateVersionMetrics()
+		case <-releaseCheck.Next():
+			a.checkForReleases(ctx)
 		}
 	}
+}
+
+// checkForReleases loads latest github releases and generates an alert if
+// an appropriate upgrade is available.
+func (a *Server) checkForReleases(ctx context.Context) {
+	const alertID = "upgrade-suggestion"
+	log.Debug("Checking for new teleport releases via github api.")
+
+	// NOTE: essentially everything in this function is going to be
+	// scrapped/replaced once the inventory and version-control systems
+	// are a bit further along.
+
+	var loadFailed bool
+	current := vc.Normalize(teleport.Version)
+
+	latest, err := github.LatestStable()
+	if err != nil {
+		log.Warnf("Failed to load github releases: %v (this will not impact teleport functionality)", err)
+		loadFailed = true
+		latest = current
+	}
+
+	// use visitor to find the oldest version among connected instances
+	// TODO(fspmarshall): replace this check as soon as we have a backend inventory repr. using
+	// connected instances is a poor approximation and may lead to missed notifications if auth
+	// server is up to date, but instances not connected to this auth need update.
+	var instanceVisitor vc.Visitor
+	a.inventory.Iter(func(handle inventory.UpstreamHandle) {
+		instanceVisitor.Visit(vc.Normalize(handle.Hello().Version))
+	})
+
+	msg := makeUpgradeSuggestionMsg(current, latest, instanceVisitor.Oldest())
+
+	if msg != "" {
+		alert, err := types.NewClusterAlert(
+			alertID,
+			msg,
+			// Defaulting to "low" severity level. We may want to make this dynamic
+			// in the future depending on the distance from up-to-date.
+			types.WithAlertSeverity(types.AlertSeverity_LOW),
+			types.WithAlertLabel(types.AlertOnLogin, "yes"),
+			types.WithAlertLabel(types.AlertPermitAll, "yes"),
+		)
+		if err != nil {
+			log.Warnf("Failed to build %s alert: %v (this is a bug)", alertID, err)
+			return
+		}
+		if err := a.UpsertClusterAlert(ctx, alert); err != nil {
+			log.Warnf("Failed to set %s alert: %v", alertID, err)
+			return
+		}
+	} else if !loadFailed {
+		log.Debugf("Cluster appears up to date, clearing %s alert.", alertID)
+		err := a.DeleteClusterAlert(ctx, alertID)
+		if err != nil && !trace.IsNotFound(err) {
+			log.Warnf("Failed to delete %s alert: %v", alertID, err)
+		}
+	}
+}
+
+// makeUpgradeSuggestionMsg generates an upgrade suggestion alert msg if one is
+// needed (returns "" if everything looks up to date).
+func makeUpgradeSuggestionMsg(current, latest, oldestInstance string) string {
+	// check if this teleport instance wants upgrade
+	if semver.Compare(latest, current) == 1 {
+		// specialize the message a bit to distinguish between a major and minor upgrade.
+		var msg string
+		if semver.Major(latest) != semver.Major(current) {
+			log.Debugf("Generating alert msg for new major version. current=%s, latest=%s", current, latest)
+			msg = fmt.Sprintf("The latest major version of Teleport is %s. Please consider upgrading your Cluster.", semver.Major(latest))
+		} else {
+			log.Debugf("Generating alert msg for new minor or patch release. current=%s, latest=%s", current, latest)
+			msg = fmt.Sprintf("Teleport %s is now available, please consider upgrading your cluster.", latest)
+		}
+		return msg
+	}
+
+	if oldestInstance != "" && semver.Compare(latest, oldestInstance) == 1 {
+		log.Debugf("Generating alert msg for older peripheral instance(s). latest=%s, oldestInstance=%s", latest, oldestInstance)
+		// at least one connected instance is older than this auth server.
+		return "Some Agents within this Cluster are running an older version of Teleport.  Please consider upgrading them."
+	}
+
+	return ""
 }
 
 // updateVersionMetrics leverages the cache to report all versions of teleport servers connected to the
@@ -787,6 +897,9 @@ type certRequest struct {
 	// generation indicates the number of times this certificate has been
 	// renewed.
 	generation uint64
+	// connectionDiagnosticID contains the ID of the ConnectionDiagnostic.
+	// The Node/Agent will append connection traces to this instance.
+	connectionDiagnosticID string
 }
 
 // check verifies the cert request is valid.
@@ -1082,28 +1195,29 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	}
 
 	params := services.UserCertParams{
-		CASigner:              caSigner,
-		PublicUserKey:         req.publicKey,
-		Username:              req.user.GetName(),
-		Impersonator:          req.impersonator,
-		AllowedLogins:         allowedLogins,
-		TTL:                   sessionTTL,
-		Roles:                 req.checker.RoleNames(),
-		CertificateFormat:     certificateFormat,
-		PermitPortForwarding:  req.checker.CanPortForward(),
-		PermitAgentForwarding: req.checker.CanForwardAgents(),
-		PermitX11Forwarding:   req.checker.PermitX11Forwarding(),
-		RouteToCluster:        req.routeToCluster,
-		Traits:                req.traits,
-		ActiveRequests:        req.activeRequests,
-		MFAVerified:           req.mfaVerified,
-		ClientIP:              req.clientIP,
-		DisallowReissue:       req.disallowReissue,
-		Renewable:             req.renewable,
-		Generation:            req.generation,
-		CertificateExtensions: req.checker.CertificateExtensions(),
-		AllowedResourceIDs:    requestedResourcesStr,
-		SourceIP:              req.sourceIP,
+		CASigner:               caSigner,
+		PublicUserKey:          req.publicKey,
+		Username:               req.user.GetName(),
+		Impersonator:           req.impersonator,
+		AllowedLogins:          allowedLogins,
+		TTL:                    sessionTTL,
+		Roles:                  req.checker.RoleNames(),
+		CertificateFormat:      certificateFormat,
+		PermitPortForwarding:   req.checker.CanPortForward(),
+		PermitAgentForwarding:  req.checker.CanForwardAgents(),
+		PermitX11Forwarding:    req.checker.PermitX11Forwarding(),
+		RouteToCluster:         req.routeToCluster,
+		Traits:                 req.traits,
+		ActiveRequests:         req.activeRequests,
+		MFAVerified:            req.mfaVerified,
+		ClientIP:               req.clientIP,
+		DisallowReissue:        req.disallowReissue,
+		Renewable:              req.renewable,
+		Generation:             req.generation,
+		CertificateExtensions:  req.checker.CertificateExtensions(),
+		AllowedResourceIDs:     requestedResourcesStr,
+		SourceIP:               req.sourceIP,
+		ConnectionDiagnosticID: req.connectionDiagnosticID,
 	}
 	sshCert, err := a.Authority.GenerateUserCert(params)
 	if err != nil {
@@ -1865,7 +1979,17 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 	allowedResourceIDs := accessInfo.AllowedResourceIDs
 	accessRequests := identity.ActiveRequests
 
-	if req.AccessRequestID != "" {
+	if req.ReloadUser {
+		// We don't call from the cache layer because we want to
+		// retrieve the recently updated user. Otherwise the cache
+		// returns stale data.
+		user, err := a.Identity.GetUser(req.User, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		traits = user.GetTraits()
+
+	} else if req.AccessRequestID != "" {
 		accessRequest, err := a.getValidatedAccessRequest(ctx, req.User, req.AccessRequestID)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1889,9 +2013,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		if expiresAt.After(accessRequest.GetAccessExpiry()) {
 			expiresAt = accessRequest.GetAccessExpiry()
 		}
-	}
-
-	if req.Switchback {
+	} else if req.Switchback {
 		if prevSession.GetLoginTime().IsZero() {
 			return nil, trace.BadParameter("Unable to switchback, log in time was not recorded.")
 		}
@@ -1934,6 +2056,8 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 
 	// Keep preserving the login time.
 	sess.SetLoginTime(prevSession.GetLoginTime())
+
+	sess.SetConsumedAccessRequestID(req.AccessRequestID)
 
 	if err := a.upsertWebSession(ctx, req.User, sess); err != nil {
 		return nil, trace.Wrap(err)
@@ -2583,7 +2707,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 			Expires: req.GetAccessExpiry(),
 		},
 		Roles:                req.GetRoles(),
-		RequestedResourceIDs: types.EventResourceIDs(req.GetRequestedResourceIDs()),
+		RequestedResourceIDs: apievents.ResourceIDs(req.GetRequestedResourceIDs()),
 		RequestID:            req.GetName(),
 		RequestState:         req.GetState().String(),
 		Reason:               req.GetRequestReason(),
