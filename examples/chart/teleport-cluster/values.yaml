@@ -336,6 +336,16 @@ annotations:
   # highAvailability.certManager.enabled is true
   certSecret: {}
 
+# Kubernetes service account to create/use.
+serviceAccount:
+  # Specifies whether a ServiceAccount should be created
+  create: true 
+  # The name of the ServiceAccount to use.
+  # If not set and serviceAccount.create is true, the name is generated using the release name.
+  # If create is false, the name will be used to reference an existing service account.
+  name: ""
+  # To set annotations on the service account, use the annotations.serviceAccount value.
+
 # Options for the Teleport service
 service:
   type: LoadBalancer
