@@ -141,7 +141,7 @@ func setupTestContext(ctx context.Context, t *testing.T, clusters ...kubeCluster
 			StreamEmitter:     testCtx.authClient,
 			DataDir:           t.TempDir(),
 			CachingAuthClient: testCtx.authClient,
-			HostID:            testCtx.hostID,
+			ServerID:          testCtx.hostID,
 			Context:           testCtx.ctx,
 			KubeconfigPath:    kubeConfigLocation,
 			KubeServiceType:   KubeService,
@@ -170,7 +170,6 @@ func setupTestContext(ctx context.Context, t *testing.T, clusters ...kubeCluster
 			default:
 			}
 		},
-		GetRotation: func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
 	})
 	require.NoError(t, err)
 
