@@ -92,6 +92,29 @@ RUN mkdir -p /opt && cd /opt && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     scl enable devtoolset-11 "make && BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install"
 
+## LIBPCSCLITE #####################################################################
+
+FROM centos:7 AS libpcsclite
+
+# Install required dependencies.
+RUN yum groupinstall -y 'Development Tools' && \
+    yum install -y autoconf && \
+    yum update -y && \
+    yum clean all
+
+# Install libpcsclite.
+# Depends on autoconf.
+# We use outdated version 1.8.11 for licence compatibility.
+# Linked so `make build/tshl` finds the library where it expects it.
+RUN git clone --depth=1 https://salsa.debian.org/rousseau/PCSC.git -b 1.8.11 && \
+    cd PCSC && \
+    ./bootstrap && \
+    ./configure && \
+    make && \
+# Update ld.
+    echo /usr/local/lib64 > /etc/ld.so.conf.d/libpcsclite.conf && \
+    ldconfig
+
 ## BUILDBOX ###################################################################
 
 FROM centos:7 AS buildbox
