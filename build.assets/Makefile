@@ -375,7 +375,7 @@ enter-root: buildbox
 #
 .PHONY:enter/centos7
 enter/centos7: buildbox
-	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
+	docker run $(DOCKERFLAGS) -ti \
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_CENTOS7) /bin/bash
 
 #
