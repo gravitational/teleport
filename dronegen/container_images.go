@@ -72,6 +72,8 @@ const (
 	ProductionRegistryOrg string = "gravitational"
 	PublicEcrRegion       string = "us-east-1"
 	StagingEcrRegion      string = "us-west-2"
+
+	LocalRegistry string = "drone-docker-registry:5000"
 )
 
 func buildContainerImagePipelines() []pipeline {
@@ -534,8 +536,7 @@ func (p *product) BuildLocalImageName(arch string, version *releaseVersion) stri
 }
 
 func (p *product) BuildLocalRegistryImageName(arch string, version *releaseVersion) string {
-	localRegistry := "drone-docker-registry:5000"
-	return fmt.Sprintf("%s/%s", localRegistry, p.BuildLocalImageName(arch, version))
+	return fmt.Sprintf("%s/%s", LocalRegistry, p.BuildLocalImageName(arch, version))
 }
 
 func (p *product) BuildSteps(version *releaseVersion, setupStepNames []string) []step {
@@ -578,8 +579,11 @@ func (p *product) createBuildStep(arch string, version *releaseVersion) (step, *
 	localRegistryImageName := p.BuildLocalRegistryImageName(arch, version)
 	builderName := fmt.Sprintf("%s-builder", localImageName)
 
+	buildxConfigFileDir := path.Join("/tmp", builderName)
+	buildxConfigFilePath := path.Join(buildxConfigFileDir, "buildkitd.toml")
+
 	buildCommand := "docker buildx build"
-	buildCommand += " --load"
+	buildCommand += " --push"
 	buildCommand += fmt.Sprintf(" --builder %q", builderName)
 	if p.DockerfileTarget != "" {
 		buildCommand += fmt.Sprintf(" --target %q", p.DockerfileTarget)
@@ -606,10 +610,13 @@ func (p *product) createBuildStep(arch string, version *releaseVersion) (step, *
 		Commands: []string{
 			"docker run --privileged --rm tonistiigi/binfmt --install all",
 			fmt.Sprintf("mkdir -pv %q && cd %q", p.WorkingDirectory, p.WorkingDirectory),
-			fmt.Sprintf("docker buildx create --driver %q --name %q", "docker-container", builderName),
+			fmt.Sprintf("mkdir -pv %q", buildxConfigFileDir),
+			fmt.Sprintf("echo '[registry.%q]' > %q", LocalRegistry, buildxConfigFilePath),
+			fmt.Sprintf("echo '  http = true' >> %q", buildxConfigFilePath),
+			fmt.Sprintf("docker buildx create --driver %q --name %q --config %q", "docker-container", builderName, buildxConfigFilePath),
 			buildCommand,
 			fmt.Sprintf("docker buildx rm %q", builderName),
-			fmt.Sprintf("docker push %q", localRegistryImageName), // This will push to local registry only
+			fmt.Sprintf("rm -rf %q", buildxConfigFileDir),
 		},
 	}
 
@@ -788,6 +795,7 @@ func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput) (step
 		Volumes:     dockerVolumeRefs(),
 		Environment: cr.Environment,
 		Commands: cr.buildCommandsWithLogin([]string{
+			fmt.Sprintf("docker pull %q", buildStepDetails.BuiltImageName), // This will pull from the local registry
 			fmt.Sprintf("docker tag %q %q", buildStepDetails.BuiltImageName, archImageName),
 			fmt.Sprintf("docker push %q", archImageName),
 		}),

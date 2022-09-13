@@ -5186,7 +5186,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:229
+# Generated at dronegen/container_images.go:231
 ################################################
 
 kind: pipeline
@@ -5323,13 +5323,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-v10-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v10-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-v10-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-v10-amd64-builder"
-  - docker buildx build --load --builder "teleport-v10-amd64-builder" --target "teleport"
+    --config "/tmp/teleport-v10-amd64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-v10-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-v10-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/amd64/$(cat
     '/go/vars/full-version/v10').deb" /go/build
   - docker buildx rm "teleport-v10-amd64-builder"
-  - docker push "drone-docker-registry:5000/teleport-v10-amd64"
+  - rm -rf "/tmp/teleport-v10-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -5346,13 +5350,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-v10-arm-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v10-arm-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-v10-arm-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-v10-arm-builder"
-  - docker buildx build --load --builder "teleport-v10-arm-builder" --target "teleport"
+    --config "/tmp/teleport-v10-arm-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "drone-docker-registry:5000/teleport-v10-arm" --file
     "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm/$(cat
     '/go/vars/full-version/v10').deb" /go/build
   - docker buildx rm "teleport-v10-arm-builder"
-  - docker push "drone-docker-registry:5000/teleport-v10-arm"
+  - rm -rf "/tmp/teleport-v10-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -5369,13 +5377,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-v10-arm64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v10-arm64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-v10-arm64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-v10-arm64-builder"
-  - docker buildx build --load --builder "teleport-v10-arm64-builder" --target "teleport"
+    --config "/tmp/teleport-v10-arm64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-v10-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag "drone-docker-registry:5000/teleport-v10-arm64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm64/$(cat
     '/go/vars/full-version/v10').deb" /go/build
   - docker buildx rm "teleport-v10-arm64-builder"
-  - docker push "drone-docker-registry:5000/teleport-v10-arm64"
+  - rm -rf "/tmp/teleport-v10-arm64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -5391,6 +5403,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-v10-amd64" "quay.io/fred_heinecke/teleport:10-amd64"
   - docker push "quay.io/fred_heinecke/teleport:10-amd64"
   - docker logout "quay.io"
@@ -5408,6 +5421,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-v10-arm" "quay.io/fred_heinecke/teleport:10-arm"
   - docker push "quay.io/fred_heinecke/teleport:10-arm"
   - docker logout "quay.io"
@@ -5425,6 +5439,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-v10-arm64" "quay.io/fred_heinecke/teleport:10-arm64"
   - docker push "quay.io/fred_heinecke/teleport:10-arm64"
   - docker logout "quay.io"
@@ -5466,6 +5481,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -5487,6 +5503,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -5508,6 +5525,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -5554,6 +5572,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport:10-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:10-amd64"
   - docker logout "public.ecr.aws"
@@ -5574,6 +5593,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-v10-arm" "public.ecr.aws/u8j2q1d9/teleport:10-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:10-arm"
   - docker logout "public.ecr.aws"
@@ -5594,6 +5614,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-v10-arm64" "public.ecr.aws/u8j2q1d9/teleport:10-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:10-arm64"
   - docker logout "public.ecr.aws"
@@ -5699,13 +5720,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-ent-v10-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v10-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-ent-v10-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-amd64-builder"
-  - docker buildx build --load --builder "teleport-ent-v10-amd64-builder" --target
+    --config "/tmp/teleport-ent-v10-amd64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-ent-v10-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-ent-v10-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/amd64/$(cat
     '/go/vars/full-version/v10').deb" /go/build
   - docker buildx rm "teleport-ent-v10-amd64-builder"
-  - docker push "drone-docker-registry:5000/teleport-ent-v10-amd64"
+  - rm -rf "/tmp/teleport-ent-v10-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -5722,13 +5747,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-ent-v10-arm-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v10-arm-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-ent-v10-arm-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm-builder"
-  - docker buildx build --load --builder "teleport-ent-v10-arm-builder" --target "teleport"
+    --config "/tmp/teleport-ent-v10-arm-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-ent-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "drone-docker-registry:5000/teleport-ent-v10-arm"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm/$(cat
     '/go/vars/full-version/v10').deb" /go/build
   - docker buildx rm "teleport-ent-v10-arm-builder"
-  - docker push "drone-docker-registry:5000/teleport-ent-v10-arm"
+  - rm -rf "/tmp/teleport-ent-v10-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -5745,13 +5774,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-ent-v10-arm64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v10-arm64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-ent-v10-arm64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm64-builder"
-  - docker buildx build --load --builder "teleport-ent-v10-arm64-builder" --target
+    --config "/tmp/teleport-ent-v10-arm64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-ent-v10-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag "drone-docker-registry:5000/teleport-ent-v10-arm64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm64/$(cat
     '/go/vars/full-version/v10').deb" /go/build
   - docker buildx rm "teleport-ent-v10-arm64-builder"
-  - docker push "drone-docker-registry:5000/teleport-ent-v10-arm64"
+  - rm -rf "/tmp/teleport-ent-v10-arm64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -5767,6 +5800,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-ent-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v10-amd64" "quay.io/fred_heinecke/teleport-ent:10-amd64"
   - docker push "quay.io/fred_heinecke/teleport-ent:10-amd64"
   - docker logout "quay.io"
@@ -5784,6 +5818,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-ent-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent-v10-arm" "quay.io/fred_heinecke/teleport-ent:10-arm"
   - docker push "quay.io/fred_heinecke/teleport-ent:10-arm"
   - docker logout "quay.io"
@@ -5801,6 +5836,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-ent-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v10-arm64" "quay.io/fred_heinecke/teleport-ent:10-arm64"
   - docker push "quay.io/fred_heinecke/teleport-ent:10-arm64"
   - docker logout "quay.io"
@@ -5842,6 +5878,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-ent-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -5863,6 +5900,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-ent-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -5884,6 +5922,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-ent-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -5930,6 +5969,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-ent-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport-ent:10-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:10-amd64"
   - docker logout "public.ecr.aws"
@@ -5950,6 +5990,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-ent-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent-v10-arm" "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm"
   - docker logout "public.ecr.aws"
@@ -5970,6 +6011,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-ent-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v10-arm64" "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm64"
   - docker logout "public.ecr.aws"
@@ -6060,13 +6102,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-ent-fips-v10-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-fips-v10-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-ent-fips-v10-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v10-amd64-builder"
-  - docker buildx build --load --builder "teleport-ent-fips-v10-amd64-builder" --target
+    --config "/tmp/teleport-ent-fips-v10-amd64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-ent-fips-v10-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-ent-fips-v10-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent-fips/amd64/$(cat
     '/go/vars/full-version/v10').deb" /go/build
   - docker buildx rm "teleport-ent-fips-v10-amd64-builder"
-  - docker push "drone-docker-registry:5000/teleport-ent-fips-v10-amd64"
+  - rm -rf "/tmp/teleport-ent-fips-v10-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -6082,6 +6128,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-ent-fips-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips-v10-amd64" "quay.io/fred_heinecke/teleport-ent:10-fips-amd64"
   - docker push "quay.io/fred_heinecke/teleport-ent:10-fips-amd64"
   - docker logout "quay.io"
@@ -6120,6 +6167,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-ent-fips-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -6163,6 +6211,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-ent-fips-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport-ent:10-fips-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:10-fips-amd64"
   - docker logout "public.ecr.aws"
@@ -6203,13 +6252,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
+  - mkdir -pv "/tmp/teleport-lab-v10-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v10-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-lab-v10-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-amd64-builder"
-  - docker buildx build --load --builder "teleport-lab-v10-amd64-builder" --platform
+    --config "/tmp/teleport-lab-v10-amd64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-lab-v10-amd64-builder" --platform
     "linux/amd64" --tag "drone-docker-registry:5000/teleport-lab-v10-amd64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
     "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-amd64" /tmp/build
   - docker buildx rm "teleport-lab-v10-amd64-builder"
-  - docker push "drone-docker-registry:5000/teleport-lab-v10-amd64"
+  - rm -rf "/tmp/teleport-lab-v10-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -6226,12 +6279,16 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
+  - mkdir -pv "/tmp/teleport-lab-v10-arm-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm-builder"
-  - docker buildx build --load --builder "teleport-lab-v10-arm-builder" --platform
+    --config "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-lab-v10-arm-builder" --platform
     "linux/arm" --tag "drone-docker-registry:5000/teleport-lab-v10-arm" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
     --build-arg "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-arm" /tmp/build
   - docker buildx rm "teleport-lab-v10-arm-builder"
-  - docker push "drone-docker-registry:5000/teleport-lab-v10-arm"
+  - rm -rf "/tmp/teleport-lab-v10-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -6248,13 +6305,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
+  - mkdir -pv "/tmp/teleport-lab-v10-arm64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v10-arm64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-lab-v10-arm64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm64-builder"
-  - docker buildx build --load --builder "teleport-lab-v10-arm64-builder" --platform
+    --config "/tmp/teleport-lab-v10-arm64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-lab-v10-arm64-builder" --platform
     "linux/arm64" --tag "drone-docker-registry:5000/teleport-lab-v10-arm64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
     "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-arm64" /tmp/build
   - docker buildx rm "teleport-lab-v10-arm64-builder"
-  - docker push "drone-docker-registry:5000/teleport-lab-v10-arm64"
+  - rm -rf "/tmp/teleport-lab-v10-arm64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -6270,6 +6331,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-lab-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v10-amd64" "quay.io/fred_heinecke/teleport-lab:10-amd64"
   - docker push "quay.io/fred_heinecke/teleport-lab:10-amd64"
   - docker logout "quay.io"
@@ -6287,6 +6349,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-lab-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab-v10-arm" "quay.io/fred_heinecke/teleport-lab:10-arm"
   - docker push "quay.io/fred_heinecke/teleport-lab:10-arm"
   - docker logout "quay.io"
@@ -6304,6 +6367,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-lab-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v10-arm64" "quay.io/fred_heinecke/teleport-lab:10-arm64"
   - docker push "quay.io/fred_heinecke/teleport-lab:10-arm64"
   - docker logout "quay.io"
@@ -6345,6 +6409,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-lab-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -6366,6 +6431,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-lab-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -6387,6 +6453,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-lab-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -6433,6 +6500,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-lab-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport-lab:10-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:10-amd64"
   - docker logout "public.ecr.aws"
@@ -6453,6 +6521,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-lab-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab-v10-arm" "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm"
   - docker logout "public.ecr.aws"
@@ -6473,6 +6542,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-lab-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v10-arm64" "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm64"
   - docker logout "public.ecr.aws"
@@ -6515,13 +6585,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/tmp/teleport-operator-v10-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v10-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-operator-v10-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-amd64-builder"
-  - docker buildx build --load --builder "teleport-operator-v10-amd64-builder" --platform
+    --config "/tmp/teleport-operator-v10-amd64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-operator-v10-amd64-builder" --platform
     "linux/amd64" --tag "drone-docker-registry:5000/teleport-operator-v10-amd64" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-x86-64-linux-gnu"
     --build-arg "COMPILER_NAME=x86_64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-amd64-builder"
-  - docker push "drone-docker-registry:5000/teleport-operator-v10-amd64"
+  - rm -rf "/tmp/teleport-operator-v10-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -6537,13 +6611,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/tmp/teleport-operator-v10-arm-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v10-arm-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-operator-v10-arm-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm-builder"
-  - docker buildx build --load --builder "teleport-operator-v10-arm-builder" --platform
+    --config "/tmp/teleport-operator-v10-arm-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-operator-v10-arm-builder" --platform
     "linux/arm" --tag "drone-docker-registry:5000/teleport-operator-v10-arm" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf"
     --build-arg "COMPILER_NAME=arm-linux-gnueabihf-gcc" /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-arm-builder"
-  - docker push "drone-docker-registry:5000/teleport-operator-v10-arm"
+  - rm -rf "/tmp/teleport-operator-v10-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -6559,13 +6637,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/tmp/teleport-operator-v10-arm64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v10-arm64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-operator-v10-arm64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm64-builder"
-  - docker buildx build --load --builder "teleport-operator-v10-arm64-builder" --platform
+    --config "/tmp/teleport-operator-v10-arm64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-operator-v10-arm64-builder" --platform
     "linux/arm64" --tag "drone-docker-registry:5000/teleport-operator-v10-arm64" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu"
     --build-arg "COMPILER_NAME=aarch64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-arm64-builder"
-  - docker push "drone-docker-registry:5000/teleport-operator-v10-arm64"
+  - rm -rf "/tmp/teleport-operator-v10-arm64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -6580,6 +6662,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-operator-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v10-amd64" "quay.io/fred_heinecke/teleport-operator:10-amd64"
   - docker push "quay.io/fred_heinecke/teleport-operator:10-amd64"
   - docker logout "quay.io"
@@ -6597,6 +6680,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-operator-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator-v10-arm" "quay.io/fred_heinecke/teleport-operator:10-arm"
   - docker push "quay.io/fred_heinecke/teleport-operator:10-arm"
   - docker logout "quay.io"
@@ -6614,6 +6698,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-operator-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v10-arm64" "quay.io/fred_heinecke/teleport-operator:10-arm64"
   - docker push "quay.io/fred_heinecke/teleport-operator:10-arm64"
   - docker logout "quay.io"
@@ -6655,6 +6740,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-operator-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -6676,6 +6762,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-operator-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -6697,6 +6784,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-operator-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -6744,6 +6832,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-operator-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport-operator:10-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:10-amd64"
   - docker logout "public.ecr.aws"
@@ -6764,6 +6853,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-operator-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator-v10-arm" "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm"
   - docker logout "public.ecr.aws"
@@ -6785,6 +6875,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-operator-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v10-arm64" "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm64"
   - docker logout "public.ecr.aws"
@@ -6842,7 +6933,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:229
+# Generated at dronegen/container_images.go:231
 ################################################
 
 kind: pipeline
@@ -6976,13 +7067,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-v10-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v10-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-v10-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-v10-amd64-builder"
-  - docker buildx build --load --builder "teleport-v10-amd64-builder" --target "teleport"
+    --config "/tmp/teleport-v10-amd64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-v10-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-v10-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/amd64/$(cat
     '/go/vars/full-version/v10').deb" /go/build
   - docker buildx rm "teleport-v10-amd64-builder"
-  - docker push "drone-docker-registry:5000/teleport-v10-amd64"
+  - rm -rf "/tmp/teleport-v10-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -6999,13 +7094,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-v10-arm-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v10-arm-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-v10-arm-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-v10-arm-builder"
-  - docker buildx build --load --builder "teleport-v10-arm-builder" --target "teleport"
+    --config "/tmp/teleport-v10-arm-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "drone-docker-registry:5000/teleport-v10-arm" --file
     "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm/$(cat
     '/go/vars/full-version/v10').deb" /go/build
   - docker buildx rm "teleport-v10-arm-builder"
-  - docker push "drone-docker-registry:5000/teleport-v10-arm"
+  - rm -rf "/tmp/teleport-v10-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -7022,13 +7121,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-v10-arm64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v10-arm64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-v10-arm64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-v10-arm64-builder"
-  - docker buildx build --load --builder "teleport-v10-arm64-builder" --target "teleport"
+    --config "/tmp/teleport-v10-arm64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-v10-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag "drone-docker-registry:5000/teleport-v10-arm64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm64/$(cat
     '/go/vars/full-version/v10').deb" /go/build
   - docker buildx rm "teleport-v10-arm64-builder"
-  - docker push "drone-docker-registry:5000/teleport-v10-arm64"
+  - rm -rf "/tmp/teleport-v10-arm64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -7044,6 +7147,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-v10-amd64" "quay.io/fred_heinecke/teleport:10-amd64"
   - docker push "quay.io/fred_heinecke/teleport:10-amd64"
   - docker logout "quay.io"
@@ -7061,6 +7165,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-v10-arm" "quay.io/fred_heinecke/teleport:10-arm"
   - docker push "quay.io/fred_heinecke/teleport:10-arm"
   - docker logout "quay.io"
@@ -7078,6 +7183,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-v10-arm64" "quay.io/fred_heinecke/teleport:10-arm64"
   - docker push "quay.io/fred_heinecke/teleport:10-arm64"
   - docker logout "quay.io"
@@ -7119,6 +7225,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -7140,6 +7247,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -7161,6 +7269,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -7207,6 +7316,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport:10-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:10-amd64"
   - docker logout "public.ecr.aws"
@@ -7227,6 +7337,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-v10-arm" "public.ecr.aws/u8j2q1d9/teleport:10-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:10-arm"
   - docker logout "public.ecr.aws"
@@ -7247,6 +7358,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-v10-arm64" "public.ecr.aws/u8j2q1d9/teleport:10-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:10-arm64"
   - docker logout "public.ecr.aws"
@@ -7352,13 +7464,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-ent-v10-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v10-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-ent-v10-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-amd64-builder"
-  - docker buildx build --load --builder "teleport-ent-v10-amd64-builder" --target
+    --config "/tmp/teleport-ent-v10-amd64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-ent-v10-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-ent-v10-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/amd64/$(cat
     '/go/vars/full-version/v10').deb" /go/build
   - docker buildx rm "teleport-ent-v10-amd64-builder"
-  - docker push "drone-docker-registry:5000/teleport-ent-v10-amd64"
+  - rm -rf "/tmp/teleport-ent-v10-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -7375,13 +7491,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-ent-v10-arm-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v10-arm-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-ent-v10-arm-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm-builder"
-  - docker buildx build --load --builder "teleport-ent-v10-arm-builder" --target "teleport"
+    --config "/tmp/teleport-ent-v10-arm-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-ent-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "drone-docker-registry:5000/teleport-ent-v10-arm"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm/$(cat
     '/go/vars/full-version/v10').deb" /go/build
   - docker buildx rm "teleport-ent-v10-arm-builder"
-  - docker push "drone-docker-registry:5000/teleport-ent-v10-arm"
+  - rm -rf "/tmp/teleport-ent-v10-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -7398,13 +7518,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-ent-v10-arm64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v10-arm64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-ent-v10-arm64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm64-builder"
-  - docker buildx build --load --builder "teleport-ent-v10-arm64-builder" --target
+    --config "/tmp/teleport-ent-v10-arm64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-ent-v10-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag "drone-docker-registry:5000/teleport-ent-v10-arm64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm64/$(cat
     '/go/vars/full-version/v10').deb" /go/build
   - docker buildx rm "teleport-ent-v10-arm64-builder"
-  - docker push "drone-docker-registry:5000/teleport-ent-v10-arm64"
+  - rm -rf "/tmp/teleport-ent-v10-arm64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -7420,6 +7544,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-ent-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v10-amd64" "quay.io/fred_heinecke/teleport-ent:10-amd64"
   - docker push "quay.io/fred_heinecke/teleport-ent:10-amd64"
   - docker logout "quay.io"
@@ -7437,6 +7562,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-ent-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent-v10-arm" "quay.io/fred_heinecke/teleport-ent:10-arm"
   - docker push "quay.io/fred_heinecke/teleport-ent:10-arm"
   - docker logout "quay.io"
@@ -7454,6 +7580,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-ent-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v10-arm64" "quay.io/fred_heinecke/teleport-ent:10-arm64"
   - docker push "quay.io/fred_heinecke/teleport-ent:10-arm64"
   - docker logout "quay.io"
@@ -7495,6 +7622,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-ent-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -7516,6 +7644,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-ent-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -7537,6 +7666,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-ent-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -7583,6 +7713,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-ent-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport-ent:10-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:10-amd64"
   - docker logout "public.ecr.aws"
@@ -7603,6 +7734,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-ent-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent-v10-arm" "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm"
   - docker logout "public.ecr.aws"
@@ -7623,6 +7755,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-ent-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v10-arm64" "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm64"
   - docker logout "public.ecr.aws"
@@ -7713,13 +7846,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-ent-fips-v10-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-fips-v10-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-ent-fips-v10-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v10-amd64-builder"
-  - docker buildx build --load --builder "teleport-ent-fips-v10-amd64-builder" --target
+    --config "/tmp/teleport-ent-fips-v10-amd64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-ent-fips-v10-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-ent-fips-v10-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent-fips/amd64/$(cat
     '/go/vars/full-version/v10').deb" /go/build
   - docker buildx rm "teleport-ent-fips-v10-amd64-builder"
-  - docker push "drone-docker-registry:5000/teleport-ent-fips-v10-amd64"
+  - rm -rf "/tmp/teleport-ent-fips-v10-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -7735,6 +7872,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-ent-fips-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips-v10-amd64" "quay.io/fred_heinecke/teleport-ent:10-fips-amd64"
   - docker push "quay.io/fred_heinecke/teleport-ent:10-fips-amd64"
   - docker logout "quay.io"
@@ -7773,6 +7911,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-ent-fips-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -7816,6 +7955,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-ent-fips-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport-ent:10-fips-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:10-fips-amd64"
   - docker logout "public.ecr.aws"
@@ -7856,13 +7996,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
+  - mkdir -pv "/tmp/teleport-lab-v10-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v10-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-lab-v10-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-amd64-builder"
-  - docker buildx build --load --builder "teleport-lab-v10-amd64-builder" --platform
+    --config "/tmp/teleport-lab-v10-amd64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-lab-v10-amd64-builder" --platform
     "linux/amd64" --tag "drone-docker-registry:5000/teleport-lab-v10-amd64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
     "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-amd64" /tmp/build
   - docker buildx rm "teleport-lab-v10-amd64-builder"
-  - docker push "drone-docker-registry:5000/teleport-lab-v10-amd64"
+  - rm -rf "/tmp/teleport-lab-v10-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -7879,12 +8023,16 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
+  - mkdir -pv "/tmp/teleport-lab-v10-arm-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm-builder"
-  - docker buildx build --load --builder "teleport-lab-v10-arm-builder" --platform
+    --config "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-lab-v10-arm-builder" --platform
     "linux/arm" --tag "drone-docker-registry:5000/teleport-lab-v10-arm" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
     --build-arg "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-arm" /tmp/build
   - docker buildx rm "teleport-lab-v10-arm-builder"
-  - docker push "drone-docker-registry:5000/teleport-lab-v10-arm"
+  - rm -rf "/tmp/teleport-lab-v10-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -7901,13 +8049,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
+  - mkdir -pv "/tmp/teleport-lab-v10-arm64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v10-arm64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-lab-v10-arm64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm64-builder"
-  - docker buildx build --load --builder "teleport-lab-v10-arm64-builder" --platform
+    --config "/tmp/teleport-lab-v10-arm64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-lab-v10-arm64-builder" --platform
     "linux/arm64" --tag "drone-docker-registry:5000/teleport-lab-v10-arm64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
     "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-arm64" /tmp/build
   - docker buildx rm "teleport-lab-v10-arm64-builder"
-  - docker push "drone-docker-registry:5000/teleport-lab-v10-arm64"
+  - rm -rf "/tmp/teleport-lab-v10-arm64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -7923,6 +8075,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-lab-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v10-amd64" "quay.io/fred_heinecke/teleport-lab:10-amd64"
   - docker push "quay.io/fred_heinecke/teleport-lab:10-amd64"
   - docker logout "quay.io"
@@ -7940,6 +8093,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-lab-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab-v10-arm" "quay.io/fred_heinecke/teleport-lab:10-arm"
   - docker push "quay.io/fred_heinecke/teleport-lab:10-arm"
   - docker logout "quay.io"
@@ -7957,6 +8111,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-lab-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v10-arm64" "quay.io/fred_heinecke/teleport-lab:10-arm64"
   - docker push "quay.io/fred_heinecke/teleport-lab:10-arm64"
   - docker logout "quay.io"
@@ -7998,6 +8153,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-lab-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -8019,6 +8175,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-lab-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -8040,6 +8197,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-lab-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -8086,6 +8244,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-lab-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport-lab:10-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:10-amd64"
   - docker logout "public.ecr.aws"
@@ -8106,6 +8265,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-lab-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab-v10-arm" "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm"
   - docker logout "public.ecr.aws"
@@ -8126,6 +8286,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-lab-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v10-arm64" "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm64"
   - docker logout "public.ecr.aws"
@@ -8168,13 +8329,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/tmp/teleport-operator-v10-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v10-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-operator-v10-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-amd64-builder"
-  - docker buildx build --load --builder "teleport-operator-v10-amd64-builder" --platform
+    --config "/tmp/teleport-operator-v10-amd64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-operator-v10-amd64-builder" --platform
     "linux/amd64" --tag "drone-docker-registry:5000/teleport-operator-v10-amd64" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-x86-64-linux-gnu"
     --build-arg "COMPILER_NAME=x86_64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-amd64-builder"
-  - docker push "drone-docker-registry:5000/teleport-operator-v10-amd64"
+  - rm -rf "/tmp/teleport-operator-v10-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -8190,13 +8355,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/tmp/teleport-operator-v10-arm-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v10-arm-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-operator-v10-arm-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm-builder"
-  - docker buildx build --load --builder "teleport-operator-v10-arm-builder" --platform
+    --config "/tmp/teleport-operator-v10-arm-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-operator-v10-arm-builder" --platform
     "linux/arm" --tag "drone-docker-registry:5000/teleport-operator-v10-arm" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf"
     --build-arg "COMPILER_NAME=arm-linux-gnueabihf-gcc" /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-arm-builder"
-  - docker push "drone-docker-registry:5000/teleport-operator-v10-arm"
+  - rm -rf "/tmp/teleport-operator-v10-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -8212,13 +8381,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/tmp/teleport-operator-v10-arm64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v10-arm64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-operator-v10-arm64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm64-builder"
-  - docker buildx build --load --builder "teleport-operator-v10-arm64-builder" --platform
+    --config "/tmp/teleport-operator-v10-arm64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-operator-v10-arm64-builder" --platform
     "linux/arm64" --tag "drone-docker-registry:5000/teleport-operator-v10-arm64" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu"
     --build-arg "COMPILER_NAME=aarch64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-arm64-builder"
-  - docker push "drone-docker-registry:5000/teleport-operator-v10-arm64"
+  - rm -rf "/tmp/teleport-operator-v10-arm64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -8233,6 +8406,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-operator-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v10-amd64" "quay.io/fred_heinecke/teleport-operator:10-amd64"
   - docker push "quay.io/fred_heinecke/teleport-operator:10-amd64"
   - docker logout "quay.io"
@@ -8250,6 +8424,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-operator-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator-v10-arm" "quay.io/fred_heinecke/teleport-operator:10-arm"
   - docker push "quay.io/fred_heinecke/teleport-operator:10-arm"
   - docker logout "quay.io"
@@ -8267,6 +8442,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-operator-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v10-arm64" "quay.io/fred_heinecke/teleport-operator:10-arm64"
   - docker push "quay.io/fred_heinecke/teleport-operator:10-arm64"
   - docker logout "quay.io"
@@ -8308,6 +8484,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-operator-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -8329,6 +8506,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-operator-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -8350,6 +8528,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-operator-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -8397,6 +8576,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-operator-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport-operator:10-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:10-amd64"
   - docker logout "public.ecr.aws"
@@ -8417,6 +8597,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-operator-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator-v10-arm" "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm"
   - docker logout "public.ecr.aws"
@@ -8438,6 +8619,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-operator-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v10-arm64" "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm64"
   - docker logout "public.ecr.aws"
@@ -8495,7 +8677,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:229
+# Generated at dronegen/container_images.go:231
 ################################################
 
 kind: pipeline
@@ -8628,13 +8810,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-v9-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v9-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-v9-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-v9-amd64-builder"
-  - docker buildx build --load --builder "teleport-v9-amd64-builder" --target "teleport"
+    --config "/tmp/teleport-v9-amd64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-v9-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-v9-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/amd64/$(cat
     '/go/vars/full-version/v9').deb" /go/build
   - docker buildx rm "teleport-v9-amd64-builder"
-  - docker push "drone-docker-registry:5000/teleport-v9-amd64"
+  - rm -rf "/tmp/teleport-v9-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -8651,13 +8837,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-v9-arm-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v9-arm-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-v9-arm-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-v9-arm-builder"
-  - docker buildx build --load --builder "teleport-v9-arm-builder" --target "teleport"
+    --config "/tmp/teleport-v9-arm-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-v9-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "drone-docker-registry:5000/teleport-v9-arm" --file
     "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm/$(cat
     '/go/vars/full-version/v9').deb" /go/build
   - docker buildx rm "teleport-v9-arm-builder"
-  - docker push "drone-docker-registry:5000/teleport-v9-arm"
+  - rm -rf "/tmp/teleport-v9-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -8674,13 +8864,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-v9-arm64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v9-arm64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-v9-arm64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-v9-arm64-builder"
-  - docker buildx build --load --builder "teleport-v9-arm64-builder" --target "teleport"
+    --config "/tmp/teleport-v9-arm64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-v9-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag "drone-docker-registry:5000/teleport-v9-arm64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm64/$(cat
     '/go/vars/full-version/v9').deb" /go/build
   - docker buildx rm "teleport-v9-arm64-builder"
-  - docker push "drone-docker-registry:5000/teleport-v9-arm64"
+  - rm -rf "/tmp/teleport-v9-arm64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -8696,6 +8890,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-v9-amd64"
   - docker tag "drone-docker-registry:5000/teleport-v9-amd64" "quay.io/fred_heinecke/teleport:9-amd64"
   - docker push "quay.io/fred_heinecke/teleport:9-amd64"
   - docker logout "quay.io"
@@ -8713,6 +8908,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-v9-arm"
   - docker tag "drone-docker-registry:5000/teleport-v9-arm" "quay.io/fred_heinecke/teleport:9-arm"
   - docker push "quay.io/fred_heinecke/teleport:9-arm"
   - docker logout "quay.io"
@@ -8730,6 +8926,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-v9-arm64"
   - docker tag "drone-docker-registry:5000/teleport-v9-arm64" "quay.io/fred_heinecke/teleport:9-arm64"
   - docker push "quay.io/fred_heinecke/teleport:9-arm64"
   - docker logout "quay.io"
@@ -8771,6 +8968,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-v9-amd64"
   - docker tag "drone-docker-registry:5000/teleport-v9-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:9-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:9-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -8792,6 +8990,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-v9-arm"
   - docker tag "drone-docker-registry:5000/teleport-v9-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:9-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:9-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -8813,6 +9012,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-v9-arm64"
   - docker tag "drone-docker-registry:5000/teleport-v9-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:9-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:9-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -8859,6 +9059,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-v9-amd64"
   - docker tag "drone-docker-registry:5000/teleport-v9-amd64" "public.ecr.aws/u8j2q1d9/teleport:9-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:9-amd64"
   - docker logout "public.ecr.aws"
@@ -8879,6 +9080,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-v9-arm"
   - docker tag "drone-docker-registry:5000/teleport-v9-arm" "public.ecr.aws/u8j2q1d9/teleport:9-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:9-arm"
   - docker logout "public.ecr.aws"
@@ -8899,6 +9101,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-v9-arm64"
   - docker tag "drone-docker-registry:5000/teleport-v9-arm64" "public.ecr.aws/u8j2q1d9/teleport:9-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:9-arm64"
   - docker logout "public.ecr.aws"
@@ -9004,13 +9207,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-ent-v9-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v9-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-ent-v9-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v9-amd64-builder"
-  - docker buildx build --load --builder "teleport-ent-v9-amd64-builder" --target
+    --config "/tmp/teleport-ent-v9-amd64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-ent-v9-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-ent-v9-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/amd64/$(cat
     '/go/vars/full-version/v9').deb" /go/build
   - docker buildx rm "teleport-ent-v9-amd64-builder"
-  - docker push "drone-docker-registry:5000/teleport-ent-v9-amd64"
+  - rm -rf "/tmp/teleport-ent-v9-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -9027,13 +9234,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-ent-v9-arm-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v9-arm-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-ent-v9-arm-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v9-arm-builder"
-  - docker buildx build --load --builder "teleport-ent-v9-arm-builder" --target "teleport"
+    --config "/tmp/teleport-ent-v9-arm-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-ent-v9-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "drone-docker-registry:5000/teleport-ent-v9-arm"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm/$(cat
     '/go/vars/full-version/v9').deb" /go/build
   - docker buildx rm "teleport-ent-v9-arm-builder"
-  - docker push "drone-docker-registry:5000/teleport-ent-v9-arm"
+  - rm -rf "/tmp/teleport-ent-v9-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -9050,13 +9261,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-ent-v9-arm64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v9-arm64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-ent-v9-arm64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v9-arm64-builder"
-  - docker buildx build --load --builder "teleport-ent-v9-arm64-builder" --target
+    --config "/tmp/teleport-ent-v9-arm64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-ent-v9-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag "drone-docker-registry:5000/teleport-ent-v9-arm64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm64/$(cat
     '/go/vars/full-version/v9').deb" /go/build
   - docker buildx rm "teleport-ent-v9-arm64-builder"
-  - docker push "drone-docker-registry:5000/teleport-ent-v9-arm64"
+  - rm -rf "/tmp/teleport-ent-v9-arm64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -9072,6 +9287,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-ent-v9-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v9-amd64" "quay.io/fred_heinecke/teleport-ent:9-amd64"
   - docker push "quay.io/fred_heinecke/teleport-ent:9-amd64"
   - docker logout "quay.io"
@@ -9089,6 +9305,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-ent-v9-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent-v9-arm" "quay.io/fred_heinecke/teleport-ent:9-arm"
   - docker push "quay.io/fred_heinecke/teleport-ent:9-arm"
   - docker logout "quay.io"
@@ -9106,6 +9323,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-ent-v9-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v9-arm64" "quay.io/fred_heinecke/teleport-ent:9-arm64"
   - docker push "quay.io/fred_heinecke/teleport-ent:9-arm64"
   - docker logout "quay.io"
@@ -9147,6 +9365,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-ent-v9-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v9-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:9-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:9-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -9168,6 +9387,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-ent-v9-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent-v9-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:9-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:9-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -9189,6 +9409,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-ent-v9-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v9-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:9-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:9-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -9235,6 +9456,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-ent-v9-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v9-amd64" "public.ecr.aws/u8j2q1d9/teleport-ent:9-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:9-amd64"
   - docker logout "public.ecr.aws"
@@ -9255,6 +9477,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-ent-v9-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent-v9-arm" "public.ecr.aws/u8j2q1d9/teleport-ent:9-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:9-arm"
   - docker logout "public.ecr.aws"
@@ -9275,6 +9498,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-ent-v9-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v9-arm64" "public.ecr.aws/u8j2q1d9/teleport-ent:9-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:9-arm64"
   - docker logout "public.ecr.aws"
@@ -9365,13 +9589,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-ent-fips-v9-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-fips-v9-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-ent-fips-v9-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v9-amd64-builder"
-  - docker buildx build --load --builder "teleport-ent-fips-v9-amd64-builder" --target
+    --config "/tmp/teleport-ent-fips-v9-amd64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-ent-fips-v9-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-ent-fips-v9-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent-fips/amd64/$(cat
     '/go/vars/full-version/v9').deb" /go/build
   - docker buildx rm "teleport-ent-fips-v9-amd64-builder"
-  - docker push "drone-docker-registry:5000/teleport-ent-fips-v9-amd64"
+  - rm -rf "/tmp/teleport-ent-fips-v9-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -9387,6 +9615,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-ent-fips-v9-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips-v9-amd64" "quay.io/fred_heinecke/teleport-ent:9-fips-amd64"
   - docker push "quay.io/fred_heinecke/teleport-ent:9-fips-amd64"
   - docker logout "quay.io"
@@ -9425,6 +9654,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-ent-fips-v9-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips-v9-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:9-$TIMESTAMP-fips-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:9-$TIMESTAMP-fips-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -9468,6 +9698,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-ent-fips-v9-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips-v9-amd64" "public.ecr.aws/u8j2q1d9/teleport-ent:9-fips-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:9-fips-amd64"
   - docker logout "public.ecr.aws"
@@ -9507,13 +9738,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
+  - mkdir -pv "/tmp/teleport-lab-v9-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v9-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-lab-v9-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v9-amd64-builder"
-  - docker buildx build --load --builder "teleport-lab-v9-amd64-builder" --platform
+    --config "/tmp/teleport-lab-v9-amd64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-lab-v9-amd64-builder" --platform
     "linux/amd64" --tag "drone-docker-registry:5000/teleport-lab-v9-amd64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
     "BASE_IMAGE=drone-docker-registry:5000/teleport-v9-amd64" /tmp/build
   - docker buildx rm "teleport-lab-v9-amd64-builder"
-  - docker push "drone-docker-registry:5000/teleport-lab-v9-amd64"
+  - rm -rf "/tmp/teleport-lab-v9-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -9530,12 +9765,16 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
+  - mkdir -pv "/tmp/teleport-lab-v9-arm-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v9-arm-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-lab-v9-arm-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v9-arm-builder"
-  - docker buildx build --load --builder "teleport-lab-v9-arm-builder" --platform
+    --config "/tmp/teleport-lab-v9-arm-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-lab-v9-arm-builder" --platform
     "linux/arm" --tag "drone-docker-registry:5000/teleport-lab-v9-arm" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
     --build-arg "BASE_IMAGE=drone-docker-registry:5000/teleport-v9-arm" /tmp/build
   - docker buildx rm "teleport-lab-v9-arm-builder"
-  - docker push "drone-docker-registry:5000/teleport-lab-v9-arm"
+  - rm -rf "/tmp/teleport-lab-v9-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -9552,13 +9791,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
+  - mkdir -pv "/tmp/teleport-lab-v9-arm64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v9-arm64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-lab-v9-arm64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v9-arm64-builder"
-  - docker buildx build --load --builder "teleport-lab-v9-arm64-builder" --platform
+    --config "/tmp/teleport-lab-v9-arm64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-lab-v9-arm64-builder" --platform
     "linux/arm64" --tag "drone-docker-registry:5000/teleport-lab-v9-arm64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
     "BASE_IMAGE=drone-docker-registry:5000/teleport-v9-arm64" /tmp/build
   - docker buildx rm "teleport-lab-v9-arm64-builder"
-  - docker push "drone-docker-registry:5000/teleport-lab-v9-arm64"
+  - rm -rf "/tmp/teleport-lab-v9-arm64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -9574,6 +9817,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-lab-v9-amd64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v9-amd64" "quay.io/fred_heinecke/teleport-lab:9-amd64"
   - docker push "quay.io/fred_heinecke/teleport-lab:9-amd64"
   - docker logout "quay.io"
@@ -9591,6 +9835,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-lab-v9-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab-v9-arm" "quay.io/fred_heinecke/teleport-lab:9-arm"
   - docker push "quay.io/fred_heinecke/teleport-lab:9-arm"
   - docker logout "quay.io"
@@ -9608,6 +9853,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-lab-v9-arm64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v9-arm64" "quay.io/fred_heinecke/teleport-lab:9-arm64"
   - docker push "quay.io/fred_heinecke/teleport-lab:9-arm64"
   - docker logout "quay.io"
@@ -9649,6 +9895,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-lab-v9-amd64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v9-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:9-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:9-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -9670,6 +9917,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-lab-v9-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab-v9-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:9-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:9-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -9691,6 +9939,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-lab-v9-arm64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v9-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:9-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:9-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -9737,6 +9986,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-lab-v9-amd64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v9-amd64" "public.ecr.aws/u8j2q1d9/teleport-lab:9-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:9-amd64"
   - docker logout "public.ecr.aws"
@@ -9757,6 +10007,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-lab-v9-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab-v9-arm" "public.ecr.aws/u8j2q1d9/teleport-lab:9-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:9-arm"
   - docker logout "public.ecr.aws"
@@ -9777,6 +10028,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-lab-v9-arm64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v9-arm64" "public.ecr.aws/u8j2q1d9/teleport-lab:9-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:9-arm64"
   - docker logout "public.ecr.aws"
@@ -9819,13 +10071,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/tmp/teleport-operator-v9-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v9-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-operator-v9-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v9-amd64-builder"
-  - docker buildx build --load --builder "teleport-operator-v9-amd64-builder" --platform
+    --config "/tmp/teleport-operator-v9-amd64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-operator-v9-amd64-builder" --platform
     "linux/amd64" --tag "drone-docker-registry:5000/teleport-operator-v9-amd64" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-x86-64-linux-gnu"
     --build-arg "COMPILER_NAME=x86_64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v9-amd64-builder"
-  - docker push "drone-docker-registry:5000/teleport-operator-v9-amd64"
+  - rm -rf "/tmp/teleport-operator-v9-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -9841,13 +10097,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/tmp/teleport-operator-v9-arm-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v9-arm-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-operator-v9-arm-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v9-arm-builder"
-  - docker buildx build --load --builder "teleport-operator-v9-arm-builder" --platform
+    --config "/tmp/teleport-operator-v9-arm-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-operator-v9-arm-builder" --platform
     "linux/arm" --tag "drone-docker-registry:5000/teleport-operator-v9-arm" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf"
     --build-arg "COMPILER_NAME=arm-linux-gnueabihf-gcc" /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v9-arm-builder"
-  - docker push "drone-docker-registry:5000/teleport-operator-v9-arm"
+  - rm -rf "/tmp/teleport-operator-v9-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -9863,13 +10123,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/tmp/teleport-operator-v9-arm64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v9-arm64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-operator-v9-arm64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v9-arm64-builder"
-  - docker buildx build --load --builder "teleport-operator-v9-arm64-builder" --platform
+    --config "/tmp/teleport-operator-v9-arm64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-operator-v9-arm64-builder" --platform
     "linux/arm64" --tag "drone-docker-registry:5000/teleport-operator-v9-arm64" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu"
     --build-arg "COMPILER_NAME=aarch64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v9-arm64-builder"
-  - docker push "drone-docker-registry:5000/teleport-operator-v9-arm64"
+  - rm -rf "/tmp/teleport-operator-v9-arm64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -9884,6 +10148,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-operator-v9-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v9-amd64" "quay.io/fred_heinecke/teleport-operator:9-amd64"
   - docker push "quay.io/fred_heinecke/teleport-operator:9-amd64"
   - docker logout "quay.io"
@@ -9901,6 +10166,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-operator-v9-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator-v9-arm" "quay.io/fred_heinecke/teleport-operator:9-arm"
   - docker push "quay.io/fred_heinecke/teleport-operator:9-arm"
   - docker logout "quay.io"
@@ -9918,6 +10184,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-operator-v9-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v9-arm64" "quay.io/fred_heinecke/teleport-operator:9-arm64"
   - docker push "quay.io/fred_heinecke/teleport-operator:9-arm64"
   - docker logout "quay.io"
@@ -9959,6 +10226,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-operator-v9-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v9-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:9-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:9-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -9980,6 +10248,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-operator-v9-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator-v9-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:9-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:9-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -10001,6 +10270,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-operator-v9-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v9-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:9-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:9-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -10048,6 +10318,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-operator-v9-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v9-amd64" "public.ecr.aws/u8j2q1d9/teleport-operator:9-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:9-amd64"
   - docker logout "public.ecr.aws"
@@ -10068,6 +10339,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-operator-v9-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator-v9-arm" "public.ecr.aws/u8j2q1d9/teleport-operator:9-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:9-arm"
   - docker logout "public.ecr.aws"
@@ -10089,6 +10361,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-operator-v9-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v9-arm64" "public.ecr.aws/u8j2q1d9/teleport-operator:9-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:9-arm64"
   - docker logout "public.ecr.aws"
@@ -10145,7 +10418,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:229
+# Generated at dronegen/container_images.go:231
 ################################################
 
 kind: pipeline
@@ -10278,13 +10551,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-v8-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v8-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-v8-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-v8-amd64-builder"
-  - docker buildx build --load --builder "teleport-v8-amd64-builder" --target "teleport"
+    --config "/tmp/teleport-v8-amd64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-v8-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-v8-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/amd64/$(cat
     '/go/vars/full-version/v8').deb" /go/build
   - docker buildx rm "teleport-v8-amd64-builder"
-  - docker push "drone-docker-registry:5000/teleport-v8-amd64"
+  - rm -rf "/tmp/teleport-v8-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -10301,13 +10578,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-v8-arm-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v8-arm-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-v8-arm-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-v8-arm-builder"
-  - docker buildx build --load --builder "teleport-v8-arm-builder" --target "teleport"
+    --config "/tmp/teleport-v8-arm-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-v8-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "drone-docker-registry:5000/teleport-v8-arm" --file
     "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm/$(cat
     '/go/vars/full-version/v8').deb" /go/build
   - docker buildx rm "teleport-v8-arm-builder"
-  - docker push "drone-docker-registry:5000/teleport-v8-arm"
+  - rm -rf "/tmp/teleport-v8-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -10324,13 +10605,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-v8-arm64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v8-arm64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-v8-arm64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-v8-arm64-builder"
-  - docker buildx build --load --builder "teleport-v8-arm64-builder" --target "teleport"
+    --config "/tmp/teleport-v8-arm64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-v8-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag "drone-docker-registry:5000/teleport-v8-arm64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm64/$(cat
     '/go/vars/full-version/v8').deb" /go/build
   - docker buildx rm "teleport-v8-arm64-builder"
-  - docker push "drone-docker-registry:5000/teleport-v8-arm64"
+  - rm -rf "/tmp/teleport-v8-arm64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -10346,6 +10631,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-v8-amd64"
   - docker tag "drone-docker-registry:5000/teleport-v8-amd64" "quay.io/fred_heinecke/teleport:8-amd64"
   - docker push "quay.io/fred_heinecke/teleport:8-amd64"
   - docker logout "quay.io"
@@ -10363,6 +10649,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-v8-arm"
   - docker tag "drone-docker-registry:5000/teleport-v8-arm" "quay.io/fred_heinecke/teleport:8-arm"
   - docker push "quay.io/fred_heinecke/teleport:8-arm"
   - docker logout "quay.io"
@@ -10380,6 +10667,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-v8-arm64"
   - docker tag "drone-docker-registry:5000/teleport-v8-arm64" "quay.io/fred_heinecke/teleport:8-arm64"
   - docker push "quay.io/fred_heinecke/teleport:8-arm64"
   - docker logout "quay.io"
@@ -10421,6 +10709,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-v8-amd64"
   - docker tag "drone-docker-registry:5000/teleport-v8-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:8-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:8-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -10442,6 +10731,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-v8-arm"
   - docker tag "drone-docker-registry:5000/teleport-v8-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:8-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:8-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -10463,6 +10753,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-v8-arm64"
   - docker tag "drone-docker-registry:5000/teleport-v8-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:8-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:8-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -10509,6 +10800,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-v8-amd64"
   - docker tag "drone-docker-registry:5000/teleport-v8-amd64" "public.ecr.aws/u8j2q1d9/teleport:8-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:8-amd64"
   - docker logout "public.ecr.aws"
@@ -10529,6 +10821,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-v8-arm"
   - docker tag "drone-docker-registry:5000/teleport-v8-arm" "public.ecr.aws/u8j2q1d9/teleport:8-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:8-arm"
   - docker logout "public.ecr.aws"
@@ -10549,6 +10842,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-v8-arm64"
   - docker tag "drone-docker-registry:5000/teleport-v8-arm64" "public.ecr.aws/u8j2q1d9/teleport:8-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:8-arm64"
   - docker logout "public.ecr.aws"
@@ -10654,13 +10948,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-ent-v8-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v8-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-ent-v8-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v8-amd64-builder"
-  - docker buildx build --load --builder "teleport-ent-v8-amd64-builder" --target
+    --config "/tmp/teleport-ent-v8-amd64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-ent-v8-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-ent-v8-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/amd64/$(cat
     '/go/vars/full-version/v8').deb" /go/build
   - docker buildx rm "teleport-ent-v8-amd64-builder"
-  - docker push "drone-docker-registry:5000/teleport-ent-v8-amd64"
+  - rm -rf "/tmp/teleport-ent-v8-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -10677,13 +10975,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-ent-v8-arm-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v8-arm-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-ent-v8-arm-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v8-arm-builder"
-  - docker buildx build --load --builder "teleport-ent-v8-arm-builder" --target "teleport"
+    --config "/tmp/teleport-ent-v8-arm-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-ent-v8-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "drone-docker-registry:5000/teleport-ent-v8-arm"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm/$(cat
     '/go/vars/full-version/v8').deb" /go/build
   - docker buildx rm "teleport-ent-v8-arm-builder"
-  - docker push "drone-docker-registry:5000/teleport-ent-v8-arm"
+  - rm -rf "/tmp/teleport-ent-v8-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -10700,13 +11002,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-ent-v8-arm64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v8-arm64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-ent-v8-arm64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v8-arm64-builder"
-  - docker buildx build --load --builder "teleport-ent-v8-arm64-builder" --target
+    --config "/tmp/teleport-ent-v8-arm64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-ent-v8-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag "drone-docker-registry:5000/teleport-ent-v8-arm64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm64/$(cat
     '/go/vars/full-version/v8').deb" /go/build
   - docker buildx rm "teleport-ent-v8-arm64-builder"
-  - docker push "drone-docker-registry:5000/teleport-ent-v8-arm64"
+  - rm -rf "/tmp/teleport-ent-v8-arm64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -10722,6 +11028,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-ent-v8-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v8-amd64" "quay.io/fred_heinecke/teleport-ent:8-amd64"
   - docker push "quay.io/fred_heinecke/teleport-ent:8-amd64"
   - docker logout "quay.io"
@@ -10739,6 +11046,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-ent-v8-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent-v8-arm" "quay.io/fred_heinecke/teleport-ent:8-arm"
   - docker push "quay.io/fred_heinecke/teleport-ent:8-arm"
   - docker logout "quay.io"
@@ -10756,6 +11064,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-ent-v8-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v8-arm64" "quay.io/fred_heinecke/teleport-ent:8-arm64"
   - docker push "quay.io/fred_heinecke/teleport-ent:8-arm64"
   - docker logout "quay.io"
@@ -10797,6 +11106,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-ent-v8-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v8-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:8-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:8-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -10818,6 +11128,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-ent-v8-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent-v8-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:8-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:8-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -10839,6 +11150,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-ent-v8-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v8-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:8-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:8-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -10885,6 +11197,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-ent-v8-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v8-amd64" "public.ecr.aws/u8j2q1d9/teleport-ent:8-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:8-amd64"
   - docker logout "public.ecr.aws"
@@ -10905,6 +11218,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-ent-v8-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent-v8-arm" "public.ecr.aws/u8j2q1d9/teleport-ent:8-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:8-arm"
   - docker logout "public.ecr.aws"
@@ -10925,6 +11239,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-ent-v8-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v8-arm64" "public.ecr.aws/u8j2q1d9/teleport-ent:8-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:8-arm64"
   - docker logout "public.ecr.aws"
@@ -11015,13 +11330,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-ent-fips-v8-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-fips-v8-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-ent-fips-v8-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v8-amd64-builder"
-  - docker buildx build --load --builder "teleport-ent-fips-v8-amd64-builder" --target
+    --config "/tmp/teleport-ent-fips-v8-amd64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-ent-fips-v8-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-ent-fips-v8-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent-fips/amd64/$(cat
     '/go/vars/full-version/v8').deb" /go/build
   - docker buildx rm "teleport-ent-fips-v8-amd64-builder"
-  - docker push "drone-docker-registry:5000/teleport-ent-fips-v8-amd64"
+  - rm -rf "/tmp/teleport-ent-fips-v8-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -11037,6 +11356,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-ent-fips-v8-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips-v8-amd64" "quay.io/fred_heinecke/teleport-ent:8-fips-amd64"
   - docker push "quay.io/fred_heinecke/teleport-ent:8-fips-amd64"
   - docker logout "quay.io"
@@ -11075,6 +11395,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-ent-fips-v8-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips-v8-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:8-$TIMESTAMP-fips-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:8-$TIMESTAMP-fips-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -11118,6 +11439,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-ent-fips-v8-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips-v8-amd64" "public.ecr.aws/u8j2q1d9/teleport-ent:8-fips-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:8-fips-amd64"
   - docker logout "public.ecr.aws"
@@ -11157,13 +11479,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
+  - mkdir -pv "/tmp/teleport-lab-v8-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v8-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-lab-v8-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v8-amd64-builder"
-  - docker buildx build --load --builder "teleport-lab-v8-amd64-builder" --platform
+    --config "/tmp/teleport-lab-v8-amd64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-lab-v8-amd64-builder" --platform
     "linux/amd64" --tag "drone-docker-registry:5000/teleport-lab-v8-amd64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
     "BASE_IMAGE=drone-docker-registry:5000/teleport-v8-amd64" /tmp/build
   - docker buildx rm "teleport-lab-v8-amd64-builder"
-  - docker push "drone-docker-registry:5000/teleport-lab-v8-amd64"
+  - rm -rf "/tmp/teleport-lab-v8-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -11180,12 +11506,16 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
+  - mkdir -pv "/tmp/teleport-lab-v8-arm-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v8-arm-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-lab-v8-arm-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v8-arm-builder"
-  - docker buildx build --load --builder "teleport-lab-v8-arm-builder" --platform
+    --config "/tmp/teleport-lab-v8-arm-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-lab-v8-arm-builder" --platform
     "linux/arm" --tag "drone-docker-registry:5000/teleport-lab-v8-arm" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
     --build-arg "BASE_IMAGE=drone-docker-registry:5000/teleport-v8-arm" /tmp/build
   - docker buildx rm "teleport-lab-v8-arm-builder"
-  - docker push "drone-docker-registry:5000/teleport-lab-v8-arm"
+  - rm -rf "/tmp/teleport-lab-v8-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -11202,13 +11532,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
+  - mkdir -pv "/tmp/teleport-lab-v8-arm64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v8-arm64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-lab-v8-arm64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v8-arm64-builder"
-  - docker buildx build --load --builder "teleport-lab-v8-arm64-builder" --platform
+    --config "/tmp/teleport-lab-v8-arm64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-lab-v8-arm64-builder" --platform
     "linux/arm64" --tag "drone-docker-registry:5000/teleport-lab-v8-arm64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
     "BASE_IMAGE=drone-docker-registry:5000/teleport-v8-arm64" /tmp/build
   - docker buildx rm "teleport-lab-v8-arm64-builder"
-  - docker push "drone-docker-registry:5000/teleport-lab-v8-arm64"
+  - rm -rf "/tmp/teleport-lab-v8-arm64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -11224,6 +11558,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-lab-v8-amd64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v8-amd64" "quay.io/fred_heinecke/teleport-lab:8-amd64"
   - docker push "quay.io/fred_heinecke/teleport-lab:8-amd64"
   - docker logout "quay.io"
@@ -11241,6 +11576,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-lab-v8-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab-v8-arm" "quay.io/fred_heinecke/teleport-lab:8-arm"
   - docker push "quay.io/fred_heinecke/teleport-lab:8-arm"
   - docker logout "quay.io"
@@ -11258,6 +11594,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-lab-v8-arm64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v8-arm64" "quay.io/fred_heinecke/teleport-lab:8-arm64"
   - docker push "quay.io/fred_heinecke/teleport-lab:8-arm64"
   - docker logout "quay.io"
@@ -11299,6 +11636,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-lab-v8-amd64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v8-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:8-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:8-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -11320,6 +11658,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-lab-v8-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab-v8-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:8-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:8-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -11341,6 +11680,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-lab-v8-arm64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v8-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:8-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:8-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -11387,6 +11727,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-lab-v8-amd64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v8-amd64" "public.ecr.aws/u8j2q1d9/teleport-lab:8-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:8-amd64"
   - docker logout "public.ecr.aws"
@@ -11407,6 +11748,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-lab-v8-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab-v8-arm" "public.ecr.aws/u8j2q1d9/teleport-lab:8-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:8-arm"
   - docker logout "public.ecr.aws"
@@ -11427,6 +11769,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-lab-v8-arm64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v8-arm64" "public.ecr.aws/u8j2q1d9/teleport-lab:8-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:8-arm64"
   - docker logout "public.ecr.aws"
@@ -11469,13 +11812,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/tmp/teleport-operator-v8-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v8-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-operator-v8-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v8-amd64-builder"
-  - docker buildx build --load --builder "teleport-operator-v8-amd64-builder" --platform
+    --config "/tmp/teleport-operator-v8-amd64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-operator-v8-amd64-builder" --platform
     "linux/amd64" --tag "drone-docker-registry:5000/teleport-operator-v8-amd64" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-x86-64-linux-gnu"
     --build-arg "COMPILER_NAME=x86_64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v8-amd64-builder"
-  - docker push "drone-docker-registry:5000/teleport-operator-v8-amd64"
+  - rm -rf "/tmp/teleport-operator-v8-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -11491,13 +11838,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/tmp/teleport-operator-v8-arm-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v8-arm-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-operator-v8-arm-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v8-arm-builder"
-  - docker buildx build --load --builder "teleport-operator-v8-arm-builder" --platform
+    --config "/tmp/teleport-operator-v8-arm-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-operator-v8-arm-builder" --platform
     "linux/arm" --tag "drone-docker-registry:5000/teleport-operator-v8-arm" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf"
     --build-arg "COMPILER_NAME=arm-linux-gnueabihf-gcc" /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v8-arm-builder"
-  - docker push "drone-docker-registry:5000/teleport-operator-v8-arm"
+  - rm -rf "/tmp/teleport-operator-v8-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -11513,13 +11864,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/tmp/teleport-operator-v8-arm64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v8-arm64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-operator-v8-arm64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v8-arm64-builder"
-  - docker buildx build --load --builder "teleport-operator-v8-arm64-builder" --platform
+    --config "/tmp/teleport-operator-v8-arm64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-operator-v8-arm64-builder" --platform
     "linux/arm64" --tag "drone-docker-registry:5000/teleport-operator-v8-arm64" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu"
     --build-arg "COMPILER_NAME=aarch64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v8-arm64-builder"
-  - docker push "drone-docker-registry:5000/teleport-operator-v8-arm64"
+  - rm -rf "/tmp/teleport-operator-v8-arm64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -11534,6 +11889,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-operator-v8-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v8-amd64" "quay.io/fred_heinecke/teleport-operator:8-amd64"
   - docker push "quay.io/fred_heinecke/teleport-operator:8-amd64"
   - docker logout "quay.io"
@@ -11551,6 +11907,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-operator-v8-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator-v8-arm" "quay.io/fred_heinecke/teleport-operator:8-arm"
   - docker push "quay.io/fred_heinecke/teleport-operator:8-arm"
   - docker logout "quay.io"
@@ -11568,6 +11925,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-operator-v8-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v8-arm64" "quay.io/fred_heinecke/teleport-operator:8-arm64"
   - docker push "quay.io/fred_heinecke/teleport-operator:8-arm64"
   - docker logout "quay.io"
@@ -11609,6 +11967,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-operator-v8-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v8-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:8-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:8-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -11630,6 +11989,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-operator-v8-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator-v8-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:8-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:8-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -11651,6 +12011,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-operator-v8-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v8-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:8-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:8-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -11698,6 +12059,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-operator-v8-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v8-amd64" "public.ecr.aws/u8j2q1d9/teleport-operator:8-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:8-amd64"
   - docker logout "public.ecr.aws"
@@ -11718,6 +12080,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-operator-v8-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator-v8-arm" "public.ecr.aws/u8j2q1d9/teleport-operator:8-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:8-arm"
   - docker logout "public.ecr.aws"
@@ -11739,6 +12102,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-operator-v8-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v8-arm64" "public.ecr.aws/u8j2q1d9/teleport-operator:8-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:8-arm64"
   - docker logout "public.ecr.aws"
@@ -11795,7 +12159,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/container_images.go:229
+# Generated at dronegen/container_images.go:231
 ################################################
 
 kind: pipeline
@@ -11937,13 +12301,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-v10-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v10-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-v10-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-v10-amd64-builder"
-  - docker buildx build --load --builder "teleport-v10-amd64-builder" --target "teleport"
+    --config "/tmp/teleport-v10-amd64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-v10-amd64-builder" --target "teleport"
     --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-v10-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/amd64/$DRONE_TAG.deb"
     /go/build
   - docker buildx rm "teleport-v10-amd64-builder"
-  - docker push "drone-docker-registry:5000/teleport-v10-amd64"
+  - rm -rf "/tmp/teleport-v10-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -11961,13 +12329,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-v10-arm-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v10-arm-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-v10-arm-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-v10-arm-builder"
-  - docker buildx build --load --builder "teleport-v10-arm-builder" --target "teleport"
+    --config "/tmp/teleport-v10-arm-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "drone-docker-registry:5000/teleport-v10-arm" --file
     "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm/$DRONE_TAG.deb"
     /go/build
   - docker buildx rm "teleport-v10-arm-builder"
-  - docker push "drone-docker-registry:5000/teleport-v10-arm"
+  - rm -rf "/tmp/teleport-v10-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -11985,13 +12357,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-v10-arm64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-v10-arm64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-v10-arm64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-v10-arm64-builder"
-  - docker buildx build --load --builder "teleport-v10-arm64-builder" --target "teleport"
+    --config "/tmp/teleport-v10-arm64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-v10-arm64-builder" --target "teleport"
     --platform "linux/arm64" --tag "drone-docker-registry:5000/teleport-v10-arm64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport/arm64/$DRONE_TAG.deb"
     /go/build
   - docker buildx rm "teleport-v10-arm64-builder"
-  - docker push "drone-docker-registry:5000/teleport-v10-arm64"
+  - rm -rf "/tmp/teleport-v10-arm64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -12008,6 +12384,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-v10-amd64" "quay.io/fred_heinecke/teleport:10-amd64"
   - docker push "quay.io/fred_heinecke/teleport:10-amd64"
   - docker logout "quay.io"
@@ -12025,6 +12402,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-v10-arm" "quay.io/fred_heinecke/teleport:10-arm"
   - docker push "quay.io/fred_heinecke/teleport:10-arm"
   - docker logout "quay.io"
@@ -12042,6 +12420,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-v10-arm64" "quay.io/fred_heinecke/teleport:10-arm64"
   - docker push "quay.io/fred_heinecke/teleport:10-arm64"
   - docker logout "quay.io"
@@ -12083,6 +12462,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -12104,6 +12484,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -12125,6 +12506,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -12171,6 +12553,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport:10-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:10-amd64"
   - docker logout "public.ecr.aws"
@@ -12191,6 +12574,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-v10-arm" "public.ecr.aws/u8j2q1d9/teleport:10-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:10-arm"
   - docker logout "public.ecr.aws"
@@ -12211,6 +12595,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-v10-arm64" "public.ecr.aws/u8j2q1d9/teleport:10-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport:10-arm64"
   - docker logout "public.ecr.aws"
@@ -12314,13 +12699,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-ent-v10-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v10-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-ent-v10-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-amd64-builder"
-  - docker buildx build --load --builder "teleport-ent-v10-amd64-builder" --target
+    --config "/tmp/teleport-ent-v10-amd64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-ent-v10-amd64-builder" --target
     "teleport" --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-ent-v10-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/amd64/$DRONE_TAG.deb"
     /go/build
   - docker buildx rm "teleport-ent-v10-amd64-builder"
-  - docker push "drone-docker-registry:5000/teleport-ent-v10-amd64"
+  - rm -rf "/tmp/teleport-ent-v10-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -12338,13 +12727,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-ent-v10-arm-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v10-arm-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-ent-v10-arm-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm-builder"
-  - docker buildx build --load --builder "teleport-ent-v10-arm-builder" --target "teleport"
+    --config "/tmp/teleport-ent-v10-arm-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-ent-v10-arm-builder" --target "teleport"
     --platform "linux/arm" --tag "drone-docker-registry:5000/teleport-ent-v10-arm"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm/$DRONE_TAG.deb"
     /go/build
   - docker buildx rm "teleport-ent-v10-arm-builder"
-  - docker push "drone-docker-registry:5000/teleport-ent-v10-arm"
+  - rm -rf "/tmp/teleport-ent-v10-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -12362,13 +12755,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-ent-v10-arm64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-v10-arm64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-ent-v10-arm64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm64-builder"
-  - docker buildx build --load --builder "teleport-ent-v10-arm64-builder" --target
+    --config "/tmp/teleport-ent-v10-arm64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-ent-v10-arm64-builder" --target
     "teleport" --platform "linux/arm64" --tag "drone-docker-registry:5000/teleport-ent-v10-arm64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent/arm64/$DRONE_TAG.deb"
     /go/build
   - docker buildx rm "teleport-ent-v10-arm64-builder"
-  - docker push "drone-docker-registry:5000/teleport-ent-v10-arm64"
+  - rm -rf "/tmp/teleport-ent-v10-arm64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -12385,6 +12782,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-ent-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v10-amd64" "quay.io/fred_heinecke/teleport-ent:10-amd64"
   - docker push "quay.io/fred_heinecke/teleport-ent:10-amd64"
   - docker logout "quay.io"
@@ -12402,6 +12800,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-ent-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent-v10-arm" "quay.io/fred_heinecke/teleport-ent:10-arm"
   - docker push "quay.io/fred_heinecke/teleport-ent:10-arm"
   - docker logout "quay.io"
@@ -12419,6 +12818,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-ent-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v10-arm64" "quay.io/fred_heinecke/teleport-ent:10-arm64"
   - docker push "quay.io/fred_heinecke/teleport-ent:10-arm64"
   - docker logout "quay.io"
@@ -12460,6 +12860,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-ent-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -12481,6 +12882,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-ent-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -12502,6 +12904,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-ent-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -12548,6 +12951,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-ent-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport-ent:10-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:10-amd64"
   - docker logout "public.ecr.aws"
@@ -12568,6 +12972,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-ent-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-ent-v10-arm" "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm"
   - docker logout "public.ecr.aws"
@@ -12588,6 +12993,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-ent-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-ent-v10-arm64" "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:10-arm64"
   - docker logout "public.ecr.aws"
@@ -12678,13 +13084,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
+  - mkdir -pv "/tmp/teleport-ent-fips-v10-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-ent-fips-v10-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-ent-fips-v10-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v10-amd64-builder"
-  - docker buildx build --load --builder "teleport-ent-fips-v10-amd64-builder" --target
+    --config "/tmp/teleport-ent-fips-v10-amd64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-ent-fips-v10-amd64-builder" --target
     "teleport-fips" --platform "linux/amd64" --tag "drone-docker-registry:5000/teleport-ent-fips-v10-amd64"
     --file "/go/build/Dockerfile" --build-arg "DEB_PATH=artifacts/deb/teleport-ent-fips/amd64/$DRONE_TAG.deb"
     /go/build
   - docker buildx rm "teleport-ent-fips-v10-amd64-builder"
-  - docker push "drone-docker-registry:5000/teleport-ent-fips-v10-amd64"
+  - rm -rf "/tmp/teleport-ent-fips-v10-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -12701,6 +13111,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-ent-fips-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips-v10-amd64" "quay.io/fred_heinecke/teleport-ent:10-fips-amd64"
   - docker push "quay.io/fred_heinecke/teleport-ent:10-fips-amd64"
   - docker logout "quay.io"
@@ -12739,6 +13150,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-ent-fips-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -12782,6 +13194,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-ent-fips-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-ent-fips-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport-ent:10-fips-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-ent:10-fips-amd64"
   - docker logout "public.ecr.aws"
@@ -12822,13 +13235,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
+  - mkdir -pv "/tmp/teleport-lab-v10-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v10-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-lab-v10-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-amd64-builder"
-  - docker buildx build --load --builder "teleport-lab-v10-amd64-builder" --platform
+    --config "/tmp/teleport-lab-v10-amd64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-lab-v10-amd64-builder" --platform
     "linux/amd64" --tag "drone-docker-registry:5000/teleport-lab-v10-amd64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
     "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-amd64" /tmp/build
   - docker buildx rm "teleport-lab-v10-amd64-builder"
-  - docker push "drone-docker-registry:5000/teleport-lab-v10-amd64"
+  - rm -rf "/tmp/teleport-lab-v10-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -12846,12 +13263,16 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
+  - mkdir -pv "/tmp/teleport-lab-v10-arm-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm-builder"
-  - docker buildx build --load --builder "teleport-lab-v10-arm-builder" --platform
+    --config "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-lab-v10-arm-builder" --platform
     "linux/arm" --tag "drone-docker-registry:5000/teleport-lab-v10-arm" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
     --build-arg "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-arm" /tmp/build
   - docker buildx rm "teleport-lab-v10-arm-builder"
-  - docker push "drone-docker-registry:5000/teleport-lab-v10-arm"
+  - rm -rf "/tmp/teleport-lab-v10-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -12869,13 +13290,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
+  - mkdir -pv "/tmp/teleport-lab-v10-arm64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v10-arm64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-lab-v10-arm64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm64-builder"
-  - docker buildx build --load --builder "teleport-lab-v10-arm64-builder" --platform
+    --config "/tmp/teleport-lab-v10-arm64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-lab-v10-arm64-builder" --platform
     "linux/arm64" --tag "drone-docker-registry:5000/teleport-lab-v10-arm64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
     "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-arm64" /tmp/build
   - docker buildx rm "teleport-lab-v10-arm64-builder"
-  - docker push "drone-docker-registry:5000/teleport-lab-v10-arm64"
+  - rm -rf "/tmp/teleport-lab-v10-arm64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -12892,6 +13317,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-lab-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v10-amd64" "quay.io/fred_heinecke/teleport-lab:10-amd64"
   - docker push "quay.io/fred_heinecke/teleport-lab:10-amd64"
   - docker logout "quay.io"
@@ -12909,6 +13335,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-lab-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab-v10-arm" "quay.io/fred_heinecke/teleport-lab:10-arm"
   - docker push "quay.io/fred_heinecke/teleport-lab:10-arm"
   - docker logout "quay.io"
@@ -12926,6 +13353,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-lab-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v10-arm64" "quay.io/fred_heinecke/teleport-lab:10-arm64"
   - docker push "quay.io/fred_heinecke/teleport-lab:10-arm64"
   - docker logout "quay.io"
@@ -12967,6 +13395,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-lab-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -12988,6 +13417,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-lab-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -13009,6 +13439,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-lab-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -13055,6 +13486,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-lab-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport-lab:10-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:10-amd64"
   - docker logout "public.ecr.aws"
@@ -13075,6 +13507,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-lab-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-lab-v10-arm" "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm"
   - docker logout "public.ecr.aws"
@@ -13095,6 +13528,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-lab-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-lab-v10-arm64" "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-lab:10-arm64"
   - docker logout "public.ecr.aws"
@@ -13137,13 +13571,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/tmp/teleport-operator-v10-amd64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v10-amd64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-operator-v10-amd64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-amd64-builder"
-  - docker buildx build --load --builder "teleport-operator-v10-amd64-builder" --platform
+    --config "/tmp/teleport-operator-v10-amd64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-operator-v10-amd64-builder" --platform
     "linux/amd64" --tag "drone-docker-registry:5000/teleport-operator-v10-amd64" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-x86-64-linux-gnu"
     --build-arg "COMPILER_NAME=x86_64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-amd64-builder"
-  - docker push "drone-docker-registry:5000/teleport-operator-v10-amd64"
+  - rm -rf "/tmp/teleport-operator-v10-amd64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -13160,13 +13598,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/tmp/teleport-operator-v10-arm-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v10-arm-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-operator-v10-arm-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm-builder"
-  - docker buildx build --load --builder "teleport-operator-v10-arm-builder" --platform
+    --config "/tmp/teleport-operator-v10-arm-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-operator-v10-arm-builder" --platform
     "linux/arm" --tag "drone-docker-registry:5000/teleport-operator-v10-arm" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-arm-linux-gnueabihf"
     --build-arg "COMPILER_NAME=arm-linux-gnueabihf-gcc" /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-arm-builder"
-  - docker push "drone-docker-registry:5000/teleport-operator-v10-arm"
+  - rm -rf "/tmp/teleport-operator-v10-arm-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -13183,13 +13625,17 @@ steps:
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/tmp/teleport-operator-v10-arm64-builder"
+  - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-operator-v10-arm64-builder/buildkitd.toml"
+  - echo '  http = true' >> "/tmp/teleport-operator-v10-arm64-builder/buildkitd.toml"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm64-builder"
-  - docker buildx build --load --builder "teleport-operator-v10-arm64-builder" --platform
+    --config "/tmp/teleport-operator-v10-arm64-builder/buildkitd.toml"
+  - docker buildx build --push --builder "teleport-operator-v10-arm64-builder" --platform
     "linux/arm64" --tag "drone-docker-registry:5000/teleport-operator-v10-arm64" --file
     "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg "COMPILER_PACKAGE=gcc-aarch64-linux-gnu"
     --build-arg "COMPILER_NAME=aarch64-linux-gnu-gcc" /go/src/github.com/gravitational/teleport
   - docker buildx rm "teleport-operator-v10-arm64-builder"
-  - docker push "drone-docker-registry:5000/teleport-operator-v10-arm64"
+  - rm -rf "/tmp/teleport-operator-v10-arm64-builder"
   environment:
     DOCKER_BUILDKIT: "1"
   volumes:
@@ -13205,6 +13651,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-operator-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v10-amd64" "quay.io/fred_heinecke/teleport-operator:10-amd64"
   - docker push "quay.io/fred_heinecke/teleport-operator:10-amd64"
   - docker logout "quay.io"
@@ -13222,6 +13669,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-operator-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator-v10-arm" "quay.io/fred_heinecke/teleport-operator:10-arm"
   - docker push "quay.io/fred_heinecke/teleport-operator:10-arm"
   - docker logout "quay.io"
@@ -13239,6 +13687,7 @@ steps:
   image: docker
   commands:
   - docker login -u="$QUAY_USERNAME" -p="$QUAY_PASSWORD" "quay.io"
+  - docker pull "drone-docker-registry:5000/teleport-operator-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v10-arm64" "quay.io/fred_heinecke/teleport-operator:10-arm64"
   - docker push "quay.io/fred_heinecke/teleport-operator:10-arm64"
   - docker logout "quay.io"
@@ -13280,6 +13729,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-operator-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -13301,6 +13751,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-operator-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -13322,6 +13773,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
     278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker pull "drone-docker-registry:5000/teleport-operator-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
   - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
   - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
@@ -13369,6 +13821,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-operator-v10-amd64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v10-amd64" "public.ecr.aws/u8j2q1d9/teleport-operator:10-amd64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:10-amd64"
   - docker logout "public.ecr.aws"
@@ -13389,6 +13842,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-operator-v10-arm"
   - docker tag "drone-docker-registry:5000/teleport-operator-v10-arm" "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm"
   - docker logout "public.ecr.aws"
@@ -13410,6 +13864,7 @@ steps:
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr-public get-login-password --region=us-east-1 | docker login -u="AWS" --password-stdin
     public.ecr.aws
+  - docker pull "drone-docker-registry:5000/teleport-operator-v10-arm64"
   - docker tag "drone-docker-registry:5000/teleport-operator-v10-arm64" "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm64"
   - docker push "public.ecr.aws/u8j2q1d9/teleport-operator:10-arm64"
   - docker logout "public.ecr.aws"
@@ -13941,6 +14396,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 04a2fab83fbcbd32d3f91ad6f0d63b9bf7fcf35f24da2fd3aebc0ed0d814b7cb
+hmac: a0fa0bc33529d44cae691439104bcdbf2618ba9aa06c611fe08b626b5abd11a6
 
 ...
