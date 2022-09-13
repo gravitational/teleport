@@ -800,14 +800,14 @@ func TestConvertCommandError(t *testing.T) {
 					commandPathBehavior: forceBasePath,
 					execOutput: map[string][]byte{
 						tt.wantBin: tt.stderr,
-					}}),
+					},
+				}),
 			}
 			c := NewCmdBuilder(tc, profile, database, "root", opts...)
 			c.uid = utils.NewFakeUID()
 
 			cmd, err := c.GetConnectCommand()
 			require.NoError(t, err)
-			cmd.Run()
 
 			// make sure the expected test bin is the command bin we got
 			require.Equal(t, cmd.Path, tt.wantBin)
