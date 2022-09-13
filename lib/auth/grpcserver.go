@@ -2934,6 +2934,24 @@ func (g *GRPCServer) GetToken(ctx context.Context, req *types.ResourceRequest) (
 	return provisionTokenV2, nil
 }
 
+// GetTokenV3 retrieves a v3 token by name.
+func (g *GRPCServer) GetTokenV3(ctx context.Context, req *types.ResourceRequest) (*types.ProvisionTokenV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	t, err := auth.ServerWithRoles.GetToken(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	provisionTokenV3, ok := t.(*types.ProvisionTokenV3)
+	if !ok {
+		return nil, trace.Errorf("encountered unexpected token type: %T", t)
+	}
+	// TODO: Consider transforming a V2 token to V3 ?
+	return provisionTokenV3, nil
+}
+
 // GetTokens retrieves all tokens.
 func (g *GRPCServer) GetTokens(ctx context.Context, _ *empty.Empty) (*types.ProvisionTokenV2List, error) {
 	auth, err := g.authenticate(ctx)
@@ -2956,6 +2974,31 @@ func (g *GRPCServer) GetTokens(ctx context.Context, _ *empty.Empty) (*types.Prov
 	}, nil
 }
 
+// GetTokensV3 retrieves all V3 tokens.
+func (g *GRPCServer) GetTokensV3(ctx context.Context, _ *empty.Empty) (*types.ProvisionTokenV3List, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ts, err := auth.ServerWithRoles.GetTokens(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// TODO: Duplication issues of user tokens and static tokens
+	// Calling GetTokensV2 and GetTokensV3 will return all of these potentially.
+	// expand on this TODO in PR and solicit feedback.
+	provisionTokensV3 := make([]*types.ProvisionTokenV3, len(ts))
+	for i, t := range ts {
+		var ok bool
+		if provisionTokensV3[i], ok = t.(*types.ProvisionTokenV3); !ok {
+			return nil, trace.Errorf("encountered unexpected token type: %T", t)
+		}
+	}
+	return &types.ProvisionTokenV3List{
+		ProvisionTokens: provisionTokensV3,
+	}, nil
+}
+
 // UpsertToken upserts a token.
 func (g *GRPCServer) UpsertToken(ctx context.Context, token *types.ProvisionTokenV2) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -2968,8 +3011,32 @@ func (g *GRPCServer) UpsertToken(ctx context.Context, token *types.ProvisionToke
 	return &empty.Empty{}, nil
 }
 
+// UpsertTokenV3 upserts a v3 token.
+func (g *GRPCServer) UpsertTokenV3(ctx context.Context, token *types.ProvisionTokenV3) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = auth.ServerWithRoles.UpsertToken(ctx, token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
 // CreateToken creates a token.
 func (g *GRPCServer) CreateToken(ctx context.Context, token *types.ProvisionTokenV2) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = auth.ServerWithRoles.CreateToken(ctx, token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// CreateToken creates a v3 token.
+func (g *GRPCServer) CreateTokenV3(ctx context.Context, token *types.ProvisionTokenV3) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
