@@ -565,6 +565,7 @@ func (p *product) GetBuildStepName(arch string, version *releaseVersion) string 
 }
 
 func (p *product) createBuildStep(arch string, version *releaseVersion) (step, *buildStepOutput) {
+	buildCachePath := "/go/buildx-cache"
 	imageName := p.BuildLocalImageName(arch, version)
 	builderName := fmt.Sprintf("%s-builder", imageName)
 
@@ -582,6 +583,11 @@ func (p *product) createBuildStep(arch string, version *releaseVersion) (step, *
 			buildCommand += fmt.Sprintf(" --build-arg %q", buildArg)
 		}
 	}
+	// This buildx `docker-container` driver (which is required for multiarch builds)
+	// does not support the normal `docker image` cache. This caches layers between
+	// steps via the filesystem.
+	buildCommand += fmt.Sprintf(" --export-cache type=local,dest=%q", buildCachePath)
+	buildCommand += fmt.Sprintf(" --import-cache type=local,dest=%q", buildCachePath)
 	buildCommand += " " + p.WorkingDirectory
 
 	step := step{
@@ -594,7 +600,7 @@ func (p *product) createBuildStep(arch string, version *releaseVersion) (step, *
 			},
 		},
 		Commands: []string{
-			"docker image ls",
+			fmt.Sprintf("mkdir -pv %q", buildCachePath),
 			"docker run --privileged --rm tonistiigi/binfmt --install all",
 			fmt.Sprintf("mkdir -pv %q && cd %q", p.WorkingDirectory, p.WorkingDirectory),
 			fmt.Sprintf("docker buildx create --driver %q --name %q", "docker-container", builderName),
