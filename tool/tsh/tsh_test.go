@@ -1048,12 +1048,10 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 					RequireSessionMFA: true,
 				},
 			},
-			setup:        registerPasswordlessDeviceWithWebauthnSolver,
-			hostLabels:   "env=dev",
-			errAssertion: require.Error,
-			// label is missing however tsh will try to connect over to agent "env=dev:3022"
-			// and fail, however that's why it require sign
-			deviceSignCount: 1,
+			setup:           registerPasswordlessDeviceWithWebauthnSolver,
+			hostLabels:      "env=dev",
+			errAssertion:    require.Error,
+			deviceSignCount: 0,
 			stdoutAssertion: require.Empty,
 		},
 	}
