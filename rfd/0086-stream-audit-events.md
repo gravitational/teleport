@@ -219,7 +219,9 @@ The missing feature is allowing the stream to be resumed by providing a stream c
 As this is only needed for Teleport Cloud, the tenant-operator will be responsible for enabling this.
 - There's a [limit on the number of simultaneous readers] of stream shard. This limit is 2, which is enough for MAU as we plan to stream audit events from a single process.
 - For MAU, we don't strictly need the order enforced by `shards.go` (i.e. we could process all active shards in parallel, even if their parents have not been processed yet). So instead of refactoring `shards.go`, we could have a separate implementation that doesn't enforce any order.
+- There's a already a [`StreamSessionEvents`] API, but it only for session recording events, not arbitrary audit events (as needed for MAU).
 
 [enabled for the backend]: https://github.com/gravitational/teleport/blob/cf205b01a5aa88fd4fcdb499ff9b9c40c4e5c335/lib/backend/dynamo/dynamodbbk.go#L297-L301
 [limit on the number of simultaneous readers]: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ServiceQuotas.html#limits-dynamodb-streams-simultaneous-shard-readers
+[`StreamSessionEvents`]: https://github.com/gravitational/teleport/blob/cf205b01a5aa88fd4fcdb499ff9b9c40c4e5c335/api/client/client.go#L2089
 
