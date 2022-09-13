@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::{errors::invalid_data_error, Message, Messages};
-use crate::{test_debug, Encode, Payload};
+use crate::{Encode, Payload};
 use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use rdp::core::tpkt;
@@ -54,7 +54,7 @@ impl Client {
     pub fn read(&mut self, raw_payload: tpkt::Payload) -> RdpResult<Option<Payload>> {
         let mut raw_payload = try_let!(tpkt::Payload::Raw, raw_payload)?;
         let channel_pdu_header = ChannelPDUHeader::decode(&mut raw_payload)?;
-        test_debug!("decoded to RDPDR: {:?}", channel_pdu_header);
+        debug!("got RDP: {:?}", channel_pdu_header);
 
         raw_payload.read_to_end(&mut self.data)?;
 

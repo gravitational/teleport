@@ -22,7 +22,7 @@ use crate::errors::{
     invalid_data_error, not_implemented_error, rejected_by_server_error, try_error, NTSTATUS_OK,
     SPECIAL_NO_RESPONSE,
 };
-use crate::{test_debug, util, Encode, Messages};
+use crate::{util, Encode, Messages};
 use crate::{vchan, Message};
 use crate::{
     FileSystemObject, FileType, Payload, SharedDirectoryAcknowledge, SharedDirectoryCreateRequest,
@@ -143,13 +143,9 @@ impl Client {
     }
     /// Reads raw RDP messages sent on the rdpdr virtual channel and replies as necessary.
     pub fn read_and_create_reply(&mut self, payload: tpkt::Payload) -> RdpResult<Messages> {
-        test_debug!("received RDPDR tpkt::Payload: {:?}", payload);
-
         if let Some(mut payload) = self.vchan.read(payload)? {
-            test_debug!("read into RDPDR rdpclient::Payload: {:?}", payload);
-
             let header = SharedHeader::decode(&mut payload)?;
-            test_debug!("decoded to RDPDR: {:?}", header);
+            debug!("got RDP: {:?}", header);
             if let Component::RDPDR_CTYP_PRN = header.component {
                 warn!("got {:?} RDPDR header from RDP server, ignoring because we're not redirecting any printers", header);
                 return Ok(vec![]);
@@ -180,8 +176,6 @@ impl Client {
                     vec![]
                 }
             };
-
-            test_debug!("returning RDP raw: {:?}", responses);
 
             return Ok(responses);
         }
