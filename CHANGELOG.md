@@ -1,5 +1,27 @@
 # Changelog
 
+## 10.2.1
+
+This release of Teleport contains a security fix as well as multiple bug fixes.
+
+### Upgraded Go to 1.18.6
+
+Teleport build infrastructure has been upgraded to include security fixes from
+the latest Go 1.18.6 release.
+
+See Go [security announcement](https://groups.google.com/g/golang-announce/c/x49AQzIVX-s)
+for details.
+
+### Other fixes
+
+* Fixed issue with invalid `TeleportHostname` tag name breaking automatic AWS labels import. [#16015](https://github.com/gravitational/teleport/pull/16015)
+* Fixed issue with corrupted `known_hosts` file when using `tsh` concurrently. [#16203](https://github.com/gravitational/teleport/pull/16203)
+* Fixed potential panic in `tctl` commands. [#16255](https://github.com/gravitational/teleport/pull/16255)
+* Fixed issue with a dot being appended to the token value generated with `tctl auth sign`. [#16238](https://github.com/gravitational/teleport/pull/16238)
+* Fixed issue with executing SSH commands on multiple nodes when per-session MFA is enabled. [#16148](https://github.com/gravitational/teleport/pull/16148)
+* Updated the new "Add server" wizard to gracefully treat lack of permissions. [webapps#1187](https://github.com/gravitational/webapps/pull/1187)
+* Added SFTP events to audit log. [webapps#1188](https://github.com/gravitational/webapps/pull/1188)
+
 ## 10.2.0
 
 This release of Teleport contains multiple improvements and bug fixes.
@@ -52,6 +74,7 @@ This release of Teleport contains multiple improvements and bug fixes.
 * Improved connection reliability in proxy peering mode. [#15313](https://github.com/gravitational/teleport/pull/15313)
 * Improved error messaging in joined Kubernetes sessions. [#15492](https://github.com/gravitational/teleport/pull/15492)
 * Improved network utilization on proxies. [#15838](https://github.com/gravitational/teleport/pull/15838)
+* Added RDP licensing negotiation [gravitational/rdp-rs#17](https://github.com/gravitational/rdp-rs/pull/17)
 
 ## 10.1.4
 
@@ -352,7 +375,7 @@ to keep using it.
 
 In previous versions of Teleport users needed full access to a Node/Kubernetes
 pod in order to join a session. Teleport 10 relaxes this requirement. Joining
-sessions remains deny-by-default but now only `join_policy` statements are
+sessions remains deny-by-default but now only `join_sessions` statements are
 checked for session join RBAC.
 
 See the Moderated Sessions guide for more details:
