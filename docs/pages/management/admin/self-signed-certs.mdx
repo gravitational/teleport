@@ -9,11 +9,12 @@ We will show you how to run Teleport with self-signed certificates and address
 problems caused by this configuration.
 
 The Teleport Proxy Service authenticates itself to clients via TLS x509 certificates.
-If certificates are not configured for the Proxy Service, then it uses self-signed certificates,
-which clients will not trust by default. This can cause problems when using tools like
+If certificates are not configured for the Proxy Service then it uses self-signed certificates,
+which clients will not trust by default.
+When visiting the cluster's Web UI, the certificate presented will not be trusted by your browser. In this case, 
+you will likely see a page warning you that the website is not trusted.
+Additionally, self-signed certificates can cause problems when interacting with your Teleport cluster via
 `teleport`, `tsh`, or `tctl`.
-
-Additionally, when visiting the cluster's Web UI, the certificate presented will not be trusted by your browser. In this case, you will likely see a page warning you that the site is not trusted.
 
 <Notice type="warning" title="DO NOT USE THIS IN PRODUCTION">
   **DO NOT USE SELF-SIGNED CERTS IN PRODUCTION**
@@ -23,8 +24,6 @@ Additionally, when visiting the cluster's Web UI, the certificate presented will
   [Certificate Authority](https://goteleport.com/blog/ssh-certificate-authorities-explained/)
   to prevent a [Man-In-The-Middle (MITM)](https://en.wikipedia.org/wiki/Man-in-the-middle_attack) attack.
 
-  This guide is provided for the benefit of users who are interested in evaluating Teleport in a
-  non-production environment, without having to configure certificates.
 </Notice>
 
 ## Prerequisites
