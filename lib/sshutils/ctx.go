@@ -21,6 +21,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/gravitational/teleport/lib/teleagent"
 
@@ -63,6 +64,9 @@ type ConnectionContext struct {
 
 	// cancel cancels the context.Context scope associated with this ConnectionContext.
 	cancel context.CancelFunc
+
+	// clientLastActive records the last time there was activity from the client.
+	clientLastActive time.Time
 }
 
 // NewConnectionContext creates a new ConnectionContext and a child context.Context
@@ -184,6 +188,20 @@ func (c *ConnectionContext) decrSessions() {
 	if c.sessions < 0 {
 		panic("underflow")
 	}
+}
+
+// GetClientLastActive returns time when client was last active.
+func (c *ConnectionContext) GetClientLastActive() time.Time {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.clientLastActive
+}
+
+// UpdateClientActivity sets last recorded client activity associated with this context.
+func (c *ConnectionContext) UpdateClientActivity() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.clientLastActive = time.Now().UTC()
 }
 
 // AddCloser adds any closer in ctx that will be called
