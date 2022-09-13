@@ -386,7 +386,7 @@
               "slug": "/management/admin/daemon/"
             },
             {
-              "title": "Run Teleport with self-signed certs",
+"title": "Run Teleport with Self-Signed Certs",
               "slug": "/management/admin/self-signed-certs/"
             }
           ]
