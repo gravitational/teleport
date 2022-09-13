@@ -98,25 +98,24 @@ FROM centos:7 AS libpcsclite
 
 # Install required dependencies.
 RUN yum groupinstall -y 'Development Tools' && \
-    yum install -y \
-        autoconf \
-        libudev-devel && \
     yum update -y && \
+    yum -y install centos-release-scl-rh && \
+    yum install -y \
+        autoconf-archive \
+        libudev-devel \
+        scl-utils \
+        centos-release-scl \
+        devtoolset-11-gcc* && \
     yum clean all
 
-# Install libpcsclite.
-# Depends on autoconf.
-# We use outdated version 1.8.11 for licence compatibility.
+# Install libpcsclite - compile with a newer GCC. The one installed by default is not able to compile it.
 # Linked so `make build/tsh` finds the library where it expects it.
-RUN git clone --depth=1 https://salsa.debian.org/rousseau/PCSC.git -b 1.8.11 && \
+RUN git clone --depth=1 https://salsa.debian.org/rousseau/PCSC.git -b 1.9.8 && \
     cd PCSC && \
     ./bootstrap && \
-    ./configure --enable-static --with-pic && \
-    make && \
-    make install && \
-# Update ld.
-    echo /usr/local/lib64 > /etc/ld.so.conf.d/libpcsclite.conf && \
-    ldconfig
+    ./configure --enable-static --with-pic --disable-libsystemd && \
+    scl enable devtoolset-11 "make" && \
+    make install
 
 ## BUILDBOX ###################################################################
 
@@ -155,8 +154,6 @@ RUN yum groupinstall -y 'Development Tools' && \
     # used by our Makefile
     which \
     zip \
-    # required by PIV integration
-    pcsc-lite-devel \
     # required by libbpf
     zlib-static && \
     yum clean all
@@ -217,10 +214,10 @@ COPY --from=libfido2 \
     /usr/local/lib64/
 
 COPY --from=libpcsclite /usr/local/include/ /usr/local/include/
-COPY --from=libpcsclite /usr/local/lib/pkgconfig/ /usr/local/lib/pkgconfig/
+COPY --from=libpcsclite /usr/local/lib/pkgconfig/ /usr/local/lib64/pkgconfig/
 COPY --from=libpcsclite \
     /usr/local/lib/libpcsclite.a \
-    /usr/local/lib64/
+    /usr/local/lib/
 
 # Re-create usual lib64 links.
 RUN cd /usr/local/lib64 && \
@@ -236,7 +233,7 @@ COPY pkgconfig/centos7/ /
 ENV PKG_CONFIG_PATH="/usr/local/lib64/pkgconfig"
 
 # Download pre-built CentOS 7 assets with clang needed to build BPF tools.
-RUN cd / && curl -L https://s3.amazonaws.com/clientbuilds.gravitational.io/go/centos7-assets.tar.gz | tar -xz
+# RUN cd / && curl -L https://s3.amazonaws.com/clientbuilds.gravitational.io/go/centos7-assets.tar.gz | tar -xz
 
 # Copy libbpf into the final image.
 COPY --from=libbpf /opt/libbpf/usr /usr

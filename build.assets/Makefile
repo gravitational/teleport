@@ -422,7 +422,7 @@ release-amd64-centos7: buildbox-centos7
 
 .PHONY: release-amd64-centos7-fips
 release-amd64-centos7-fips: buildbox-centos7-fips
-	$(MAKE) release-centos7-fips ARCH=amd64 FIPS=yes
+	$(MAKE) release-centos7-fips ARCH=amd64 FIPS=yes LIBPCSCLITE=yes
 
 #
 # Create a Teleport FIPS package using the build container.
