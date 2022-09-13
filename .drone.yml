@@ -6251,7 +6251,7 @@ steps:
   image: docker
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
-  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport/docker/sshd" && cd "/go/src/github.com/gravitational/teleport/docker/sshd"
   - mkdir -pv "/tmp/teleport-lab-v10-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v10-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v10-amd64-builder/buildkitd.toml"
@@ -6260,7 +6260,7 @@ steps:
   - docker buildx build --push --builder "teleport-lab-v10-amd64-builder" --platform
     "linux/amd64" --tag "drone-docker-registry:5000/teleport-lab-v10-amd64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
-    "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-amd64" /go/src/github.com/gravitational/teleport
+    "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-amd64" /go/src/github.com/gravitational/teleport/docker/sshd
   - docker buildx rm "teleport-lab-v10-amd64-builder"
   - rm -rf "/tmp/teleport-lab-v10-amd64-builder"
   environment:
@@ -6278,7 +6278,7 @@ steps:
   image: docker
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
-  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport/docker/sshd" && cd "/go/src/github.com/gravitational/teleport/docker/sshd"
   - mkdir -pv "/tmp/teleport-lab-v10-arm-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
@@ -6286,7 +6286,7 @@ steps:
     "teleport-lab-v10-arm-builder" --config "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-lab-v10-arm-builder" --platform
     "linux/arm" --tag "drone-docker-registry:5000/teleport-lab-v10-arm" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
-    --build-arg "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-arm" /go/src/github.com/gravitational/teleport
+    --build-arg "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-arm" /go/src/github.com/gravitational/teleport/docker/sshd
   - docker buildx rm "teleport-lab-v10-arm-builder"
   - rm -rf "/tmp/teleport-lab-v10-arm-builder"
   environment:
@@ -6304,7 +6304,7 @@ steps:
   image: docker
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
-  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport/docker/sshd" && cd "/go/src/github.com/gravitational/teleport/docker/sshd"
   - mkdir -pv "/tmp/teleport-lab-v10-arm64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v10-arm64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v10-arm64-builder/buildkitd.toml"
@@ -6313,7 +6313,7 @@ steps:
   - docker buildx build --push --builder "teleport-lab-v10-arm64-builder" --platform
     "linux/arm64" --tag "drone-docker-registry:5000/teleport-lab-v10-arm64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
-    "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-arm64" /go/src/github.com/gravitational/teleport
+    "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-arm64" /go/src/github.com/gravitational/teleport/docker/sshd
   - docker buildx rm "teleport-lab-v10-arm64-builder"
   - rm -rf "/tmp/teleport-lab-v10-arm64-builder"
   environment:
@@ -7995,7 +7995,7 @@ steps:
   image: docker
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
-  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport/docker/sshd" && cd "/go/src/github.com/gravitational/teleport/docker/sshd"
   - mkdir -pv "/tmp/teleport-lab-v10-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v10-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v10-amd64-builder/buildkitd.toml"
@@ -8004,7 +8004,7 @@ steps:
   - docker buildx build --push --builder "teleport-lab-v10-amd64-builder" --platform
     "linux/amd64" --tag "drone-docker-registry:5000/teleport-lab-v10-amd64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
-    "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-amd64" /go/src/github.com/gravitational/teleport
+    "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-amd64" /go/src/github.com/gravitational/teleport/docker/sshd
   - docker buildx rm "teleport-lab-v10-amd64-builder"
   - rm -rf "/tmp/teleport-lab-v10-amd64-builder"
   environment:
@@ -8022,7 +8022,7 @@ steps:
   image: docker
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
-  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport/docker/sshd" && cd "/go/src/github.com/gravitational/teleport/docker/sshd"
   - mkdir -pv "/tmp/teleport-lab-v10-arm-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
@@ -8030,7 +8030,7 @@ steps:
     "teleport-lab-v10-arm-builder" --config "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-lab-v10-arm-builder" --platform
     "linux/arm" --tag "drone-docker-registry:5000/teleport-lab-v10-arm" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
-    --build-arg "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-arm" /go/src/github.com/gravitational/teleport
+    --build-arg "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-arm" /go/src/github.com/gravitational/teleport/docker/sshd
   - docker buildx rm "teleport-lab-v10-arm-builder"
   - rm -rf "/tmp/teleport-lab-v10-arm-builder"
   environment:
@@ -8048,7 +8048,7 @@ steps:
   image: docker
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
-  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport/docker/sshd" && cd "/go/src/github.com/gravitational/teleport/docker/sshd"
   - mkdir -pv "/tmp/teleport-lab-v10-arm64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v10-arm64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v10-arm64-builder/buildkitd.toml"
@@ -8057,7 +8057,7 @@ steps:
   - docker buildx build --push --builder "teleport-lab-v10-arm64-builder" --platform
     "linux/arm64" --tag "drone-docker-registry:5000/teleport-lab-v10-arm64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
-    "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-arm64" /go/src/github.com/gravitational/teleport
+    "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-arm64" /go/src/github.com/gravitational/teleport/docker/sshd
   - docker buildx rm "teleport-lab-v10-arm64-builder"
   - rm -rf "/tmp/teleport-lab-v10-arm64-builder"
   environment:
@@ -9737,7 +9737,7 @@ steps:
   image: docker
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
-  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport/docker/sshd" && cd "/go/src/github.com/gravitational/teleport/docker/sshd"
   - mkdir -pv "/tmp/teleport-lab-v9-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v9-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v9-amd64-builder/buildkitd.toml"
@@ -9746,7 +9746,7 @@ steps:
   - docker buildx build --push --builder "teleport-lab-v9-amd64-builder" --platform
     "linux/amd64" --tag "drone-docker-registry:5000/teleport-lab-v9-amd64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
-    "BASE_IMAGE=drone-docker-registry:5000/teleport-v9-amd64" /go/src/github.com/gravitational/teleport
+    "BASE_IMAGE=drone-docker-registry:5000/teleport-v9-amd64" /go/src/github.com/gravitational/teleport/docker/sshd
   - docker buildx rm "teleport-lab-v9-amd64-builder"
   - rm -rf "/tmp/teleport-lab-v9-amd64-builder"
   environment:
@@ -9764,7 +9764,7 @@ steps:
   image: docker
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
-  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport/docker/sshd" && cd "/go/src/github.com/gravitational/teleport/docker/sshd"
   - mkdir -pv "/tmp/teleport-lab-v9-arm-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v9-arm-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v9-arm-builder/buildkitd.toml"
@@ -9772,7 +9772,7 @@ steps:
     "teleport-lab-v9-arm-builder" --config "/tmp/teleport-lab-v9-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-lab-v9-arm-builder" --platform
     "linux/arm" --tag "drone-docker-registry:5000/teleport-lab-v9-arm" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
-    --build-arg "BASE_IMAGE=drone-docker-registry:5000/teleport-v9-arm" /go/src/github.com/gravitational/teleport
+    --build-arg "BASE_IMAGE=drone-docker-registry:5000/teleport-v9-arm" /go/src/github.com/gravitational/teleport/docker/sshd
   - docker buildx rm "teleport-lab-v9-arm-builder"
   - rm -rf "/tmp/teleport-lab-v9-arm-builder"
   environment:
@@ -9790,7 +9790,7 @@ steps:
   image: docker
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
-  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport/docker/sshd" && cd "/go/src/github.com/gravitational/teleport/docker/sshd"
   - mkdir -pv "/tmp/teleport-lab-v9-arm64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v9-arm64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v9-arm64-builder/buildkitd.toml"
@@ -9799,7 +9799,7 @@ steps:
   - docker buildx build --push --builder "teleport-lab-v9-arm64-builder" --platform
     "linux/arm64" --tag "drone-docker-registry:5000/teleport-lab-v9-arm64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
-    "BASE_IMAGE=drone-docker-registry:5000/teleport-v9-arm64" /go/src/github.com/gravitational/teleport
+    "BASE_IMAGE=drone-docker-registry:5000/teleport-v9-arm64" /go/src/github.com/gravitational/teleport/docker/sshd
   - docker buildx rm "teleport-lab-v9-arm64-builder"
   - rm -rf "/tmp/teleport-lab-v9-arm64-builder"
   environment:
@@ -11478,7 +11478,7 @@ steps:
   image: docker
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
-  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport/docker/sshd" && cd "/go/src/github.com/gravitational/teleport/docker/sshd"
   - mkdir -pv "/tmp/teleport-lab-v8-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v8-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v8-amd64-builder/buildkitd.toml"
@@ -11487,7 +11487,7 @@ steps:
   - docker buildx build --push --builder "teleport-lab-v8-amd64-builder" --platform
     "linux/amd64" --tag "drone-docker-registry:5000/teleport-lab-v8-amd64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
-    "BASE_IMAGE=drone-docker-registry:5000/teleport-v8-amd64" /go/src/github.com/gravitational/teleport
+    "BASE_IMAGE=drone-docker-registry:5000/teleport-v8-amd64" /go/src/github.com/gravitational/teleport/docker/sshd
   - docker buildx rm "teleport-lab-v8-amd64-builder"
   - rm -rf "/tmp/teleport-lab-v8-amd64-builder"
   environment:
@@ -11505,7 +11505,7 @@ steps:
   image: docker
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
-  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport/docker/sshd" && cd "/go/src/github.com/gravitational/teleport/docker/sshd"
   - mkdir -pv "/tmp/teleport-lab-v8-arm-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v8-arm-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v8-arm-builder/buildkitd.toml"
@@ -11513,7 +11513,7 @@ steps:
     "teleport-lab-v8-arm-builder" --config "/tmp/teleport-lab-v8-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-lab-v8-arm-builder" --platform
     "linux/arm" --tag "drone-docker-registry:5000/teleport-lab-v8-arm" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
-    --build-arg "BASE_IMAGE=drone-docker-registry:5000/teleport-v8-arm" /go/src/github.com/gravitational/teleport
+    --build-arg "BASE_IMAGE=drone-docker-registry:5000/teleport-v8-arm" /go/src/github.com/gravitational/teleport/docker/sshd
   - docker buildx rm "teleport-lab-v8-arm-builder"
   - rm -rf "/tmp/teleport-lab-v8-arm-builder"
   environment:
@@ -11531,7 +11531,7 @@ steps:
   image: docker
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
-  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport/docker/sshd" && cd "/go/src/github.com/gravitational/teleport/docker/sshd"
   - mkdir -pv "/tmp/teleport-lab-v8-arm64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v8-arm64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v8-arm64-builder/buildkitd.toml"
@@ -11540,7 +11540,7 @@ steps:
   - docker buildx build --push --builder "teleport-lab-v8-arm64-builder" --platform
     "linux/arm64" --tag "drone-docker-registry:5000/teleport-lab-v8-arm64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
-    "BASE_IMAGE=drone-docker-registry:5000/teleport-v8-arm64" /go/src/github.com/gravitational/teleport
+    "BASE_IMAGE=drone-docker-registry:5000/teleport-v8-arm64" /go/src/github.com/gravitational/teleport/docker/sshd
   - docker buildx rm "teleport-lab-v8-arm64-builder"
   - rm -rf "/tmp/teleport-lab-v8-arm64-builder"
   environment:
@@ -13234,7 +13234,7 @@ steps:
   image: docker
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
-  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport/docker/sshd" && cd "/go/src/github.com/gravitational/teleport/docker/sshd"
   - mkdir -pv "/tmp/teleport-lab-v10-amd64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v10-amd64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v10-amd64-builder/buildkitd.toml"
@@ -13243,7 +13243,7 @@ steps:
   - docker buildx build --push --builder "teleport-lab-v10-amd64-builder" --platform
     "linux/amd64" --tag "drone-docker-registry:5000/teleport-lab-v10-amd64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
-    "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-amd64" /go/src/github.com/gravitational/teleport
+    "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-amd64" /go/src/github.com/gravitational/teleport/docker/sshd
   - docker buildx rm "teleport-lab-v10-amd64-builder"
   - rm -rf "/tmp/teleport-lab-v10-amd64-builder"
   environment:
@@ -13262,7 +13262,7 @@ steps:
   image: docker
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
-  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport/docker/sshd" && cd "/go/src/github.com/gravitational/teleport/docker/sshd"
   - mkdir -pv "/tmp/teleport-lab-v10-arm-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
@@ -13270,7 +13270,7 @@ steps:
     "teleport-lab-v10-arm-builder" --config "/tmp/teleport-lab-v10-arm-builder/buildkitd.toml"
   - docker buildx build --push --builder "teleport-lab-v10-arm-builder" --platform
     "linux/arm" --tag "drone-docker-registry:5000/teleport-lab-v10-arm" --file "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile"
-    --build-arg "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-arm" /go/src/github.com/gravitational/teleport
+    --build-arg "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-arm" /go/src/github.com/gravitational/teleport/docker/sshd
   - docker buildx rm "teleport-lab-v10-arm-builder"
   - rm -rf "/tmp/teleport-lab-v10-arm-builder"
   environment:
@@ -13289,7 +13289,7 @@ steps:
   image: docker
   commands:
   - docker run --privileged --rm tonistiigi/binfmt --install all
-  - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
+  - mkdir -pv "/go/src/github.com/gravitational/teleport/docker/sshd" && cd "/go/src/github.com/gravitational/teleport/docker/sshd"
   - mkdir -pv "/tmp/teleport-lab-v10-arm64-builder"
   - echo '[registry."drone-docker-registry:5000"]' > "/tmp/teleport-lab-v10-arm64-builder/buildkitd.toml"
   - echo '  http = true' >> "/tmp/teleport-lab-v10-arm64-builder/buildkitd.toml"
@@ -13298,7 +13298,7 @@ steps:
   - docker buildx build --push --builder "teleport-lab-v10-arm64-builder" --platform
     "linux/arm64" --tag "drone-docker-registry:5000/teleport-lab-v10-arm64" --file
     "/go/src/github.com/gravitational/teleport/docker/sshd/Dockerfile" --build-arg
-    "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-arm64" /go/src/github.com/gravitational/teleport
+    "BASE_IMAGE=drone-docker-registry:5000/teleport-v10-arm64" /go/src/github.com/gravitational/teleport/docker/sshd
   - docker buildx rm "teleport-lab-v10-arm64-builder"
   - rm -rf "/tmp/teleport-lab-v10-arm64-builder"
   environment:
@@ -14396,6 +14396,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 77be86f3835fe9056a046bba8ced8ce2c8aa5e7b8e37f67dba0705916693e58b
+hmac: c5c37a027a4011f11282cc99163e0b09cf6d810b918abee341a213018e7f588f
 
 ...
