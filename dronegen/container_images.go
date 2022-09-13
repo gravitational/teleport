@@ -65,7 +65,7 @@ const (
 	TestingECRRegistryOrg     string = "u8j2q1d9"
 	TestingEcrRegion          string = "us-east-2"
 	PRBranch                  string = "fred/arm-container-images"
-	ECRTestingDomain          string = "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+	ECRTestingDomain          string = "278576220453.dkr.ecr.us-east-2.amazonaws.com"
 )
 
 const (
@@ -594,6 +594,7 @@ func (p *product) createBuildStep(arch string, version *releaseVersion) (step, *
 			},
 		},
 		Commands: []string{
+			"docker image ls",
 			"docker run --privileged --rm tonistiigi/binfmt --install all",
 			fmt.Sprintf("mkdir -pv %q && cd %q", p.WorkingDirectory, p.WorkingDirectory),
 			fmt.Sprintf("docker buildx create --driver %q --name %q", "docker-container", builderName),

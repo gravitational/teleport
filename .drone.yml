@@ -5310,6 +5310,7 @@ steps:
 - name: Build teleport image "teleport-v10-amd64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v10-amd64-builder"
@@ -5331,6 +5332,7 @@ steps:
 - name: Build teleport image "teleport-v10-arm"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v10-arm-builder"
@@ -5352,6 +5354,7 @@ steps:
 - name: Build teleport image "teleport-v10-arm64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v10-arm64-builder"
@@ -5441,17 +5444,17 @@ steps:
   - Tag and push "quay.io/fred_heinecke/teleport:10-amd64" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport:10-arm" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport:10-arm64" to Quay
-- name: Tag and push "278576220453.dkr.ecr.us...port:10-$TIMESTAMP-amd64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...ort:10-$TIMESTAMP-amd64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -5462,17 +5465,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-amd64"
-- name: Tag and push "278576220453.dkr.ecr.us...leport:10-$TIMESTAMP-arm" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...eport:10-$TIMESTAMP-arm" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -5483,17 +5486,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-arm"
-- name: Tag and push "278576220453.dkr.ecr.us...port:10-$TIMESTAMP-arm64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...ort:10-$TIMESTAMP-arm64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -5504,20 +5507,20 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-arm64"
-- name: Create manifest and push "278576220453.dkr.ecr.us...9/teleport:10-$TIMESTAMP"
+- name: Create manifest and push "278576220453.dkr.ecr.us-.../teleport:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
-  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
+  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -5527,9 +5530,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "278576220453.dkr.ecr.us...port:10-$TIMESTAMP-amd64" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us...leport:10-$TIMESTAMP-arm" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us...port:10-$TIMESTAMP-arm64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...ort:10-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...eport:10-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...ort:10-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/u8j2q1d9/teleport:10-amd64" to ECR - production
   image: docker
   commands:
@@ -5679,6 +5682,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v10-amd64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-amd64-builder"
@@ -5700,6 +5704,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v10-arm"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm-builder"
@@ -5721,6 +5726,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v10-arm64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm64-builder"
@@ -5810,17 +5816,17 @@ steps:
   - Tag and push "quay.io/fred_heinecke/teleport-ent:10-amd64" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-ent:10-arm" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-ent:10-arm64" to Quay
-- name: Tag and push "278576220453.dkr.ecr.us...-ent:10-$TIMESTAMP-amd64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...ent:10-$TIMESTAMP-amd64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-ent-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-ent-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -5831,17 +5837,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v10-amd64"
-- name: Tag and push "278576220453.dkr.ecr.us...rt-ent:10-$TIMESTAMP-arm" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...t-ent:10-$TIMESTAMP-arm" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-ent-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-ent-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -5852,17 +5858,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v10-arm"
-- name: Tag and push "278576220453.dkr.ecr.us...-ent:10-$TIMESTAMP-arm64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...ent:10-$TIMESTAMP-arm64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-ent-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-ent-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -5873,20 +5879,20 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v10-arm64"
-- name: Create manifest and push "278576220453.dkr.ecr.us...leport-ent:10-$TIMESTAMP"
+- name: Create manifest and push "278576220453.dkr.ecr.us-...eport-ent:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
-  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
+  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -5896,9 +5902,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "278576220453.dkr.ecr.us...-ent:10-$TIMESTAMP-amd64" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us...rt-ent:10-$TIMESTAMP-arm" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us...-ent:10-$TIMESTAMP-arm64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...ent:10-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...t-ent:10-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...ent:10-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/u8j2q1d9/teleport-ent:10-amd64" to ECR - production
   image: docker
   commands:
@@ -6033,6 +6039,7 @@ steps:
 - name: Build teleport-ent-fips image "teleport-ent-fips-v10-amd64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v10-amd64-builder"
@@ -6085,17 +6092,17 @@ steps:
     path: /var/run
   depends_on:
   - Tag and push "quay.io/fred_heinecke/teleport-ent:10-fips-amd64" to Quay
-- name: Tag and push "278576220453.dkr.ecr.us-...0-$TIMESTAMP-fips-amd64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...10-$TIMESTAMP-fips-amd64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-ent-fips-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-ent-fips-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -6106,18 +6113,18 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent-fips image "teleport-ent-fips-v10-amd64"
-- name: Create manifest and push "278576220453.dkr.ecr.us-...-ent:10-$TIMESTAMP-fips"
+- name: Create manifest and push "278576220453.dkr.ecr.us...t-ent:10-$TIMESTAMP-fips"
     to ECR - staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
-  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
+  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -6127,7 +6134,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "278576220453.dkr.ecr.us-...0-$TIMESTAMP-fips-amd64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...10-$TIMESTAMP-fips-amd64" to ECR - staging
 - name: Tag and push "public.ecr.aws/u8j2q1d9/teleport-ent:10-fips-amd64" to ECR -
     production
   image: docker
@@ -6174,6 +6181,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v10-amd64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-amd64-builder"
@@ -6194,6 +6202,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v10-arm"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm-builder"
@@ -6214,6 +6223,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v10-arm64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm64-builder"
@@ -6302,17 +6312,17 @@ steps:
   - Tag and push "quay.io/fred_heinecke/teleport-lab:10-amd64" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-lab:10-arm" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-lab:10-arm64" to Quay
-- name: Tag and push "278576220453.dkr.ecr.us...-lab:10-$TIMESTAMP-amd64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...lab:10-$TIMESTAMP-amd64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-lab-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-lab-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -6323,17 +6333,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-amd64"
-- name: Tag and push "278576220453.dkr.ecr.us...rt-lab:10-$TIMESTAMP-arm" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...t-lab:10-$TIMESTAMP-arm" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-lab-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-lab-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -6344,17 +6354,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-arm"
-- name: Tag and push "278576220453.dkr.ecr.us...-lab:10-$TIMESTAMP-arm64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...lab:10-$TIMESTAMP-arm64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-lab-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-lab-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -6365,20 +6375,20 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-arm64"
-- name: Create manifest and push "278576220453.dkr.ecr.us...leport-lab:10-$TIMESTAMP"
+- name: Create manifest and push "278576220453.dkr.ecr.us-...eport-lab:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
-  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
+  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -6388,9 +6398,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "278576220453.dkr.ecr.us...-lab:10-$TIMESTAMP-amd64" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us...rt-lab:10-$TIMESTAMP-arm" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us...-lab:10-$TIMESTAMP-arm64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...lab:10-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...t-lab:10-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...lab:10-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/u8j2q1d9/teleport-lab:10-amd64" to ECR - production
   image: docker
   commands:
@@ -6478,6 +6488,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v10-amd64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-amd64-builder"
@@ -6498,6 +6509,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v10-arm"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm-builder"
@@ -6518,6 +6530,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v10-arm64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm64-builder"
@@ -6606,17 +6619,17 @@ steps:
   - Tag and push "quay.io/fred_heinecke/teleport-operator:10-amd64" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-operator:10-arm" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-operator:10-arm64" to Quay
-- name: Tag and push "278576220453.dkr.ecr.us-...tor:10-$TIMESTAMP-amd64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...ator:10-$TIMESTAMP-amd64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-operator-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-operator-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -6627,17 +6640,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v10-amd64"
-- name: Tag and push "278576220453.dkr.ecr.us-...rator:10-$TIMESTAMP-arm" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...erator:10-$TIMESTAMP-arm" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-operator-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-operator-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -6648,17 +6661,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v10-arm"
-- name: Tag and push "278576220453.dkr.ecr.us-...tor:10-$TIMESTAMP-arm64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...ator:10-$TIMESTAMP-arm64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-operator-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-operator-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -6669,20 +6682,20 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v10-arm64"
-- name: Create manifest and push "278576220453.dkr.ecr.us-...-operator:10-$TIMESTAMP"
+- name: Create manifest and push "278576220453.dkr.ecr.us...t-operator:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
-  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
+  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -6692,9 +6705,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "278576220453.dkr.ecr.us-...tor:10-$TIMESTAMP-amd64" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us-...rator:10-$TIMESTAMP-arm" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us-...tor:10-$TIMESTAMP-arm64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...ator:10-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...erator:10-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...ator:10-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/u8j2q1d9/teleport-operator:10-amd64" to ECR -
     production
   image: docker
@@ -6918,6 +6931,7 @@ steps:
 - name: Build teleport image "teleport-v10-amd64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v10-amd64-builder"
@@ -6939,6 +6953,7 @@ steps:
 - name: Build teleport image "teleport-v10-arm"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v10-arm-builder"
@@ -6960,6 +6975,7 @@ steps:
 - name: Build teleport image "teleport-v10-arm64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v10-arm64-builder"
@@ -7049,17 +7065,17 @@ steps:
   - Tag and push "quay.io/fred_heinecke/teleport:10-amd64" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport:10-arm" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport:10-arm64" to Quay
-- name: Tag and push "278576220453.dkr.ecr.us...port:10-$TIMESTAMP-amd64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...ort:10-$TIMESTAMP-amd64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -7070,17 +7086,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-amd64"
-- name: Tag and push "278576220453.dkr.ecr.us...leport:10-$TIMESTAMP-arm" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...eport:10-$TIMESTAMP-arm" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -7091,17 +7107,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-arm"
-- name: Tag and push "278576220453.dkr.ecr.us...port:10-$TIMESTAMP-arm64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...ort:10-$TIMESTAMP-arm64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -7112,20 +7128,20 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-arm64"
-- name: Create manifest and push "278576220453.dkr.ecr.us...9/teleport:10-$TIMESTAMP"
+- name: Create manifest and push "278576220453.dkr.ecr.us-.../teleport:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
-  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
+  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -7135,9 +7151,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "278576220453.dkr.ecr.us...port:10-$TIMESTAMP-amd64" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us...leport:10-$TIMESTAMP-arm" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us...port:10-$TIMESTAMP-arm64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...ort:10-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...eport:10-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...ort:10-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/u8j2q1d9/teleport:10-amd64" to ECR - production
   image: docker
   commands:
@@ -7287,6 +7303,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v10-amd64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-amd64-builder"
@@ -7308,6 +7325,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v10-arm"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm-builder"
@@ -7329,6 +7347,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v10-arm64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm64-builder"
@@ -7418,17 +7437,17 @@ steps:
   - Tag and push "quay.io/fred_heinecke/teleport-ent:10-amd64" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-ent:10-arm" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-ent:10-arm64" to Quay
-- name: Tag and push "278576220453.dkr.ecr.us...-ent:10-$TIMESTAMP-amd64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...ent:10-$TIMESTAMP-amd64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-ent-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-ent-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -7439,17 +7458,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v10-amd64"
-- name: Tag and push "278576220453.dkr.ecr.us...rt-ent:10-$TIMESTAMP-arm" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...t-ent:10-$TIMESTAMP-arm" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-ent-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-ent-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -7460,17 +7479,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v10-arm"
-- name: Tag and push "278576220453.dkr.ecr.us...-ent:10-$TIMESTAMP-arm64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...ent:10-$TIMESTAMP-arm64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-ent-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-ent-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -7481,20 +7500,20 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v10-arm64"
-- name: Create manifest and push "278576220453.dkr.ecr.us...leport-ent:10-$TIMESTAMP"
+- name: Create manifest and push "278576220453.dkr.ecr.us-...eport-ent:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
-  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
+  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -7504,9 +7523,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "278576220453.dkr.ecr.us...-ent:10-$TIMESTAMP-amd64" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us...rt-ent:10-$TIMESTAMP-arm" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us...-ent:10-$TIMESTAMP-arm64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...ent:10-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...t-ent:10-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...ent:10-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/u8j2q1d9/teleport-ent:10-amd64" to ECR - production
   image: docker
   commands:
@@ -7641,6 +7660,7 @@ steps:
 - name: Build teleport-ent-fips image "teleport-ent-fips-v10-amd64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v10-amd64-builder"
@@ -7693,17 +7713,17 @@ steps:
     path: /var/run
   depends_on:
   - Tag and push "quay.io/fred_heinecke/teleport-ent:10-fips-amd64" to Quay
-- name: Tag and push "278576220453.dkr.ecr.us-...0-$TIMESTAMP-fips-amd64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...10-$TIMESTAMP-fips-amd64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-ent-fips-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-ent-fips-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -7714,18 +7734,18 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent-fips image "teleport-ent-fips-v10-amd64"
-- name: Create manifest and push "278576220453.dkr.ecr.us-...-ent:10-$TIMESTAMP-fips"
+- name: Create manifest and push "278576220453.dkr.ecr.us...t-ent:10-$TIMESTAMP-fips"
     to ECR - staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
-  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
+  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -7735,7 +7755,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "278576220453.dkr.ecr.us-...0-$TIMESTAMP-fips-amd64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...10-$TIMESTAMP-fips-amd64" to ECR - staging
 - name: Tag and push "public.ecr.aws/u8j2q1d9/teleport-ent:10-fips-amd64" to ECR -
     production
   image: docker
@@ -7782,6 +7802,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v10-amd64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-amd64-builder"
@@ -7802,6 +7823,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v10-arm"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm-builder"
@@ -7822,6 +7844,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v10-arm64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm64-builder"
@@ -7910,17 +7933,17 @@ steps:
   - Tag and push "quay.io/fred_heinecke/teleport-lab:10-amd64" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-lab:10-arm" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-lab:10-arm64" to Quay
-- name: Tag and push "278576220453.dkr.ecr.us...-lab:10-$TIMESTAMP-amd64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...lab:10-$TIMESTAMP-amd64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-lab-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-lab-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -7931,17 +7954,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-amd64"
-- name: Tag and push "278576220453.dkr.ecr.us...rt-lab:10-$TIMESTAMP-arm" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...t-lab:10-$TIMESTAMP-arm" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-lab-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-lab-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -7952,17 +7975,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-arm"
-- name: Tag and push "278576220453.dkr.ecr.us...-lab:10-$TIMESTAMP-arm64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...lab:10-$TIMESTAMP-arm64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-lab-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-lab-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -7973,20 +7996,20 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-arm64"
-- name: Create manifest and push "278576220453.dkr.ecr.us...leport-lab:10-$TIMESTAMP"
+- name: Create manifest and push "278576220453.dkr.ecr.us-...eport-lab:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
-  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
+  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -7996,9 +8019,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "278576220453.dkr.ecr.us...-lab:10-$TIMESTAMP-amd64" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us...rt-lab:10-$TIMESTAMP-arm" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us...-lab:10-$TIMESTAMP-arm64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...lab:10-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...t-lab:10-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...lab:10-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/u8j2q1d9/teleport-lab:10-amd64" to ECR - production
   image: docker
   commands:
@@ -8086,6 +8109,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v10-amd64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-amd64-builder"
@@ -8106,6 +8130,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v10-arm"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm-builder"
@@ -8126,6 +8151,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v10-arm64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm64-builder"
@@ -8214,17 +8240,17 @@ steps:
   - Tag and push "quay.io/fred_heinecke/teleport-operator:10-amd64" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-operator:10-arm" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-operator:10-arm64" to Quay
-- name: Tag and push "278576220453.dkr.ecr.us-...tor:10-$TIMESTAMP-amd64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...ator:10-$TIMESTAMP-amd64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-operator-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-operator-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -8235,17 +8261,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v10-amd64"
-- name: Tag and push "278576220453.dkr.ecr.us-...rator:10-$TIMESTAMP-arm" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...erator:10-$TIMESTAMP-arm" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-operator-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-operator-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -8256,17 +8282,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v10-arm"
-- name: Tag and push "278576220453.dkr.ecr.us-...tor:10-$TIMESTAMP-arm64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...ator:10-$TIMESTAMP-arm64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-operator-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-operator-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -8277,20 +8303,20 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v10-arm64"
-- name: Create manifest and push "278576220453.dkr.ecr.us-...-operator:10-$TIMESTAMP"
+- name: Create manifest and push "278576220453.dkr.ecr.us...t-operator:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
-  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
+  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -8300,9 +8326,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "278576220453.dkr.ecr.us-...tor:10-$TIMESTAMP-amd64" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us-...rator:10-$TIMESTAMP-arm" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us-...tor:10-$TIMESTAMP-arm64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...ator:10-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...erator:10-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...ator:10-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/u8j2q1d9/teleport-operator:10-amd64" to ECR -
     production
   image: docker
@@ -8525,6 +8551,7 @@ steps:
 - name: Build teleport image "teleport-v9-amd64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v9-amd64-builder"
@@ -8546,6 +8573,7 @@ steps:
 - name: Build teleport image "teleport-v9-arm"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v9-arm-builder"
@@ -8566,6 +8594,7 @@ steps:
 - name: Build teleport image "teleport-v9-arm64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v9-arm64-builder"
@@ -8655,17 +8684,17 @@ steps:
   - Tag and push "quay.io/fred_heinecke/teleport:9-amd64" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport:9-arm" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport:9-arm64" to Quay
-- name: Tag and push "278576220453.dkr.ecr.us-...port:9-$TIMESTAMP-amd64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...eport:9-$TIMESTAMP-amd64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-v9-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:9-$TIMESTAMP-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:9-$TIMESTAMP-amd64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-v9-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:9-$TIMESTAMP-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:9-$TIMESTAMP-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -8676,17 +8705,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v9-amd64"
-- name: Tag and push "278576220453.dkr.ecr.us-...leport:9-$TIMESTAMP-arm" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...eleport:9-$TIMESTAMP-arm" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-v9-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:9-$TIMESTAMP-arm"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:9-$TIMESTAMP-arm"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-v9-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:9-$TIMESTAMP-arm"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:9-$TIMESTAMP-arm"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -8697,17 +8726,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v9-arm"
-- name: Tag and push "278576220453.dkr.ecr.us-...port:9-$TIMESTAMP-arm64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...eport:9-$TIMESTAMP-arm64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-v9-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:9-$TIMESTAMP-arm64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:9-$TIMESTAMP-arm64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-v9-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:9-$TIMESTAMP-arm64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:9-$TIMESTAMP-arm64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -8718,20 +8747,20 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v9-arm64"
-- name: Create manifest and push "278576220453.dkr.ecr.us-...9/teleport:9-$TIMESTAMP"
+- name: Create manifest and push "278576220453.dkr.ecr.us...d9/teleport:9-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:9-$TIMESTAMP"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:9-$TIMESTAMP-amd64"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:9-$TIMESTAMP-arm"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:9-$TIMESTAMP-arm64"
-  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:9-$TIMESTAMP"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:9-$TIMESTAMP"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:9-$TIMESTAMP-amd64"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:9-$TIMESTAMP-arm"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:9-$TIMESTAMP-arm64"
+  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:9-$TIMESTAMP"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -8741,9 +8770,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "278576220453.dkr.ecr.us-...port:9-$TIMESTAMP-amd64" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us-...leport:9-$TIMESTAMP-arm" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us-...port:9-$TIMESTAMP-arm64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...eport:9-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...eleport:9-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...eport:9-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/u8j2q1d9/teleport:9-amd64" to ECR - production
   image: docker
   commands:
@@ -8893,6 +8922,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v9-amd64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v9-amd64-builder"
@@ -8914,6 +8944,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v9-arm"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v9-arm-builder"
@@ -8935,6 +8966,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v9-arm64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v9-arm64-builder"
@@ -9024,17 +9056,17 @@ steps:
   - Tag and push "quay.io/fred_heinecke/teleport-ent:9-amd64" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-ent:9-arm" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-ent:9-arm64" to Quay
-- name: Tag and push "278576220453.dkr.ecr.us-...-ent:9-$TIMESTAMP-amd64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...t-ent:9-$TIMESTAMP-amd64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-ent-v9-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP-amd64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-ent-v9-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:9-$TIMESTAMP-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:9-$TIMESTAMP-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -9045,17 +9077,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v9-amd64"
-- name: Tag and push "278576220453.dkr.ecr.us-...rt-ent:9-$TIMESTAMP-arm" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...ort-ent:9-$TIMESTAMP-arm" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-ent-v9-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP-arm"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP-arm"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-ent-v9-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:9-$TIMESTAMP-arm"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:9-$TIMESTAMP-arm"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -9066,17 +9098,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v9-arm"
-- name: Tag and push "278576220453.dkr.ecr.us-...-ent:9-$TIMESTAMP-arm64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...t-ent:9-$TIMESTAMP-arm64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-ent-v9-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP-arm64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP-arm64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-ent-v9-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:9-$TIMESTAMP-arm64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:9-$TIMESTAMP-arm64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -9087,20 +9119,20 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v9-arm64"
-- name: Create manifest and push "278576220453.dkr.ecr.us-...leport-ent:9-$TIMESTAMP"
+- name: Create manifest and push "278576220453.dkr.ecr.us...eleport-ent:9-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP-amd64"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP-arm"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP-arm64"
-  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:9-$TIMESTAMP"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:9-$TIMESTAMP-amd64"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:9-$TIMESTAMP-arm"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:9-$TIMESTAMP-arm64"
+  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:9-$TIMESTAMP"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -9110,9 +9142,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "278576220453.dkr.ecr.us-...-ent:9-$TIMESTAMP-amd64" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us-...rt-ent:9-$TIMESTAMP-arm" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us-...-ent:9-$TIMESTAMP-arm64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...t-ent:9-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...ort-ent:9-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...t-ent:9-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/u8j2q1d9/teleport-ent:9-amd64" to ECR - production
   image: docker
   commands:
@@ -9247,6 +9279,7 @@ steps:
 - name: Build teleport-ent-fips image "teleport-ent-fips-v9-amd64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v9-amd64-builder"
@@ -9299,17 +9332,17 @@ steps:
     path: /var/run
   depends_on:
   - Tag and push "quay.io/fred_heinecke/teleport-ent:9-fips-amd64" to Quay
-- name: Tag and push "278576220453.dkr.ecr.us...:9-$TIMESTAMP-fips-amd64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...9-$TIMESTAMP-fips-amd64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-ent-fips-v9-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP-fips-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP-fips-amd64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-ent-fips-v9-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:9-$TIMESTAMP-fips-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:9-$TIMESTAMP-fips-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -9320,18 +9353,18 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent-fips image "teleport-ent-fips-v9-amd64"
-- name: Create manifest and push "278576220453.dkr.ecr.us...rt-ent:9-$TIMESTAMP-fips"
+- name: Create manifest and push "278576220453.dkr.ecr.us-...t-ent:9-$TIMESTAMP-fips"
     to ECR - staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP-fips"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP-fips-amd64"
-  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:9-$TIMESTAMP-fips"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:9-$TIMESTAMP-fips"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:9-$TIMESTAMP-fips-amd64"
+  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:9-$TIMESTAMP-fips"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -9341,7 +9374,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "278576220453.dkr.ecr.us...:9-$TIMESTAMP-fips-amd64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...9-$TIMESTAMP-fips-amd64" to ECR - staging
 - name: Tag and push "public.ecr.aws/u8j2q1d9/teleport-ent:9-fips-amd64" to ECR -
     production
   image: docker
@@ -9387,6 +9420,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v9-amd64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v9-amd64-builder"
@@ -9407,6 +9441,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v9-arm"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v9-arm-builder"
@@ -9427,6 +9462,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v9-arm64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v9-arm64-builder"
@@ -9515,17 +9551,17 @@ steps:
   - Tag and push "quay.io/fred_heinecke/teleport-lab:9-amd64" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-lab:9-arm" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-lab:9-arm64" to Quay
-- name: Tag and push "278576220453.dkr.ecr.us-...-lab:9-$TIMESTAMP-amd64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...t-lab:9-$TIMESTAMP-amd64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-lab-v9-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:9-$TIMESTAMP-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:9-$TIMESTAMP-amd64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-lab-v9-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:9-$TIMESTAMP-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:9-$TIMESTAMP-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -9536,17 +9572,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v9-amd64"
-- name: Tag and push "278576220453.dkr.ecr.us-...rt-lab:9-$TIMESTAMP-arm" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...ort-lab:9-$TIMESTAMP-arm" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-lab-v9-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:9-$TIMESTAMP-arm"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:9-$TIMESTAMP-arm"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-lab-v9-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:9-$TIMESTAMP-arm"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:9-$TIMESTAMP-arm"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -9557,17 +9593,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v9-arm"
-- name: Tag and push "278576220453.dkr.ecr.us-...-lab:9-$TIMESTAMP-arm64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...t-lab:9-$TIMESTAMP-arm64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-lab-v9-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:9-$TIMESTAMP-arm64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:9-$TIMESTAMP-arm64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-lab-v9-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:9-$TIMESTAMP-arm64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:9-$TIMESTAMP-arm64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -9578,20 +9614,20 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v9-arm64"
-- name: Create manifest and push "278576220453.dkr.ecr.us-...leport-lab:9-$TIMESTAMP"
+- name: Create manifest and push "278576220453.dkr.ecr.us...eleport-lab:9-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:9-$TIMESTAMP"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:9-$TIMESTAMP-amd64"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:9-$TIMESTAMP-arm"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:9-$TIMESTAMP-arm64"
-  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:9-$TIMESTAMP"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:9-$TIMESTAMP"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:9-$TIMESTAMP-amd64"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:9-$TIMESTAMP-arm"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:9-$TIMESTAMP-arm64"
+  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:9-$TIMESTAMP"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -9601,9 +9637,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "278576220453.dkr.ecr.us-...-lab:9-$TIMESTAMP-amd64" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us-...rt-lab:9-$TIMESTAMP-arm" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us-...-lab:9-$TIMESTAMP-arm64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...t-lab:9-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...ort-lab:9-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...t-lab:9-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/u8j2q1d9/teleport-lab:9-amd64" to ECR - production
   image: docker
   commands:
@@ -9691,6 +9727,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v9-amd64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v9-amd64-builder"
@@ -9711,6 +9748,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v9-arm"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v9-arm-builder"
@@ -9731,6 +9769,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v9-arm64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v9-arm64-builder"
@@ -9819,17 +9858,17 @@ steps:
   - Tag and push "quay.io/fred_heinecke/teleport-operator:9-amd64" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-operator:9-arm" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-operator:9-arm64" to Quay
-- name: Tag and push "278576220453.dkr.ecr.us...rator:9-$TIMESTAMP-amd64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...ator:9-$TIMESTAMP-amd64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-operator-v9-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:9-$TIMESTAMP-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:9-$TIMESTAMP-amd64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-operator-v9-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:9-$TIMESTAMP-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:9-$TIMESTAMP-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -9840,17 +9879,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v9-amd64"
-- name: Tag and push "278576220453.dkr.ecr.us...perator:9-$TIMESTAMP-arm" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...erator:9-$TIMESTAMP-arm" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-operator-v9-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:9-$TIMESTAMP-arm"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:9-$TIMESTAMP-arm"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-operator-v9-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:9-$TIMESTAMP-arm"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:9-$TIMESTAMP-arm"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -9861,17 +9900,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v9-arm"
-- name: Tag and push "278576220453.dkr.ecr.us...rator:9-$TIMESTAMP-arm64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...ator:9-$TIMESTAMP-arm64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-operator-v9-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:9-$TIMESTAMP-arm64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:9-$TIMESTAMP-arm64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-operator-v9-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:9-$TIMESTAMP-arm64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:9-$TIMESTAMP-arm64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -9882,20 +9921,20 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v9-arm64"
-- name: Create manifest and push "278576220453.dkr.ecr.us...rt-operator:9-$TIMESTAMP"
+- name: Create manifest and push "278576220453.dkr.ecr.us-...t-operator:9-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:9-$TIMESTAMP"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:9-$TIMESTAMP-amd64"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:9-$TIMESTAMP-arm"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:9-$TIMESTAMP-arm64"
-  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:9-$TIMESTAMP"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:9-$TIMESTAMP"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:9-$TIMESTAMP-amd64"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:9-$TIMESTAMP-arm"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:9-$TIMESTAMP-arm64"
+  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:9-$TIMESTAMP"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -9905,9 +9944,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "278576220453.dkr.ecr.us...rator:9-$TIMESTAMP-amd64" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us...perator:9-$TIMESTAMP-arm" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us...rator:9-$TIMESTAMP-arm64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...ator:9-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...erator:9-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...ator:9-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/u8j2q1d9/teleport-operator:9-amd64" to ECR -
     production
   image: docker
@@ -10129,6 +10168,7 @@ steps:
 - name: Build teleport image "teleport-v8-amd64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v8-amd64-builder"
@@ -10150,6 +10190,7 @@ steps:
 - name: Build teleport image "teleport-v8-arm"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v8-arm-builder"
@@ -10170,6 +10211,7 @@ steps:
 - name: Build teleport image "teleport-v8-arm64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v8-arm64-builder"
@@ -10259,17 +10301,17 @@ steps:
   - Tag and push "quay.io/fred_heinecke/teleport:8-amd64" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport:8-arm" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport:8-arm64" to Quay
-- name: Tag and push "278576220453.dkr.ecr.us-...port:8-$TIMESTAMP-amd64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...eport:8-$TIMESTAMP-amd64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-v8-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:8-$TIMESTAMP-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:8-$TIMESTAMP-amd64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-v8-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:8-$TIMESTAMP-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:8-$TIMESTAMP-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -10280,17 +10322,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v8-amd64"
-- name: Tag and push "278576220453.dkr.ecr.us-...leport:8-$TIMESTAMP-arm" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...eleport:8-$TIMESTAMP-arm" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-v8-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:8-$TIMESTAMP-arm"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:8-$TIMESTAMP-arm"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-v8-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:8-$TIMESTAMP-arm"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:8-$TIMESTAMP-arm"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -10301,17 +10343,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v8-arm"
-- name: Tag and push "278576220453.dkr.ecr.us-...port:8-$TIMESTAMP-arm64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...eport:8-$TIMESTAMP-arm64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-v8-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:8-$TIMESTAMP-arm64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:8-$TIMESTAMP-arm64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-v8-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:8-$TIMESTAMP-arm64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:8-$TIMESTAMP-arm64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -10322,20 +10364,20 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v8-arm64"
-- name: Create manifest and push "278576220453.dkr.ecr.us-...9/teleport:8-$TIMESTAMP"
+- name: Create manifest and push "278576220453.dkr.ecr.us...d9/teleport:8-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:8-$TIMESTAMP"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:8-$TIMESTAMP-amd64"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:8-$TIMESTAMP-arm"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:8-$TIMESTAMP-arm64"
-  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:8-$TIMESTAMP"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:8-$TIMESTAMP"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:8-$TIMESTAMP-amd64"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:8-$TIMESTAMP-arm"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:8-$TIMESTAMP-arm64"
+  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:8-$TIMESTAMP"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -10345,9 +10387,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "278576220453.dkr.ecr.us-...port:8-$TIMESTAMP-amd64" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us-...leport:8-$TIMESTAMP-arm" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us-...port:8-$TIMESTAMP-arm64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...eport:8-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...eleport:8-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...eport:8-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/u8j2q1d9/teleport:8-amd64" to ECR - production
   image: docker
   commands:
@@ -10497,6 +10539,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v8-amd64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v8-amd64-builder"
@@ -10518,6 +10561,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v8-arm"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v8-arm-builder"
@@ -10539,6 +10583,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v8-arm64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v8-arm64-builder"
@@ -10628,17 +10673,17 @@ steps:
   - Tag and push "quay.io/fred_heinecke/teleport-ent:8-amd64" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-ent:8-arm" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-ent:8-arm64" to Quay
-- name: Tag and push "278576220453.dkr.ecr.us-...-ent:8-$TIMESTAMP-amd64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...t-ent:8-$TIMESTAMP-amd64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-ent-v8-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP-amd64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-ent-v8-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:8-$TIMESTAMP-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:8-$TIMESTAMP-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -10649,17 +10694,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v8-amd64"
-- name: Tag and push "278576220453.dkr.ecr.us-...rt-ent:8-$TIMESTAMP-arm" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...ort-ent:8-$TIMESTAMP-arm" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-ent-v8-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP-arm"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP-arm"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-ent-v8-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:8-$TIMESTAMP-arm"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:8-$TIMESTAMP-arm"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -10670,17 +10715,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v8-arm"
-- name: Tag and push "278576220453.dkr.ecr.us-...-ent:8-$TIMESTAMP-arm64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...t-ent:8-$TIMESTAMP-arm64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-ent-v8-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP-arm64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP-arm64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-ent-v8-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:8-$TIMESTAMP-arm64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:8-$TIMESTAMP-arm64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -10691,20 +10736,20 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v8-arm64"
-- name: Create manifest and push "278576220453.dkr.ecr.us-...leport-ent:8-$TIMESTAMP"
+- name: Create manifest and push "278576220453.dkr.ecr.us...eleport-ent:8-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP-amd64"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP-arm"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP-arm64"
-  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:8-$TIMESTAMP"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:8-$TIMESTAMP-amd64"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:8-$TIMESTAMP-arm"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:8-$TIMESTAMP-arm64"
+  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:8-$TIMESTAMP"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -10714,9 +10759,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "278576220453.dkr.ecr.us-...-ent:8-$TIMESTAMP-amd64" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us-...rt-ent:8-$TIMESTAMP-arm" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us-...-ent:8-$TIMESTAMP-arm64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...t-ent:8-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...ort-ent:8-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...t-ent:8-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/u8j2q1d9/teleport-ent:8-amd64" to ECR - production
   image: docker
   commands:
@@ -10851,6 +10896,7 @@ steps:
 - name: Build teleport-ent-fips image "teleport-ent-fips-v8-amd64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v8-amd64-builder"
@@ -10903,17 +10949,17 @@ steps:
     path: /var/run
   depends_on:
   - Tag and push "quay.io/fred_heinecke/teleport-ent:8-fips-amd64" to Quay
-- name: Tag and push "278576220453.dkr.ecr.us...:8-$TIMESTAMP-fips-amd64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...8-$TIMESTAMP-fips-amd64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-ent-fips-v8-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP-fips-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP-fips-amd64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-ent-fips-v8-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:8-$TIMESTAMP-fips-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:8-$TIMESTAMP-fips-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -10924,18 +10970,18 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent-fips image "teleport-ent-fips-v8-amd64"
-- name: Create manifest and push "278576220453.dkr.ecr.us...rt-ent:8-$TIMESTAMP-fips"
+- name: Create manifest and push "278576220453.dkr.ecr.us-...t-ent:8-$TIMESTAMP-fips"
     to ECR - staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP-fips"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP-fips-amd64"
-  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:8-$TIMESTAMP-fips"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:8-$TIMESTAMP-fips"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:8-$TIMESTAMP-fips-amd64"
+  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:8-$TIMESTAMP-fips"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -10945,7 +10991,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "278576220453.dkr.ecr.us...:8-$TIMESTAMP-fips-amd64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...8-$TIMESTAMP-fips-amd64" to ECR - staging
 - name: Tag and push "public.ecr.aws/u8j2q1d9/teleport-ent:8-fips-amd64" to ECR -
     production
   image: docker
@@ -10991,6 +11037,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v8-amd64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v8-amd64-builder"
@@ -11011,6 +11058,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v8-arm"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v8-arm-builder"
@@ -11031,6 +11079,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v8-arm64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v8-arm64-builder"
@@ -11119,17 +11168,17 @@ steps:
   - Tag and push "quay.io/fred_heinecke/teleport-lab:8-amd64" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-lab:8-arm" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-lab:8-arm64" to Quay
-- name: Tag and push "278576220453.dkr.ecr.us-...-lab:8-$TIMESTAMP-amd64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...t-lab:8-$TIMESTAMP-amd64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-lab-v8-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:8-$TIMESTAMP-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:8-$TIMESTAMP-amd64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-lab-v8-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:8-$TIMESTAMP-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:8-$TIMESTAMP-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -11140,17 +11189,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v8-amd64"
-- name: Tag and push "278576220453.dkr.ecr.us-...rt-lab:8-$TIMESTAMP-arm" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...ort-lab:8-$TIMESTAMP-arm" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-lab-v8-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:8-$TIMESTAMP-arm"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:8-$TIMESTAMP-arm"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-lab-v8-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:8-$TIMESTAMP-arm"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:8-$TIMESTAMP-arm"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -11161,17 +11210,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v8-arm"
-- name: Tag and push "278576220453.dkr.ecr.us-...-lab:8-$TIMESTAMP-arm64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...t-lab:8-$TIMESTAMP-arm64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-lab-v8-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:8-$TIMESTAMP-arm64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:8-$TIMESTAMP-arm64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-lab-v8-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:8-$TIMESTAMP-arm64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:8-$TIMESTAMP-arm64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -11182,20 +11231,20 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v8-arm64"
-- name: Create manifest and push "278576220453.dkr.ecr.us-...leport-lab:8-$TIMESTAMP"
+- name: Create manifest and push "278576220453.dkr.ecr.us...eleport-lab:8-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:8-$TIMESTAMP"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:8-$TIMESTAMP-amd64"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:8-$TIMESTAMP-arm"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:8-$TIMESTAMP-arm64"
-  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:8-$TIMESTAMP"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:8-$TIMESTAMP"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:8-$TIMESTAMP-amd64"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:8-$TIMESTAMP-arm"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:8-$TIMESTAMP-arm64"
+  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:8-$TIMESTAMP"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -11205,9 +11254,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "278576220453.dkr.ecr.us-...-lab:8-$TIMESTAMP-amd64" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us-...rt-lab:8-$TIMESTAMP-arm" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us-...-lab:8-$TIMESTAMP-arm64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...t-lab:8-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...ort-lab:8-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...t-lab:8-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/u8j2q1d9/teleport-lab:8-amd64" to ECR - production
   image: docker
   commands:
@@ -11295,6 +11344,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v8-amd64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v8-amd64-builder"
@@ -11315,6 +11365,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v8-arm"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v8-arm-builder"
@@ -11335,6 +11386,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v8-arm64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v8-arm64-builder"
@@ -11423,17 +11475,17 @@ steps:
   - Tag and push "quay.io/fred_heinecke/teleport-operator:8-amd64" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-operator:8-arm" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-operator:8-arm64" to Quay
-- name: Tag and push "278576220453.dkr.ecr.us...rator:8-$TIMESTAMP-amd64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...ator:8-$TIMESTAMP-amd64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-operator-v8-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:8-$TIMESTAMP-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:8-$TIMESTAMP-amd64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-operator-v8-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:8-$TIMESTAMP-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:8-$TIMESTAMP-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -11444,17 +11496,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v8-amd64"
-- name: Tag and push "278576220453.dkr.ecr.us...perator:8-$TIMESTAMP-arm" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...erator:8-$TIMESTAMP-arm" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-operator-v8-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:8-$TIMESTAMP-arm"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:8-$TIMESTAMP-arm"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-operator-v8-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:8-$TIMESTAMP-arm"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:8-$TIMESTAMP-arm"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -11465,17 +11517,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v8-arm"
-- name: Tag and push "278576220453.dkr.ecr.us...rator:8-$TIMESTAMP-arm64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...ator:8-$TIMESTAMP-arm64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-operator-v8-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:8-$TIMESTAMP-arm64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:8-$TIMESTAMP-arm64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-operator-v8-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:8-$TIMESTAMP-arm64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:8-$TIMESTAMP-arm64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -11486,20 +11538,20 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v8-arm64"
-- name: Create manifest and push "278576220453.dkr.ecr.us...rt-operator:8-$TIMESTAMP"
+- name: Create manifest and push "278576220453.dkr.ecr.us-...t-operator:8-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:8-$TIMESTAMP"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:8-$TIMESTAMP-amd64"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:8-$TIMESTAMP-arm"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:8-$TIMESTAMP-arm64"
-  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:8-$TIMESTAMP"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:8-$TIMESTAMP"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:8-$TIMESTAMP-amd64"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:8-$TIMESTAMP-arm"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:8-$TIMESTAMP-arm64"
+  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:8-$TIMESTAMP"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -11509,9 +11561,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "278576220453.dkr.ecr.us...rator:8-$TIMESTAMP-amd64" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us...perator:8-$TIMESTAMP-arm" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us...rator:8-$TIMESTAMP-arm64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...ator:8-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...erator:8-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...ator:8-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/u8j2q1d9/teleport-operator:8-amd64" to ECR -
     production
   image: docker
@@ -11741,6 +11793,7 @@ steps:
 - name: Build teleport image "teleport-v10-amd64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v10-amd64-builder"
@@ -11762,6 +11815,7 @@ steps:
 - name: Build teleport image "teleport-v10-arm"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v10-arm-builder"
@@ -11783,6 +11837,7 @@ steps:
 - name: Build teleport image "teleport-v10-arm64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-v10-arm64-builder"
@@ -11872,17 +11927,17 @@ steps:
   - Tag and push "quay.io/fred_heinecke/teleport:10-amd64" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport:10-arm" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport:10-arm64" to Quay
-- name: Tag and push "278576220453.dkr.ecr.us...port:10-$TIMESTAMP-amd64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...ort:10-$TIMESTAMP-amd64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -11893,17 +11948,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-amd64"
-- name: Tag and push "278576220453.dkr.ecr.us...leport:10-$TIMESTAMP-arm" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...eport:10-$TIMESTAMP-arm" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -11914,17 +11969,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-arm"
-- name: Tag and push "278576220453.dkr.ecr.us...port:10-$TIMESTAMP-arm64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...ort:10-$TIMESTAMP-arm64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -11935,20 +11990,20 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport image "teleport-v10-arm64"
-- name: Create manifest and push "278576220453.dkr.ecr.us...9/teleport:10-$TIMESTAMP"
+- name: Create manifest and push "278576220453.dkr.ecr.us-.../teleport:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
-  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport:10-$TIMESTAMP"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-amd64"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP-arm64"
+  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport:10-$TIMESTAMP"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -11958,9 +12013,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "278576220453.dkr.ecr.us...port:10-$TIMESTAMP-amd64" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us...leport:10-$TIMESTAMP-arm" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us...port:10-$TIMESTAMP-arm64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...ort:10-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...eport:10-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...ort:10-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/u8j2q1d9/teleport:10-amd64" to ECR - production
   image: docker
   commands:
@@ -12108,6 +12163,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v10-amd64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-amd64-builder"
@@ -12129,6 +12185,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v10-arm"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm-builder"
@@ -12150,6 +12207,7 @@ steps:
 - name: Build teleport-ent image "teleport-ent-v10-arm64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-v10-arm64-builder"
@@ -12239,17 +12297,17 @@ steps:
   - Tag and push "quay.io/fred_heinecke/teleport-ent:10-amd64" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-ent:10-arm" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-ent:10-arm64" to Quay
-- name: Tag and push "278576220453.dkr.ecr.us...-ent:10-$TIMESTAMP-amd64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...ent:10-$TIMESTAMP-amd64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-ent-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-ent-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -12260,17 +12318,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v10-amd64"
-- name: Tag and push "278576220453.dkr.ecr.us...rt-ent:10-$TIMESTAMP-arm" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...t-ent:10-$TIMESTAMP-arm" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-ent-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-ent-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -12281,17 +12339,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v10-arm"
-- name: Tag and push "278576220453.dkr.ecr.us...-ent:10-$TIMESTAMP-arm64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...ent:10-$TIMESTAMP-arm64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-ent-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-ent-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -12302,20 +12360,20 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent image "teleport-ent-v10-arm64"
-- name: Create manifest and push "278576220453.dkr.ecr.us...leport-ent:10-$TIMESTAMP"
+- name: Create manifest and push "278576220453.dkr.ecr.us-...eport-ent:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
-  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-amd64"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-arm64"
+  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -12325,9 +12383,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "278576220453.dkr.ecr.us...-ent:10-$TIMESTAMP-amd64" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us...rt-ent:10-$TIMESTAMP-arm" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us...-ent:10-$TIMESTAMP-arm64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...ent:10-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...t-ent:10-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...ent:10-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/u8j2q1d9/teleport-ent:10-amd64" to ECR - production
   image: docker
   commands:
@@ -12462,6 +12520,7 @@ steps:
 - name: Build teleport-ent-fips image "teleport-ent-fips-v10-amd64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/build" && cd "/go/build"
   - docker buildx create --driver "docker-container" --name "teleport-ent-fips-v10-amd64-builder"
@@ -12515,17 +12574,17 @@ steps:
     path: /var/run
   depends_on:
   - Tag and push "quay.io/fred_heinecke/teleport-ent:10-fips-amd64" to Quay
-- name: Tag and push "278576220453.dkr.ecr.us-...0-$TIMESTAMP-fips-amd64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...10-$TIMESTAMP-fips-amd64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-ent-fips-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-ent-fips-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -12536,18 +12595,18 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-ent-fips image "teleport-ent-fips-v10-amd64"
-- name: Create manifest and push "278576220453.dkr.ecr.us-...-ent:10-$TIMESTAMP-fips"
+- name: Create manifest and push "278576220453.dkr.ecr.us...t-ent:10-$TIMESTAMP-fips"
     to ECR - staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
-  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips-amd64"
+  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-ent:10-$TIMESTAMP-fips"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -12557,7 +12616,7 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "278576220453.dkr.ecr.us-...0-$TIMESTAMP-fips-amd64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...10-$TIMESTAMP-fips-amd64" to ECR - staging
 - name: Tag and push "public.ecr.aws/u8j2q1d9/teleport-ent:10-fips-amd64" to ECR -
     production
   image: docker
@@ -12604,6 +12663,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v10-amd64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-amd64-builder"
@@ -12625,6 +12685,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v10-arm"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm-builder"
@@ -12646,6 +12707,7 @@ steps:
 - name: Build teleport-lab image "teleport-lab-v10-arm64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/tmp/build" && cd "/tmp/build"
   - docker buildx create --driver "docker-container" --name "teleport-lab-v10-arm64-builder"
@@ -12735,17 +12797,17 @@ steps:
   - Tag and push "quay.io/fred_heinecke/teleport-lab:10-amd64" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-lab:10-arm" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-lab:10-arm64" to Quay
-- name: Tag and push "278576220453.dkr.ecr.us...-lab:10-$TIMESTAMP-amd64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...lab:10-$TIMESTAMP-amd64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-lab-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-lab-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -12756,17 +12818,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-amd64"
-- name: Tag and push "278576220453.dkr.ecr.us...rt-lab:10-$TIMESTAMP-arm" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...t-lab:10-$TIMESTAMP-arm" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-lab-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-lab-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -12777,17 +12839,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-arm"
-- name: Tag and push "278576220453.dkr.ecr.us...-lab:10-$TIMESTAMP-arm64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us-...lab:10-$TIMESTAMP-arm64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-lab-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-lab-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -12798,20 +12860,20 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-lab image "teleport-lab-v10-arm64"
-- name: Create manifest and push "278576220453.dkr.ecr.us...leport-lab:10-$TIMESTAMP"
+- name: Create manifest and push "278576220453.dkr.ecr.us-...eport-lab:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
-  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-lab:10-$TIMESTAMP"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-amd64"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP-arm64"
+  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-lab:10-$TIMESTAMP"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -12821,9 +12883,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "278576220453.dkr.ecr.us...-lab:10-$TIMESTAMP-amd64" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us...rt-lab:10-$TIMESTAMP-arm" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us...-lab:10-$TIMESTAMP-arm64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...lab:10-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...t-lab:10-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us-...lab:10-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/u8j2q1d9/teleport-lab:10-amd64" to ECR - production
   image: docker
   commands:
@@ -12911,6 +12973,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v10-amd64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-amd64-builder"
@@ -12932,6 +12995,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v10-arm"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm-builder"
@@ -12953,6 +13017,7 @@ steps:
 - name: Build teleport-operator image "teleport-operator-v10-arm64"
   image: docker
   commands:
+  - docker image ls
   - docker run --privileged --rm tonistiigi/binfmt --install all
   - mkdir -pv "/go/src/github.com/gravitational/teleport" && cd "/go/src/github.com/gravitational/teleport"
   - docker buildx create --driver "docker-container" --name "teleport-operator-v10-arm64-builder"
@@ -13042,17 +13107,17 @@ steps:
   - Tag and push "quay.io/fred_heinecke/teleport-operator:10-amd64" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-operator:10-arm" to Quay
   - Tag and push "quay.io/fred_heinecke/teleport-operator:10-arm64" to Quay
-- name: Tag and push "278576220453.dkr.ecr.us-...tor:10-$TIMESTAMP-amd64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...ator:10-$TIMESTAMP-amd64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-operator-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-operator-v10-amd64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -13063,17 +13128,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v10-amd64"
-- name: Tag and push "278576220453.dkr.ecr.us-...rator:10-$TIMESTAMP-arm" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...erator:10-$TIMESTAMP-arm" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-operator-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-operator-v10-arm" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -13084,17 +13149,17 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v10-arm"
-- name: Tag and push "278576220453.dkr.ecr.us-...tor:10-$TIMESTAMP-arm64" to ECR -
+- name: Tag and push "278576220453.dkr.ecr.us...ator:10-$TIMESTAMP-arm64" to ECR -
     staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker tag "teleport-operator-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
-  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker tag "teleport-operator-v10-arm64" "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
+  - docker push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -13105,20 +13170,20 @@ steps:
     path: /var/run
   depends_on:
   - Build teleport-operator image "teleport-operator-v10-arm64"
-- name: Create manifest and push "278576220453.dkr.ecr.us-...-operator:10-$TIMESTAMP"
+- name: Create manifest and push "278576220453.dkr.ecr.us...t-operator:10-$TIMESTAMP"
     to ECR - staging
   image: docker
   commands:
   - apk add --no-cache aws-cli
   - TIMESTAMP=$(date -d @"$DRONE_BUILD_CREATED" '+%Y%m%d%H%M')
   - aws ecr get-login-password --region=us-east-2 | docker login -u="AWS" --password-stdin
-    278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport
-  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
-    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
-  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport/u8j2q1d9/teleport-operator:10-$TIMESTAMP"
-  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com/fred_heinecke/teleport"
+    278576220453.dkr.ecr.us-east-2.amazonaws.com
+  - docker manifest create "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-amd64"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm"
+    --amend "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP-arm64"
+  - docker manifest push "278576220453.dkr.ecr.us-east-2.amazonaws.com/u8j2q1d9/teleport-operator:10-$TIMESTAMP"
+  - docker logout "278576220453.dkr.ecr.us-east-2.amazonaws.com"
   environment:
     AWS_ACCESS_KEY_ID:
       from_secret: TEST_STAGING_TELEPORT_DRONE_USER_ECR_KEY
@@ -13128,9 +13193,9 @@ steps:
   - name: dockersock
     path: /var/run
   depends_on:
-  - Tag and push "278576220453.dkr.ecr.us-...tor:10-$TIMESTAMP-amd64" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us-...rator:10-$TIMESTAMP-arm" to ECR - staging
-  - Tag and push "278576220453.dkr.ecr.us-...tor:10-$TIMESTAMP-arm64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...ator:10-$TIMESTAMP-amd64" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...erator:10-$TIMESTAMP-arm" to ECR - staging
+  - Tag and push "278576220453.dkr.ecr.us...ator:10-$TIMESTAMP-arm64" to ECR - staging
 - name: Tag and push "public.ecr.aws/u8j2q1d9/teleport-operator:10-amd64" to ECR -
     production
   image: docker
@@ -13707,6 +13772,6 @@ volumes:
       medium: memory
 ---
 kind: signature
-hmac: 603a83a4cd0ff88e9323eb0e3ce10757edba2849ccca08c59af651336d90b70c
+hmac: 6cb4eae8464b751f62921e1bfafc50320390c49c2e75d719f922a9bd32666b54
 
 ...
