@@ -53,10 +53,10 @@ var (
 	CertAuthorityTypeExpr = builder.Identifier(`system.catype()`)
 )
 
-// PredicateAllEndWith is a custom function to test if a string ends with a
+// predicateAllEndWith is a custom function to test if a string ends with a
 // particular suffix. If given a `[]string` as the first argument, all values
 // must have the given suffix (2nd argument).
-func PredicateAllEndWith(a interface{}, b interface{}) predicate.BoolPredicate {
+func predicateAllEndWith(a interface{}, b interface{}) predicate.BoolPredicate {
 	return func() bool {
 		// bval is the suffix and must always be a plain string.
 		bval, ok := b.(string)
@@ -80,10 +80,10 @@ func PredicateAllEndWith(a interface{}, b interface{}) predicate.BoolPredicate {
 	}
 }
 
-// PredicateAllEqual is a custom function to test if all entries in a []string
+// predicateAllEqual is a custom function to test if all entries in a []string
 // are equal to a certain value. This is primarily useful for comparing string
 // fields that are only expected to contain a single, specific value.
-func PredicateAllEqual(a interface{}, b interface{}) predicate.BoolPredicate {
+func predicateAllEqual(a interface{}, b interface{}) predicate.BoolPredicate {
 	return func() bool {
 		// bval is the suffix and must always be a plain string.
 		bval, ok := b.(string)
@@ -107,10 +107,10 @@ func PredicateAllEqual(a interface{}, b interface{}) predicate.BoolPredicate {
 	}
 }
 
-// PredicateIsSubset determines if the first parameter is contained within the
+// predicateIsSubset determines if the first parameter is contained within the
 // variadic args. The first argument may either by `string` or `[]string`, and
 // the variadic args may only be `string`.
-func PredicateIsSubset(a interface{}, b ...interface{}) predicate.BoolPredicate {
+func predicateIsSubset(a interface{}, b ...interface{}) predicate.BoolPredicate {
 	return func() bool {
 		// Populate the set.
 		set := map[string]bool{}
@@ -151,9 +151,9 @@ func NewWhereParser(ctx RuleContext) (predicate.Parser, error) {
 		Functions: map[string]interface{}{
 			"equals":       predicate.Equals,
 			"contains":     predicate.Contains,
-			"all_end_with": PredicateAllEndWith,
-			"all_equal":    PredicateAllEqual,
-			"is_subset":    PredicateIsSubset,
+			"all_end_with": predicateAllEndWith,
+			"all_equal":    predicateAllEqual,
+			"is_subset":    predicateIsSubset,
 			// system.catype is a function that returns cert authority type,
 			// it returns empty values for unrecognized values to
 			// pass static rule checks.
@@ -399,12 +399,20 @@ func toCtxSession(s *session.Session) ctxSession {
 // pseudo-resource. These resources only exist for RBAC purposes and do not
 // exist in the database.
 type HostCertContext struct {
-	HostID      string           `json:"host_id"`
-	NodeName    string           `json:"node_name"`
-	Principals  []string         `json:"principals"`
-	ClusterName string           `json:"cluster_name"`
-	Role        types.SystemRole `json:"role"`
-	TTL         time.Duration    `json:"ttl"`
+	// HostID is the host ID in the cert request.
+	HostID string `json:"host_id"`
+	// NodeName is the node name in the cert request.
+	NodeName string `json:"node_name"`
+	// Principals is the list of requested certificate principals.
+	Principals []string `json:"principals"`
+	// ClusterName is the name of the cluster for which the certificate should
+	// be issued.
+	ClusterName string `json:"cluster_name"`
+	// Role is the name of the Teleport role for which the cert should be
+	// issued.
+	Role types.SystemRole `json:"role"`
+	// TTL is the requested certificate TTL.
+	TTL time.Duration `json:"ttl"`
 }
 
 // emptyResource is used when no resource is specified

@@ -303,7 +303,7 @@ func (b *Bot) initialize(ctx context.Context) error {
 				b.log.Warn("Note: onboarding config ignored as identity was loaded from persistent storage")
 			}
 
-			authClient, err = b.AuthenticatedUserClientFromIdentity(ctx, ident, b.cfg.AuthServer)
+			authClient, err = b.AuthenticatedUserClientFromIdentity(ctx, ident)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -334,7 +334,7 @@ func (b *Bot) initialize(ctx context.Context) error {
 		}
 
 		b.log.Debug("Attempting first connection using initial auth client")
-		authClient, err = b.AuthenticatedUserClientFromIdentity(ctx, ident, b.cfg.AuthServer)
+		authClient, err = b.AuthenticatedUserClientFromIdentity(ctx, ident)
 		if err != nil {
 			return trace.Wrap(err)
 		}

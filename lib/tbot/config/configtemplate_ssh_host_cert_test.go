@@ -48,7 +48,7 @@ type mockHostCertBot struct {
 }
 
 func (b *mockHostCertBot) AuthenticatedUserClientFromIdentity(
-	ctx context.Context, id *identity.Identity, authServer string,
+	ctx context.Context, id *identity.Identity,
 ) (auth.ClientI, error) {
 	// For our purposes here, the mock client is sufficient.
 	return b.auth, nil
@@ -80,9 +80,7 @@ func TestTemplateSSHHostCertRender(t *testing.T) {
 	}
 	require.NoError(t, dest.CheckAndSetDefaults())
 
-	// AuthenticatedUserClientFromIdentity() is a noop, so a null pointer is
-	// okay here.
-	var ident *identity.Identity
+	ident := getTestIdent(t, "bot-test")
 	err = template.Render(context.Background(), mockBot, ident, dest)
 	require.NoError(t, err)
 
