@@ -3,8 +3,10 @@ title: Running Teleport with Self-Signed Certs
 description: How run Teleport using self-certs
 ---
 
-In this guide, we will show you how to run Teleport with self-signed certs, with remedies for problems caused
-by using self-signed certs.
+This guide is provided for the benefit of users who are interested in evaluating Teleport in a
+non-production environment without having to configure TLS certificates.
+We will show you how to run Teleport with self-signed certificates and address
+problems caused by this configuration.
 
 The Teleport Proxy Service authenticates itself to clients via TLS x509 certificates.
 If certificates are not configured for the Proxy Service, then it uses self-signed certificates,
