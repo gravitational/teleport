@@ -18,6 +18,7 @@ pub(crate) mod path;
 mod scard;
 
 use self::path::{UnixPath, WindowsPath};
+use self::scard::IoctlCode;
 use crate::errors::{
     invalid_data_error, not_implemented_error, rejected_by_server_error, try_error, NTSTATUS_OK,
     SPECIAL_NO_RESPONSE,
@@ -2208,7 +2209,7 @@ struct DeviceControlRequest {
     header: DeviceIoRequest,
     output_buffer_length: u32,
     input_buffer_length: u32,
-    io_control_code: u32,
+    io_control_code: IoctlCode,
 }
 
 impl DeviceControlRequest {
@@ -2216,6 +2217,12 @@ impl DeviceControlRequest {
         let output_buffer_length = payload.read_u32::<LittleEndian>()?;
         let input_buffer_length = payload.read_u32::<LittleEndian>()?;
         let io_control_code = payload.read_u32::<LittleEndian>()?;
+        let io_control_code = IoctlCode::from_u32(io_control_code).ok_or_else(|| {
+            invalid_data_error(&format!(
+                "invalid I/O control code value {:#010x}",
+                io_control_code
+            ))
+        })?;
         payload.seek(SeekFrom::Current(20))?; // padding
         Ok(Self {
             header,
@@ -2231,7 +2238,7 @@ impl Encode for DeviceControlRequest {
         let mut w = self.header.encode()?;
         w.write_u32::<LittleEndian>(self.output_buffer_length)?;
         w.write_u32::<LittleEndian>(self.input_buffer_length)?;
-        w.write_u32::<LittleEndian>(self.io_control_code)?;
+        w.write_u32::<LittleEndian>(self.io_control_code as u32)?;
         for _ in 0..20 {
             w.write_u8(0)?; // padding
         }
@@ -4510,7 +4517,7 @@ mod tests {
                     },
                     output_buffer_length: 256,
                     input_buffer_length: 4,
-                    io_control_code: IoctlCode::SCARD_IOCTL_ACCESSSTARTEDEVENT as u32,
+                    io_control_code: IoctlCode::SCARD_IOCTL_ACCESSSTARTEDEVENT,
                 }),
                 scard_ctl: Some(Box::new(ScardAccessStartedEvent_Call {
                     _unused: 3234823568,
@@ -4558,7 +4565,7 @@ mod tests {
                     },
                     output_buffer_length: 2048,
                     input_buffer_length: 24,
-                    io_control_code: IoctlCode::SCARD_IOCTL_ESTABLISHCONTEXT as u32,
+                    io_control_code: IoctlCode::SCARD_IOCTL_ESTABLISHCONTEXT,
                 }),
                 scard_ctl: Some(Box::new(EstablishContext_Call {
                     scope: Scope::SCARD_SCOPE_SYSTEM,
@@ -4607,7 +4614,7 @@ mod tests {
                     },
                     output_buffer_length: 2048,
                     input_buffer_length: 88,
-                    io_control_code: IoctlCode::SCARD_IOCTL_LISTREADERSW as u32,
+                    io_control_code: IoctlCode::SCARD_IOCTL_LISTREADERSW,
                 }),
                 scard_ctl: Some(Box::new(ListReaders_Call {
                     context: Context::new(1),

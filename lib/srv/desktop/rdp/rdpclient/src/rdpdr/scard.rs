@@ -55,11 +55,7 @@ impl Client {
     }
 
     // ioctl handles messages coming from the RDP server over the RDPDR channel.
-    pub fn ioctl(&mut self, code: u32, input: &mut Payload) -> RdpResult<(u32, Vec<u8>)> {
-        let code = IoctlCode::from_u32(code).ok_or_else(|| {
-            invalid_data_error(&format!("invalid I/O control code value {:#010x}", code))
-        })?;
-
+    pub fn ioctl(&mut self, code: IoctlCode, input: &mut Payload) -> RdpResult<(u32, Vec<u8>)> {
         debug!("got IoctlCode {:?}", &code);
         // Note: this is an incomplete implementation of the scard API.
         // It's the bare minimum needed to make RDP authentication using a smartcard work.
@@ -327,7 +323,7 @@ impl Client {
 // TRANSMIT_DATA_LIMIT is the maximum size of transmit request/response short data, in bytes.
 const TRANSMIT_DATA_LIMIT: usize = 1024;
 
-#[derive(Debug, FromPrimitive, ToPrimitive)]
+#[derive(Debug, FromPrimitive, ToPrimitive, Copy, Clone)]
 #[allow(non_camel_case_types)]
 pub enum IoctlCode {
     SCARD_IOCTL_ESTABLISHCONTEXT = 0x00090014,
