@@ -72,9 +72,10 @@ func NewSSHConnectionTester(cfg SSHConnectionTesterConfig) (*SSHConnectionTester
 }
 
 // TestConnection tests an SSH Connection to the target Node using
-//  - the provided client
-//  - resource name
-//  - principal / linux user
+//   - the provided client
+//   - resource name
+//   - principal / linux user
+//
 // A new ConnectionDiagnostic is created and used to store the traces as it goes through the checkpoints
 // To set up the SSH client, it will generate a new cert and inject the ConnectionDiagnosticID
 //   - add a trace of whether the SSH Node was reachable
@@ -175,6 +176,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	clientConf.UseKeyPrincipals = true
 	clientConf.Username = currentUser.GetName()
 	clientConf.WebProxyAddr = s.webProxyAddr
+	clientConf.SiteName = clusterName.GetClusterName()
 
 	tc, err := client.NewClient(clientConf)
 	if err != nil {
