@@ -4512,7 +4512,9 @@ mod tests {
                     input_buffer_length: 4,
                     io_control_code: IoctlCode::SCARD_IOCTL_ACCESSSTARTEDEVENT as u32,
                 }),
-                scard_ctl: Some(Box::new(ScardAccessStartedEvent_Call::new(3234823568))),
+                scard_ctl: Some(Box::new(ScardAccessStartedEvent_Call {
+                    _unused: 3234823568,
+                })),
             },
             vec![(
                 PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
@@ -4558,9 +4560,9 @@ mod tests {
                     input_buffer_length: 24,
                     io_control_code: IoctlCode::SCARD_IOCTL_ESTABLISHCONTEXT as u32,
                 }),
-                scard_ctl: Some(Box::new(EstablishContext_Call::new(
-                    Scope::SCARD_SCOPE_SYSTEM,
-                ))),
+                scard_ctl: Some(Box::new(EstablishContext_Call {
+                    scope: Scope::SCARD_SCOPE_SYSTEM,
+                })),
             },
             vec![(
                 PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
@@ -4607,15 +4609,15 @@ mod tests {
                     input_buffer_length: 88,
                     io_control_code: IoctlCode::SCARD_IOCTL_LISTREADERSW as u32,
                 }),
-                scard_ctl: Some(Box::new(ListReaders_Call::new(
-                    Context::new(1),
-                    36,
-                    36,
-                    131076,
-                    vec!["SCard$AllReaders".to_string()],
-                    false,
-                    4294967295,
-                ))),
+                scard_ctl: Some(Box::new(ListReaders_Call {
+                    context: Context::new(1),
+                    groups_ptr_length: 36,
+                    groups_length: 36,
+                    groups_ptr: 131076,
+                    groups: vec!["SCard$AllReaders".to_string()],
+                    readers_is_null: false,
+                    readers_size: 4294967295,
+                })),
             },
             vec![(
                 PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,

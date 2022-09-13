@@ -518,15 +518,10 @@ impl RPCETypeHeader {
 #[derive(Debug)]
 #[allow(non_camel_case_types, dead_code)]
 pub(crate) struct ScardAccessStartedEvent_Call {
-    _unused: u32,
+    pub _unused: u32,
 }
 
 impl ScardAccessStartedEvent_Call {
-    #[allow(dead_code)]
-    pub(crate) fn new(unused: u32) -> Self {
-        Self { _unused: unused }
-    }
-
     fn decode(payload: &mut Payload) -> RdpResult<Self> {
         Ok(Self {
             _unused: payload.read_u32::<LittleEndian>()?,
@@ -635,15 +630,10 @@ impl Long_Return {
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
 pub(crate) struct EstablishContext_Call {
-    scope: Scope,
+    pub scope: Scope,
 }
 
 impl EstablishContext_Call {
-    #[allow(dead_code)]
-    pub(crate) fn new(scope: Scope) -> Self {
-        Self { scope }
-    }
-
     fn decode(payload: &mut Payload) -> RdpResult<Self> {
         let _header = RPCEStreamHeader::decode(payload)?;
         let _header = RPCETypeHeader::decode(payload)?;
@@ -700,10 +690,10 @@ impl EstablishContext_Return {
 
 #[derive(Debug)]
 pub(crate) struct Context {
-    length: u32,
+    pub length: u32,
     // Shortcut: we always create 4-byte context values.
     // The spec allows this field to have variable length.
-    value: u32,
+    pub value: u32,
 }
 
 impl Context {
@@ -769,37 +759,16 @@ fn decode_ptr(payload: &mut Payload, index: &mut u32) -> RdpResult<u32> {
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
 pub(crate) struct ListReaders_Call {
-    context: Context,
-    groups_ptr_length: u32,
-    groups_length: u32,
-    groups_ptr: u32,
-    groups: Vec<String>,
-    readers_is_null: bool,
-    readers_size: u32,
+    pub context: Context,
+    pub groups_ptr_length: u32,
+    pub groups_length: u32,
+    pub groups_ptr: u32,
+    pub groups: Vec<String>,
+    pub readers_is_null: bool,
+    pub readers_size: u32,
 }
 
 impl ListReaders_Call {
-    #[allow(dead_code)]
-    pub(crate) fn new(
-        context: Context,
-        groups_ptr_length: u32,
-        groups_length: u32,
-        groups_ptr: u32,
-        groups: Vec<String>,
-        readers_is_null: bool,
-        readers_size: u32,
-    ) -> Self {
-        Self {
-            context,
-            groups_ptr_length,
-            groups_length,
-            groups_ptr,
-            groups,
-            readers_is_null,
-            readers_size,
-        }
-    }
-
     fn decode(payload: &mut Payload) -> RdpResult<Self> {
         let _header = RPCEStreamHeader::decode(payload)?;
         let _header = RPCETypeHeader::decode(payload)?;
