@@ -177,6 +177,13 @@ func tagCopyArtifactCommands(b buildType) []string {
 
 	// generate checksums
 	commands = append(commands, fmt.Sprintf(`cd /go/artifacts && for FILE in teleport*%s; do sha256sum $FILE > $FILE.sha256; done && ls -l`, extension))
+
+	if b.os == "linux" && b.hasTeleportConnect() {
+		commands = append(commands,
+			`cd /go/artifacts && for FILE in teleport-connect*.deb teleport-connect*.rpm; do
+  sha256sum $FILE > $FILE.sha256;
+done && ls -l`)
+	}
 	return commands
 }
 
@@ -236,6 +243,7 @@ func tagPipelines() []pipeline {
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos7: true, fips: true}))
 
 	ps = append(ps, darwinTagPipeline(), darwinTeleportPkgPipeline(), darwinTshPkgPipeline(), darwinConnectDmgPipeline())
+	ps = append(ps, windowsTagPipeline())
 	return ps
 }
 
@@ -390,7 +398,7 @@ find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r fi
   products="$name"
   if [ "$name" = "tsh" ]; then
     products="teleport teleport-ent"
-  elif [ "$name" = "Teleport Connect" ]; then
+  elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
     description="Teleport Connect"
     products="teleport teleport-ent"
   fi

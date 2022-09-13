@@ -76,16 +76,14 @@ type TestServer struct {
 }
 
 // NewTestServer returns a new instance of a test Postgres server.
-func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
-	address := "localhost:0"
-	if config.Address != "" {
-		address = config.Address
-	}
-	listener, err := net.Listen("tcp", address)
+func NewTestServer(config common.TestServerConfig) (svr *TestServer, err error) {
+	err = config.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	_, port, err := net.SplitHostPort(listener.Addr().String())
+	defer config.CloseOnError(&err)
+
+	port, err := config.Port()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -93,9 +91,10 @@ func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return &TestServer{
 		cfg:       config,
-		listener:  listener,
+		listener:  config.Listener,
 		port:      port,
 		tlsConfig: tlsConfig,
 		log: logrus.WithFields(logrus.Fields{
