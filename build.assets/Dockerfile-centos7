@@ -92,6 +92,32 @@ RUN mkdir -p /opt && cd /opt && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     scl enable devtoolset-11 "make && BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install"
 
+## LIBPCSCLITE #####################################################################
+
+FROM centos:7 AS libpcsclite
+
+# Install required dependencies.
+RUN yum groupinstall -y 'Development Tools' && \
+    yum install -y \
+        autoconf \
+        libudev-devel && \
+    yum update -y && \
+    yum clean all
+
+# Install libpcsclite.
+# Depends on autoconf.
+# We use outdated version 1.8.11 for licence compatibility.
+# Linked so `make build/tsh` finds the library where it expects it.
+RUN git clone --depth=1 https://salsa.debian.org/rousseau/PCSC.git -b 1.8.11 && \
+    cd PCSC && \
+    ./bootstrap && \
+    ./configure --enable-static --with-pic && \
+    make && \
+    make install && \
+# Update ld.
+    echo /usr/local/lib64 > /etc/ld.so.conf.d/libpcsclite.conf && \
+    ldconfig
+
 ## BUILDBOX ###################################################################
 
 FROM centos:7 AS buildbox
@@ -174,7 +200,7 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --pr
     rustc --version && \
     rustup component add --toolchain $RUST_VERSION-x86_64-unknown-linux-gnu rustfmt clippy
 
-# Do a quick switch back to root and copy/setup libfido2 binaries.
+# Do a quick switch back to root and copy/setup libfido2 and libpcsclite binaries.
 # Do this last to take better advantage of the multi-stage build.
 USER root
 COPY --from=libfido2 /usr/local/include/ /usr/local/include/
@@ -189,8 +215,15 @@ COPY --from=libfido2 \
     /usr/local/lib64/libssl.so.1.1 \
     /usr/local/lib64/libudev.a \
     /usr/local/lib64/
-RUN cd /usr/local/lib64 && \
+
+COPY --from=libpcsclite /usr/local/include/ /usr/local/include/
+COPY --from=libpcsclite /usr/local/lib/pkgconfig/ /usr/local/lib/pkgconfig/
+COPY --from=libpcsclite \
+    /usr/local/lib/libpcsclite.a \
+    /usr/local/lib64/
+
 # Re-create usual lib64 links.
+RUN cd /usr/local/lib64 && \
     ln -s libcrypto.so.1.1 libcrypto.so && \
     ln -s libfido2.so.1.11.0 libfido2.so.1 && \
     ln -s libfido2.so.1 libfido2.so && \
@@ -198,6 +231,7 @@ RUN cd /usr/local/lib64 && \
 # Update ld.
     echo /usr/local/lib64 > /etc/ld.so.conf.d/libfido2.conf && \
     ldconfig
+    
 COPY pkgconfig/centos7/ /
 ENV PKG_CONFIG_PATH="/usr/local/lib64/pkgconfig"
 
