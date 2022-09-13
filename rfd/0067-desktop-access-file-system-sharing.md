@@ -594,3 +594,191 @@ The UX for this feature is discussed in [RFD 0058](https://github.com/gravitatio
 ## Security
 
 Security will be discussed in [a future RFD](https://github.com/gravitational/teleport/issues/13406).
+
+## Audit Events
+
+Audit events would ideally be focused exclusively on directory sharing events that are germaine to system security such as:
+
+- A file was transferred from the remote Windows machine onto the local machine (into the shared directory)
+- A file was transferred from the local machine (from the shared directory) onto the remote Windows machine
+- etc
+
+However due to our limited visibility into the Windows side of the equation it is not possible for us to determine such events with precision. For example, if a user transfers a file
+from the Windows box into the shared directory, we see that as a `Shared Directory Create` sequence followed by a `Shared Directory Write` sequence. But then that same sequence could
+just have been a user creating a brand new file within the shared directory and then writing to it (which is not of particular note from a security perspective). Given this limitation,
+we will instead simply log all events that could conceivably indicate security-relevant information, and document the expected sequence of events for such common scenarios such as those
+described above for our users to reference. `Shared Directory Announce/Acknowledge` is also included in the audit event log to make the sequence of events more easily comprehensible.
+
+**TDP Shared Directory Messages Logged**
+
+- `Shared Directory Announce/Acknowledge`
+- `Shared Directory Create`
+- `Shared Directory Read`
+- `Shared Directory Write`
+- `Shared Directory Delete`
+- `Shared Directory Move`
+
+**TDP Shared Directory Messages Skipped**
+
+- `Shared Directory Info`
+- `Shared Directory List`
+
+For `Shared Directory Read` and `Shared Directory Write`, which contain raw file data, the length (number of bytes) of the data transfer will be logged rather than the data itself. This
+by default prevents the audit log from blowing up in size if large files are shared, and from becoming a source of potential data theft. That said, given that there is apparently already
+consumer demand for complete file data logging in the audit log, it's worth considering making this configurable (out of scope for this RFD).
+
+#### Events
+
+```proto
+// DesktopSharedDirectoryStart is emitted when Teleport
+// attempt to begin sharing a new directory to a remote desktop.
+message DesktopSharedDirectoryStart {
+  // Metadata is common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Session is common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Connection holds information about the connection.
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Succeeded is true if the directory sharing initialization was successful.
+  bool Succeeded = 5 [(gogoproto.jsontag) = "succeeded"];
+  // DesktopAddr is the address of the desktop being accessed.
+  string DesktopAddr = 6 [(gogoproto.jsontag) = "desktop_addr"];
+  // DirectoryName is the name of the directory being shared.
+  string DirectoryName = 7 [(gogoproto.jsontag) = "name"];
+  // DirectoryID is the ID of the directory being shared (unique to the Windows Desktop Session).
+  uint32 DirectoryID = 8 [(gogoproto.jsontag) = "id"];
+}
+```
+
+Note: the inclusion of `DirectoryID` is looking forward to if/when we allow for multiple directories to be shared at once, at which point `DirectoryName` will no longer necessarily be
+a unique identifier.
+
+```proto
+// DesktopSharedDirectoryCreate is emitted when Teleport creates
+// a new file or directory in a shared directory at the behest of
+// the remote desktop.
+message DesktopSharedDirectoryCreate {
+  // Metadata, UserMetadata, SessionMetadata, ConnectionMetadata
+
+  // Succeeded is true if the process was successful.
+  bool Succeeded = 5 [(gogoproto.jsontag) = "succeeded"];
+  // DesktopAddr is the address of the desktop being accessed.
+  string DesktopAddr = 6 [(gogoproto.jsontag) = "desktop_addr"];
+  // DirectoryName is the name of the directory being shared.
+  string DirectoryName = 7 [(gogoproto.jsontag) = "name"];
+  // DirectoryID is the ID of the directory being shared (unique to the Windows Desktop Session).
+  uint32 DirectoryID = 8 [(gogoproto.jsontag) = "id"];
+  // Path is the path within the shared directory where the file or directory was created.
+  string Path = 9 [(gogoproto.jsontag) = "path"];
+  // IsFile is true if a file was created, false if a directory was created.
+  bool IsFile = 10 [(gogoproto.jsontag) = "is_file"];
+}
+```
+
+```proto
+// DesktopSharedDirectoryRead is emitted when Teleport
+// attempts to read from a file in a shared directory at
+// the behest of the remote desktop.
+message DesktopSharedDirectoryRead {
+  // Metadata, UserMetadata, SessionMetadata, ConnectionMetadata ommitted
+
+  // Succeeded is true if the process was successful.
+  bool Succeeded = 5 [(gogoproto.jsontag) = "succeeded"];
+  // DesktopAddr is the address of the desktop being accessed.
+  string DesktopAddr = 6 [(gogoproto.jsontag) = "desktop_addr"];
+  // DirectoryName is the name of the directory being shared.
+  string DirectoryName = 7 [(gogoproto.jsontag) = "name"];
+  // DirectoryID is the ID of the directory being shared (unique to the Windows Desktop Session).
+  uint32 DirectoryID = 8 [(gogoproto.jsontag) = "id"];
+  // Path is the path within the shared directory where the file is located.
+  string Path = 9 [(gogoproto.jsontag) = "path"];
+  // Length is the number of bytes read.
+  uint32 Length = 10 [(gogoproto.jsontag) = "length"];
+  // Offset is the offset the bytes were read from.
+  uint32 Offset = 11 [(gogoproto.jsontag) = "offset"];
+}
+```
+
+```proto
+// DesktopSharedDirectoryWrite is emitted when Teleport
+// attempts to write to a file in a shared directory at
+// the behest of the remote desktop.
+message DesktopSharedDirectoryWrite {
+  // Metadata, UserMetadata, SessionMetadata, ConnectionMetadata ommitted
+
+  // Succeeded is true if the process was successful.
+  bool Succeeded = 5 [(gogoproto.jsontag) = "succeeded"];
+  // DesktopAddr is the address of the desktop being accessed.
+  string DesktopAddr = 6 [(gogoproto.jsontag) = "desktop_addr"];
+  // DirectoryName is the name of the directory being shared.
+  string DirectoryName = 7 [(gogoproto.jsontag) = "name"];
+  // DirectoryID is the ID of the directory being shared (unique to the Windows Desktop Session).
+  uint32 DirectoryID = 8 [(gogoproto.jsontag) = "id"];
+  // Path is the path within the shared directory where the file is located.
+  string Path = 9 [(gogoproto.jsontag) = "path"];
+  // Length is the number of bytes written.
+  uint32 Length = 10 [(gogoproto.jsontag) = "length"];
+  // Offset is the offset the bytes were written to.
+  uint32 Offset = 11 [(gogoproto.jsontag) = "offset"];
+}
+```
+
+```proto
+// DesktopSharedDirectoryDelete is emitted when Teleport
+// attempts to delete a file or directory in a shared directory
+// at the behest of the remote desktop.
+message DesktopSharedDirectoryDelete {
+  // Metadata, UserMetadata, SessionMetadata, ConnectionMetadata ommitted
+
+  // Succeeded is true if the process was successful.
+  bool Succeeded = 5 [(gogoproto.jsontag) = "succeeded"];
+  // DesktopAddr is the address of the desktop being accessed.
+  string DesktopAddr = 6 [(gogoproto.jsontag) = "desktop_addr"];
+  // DirectoryName is the name of the directory being shared.
+  string DirectoryName = 7 [(gogoproto.jsontag) = "name"];
+  // DirectoryID is the ID of the directory being shared (unique to the Windows Desktop Session).
+  uint32 DirectoryID = 8 [(gogoproto.jsontag) = "id"];
+  // Path is the path within the shared directory where the file or directory is located.
+  string Path = 9 [(gogoproto.jsontag) = "path"];
+}
+```
+
+```proto
+// DesktopSharedDirectoryMove is emitted when Teleport
+// attempts to move a file or directory in a shared directory
+// at the behest of the remote desktop.
+message DesktopSharedDirectoryMove {
+  // Metadata, UserMetadata, SessionMetadata, ConnectionMetadata ommitted
+
+  // Succeeded is true if the process was successful.
+  bool Succeeded = 5 [(gogoproto.jsontag) = "succeeded"];
+  // DesktopAddr is the address of the desktop being accessed.
+  string DesktopAddr = 6 [(gogoproto.jsontag) = "desktop_addr"];
+  // DirectoryName is the name of the directory being shared.
+  string DirectoryName = 7 [(gogoproto.jsontag) = "name"];
+  // DirectoryID is the ID of the directory being shared (unique to the Windows Desktop Session).
+  uint32 DirectoryID = 8 [(gogoproto.jsontag) = "id"];
+  // OriginalPath is the path within the shared directory where the file or directory was originally located.
+  string OriginalPath = 9 [(gogoproto.jsontag) = "original_path"];
+  // NewPath is the path within the shared directory where the file or directory was attempted to be moved to.
+  string NewPath = 9 [(gogoproto.jsontag) = "new_path"];
+}
+```
