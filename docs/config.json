@@ -295,7 +295,7 @@
             },
             {
               "title": "MsTeams",
-              "slug": "/access-controls/access-request-plugins/ssh-approval-ms-teams/",
+              "slug": "/access-controls/access-request-plugins/ssh-approval-msteams/",
               "forScopes": ["enterprise", "cloud"]
             },
             {
