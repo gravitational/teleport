@@ -94,7 +94,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 	conf := &client.Config{
 		HomePath:     t.TempDir(),
 		Host:         "localhost",
-		WebProxyAddr: "web.proxy.com",
+		WebProxyAddr: "proxy.example.com",
 		SiteName:     "db.example.com",
 		Tracer:       tracing.NoopProvider().Tracer("test"),
 	}
@@ -458,12 +458,12 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			opts:       []ConnectCommandFunc{WithLocalProxy("", 0, "") /* negate default WithLocalProxy*/},
 			execer:     &fakeExec{},
 			cmd: []string{"redis-cli",
-				"-h", "web.proxy.com",
+				"-h", "proxy.example.com",
 				"-p", "3080",
 				"--tls",
 				"--key", "/tmp/keys/example.com/bob",
 				"--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
-				"--sni", "web.proxy.com"},
+				"--sni", "proxy.example.com"},
 			wantErr: false,
 		},
 		{
@@ -499,7 +499,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			execer:       &fakeExec{},
 			databaseName: "warehouse1",
 			cmd: []string{"curl",
-				"https://web.proxy.com:3080/",
+				"https://proxy.example.com:3080/",
 				"--key", "/tmp/keys/example.com/bob",
 				"--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
 				"--http1.1"},
