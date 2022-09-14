@@ -1063,7 +1063,11 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, *servi
 		}
 	}
 
-	return nil, nil, nil
+	// If we get to here then something has gone seriously wrong as we can't find
+	// the event in `receivedEvents` that we explicitly asserted was there
+	// in `StartAndWait()`.
+	return nil, nil, trace.Errorf("Missing expected %v event in %v",
+		service.ProxyReverseTunnelReady, receivedEvents)
 }
 
 // Reset re-creates the teleport instance based on the same configuration
