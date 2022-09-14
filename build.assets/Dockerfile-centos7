@@ -111,7 +111,7 @@ RUN yum groupinstall -y 'Development Tools' && \
 RUN git clone --depth=1 https://salsa.debian.org/rousseau/PCSC.git -b 1.8.11 && \
     cd PCSC && \
     ./bootstrap && \
-    ./configure && \
+    ./configure --enable-static --with-pic && \
     make && \
     make install && \
 # Update ld.
@@ -217,12 +217,9 @@ COPY --from=libfido2 \
     /usr/local/lib64/
 
 COPY --from=libpcsclite /usr/local/include/ /usr/local/include/
-COPY --from=libpcsclite /usr/local/lib64/pkgconfig/ /usr/local/lib64/pkgconfig/
+COPY --from=libpcsclite /usr/local/lib/pkgconfig/ /usr/local/lib/pkgconfig/
 COPY --from=libpcsclite \
-    /usr/local/lib64/libpcsclite.la \
-    /usr/local/lib64/libpcsclite.so \
-    /usr/local/lib64/libpcsclite.so.1 \
-    /usr/local/lib64/libpcsclite.so.1.0.0 \
+    /usr/local/lib/libpcsclite.a \
     /usr/local/lib64/
 
 # Re-create usual lib64 links.

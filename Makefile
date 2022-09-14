@@ -189,6 +189,7 @@ LIBPCSCLITE_MESSAGE := without libpcsclite
 ifeq ("$(LIBPCSCLITE)", "yes")
 LIBPCSCLITE_MESSAGE := with libpcsclite
 LIBPCSCLITE_BUILD_TAG := libpcsclite
+CGOFLAG_TSH = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic -lpcsclite -Wl,-Bdynamic -Wl,--as-needed"
 endif
 
 # Reproducible builds are only available on select targets, and only when OS=linux.
