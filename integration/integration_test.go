@@ -1830,7 +1830,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	// later in in the test, rendering them all invalid. This will make SiteA
 	// fail when it attempts to start back up again. We can't just inject a
 	// totally new listener config into SiteA when it restarts, or SiteB won't
-	// be able to  find it.
+	// be able to find it.
 	//
 	// The least bad option is to duplicate all of SiteA's Listener FDs and
 	// inject those duplicates prior to restarting the SiteA cluster.
@@ -2034,7 +2034,7 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 	// later in in the test, rendering them all invalid. This will make SiteA
 	// fail when it attempts to start back up again. We can't just inject a
 	// totally new listener config into SiteA when it restarts, or SiteB won't
-	// be able to  find it.
+	// be able to find it.
 	//
 	// The least bad option is to duplicate all of SiteA's Listener FDs and
 	// inject those duplicates prior to restarting the SiteA cluster.
@@ -3089,7 +3089,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 	// invalid. This will make the tunnel fail when it attempts to re-open once
 	// a second proxy is started. We can't just inject a totally new listener
 	// config into the second proxy when it starts, or the tunnel end points
-	// be able to  find it.
+	// won't be able to find it.
 	//
 	// The least bad option is to duplicate all of the first proxy's Listener
 	// FDs and inject those duplicates prior to startiung the second proxy
