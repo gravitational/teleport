@@ -795,6 +795,7 @@ discovery_service:
        ssm:
          # document_name is the name of the SSM document that should be
          # executed when installing teleport on matching nodes
+         # Optional, defaults to: "TeleportDiscoveryInstaller".
          document_name: "TeleportDiscoveryInstaller"
 
 # This section configures the 'database service'.
