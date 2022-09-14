@@ -60,7 +60,7 @@ func (s *KubernetesService) GetKubernetesCluster(ctx context.Context, name strin
 	item, err := s.Get(ctx, backend.Key(kubernetesPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("kubernetes %q doesn't exist", name)
+			return nil, trace.NotFound("kubernetes cluster %q doesn't exist", name)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -121,7 +121,7 @@ func (s *KubernetesService) DeleteKubernetesCluster(ctx context.Context, name st
 	err := s.Delete(ctx, backend.Key(kubernetesPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return trace.NotFound("kubernetes %q doesn't exist", name)
+			return trace.NotFound("kubernetes cluster %q doesn't exist", name)
 		}
 		return trace.Wrap(err)
 	}

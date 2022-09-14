@@ -416,7 +416,6 @@ func applyValueTraitsSlice(inputs []string, traits map[string][]string, fieldNam
 // and traits from identity provider. For example:
 //
 // cluster_labels:
-//
 //	env: ['{{external.groups}}']
 //
 // and groups: ['admins', 'devs']
@@ -424,7 +423,6 @@ func applyValueTraitsSlice(inputs []string, traits map[string][]string, fieldNam
 // will be interpolated to:
 //
 // cluster_labels:
-//
 //	env: ['admins', 'devs']
 func applyLabelsTraits(inLabels types.Labels, traits map[string][]string) types.Labels {
 	outLabels := make(types.Labels, len(inLabels))
