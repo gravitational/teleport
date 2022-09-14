@@ -73,10 +73,14 @@ export const BannerList = ({
 };
 
 const Wrapper = styled(Box)`
+  display: flex;
+  height: 100vh;
+  flex-direction: column;
+
   ${MainContainer} {
+    flex: 1;
     height: calc(100% - ${props => props.bannerCount * 38}px);
   }
-  min-width: 1000px;
 `;
 
 type Props = {

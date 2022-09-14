@@ -23,9 +23,8 @@ import styled from 'styled-components';
 // times.
 export const MainContainer = styled.div`
   width: 100%;
-  height: 100%;
   display: flex;
   flex: 1;
-  position: absolute;
-  min-width: 1000px;
+  min-height: 0;
+  --sidebar-width: 240px;
 `;
