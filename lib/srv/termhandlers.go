@@ -202,9 +202,5 @@ func parseWinChange(req *ssh.Request) (*rsession.TerminalParams, error) {
 	}
 
 	params, err := rsession.NewTerminalParamsFromUint32(r.W, r.H)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return params, nil
+	return params, trace.Wrap(err)
 }
