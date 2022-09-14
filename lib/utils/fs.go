@@ -166,16 +166,20 @@ func getHomeDir() string {
 	return ""
 }
 
+func getPlatformLockFilePath(path string) string {
+	return path + lockPostfix
+}
+
 // FSTryWriteLock tries to grab write lock, returns ErrUnsuccessfulLockTry
 // if lock is already acquired by someone else
 func FSTryWriteLock(filePath string) (unlock func() error, err error) {
-	fileLock := flock.New(filePath + lockPostfix)
+	fileLock := flock.New(getPlatformLockFilePath(filePath))
 	locked, err := fileLock.TryLock()
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
 	if !locked {
-		return nil, trace.Wrap(ErrUnsuccessfulLockTry)
+		return nil, trace.Retry(ErrUnsuccessfulLockTry, "")
 	}
 
 	return unlockWrapper(fileLock.Unlock, fileLock.Path()), nil
@@ -184,7 +188,7 @@ func FSTryWriteLock(filePath string) (unlock func() error, err error) {
 // FSTryWriteLockTimeout tries to grab write lock, it's doing it until locks is acquired, or timeout is expired,
 // or context is expired.
 func FSTryWriteLockTimeout(ctx context.Context, filePath string, timeout time.Duration) (unlock func() error, err error) {
-	fileLock := flock.New(filePath + lockPostfix)
+	fileLock := flock.New(getPlatformLockFilePath(filePath))
 	timedCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	if _, err := fileLock.TryLockContext(timedCtx, 10*time.Millisecond); err != nil {
@@ -197,13 +201,13 @@ func FSTryWriteLockTimeout(ctx context.Context, filePath string, timeout time.Du
 // FSTryReadLock tries to grab write lock, returns ErrUnsuccessfulLockTry
 // if lock is already acquired by someone else
 func FSTryReadLock(filePath string) (unlock func() error, err error) {
-	fileLock := flock.New(filePath + lockPostfix)
+	fileLock := flock.New(getPlatformLockFilePath(filePath))
 	locked, err := fileLock.TryRLock()
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
 	if !locked {
-		return nil, trace.Wrap(ErrUnsuccessfulLockTry)
+		return nil, trace.Retry(ErrUnsuccessfulLockTry, "")
 	}
 
 	return unlockWrapper(fileLock.Unlock, fileLock.Path()), nil
@@ -212,7 +216,7 @@ func FSTryReadLock(filePath string) (unlock func() error, err error) {
 // FSTryReadLockTimeout tries to grab read lock, it's doing it until locks is acquired, or timeout is expired,
 // or context is expired.
 func FSTryReadLockTimeout(ctx context.Context, filePath string, timeout time.Duration) (unlock func() error, err error) {
-	fileLock := flock.New(filePath + lockPostfix)
+	fileLock := flock.New(getPlatformLockFilePath(filePath))
 	timedCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	if _, err := fileLock.TryRLockContext(timedCtx, 10*time.Millisecond); err != nil {
