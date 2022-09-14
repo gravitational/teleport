@@ -10,7 +10,7 @@ steps:
     entrypoint: "/bin/bash"
     args: 
       - '-c'
-      - 'make build/tctl build/tsh build/teleport'
+      - 'make bpf-bytecode build/tctl build/tsh build/teleport'
     timeout: 10m
     env:
       - GOCACHE=/tmp/gocache
