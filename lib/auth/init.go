@@ -534,6 +534,18 @@ func createPresets(ctx context.Context, asrv *Server) error {
 			if !trace.IsAlreadyExists(err) {
 				return trace.WrapWithMessage(err, "failed to create preset role %v", role.GetName())
 			}
+
+			currentRole, err := asrv.GetRole(ctx, role.GetName())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			role = services.AddDefaultAllowRules(currentRole)
+
+			err = asrv.UpsertRole(ctx, role)
+			if err != nil {
+				return trace.WrapWithMessage(err, "failed to update preset role %v", role.GetName())
+			}
 		}
 	}
 	return nil

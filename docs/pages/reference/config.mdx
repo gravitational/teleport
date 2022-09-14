@@ -99,12 +99,12 @@ teleport:
     # IAM join method documentation:
     # https://goteleport.com/docs/setup/guides/joining-nodes-aws-iam/
     join_params:
-        # join_method when set to "token", is equivalent to using auth_token.
-        join_method: "token"|"ec2"|"iam"
-        # When join_method is "token", token_name is either the
+        # method, when set to "token", is equivalent to using auth_token.
+        method: "token"|"ec2"|"iam"
+        # When method is "token", token_name is either the
         # token or the path to a file containing the token.
         #
-        # If join_method is "iam" or "ec2", token_name will be will be
+        # If method is "iam" or "ec2", token_name will be will be
         # the name of the joining token resource, e.g., "ec2-token" or
         # "iam-token" as created in the Joining Nodes via EC2 or IAM
         # guides.
