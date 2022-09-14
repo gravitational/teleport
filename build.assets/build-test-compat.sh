@@ -55,7 +55,7 @@ EXIT_CODE=0
 #
 # This will sometimes run under Google Cloud Build, which implies using Docker-
 # out-of-Docker to interact with containers. This means that simply mounting
-# the test targest into the test container won't work, as it would require
+# the test target into the test container won't work, as it would require
 # knowledge of (and control over) the build container that we just don't have.
 #
 # In order to have a solution that works on both GCB and on a developer desktop,
