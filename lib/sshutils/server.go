@@ -492,7 +492,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// closeContext field is used to trigger starvation on cancellation by halting
 	// the acceptance of new connections; it is not intended to halt in-progress
 	// connection handling, and is therefore orthogonal to the role of ConnectionContext.
-	ctx, ccx := NewConnectionContext(ctx, wconn, sconn)
+	ctx, ccx := NewConnectionContext(ctx, wconn, sconn, SetConnectionContextClock(s.clock))
 	defer ccx.Close()
 
 	if s.newConnHandler != nil {
