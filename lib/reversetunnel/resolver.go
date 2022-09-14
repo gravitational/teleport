@@ -47,7 +47,13 @@ func CachingResolver(ctx context.Context, resolver Resolver, clock clockwork.Clo
 		if err != nil {
 			return nil, err
 		}
-		return a.(*utils.NetAddr), nil
+		addr := a.(*utils.NetAddr)
+		if addr != nil {
+			// make a copy to avoid a data race when the caching resolver is shared by goroutines.
+			addrCopy := *addr
+			return &addrCopy, nil
+		}
+		return addr, nil
 	}, nil
 }
 
