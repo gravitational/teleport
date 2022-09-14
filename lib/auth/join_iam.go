@@ -52,9 +52,6 @@ const (
 	// ever have a need to allow a newer API version.
 	expectedSTSIdentityRequestBody = "Action=GetCallerIdentity&Version=2011-06-15"
 
-	// Used to check if we were unable to resolve the regional STS endpoint.
-	globalSTSEndpoint = "https://sts.amazonaws.com"
-
 	// AWS SignedHeaders will always be lowercase
 	// https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html#sigv4-auth-header-overview
 	challengeHeaderKey = "x-teleport-challenge"
@@ -371,10 +368,42 @@ func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse c
 	return certs, trace.Wrap(err)
 }
 
+type stsIdentityRequestConfig struct {
+	regionalEndpointOption endpoints.STSRegionalEndpoint
+	fipsEndpointOption     endpoints.FIPSEndpointState
+}
+
+type stsIdentityRequestOption func(cfg *stsIdentityRequestConfig)
+
+func withRegionalEndpoint(useRegionalEndpoint bool) stsIdentityRequestOption {
+	return func(cfg *stsIdentityRequestConfig) {
+		if useRegionalEndpoint {
+			cfg.regionalEndpointOption = endpoints.RegionalSTSEndpoint
+		} else {
+			cfg.regionalEndpointOption = endpoints.LegacySTSEndpoint
+		}
+	}
+}
+
+func withFIPSEndpoint(useFIPS bool) stsIdentityRequestOption {
+	return func(cfg *stsIdentityRequestConfig) {
+		if useFIPS {
+			cfg.fipsEndpointOption = endpoints.FIPSEndpointStateEnabled
+		} else {
+			cfg.fipsEndpointOption = endpoints.FIPSEndpointStateDisabled
+		}
+	}
+}
+
 // createSignedSTSIdentityRequest is called on the client side and returns an
 // sts:GetCallerIdentity request signed with the local AWS credentials
-func createSignedSTSIdentityRequest(ctx context.Context, endpointOption stsEndpointOption, challenge string) ([]byte, error) {
-	stsClient, err := endpointOption(ctx)
+func createSignedSTSIdentityRequest(ctx context.Context, challenge string, opts ...stsIdentityRequestOption) ([]byte, error) {
+	cfg := &stsIdentityRequestConfig{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	stsClient, err := newSTSClient(ctx, cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -396,75 +425,52 @@ func createSignedSTSIdentityRequest(ctx context.Context, endpointOption stsEndpo
 	return signedRequest.Bytes(), nil
 }
 
-type stsEndpointOption func(context.Context) (*sts.STS, error)
-
-var (
-	stsEndpointOptionGlobal   = newGlobalSTSClient
-	stsEndpointOptionRegional = newRegionalSTSClient
-)
-
-// newRegionalSTSClient returns an STS client will resolve the "global" endpoint
-// for the STS service.
-func newGlobalSTSClient(ctx context.Context) (*sts.STS, error) {
-	// sess will be used as a ConfigProvider to be passed to sts.New. It will
-	// load AWS configuration options from the environment, which means that AWS
-	// credentials may come from environment variables, files in ~/.aws/, or
-	// from the attached role on an EC2 instance.
-	sess, err := session.NewSessionWithOptions(session.Options{
-		SharedConfigState: session.SharedConfigEnable,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+func newSTSClient(ctx context.Context, cfg *stsIdentityRequestConfig) (*sts.STS, error) {
+	awsConfig := awssdk.Config{
+		UseFIPSEndpoint:     cfg.fipsEndpointOption,
+		STSRegionalEndpoint: cfg.regionalEndpointOption,
 	}
-	return sts.New(sess), nil
-}
-
-// newRegionalSTSClient returns an STS client which attempts to resolve the local
-// regional endpoint for the STS service, rather than the "global" endpoint
-// which is not supported in non-default AWS partitions.
-func newRegionalSTSClient(ctx context.Context) (*sts.STS, error) {
-	// sess will be used as a ConfigProvider to be passed to sts.New. It will
-	// load AWS configuration options from the environment, which means that AWS
-	// credentials may come from environment variables, files in ~/.aws/, or
-	// from the attached role on an EC2 instance. The regional STS endpoint will
-	// be used instead of the global endopint if the local (or preferred) region
-	// can be resolved from the environment.
 	sess, err := session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
-		Config:            *awssdk.NewConfig().WithSTSRegionalEndpoint(endpoints.RegionalSTSEndpoint),
+		Config:            awsConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// will set the local region on extraConfigOptions if we can find it from
-	// the environment or IMDS
-	extraConfigOptions := awssdk.NewConfig()
+	stsClient := sts.New(sess)
 
-	// If the region was not resolved from the environment the client will try to
-	// use the global STS endpoint, which will not be supported if the AWS identity
-	// being used is for a non-default AWS partition (such as China or
-	// GovCloud.) This is the default behavior on EC2, so let's try to find the
-	// region from the IMDS.
-	if clientConfig := sess.ClientConfig(sts.ServiceName); clientConfig.Endpoint == globalSTSEndpoint {
-		region, err := getEC2LocalRegion(ctx)
-		if trace.IsNotFound(err) {
-			// Unfortunately we could not find the region from the IMDS, go with
-			// the default global endpoint and hope it works.
-			log.Info("Unable to find the local AWS region from the environment or IMDSv2. " +
-				"Attempting to use the global STS endpoint for the IAM join method. " +
-				"This will probably fail in non-default AWS partitions such as China or GovCloud. " +
-				"Consider setting the AWS_REGION environment variable, setting the region in ~/.aws/config, or enabling the IMDSv2.")
-		} else if err != nil {
-			// Return the unexpected error.
-			return nil, trace.Wrap(err)
+	if apiutils.SliceContainsStr(globalSTSEndpoints, strings.TrimPrefix(stsClient.Endpoint, "https://")) {
+		// If the caller wants to use the regional endpoint but it was not resolved
+		// from the environment, attempt to find the region from the EC2 IMDS
+		if cfg.regionalEndpointOption == endpoints.RegionalSTSEndpoint {
+			region, err := getEC2LocalRegion(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err, "failed to resolve local AWS region from environment or IMDS")
+			}
+			stsClient = sts.New(sess, awssdk.NewConfig().WithRegion(region))
 		} else {
-			// Found the region, set it on the config.
-			extraConfigOptions.Region = &region
+			log.Info("Attempting to use the global STS endpoint for the IAM join method. " +
+				"This will probably fail in non-default AWS partitions such as China or GovCloud, or if FIPS mode is enabled. " +
+				"Consider setting the AWS_REGION environment variable, setting the region in ~/.aws/config, or enabling the IMDSv2.")
 		}
 	}
 
-	return sts.New(sess, extraConfigOptions), nil
+	if cfg.fipsEndpointOption == endpoints.FIPSEndpointStateEnabled &&
+		!apiutils.SliceContainsStr(validSTSEndpoints, strings.TrimPrefix(stsClient.Endpoint, "https://")) {
+		// The AWS SDK will generate invalid endpoints when attempting to
+		// resolve the FIPS endpoint for a region which does not have one.
+		// In this case, try to use the FIPS endpoint in us-east-1. This should
+		// work for all regions in the standard partition. In GovCloud we should
+		// not hit this because all regional endpoints support FIPS. In China or
+		// other partitions this will fail and FIPS mode will not be supported.
+		log.Infof("AWS SDK resolved FIPS STS endpoint %s, which does not appear to be valid. "+
+			"Attempting to use the FIPS STS endpoint for us-east-1.",
+			stsClient.Endpoint)
+		stsClient = sts.New(sess, awssdk.NewConfig().WithRegion("us-east-1"))
+	}
+
+	return stsClient, nil
 }
 
 // getEC2LocalRegion returns the AWS region this EC2 instance is running in, or
