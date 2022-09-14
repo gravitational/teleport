@@ -47,6 +47,8 @@ jobs:
       uses: github/codeql-action/init@v2
       with:
         languages: ${{ matrix.language }}
+        debug: true
+        trap-caching: true
 
     - name: Autobuild
       uses: github/codeql-action/autobuild@v2
