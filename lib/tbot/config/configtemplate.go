@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -57,6 +58,10 @@ const (
 	// TemplateKubernetesName is the config name for generating Kubernetes
 	// client config files
 	TemplateKubernetesName = "kubernetes"
+
+	// TemplateSSHHostCertName is the config name for generating SSH host
+	// certificates
+	TemplateSSHHostCertName = "ssh_host_cert"
 )
 
 // AllConfigTemplates lists all valid config templates, intended for help
@@ -69,6 +74,7 @@ var AllConfigTemplates = [...]string{
 	TemplateMongoName,
 	TemplateCockroachName,
 	TemplateKubernetesName,
+	TemplateSSHHostCertName,
 }
 
 // FileDescription is a minimal spec needed to create an empty end-user-owned
@@ -102,13 +108,14 @@ type Template interface {
 // TemplateConfig contains all possible config template variants. Exactly one
 // variant must be set to be considered valid.
 type TemplateConfig struct {
-	SSHClient  *TemplateSSHClient  `yaml:"ssh_client,omitempty"`
-	Identity   *TemplateIdentity   `yaml:"identity,omitempty"`
-	TLS        *TemplateTLS        `yaml:"tls,omitempty"`
-	TLSCAs     *TemplateTLSCAs     `yaml:"tls_cas,omitempty"`
-	Mongo      *TemplateMongo      `yaml:"mongo,omitempty"`
-	Cockroach  *TemplateCockroach  `yaml:"cockroach,omitempty"`
-	Kubernetes *TemplateKubernetes `yaml:"kubernetes,omitempty"`
+	SSHClient   *TemplateSSHClient   `yaml:"ssh_client,omitempty"`
+	Identity    *TemplateIdentity    `yaml:"identity,omitempty"`
+	TLS         *TemplateTLS         `yaml:"tls,omitempty"`
+	TLSCAs      *TemplateTLSCAs      `yaml:"tls_cas,omitempty"`
+	Mongo       *TemplateMongo       `yaml:"mongo,omitempty"`
+	Cockroach   *TemplateCockroach   `yaml:"cockroach,omitempty"`
+	Kubernetes  *TemplateKubernetes  `yaml:"kubernetes,omitempty"`
+	SSHHostCert *TemplateSSHHostCert `yaml:"ssh_host_cert,omitempty"`
 }
 
 func (c *TemplateConfig) UnmarshalYAML(node *yaml.Node) error {
@@ -135,6 +142,8 @@ func (c *TemplateConfig) UnmarshalYAML(node *yaml.Node) error {
 			c.Cockroach = &TemplateCockroach{}
 		case TemplateKubernetesName:
 			c.Kubernetes = &TemplateKubernetes{}
+		case TemplateSSHHostCertName:
+			c.SSHHostCert = &TemplateSSHHostCert{}
 		default:
 			return trace.BadParameter(
 				"invalid config template '%s' on line %d, expected one of: %s",
@@ -159,6 +168,7 @@ func (c *TemplateConfig) CheckAndSetDefaults() error {
 		c.Mongo,
 		c.Cockroach,
 		c.Kubernetes,
+		c.SSHHostCert,
 	}
 
 	notNilCount := 0
@@ -199,6 +209,7 @@ func (c *TemplateConfig) GetConfigTemplate() (Template, error) {
 		c.Mongo,
 		c.Cockroach,
 		c.Kubernetes,
+		c.SSHHostCert,
 	}
 
 	for _, template := range templates {
@@ -246,21 +257,25 @@ func (b *BotConfigWriter) Stat(name string) (fs.FileInfo, error) {
 }
 
 // newClientKey returns a sane client.Key for the given bot identity.
-func newClientKey(ident *identity.Identity, hostCAs []types.CertAuthority) *client.Key {
+func newClientKey(ident *identity.Identity, hostCAs []types.CertAuthority) (*client.Key, error) {
+	pk, err := keys.ParsePrivateKey(ident.PrivateKeyBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &client.Key{
 		KeyIndex: client.KeyIndex{
 			ClusterName: ident.ClusterName,
 		},
-		Priv:      ident.PrivateKeyBytes,
-		Pub:       ident.PublicKeyBytes,
-		Cert:      ident.CertBytes,
-		TLSCert:   ident.TLSCertBytes,
-		TrustedCA: auth.AuthoritiesToTrustedCerts(hostCAs),
+		PrivateKey: pk,
+		Cert:       ident.CertBytes,
+		TLSCert:    ident.TLSCertBytes,
+		TrustedCA:  auth.AuthoritiesToTrustedCerts(hostCAs),
 
 		// Note: these fields are never used or persisted with identity files,
 		// so we won't bother to set them. (They may need to be reconstituted
 		// on tsh's end based on cert fields, though.)
 		KubeTLSCerts: make(map[string][]byte),
 		DBTLSCerts:   make(map[string][]byte),
-	}
+	}, nil
 }
