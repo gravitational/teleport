@@ -445,7 +445,7 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	matchers := make([]AWSMatcher, 0, len(conf.Discovery.AWSMatchers))
 
 	for _, matcher := range conf.Discovery.AWSMatchers {
-		for _, serviceType := range matcher.Matcher.Types {
+		for _, serviceType := range matcher.Types {
 			if !apiutils.SliceContainsStr(constants.SupportedAWSDiscoveryServices, serviceType) {
 				return trace.BadParameter("discovery service type does not support %q, supported resource types are: %v",
 					serviceType, constants.SupportedAWSDiscoveryServices)

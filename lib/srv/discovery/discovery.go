@@ -34,6 +34,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// Config provides configuration for the discovery server.
 type Config struct {
 	// Clients is an interface for retrieving cloud clients.
 	Clients cloud.Clients
@@ -51,7 +52,10 @@ type Config struct {
 // inclusion in Teleport
 type Server struct {
 	*Config
+
 	ctx context.Context
+	// cancelfn is used with ctx when stopping the discovery server
+	cancelfn context.CancelFunc
 
 	// log is used for logging.
 	log *logrus.Entry
@@ -61,14 +65,15 @@ type Server struct {
 	cloudWatcher *server.Watcher
 	// ec2Installer is used to start the installation process on discovered EC2 nodes
 	ec2Installer *server.SSMInstaller
-
-	cancelfn context.CancelFunc
 }
 
 // New initializes a discovery Server
 func New(ctx context.Context, cfg *Config) (*Server, error) {
-	localCtx, cancelfn := context.WithCancel(ctx)
+	if len(cfg.Matchers) == 0 {
+		return nil, trace.NotFound("no matchers present")
+	}
 
+	localCtx, cancelfn := context.WithCancel(ctx)
 	s := &Server{
 		Config: cfg,
 		log: logrus.WithFields(logrus.Fields{
@@ -77,11 +82,8 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		ctx:      localCtx,
 		cancelfn: cancelfn,
 	}
-	var err error
-	if len(s.Matchers) == 0 {
-		return nil, trace.NotFound("no matchers present")
-	}
 
+	var err error
 	s.cloudWatcher, err = server.NewCloudWatcher(s.ctx, s.Matchers, s.Clients)
 	if err != nil {
 		return nil, trace.Wrap(err)

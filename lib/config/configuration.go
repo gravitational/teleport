@@ -1068,9 +1068,9 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) {
 	for _, matcher := range fc.Discovery.AWSMatchers {
 		cfg.Discovery.AWSMatchers = append(cfg.Discovery.AWSMatchers,
 			services.AWSMatcher{
-				Types:   matcher.Matcher.Types,
-				Regions: matcher.Matcher.Regions,
-				Tags:    matcher.Matcher.Tags,
+				Types:   matcher.Types,
+				Regions: matcher.Regions,
+				Tags:    matcher.Tags,
 				Params: services.InstallerParams{
 					JoinMethod: matcher.InstallParams.JoinParams.Method,
 					JoinToken:  matcher.InstallParams.JoinParams.TokenName,
