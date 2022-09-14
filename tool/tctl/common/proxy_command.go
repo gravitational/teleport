@@ -75,9 +75,6 @@ func (p *ProxyCommand) TryRun(ctx context.Context, cmd string, client auth.Clien
 	switch cmd {
 	case p.lsCmd.FullCommand():
 		err = p.ListProxies(ctx, client)
-		if err != nil {
-			return false, err
-		}
 	default:
 		return false, nil
 	}
