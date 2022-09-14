@@ -209,7 +209,7 @@ func TestWatcher(t *testing.T) {
 					DBClusters: []*rds.DBCluster{auroraClusterNoWriter},
 				},
 			},
-			expectedDatabases: types.Databases(auroraDatabasesNoWriter),
+			expectedDatabases: auroraDatabasesNoWriter,
 		},
 		{
 			name: "skip access denied errors",
