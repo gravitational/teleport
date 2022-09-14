@@ -64,6 +64,14 @@ type ProvisionToken interface {
 
 	// String returns user friendly representation of the resource
 	String() string
+
+	// V3 returns the V3 representation of a ProvisionToken
+	// This exists for the transition period where V2 tokens can still be
+	// unmarshalled as V2 from the backend - and we need to convert them to
+	// V3 to send them over the wire to the client.
+	// This can be removed once we begin converting V2 tokens to V3 within the
+	// services.UnmarshalProvisionToken method.
+	V3() *ProvisionTokenV3
 }
 
 // NewProvisionToken returns a new provision token with the given roles.
@@ -72,6 +80,22 @@ func NewProvisionToken(token string, roles SystemRoles, expires time.Time) (Prov
 		JoinMethod: JoinMethodToken,
 		Roles:      roles,
 	})
+}
+
+// NewProvisionTokenV2FromSpec returns a new v2 provision token with the given
+// spec.
+func NewProvisionTokenV2FromSpec(token string, expires time.Time, spec ProvisionTokenSpecV2) (ProvisionToken, error) {
+	t := &ProvisionTokenV2{
+		Metadata: Metadata{
+			Name:    token,
+			Expires: &expires,
+		},
+		Spec: spec,
+	}
+	if err := t.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return t, nil
 }
 
 // NewProvisionTokenFromSpec returns a new provision token with the given spec.
@@ -299,6 +323,23 @@ func (p ProvisionTokenV2) String() string {
 		expires = p.Expiry().String()
 	}
 	return fmt.Sprintf("ProvisionToken(Roles=%v, Expires=%v)", p.Spec.Roles, expires)
+}
+
+// V3 returns V3 version of the ProvisionTokenV2 resource.
+func (p *ProvisionTokenV2) V3() *ProvisionTokenV3 {
+	t := &ProvisionTokenV3{
+		Kind:     KindToken,
+		Version:  V3,
+		Metadata: p.GetMetadata(),
+		Spec: ProvisionTokenSpecV3{
+			Roles:           p.Spec.Roles,
+			JoinMethod:      p.Spec.JoinMethod,
+			BotName:         p.Spec.BotName,
+			SuggestedLabels: p.Spec.SuggestedLabels,
+		},
+	}
+	// TODO: Add Provider specific configs.
+	return t
 }
 
 // ProvisionTokensFromV1 converts V1 provision tokens to resource list
@@ -539,6 +580,10 @@ func (p ProvisionTokenV3) String() string {
 		expires = p.Expiry().String()
 	}
 	return fmt.Sprintf("ProvisionToken(Roles=%v, Expires=%v)", p.Spec.Roles, expires)
+}
+
+func (p *ProvisionTokenV3) V3() *ProvisionTokenV3 {
+	return p
 }
 
 // Validation for provider specific config

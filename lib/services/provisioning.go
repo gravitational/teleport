@@ -77,18 +77,35 @@ func UnmarshalProvisionToken(data []byte, opts ...MarshalOption) (types.Provisio
 
 	switch h.Version {
 	case "":
+		// ProvisionTokenV1 is converted to V3, as ProvisionTokenV1 no longer
+		// implements the ProvisionToken interface.
 		var p types.ProvisionTokenV1
 		err := utils.FastUnmarshal(data, &p)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		v2 := p.V2()
+		v3 := p.V3()
 		if cfg.ID != 0 {
-			v2.SetResourceID(cfg.ID)
+			v3.SetResourceID(cfg.ID)
 		}
-		return v2, nil
+		return v3, nil
 	case types.V2:
+		// For now, we continue to return these as V2.
+		// At a later date, once the V2 based RPCs are removed, we can
+		// switch to
 		var p types.ProvisionTokenV2
+		if err := utils.FastUnmarshal(data, &p); err != nil {
+			return nil, trace.BadParameter(err.Error())
+		}
+		if err := p.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if cfg.ID != 0 {
+			p.SetResourceID(cfg.ID)
+		}
+		return &p, nil
+	case types.V3:
+		var p types.ProvisionTokenV3
 		if err := utils.FastUnmarshal(data, &p); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
@@ -116,6 +133,9 @@ func MarshalProvisionToken(provisionToken types.ProvisionToken, opts ...MarshalO
 
 	switch provisionToken := provisionToken.(type) {
 	case *types.ProvisionTokenV2:
+		// For now, we continue to accept the marshalling of ProvisionTokenV2
+		// Once we remove the RPCs for submitting ProvisionTokenV2s, we can
+		// remove the support here.
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
@@ -125,6 +145,15 @@ func MarshalProvisionToken(provisionToken types.ProvisionToken, opts ...MarshalO
 		}
 		if cfg.GetVersion() == types.V1 {
 			return utils.FastMarshal(provisionToken.V1())
+		}
+		return utils.FastMarshal(provisionToken)
+	case *types.ProvisionTokenV3:
+		if !cfg.PreserveResourceID {
+			// avoid modifying the original object
+			// to prevent unexpected data races
+			copy := *provisionToken
+			copy.SetResourceID(0)
+			provisionToken = &copy
 		}
 		return utils.FastMarshal(provisionToken)
 	default:

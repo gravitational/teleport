@@ -70,6 +70,9 @@ type scriptSettings struct {
 }
 
 func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	// TODO: This API needs to switch to ProvisionTokenSpecV3 down the road
+	// Is there a reasonable way for us to determine v2 vs v3 specs - or
+	// do we need to introduce a seperate endpoint.
 	var req types.ProvisionTokenSpecV2
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -134,10 +137,13 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 		types.InternalResourceIDLabel: apiutils.Strings{uuid.NewString()},
 	}
 
-	provisionToken, err := types.NewProvisionTokenFromSpec(tokenName, expires, req)
+	provisionToken, err := types.NewProvisionTokenV2FromSpec(tokenName, expires, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Convert to V3 from V2.
+	provisionToken = provisionToken.V3()
 
 	err = clt.CreateToken(r.Context(), provisionToken)
 	if err != nil {
