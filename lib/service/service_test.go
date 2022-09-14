@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/utils"
@@ -276,9 +275,6 @@ func TestServiceInitExternalLog(t *testing.T) {
 		{events: []string{"file://localhost"}, isErr: true},
 	}
 
-	backend, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-
 	for _, tt := range tts {
 		t.Run(strings.Join(tt.events, ","), func(t *testing.T) {
 			// isErr implies isNil.
@@ -290,7 +286,7 @@ func TestServiceInitExternalLog(t *testing.T) {
 				AuditEventsURI: tt.events,
 			})
 			require.NoError(t, err)
-			loggers, err := initExternalLog(context.Background(), auditConfig, logrus.New(), backend)
+			loggers, err := initExternalLog(context.Background(), auditConfig, logrus.New())
 			if tt.isErr {
 				require.Error(t, err)
 			} else {
@@ -501,6 +497,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-redis-ping",
 				"teleport-sqlserver-ping",
 				"teleport-snowflake-ping",
+				"teleport-elasticsearch-ping",
 				"teleport-proxy-ssh",
 				"teleport-reversetunnel",
 				"teleport-auth@",
@@ -511,6 +508,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-redis",
 				"teleport-sqlserver",
 				"teleport-snowflake",
+				"teleport-elasticsearch",
 			},
 		},
 		{
@@ -523,6 +521,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-redis-ping",
 				"teleport-sqlserver-ping",
 				"teleport-snowflake-ping",
+				"teleport-elasticsearch-ping",
 				// Ensure h2 has precedence over http/1.1.
 				"h2",
 				"http/1.1",
@@ -536,6 +535,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-redis",
 				"teleport-sqlserver",
 				"teleport-snowflake",
+				"teleport-elasticsearch",
 			},
 		},
 	}

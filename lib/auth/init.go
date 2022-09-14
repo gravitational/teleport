@@ -132,7 +132,7 @@ type InitConfig struct {
 	Databases services.Databases
 
 	// Status is a service that manages cluster status info.
-	Status services.Status
+	Status services.StatusInternal
 
 	// Roles is a set of roles to create
 	Roles []types.Role
@@ -533,6 +533,18 @@ func createPresets(ctx context.Context, asrv *Server) error {
 		if err != nil {
 			if !trace.IsAlreadyExists(err) {
 				return trace.WrapWithMessage(err, "failed to create preset role %v", role.GetName())
+			}
+
+			currentRole, err := asrv.GetRole(ctx, role.GetName())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			role = services.AddDefaultAllowRules(currentRole)
+
+			err = asrv.UpsertRole(ctx, role)
+			if err != nil {
+				return trace.WrapWithMessage(err, "failed to update preset role %v", role.GetName())
 			}
 		}
 	}
