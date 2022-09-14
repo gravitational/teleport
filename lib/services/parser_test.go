@@ -18,9 +18,11 @@ package services
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"github.com/vulcand/predicate"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -277,4 +279,86 @@ func TestNewResourceParser(t *testing.T) {
 			})
 		}
 	})
+}
+
+// TestParserHostCertContext tests set functions with a custom host cert
+// context.
+func TestParserHostCertContext(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		desc       string
+		principals []string
+		positive   []string
+		negative   []string
+	}{
+		{
+			desc:       "simple",
+			principals: []string{"foo.example.com"},
+			positive: []string{
+				`all_equal(host_cert.principals, "foo.example.com")`,
+				`is_subset(host_cert.principals, "a", "b", "foo.example.com")`,
+				`all_end_with(host_cert.principals, ".example.com")`,
+			},
+			negative: []string{
+				`all_equal(host_cert.principals, "foo")`,
+				`is_subset(host_cert.principals, "a", "b", "c")`,
+				`all_end_with(host_cert.principals, ".foo")`,
+			},
+		},
+		{
+			desc:       "complex",
+			principals: []string{"node.foo.example.com", "node.bar.example.com"},
+			positive: []string{
+				`all_end_with(host_cert.principals, ".example.com")`,
+				`all_end_with(host_cert.principals, ".example.com") && !all_end_with(host_cert.principals, ".baz.example.com")`,
+				`equals(host_cert.host_id, "") && is_subset(host_cert.principals, "node.bar.example.com", "node.foo.example.com", "node.baz.example.com")`,
+			},
+			negative: []string{
+				`all_equal(host_cert.principals, "node.foo.example.com")`,
+				`all_end_with(host_cert.principals, ".foo.example.com") || all_end_with(host_cert.principals, ".bar.example.com")`,
+				`is_subset(host_cert.principals, "node.bar.example.com")`,
+			},
+		},
+	} {
+		ctx := Context{
+			User: &types.UserV2{},
+			HostCert: &HostCertContext{
+				HostID:      "",
+				NodeName:    "foo",
+				Principals:  test.principals,
+				ClusterName: "example.com",
+				Role:        types.RoleNode,
+				TTL:         time.Minute * 20,
+			},
+		}
+		parser, err := NewWhereParser(&ctx)
+		require.NoError(t, err)
+
+		t.Run(test.desc, func(t *testing.T) {
+			t.Run("positive", func(t *testing.T) {
+				for _, pred := range test.positive {
+					expr, err := parser.Parse(pred)
+					require.NoError(t, err)
+
+					ret, ok := expr.(predicate.BoolPredicate)
+					require.True(t, ok)
+
+					require.True(t, ret(), pred)
+				}
+			})
+
+			t.Run("negative", func(t *testing.T) {
+				for _, pred := range test.negative {
+					expr, err := parser.Parse(pred)
+					require.NoError(t, err)
+
+					ret, ok := expr.(predicate.BoolPredicate)
+					require.True(t, ok)
+
+					require.False(t, ret(), pred)
+				}
+			})
+		})
+	}
 }
