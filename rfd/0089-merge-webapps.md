@@ -15,12 +15,16 @@ state: draft
 ## Why
 
 The version of the web UI and the Teleport are tightly coupled but the
-repositories are separate which means that complexities arrise when integrating
-the two projects. We have to separately clone and build the web UI and commit
-the webasset changes into the teleport repo whenever we want to represent an
-update. We also have to maintain multiple build systems and ops procedures for
-the web UI. Moving the web UI repositories into their respective Teleport repo
-will save us time and confusion.
+repositories were created separate to support both Gravity and Teleport. This
+introduced complexities when integrating the two projects.
+
+We have to separately clone and build the web UI and commit the webasset
+changes into the teleport repo whenever we want to represent an update. We also
+have to maintain multiple build systems and ops procedures for the web UI.
+
+Now that Gravity is no longer a product we develop, moving the web UI
+repositories into their respective Teleport repo will save us time and
+confusion.
 
 ## Success Criteria
 
@@ -45,7 +49,7 @@ but the final switch over steps will not be taken until v11 has been released.
         those transferred issues.
 - [ ] Triage PRs.
   - [ ] Close those that are no longer relevant.
-  - [ ] Merge remaining PR's.
+  - [ ] Merge remaining PRs.
   - [ ] Apply the necessary backports.
 
 #### Webapps.e repository
@@ -100,6 +104,8 @@ but the final switch over steps will not be taken until v11 has been released.
 - **Code scanning results / CodeQL**
   - No changes
 - **webapps-build**
+  - Instead of having this job build webassets it should ensure that it can be
+    built.
 - **webapps-test**
   - Migrate from the webapps repository to the teleport repository
   - Only run for changes in the `/webapp` path.
@@ -135,6 +141,8 @@ but the final switch over steps will not be taken until v11 has been released.
 - **Code scanning results / CodeQL**
   - No changes
 - **webapps-build**
+  - Instead of having this job build webassets it should ensure that it can be
+    built.
 - **webapps-test**
   - Migrate from the webapps repository to the teleport repository
   - Only run for changes in the `/webapp` path.
