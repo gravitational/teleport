@@ -862,23 +862,23 @@ func (c *Cache) notify(ctx context.Context, event Event) {
 // and consistently ordered thanks to Raft. Unfortunately, DynamoDB
 // does not provide such a mechanism for its event system, so
 // some tradeoffs have to be made:
+//   a. We assume that events are ordered in regards to the
+//   individual key operations which is the guarantees both Etcd and DynamoDB
+//   provide.
+//   b. Thanks to the init event sent by the server on a successful connect,
+//   and guarantees 1 and 2a, client assumes that once it connects and receives an event,
+//   it will not miss any events, however it can receive stale events.
+//   Event could be stale, if it relates to a change that happened before
+//   the version read by client from the database, for example,
+//   given the event stream: 1. Update a=1 2. Delete a 3. Put a = 2
+//   Client could have subscribed before event 1 happened,
+//   read the value a=2 and then received events 1 and 2 and 3.
+//   The cache will replay all events 1, 2 and 3 and end up in the correct
+//   state 3. If we had a consistent revision number, we could
+//   have skipped 1 and 2, but in the absence of such mechanism in Dynamo
+//   we assume that this cache will eventually end up in a correct state
+//   potentially lagging behind the state of the database.
 //
-//	a. We assume that events are ordered in regards to the
-//	individual key operations which is the guarantees both Etcd and DynamoDB
-//	provide.
-//	b. Thanks to the init event sent by the server on a successful connect,
-//	and guarantees 1 and 2a, client assumes that once it connects and receives an event,
-//	it will not miss any events, however it can receive stale events.
-//	Event could be stale, if it relates to a change that happened before
-//	the version read by client from the database, for example,
-//	given the event stream: 1. Update a=1 2. Delete a 3. Put a = 2
-//	Client could have subscribed before event 1 happened,
-//	read the value a=2 and then received events 1 and 2 and 3.
-//	The cache will replay all events 1, 2 and 3 and end up in the correct
-//	state 3. If we had a consistent revision number, we could
-//	have skipped 1 and 2, but in the absence of such mechanism in Dynamo
-//	we assume that this cache will eventually end up in a correct state
-//	potentially lagging behind the state of the database.
 func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *time.Timer) error {
 	watcher, err := c.Events.NewWatcher(c.ctx, types.Watch{
 		QueueSize:       c.QueueSize,
