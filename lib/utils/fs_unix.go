@@ -22,7 +22,7 @@ package utils
 // On non-windows we lock the target file itself.
 const lockPostfix = ""
 
-var unlockWrapper = func(unlockFn func() error, path string) func() error {
+func unlockWrapper(unlockFn func() error, path string) func() error {
 	return func() error {
 		if unlockFn == nil {
 			return nil
