@@ -26,6 +26,11 @@ import (
 	"github.com/gravitational/trace"
 )
 
+type ClusterDetails struct {
+	RecordingProxy bool
+	FIPSEnabled    bool
+}
+
 // EnvReqParams are parameters for env request
 type EnvReqParams struct {
 	Name  string

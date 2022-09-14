@@ -291,6 +291,8 @@ const (
 	// the proxy is recording sessions or not.
 	RecordingProxyReqType = "recording-proxy@teleport.com"
 
+	ClusterDetailsReqType = "cluster-details@goteleport.com"
+
 	// JSON means JSON serialization format
 	JSON = "json"
 

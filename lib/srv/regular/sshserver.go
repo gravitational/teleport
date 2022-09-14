@@ -20,6 +20,7 @@ package regular
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -1074,6 +1075,8 @@ func (s *Server) HandleRequest(ctx context.Context, r *ssh.Request) {
 		s.handleKeepAlive(r)
 	case teleport.RecordingProxyReqType:
 		s.handleRecordingProxy(r)
+	case teleport.ClusterDetailsReqType:
+		s.handleClusterDetails(ctx, r)
 	case teleport.VersionRequest:
 		s.handleVersionRequest(r)
 	case teleport.TerminalSizeRequest:
@@ -1886,6 +1889,46 @@ func (s *Server) handleKeepAlive(req *ssh.Request) {
 	}
 
 	s.Logger.Debugf("Replied to %q", req.Type)
+}
+
+func (s *Server) handleClusterDetails(ctx context.Context, req *ssh.Request) {
+	s.Logger.Debugf("Global request (%v, %v) received", req.Type, req.WantReply)
+
+	if !req.WantReply {
+		return
+	}
+
+	// get the cluster config, if we can't get it, reply false
+	recConfig, err := s.authService.GetSessionRecordingConfig(s.ctx)
+	if err != nil {
+		if err := req.Reply(false, nil); err != nil && req.WantReply {
+			s.Logger.Warnf("Unable to respond to global request (%v, %v): %v", req.Type, req.WantReply, err)
+		}
+
+		return
+	}
+
+	details := sshutils.ClusterDetails{
+		RecordingProxy: services.IsRecordAtProxy(recConfig.GetMode()),
+		FIPSEnabled:    s.fips,
+	}
+
+	response, err := json.Marshal(details)
+	if err != nil {
+		if err := req.Reply(false, nil); err != nil && req.WantReply {
+			s.Logger.Warnf("Unable to respond to global request (%v, %v): %v", req.Type, req.WantReply, err)
+		}
+
+		return
+	}
+
+	if err := req.Reply(true, response); err != nil {
+		s.Logger.Warnf("Unable to respond to global request (%v, %v): %v: %v", req.Type, req.WantReply, recordingProxy, err)
+		return
+	}
+
+	s.Logger.Debugf("Replied to global request (%v, %v): %v", req.Type, req.WantReply, recordingProxy)
+
 }
 
 // handleRecordingProxy responds to global out-of-band with a bool which

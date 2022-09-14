@@ -2730,18 +2730,26 @@ func onSCP(cf *CLIConf) error {
 // makeClient takes the command-line configuration and constructs & returns
 // a fully configured TeleportClient object
 func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, error) {
-	tc, err := makeClientForProxy(cf, cf.Proxy, useProfileLogin)
+	ctx, span := cf.TracingProvider.Tracer(teleport.ComponentTSH).Start(cf.Context, "tsh/makeClient")
+	defer span.End()
+
+	tc, err := makeClientForProxy(ctx, cf, cf.Proxy, useProfileLogin)
 	return tc, trace.Wrap(err)
 }
 
 // makeClient takes the command-line configuration and a proxy address and constructs & returns
 // a fully configured TeleportClient object
-func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*client.TeleportClient, error) {
+func makeClientForProxy(ctx context.Context, cf *CLIConf, proxy string, useProfileLogin bool) (*client.TeleportClient, error) {
+	ctx, span := cf.TracingProvider.Tracer(teleport.ComponentTSH).Start(cf.Context, "tsh/makeClientForProxy")
+	defer span.End()
+
 	// Parse OpenSSH style options.
+	span.AddEvent("parsing options")
 	options, err := parseOptions(cf.Options)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	span.AddEvent("completed parsing options")
 
 	// apply defaults
 	if cf.MinsToLive == 0 {
@@ -2749,6 +2757,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	}
 
 	// split login & host
+	span.AddEvent("determining login and host")
 	hostLogin := cf.NodeLogin
 	hostUser := cf.UserHost
 	var labels map[string]string
@@ -2779,22 +2788,28 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 			}
 		}
 	}
+	span.AddEvent("got login and host")
+
+	span.AddEvent("parsing local forward ports")
 	fPorts, err := client.ParsePortForwardSpec(cf.LocalForwardPorts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	span.AddEvent("parsing dynamic forward ports")
 	dPorts, err := client.ParseDynamicPortForwardSpec(cf.DynamicForwardedPorts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// 1: start with the defaults
+	span.AddEvent("making default config")
 	c := client.MakeDefaultConfig()
 	c.Host = hostUser
 	if cf.TracingProvider == nil {
 		cf.TracingProvider = tracing.NoopProvider()
 	}
+	span.AddEvent("setting tracer")
 	c.Tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
 
 	// ProxyJump is an alias of Proxy flag
@@ -2904,13 +2919,17 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 			fmt.Fprintf(os.Stderr, "WARNING: the certificate has expired on %v\n", expiryDate)
 		}
 	} else {
+		span.AddEvent("loading profile")
 		// load profile. if no --proxy is given the currently active profile is used, otherwise
 		// fetch profile for exact proxy we are trying to connect to.
 		err = c.LoadProfile(cf.HomePath, proxy)
 		if err != nil {
 			fmt.Printf("WARNING: Failed to load tsh profile for %q: %v\n", proxy, err)
 		}
+
+		span.AddEvent("loaded profile")
 	}
+
 	// 3: override with the CLI flags
 	if cf.Namespace != "" {
 		c.Namespace = cf.Namespace
@@ -2919,15 +2938,20 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		c.Username = cf.Username
 	}
 	c.ExplicitUsername = cf.ExplicitUsername
+
 	// if proxy is set, and proxy is not equal to profile's
 	// loaded addresses, override the values
+
+	span.AddEvent("setting ClientWebProxyAddr")
 	if err := setClientWebProxyAddr(cf, c); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	span.AddEvent("set ClientWebProxyAddr")
 
 	if c.ExtraProxyHeaders == nil {
 		c.ExtraProxyHeaders = map[string]string{}
 	}
+
 	for _, proxyHeaders := range cf.TshConfig.ExtraHeaders {
 		proxyGlob := utils.GlobToRegexp(proxyHeaders.Proxy)
 		proxyRegexp, err := regexp.Compile(proxyGlob)
@@ -2988,20 +3012,28 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	c.CheckVersions = !cf.SkipVersionCheck
 
 	// parse compatibility parameter
+
+	span.AddEvent("parsing CertificateCompatibilityFlag")
 	certificateFormat, err := parseCertificateCompatibilityFlag(cf.Compatibility, cf.CertificateFormat)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	span.AddEvent("parsed CertificateCompatibilityFlag")
+
 	c.CertificateFormat = certificateFormat
 
 	// copy the authentication connector over
 	if cf.AuthConnector != "" {
 		c.AuthConnector = cf.AuthConnector
 	}
+
+	span.AddEvent("parsing MFAMode")
 	mfaOpts, err := parseMFAMode(cf.MFAMode)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	span.AddEvent("parsed MFAMode")
+
 	c.AuthenticatorAttachment = mfaOpts.AuthenticatorAttachment
 	c.PreferOTP = mfaOpts.PreferOTP
 
@@ -3011,9 +3043,11 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		c.ForwardAgent = client.ForwardAgentYes
 	}
 
+	span.AddEvent("setting X11Config")
 	if err := setX11Config(c, cf, options, os.Getenv); err != nil {
 		log.WithError(err).Info("X11 forwarding is not properly configured, continuing without it.")
 	}
+	span.AddEvent("set X11Config")
 
 	// If the caller does not want to check host keys, pass in a insecure host
 	// key checker.
@@ -3046,19 +3080,24 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		c.KeysDir = c.HomePath
 	}
 
+	span.AddEvent("creating client")
 	tc, err := client.NewClient(c)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	span.AddEvent("client created")
+
 	// Load SSH key for the cluster indicated in the profile.
 	// Handle gracefully if the profile is empty or if the key cannot be found.
 	if profileSiteName != "" {
+		span.AddEvent("loading key for cluster")
 		if err := tc.LoadKeyForCluster(profileSiteName); err != nil {
 			log.Debug(err)
 			if !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
 			}
 		}
+		span.AddEvent("loaded key for cluster")
 	}
 
 	// If identity file was provided, we skip loading the local profile info
@@ -3067,10 +3106,12 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	// To compensate, when using an identity file, explicitly fetch these
 	// addresses from the proxy (this is what Ping does).
 	if cf.IdentityFileIn != "" {
+		span.AddEvent("pinging proxy")
 		log.Debug("Pinging the proxy to fetch listening addresses for non-web ports.")
-		if _, err := tc.Ping(cf.Context); err != nil {
+		if _, err := tc.Ping(ctx); err != nil {
 			return nil, trace.Wrap(err)
 		}
+		span.AddEvent("pinged proxy")
 	}
 
 	tc.Config.Stderr = cf.Stderr()
@@ -4033,7 +4074,7 @@ func forEachProfile(cf *CLIConf, fn func(tc *client.TeleportClient, profile *cli
 			fmt.Fprintf(os.Stderr, "Credentials expired for proxy %q, skipping...\n", proxyAddr)
 			continue
 		}
-		tc, err := makeClientForProxy(cf, proxyAddr, true)
+		tc, err := makeClientForProxy(cf.Context, cf, proxyAddr, true)
 		if err != nil {
 			errors = append(errors, err)
 			continue
