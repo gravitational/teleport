@@ -98,7 +98,6 @@ do
   run_docker "$DISTRO" $PWD/build/teleport version
   run_docker "$DISTRO" $PWD/build/tsh version
   run_docker "$DISTRO" $PWD/build/tctl version
-  run_docker "$DISTRO" $PWD/build/tbot version
 done
 
 exit $EXIT_CODE
