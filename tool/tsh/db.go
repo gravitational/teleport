@@ -266,7 +266,7 @@ func onDatabaseLogin(cf *CLIConf) error {
 		"connectCommand": utils.Color(utils.Yellow, formatDatabaseConnectCommand(cf.SiteName, routeToDatabase)),
 	}
 
-	if isLocalProxyRequiredForDatabase(tc, &routeToDatabase) {
+	if shouldUseLocalProxyForDatabase(tc, &routeToDatabase) {
 		templateData["proxyCommand"] = utils.Color(utils.Yellow, formatDatabaseProxyCommand(cf.SiteName, routeToDatabase))
 	} else {
 		templateData["configCommand"] = utils.Color(utils.Yellow, formatDatabaseConfigCommand(cf.SiteName, routeToDatabase))
@@ -412,7 +412,8 @@ func onDatabaseEnv(cf *CLIConf) error {
 			defaults.ReadableDatabaseProtocol(database.Protocol),
 		)
 	}
-	if tc.TLSRoutingEnabled && isLocalProxyRequiredForTLSRouting(database.Protocol) {
+	// MySQL requires ALPN local proxy in signle port mode.
+	if tc.TLSRoutingEnabled && database.Protocol == defaults.ProtocolMySQL {
 		return trace.BadParameter(dbCmdUnsupportedTLSRouting,
 			cf.CommandWithBinary(),
 			defaults.ReadableDatabaseProtocol(database.Protocol),
@@ -478,7 +479,8 @@ func onDatabaseConfig(cf *CLIConf) error {
 			defaults.ReadableDatabaseProtocol(database.Protocol),
 		)
 	}
-	if tc.TLSRoutingEnabled && isLocalProxyRequiredForTLSRouting(database.Protocol) {
+	// MySQL requires ALPN local proxy in signle port mode.
+	if tc.TLSRoutingEnabled && database.Protocol == defaults.ProtocolMySQL {
 		return trace.BadParameter(dbCmdUnsupportedTLSRouting,
 			cf.CommandWithBinary(),
 			defaults.ReadableDatabaseProtocol(database.Protocol),
@@ -559,7 +561,7 @@ func serializeDatabaseConfig(configInfo *dbConfigInfo, format string) (string, e
 func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase,
 	database types.Database, rootClusterName string,
 ) ([]dbcmd.ConnectCommandFunc, error) {
-	if !isLocalProxyRequiredForDatabase(tc, db) {
+	if !shouldUseLocalProxyForDatabase(tc, db) {
 		return []dbcmd.ConnectCommandFunc{}, nil
 	}
 
@@ -611,9 +613,13 @@ func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *clien
 	// certificate's DNS names. As such, connecting to 127.0.0.1 will fail
 	// validation, so connect to localhost.
 	host := "localhost"
-	return []dbcmd.ConnectCommandFunc{
+	cmdOpts := []dbcmd.ConnectCommandFunc{
 		dbcmd.WithLocalProxy(host, addr.Port(0), profile.CACertPathForCluster(rootClusterName)),
-	}, nil
+	}
+	if localProxyTunnel {
+		cmdOpts = append(cmdOpts, dbcmd.WithNoTLS())
+	}
+	return cmdOpts, nil
 }
 
 // localProxyConfig is an argument pack used in prepareLocalProxyOptions().
@@ -1008,6 +1014,12 @@ func formatDatabaseConfigCommand(clusterFlag string, db tlsca.RouteToDatabase) s
 	return fmt.Sprintf("tsh db config --cluster=%v --format=cmd %v", clusterFlag, db.ServiceName)
 }
 
+// shouldUseLocalProxyForDatabase returns true if the ALPN local proxy should
+// be used for connecting to the provided database.
+func shouldUseLocalProxyForDatabase(tc *client.TeleportClient, db *tlsca.RouteToDatabase) bool {
+	return tc.TLSRoutingEnabled || isLocalProxyAlwaysRequired(db.Protocol)
+}
+
 // isLocalProxyAlwaysRequired returns true for protocols that always requires
 // an ALPN local proxy.
 func isLocalProxyAlwaysRequired(protocol string) bool {
@@ -1018,26 +1030,6 @@ func isLocalProxyAlwaysRequired(protocol string) bool {
 	default:
 		return false
 	}
-}
-
-// isLocalProxyRequiredForTLSRouting returns true for protocols that requires
-// an ALPN local proxy only when TLS routing is enabled.
-func isLocalProxyRequiredForTLSRouting(protocol string) bool {
-	// MySQL can use its dedicated port when TLS routing is off, without ALPN
-	// local proxy.
-	return protocol == defaults.ProtocolMySQL
-}
-
-// isLocalProxyRequiredForDatabase returns true if local proxy has to be used
-// for connecting to the provided database.
-func isLocalProxyRequiredForDatabase(tc *client.TeleportClient, db *tlsca.RouteToDatabase) bool {
-	if isLocalProxyAlwaysRequired(db.Protocol) {
-		return true
-	}
-	if tc.TLSRoutingEnabled && isLocalProxyRequiredForTLSRouting(db.Protocol) {
-		return true
-	}
-	return false
 }
 
 const (
