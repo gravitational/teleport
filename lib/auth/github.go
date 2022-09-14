@@ -167,15 +167,14 @@ func orgUsesExternalSSO(ctx context.Context, org string, client HTTPRequester) (
 	// supports external SSO. There doesn't seem to be any way to get this
 	// information from the Github REST API without being an owner of the
 	// Github organization, so check if this exists instead.
-	ssoURL := fmt.Sprintf("%s/%s/%s", githubOrgsURL, url.PathEscape(org), "sso")
+	ssoURL := fmt.Sprintf("%s/%s/sso", githubOrgsURL, url.PathEscape(org))
 
-	const retries int = 3
+	const retries = 3
 	var resp *http.Response
 	for i := 0; i < retries; i++ {
 		ctx, cancel := context.WithTimeout(ctx, defaults.HTTPRequestTimeout)
-		defer cancel()
-
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, ssoURL, nil)
+		cancel()
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
