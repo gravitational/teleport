@@ -2090,6 +2090,10 @@ func (m *testModules) Features() modules.Features {
 	}
 }
 
+func (m *testModules) IsBoringBinary() bool {
+	return false
+}
+
 func TestClusterDatabasesGet(t *testing.T) {
 	env := newWebPack(t, 1)
 
