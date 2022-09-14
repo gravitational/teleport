@@ -36,7 +36,7 @@ but the final switch over steps will not be taken until v11 has been released.
 
 #### Webapps repository
 
-[Webapps repository](https://github.com/gravitational/webapps)
+[repository](https://github.com/gravitational/webapps)
 
 - [ ] Triage issues.
   - [ ] Close those that are no longer relevant.
@@ -50,7 +50,7 @@ but the final switch over steps will not be taken until v11 has been released.
 
 #### Webapps.e repository
 
-[Webapps.e](https://github.com/gravitational/webapps.e)
+[repository](https://github.com/gravitational/webapps.e)
 
 - [ ] Triage issues.
   - [ ] Close those that are no longer relevant.
@@ -63,24 +63,53 @@ but the final switch over steps will not be taken until v11 has been released.
 
 #### Teleport repository
 
-[Teleport repository](https://github.com/gravitational/teleport)
+[repository](https://github.com/gravitational/teleport)
 
-- Remove `webassets` submodule
+##### Actions
+
+- Remove `/webassets` submodule
   - This submodule is no longer required as the web UI will be built on demand.
 - Clone the [Webapps repository](https://github.com/gravitational/webapps) into
   the Teleport root.
   - This will need to be done for every respective version branch (v8, v9, v10)
 - update targets that use the `packages/webapps.e` submodule to point points to
   the correct version in the `teleport.e/webapps` folder.
-- add the `webapps-build` and `webapps-test` build steps.
 - only require teleport build processes to run on teleport paths and the webapp
   ones to run on the webapp paths
 -
 - Archive the [Webapps repository](https://github.com/gravitational/webapps).
 
+##### CI jobs
+
+- **CodeQL / Analyze (go) (pull_request)**
+- **Teleport-IntegrationTest (ci-account)**
+- **Teleport-UnitTest (ci-account)**
+- **Teleport-DocTest (ci-account)**
+- **Teleport-Lint (ci-account)**
+- **Teleport-OsCompatibility (ci-account)**
+  - Disable for changes exclusively made in the `/webapp` path.
+- **Assign / Auto Request Review**
+  - Create a list of full stack engineers and have it pick from this list for
+    changes made to the `/webapp` path.
+- **Check / Checking reviewers**
+  - Continue to require 2 reviewers for changes in the `webapp` projects.
+- **Label / Label Pull Request (pull_request_target)**
+  - Add label for UI to changes made in the `/webapp` path.
+- **CodeQL / Analyze (javascript) (pull_request)**
+  - Ensure that it's running for changes in `/webapp` path.
+- **Code scanning results / CodeQL**
+  - No changes
+- **webapps-build**
+- **webapps-test**
+  - Migrate from the webapps repository to the teleport repository
+  - Only run for changes in the `/webapp` path.
+  - Add to all versioned branches
+
 #### Teleport.e repository
 
-[Teleport.e repository](https://github.com/gravitational/teleport.e)
+[repository](https://github.com/gravitational/teleport.e)
+
+##### Actions
 
 - Clone the [Webapps.e repository](https://github.com/gravitational/webapps.e)
   into the Teleport.e root.
@@ -90,4 +119,23 @@ but the final switch over steps will not be taken until v11 has been released.
 -
 - [ ] Archive webapps.e repository
 
-#### CI job notes
+##### CI jobs
+
+- **Teleport-E-Lint (ci-account)**
+- **Teleport-E-IntegrationTest**
+- **Teleport-E-Test-Linux (ci-account)**
+  - Disable for changes exclusively made in the `/webapp` path.
+- **Assign / Auto Request Review**
+  - Create a list of full stack engineers and have it pick from this list for
+    changes made to the `/webapp` path.
+- **Check / Checking reviewers**
+  - Continue to require 2 reviewers for changes in the `webapp` projects.
+- **CodeQL / Analyze (javascript) (pull_request)**
+  - Ensure that it's running for changes in `/webapp` path.
+- **Code scanning results / CodeQL**
+  - No changes
+- **webapps-build**
+- **webapps-test**
+  - Migrate from the webapps repository to the teleport repository
+  - Only run for changes in the `/webapp` path.
+  - Add to all versioned branches
