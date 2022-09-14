@@ -1,4 +1,4 @@
-.version: &version "10.2.1"
+.version: &version "10.2.2-etcdfix.1"
 
 name: teleport-kube-agent
 apiVersion: v2
