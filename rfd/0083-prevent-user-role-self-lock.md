@@ -77,7 +77,7 @@ On-prem customers could work around this "locked out" state by running `tctl` lo
 
 The solution here could be to introduce a new rule:
 
-- There should be at least _admin_
+- There should be at least one _admin_ user.
 
 This will ensure that:
 
