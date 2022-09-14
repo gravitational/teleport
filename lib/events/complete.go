@@ -222,6 +222,7 @@ func (u *UploadCompleter) checkUploads(ctx context.Context) error {
 		// This is necessary because we'll need to download the session in order to
 		// enumerate its events, and the S3 API takes a little while after the upload
 		// is completed before version metadata becomes available.
+		upload := upload // capture range variable
 		go func() {
 			select {
 			case <-ctx.Done():
