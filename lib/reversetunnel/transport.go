@@ -28,7 +28,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/webclient"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -85,20 +84,13 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 		proxy.WithInsecureSkipTLSVerify(t.InsecureSkipTLSVerify),
 	}
 
-	addr, err := t.Resolver(ctx)
+	addr, tlsRoutingEnabled, err := t.Resolver(ctx)
 	if err != nil {
 		t.Log.Errorf("Failed to resolve tunnel address %v", err)
 		return nil, trace.Wrap(err)
 	}
 
-	// Check if t.ProxyAddr is ProxyWebPort and remote Proxy supports TLS ALPNSNIListener.
-	resp, err := webclient.Find(
-		&webclient.Config{Context: ctx, ProxyAddr: addr.Addr, Insecure: t.InsecureSkipTLSVerify})
-	if err != nil {
-		// If TLS Routing is disabled the address is the proxy reverse tunnel
-		// address thus the ping call will always fail.
-		t.Log.Debugf("Failed to ping web proxy %q addr: %v", addr.Addr, err)
-	} else if resp.Proxy.TLSRoutingEnabled {
+	if tlsRoutingEnabled {
 		opts = append(opts, proxy.WithALPNDialer(&tls.Config{
 			NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
 		}))

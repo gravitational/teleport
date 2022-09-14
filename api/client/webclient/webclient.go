@@ -215,30 +215,6 @@ func Ping(cfg *Config) (*PingResponse, error) {
 	return pr, nil
 }
 
-// GetTunnelAddr returns the tunnel address either set in an environment variable or retrieved from the web proxy.
-func GetTunnelAddr(cfg *Config) (string, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return "", trace.Wrap(err)
-	}
-	// If TELEPORT_TUNNEL_PUBLIC_ADDR is set, nothing else has to be done, return it.
-	if tunnelAddr := os.Getenv(defaults.TunnelPublicAddrEnvar); tunnelAddr != "" {
-		return parseAndJoinHostPort(tunnelAddr)
-	}
-
-	// Ping web proxy to retrieve tunnel proxy address.
-	pr, err := Find(cfg)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	// DELETE IN 11.0.0
-	// newer proxies should return WebListenAddr so
-	// we don't need to rely on the dialed proxyAddr
-	if pr.Proxy.SSH.WebListenAddr == "" {
-		pr.Proxy.SSH.WebListenAddr = cfg.ProxyAddr
-	}
-	return pr.Proxy.tunnelProxyAddr()
-}
-
 func GetMOTD(cfg *Config) (*MotD, error) {
 	clt, err := newWebClient(cfg)
 	if err != nil {
@@ -437,6 +413,17 @@ type GithubSettings struct {
 	Name string `json:"name"`
 	// Display is the connector display name
 	Display string `json:"display"`
+}
+
+func (ps *ProxySettings) TunnelAddr() (string, error) {
+	// If TELEPORT_TUNNEL_PUBLIC_ADDR is set, nothing else has to be done, return it.
+	if tunnelAddr := os.Getenv(defaults.TunnelPublicAddrEnvar); tunnelAddr != "" {
+		addr, err := parseAndJoinHostPort(tunnelAddr)
+		return addr, trace.Wrap(err)
+	}
+
+	addr, err := ps.tunnelProxyAddr()
+	return addr, trace.Wrap(err)
 }
 
 // tunnelProxyAddr returns the tunnel proxy address for the proxy settings.

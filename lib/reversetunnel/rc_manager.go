@@ -229,7 +229,7 @@ func realNewAgentPool(ctx context.Context, cfg RemoteClusterTunnelManagerConfig,
 
 		// Configs for remote cluster.
 		Cluster:         cluster,
-		Resolver:        StaticResolver(addr),
+		Resolver:        StaticResolver(addr, false),
 		IsRemoteCluster: true,
 	})
 	if err != nil {

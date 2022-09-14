@@ -1923,11 +1923,11 @@ func (s *Server) handleClusterDetails(ctx context.Context, req *ssh.Request) {
 	}
 
 	if err := req.Reply(true, response); err != nil {
-		s.Logger.Warnf("Unable to respond to global request (%v, %v): %v: %v", req.Type, req.WantReply, recordingProxy, err)
+		s.Logger.Warnf("Unable to respond to global request (%v, %v): %v: %v", req.Type, req.WantReply, details.RecordingProxy, err)
 		return
 	}
 
-	s.Logger.Debugf("Replied to global request (%v, %v): %v", req.Type, req.WantReply, recordingProxy)
+	s.Logger.Debugf("Replied to global request (%v, %v): %v", req.Type, req.WantReply, details.RecordingProxy)
 
 }
 
