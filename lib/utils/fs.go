@@ -19,10 +19,11 @@ package utils
 import (
 	"context"
 	"errors"
-	"github.com/gofrs/flock"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/gofrs/flock"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
