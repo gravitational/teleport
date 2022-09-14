@@ -18,14 +18,13 @@ package types
 
 import (
 	"fmt"
-	"net"
-	"net/url"
 	"strings"
 	"text/template"
 	"time"
 
 	"github.com/gravitational/teleport/api/utils"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
+	azureutils "github.com/gravitational/teleport/api/utils/azure"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
@@ -512,75 +511,31 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		}
 		d.Spec.AWS.MemoryDB.TLSEnabled = endpointInfo.TransitEncryptionEnabled
 		d.Spec.AWS.MemoryDB.EndpointType = endpointInfo.EndpointType
-	case strings.Contains(d.Spec.URI, AzureEndpointSuffix):
-		name, err := parseAzureEndpoint(d.Spec.URI)
+
+	// For Azure MySQL and PostgresSQL.
+	case azureutils.IsDatabaseEndpoint(d.Spec.URI):
+		name, err := azureutils.ParseDatabaseEndpoint(d.Spec.URI)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		if d.Spec.Azure.Name == "" {
 			d.Spec.Azure.Name = name
 		}
-	case strings.Contains(d.Spec.URI, AzureCacheEndpointSuffix):
+	case azureutils.IsCacheForRedisEndpoint(d.Spec.URI):
 		// ResourceID is required for fetching Redis tokens.
 		if d.Spec.Azure.ResourceID == "" {
 			return trace.BadParameter("missing ResourceID for Azure Cache %v", d.Metadata.Name)
 		}
 
-		name, err := parseAzureCacheEndpoint(d.Spec.URI)
+		name, err := azureutils.ParseCacheForRedisEndpoint(d.Spec.URI)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
 		if d.Spec.Azure.Name == "" {
 			d.Spec.Azure.Name = name
 		}
-	}
 	return nil
-}
-
-// parseAzureEndpoint extracts database server name from Azure endpoint.
-func parseAzureEndpoint(endpoint string) (name string, err error) {
-	host, _, err := net.SplitHostPort(endpoint)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	// Azure endpoint looks like this:
-	// name.mysql.database.azure.com
-	parts := strings.Split(host, ".")
-	if !strings.HasSuffix(host, AzureEndpointSuffix) || len(parts) != 5 {
-		return "", trace.BadParameter("failed to parse %v as Azure endpoint", endpoint)
-	}
-	return parts[0], nil
-}
-
-// parseAzureCacheEndpoint extracts database server name from Azure Cache endpoint.
-func parseAzureCacheEndpoint(endpoint string) (name string, err error) {
-	// Note that the Redis URI may contain schema and parameters.
-	host, err := getHostFromRedisURI(endpoint)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	// Azure cache endpoint looks like this:
-	// name.redis.cache.windows.net
-	parts := strings.Split(host, ".")
-	if !strings.HasSuffix(host, AzureCacheEndpointSuffix) || len(parts) != 5 {
-		return "", trace.BadParameter("failed to parse %v as Azure Cache endpoint", endpoint)
-	}
-	return parts[0], nil
-}
-
-// getHostFromRedisURI TODO
-func getHostFromRedisURI(endpoint string) (string, error) {
-	// Add a temporary schema to make a valid URL for url.Parse.
-	if !strings.Contains(endpoint, "://") {
-		endpoint = "schema://" + endpoint
-	}
-
-	parsedURL, err := url.Parse(endpoint)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return parsedURL.Hostname(), nil
 }
 
 // GetIAMPolicy returns AWS IAM policy for this database.
@@ -765,14 +720,6 @@ func (d Databases) Less(i, j int) bool { return d[i].GetName() < d[j].GetName() 
 
 // Swap swaps two databases.
 func (d Databases) Swap(i, j int) { d[i], d[j] = d[j], d[i] }
-
-const (
-	// AzureEndpointSuffix is the Azure database endpoint suffix.
-	AzureEndpointSuffix = ".database.azure.com"
-
-	// AzureCacheEndpointSuffix TODO
-	AzureCacheEndpointSuffix = "redis.cache.windows.net"
-)
 
 type arnTemplateInput struct {
 	Partition, Region, AccountID, ResourceID string
