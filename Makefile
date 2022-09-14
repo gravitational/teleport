@@ -779,6 +779,14 @@ fix-license: $(ADDLICENSE)
 $(ADDLICENSE):
 	cd && go install github.com/google/addlicense@v1.0.0
 
+# This rule updates version files and Helm snapshots based on the Makefile
+# VERSION variable.
+#
+# Used prior to a release by bumping VERSION in this Makefile and then
+# running "make update-version".
+.PHONY: update-version
+update-version: version test-helm-update-snapshots
+
 # This rule triggers re-generation of version files if Makefile changes.
 .PHONY: version
 version: $(VERSRC)
