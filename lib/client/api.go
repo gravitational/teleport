@@ -1696,7 +1696,11 @@ func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, cachePolicy Cert
 	}
 	defer proxyClient.Close()
 
-	return proxyClient.ReissueUserCerts(ctx, cachePolicy, params)
+	err = RetryWithRelogin(ctx, tc, func() error {
+		err := proxyClient.ReissueUserCerts(ctx, cachePolicy, params)
+		return trace.Wrap(err)
+	})
+	return trace.Wrap(err)
 }
 
 // IssueUserCertsWithMFA issues a single-use SSH or TLS certificate for
