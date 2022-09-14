@@ -269,9 +269,7 @@ func (p *proxyTunnelStrategy) makeLoadBalancer(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	// TODO(tcsc): fix ports before merging
 	lbAddr := utils.MustParseAddr(net.JoinHostPort(helpers.Loopback, "0"))
-	//lbAddr := utils.MustParseAddr(net.JoinHostPort(helpers.Loopback, helpers.NewPortStr()))
 	lb, err := utils.NewLoadBalancer(ctx, *lbAddr)
 	require.NoError(t, err)
 
