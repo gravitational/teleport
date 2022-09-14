@@ -74,6 +74,7 @@ This release of Teleport contains multiple improvements and bug fixes.
 * Improved connection reliability in proxy peering mode. [#15313](https://github.com/gravitational/teleport/pull/15313)
 * Improved error messaging in joined Kubernetes sessions. [#15492](https://github.com/gravitational/teleport/pull/15492)
 * Improved network utilization on proxies. [#15838](https://github.com/gravitational/teleport/pull/15838)
+* Added RDP licensing negotiation [gravitational/rdp-rs#17](https://github.com/gravitational/rdp-rs/pull/17)
 
 ## 10.1.4
 
@@ -374,7 +375,7 @@ to keep using it.
 
 In previous versions of Teleport users needed full access to a Node/Kubernetes
 pod in order to join a session. Teleport 10 relaxes this requirement. Joining
-sessions remains deny-by-default but now only `join_policy` statements are
+sessions remains deny-by-default but now only `join_sessions` statements are
 checked for session join RBAC.
 
 See the Moderated Sessions guide for more details:
