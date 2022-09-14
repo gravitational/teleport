@@ -36,7 +36,6 @@ import (
 	"reflect"
 	"regexp"
 	"runtime/pprof"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -1831,7 +1830,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	// later in in the test, rendering them all invalid. This will make SiteA
 	// fail when it attempts to start back up again. We can't just inject a
 	// totally new listener config into SiteA when it restarts, or SiteB won't
-	// be able to  find it.
+	// be able to find it.
 	//
 	// The least bad option is to duplicate all of SiteA's Listener FDs and
 	// inject those duplicates prior to restarting the SiteA cluster.
@@ -2035,7 +2034,7 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 	// later in in the test, rendering them all invalid. This will make SiteA
 	// fail when it attempts to start back up again. We can't just inject a
 	// totally new listener config into SiteA when it restarts, or SiteB won't
-	// be able to  find it.
+	// be able to find it.
 	//
 	// The least bad option is to duplicate all of SiteA's Listener FDs and
 	// inject those duplicates prior to restarting the SiteA cluster.
@@ -2779,7 +2778,7 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 	username := suite.Me.Username
 
 	// create load balancer for main cluster proxies
-	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, helpers.NewPortStr()))
+	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, "0"))
 	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
 	require.NoError(t, err)
 	require.NoError(t, lb.Listen())
@@ -2797,7 +2796,7 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 	// switch listen address of the main cluster to load balancer
 	mainProxyAddr := *utils.MustParseAddr(mainSecrets.TunnelAddr)
 	lb.AddBackend(mainProxyAddr)
-	mainSecrets.TunnelAddr = frontend.String()
+	mainSecrets.TunnelAddr = lb.Addr().String()
 	require.NoError(t, remote.Create(t, mainSecrets.AsSlice(), true, nil))
 
 	require.NoError(t, main.Start())
@@ -2809,23 +2808,25 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 	require.Eventually(t, helpers.WaitForClusters(remote.Tunnel, 1), 10*time.Second, 1*time.Second,
 		"Two clusters do not see each other: tunnels are not working.")
 
+	var reverseTunnelAddr string
+
 	// Helper function for adding a new proxy to "main".
 	addNewMainProxy := func(name string) (reversetunnel.Server, helpers.ProxyConfig) {
 		t.Logf("adding main proxy %q...", name)
-		nodePorts := helpers.NewPortSlice(3)
-		proxyReverseTunnelPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
 		newConfig := helpers.ProxyConfig{
 			Name:              name,
-			SSHPort:           proxySSHPort,
-			WebPort:           proxyWebPort,
-			ReverseTunnelPort: proxyReverseTunnelPort,
 			DisableWebService: true,
 		}
-		newProxy, err := main.StartProxy(newConfig)
+		newConfig.SSHAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerNodeSSH, &newConfig.FileDescriptors)
+		newConfig.WebAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyWeb, &newConfig.FileDescriptors)
+		newConfig.ReverseTunnelAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyTunnel, &newConfig.FileDescriptors)
+		reverseTunnelAddr = newConfig.ReverseTunnelAddr
+
+		newProxy, _, err := main.StartProxy(newConfig)
 		require.NoError(t, err)
 
 		// add proxy as a backend to the load balancer
-		lb.AddBackend(*utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(proxyReverseTunnelPort))))
+		lb.AddBackend(*utils.MustParseAddr(newConfig.ReverseTunnelAddr))
 		return newProxy, newConfig
 	}
 
@@ -2836,8 +2837,7 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 				continue
 			}
 			if p.Config.Hostname == name {
-				reverseTunnelPort := utils.MustParseAddr(p.Config.Proxy.ReverseTunnelListenAddr.Addr).Port(0)
-				require.NoError(t, lb.RemoveBackend(*utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(reverseTunnelPort)))))
+				require.NoError(t, lb.RemoveBackend(*utils.MustParseAddr(reverseTunnelAddr)))
 				require.NoError(t, p.Close())
 				require.NoError(t, p.Wait())
 				return
@@ -2912,7 +2912,7 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 	username := suite.Me.Username
 
 	// create load balancer for main cluster proxies
-	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(helpers.NewPortValue())))
+	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, "0"))
 	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
 	require.NoError(t, err)
 	require.NoError(t, lb.Listen())
@@ -2930,7 +2930,7 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 	// switch listen address of the main cluster to load balancer
 	mainProxyAddr := *utils.MustParseAddr(mainSecrets.TunnelAddr)
 	lb.AddBackend(mainProxyAddr)
-	mainSecrets.TunnelAddr = frontend.String()
+	mainSecrets.TunnelAddr = lb.Addr().String()
 	require.NoError(t, remote.Create(t, mainSecrets.AsSlice(), true, nil))
 
 	require.NoError(t, main.Start())
@@ -2943,21 +2943,19 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 		"Two clusters do not see each other: tunnels are not working.")
 
 	// start second proxy
-	// TODO(tcsc): Replace use of deprecated NewPortSlice() with preconfigured listeners
-	nodePorts := helpers.NewPortSlice(3)
-	proxyReverseTunnelPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
 	proxyConfig := helpers.ProxyConfig{
 		Name:              "cluster-main-proxy",
-		SSHPort:           proxySSHPort,
-		WebPort:           proxyWebPort,
-		ReverseTunnelPort: proxyReverseTunnelPort,
 		DisableWebService: true,
 	}
-	secondProxy, err := main.StartProxy(proxyConfig)
+	proxyConfig.SSHAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerNodeSSH, &proxyConfig.FileDescriptors)
+	proxyConfig.WebAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyWeb, &proxyConfig.FileDescriptors)
+	proxyConfig.ReverseTunnelAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyTunnel, &proxyConfig.FileDescriptors)
+
+	secondProxy, _, err := main.StartProxy(proxyConfig)
 	require.NoError(t, err)
 
 	// add second proxy as a backend to the load balancer
-	lb.AddBackend(*utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(proxyReverseTunnelPort))))
+	lb.AddBackend(*utils.MustParseAddr(proxyConfig.ReverseTunnelAddr))
 
 	// At this point the main cluster should observe two tunnels
 	// connected to it from remote cluster
@@ -3041,7 +3039,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
 
 	// Create and start load balancer for proxies.
-	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(helpers.NewPortValue())))
+	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, "0"))
 	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
 	require.NoError(t, err)
 	require.NoError(t, lb.Listen())
@@ -3058,7 +3056,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 		tconf.Proxy.TunnelPublicAddrs = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
-				Addr:        frontend.String(),
+				Addr:        lb.Addr().String(),
 			},
 		}
 		tconf.Proxy.DisableWebService = false
@@ -3073,23 +3071,35 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 	t.Cleanup(func() { require.NoError(t, main.StopAll()) })
 
 	// Create a Teleport instance with a Proxy.
-	nodePorts := helpers.NewPortSlice(3)
-	proxyReverseTunnelPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
 	proxyConfig := helpers.ProxyConfig{
 		Name:                   "cluster-main-proxy",
-		SSHPort:                proxySSHPort,
-		WebPort:                proxyWebPort,
-		ReverseTunnelPort:      proxyReverseTunnelPort,
 		DisableWebService:      false,
 		DisableWebInterface:    true,
 		DisableALPNSNIListener: true,
 	}
-	proxyTunnel, err := main.StartProxy(proxyConfig)
+	proxyConfig.SSHAddr = helpers.NewListener(t, service.ListenerNodeSSH, &proxyConfig.FileDescriptors)
+	proxyConfig.WebAddr = helpers.NewListener(t, service.ListenerProxyWeb, &proxyConfig.FileDescriptors)
+	proxyConfig.ReverseTunnelAddr = helpers.NewListener(t, service.ListenerProxyTunnel, &proxyConfig.FileDescriptors)
+
+	proxyTunnel, firstProxy, err := main.StartProxy(proxyConfig)
+	require.NoError(t, err)
+
+	// The Listener FDs injected into the first proxy instance will be closed
+	// when that instance is stopped later in in the test, rendering them all
+	// invalid. This will make the tunnel fail when it attempts to re-open once
+	// a second proxy is started. We can't just inject a totally new listener
+	// config into the second proxy when it starts, or the tunnel end points
+	// won't be able to find it.
+	//
+	// The least bad option is to duplicate all of the first proxy's Listener
+	// FDs and inject those duplicates prior to startiung the second proxy
+	// instance.
+	fdCache, err := firstProxy.ExportFileDescriptors()
 	require.NoError(t, err)
 
 	proxyOneBackend := utils.MustParseAddr(main.ReverseTunnel)
 	lb.AddBackend(*proxyOneBackend)
-	proxyTwoBackend := utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(proxyReverseTunnelPort)))
+	proxyTwoBackend := utils.MustParseAddr(proxyConfig.ReverseTunnelAddr)
 	lb.AddBackend(*proxyTwoBackend)
 
 	// Create a Teleport instance with a Node.
@@ -3100,7 +3110,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 		tconf.AuthServers = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
-				Addr:        net.JoinHostPort(Loopback, strconv.Itoa(proxyWebPort)),
+				Addr:        proxyConfig.WebAddr,
 			},
 		}
 		tconf.Auth.Enabled = false
@@ -3142,9 +3152,14 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 	helpers.WaitForActiveTunnelConnections(t, proxyTunnel, helpers.Site, 0)
 
 	// Requests going via both proxy will fail.
-	_, err = runCommand(t, main, []string{"echo", "hello world"}, cfg, 1)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer invoke(cancel)
+	_, err = runCommandWithContext(timeoutCtx, t, main, []string{"echo", "hello world"}, cfg, 1)
 	require.Error(t, err)
-	_, err = runCommand(t, main, []string{"echo", "hello world"}, cfgProxy, 1)
+
+	timeoutCtx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer invoke(cancel)
+	_, err = runCommandWithContext(timeoutCtx, t, main, []string{"echo", "hello world"}, cfgProxy, 1)
 	require.Error(t, err)
 
 	// wait for the node to reach a degraded state
@@ -3152,7 +3167,8 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err, "timed out waiting for node to become degraded")
 
 	// start the proxy again and ensure the tunnel is re-established
-	proxyTunnel, err = main.StartProxy(proxyConfig)
+	proxyConfig.FileDescriptors = fdCache
+	proxyTunnel, _, err = main.StartProxy(proxyConfig)
 	require.NoError(t, err)
 	helpers.WaitForActiveTunnelConnections(t, main.Tunnel, helpers.Site, 0)
 	helpers.WaitForActiveTunnelConnections(t, proxyTunnel, helpers.Site, 1)
@@ -3178,7 +3194,7 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 	defer lib.SetInsecureDevMode(false)
 
 	// Create and start load balancer for proxies.
-	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(helpers.NewPortValue())))
+	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, "0"))
 	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
 	require.NoError(t, err)
 	err = lb.Listen()
@@ -3196,7 +3212,7 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 		tconf.Proxy.TunnelPublicAddrs = []utils.NetAddr{
 			{
 				AddrNetwork: "tcp",
-				Addr:        frontend.String(),
+				Addr:        lb.Addr().String(),
 			},
 		}
 		tconf.Proxy.DisableWebService = false
@@ -3211,21 +3227,20 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 	defer main.StopAll()
 
 	// Create a Teleport instance with a Proxy.
-	nodePorts := helpers.NewPortSlice(3)
-	proxyReverseTunnelPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
 	proxyConfig := helpers.ProxyConfig{
 		Name:              "cluster-main-proxy",
-		SSHPort:           proxySSHPort,
-		WebPort:           proxyWebPort,
-		ReverseTunnelPort: proxyReverseTunnelPort,
 		DisableWebService: true,
 	}
-	proxyTunnel, err := main.StartProxy(proxyConfig)
+	proxyConfig.SSHAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerNodeSSH, &proxyConfig.FileDescriptors)
+	proxyConfig.WebAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyWeb, &proxyConfig.FileDescriptors)
+	proxyConfig.ReverseTunnelAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyTunnel, &proxyConfig.FileDescriptors)
+
+	proxyTunnel, _, err := main.StartProxy(proxyConfig)
 	require.NoError(t, err)
 
 	proxyOneBackend := utils.MustParseAddr(main.ReverseTunnel)
 	lb.AddBackend(*proxyOneBackend)
-	proxyTwoBackend := utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(proxyReverseTunnelPort)))
+	proxyTwoBackend := utils.MustParseAddr(proxyConfig.ReverseTunnelAddr)
 	lb.AddBackend(*proxyTwoBackend)
 
 	// Create a Teleport instance with a Node.
@@ -3570,7 +3585,7 @@ func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// start a ssh server that presents a host key instead of a certificate
-			nodePort := helpers.NewPortValue()
+			nodePort := newPortValue()
 			sshNode, err := helpers.NewDiscardServer(Host, nodePort, hostSigner)
 			require.NoError(t, err)
 			err = sshNode.Start()
@@ -4650,7 +4665,7 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 	defer teleport.StopAll()
 
 	// Create and start a Teleport node.
-	nodeSSHPort := helpers.NewPortValue()
+	nodeSSHPort := newPortValue()
 	nodeConfig := func() *service.Config {
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = "server-02"
@@ -5675,11 +5690,7 @@ func runCommandWithCertReissue(t *testing.T, instance *helpers.TeleInstance, cmd
 	return nil
 }
 
-// runCommand is a shortcut for running SSH command, it creates a client
-// connected to proxy of the passed in instance, runs the command, and returns
-// the result. If multiple attempts are requested, a 250 millisecond delay is
-// added between them before giving up.
-func runCommand(t *testing.T, instance *helpers.TeleInstance, cmd []string, cfg helpers.ClientConfig, attempts int) (string, error) {
+func runCommandWithContext(ctx context.Context, t *testing.T, instance *helpers.TeleInstance, cmd []string, cfg helpers.ClientConfig, attempts int) (string, error) {
 	tc, err := instance.NewClient(cfg)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -5696,7 +5707,7 @@ func runCommand(t *testing.T, instance *helpers.TeleInstance, cmd []string, cfg 
 	}()
 	tc.Stdout = write
 	for i := 0; i < attempts; i++ {
-		err = tc.SSH(context.TODO(), cmd, false)
+		err = tc.SSH(ctx, cmd, false)
 		if err == nil {
 			break
 		}
@@ -5708,6 +5719,20 @@ func runCommand(t *testing.T, instance *helpers.TeleInstance, cmd []string, cfg 
 	}
 	<-doneC
 	return output.String(), nil
+}
+
+// invoke makes it easier to defer multiple cancelFuncs held by the same variable
+// without them stomping on one another.
+func invoke(cancel context.CancelFunc) {
+	cancel()
+}
+
+// runCommand is a shortcut for running SSH command, it creates a client
+// connected to proxy of the passed in instance, runs the command, and returns
+// the result. If multiple attempts are requested, a 250 millisecond delay is
+// added between them before giving up.
+func runCommand(t *testing.T, instance *helpers.TeleInstance, cmd []string, cfg helpers.ClientConfig, attempts int) (string, error) {
+	return runCommandWithContext(context.TODO(), t, instance, cmd, cfg, attempts)
 }
 
 type InstanceConfigOption func(t *testing.T, config *helpers.InstanceConfig)
@@ -6285,7 +6310,7 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 				Enabled: true,
 			}
 			conf.SSH.Addr = utils.NetAddr{
-				Addr: fmt.Sprintf("%s:%d", Host, helpers.NewPortValue()),
+				Addr: helpers.NewListenerOn(t, Host, service.ListenerNodeSSH, &conf.FileDescriptors),
 			}
 			conf.Proxy.Enabled = false
 
