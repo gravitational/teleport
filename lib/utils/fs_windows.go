@@ -27,7 +27,7 @@ import (
 // themselves. On unlock we delete the .lock file.
 const lockPostfix = ".lock"
 
-var unlockWrapper = func(unlockFn func() error, path string) func() error {
+func unlockWrapper(unlockFn func() error, path string) func() error {
 	return func() error {
 		if unlockFn == nil {
 			return nil
