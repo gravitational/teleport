@@ -195,8 +195,13 @@ teleport:
 </Admonition>
 
 S3 buckets can only be used as storage for the recorded sessions. S3 cannot
-store the audit log or the cluster state. Below is an example of how to
-configure a Teleport auth server to store the recorded sessions in an S3 bucket.
+store the audit log or the cluster state.
+
+S3 buckets must have versioning enabled, which ensures that a bad actor cannot
+cover their tracks by replacing the session logs.
+
+Below is an example of how to configure a Teleport auth server to store the
+recorded sessions in an S3 bucket.
 
 ```yaml
 teleport:
