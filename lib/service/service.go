@@ -82,6 +82,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/firestoreevents"
 	"github.com/gravitational/teleport/lib/events/gcssessions"
 	"github.com/gravitational/teleport/lib/events/s3sessions"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/joinserver"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
@@ -3475,7 +3476,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 
 		webServer = &http.Server{
-			Handler:           proxyLimiter,
+			Handler:           httplib.MakeTracingHandler(proxyLimiter, teleport.ComponentProxy),
 			ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
 			ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentProxy),
 		}
@@ -3957,7 +3958,7 @@ func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListene
 	})
 
 	minimalWebServer = &http.Server{
-		Handler:           minimalProxyLimiter,
+		Handler:           httplib.MakeTracingHandler(minimalProxyLimiter, teleport.ComponentProxy),
 		ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
 		ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentReverseTunnelServer),
 	}
