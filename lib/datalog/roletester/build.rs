@@ -14,7 +14,13 @@
 
 use std::io::Result;
 
+// See https://github.com/tokio-rs/prost/issues/661
+const DERIVE_EQ: &str = "#[derive(Eq)]";
+
 fn main() -> Result<()> {
-    prost_build::compile_protos(&["../types.proto"], &["../"])?;
+    prost_build::Config::new()
+        .type_attribute("Facts", DERIVE_EQ)
+        .type_attribute("Predicate", DERIVE_EQ)
+        .compile_protos(&["../types.proto"], &["../"])?;
     Ok(())
 }
