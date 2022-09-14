@@ -438,7 +438,9 @@ As in the previous case, by default, local accounts are created and accessible a
 
 ### UX
 
-The user experience for the Azure Auto Discovery configuration depends heavily on the cluster access configuration(s) but do not require any particular configuration change or setting. 
+This section describes how users will interact with Teleport to configure the minimum required access levels for Teleport agents depending on user configuration. A more detailed description is outside the scope of this section but is satisfied by the sections that follow this one.
+
+The user experience for the Azure Auto Discovery configuration depends heavily on the cluster access configuration(s) but do not require any particular configuration option. 
 Instead, the agents will extract the required information from the cluster config returned by [`Microsoft.ContainerService/managedClusters`][listclustersaks] and adapt the authorization method accordingly.
 
 The first step is to configure the access identity of the Teleport agents, and this is up to the user. For that, Teleport will provide a cli `teleport kube configure azure` with the following flags:
