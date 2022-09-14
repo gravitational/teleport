@@ -523,6 +523,10 @@ func (m *testModules) Features() modules.Features {
 	}
 }
 
+func (m *testModules) IsBoringBinary() bool {
+	return false
+}
+
 // TestAccessDisabled makes sure database access can be disabled via modules.
 func TestAccessDisabled(t *testing.T) {
 	defaultModules := modules.GetModules()
