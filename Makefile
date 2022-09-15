@@ -94,7 +94,7 @@ RS_BPF_BUILDDIR := lib/restrictedsession/bytecode
 CLANG_BPF_SYS_INCLUDES = $(shell $(CLANG) -v -E - </dev/null 2>&1 \
 	| sed -n '/<...> search starts here:/,/End of search list./{ s| \(/.*\)|-idirafter \1|p }')
 
-BPF_LIBS = -lbpf -lelf -lz
+STATIC_LIBS += -lbpf -lelf -lz
 endif
 endif
 endif
@@ -164,10 +164,14 @@ endif
 # Only build if LIBPCSCLITE=yes.
 # This is used for PIV functionality.
 LIBPCSCLITE_MESSAGE := without-PIV-support
-ifeq ("$(LIBPCSCLITE)", "yes")
+ifneq (, $(filter $(LIBPCSCLITE), yes static dynamic))
 LIBPCSCLITE_MESSAGE := with-PIV-support
 LIBPCSCLITE_BUILD_TAG := libpcsclite
-PCSC_LIBS = -lpcsclite
+ifneq ("$(LIBPCSCLITE)", "dynamic")
+# Link static pcsc libary
+STATIC_LIBS += -lpcsclite
+STATIC_LIBS_TSH += -lpcsclite
+endif
 endif
 
 # Reproducible builds are only available on select targets, and only when OS=linux.
@@ -218,8 +222,8 @@ CLANG_FORMAT_STYLE = '{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
 ifeq ("$(OS)","linux")
 ifeq ("$(ARCH)","amd64")
 # Link static version of libgcc (--as-needed) and other libraries (bpf, pcsc) to reduce system dependencies.
-CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(BPF_LIBS) $(PCSC_LIBS) -Wl,-Bdynamic -Wl,--as-needed"
-CGOFLAG_TSH = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(PCSC_LIBS) -Wl,-Bdynamic -Wl,--as-needed"
+CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS) -Wl,-Bdynamic -Wl,--as-needed"
+CGOFLAG_TSH = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS_TSH) -Wl,-Bdynamic -Wl,--as-needed"
 else ifeq ("$(ARCH)","arm")
 # ARM builds need to specify the correct C compiler
 CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
