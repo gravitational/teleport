@@ -990,10 +990,13 @@ impl Encode for Context_Call {
 
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
-struct GetStatusChange_Call {
-    context: Context,
-    timeout: u32,
-    states: Vec<ReaderState>,
+pub(crate) struct GetStatusChange_Call {
+    pub context: Context,
+    pub timeout: u32,
+    pub states_ptr_length: u32,
+    pub states_ptr: u32,
+    pub states_length: u32,
+    pub states: Vec<ReaderState>,
 }
 
 impl GetStatusChange_Call {
@@ -1005,8 +1008,8 @@ impl GetStatusChange_Call {
         let mut context = Context::decode_ptr(payload, &mut index)?;
 
         let timeout = payload.read_u32::<LittleEndian>()?;
-        let _states_length = payload.read_u32::<LittleEndian>()?;
-        let _states_ptr = decode_ptr(payload, &mut index)?;
+        let states_ptr_length = payload.read_u32::<LittleEndian>()?;
+        let states_ptr = decode_ptr(payload, &mut index)?;
 
         context.decode_value(payload)?;
 
@@ -1022,15 +1025,45 @@ impl GetStatusChange_Call {
         Ok(Self {
             context,
             timeout,
+            states_ptr_length,
+            states_ptr,
+            states_length,
             states,
         })
     }
 }
 
+impl Encode for GetStatusChange_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        self.context.encode_ptr(&mut index, &mut w)?;
+
+        w.write_u32::<LittleEndian>(self.timeout)?;
+        encode_ptr(Some(self.states_ptr_length), &mut index, &mut w)?; // takes care of encoding states_ptr
+
+        self.context.encode_value(&mut w)?;
+
+        w.write_u32::<LittleEndian>(self.states_length)?;
+        for state in &self.states {
+            state.encode_ptr(&mut index, &mut w)?;
+        }
+        for state in &self.states {
+            state.encode_value(&mut w)?;
+        }
+
+        Ok(w)
+    }
+}
+
 #[derive(Debug)]
-struct ReaderState {
-    reader: String,
-    common: ReaderState_Common_Call,
+pub(crate) struct ReaderState {
+    pub reader: String,
+    pub common: ReaderState_Common_Call,
 }
 
 impl ReaderState {
@@ -1047,15 +1080,26 @@ impl ReaderState {
         self.reader = decode_string_unicode(payload)?;
         Ok(())
     }
+
+    fn encode_ptr(&self, index: &mut u32, w: &mut Vec<u8>) -> RdpResult<()> {
+        encode_ptr(None, index, w)?;
+        self.common.encode(w)?;
+        Ok(())
+    }
+
+    fn encode_value(&self, w: &mut Vec<u8>) -> RdpResult<()> {
+        w.extend(encode_str_unicode(&self.reader)?);
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
-struct ReaderState_Common_Call {
-    current_state: CardStateFlags,
-    event_state: CardStateFlags,
-    atr_length: u32,
-    atr: [u8; 36],
+pub(crate) struct ReaderState_Common_Call {
+    pub current_state: CardStateFlags,
+    pub event_state: CardStateFlags,
+    pub atr_length: u32,
+    pub atr: [u8; 36],
 }
 
 impl ReaderState_Common_Call {
@@ -1084,7 +1128,7 @@ impl ReaderState_Common_Call {
 }
 
 bitflags! {
-    struct CardStateFlags: u32 {
+    pub struct CardStateFlags: u32 {
         const SCARD_STATE_UNAWARE = 0x0000;
         const SCARD_STATE_IGNORE = 0x0001;
         const SCARD_STATE_CHANGED = 0x0002;
