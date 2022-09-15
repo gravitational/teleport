@@ -109,7 +109,8 @@ RUN yum groupinstall -y 'Development Tools' && \
     yum clean all
 
 # Install libpcsclite - compile with a newer GCC. The one installed by default is not able to compile it.
-RUN git clone --depth=1 https://salsa.debian.org/rousseau/PCSC.git -b 1.9.8 && \
+ARG LIBPCSCLITE_VERSION
+RUN git clone --depth=1 https://salsa.debian.org/rousseau/PCSC.git -b ${LIBPCSCLITE_VERSION} && \
     cd PCSC && \
     ./bootstrap && \
     ./configure --enable-static --with-pic --disable-libsystemd && \

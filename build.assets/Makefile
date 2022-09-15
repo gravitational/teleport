@@ -36,6 +36,7 @@ NODE_VERSION ?= 16.13.2
 RUST_VERSION ?= 1.63.0 # don't bump this without checking GLIBC compatibility
 BORINGCRYPTO_RUNTIME=$(GOLANG_VERSION)b7
 LIBBPF_VERSION ?= 0.7.0-teleport
+LIBPCSCLITE_VERSION ?= 1.9.8
 
 UID := $$(id -u)
 GID := $$(id -g)
@@ -180,6 +181,7 @@ buildbox-centos7:
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg PROTOC_VER=$(PROTOC_VER) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
+		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
 		--cache-from $(BUILDBOX_CENTOS7) \
 		--tag $(BUILDBOX_CENTOS7) -f Dockerfile-centos7 .
 
