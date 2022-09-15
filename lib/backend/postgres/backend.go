@@ -113,7 +113,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	err = validateDatabaseName(c.Database)
+	err = ValidateDatabaseName(c.Database)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -121,10 +121,10 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
-// validateDatabaseName returns true when name contains only alphanumeric and/or
+// ValidateDatabaseName returns true when name contains only alphanumeric and/or
 // underscore/dollar characters, the first character is not a digit, and the
 // name's length is less than MaxDatabaseNameLength (63 bytes).
-func validateDatabaseName(name string) error {
+func ValidateDatabaseName(name string) error {
 	if MaxDatabaseNameLength <= len(name) {
 		return trace.BadParameter("invalid PostgreSQL database name, length exceeds %d bytes. See https://www.postgresql.org/docs/14/sql-syntax-lexical.html.", MaxDatabaseNameLength)
 	}

@@ -66,7 +66,7 @@ func (d *pgDriver) open(ctx context.Context, u *url.URL) (sqlbk.DB, error) {
 
 	beforeConnect := func(ctx context.Context, config *pgx.ConnConfig) error { return nil }
 	if d.cfg.Azure.Username != "" {
-		beforeConnect, err = azureBeforeConnect(d.cfg.Azure.ClientID, d.cfg.Log)
+		beforeConnect, err = AzureBeforeConnect(d.cfg.Azure.ClientID, d.cfg.Log)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -125,7 +125,7 @@ func (d *pgDriver) maybeCreateDatabase(ctx context.Context, connConfig *pgx.Conn
 	// Verify the database name is valid to prevent SQL injection. This
 	// should've already been done in CheckAndSetDefaults of the Config,
 	// but check again to be sure.
-	err := validateDatabaseName(connConfig.Database)
+	err := ValidateDatabaseName(connConfig.Database)
 	if err != nil {
 		return trace.Wrap(err)
 	}

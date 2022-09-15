@@ -27,13 +27,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// azureBeforeConnect will return a pgx BeforeConnect function suitable for
+// AzureBeforeConnect will return a pgx BeforeConnect function suitable for
 // Azure AD authentication. The returned function will set the password of the
 // pgx.ConnConfig to a token for the relevant scope, fetching it and reusing it
 // until expired (a burst of connections right at backend start is expected). If
 // a client ID is provided, authentication will only be attempted as the managed
 // identity with said ID rather than with all the default credentials.
-func azureBeforeConnect(clientID string, log logrus.FieldLogger) (func(ctx context.Context, config *pgx.ConnConfig) error, error) {
+func AzureBeforeConnect(clientID string, log logrus.FieldLogger) (func(ctx context.Context, config *pgx.ConnConfig) error, error) {
 	var cred azcore.TokenCredential
 	if clientID != "" {
 		log.WithField("azure_client_id", clientID).Debug("Using Azure AD authentication with managed identity.")

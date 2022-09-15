@@ -205,7 +205,7 @@ func TestValidateDatabaseName(t *testing.T) {
 		{valid: true, name: "This_table_name_is_exactly_the_63_byte_maximum_limit__________"},
 	}
 	for i, test := range testCases {
-		err := validateDatabaseName(test.name)
+		err := ValidateDatabaseName(test.name)
 		require.True(t, test.valid == (err == nil), "Test case %d: %q", i, test.name)
 	}
 }
