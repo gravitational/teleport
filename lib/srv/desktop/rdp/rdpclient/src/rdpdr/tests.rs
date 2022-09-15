@@ -14,8 +14,8 @@
 
 use super::{
     scard::{
-        Context, EstablishContext_Call, IoctlCode, ListReaders_Call, ScardAccessStartedEvent_Call,
-        Scope,
+        Context, EstablishContext_Call, GetDeviceTypeId_Call, IoctlCode, ListReaders_Call,
+        ScardAccessStartedEvent_Call, Scope,
     },
     *,
 };
@@ -392,7 +392,7 @@ fn test_scard_ioctl_accessstartedevent(c: &mut Client) {
     );
 }
 
-fn test_scard_ioctl_establishcontext(c: &mut Client) {
+fn test_scard_ioctl_establishcontext(c: &mut Client, output_buffer: Message) {
     test_payload_in_to_response_out(
         c,
         PayloadIn {
@@ -430,18 +430,14 @@ fn test_scard_ioctl_establishcontext(c: &mut Client) {
                     completion_id: 0,
                     io_status: 0,
                 },
-                output_buffer_length: 40,
-                output_buffer: vec![
-                    1, 16, 8, 0, 204, 204, 204, 204, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0,
-                    0, 0, 0, 2, 0, 4, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
-                ],
+                output_buffer_length: output_buffer.len() as u32,
+                output_buffer,
             }),
         )],
     );
 }
 
 fn test_scard_ioctl_listreadersw(c: &mut Client) {
-    init_logger();
     test_payload_in_to_response_out(
         c,
         PayloadIn {
@@ -496,6 +492,60 @@ fn test_scard_ioctl_listreadersw(c: &mut Client) {
     );
 }
 
+fn test_scard_ioctl_getdevicetypeid(c: &mut Client) {
+    init_logger();
+    test_payload_in_to_response_out(
+        c,
+        PayloadIn {
+            channel_pdu_header: ChannelPDUHeader {
+                length: 128,
+                flags: ChannelPDUFlags::CHANNEL_FLAG_FIRST
+                    | ChannelPDUFlags::CHANNEL_FLAG_LAST
+                    | ChannelPDUFlags::CHANNEL_FLAG_ONLY,
+            },
+            shared_header: SharedHeader {
+                component: Component::RDPDR_CTYP_CORE,
+                packet_id: PacketId::PAKID_CORE_DEVICE_IOREQUEST,
+            },
+            request: Box::new(DeviceControlRequest {
+                header: DeviceIoRequest {
+                    device_id: 1,
+                    file_id: 1,
+                    completion_id: 1,
+                    major_function: MajorFunction::IRP_MJ_DEVICE_CONTROL,
+                    minor_function: MinorFunction::IRP_MN_NONE,
+                },
+                output_buffer_length: 2048,
+                input_buffer_length: 72,
+                io_control_code: IoctlCode::SCARD_IOCTL_GETDEVICETYPEID,
+            }),
+            scard_ctl: Some(Box::new(GetDeviceTypeId_Call {
+                context: Context {
+                    length: 4,
+                    value: 2,
+                },
+                reader_ptr: 131076,
+                reader_name: "Teleport".to_string(),
+            })),
+        },
+        vec![(
+            PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
+            Box::new(DeviceControlResponse {
+                header: DeviceIoResponse {
+                    device_id: 1,
+                    completion_id: 1,
+                    io_status: 0,
+                },
+                output_buffer_length: 24,
+                output_buffer: vec![
+                    1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 240, 0, 0,
+                    0,
+                ],
+            }),
+        )],
+    );
+}
+
 #[test]
 fn test_smartcard_initialization() {
     let mut c = client();
@@ -504,7 +554,21 @@ fn test_smartcard_initialization() {
     test_handle_client_id_confirm(&mut c);
     test_handle_device_reply(&mut c);
     test_scard_ioctl_accessstartedevent(&mut c);
-    test_scard_ioctl_establishcontext(&mut c);
+    test_scard_ioctl_establishcontext(
+        &mut c,
+        vec![
+            1, 16, 8, 0, 204, 204, 204, 204, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0,
+            2, 0, 4, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+        ],
+    );
     test_scard_ioctl_listreadersw(&mut c);
+    test_scard_ioctl_establishcontext(
+        &mut c,
+        vec![
+            1, 16, 8, 0, 204, 204, 204, 204, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0,
+            2, 0, 4, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
+        ],
+    );
+    test_scard_ioctl_getdevicetypeid(&mut c);
     // TODO(isaiah): the remainder of the initialization sequence
 }

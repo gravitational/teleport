@@ -700,7 +700,7 @@ impl Context {
         }
     }
     fn encode_ptr(&self, index: &mut u32, w: &mut dyn Write) -> RdpResult<()> {
-        encode_ptr(self.length, index, w)
+        encode_ptr(Some(self.length), index, w)
     }
     fn encode_value(&self, w: &mut dyn Write) -> RdpResult<()> {
         w.write_u32::<LittleEndian>(self.length)?;
@@ -727,8 +727,10 @@ impl Context {
 
 // encode_ptr/decode_ptr and various encode_value/decode_value functions implement the strange NDR
 // protocol. See the big comment above with encoding notes.
-fn encode_ptr(length: u32, index: &mut u32, w: &mut dyn Write) -> RdpResult<()> {
-    w.write_u32::<LittleEndian>(length)?;
+fn encode_ptr(length: Option<u32>, index: &mut u32, w: &mut dyn Write) -> RdpResult<()> {
+    if let Some(length) = length {
+        w.write_u32::<LittleEndian>(length)?;
+    }
     w.write_u32::<LittleEndian>(0x00020000 + *index * 4)?;
     *index += 1;
     Ok(())
@@ -815,7 +817,7 @@ impl Encode for ListReaders_Call {
         RPCETypeHeader::new(0).encode(&mut w)?;
         let mut index = 0;
         self.context.encode_ptr(&mut index, &mut w)?;
-        encode_ptr(self.groups_ptr_length, &mut index, &mut w)?; // takes care of encoding groups_ptr
+        encode_ptr(Some(self.groups_ptr_length), &mut index, &mut w)?; // takes care of encoding groups_ptr
         let readers_is_null = if self.readers_is_null { 1 } else { 0 };
         w.write_u32::<LittleEndian>(readers_is_null)?;
         w.write_u32::<LittleEndian>(self.readers_size)?;
@@ -845,7 +847,7 @@ impl ListReaders_Return {
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
         let readers = encode_multistring_unicode(&self.readers)?;
         let mut index = 0;
-        encode_ptr(readers.length() as u32, &mut index, &mut w)?;
+        encode_ptr(Some(readers.length() as u32), &mut index, &mut w)?;
 
         w.write_u32::<LittleEndian>(readers.length() as u32)?;
         w.extend_from_slice(&readers);
@@ -905,6 +907,29 @@ fn decode_string_unicode(payload: &mut Payload) -> RdpResult<String> {
         .map(|r| r.unwrap_or(REPLACEMENT_CHARACTER))
         .collect::<String>();
     Ok(s)
+}
+
+fn encode_str_unicode(s: &str) -> RdpResult<Vec<u8>> {
+    let mut buf = vec![];
+
+    // It's not exactly clear what the purpose of these length/offset fields are,
+    // but they're expected for single unicode strings.
+    let len = s.len() as u32 + 1; // +1 for the null terminator.
+    buf.write_u32::<LittleEndian>(len)?;
+    buf.write_u32::<LittleEndian>(0)?;
+    buf.write_u32::<LittleEndian>(len)?;
+
+    for c in s.encode_utf16() {
+        buf.write_u16::<LittleEndian>(c)?;
+    }
+    buf.write_u16::<LittleEndian>(0)?;
+
+    if (len - 1) % 2 == 0 {
+        // Add extra padding for a 4-byte aligned NULL-terminated string.
+        buf.write_u16::<LittleEndian>(0)?;
+    }
+
+    Ok(buf)
 }
 
 fn encode_multistring_unicode(items: &[String]) -> RdpResult<Vec<u8>> {
@@ -1135,7 +1160,7 @@ impl GetStatusChange_Return {
         let mut w = vec![];
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
         let mut index = 0;
-        encode_ptr(self.reader_states.len() as u32, &mut index, &mut w)?;
+        encode_ptr(Some(self.reader_states.len() as u32), &mut index, &mut w)?;
 
         w.write_u32::<LittleEndian>(self.reader_states.len() as u32)?;
         for state in &self.reader_states {
@@ -1262,7 +1287,7 @@ impl Handle {
     }
     fn encode_ptr(&self, index: &mut u32, w: &mut dyn Write) -> RdpResult<()> {
         self.context.encode_ptr(index, w)?;
-        encode_ptr(self.length, index, w)?;
+        encode_ptr(Some(self.length), index, w)?;
         Ok(())
     }
     fn encode_value(&self, w: &mut dyn Write) -> RdpResult<()> {
@@ -1404,7 +1429,7 @@ impl Status_Return {
             StringEncoding::Ascii => encode_multistring_ascii(&self.reader_names)?,
         };
         let mut index = 0;
-        encode_ptr(reader_names.length() as u32, &mut index, &mut w)?;
+        encode_ptr(Some(reader_names.length() as u32), &mut index, &mut w)?;
 
         w.write_u32::<LittleEndian>(self.state.to_u32().unwrap())?;
         w.write_u32::<LittleEndian>(self.protocol.bits())?;
@@ -1523,7 +1548,7 @@ impl Transmit_Return {
         w.write_u32::<LittleEndian>(0)?;
 
         let mut index = 0;
-        encode_ptr(self.recv_buffer.len() as u32, &mut index, &mut w)?;
+        encode_ptr(Some(self.recv_buffer.len() as u32), &mut index, &mut w)?;
         w.write_u32::<LittleEndian>(self.recv_buffer.len() as u32)?;
         w.extend_from_slice(&self.recv_buffer);
 
@@ -1533,9 +1558,10 @@ impl Transmit_Return {
 
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
-struct GetDeviceTypeId_Call {
-    context: Context,
-    reader_name: String,
+pub(crate) struct GetDeviceTypeId_Call {
+    pub context: Context,
+    pub reader_ptr: u32,
+    pub reader_name: String,
 }
 
 impl GetDeviceTypeId_Call {
@@ -1546,14 +1572,36 @@ impl GetDeviceTypeId_Call {
         let mut index = 0;
         let mut context = Context::decode_ptr(payload, &mut index)?;
 
-        let _reader_ptr = decode_ptr(payload, &mut index)?;
+        let reader_ptr = decode_ptr(payload, &mut index)?;
 
         context.decode_value(payload)?;
         let reader_name = decode_string_unicode(payload)?;
         Ok(Self {
             context,
+            reader_ptr,
             reader_name,
         })
+    }
+}
+
+impl Encode for GetDeviceTypeId_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        self.context.encode_ptr(&mut index, &mut w)?;
+
+        encode_ptr(None, &mut index, &mut w)?;
+
+        self.context.encode_value(&mut w)?;
+
+        let reader_name = encode_str_unicode(&self.reader_name)?;
+        debug!("reader_name = {:?}", reader_name);
+        w.extend(reader_name);
+        Ok(w)
     }
 }
 
@@ -1671,7 +1719,7 @@ impl ReadCache_Return {
         w.write_u32::<LittleEndian>(self.return_code.to_u32().unwrap())?;
 
         let mut index = 0;
-        encode_ptr(self.data.length() as u32, &mut index, &mut w)?;
+        encode_ptr(Some(self.data.length() as u32), &mut index, &mut w)?;
         w.write_u32::<LittleEndian>(self.data.length() as u32)?;
         w.extend_from_slice(&self.data);
         Ok(w)
@@ -1784,7 +1832,7 @@ impl GetReaderIcon_Return {
         // Encode empty data field, reader icon not implemented.
         // TODO: send Teleport/Pam logo.
         let mut index = 0;
-        encode_ptr(0, &mut index, &mut w)?;
+        encode_ptr(Some(0), &mut index, &mut w)?;
         w.write_u32::<LittleEndian>(0)?;
         Ok(w)
     }
