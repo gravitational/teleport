@@ -42,29 +42,29 @@ FIPS ?=
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
 
 # FIPS support must be requested at build time.
-FIPS_MESSAGE := "without FIPS support"
+FIPS_MESSAGE := without-FIPS-support
 ifneq ("$(FIPS)","")
 FIPS_TAG := fips
-FIPS_MESSAGE := "with FIPS support"
+FIPS_MESSAGE := "with-FIPS-support"
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-fips-bin
 endif
 
 # PAM support will only be built into Teleport if headers exist at build time.
-PAM_MESSAGE := "without PAM support"
+PAM_MESSAGE := without-PAM-support
 ifneq ("$(wildcard /usr/include/security/pam_appl.h)","")
 PAM_TAG := pam
-PAM_MESSAGE := "with PAM support"
+PAM_MESSAGE := "with-PAM-support"
 else
 # PAM headers for Darwin live under /usr/local/include/security instead, as SIP
 # prevents us from modifying/creating /usr/include/security on newer versions of MacOS
 ifneq ("$(wildcard /usr/local/include/security/pam_appl.h)","")
 PAM_TAG := pam
-PAM_MESSAGE := "with PAM support"
+PAM_MESSAGE := "with-PAM-support"
 endif
 endif
 
 # BPF support will only be built into Teleport if headers exist at build time.
-BPF_MESSAGE := "without BPF support"
+BPF_MESSAGE := without-BPF-support
 
 # We don't compile BPF for anything except regular non-FIPS linux/amd64 for now, as other builds
 # have compilation issues that require fixing.
@@ -74,7 +74,7 @@ ifeq ("$(ARCH)","amd64")
 ifneq ("$(wildcard /usr/include/bpf/libbpf.h)","")
 with_bpf := yes
 BPF_TAG := bpf
-BPF_MESSAGE := "with BPF support"
+BPF_MESSAGE := "with-BPF-support"
 CLANG ?= $(shell which clang || which clang-10)
 CLANG_FORMAT ?= $(shell which clang-format || which clang-format-10)
 LLVM_STRIP ?= $(shell which llvm-strip || which llvm-strip-10)
@@ -102,9 +102,9 @@ endif
 # Check if rust and cargo are installed before compiling
 CHECK_CARGO := $(shell cargo --version 2>/dev/null)
 CHECK_RUST := $(shell rustc --version 2>/dev/null)
-
+ 
 with_rdpclient := no
-RDPCLIENT_MESSAGE := "without Windows RDP client"
+RDPCLIENT_MESSAGE := without-Windows-RDP-client
 
 CARGO_TARGET_darwin_amd64 := x86_64-apple-darwin
 CARGO_TARGET_darwin_arm64 := aarch64-apple-darwin
@@ -121,7 +121,7 @@ ifneq ($(CHECK_CARGO),)
 ifneq ("$(ARCH)","arm")
 # Do not build RDP client on ARM.
 with_rdpclient := yes
-RDPCLIENT_MESSAGE := "with Windows RDP client"
+RDPCLIENT_MESSAGE := "with-Windows-RDP-client"
 RDPCLIENT_TAG := desktop_access_rdp
 endif
 endif
@@ -136,21 +136,21 @@ endif
 # Build tsh against libfido2?
 # FIDO2=yes and FIDO2=static enable static libfido2 builds.
 # FIDO2=dynamic enables dynamic libfido2 builds.
-LIBFIDO2_MESSAGE := without libfido2
+LIBFIDO2_MESSAGE := without-libfido2
 ifneq (, $(filter $(FIDO2), yes static))
-LIBFIDO2_MESSAGE := with libfido2
+LIBFIDO2_MESSAGE := with-libfido2
 LIBFIDO2_BUILD_TAG := libfido2 libfido2static
 else ifeq ("$(FIDO2)", "dynamic")
-LIBFIDO2_MESSAGE := with libfido2
+LIBFIDO2_MESSAGE := with-libfido2
 LIBFIDO2_BUILD_TAG := libfido2
 endif
 
 # Enable Touch ID builds?
 # Only build if TOUCHID=yes to avoid issues when cross-compiling to 'darwin'
 # from other systems.
-TOUCHID_MESSAGE := without Touch ID
+TOUCHID_MESSAGE := without-Touch-ID
 ifeq ("$(TOUCHID)", "yes")
-TOUCHID_MESSAGE := with Touch ID
+TOUCHID_MESSAGE := with-Touch-ID
 TOUCHID_TAG := touchid
 endif
 
@@ -163,9 +163,9 @@ endif
 # Build teleport/api against libsclite?
 # Only build if LIBPCSCLITE=yes.
 # This is used for PIV functionality.
-LIBPCSCLITE_MESSAGE := without libpcsclite
+LIBPCSCLITE_MESSAGE := without-PIV-support
 ifeq ("$(LIBPCSCLITE)", "yes")
-LIBPCSCLITE_MESSAGE := with libpcsclite
+LIBPCSCLITE_MESSAGE := with-PIV-support
 LIBPCSCLITE_BUILD_TAG := libpcsclite
 PCSC_LIBS = -lpcsclite
 endif
@@ -179,10 +179,24 @@ endif
 # On Windows only build tsh. On all other platforms build teleport, tctl,
 # and tsh.
 BINARIES=$(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh $(BUILDDIR)/tbot
-RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) REPRODUCIBLE=$(REPRODUCIBLE) and $(PAM_MESSAGE) and $(FIPS_MESSAGE) and $(BPF_MESSAGE) and $(RDPCLIENT_MESSAGE) and $(LIBFIDO2_MESSAGE) and $(TOUCHID_MESSAGE)."
 ifeq ("$(OS)","windows")
 BINARIES=$(BUILDDIR)/tsh
 endif
+
+# Joins elements of the list in arg 2 with the given separator.
+#   1. Element separator.
+#   2. The list.
+EMPTY :=
+SPACE := $(EMPTY) $(EMPTY)
+join-with = $(subst $(SPACE),$1,$(strip $2))
+
+# Separate TAG messages into comma-separated WITH and WITHOUT lists for readability.
+
+COMMA := ,
+MESSAGES := $(PAM_MESSAGE) $(FIPS_MESSAGE) $(BPF_MESSAGE) $(RDPCLIENT_MESSAGE) $(LIBFIDO2_MESSAGE) $(TOUCHID_MESSAGE) $(LIBPCSCLITE_MESSAGE)
+WITH := $(subst -," ",$(call join-with,$(COMMA) ,$(subst with-,,$(filter with-%,$(MESSAGES)))))
+WITHOUT := $(subst -," ",$(call join-with,$(COMMA) ,$(subst without-,,$(filter without-%,$(MESSAGES)))))
+RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) REPRODUCIBLE=$(REPRODUCIBLE) and with $(WITH) and without $(WITHOUT)."
 
 # On platforms that support reproducible builds, ensure the archive is created in a reproducible manner.
 TAR_FLAGS ?=
