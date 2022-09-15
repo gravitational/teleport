@@ -718,15 +718,6 @@ func populateGithubClaims(user *userResponse, teams []teamResponse) (*types.Gith
 	return claims, nil
 }
 
-// githubAPIClientI defines an interface for Github API wrapper
-// so it can be substituted in tests
-type githubAPIClientI interface {
-	// getUser returns user information
-	getUser() (*userResponse, error)
-	// getTeams returns a list of user team memberships
-	getTeams() ([]teamResponse, error)
-}
-
 // githubAPIClient is a tiny wrapper around some of Github APIs
 type githubAPIClient struct {
 	// token is the access token retrieved during OAuth2 flow
