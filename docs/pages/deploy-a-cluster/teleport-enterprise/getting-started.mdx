@@ -60,9 +60,10 @@ You will also use the following client tools:
 
 You must also have one of the following:
 - A registered domain name.
-- An authoritative DNS nameserver managed by your organization, plus an existing
-  certificate authority. If using this approach, ensure that your browser is
-  configured to use your organization's nameserver.
+- An authoritative DNS nameserver managed by your organization, plus some means
+  of obtaining a TLS certificate and private key for your Teleport deployment.
+  If using this approach, ensure that your browser is configured to use your
+  organization's nameserver.
 
 ## Step 1/5. Create DNS records
 
@@ -249,7 +250,7 @@ tcp6       0      0 :::3025                 :::*                    LISTEN
 ### Create a user
 
 Every user in a Teleport cluster must be assigned at least one role. By default,
-Teleport comes with several pre-configured roles:
+Teleport comes with several pre-configured roles known as **presets**:
 
 |Role|Description|
 |---|---|
@@ -316,9 +317,8 @@ including `tsh`:
 </TabItem>
 <TabItem label="Windows PowerShell">
 
-Starting with Teleport v7.2.0, most `tsh` features are supported for Windows 10
-1607+. The `tsh ssh` command can be run under `cmd.exe`, PowerShell, and Windows
-Terminal.
+Most `tsh` features are supported for Windows 10 1607+. The `tsh ssh` command
+can be run under `cmd.exe`, PowerShell, and Windows Terminal.
 
 To install `tsh` on Windows, run the following commands in PowerShell:
 
@@ -435,7 +435,7 @@ deploy Teleport on Kubernetes.
 
 ### Configure RBAC
 
-The default `access` role we assigned to a user in this guide is probably too
+The preset `access` role we assigned to a user in this guide is probably too
 permissive for your environment. Read our guide to [configuring Teleport
 roles](../../access-controls/guides/role-templates.mdx) to set up more granular
 access controls.
