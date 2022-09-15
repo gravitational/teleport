@@ -81,12 +81,13 @@ type ProxyClient struct {
 // NodeClient implements ssh client to a ssh node (teleport or any regular ssh node)
 // NodeClient can run shell and commands or upload and download files.
 type NodeClient struct {
-	Namespace string
-	Tracer    oteltrace.Tracer
-	Client    *tracessh.Client
-	Proxy     *ProxyClient
-	TC        *TeleportClient
-	OnMFA     func()
+	Namespace   string
+	Tracer      oteltrace.Tracer
+	Client      *tracessh.Client
+	Proxy       *ProxyClient
+	TC          *TeleportClient
+	OnMFA       func()
+	FIPSEnabled bool
 }
 
 // ClusterName returns the name of the cluster the proxy is a member of.
@@ -1321,6 +1322,28 @@ type proxyResponse struct {
 	err      error
 }
 
+func (proxy *ProxyClient) clusterDetails(ctx context.Context) (sshutils.ClusterDetails, error) {
+	ctx, span := proxy.Tracer.Start(
+		ctx,
+		"proxyClient/clusterDetails",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	var details sshutils.ClusterDetails
+	ok, resp, err := proxy.Client.SendRequest(ctx, teleport.ClusterDetailsReqType, true, nil)
+	if err != nil {
+		return details, trace.Wrap(err)
+	}
+
+	if !ok {
+		return details, trace.Wrap(err)
+	}
+
+	err = ssh.Unmarshal(resp, &details)
+	return details, trace.Wrap(err)
+}
+
 // isRecordingProxy returns true if the proxy is in recording mode. Note, this
 // function can only be called after authentication has occurred and should be
 // called before the first session is created.
@@ -1520,7 +1543,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDet
 
 	// after auth but before we create the first session, find out if the proxy
 	// is in recording mode or not
-	recordingProxy, err := proxy.isRecordingProxy(ctx)
+	details, err := proxy.clusterDetails(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1554,7 +1577,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDet
 	// mode. we always try and forward an agent here because each new session
 	// creates a new context which holds the agent. if ForwardToAgent returns an error
 	// "already have handler for" we ignore it.
-	if recordingProxy {
+	if details.RecordingProxy {
 		if proxy.teleportClient.localAgent == nil {
 			return nil, trace.BadParameter("cluster is in proxy recording mode and requires agent forwarding for connections, but no agent was initialized")
 		}
@@ -1611,11 +1634,12 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDet
 	close(emptyCh)
 
 	nc := &NodeClient{
-		Client:    tracessh.NewClient(conn, chans, emptyCh),
-		Proxy:     proxy,
-		Namespace: apidefaults.Namespace,
-		TC:        proxy.teleportClient,
-		Tracer:    proxy.Tracer,
+		Client:      tracessh.NewClient(conn, chans, emptyCh),
+		Proxy:       proxy,
+		Namespace:   apidefaults.Namespace,
+		TC:          proxy.teleportClient,
+		Tracer:      proxy.Tracer,
+		FIPSEnabled: details.FIPSEnabled,
 	}
 
 	// Start a goroutine that will run for the duration of the client to process
@@ -1650,7 +1674,7 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 
 	// after auth but before we create the first session, find out if the proxy
 	// is in recording mode or not
-	recordingProxy, err := proxy.isRecordingProxy(ctx)
+	details, err := proxy.clusterDetails(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1659,7 +1683,7 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 	// mode. we always try and forward an agent here because each new session
 	// creates a new context which holds the agent. if ForwardToAgent returns an error
 	// "already have handler for" we ignore it.
-	if recordingProxy {
+	if details.RecordingProxy {
 		if proxy.teleportClient.localAgent == nil {
 			return nil, trace.BadParameter("cluster is in proxy recording mode and requires agent forwarding for connections, but no agent was initialized")
 		}
@@ -1694,11 +1718,12 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 	close(emptyCh)
 
 	nc := &NodeClient{
-		Client:    tracessh.NewClient(conn, chans, emptyCh),
-		Proxy:     proxy,
-		Namespace: apidefaults.Namespace,
-		TC:        proxy.teleportClient,
-		Tracer:    proxy.Tracer,
+		Client:      tracessh.NewClient(conn, chans, emptyCh),
+		Proxy:       proxy,
+		Namespace:   apidefaults.Namespace,
+		TC:          proxy.teleportClient,
+		Tracer:      proxy.Tracer,
+		FIPSEnabled: details.FIPSEnabled,
 	}
 
 	// Start a goroutine that will run for the duration of the client to process
