@@ -421,6 +421,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			GetHostCredentials:   client.HostCredentials,
 			Clock:                process.Clock,
 			JoinMethod:           process.Config.JoinMethod,
+			FIPS:                 process.Config.FIPS,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
