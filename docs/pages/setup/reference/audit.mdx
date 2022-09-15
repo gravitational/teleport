@@ -124,24 +124,24 @@ The possible event types are:
 | saml.created                  | A [SAML connector](https://goteleport.com/docs/enterprise/sso/okta/) has been added. |
 | saml.deleted                  | A [SAML connector](https://goteleport.com/docs/enterprise/sso/okta/) has been deleted. |
 | scp                           | Remote file copy has been executed. The following fields will be logged: `{"path": "/path/to/file.txt", "len": 32344, "action": "read" }` |
-| session.command               | A list of commands ran during the session.  *Requires Enhanced Session Recording*. |
-| session.data                  | Emitted at the end of a session, contains how much data was transmitted and received during the session. |
+| session.command               | A list of commands run during the session.  *Requires Enhanced Session Recording*. |
+| session.data                  | Emitted at the end of a session. Indicates how much data was transmitted and received during the session. |
 | session.disk                  | A list of files opened during the session. *Requires Enhanced Session Recording*. |
 | session.end                   | An interactive shell session has ended.  |
 | session.join                  | A new user has joined the existing interactive shell session. |
 | session.leave                 | A user has left the session. |
 | session.network               | A list of network connections made during the session.  *Requires Enhanced Session Recording*. |
-| session.start                 | Started an interactive shell session. |
+| session.start                 | A user has started an interactive shell session. |
 | session.upload                | Emitted when a session recording upload to an external service is complete. |
-| session.rejected              | Emitted when a user's attempts to create an session has been rejected due to [session control limits](https://goteleport.com/blog/ssh-session-control/). |
+| session.rejected              | Emitted when a user's attempts to create a session has been rejected due to [session control limits](https://goteleport.com/blog/ssh-session-control/). |
 | subsystem                     | A SSH subsystem request has been handled. An example subsystem request would be `sftp`. |
 | trusted_cluster.create        | A [Trusted Cluser](https://goteleport.com/docs/setup/admin/trustedclusters/) has been created. |
 | trusted_cluster.delete        | A [Trusted Cluser](https://goteleport.com/docs/setup/admin/trustedclusters/) has been deleted. |
 | trusted_cluster_token.create  | A [Trusted Cluser](https://goteleport.com/docs/setup/admin/trustedclusters/) join token has been created. |
 | user.create                   | A user has been created within Teleport. |
 | user.delete                   | A user has been deleted within Teleport.  |
-| user.login                    | A user logged into web UI or via tsh. The following fields will be logged: `{"user": "alice@example.com", "method": "local"}`. |
-| user.password_change          | A non-SSO users password has changed. |
+| user.login                    | A user logged into Teleport via the Web UI or `tsh`. The following fields will be logged: `{"user": "alice@example.com", "method": "local"}`. |
+| user.password_change          | A non-SSO user's password has changed. |
 | user.update                   | A user has been updated within Teleport.  |
 | windows.desktop.session.end   | A Windows Desktop Access session has ended. |
 | windows.desktop.session.start | A Windows Desktop Access session has started. |
