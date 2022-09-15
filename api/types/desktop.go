@@ -40,12 +40,10 @@ type WindowsDesktopService interface {
 var _ WindowsDesktopService = &WindowsDesktopServiceV3{}
 
 // NewWindowsDesktopServiceV3 creates a new WindowsDesktopServiceV3 resource.
-func NewWindowsDesktopServiceV3(name string, spec WindowsDesktopServiceSpecV3) (*WindowsDesktopServiceV3, error) {
+func NewWindowsDesktopServiceV3(meta Metadata, spec WindowsDesktopServiceSpecV3) (*WindowsDesktopServiceV3, error) {
 	s := &WindowsDesktopServiceV3{
 		ResourceHeader: ResourceHeader{
-			Metadata: Metadata{
-				Name: name,
-			},
+			Metadata: meta,
 		},
 		Spec: spec,
 	}

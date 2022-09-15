@@ -1711,6 +1711,8 @@ type WindowsDesktopService struct {
 	// A host can match multiple rules and will get a union of all
 	// the matched labels.
 	HostLabels []WindowsHostLabelRule `yaml:"host_labels,omitempty"`
+
+	Labels map[string]string `yaml:"labels,omitempty"`
 }
 
 // WindowsHostLabelRule describes how a set of labels should be a applied to

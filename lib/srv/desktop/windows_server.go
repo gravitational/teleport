@@ -127,6 +127,8 @@ type WindowsService struct {
 
 	closeCtx context.Context
 	close    func()
+
+	labels map[string]string
 }
 
 // WindowsServiceConfig contains all necessary configuration values for a
@@ -171,6 +173,7 @@ type WindowsServiceConfig struct {
 	Hostname string
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
 	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
+	Labels               map[string]string
 }
 
 // LDAPConfig contains parameters for connecting to an LDAP server.
@@ -959,7 +962,10 @@ func (s *WindowsService) makeTDPReceiveHandler(ctx context.Context, emitter even
 
 func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {
 	srv, err := types.NewWindowsDesktopServiceV3(
-		s.cfg.Heartbeat.HostUUID,
+		types.Metadata{
+			Name:   s.cfg.Heartbeat.HostUUID,
+			Labels: s.cfg.Labels,
+		},
 		types.WindowsDesktopServiceSpecV3{
 			Addr:            s.cfg.Heartbeat.PublicAddr,
 			TeleportVersion: teleport.Version,
