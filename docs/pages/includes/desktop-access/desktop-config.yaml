@@ -70,3 +70,8 @@ windows_desktop_service:
   - match: '^.*\.prod\.example\.com$'
     labels:
       environment: prod
+
+  # Labels to attach to the Windows Desktop Service. This is used internally,
+  # any custom labels added won't affect the Windows hosts.
+  labels:
+    teleport.internal/resource-id: "resource-id"
