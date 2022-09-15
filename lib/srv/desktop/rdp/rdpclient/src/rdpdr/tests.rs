@@ -596,7 +596,11 @@ fn test_scard_ioctl_releasecontext(c: &mut Client) {
     );
 }
 
-fn test_scard_ioctl_getstatuschangew(c: &mut Client) {
+fn test_scard_ioctl_getstatuschangew(
+    c: &mut Client,
+    states: Vec<ReaderState>,
+    responses_out: ResponseOut,
+) {
     test_payload_in_to_response_out(
         c,
         PayloadIn {
@@ -630,48 +634,11 @@ fn test_scard_ioctl_getstatuschangew(c: &mut Client) {
                 timeout: 4294967295,
                 states_ptr_length: 2,
                 states_ptr: 131076,
-                states_length: 2,
-                states: vec![
-                    ReaderState {
-                        reader: "\\\\?PnP?\\Notification".to_string(),
-                        common: ReaderState_Common_Call {
-                            current_state: CardStateFlags::SCARD_STATE_UNAWARE,
-                            event_state: CardStateFlags::SCARD_STATE_UNAWARE,
-                            atr_length: 0,
-                            atr: [0; 36],
-                        },
-                    },
-                    ReaderState {
-                        reader: "Teleport".to_string(),
-                        common: ReaderState_Common_Call {
-                            current_state: CardStateFlags::SCARD_STATE_EMPTY,
-                            event_state: CardStateFlags::SCARD_STATE_UNAWARE,
-                            atr_length: 0,
-                            atr: [0; 36],
-                        },
-                    },
-                ],
+                states_length: states.len() as u32,
+                states,
             })),
         },
-        vec![(
-            PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
-            Box::new(DeviceControlResponse {
-                header: DeviceIoResponse {
-                    device_id: 1,
-                    completion_id: 0,
-                    io_status: 0,
-                },
-                output_buffer_length: 128,
-                output_buffer: vec![
-                    1, 16, 8, 0, 204, 204, 204, 204, 112, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0,
-                    0, 0, 0, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    0, 0, 0, 0, 0, 16, 0, 0, 0, 34, 0, 0, 0, 11, 0, 0, 0, 59, 149, 19, 129, 1, 128,
-                    115, 255, 1, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    0, 0, 0, 0, 0,
-                ],
-            }),
-        )],
+        responses_out,
     );
 }
 
@@ -700,6 +667,78 @@ fn test_smartcard_initialization() {
     );
     test_scard_ioctl_getdevicetypeid(&mut c);
     test_scard_ioctl_releasecontext(&mut c);
-    test_scard_ioctl_getstatuschangew(&mut c);
+    test_scard_ioctl_getstatuschangew(
+        &mut c,
+        vec![
+            ReaderState {
+                reader: "\\\\?PnP?\\Notification".to_string(),
+                common: ReaderState_Common_Call {
+                    current_state: CardStateFlags::SCARD_STATE_UNAWARE,
+                    event_state: CardStateFlags::SCARD_STATE_UNAWARE,
+                    atr_length: 0,
+                    atr: [0; 36],
+                },
+            },
+            ReaderState {
+                reader: "Teleport".to_string(),
+                common: ReaderState_Common_Call {
+                    current_state: CardStateFlags::SCARD_STATE_EMPTY,
+                    event_state: CardStateFlags::SCARD_STATE_UNAWARE,
+                    atr_length: 0,
+                    atr: [0; 36],
+                },
+            },
+        ],
+        vec![(
+            PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
+            Box::new(DeviceControlResponse {
+                header: DeviceIoResponse {
+                    device_id: 1,
+                    completion_id: 0,
+                    io_status: 0,
+                },
+                output_buffer_length: 128,
+                output_buffer: vec![
+                    1, 16, 8, 0, 204, 204, 204, 204, 112, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0,
+                    0, 0, 0, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 16, 0, 0, 0, 34, 0, 0, 0, 11, 0, 0, 0, 59, 149, 19, 129, 1, 128,
+                    115, 255, 1, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0,
+                ],
+            }),
+        )],
+    );
+    test_scard_ioctl_getstatuschangew(
+        &mut c,
+        vec![
+            ReaderState {
+                reader: "\\\\?PnP?\\Notification".to_string(),
+                common: ReaderState_Common_Call {
+                    current_state: CardStateFlags::SCARD_STATE_UNAWARE,
+                    event_state: CardStateFlags::SCARD_STATE_UNAWARE,
+                    atr_length: 0,
+                    atr: [
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    ],
+                },
+            },
+            ReaderState {
+                reader: "Teleport".to_string(),
+                common: ReaderState_Common_Call {
+                    current_state: CardStateFlags::SCARD_STATE_CHANGED
+                        | CardStateFlags::SCARD_STATE_PRESENT,
+                    event_state: CardStateFlags::SCARD_STATE_UNAWARE,
+                    atr_length: 11,
+                    atr: [
+                        59, 149, 19, 129, 1, 128, 115, 255, 1, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    ],
+                },
+            },
+        ],
+        vec![],
+    );
     // TODO(isaiah): the remainder of the initialization sequence
 }
