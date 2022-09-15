@@ -119,17 +119,17 @@ outer:
 	instances.Instances = filtered
 }
 
-func genInstancesLogStr(instances *server.EC2Instances) string {
+func genInstancesLogStr(instances []*ec2.Instance) string {
 	var logInstances strings.Builder
-	for idx, inst := range instances.Instances {
-		if idx == 10 || idx == (len(instances.Instances)-1) {
+	for idx, inst := range instances {
+		if idx == 10 || idx == (len(instances)-1) {
 			logInstances.WriteString(aws.StringValue(inst.InstanceId))
 			break
 		}
 		logInstances.WriteString(aws.StringValue(inst.InstanceId) + ", ")
 	}
-	if len(instances.Instances) > 10 {
-		logInstances.WriteString(fmt.Sprintf("... + %d instance IDs trunacted", len(instances.Instances)-10))
+	if len(instances) > 10 {
+		logInstances.WriteString(fmt.Sprintf("... + %d instance IDs trunacted", len(instances)-10))
 	}
 
 	return fmt.Sprintf("[%s]", logInstances.String())
@@ -145,8 +145,8 @@ func (s *Server) handleInstances(instances *server.EC2Instances) error {
 		return trace.NotFound("all fetched nodes already enrolled")
 	}
 
-	s.log.Debugf("Running Teleport installation on these instances: AccountID: %s, Instances: [%s]",
-		instances.AccountID, genInstancesLogStr(instances))
+	s.log.Debugf("Running Teleport installation on these instances: AccountID: %s, Instances: %s",
+		instances.AccountID, genInstancesLogStr(instances.Instances))
 	req := server.SSMRunRequest{
 		DocumentName: instances.DocumentName,
 		SSM:          client,
@@ -164,7 +164,7 @@ func (s *Server) handleEC2Discovery() {
 		select {
 		case instances := <-s.cloudWatcher.InstancesC:
 			s.log.Debugf("EC2 instances discovered (AccountID: %s, Instances: %v), starting installation",
-				instances.AccountID, genInstancesLogStr(&instances))
+				instances.AccountID, genInstancesLogStr(instances.Instances))
 			if err := s.handleInstances(&instances); err != nil {
 				if trace.IsNotFound(err) {
 					s.log.Debug("All discovered EC2 instances are already part of the cluster.")
