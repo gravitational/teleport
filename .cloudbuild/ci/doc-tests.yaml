@@ -1,5 +1,5 @@
 steps:
-  - name: quay.io/gravitational/next:main
+  - name: public.ecr.aws/gravitational/docs:latest
     id: docs-test
     entrypoint: /bin/bash
     dir: /src

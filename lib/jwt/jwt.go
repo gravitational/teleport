@@ -38,7 +38,6 @@ import (
 	"gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/cryptosigner"
 	"gopkg.in/square/go-jose.v2/jwt"
-	josejwt "gopkg.in/square/go-jose.v2/jwt"
 )
 
 // Config defines the clock and PEM encoded bytes of a public and private
@@ -154,7 +153,7 @@ func (k *Key) sign(claims Claims) (string, error) {
 		return "", trace.Wrap(err)
 	}
 
-	token, err := josejwt.Signed(sig).Claims(claims).CompactSerialize()
+	token, err := jwt.Signed(sig).Claims(claims).CompactSerialize()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -168,13 +167,13 @@ func (k *Key) Sign(p SignParams) (string, error) {
 
 	// Sign the claims and create a JWT token.
 	claims := Claims{
-		Claims: josejwt.Claims{
+		Claims: jwt.Claims{
 			Subject:   p.Username,
 			Issuer:    k.config.ClusterName,
-			Audience:  josejwt.Audience{p.URI},
-			NotBefore: josejwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
-			IssuedAt:  josejwt.NewNumericDate(k.config.Clock.Now()),
-			Expiry:    josejwt.NewNumericDate(p.Expires),
+			Audience:  jwt.Audience{p.URI},
+			NotBefore: jwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
+			IssuedAt:  jwt.NewNumericDate(k.config.Clock.Now()),
+			Expiry:    jwt.NewNumericDate(p.Expires),
 		},
 		Username: p.Username,
 		Roles:    p.Roles,
@@ -186,12 +185,12 @@ func (k *Key) Sign(p SignParams) (string, error) {
 func (k *Key) SignSnowflake(p SignParams, issuer string) (string, error) {
 	// Sign the claims and create a JWT token.
 	claims := Claims{
-		Claims: josejwt.Claims{
+		Claims: jwt.Claims{
 			Subject:   p.Username,
 			Issuer:    issuer,
-			NotBefore: josejwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
-			Expiry:    josejwt.NewNumericDate(p.Expires),
-			IssuedAt:  josejwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
+			NotBefore: jwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
+			Expiry:    jwt.NewNumericDate(p.Expires),
+			IssuedAt:  jwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
 		},
 	}
 
@@ -247,12 +246,12 @@ func (p *SnowflakeVerifyParams) Check() error {
 	return nil
 }
 
-func (k *Key) verify(rawToken string, expectedClaims josejwt.Expected) (*Claims, error) {
+func (k *Key) verify(rawToken string, expectedClaims jwt.Expected) (*Claims, error) {
 	if k.config.PublicKey == nil {
 		return nil, trace.BadParameter("can not verify token without public key")
 	}
 	// Parse the token.
-	tok, err := josejwt.ParseSigned(rawToken)
+	tok, err := jwt.ParseSigned(rawToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -277,7 +276,7 @@ func (k *Key) Verify(p VerifyParams) (*Claims, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	expectedClaims := josejwt.Expected{
+	expectedClaims := jwt.Expected{
 		Issuer:   k.config.ClusterName,
 		Subject:  p.Username,
 		Audience: jwt.Audience{p.URI},
@@ -307,7 +306,7 @@ func (k *Key) VerifySnowflake(p SnowflakeVerifyParams) (*Claims, error) {
 	issuer := fmt.Sprintf("%s.%s.SHA256:%s", accName, loginName, keyFpStr)
 
 	// Validate the claims on the JWT token.
-	expectedClaims := josejwt.Expected{
+	expectedClaims := jwt.Expected{
 		Issuer:  issuer,
 		Subject: fmt.Sprintf("%s.%s", accName, loginName),
 		Time:    k.config.Clock.Now(),
@@ -318,7 +317,7 @@ func (k *Key) VerifySnowflake(p SnowflakeVerifyParams) (*Claims, error) {
 // Claims represents public and private claims for a JWT token.
 type Claims struct {
 	// Claims represents public claim values (as specified in RFC 7519).
-	josejwt.Claims
+	jwt.Claims
 
 	// Username returns the Teleport identity of the user.
 	Username string `json:"username"`

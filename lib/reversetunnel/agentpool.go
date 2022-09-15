@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
@@ -128,6 +129,9 @@ type AgentPoolConfig struct {
 	IsRemoteCluster bool
 	// DisableCreateHostUser disables host user creation on a node.
 	DisableCreateHostUser bool
+	// LocalAuthAddresses is a list of auth servers to use when dialing back to
+	// the local cluster.
+	LocalAuthAddresses []string
 }
 
 // CheckAndSetDefaults checks and sets defaults.
@@ -410,11 +414,13 @@ func (p *AgentPool) waitForLease(ctx context.Context, leases <-chan track.Lease,
 
 // waitForBackoff processes events while waiting for the backoff.
 func (p *AgentPool) waitForBackoff(ctx context.Context, events <-chan Agent) error {
+	backoffC := p.backoff.After()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
-		case <-p.backoff.After():
+		case <-backoffC:
 			p.backoff.Inc()
 			return nil
 		case agent := <-events:
@@ -489,15 +495,16 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 	}
 
 	agent, err := newAgent(agentConfig{
-		addr:          *addr,
-		keepAlive:     p.runtimeConfig.keepAliveInterval,
-		sshDialer:     dialer,
-		transporter:   p,
-		versionGetter: p,
-		tracker:       tracker,
-		lease:         lease,
-		clock:         p.Clock,
-		log:           p.log,
+		addr:               *addr,
+		keepAlive:          p.runtimeConfig.keepAliveInterval,
+		sshDialer:          dialer,
+		transporter:        p,
+		versionGetter:      p,
+		tracker:            tracker,
+		lease:              lease,
+		clock:              p.Clock,
+		log:                p.log,
+		localAuthAddresses: p.LocalAuthAddresses,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -537,7 +544,7 @@ func (p *AgentPool) getVersion(ctx context.Context) (string, error) {
 }
 
 // transport creates a new transport instance.
-func (p *AgentPool) transport(ctx context.Context, channel ssh.Channel, requests <-chan *ssh.Request, conn ssh.Conn) *transport {
+func (p *AgentPool) transport(ctx context.Context, channel ssh.Channel, requests <-chan *ssh.Request, conn sshutils.Conn) *transport {
 	return &transport{
 		closeContext:        ctx,
 		component:           p.Component,
@@ -551,6 +558,7 @@ func (p *AgentPool) transport(ctx context.Context, channel ssh.Channel, requests
 		channel:             channel,
 		requestCh:           requests,
 		log:                 p.log,
+		authServers:         p.LocalAuthAddresses,
 	}
 }
 
@@ -667,8 +675,17 @@ func (c *agentPoolRuntimeConfig) updateRemote(ctx context.Context, addr *utils.N
 		if ok := errors.As(err, &tls.RecordHeaderError{}); !ok {
 			return trace.Wrap(err)
 		}
-	} else {
-		tlsRoutingEnabled = ping.Proxy.TLSRoutingEnabled
+	}
+
+	if ping != nil {
+		// Only use the ping results if they weren't from a minimal handler.
+		// The minimal API handler only exists when the proxy and reverse tunnel are
+		// listening on separate ports, so it will never do TLS routing.
+		isMinimalHandler := addr.Addr == ping.Proxy.SSH.TunnelListenAddr &&
+			ping.Proxy.SSH.TunnelListenAddr != ping.Proxy.SSH.WebListenAddr
+		if !isMinimalHandler {
+			tlsRoutingEnabled = ping.Proxy.TLSRoutingEnabled
+		}
 	}
 
 	c.mu.Lock()

@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/google/uuid"
-	"gopkg.in/check.v1"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {
@@ -35,99 +35,81 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-type Suite struct{}
-
-var _ = check.Suite(&Suite{})
-
-func TestControlGroups(t *testing.T) { check.TestingT(t) }
-
-// TestCreate tests creating and removing cgroups as well as shutting down
+// TestRootCreate tests creating and removing cgroups as well as shutting down
 // the service and unmounting the cgroup hierarchy.
-func (s *Suite) TestCreate(c *check.C) {
+func TestRootCreate(t *testing.T) {
 	// This test must be run as root. Only root can create cgroups.
 	if !isRoot() {
-		c.Skip("Tests for package cgroup can only be run as root.")
+		t.Skip("Tests for package cgroup can only be run as root.")
 	}
 
+	t.Parallel()
+
 	// Create temporary directory where cgroup2 hierarchy will be mounted.
-	dir, err := os.MkdirTemp("", "cgroup-test")
-	c.Assert(err, check.IsNil)
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// Start cgroup service.
 	service, err := New(&Config{
 		MountPath: dir,
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Create fake session ID and cgroup.
 	sessionID := uuid.New().String()
 	err = service.Create(sessionID)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Make sure that it exists.
 	cgroupPath := path.Join(service.teleportRoot, sessionID)
-	_, err = os.Stat(cgroupPath)
-	if os.IsNotExist(err) {
-		c.Fatalf("Could not find cgroup file %v: %v.", cgroupPath, err)
-	}
+	require.DirExists(t, cgroupPath)
 
 	// Remove cgroup.
 	err = service.Remove(sessionID)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Make sure cgroup is gone.
-	_, err = os.Stat(cgroupPath)
-	if !os.IsNotExist(err) {
-		c.Fatalf("Failed to remove cgroup at %v: %v.", cgroupPath, err)
-	}
+	require.NoDirExists(t, cgroupPath)
 
 	// Close the cgroup service, this should unmound the cgroup filesystem.
 	err = service.Close()
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Make sure the cgroup filesystem has been unmounted.
-	_, err = os.Stat(cgroupPath)
-	if !os.IsNotExist(err) {
-		c.Fatalf("Failed to unmound cgroup filesystem from %v: %v.", dir, err)
-	}
+	require.NoDirExists(t, service.teleportRoot)
 }
 
-// TestCleanup tests the ability for Teleport to remove and cleanup all
+// TestRootCleanup tests the ability for Teleport to remove and cleanup all
 // cgroups which is performed upon startup.
-func (s *Suite) TestCleanup(c *check.C) {
+func TestRootCleanup(t *testing.T) {
 	// This test must be run as root. Only root can create cgroups.
 	if !isRoot() {
-		c.Skip("Tests for package cgroup can only be run as root.")
+		t.Skip("Tests for package cgroup can only be run as root.")
 	}
 
+	t.Parallel()
+
 	// Create temporary directory where cgroup2 hierarchy will be mounted.
-	dir, err := os.MkdirTemp("", "cgroup-test")
-	c.Assert(err, check.IsNil)
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	// Start cgroup service.
 	service, err := New(&Config{
 		MountPath: dir,
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	defer service.Close()
 
 	// Create fake session ID and cgroup.
 	sessionID := uuid.New().String()
 	err = service.Create(sessionID)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Cleanup hierarchy to remove all cgroups.
 	err = service.cleanupHierarchy()
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// Make sure the cgroup no longer exists.
 	cgroupPath := path.Join(service.teleportRoot, sessionID)
-	_, err = os.Stat(cgroupPath)
-	if os.IsNotExist(err) {
-		c.Fatalf("Could not find cgroup file %v: %v.", cgroupPath, err)
-	}
+	require.NoDirExists(t, cgroupPath)
 }
 
 // isRoot returns a boolean if the test is being run as root or not. Tests

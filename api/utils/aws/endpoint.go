@@ -17,6 +17,7 @@ limitations under the License.
 package aws
 
 import (
+	"fmt"
 	"net"
 	"net/url"
 	"strconv"
@@ -36,23 +37,26 @@ func IsAWSEndpoint(uri string) bool {
 //
 // https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Overview.Endpoints.html
 func IsRDSEndpoint(uri string) bool {
-	return strings.Contains(uri, RDSEndpointSubdomain) &&
-		IsAWSEndpoint(uri)
+	return isAWSServiceEndpoint(uri, RDSServiceName)
 }
 
 // IsRedshiftEndpoint returns true if the input URI is an Redshift endpoint.
 //
 // https://docs.aws.amazon.com/redshift/latest/mgmt/connecting-from-psql.html
 func IsRedshiftEndpoint(uri string) bool {
-	return strings.Contains(uri, RedshiftEndpointSubdomain) &&
-		IsAWSEndpoint(uri)
+	return isAWSServiceEndpoint(uri, RedshiftServiceName)
 }
 
 // IsElastiCacheEndpoint returns true if the input URI is an ElastiCache
 // endpoint.
 func IsElastiCacheEndpoint(uri string) bool {
-	return strings.Contains(uri, ElastiCacheSubdomain) &&
-		IsAWSEndpoint(uri)
+	return isAWSServiceEndpoint(uri, ElastiCacheServiceName)
+}
+
+// IsMemoryDBEndpoint returns true if the input URI is an MemoryDB
+// endpoint.
+func IsMemoryDBEndpoint(uri string) bool {
+	return isAWSServiceEndpoint(uri, MemoryDBSServiceName)
 }
 
 // ParseRDSEndpoint extracts the identifier and region from the provided RDS
@@ -166,6 +170,12 @@ const (
 	// ElastiCacheNodeEndpoint is the endpoint that used to connect to an
 	// individual node.
 	ElastiCacheNodeEndpoint = "node"
+
+	// MemoryDBClusterEndpoint is the cluster configuration endpoint for a
+	// MemoryDB cluster.
+	MemoryDBClusterEndpoint = "cluster"
+	// MemoryDBNodeEndpoint is the endpoint of an individual MemoryDB node.
+	MemoryDBNodeEndpoint = "node"
 )
 
 // ParseElastiCacheEndpoint extracts the details from the provided
@@ -173,29 +183,16 @@ const (
 //
 // https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/GettingStarted.ConnectToCacheNode.html
 func ParseElastiCacheEndpoint(endpoint string) (*RedisEndpointInfo, error) {
-	// Remove schema and port.
-	if !strings.Contains(endpoint, "://") {
-		endpoint = "redis://" + endpoint
-	}
-
-	parsedURL, err := url.Parse(endpoint)
+	endpoint, err := removeSchemaAndPort(endpoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	endpoint = parsedURL.Hostname()
 
 	// Remove partition suffix. Note that endpoints for CN regions use the same
 	// format except they end with AWSCNEndpointSuffix.
-	endpointWithoutSuffix := ""
-	switch {
-	case strings.HasSuffix(endpoint, AWSEndpointSuffix):
-		endpointWithoutSuffix = strings.TrimSuffix(endpoint, AWSEndpointSuffix)
-
-	case strings.HasSuffix(endpoint, AWSCNEndpointSuffix):
-		endpointWithoutSuffix = strings.TrimSuffix(endpoint, AWSCNEndpointSuffix)
-
-	default:
-		return nil, trace.BadParameter("%v is not a valid AWS endpoint", endpoint)
+	endpointWithoutSuffix, err := removePartitionSuffix(endpoint)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Split into parts to extract details. They look like this in general:
@@ -343,6 +340,110 @@ func trimElastiCacheShardAndNodeID(input string) string {
 	return strings.Join(parts, "-")
 }
 
+// ParseMemoryDBEndpoint extracts the details from the provided
+// MemoryDB endpoint.
+//
+// https://docs.aws.amazon.com/memorydb/latest/devguide/endpoints.html
+func ParseMemoryDBEndpoint(endpoint string) (*RedisEndpointInfo, error) {
+	endpoint, err := removeSchemaAndPort(endpoint)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Here is a sample endpoint for MemoryDB:
+	// clustercfg.my-memorydb.scwzlu.memorydb.ca-central-1.amazonaws.com
+	//
+	// Unlike RDS/Redshift endpoints, the service subdomain is before region.
+	// Unlike ElastiCache endpoints, MemoryDB uses full region name.
+	endpointWithoutSuffix, err := removePartitionSuffix(endpoint)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	parts := strings.Split(endpointWithoutSuffix, ".")
+	if len(parts) != 5 || parts[3] != MemoryDBSServiceName {
+		return nil, trace.BadParameter("unknown MemoryDB endpoint format")
+	}
+
+	switch {
+	// TLS disabled cluster endpoints look like this:
+	// <cluster-name>.<xxxx>.clustercfg.memorydb.<region>.<suffix>
+	case parts[2] == "clustercfg":
+		return &RedisEndpointInfo{
+			ID:                       parts[0],
+			Region:                   parts[4],
+			TransitEncryptionEnabled: false,
+			EndpointType:             MemoryDBClusterEndpoint,
+		}, nil
+
+	// TLS enabled cluster endpoints look like this:
+	// clustercfg.<cluster-name>.<xxxx>.memorydb.<region>.<suffix>
+	case parts[0] == "clustercfg":
+		return &RedisEndpointInfo{
+			ID:                       parts[1],
+			Region:                   parts[4],
+			TransitEncryptionEnabled: true,
+			EndpointType:             MemoryDBClusterEndpoint,
+		}, nil
+
+	// TLS disabled node endpoints look like this:
+	// <cluster-name>-<shard-id>-<node-id>.<xxxx>.<shard-id>.memorydb.<region>.<suffix>
+	//
+	// MemoryDB and ElastiCache share same shard/node ID format.
+	case isElasticCacheShardID(parts[2]):
+		return &RedisEndpointInfo{
+			ID:                       trimElastiCacheShardAndNodeID(parts[0]),
+			Region:                   parts[4],
+			TransitEncryptionEnabled: false,
+			EndpointType:             MemoryDBNodeEndpoint,
+		}, nil
+
+	// TLS enabled node endpoints look like this:
+	// <cluster-name>-<shard-id>-<node-id>.<cluster-name>.<xxxx>.memorydb.<region>.<suffix>
+	default:
+		return &RedisEndpointInfo{
+			ID:                       trimElastiCacheShardAndNodeID(parts[0]),
+			Region:                   parts[4],
+			TransitEncryptionEnabled: true,
+			EndpointType:             MemoryDBNodeEndpoint,
+		}, nil
+	}
+}
+
+// isAWSServiceEndpoint returns true if uri is a valid AWS endpoint and uri
+// contains the provided service name as a subdomain.
+func isAWSServiceEndpoint(uri, serviceName string) bool {
+	return strings.Contains(uri, fmt.Sprintf(".%s.", serviceName)) &&
+		IsAWSEndpoint(uri)
+}
+
+func removeSchemaAndPort(endpoint string) (string, error) {
+	// Add a temporary schema to make a valid URL for url.Parse.
+	if !strings.Contains(endpoint, "://") {
+		endpoint = "schema://" + endpoint
+	}
+
+	parsedURL, err := url.Parse(endpoint)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return parsedURL.Hostname(), nil
+}
+
+func removePartitionSuffix(endpoint string) (string, error) {
+	switch {
+	case strings.HasSuffix(endpoint, AWSEndpointSuffix):
+		return strings.TrimSuffix(endpoint, AWSEndpointSuffix), nil
+
+	case strings.HasSuffix(endpoint, AWSCNEndpointSuffix):
+		return strings.TrimSuffix(endpoint, AWSCNEndpointSuffix), nil
+
+	default:
+		return "", trace.BadParameter("%v is not a valid AWS endpoint", endpoint)
+	}
+}
+
 const (
 	// AWSEndpointSuffix is the endpoint suffix for AWS Standard and AWS US
 	// GovCloud regions.
@@ -365,12 +466,6 @@ const (
 	// ElastiCacheServiceName is the service name for AWS ElastiCache.
 	ElastiCacheServiceName = "cache"
 
-	// RDSEndpointSubdomain is the RDS/Aurora subdomain.
-	RDSEndpointSubdomain = "." + RDSServiceName + "."
-
-	// RedshiftEndpointSubdomain is the Redshift endpoint subdomain.
-	RedshiftEndpointSubdomain = "." + RedshiftServiceName + "."
-
-	// ElastiCacheSubdomain is the ElastiCache endpoint subdomain.
-	ElastiCacheSubdomain = "." + ElastiCacheServiceName + "."
+	// MemoryDBSServiceName is the service name for AWS MemoryDB.
+	MemoryDBSServiceName = "memorydb"
 )

@@ -17,8 +17,10 @@ limitations under the License.
 package srv
 
 import (
+	"errors"
 	"fmt"
 	"os/user"
+	"strings"
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
@@ -31,14 +33,19 @@ import (
 )
 
 type testHostUserBackend struct {
-	users  map[string][]string
+	// users: user -> []groups
+	users map[string][]string
+	// groups: group -> groupid
 	groups map[string]string
+	// sudoers: user -> entries
+	sudoers map[string]string
 }
 
 func newTestUserMgmt() *testHostUserBackend {
 	return &testHostUserBackend{
-		users:  map[string][]string{},
-		groups: map[string]string{},
+		users:   map[string][]string{},
+		groups:  map[string]string{},
+		sudoers: map[string]string{},
 	}
 }
 
@@ -97,9 +104,36 @@ func (tm *testHostUserBackend) DeleteUser(user string) error {
 	return nil
 }
 
+// RemoveSudoersFile implements HostUsersBackend
+func (tm *testHostUserBackend) RemoveSudoersFile(user string) error {
+	delete(tm.sudoers, user)
+	return nil
+}
+
+// CheckSudoers implements HostUsersBackend
+func (*testHostUserBackend) CheckSudoers(contents []byte) error {
+	if strings.Contains(string(contents), "validsudoers") {
+		return nil
+	}
+	return errors.New("invalid")
+}
+
+// WriteSudoersFile implements HostUsersBackend
+func (tm *testHostUserBackend) WriteSudoersFile(user string, entries []byte) error {
+	entry := strings.TrimSpace(string(entries))
+	err := tm.CheckSudoers([]byte(entry))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tm.sudoers[user] = entry
+	return nil
+}
+
 var _ HostUsersBackend = &testHostUserBackend{}
 
 func TestUserMgmt_CreateTemporaryUser(t *testing.T) {
+	t.Parallel()
+
 	backend := newTestUserMgmt()
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -138,7 +172,56 @@ func TestUserMgmt_CreateTemporaryUser(t *testing.T) {
 	require.Nil(t, closer)
 }
 
+func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
+	t.Parallel()
+
+	backend := newTestUserMgmt()
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	pres := local.NewPresenceService(bk)
+	users := HostUserManagement{
+		backend: backend,
+		storage: pres,
+	}
+
+	_, closer, err := users.CreateUser("bob", &services.HostUsersInfo{
+		Groups:  []string{"hello", "sudo"},
+		Sudoers: []string{"validsudoers"},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, closer)
+
+	require.Equal(t, map[string]string{"bob": "bob validsudoers"}, backend.sudoers)
+
+	require.NoError(t, closer.Close())
+	require.Empty(t, backend.sudoers)
+	_, _, err = users.CreateUser("bob", &services.HostUsersInfo{
+		Groups:  []string{"hello", "sudo"},
+		Sudoers: []string{"invalid"},
+	})
+	require.Error(t, err)
+
+	t.Run("no teleport-service group", func(t *testing.T) {
+		backend := newTestUserMgmt()
+		users := HostUserManagement{
+			backend: backend,
+			storage: pres,
+		}
+		// test user already exists but teleport-service group has not yet
+		// been created
+		backend.CreateUser("testuser", nil)
+		_, _, err := users.CreateUser("testuser", &services.HostUsersInfo{})
+		require.True(t, trace.IsAlreadyExists(err))
+		backend.CreateGroup(types.TeleportServiceGroup)
+		// IsAlreadyExists error when teleport-service group now exists
+		_, _, err = users.CreateUser("testuser", &services.HostUsersInfo{})
+		require.True(t, trace.IsAlreadyExists(err))
+	})
+}
+
 func TestUserMgmt_DeleteAllTeleportSystemUsers(t *testing.T) {
+	t.Parallel()
+
 	type userAndGroups struct {
 		user   string
 		groups []string
@@ -178,4 +261,40 @@ func TestUserMgmt_DeleteAllTeleportSystemUsers(t *testing.T) {
 	require.NoError(t, err)
 
 	require.ElementsMatch(t, remainingUsers, resultingUsers)
+
+	users = HostUserManagement{
+		backend: newTestUserMgmt(),
+		storage: pres,
+	}
+	// teleport-system group doesnt exist, DeleteAllUsers will return nil, instead of erroring
+	require.NoError(t, users.DeleteAllUsers())
+}
+
+func TestSudoersSanitization(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		user         string
+		userExpected string
+	}{
+		{
+			user:         "testuser",
+			userExpected: "testuser",
+		},
+		{
+			user:         "test.user",
+			userExpected: "test_user",
+		},
+		{
+			user:         "test.us~er",
+			userExpected: "test_us_er",
+		},
+		{
+			user:         "test../../us~er",
+			userExpected: "test______us_er",
+		},
+	} {
+		actual := sanitizeSudoersName(tc.user)
+		require.Equal(t, tc.userExpected, actual)
+	}
 }

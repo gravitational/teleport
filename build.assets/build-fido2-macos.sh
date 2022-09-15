@@ -21,6 +21,11 @@ readonly FIDO2_VERSION=1.11.0
 readonly LIB_CACHE="/tmp/teleport-fido2-cache"
 readonly PKGFILE_DIR="$LIB_CACHE/fido2-${FIDO2_VERSION}_cbor-${CBOR_VERSION}_crypto-${CRYPTO_VERSION}"
 
+# Library cache paths, implicitly matched by fetch_and_build.
+readonly CBOR_PATH="$LIB_CACHE/cbor-$CBOR_VERSION"
+readonly CRYPTO_PATH="$LIB_CACHE/crypto-$CRYPTO_VERSION"
+readonly FIDO2_PATH="$LIB_CACHE/fido2-$FIDO2_VERSION"
+
 fetch_and_build() {
   local name="$1"      # eg, cbor
   local version="$2"   # eg, v0.9.0
@@ -133,24 +138,45 @@ fido2_fetch_and_build() {
     fido2 "$FIDO2_VERSION" 'https://github.com/Yubico/libfido2.git' fido2_build
 }
 
+fido2_compile_toy() {
+  local toydir=''
+  toydir="$(mktemp -d)"
+  # Early expansion on purpose.
+  #shellcheck disable=SC2064
+  trap "rm -fr '$toydir'" EXIT
+
+  cat >"$toydir/toy.c" <<EOF
+#include <fido.h>
+
+int main() {
+  fido_init(0 /* flags */);
+  return 0;
+}
+EOF
+
+  export PKG_CONFIG_PATH="$PKGFILE_DIR"
+  # Word splitting desired for pkg-config.
+  #shellcheck disable=SC2046
+  gcc \
+    $(pkg-config --cflags --libs libfido2-static) \
+    -o "$toydir/toy.bin" \
+    "$toydir/toy.c"
+}
+
 usage() {
   echo "Usage: $0 build|pkg_config_path" >&2
 }
 
 build() {
-  local cbor_path="$LIB_CACHE/cbor-$CBOR_VERSION"
-  local crypto_path="$LIB_CACHE/crypto-$CRYPTO_VERSION"
-  local fido2_path="$LIB_CACHE/fido2-$FIDO2_VERSION"
-
-  if [[ ! -d "$cbor_path" ]]; then
+  if [[ ! -d "$CBOR_PATH" ]]; then
     cbor_fetch_and_build
   fi
 
-  if [[ ! -d "$crypto_path" ]]; then
+  if [[ ! -d "$CRYPTO_PATH" ]]; then
     crypto_fetch_and_build
   fi
 
-  if [[ ! -d "$fido2_path" ]]; then
+  if [[ ! -d "$FIDO2_PATH" ]]; then
     fido2_fetch_and_build
   fi
 
@@ -163,11 +189,8 @@ build() {
     trap "rm -f '$tmp'" EXIT
 
     # Write libfido2-static.pc to tmp.
-    local cbor="$LIB_CACHE/cbor-$CBOR_VERSION"
-    local crypto="$LIB_CACHE/crypto-$CRYPTO_VERSION"
-    local fido2="$LIB_CACHE/fido2-$FIDO2_VERSION"
     cat >"$tmp" <<EOF
-prefix=$fido2
+prefix=$FIDO2_PATH
 exec_prefix=\${prefix}
 libdir=\${prefix}/lib
 includedir=\${prefix}/include
@@ -176,8 +199,8 @@ Name: libfido2
 Description: A FIDO2 library
 URL: https://github.com/yubico/libfido2
 Version: $FIDO2_VERSION
-Libs: -framework CoreFoundation -framework IOKit \${libdir}/libfido2.a $cbor/lib/libcbor.a $crypto/lib/libcrypto.a
-Cflags: -I\${includedir} -I$cbor/include -I$crypto/include -mmacosx-version-min="$MACOS_VERSION_MIN"
+Libs: -framework CoreFoundation -framework IOKit \${libdir}/libfido2.a $CBOR_PATH/lib/libcbor.a $CRYPTO_PATH/lib/libcrypto.a
+Cflags: -I\${includedir} -I$CBOR_PATH/include -I$CRYPTO_PATH/include -mmacosx-version-min="$MACOS_VERSION_MIN"
 EOF
 
     # Move .pc file to expected path.
@@ -198,6 +221,11 @@ main() {
   case "$1" in
     build)
       build
+      if ! fido2_compile_toy; then
+        echo 'Failed to compile fido2 test program, cleaning cache and retrying' >&2
+        rm -fr "$CBOR_PATH" "$CRYPTO_PATH" "$FIDO2_PATH"
+        build
+      fi
       ;;
     pkg_config_path)
       echo "$PKGFILE_DIR"

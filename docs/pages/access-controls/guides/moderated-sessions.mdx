@@ -12,22 +12,14 @@ other users to be present in a Server or Kubernetes Access session. Depending on
 the requirements, these users can observe the session in real time, participate
 in the session, and terminate the session at will.
 
+In addition, Teleport administrators can [define rules](#join_sessions) that allow users to join each other's
+sessions from `tsh` and the Web UI.
+
 <ScopedBlock scope="oss">
 
   Moderated Sessions requires Teleport Enterprise or Teleport Cloud.
 
-  View this guide as a user of another Teleport edition:
-
-  <TileSet>
-  <Tile href="./moderated-sessions.mdx/?scope=cloud" title="Teleport Cloud" icon="cloud">
-  </Tile>
-  <Tile href="./moderated-sessions.mdx/?scope=enterprise" title="Teleport Enterprise" icon="building">
-  </Tile>
-  </TileSet>
-
 </ScopedBlock>
-
-<ScopedBlock scope={["cloud", "enterprise"]}>
 
 ### Use cases
 
@@ -66,6 +58,12 @@ The following are required options for `require_session_join`:
 |`kinds`|`[]`[Session kind](#session-kinds)|The kind of session that the policy applies to|
 |`modes`|`[]`[Participant mode](#participant-modes)|The participant mode that applies to the user joining the Moderated Session under this policy|
 |`count`|Integer|The number of users that need to match the filter expression to satisfy the policy|
+
+The following fields are optional for `require_session_join`:
+
+|Option|Type|Description|
+|---|---|---|
+|`on_leave`|[On leave](#on-leave)|The action to take when the policy is no longer satisfied|
 
 #### Example
 
@@ -189,14 +187,31 @@ filter expression in order to satisfy the policy. The `count` field of a require
 policy is a positive integer value that specifies the minimum amount of users
 this policy requires.
 
+### On leave
+
+The `on_leave` string option in require policies is used to define what happens when a moderator leaves a session, causing a policy to no longer be satisfied.
+
+There are two possible actions to take in this scenario:
+1. Terminate the session and disconnect all participants, corresponding to the `"terminate"` value.
+2. Pause the session and stop any input/output streaming until the policy is satisfied again, corresponding to the `"pause"` value.
+
+By default, Teleport treats an empty string in this field as the same as `terminate`.
+That is, the session is terminated instantly and all participants are disconnected.
+
+If all require policies attached to the session owner are set to `"pause"`, the session will instead pause
+but the session will remain open. This discards all input from session participants and buffers the most recent output until the session can resume.
+
 ## Backwards compatibility with Server Access
 
+Moderated Session RBAC controls were added to the role specification in version 5
+(`version: v5` in the YAML definition).
 Previously, Server Access did not include controls over which users can join a
-session. To work around this, RBAC rules are ignored for users that only have
-V4 roles (`version: v4` in the role specification). New roles are created as
-V5. V4 roles are upgraded when they are modified in the UI. If a user has any
-attached V5 roles (`version: v5` in the role specification), the new RBAC access
-checks will be enforced.
+session.
+To avoid breaking functionality for users with only roles on v4 or older, RBAC
+access checks will only be enforced if the user has at least one v5 role.
+
+New roles will be created as v5 by default, and older roles can by updated with
+`tctl` or from the Web UI by modifying the `version` field.
 
 ## MFA-based presence
 
@@ -207,7 +222,7 @@ wishing to join have a configured U2F or WebAuthn MFA token.
 
 Every 30 seconds, Teleport will issue a prompt to the user in the terminal,
 asking them to press their MFA token in the next 15 seconds. This will happen
-continously during the session and exists so that moderators are always present
+continuously during the session and exists so that moderators are always present
 and watching a given session.
 
 If no MFA input is received within 60 seconds, the user is kicked from the
@@ -227,4 +242,3 @@ example be used to enable notifications over some external communication system.
 
 - [Moderated Sessions](https://github.com/gravitational/teleport/blob/master/rfd/0043-kubeaccess-multiparty.md)
 
-</ScopedBlock>

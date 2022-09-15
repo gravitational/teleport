@@ -59,7 +59,7 @@ func TLSDial(ctx context.Context, dial DialWithContextFunc, network, addr string
 		}
 	case <-ctx.Done():
 		plainConn.Close()
-		return nil, trace.BadParameter("tls handshake has been cancelled due to timeout")
+		return nil, trace.BadParameter("tls handshake has been canceled due to timeout")
 	}
 
 	if tlsConfig.InsecureSkipVerify {

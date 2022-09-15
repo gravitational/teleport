@@ -149,6 +149,9 @@ const (
 	// ComponentSubsystemProxy is the proxy subsystem.
 	ComponentSubsystemProxy = "subsystem:proxy"
 
+	// ComponentSubsystemSFTP is the SFTP subsystem.
+	ComponentSubsystemSFTP = "subsystem:sftp"
+
 	// ComponentLocalTerm is a terminal on a regular SSH node.
 	ComponentLocalTerm = "term:local"
 
@@ -245,6 +248,12 @@ const (
 
 	// ComponentTracing is a tracing exporter
 	ComponentTracing = "tracing"
+
+	// ComponentInstance is an abstract component common to all services.
+	ComponentInstance = "instance"
+
+	// ComponentVersionControl is the component common to all version control operations.
+	ComponentVersionControl = "version-control"
 
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
@@ -449,6 +458,9 @@ const (
 	// CertExtensionAllowedResources lists the resources which this certificate
 	// should be allowed to access
 	CertExtensionAllowedResources = "teleport-allowed-resources"
+	// CertExtensionConnectionDiagnosticID contains the ID of the ConnectionDiagnostic.
+	// The Node/Agent will append connection traces to this diagnostic instance.
+	CertExtensionConnectionDiagnosticID = "teleport-connection-diagnostic-id"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag
@@ -513,34 +525,6 @@ const (
 
 	// TraitExternalPrefix is the role variable prefix that indicates the data comes from an external identity provider.
 	TraitExternalPrefix = "external"
-
-	// TraitLogins is the name of the role variable used to store
-	// allowed logins.
-	TraitLogins = "logins"
-
-	// TraitWindowsLogins is the name of the role variable used
-	// to store allowed Windows logins.
-	TraitWindowsLogins = "windows_logins"
-
-	// TraitKubeGroups is the name the role variable used to store
-	// allowed kubernetes groups
-	TraitKubeGroups = "kubernetes_groups"
-
-	// TraitKubeUsers is the name the role variable used to store
-	// allowed kubernetes users
-	TraitKubeUsers = "kubernetes_users"
-
-	// TraitDBNames is the name of the role variable used to store
-	// allowed database names.
-	TraitDBNames = "db_names"
-
-	// TraitDBUsers is the name of the role variable used to store
-	// allowed database users.
-	TraitDBUsers = "db_users"
-
-	// TraitAWSRoleARNs is the name of the role variable used to store
-	// allowed AWS role ARNs.
-	TraitAWSRoleARNs = "aws_role_arns"
 
 	// TraitTeams is the name of the role variable use to store team
 	// membership information
@@ -744,6 +728,10 @@ const (
 	// specific UID to prevent the matching user from being deleted before
 	// spawning the intended child process.
 	ParkSubCommand = "park"
+
+	// SFTPSubCommand is the sub-command Teleport uses to re-exec itself to
+	// handle SFTP connections.
+	SFTPSubCommand = "sftp"
 )
 
 const (
@@ -789,3 +777,15 @@ const UserSingleUseCertTTL = time.Minute
 // StandardHTTPSPort is the default port used for the https URI scheme,
 // cf. RFC 7230 § 2.7.2.
 const StandardHTTPSPort = 443
+
+const (
+	// WebAPIConnUpgrade is the HTTP web API to make the connection upgrade
+	// call.
+	WebAPIConnUpgrade = "/webapi/connectionupgrade"
+	// WebAPIConnUpgradeHeader is the header used to indicate the requested
+	// connection upgrade types in the connection upgrade API.
+	WebAPIConnUpgradeHeader = "Upgrade"
+	// WebAPIConnUpgradeTypeALPN is a connection upgrade type that specifies
+	// the upgraded connection should be handled by the ALPN handler.
+	WebAPIConnUpgradeTypeALPN = "alpn"
+)

@@ -70,3 +70,24 @@ func IsConnectionRefused(err error) bool {
 	}
 	return false
 }
+
+// IsExpiredCredentialError checks if an error corresponds to expired credentials.
+func IsExpiredCredentialError(err error) bool {
+	return IsHandshakeFailedError(err) || IsCertExpiredError(err) || trace.IsBadParameter(err) || trace.IsTrustError(err)
+}
+
+// IsUntrustedCertErr checks if an error is an untrusted cert error.
+func IsUntrustedCertErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	errMsg := err.Error()
+	return strings.Contains(errMsg, "x509: certificate is valid for") ||
+		strings.Contains(errMsg, "certificate is not trusted")
+}
+
+const (
+	// SelfSignedCertsMsg is a helper message to point users towards helpful documentation.
+	SelfSignedCertsMsg = "Your proxy certificate is not trusted or expired. " +
+		"Please update the certificate or follow this guide for self-signed certs: https://goteleport.com/docs/setup/admin/self-signed-certs/"
+)

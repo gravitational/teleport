@@ -55,6 +55,8 @@ type UploadCompleterConfig struct {
 	// GracePeriod is the period after which an upload's session
 	// tracker will be check to see if it's an abandoned upload.
 	GracePeriod time.Duration
+	// ClusterName identifies the originating teleport cluster
+	ClusterName string
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -64,6 +66,9 @@ func (cfg *UploadCompleterConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.SessionTracker == nil {
 		return trace.BadParameter("missing parameter SessionTracker")
+	}
+	if cfg.ClusterName == "" {
+		return trace.BadParameter("missing parameter ClusterName")
 	}
 	if cfg.Component == "" {
 		cfg.Component = teleport.ComponentAuth
@@ -116,7 +121,7 @@ func (u *UploadCompleter) Close() {
 	close(u.closeC)
 }
 
-// Serve runs the upload completer until closed or until ctx is cancelled.
+// Serve runs the upload completer until closed or until ctx is canceled.
 func (u *UploadCompleter) Serve(ctx context.Context) error {
 	periodic := interval.New(interval.Config{
 		Duration:      u.cfg.CheckPeriod,
@@ -202,10 +207,22 @@ func (u *UploadCompleter) checkUploads(ctx context.Context) error {
 
 		uploadData := u.cfg.Uploader.GetUploadMetadata(upload.SessionID)
 
+		// It's possible that we don't have a session ID here. For example,
+		// an S3 multipart upload may have been completed by another auth
+		// server, in which case the API returns an empty key, leaving us
+		// no way to derive the session ID from the upload.
+		//
+		// If this is the case, there's no work left to do, and we can
+		// proceed to the next upload.
+		if uploadData.SessionID == "" {
+			continue
+		}
+
 		// Schedule a background operation to check for (and emit) a session end event.
 		// This is necessary because we'll need to download the session in order to
 		// enumerate its events, and the S3 API takes a little while after the upload
 		// is completed before version metadata becomes available.
+		upload := upload // capture range variable
 		go func() {
 			select {
 			case <-ctx.Done():
@@ -219,10 +236,12 @@ func (u *UploadCompleter) checkUploads(ctx context.Context) error {
 		}()
 		session := &events.SessionUpload{
 			Metadata: events.Metadata{
-				Type:  SessionUploadEvent,
-				Code:  SessionUploadCode,
-				ID:    uuid.New().String(),
-				Index: SessionUploadIndex,
+				Type:        SessionUploadEvent,
+				Code:        SessionUploadCode,
+				Time:        u.cfg.Clock.Now().UTC(),
+				ID:          uuid.New().String(),
+				Index:       SessionUploadIndex,
+				ClusterName: u.cfg.ClusterName,
 			},
 			SessionMetadata: events.SessionMetadata{
 				SessionID: string(uploadData.SessionID),

@@ -207,7 +207,7 @@ func (tx *pgTx) GetEvents(fromEventID int64, limit int) sqlbk.Events {
 		return events
 	}
 
-	var lastEventID int64
+	lastEventID := fromEventID
 	var backendEvents []backend.Event
 	for rows.Next() {
 		var event backend.Event

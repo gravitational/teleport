@@ -60,7 +60,7 @@ func TestBackportReviewers(t *testing.T) {
 			},
 			reviewers: []string{"3"},
 			reviews: []github.Review{
-				{Author: "4", State: "APPROVED"},
+				{Author: "4", State: review.Approved},
 			},
 			err:      false,
 			expected: []string{"3", "4"},
@@ -79,7 +79,7 @@ func TestBackportReviewers(t *testing.T) {
 			},
 			reviewers: []string{"3"},
 			reviews: []github.Review{
-				{Author: "4", State: "APPROVED"},
+				{Author: "4", State: review.Approved},
 			},
 			err:      false,
 			expected: []string{"3", "4"},
@@ -99,10 +99,10 @@ func TestBackportReviewers(t *testing.T) {
 			},
 			reviewers: []string{"3"},
 			reviews: []github.Review{
-				{Author: "4", State: "COMMENTED"},
-				{Author: "4", State: "CHANGES_REQUESTED"},
-				{Author: "4", State: "APPROVED"},
-				{Author: "9", State: "APPROVED"},
+				{Author: "4", State: review.Commented},
+				{Author: "4", State: review.ChangesRequested},
+				{Author: "4", State: review.Approved},
+				{Author: "9", State: review.Approved},
 			},
 			err:      true,
 			expected: []string{},
@@ -121,7 +121,7 @@ func TestBackportReviewers(t *testing.T) {
 			},
 			reviewers: []string{"3"},
 			reviews: []github.Review{
-				{Author: "4", State: "APPROVED"},
+				{Author: "4", State: review.Approved},
 			},
 			err:      true,
 			expected: []string{},

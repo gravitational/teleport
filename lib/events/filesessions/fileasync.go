@@ -114,7 +114,6 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 // the upload that have been aborted.
 //
 // It marks corrupted session files to skip their processing.
-//
 type Uploader struct {
 	semaphore chan struct{}
 
@@ -241,7 +240,7 @@ func (u *Uploader) Scan(ctx context.Context) (*ScanStats, error) {
 		}
 		stats.Scanned++
 		if err := u.startUpload(ctx, fi.Name()); err != nil {
-			if trace.IsCompareFailed(err) {
+			if errors.Is(err, utils.ErrUnsuccessfulLockTry) {
 				u.log.Debugf("Scan is skipping recording %v that is locked by another process.", fi.Name())
 				continue
 			}
@@ -277,6 +276,7 @@ type upload struct {
 	sessionID      session.ID
 	reader         *events.ProtoReader
 	file           *os.File
+	fileUnlockFn   func() error
 	checkpointFile *os.File
 }
 
@@ -322,7 +322,7 @@ func (u *upload) writeStatus(status apievents.StreamStatus) error {
 func (u *upload) Close() error {
 	return trace.NewAggregate(
 		u.reader.Close(),
-		utils.FSUnlock(u.file),
+		u.fileUnlockFn(),
 		u.file.Close(),
 		utils.NilCloser(u.checkpointFile).Close(),
 	)
@@ -366,17 +366,19 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) error {
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
-	if err := utils.FSTryWriteLock(sessionFile); err != nil {
+	unlock, err := utils.FSTryWriteLock(sessionFilePath)
+	if err != nil {
 		if e := sessionFile.Close(); e != nil {
 			u.log.WithError(e).Warningf("Failed to close %v.", fileName)
 		}
-		return trace.Wrap(err)
+		return trace.WrapWithMessage(err, "could not acquire file lock for %q", sessionFilePath)
 	}
 
 	upload := &upload{
-		sessionID: sessionID,
-		reader:    events.NewProtoReader(sessionFile),
-		file:      sessionFile,
+		sessionID:    sessionID,
+		reader:       events.NewProtoReader(sessionFile),
+		file:         sessionFile,
+		fileUnlockFn: unlock,
 	}
 	upload.checkpointFile, err = os.OpenFile(u.checkpointFilePath(sessionID), os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
@@ -463,12 +465,12 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 	// sent by the server after create.
 	select {
 	case <-u.closeC:
-		return trace.Errorf("operation has been cancelled, uploader is closed")
+		return trace.Errorf("operation has been canceled, uploader is closed")
 	case <-stream.Status():
 	case <-time.After(defaults.NetworkRetryDuration):
 		return trace.ConnectionProblem(nil, "timeout waiting for stream status update")
 	case <-ctx.Done():
-		return trace.ConnectionProblem(ctx.Err(), "operation has been cancelled")
+		return trace.ConnectionProblem(ctx.Err(), "operation has been canceled")
 
 	}
 

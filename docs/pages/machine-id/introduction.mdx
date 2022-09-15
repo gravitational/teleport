@@ -10,13 +10,22 @@ certificates to any service account (e.g., a CI/CD server) by retrieving
 credentials from the Teleport Auth Service. This enables fine-grained
 role-based access controls and audit.
 
-Some of the things you can do with Machine ID:
+Machine ID supports the following Teleport features:
+ - [Server Access](./getting-started.mdx)
+ - [Database Access](./guides/databases.mdx)
+ - [Kubernetes Access](./guides/kubernetes.mdx) (*in Teleport v10.1*)
+ - [Application Access](./guides/applications.mdx) (*in Teleport v10.1*)
+   - Note: [AWS Console](../application-access/guides/aws-console.mdx) and API access is currently unsupported.
+ - [Teleport API Access](../api/introduction.mdx)
 
-- Machines can retrieve short-lived SSH certificates for CI/CD pipelines.
-- Machines can retrieve short-lived X.509 certificates for use with databases.
-  [Coming in Teleport 9.3](https://goteleport.com/docs/preview/upcoming-releases/#teleport-93).
-- Configure role-based access controls and locking for machines.
-- Capture access events in the audit log.
+These features are supported in Teleport Enterprise and Teleport Cloud.
+
+The following features are **not** yet supported by Machine ID:
+ - [Desktop Access](../desktop-access/introduction.mdx)
+ - [User Impersonation](../access-controls/guides/impersonation.mdx): Machine 
+   ID uses Role Impersonation which cannot be combined with User Impersonation
+ - Multifactor authentication like [WebAuthn](../access-controls/guides/webauthn.mdx) and [Passwordless](../access-controls/guides/passwordless.mdx)
+ - [AWS Console Access](../application-access/guides/aws-console.mdx)
 
 {
 /*
@@ -34,12 +43,12 @@ Let's create a bot and use the machine identity to connect to a server.
   controls
 >
   <source
-    src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.mp4"
+    src="../../img/database-access/dbaccessdemo.mp4"
     type="video/mp4"
   />
 
   <source
-    src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.webm"
+    src="../../img/database-access/dbaccessdemo.webm"
     type="video/webm"
   />
 
@@ -50,8 +59,14 @@ Let's create a bot and use the machine identity to connect to a server.
 
 ## Getting started
 
-<TileSet>
-  <Tile icon="wand" title="Getting started" href="./getting-started.mdx">
-    Getting started with Teleport Machine ID
-  </Tile>
-</TileSet>
+- [Getting started](./getting-started.mdx): Getting started with Teleport Machine ID
+- [Architecture](./architecture.mdx): A technical overview of how Machine ID works
+
+## Guides
+
+(!docs/pages/includes/machine-id/guides.mdx!)
+
+## FAQ & Troubleshooting
+
+Finally, check out [Frequently Asked Questions](./faq.mdx) and the 
+[troubleshooting guide](./faq.mdx) for common questions and issues.

@@ -13,6 +13,9 @@ resource "aws_acm_certificate" "cert" {
   lifecycle {
     create_before_destroy = true
   }
+  subject_alternative_names = [
+      "*.${var.route53_domain}"
+  ]
 }
 
 resource "aws_route53_record" "cert_validation" {

@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // Label describes label for webapp
@@ -48,6 +49,8 @@ type Server struct {
 	Addr string `json:"addr"`
 	// Labels is this server list of labels
 	Labels []Label `json:"tags"`
+	// SSHLogins is the list of logins this user can use on this server
+	SSHLogins []string `json:"sshLogins"`
 }
 
 // sortedLabels is a sort wrapper that sorts labels by name
@@ -66,7 +69,7 @@ func (s sortedLabels) Swap(i, j int) {
 }
 
 // MakeServers creates server objects for webapp
-func MakeServers(clusterName string, servers []types.Server) []Server {
+func MakeServers(clusterName string, servers []types.Server, userRoles services.RoleSet) []Server {
 	uiServers := []Server{}
 	for _, server := range servers {
 		uiLabels := []Label{}
@@ -88,6 +91,12 @@ func MakeServers(clusterName string, servers []types.Server) []Server {
 
 		sort.Sort(sortedLabels(uiLabels))
 
+		serverLogins := userRoles.EnumerateServerLogins(server)
+		sshLogins := serverLogins.Allowed()
+		if sshLogins == nil {
+			sshLogins = []string{}
+		}
+
 		uiServers = append(uiServers, Server{
 			ClusterName: clusterName,
 			Labels:      uiLabels,
@@ -95,6 +104,7 @@ func MakeServers(clusterName string, servers []types.Server) []Server {
 			Hostname:    server.GetHostname(),
 			Addr:        server.GetAddr(),
 			Tunnel:      server.GetUseTunnel(),
+			SSHLogins:   sshLogins,
 		})
 	}
 
@@ -140,6 +150,49 @@ func MakeKubeClusters(clusters []types.KubeCluster) []KubeCluster {
 	}
 
 	return uiKubeClusters
+}
+
+// ConnectionDiagnostic describes a connection diagnostic.
+type ConnectionDiagnostic struct {
+	// ID is the identifier of the connection diagnostic.
+	ID string `json:"id"`
+	// Success is whether the connection was successful
+	Success bool `json:"success"`
+	// Message is the diagnostic summary
+	Message string `json:"message"`
+	// Traces contains multiple checkpoints results
+	Traces []ConnectionDiagnosticTraceUI `json:"traces,omitempty"`
+}
+
+// ConnectionDiagnosticTraceUI describes a connection diagnostic trace using a UI representation.
+// This is required in order to have a more friendly representation of the enum fields - TraceType and Status.
+// They are converted into string instead of using the numbers (as they are represented in gRPC).
+type ConnectionDiagnosticTraceUI struct {
+	// TraceType as string
+	TraceType string `json:"traceType,omitempty"`
+	// Status as string
+	Status string `json:"status,omitempty"`
+	// Details of the trace
+	Details string `json:"details,omitempty"`
+	// Error in case of failure
+	Error string `json:"error,omitempty"`
+}
+
+// ConnectionDiagnosticTraceUIFromTypes converts a list of ConnectionDiagnosticTrace into its format for HTTP API.
+// This is mostly copying things around and converting the enum into a string value.
+func ConnectionDiagnosticTraceUIFromTypes(traces []*types.ConnectionDiagnosticTrace) []ConnectionDiagnosticTraceUI {
+	ret := make([]ConnectionDiagnosticTraceUI, 0)
+
+	for _, t := range traces {
+		ret = append(ret, ConnectionDiagnosticTraceUI{
+			TraceType: t.Type.String(),
+			Status:    t.Status.String(),
+			Details:   t.Details,
+			Error:     t.Error,
+		})
+	}
+
+	return ret
 }
 
 // Database describes a database server.

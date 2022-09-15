@@ -3,7 +3,7 @@ title: Getting Started With Access Controls
 description: Get started using Teleport Access Controls.
 ---
 
-In Teleport, any local, SSO, or robot user can assigned one or several roles.
+In Teleport, any local, SSO, or robot user can be assigned one or several roles.
 Roles govern access to databases, SSH servers, Kubernetes clusters, Windows
 desktops, and web apps.
 
@@ -80,11 +80,11 @@ users within your SSO solution to Teleport roles.
       # Change tele.example.com to your domain name
       redirect_url: https://tele.example.com:443/v1/webapi/github/callback
       # Map github teams to teleport roles
-      teams_to_logins:
+      teams_to_roles:
         - organization: octocats # GitHub organization name
           team: admin            # GitHub team name within that organization
           # map github admin team to Teleport's "access" role
-          logins: ["access"]
+          roles: ["access"]
     ```
 
     Create the `github` resource:
@@ -104,7 +104,7 @@ users within your SSO solution to Teleport roles.
   <Tabs>
   <TabItem label="SAML">
 
-  Follow our [SAML Okta Guide](../enterprise/sso/okta.mdx#configure-okta) to
+  Follow our [SAML Okta Guide](./sso/okta.mdx#configure-okta) to
   create a SAML application.
 
   Save the file below as `okta.yaml` and update the `acs` field.
@@ -123,17 +123,17 @@ users within your SSO solution to Teleport roles.
       <?xml !!! Make sure to shift all lines in XML descriptor
       with 4 spaces, otherwise things will not work
   ```
-  
+
   Create the `saml` resource:
 
   ```code
   $ tctl create okta.yaml
   ```
-    
+
   </TabItem>
   <TabItem label="OIDC">
 
-  Follow our [OIDC guides](../enterprise/sso/oidc.mdx#identity-providers) to
+  Follow our [OIDC guides](./sso/oidc.mdx#identity-providers) to
   create an OIDC application.
 
   Copy the YAML below to a file called `oidc.yaml` and edit the information to
@@ -173,7 +173,7 @@ spec:
     logins: ['readonly']
     # Assigns users with this role to the built-in Kubernetes group "view"
     kubernetes_groups: ["view"]
-    # Allow access to SSH nodes, Kubernetes clusters, apps or databases 
+    # Allow access to SSH nodes, Kubernetes clusters, apps or databases
     # labeled with "staging" or "test"
     node_labels:
       'env': ['staging', 'test']

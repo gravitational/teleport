@@ -21,6 +21,7 @@ package httplib
 import (
 	"encoding/json"
 	"errors"
+	"mime"
 	"net"
 	"net/http"
 	"net/url"
@@ -28,6 +29,7 @@ import (
 	"strconv"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -54,19 +56,13 @@ type ErrorWriter func(w http.ResponseWriter, err error)
 
 // MakeHandler returns a new httprouter.Handle func from a handler func
 func MakeHandler(fn HandlerFunc) httprouter.Handle {
-	return MakeTracingHandler(MakeHandlerWithErrorWriter(fn, trace.WriteError))
+	return MakeHandlerWithErrorWriter(fn, trace.WriteError)
 }
 
 // MakeTracingHandler returns a new httprouter.Handle func that wraps the provided handler func
 // with one that will add a tracing span for each request.
-func MakeTracingHandler(h httprouter.Handle) httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-		handler := otelhttp.NewHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			h(writer, request, p)
-		}), r.RequestURI)
-
-		handler.ServeHTTP(w, r)
-	}
+func MakeTracingHandler(h http.Handler, component string) http.Handler {
+	return otelhttp.NewHandler(h, component, otelhttp.WithSpanNameFormatter(tracing.HTTPHandlerFormatter))
 }
 
 // MakeHandlerWithErrorWriter returns a httprouter.Handle from the HandlerFunc,
@@ -127,6 +123,18 @@ func WithCSRFProtection(fn HandlerFunc) httprouter.Handle {
 // ReadJSON reads HTTP json request and unmarshals it
 // into passed interface{} obj
 func ReadJSON(r *http.Request, val interface{}) error {
+	// Check content type to mitigate CSRF attack.
+	contentType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil {
+		log.Warningf("Error parsing media type for reading JSON: %v", err)
+		return trace.BadParameter("invalid request")
+	}
+
+	if contentType != "application/json" {
+		log.Warningf("Invalid HTTP request header content-type %q for reading JSON", contentType)
+		return trace.BadParameter("invalid request")
+	}
+
 	data, err := utils.ReadAtMost(r.Body, teleport.MaxHTTPRequestSize)
 	if err != nil {
 		return trace.Wrap(err)

@@ -18,14 +18,18 @@ package clusters
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/auth"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 
 	"github.com/gravitational/trace"
 )
@@ -135,7 +139,7 @@ func (c *Cluster) SSOLogin(ctx context.Context, providerType, providerName strin
 		return trace.Wrap(err)
 	}
 
-	key, err := client.NewKey()
+	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -147,7 +151,7 @@ func (c *Cluster) SSOLogin(ctx context.Context, providerType, providerName strin
 	response, err := client.SSHAgentSSOLogin(ctx, client.SSHLoginSSO{
 		SSHLogin: client.SSHLogin{
 			ProxyAddr:         c.clusterClient.WebProxyAddr,
-			PubKey:            key.Pub,
+			PubKey:            key.MarshalSSHPublicKey(),
 			TTL:               c.clusterClient.KeyTTL,
 			Insecure:          c.clusterClient.InsecureSkipVerify,
 			Compatibility:     c.clusterClient.CertificateFormat,
@@ -170,7 +174,7 @@ func (c *Cluster) SSOLogin(ctx context.Context, providerType, providerName strin
 }
 
 func (c *Cluster) localMFALogin(ctx context.Context, user, password string) error {
-	key, err := client.NewKey()
+	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -178,7 +182,7 @@ func (c *Cluster) localMFALogin(ctx context.Context, user, password string) erro
 	response, err := client.SSHAgentMFALogin(ctx, client.SSHLoginMFA{
 		SSHLogin: client.SSHLogin{
 			ProxyAddr:         c.clusterClient.WebProxyAddr,
-			PubKey:            key.Pub,
+			PubKey:            key.MarshalSSHPublicKey(),
 			TTL:               c.clusterClient.KeyTTL,
 			Insecure:          c.clusterClient.InsecureSkipVerify,
 			Compatibility:     c.clusterClient.CertificateFormat,
@@ -196,11 +200,11 @@ func (c *Cluster) localMFALogin(ctx context.Context, user, password string) erro
 		return trace.Wrap(err)
 	}
 
-	return err
+	return nil
 }
 
 func (c *Cluster) localLogin(ctx context.Context, user, password, otpToken string) error {
-	key, err := client.NewKey()
+	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -208,7 +212,7 @@ func (c *Cluster) localLogin(ctx context.Context, user, password, otpToken strin
 	response, err := client.SSHAgentLogin(ctx, client.SSHLoginDirect{
 		SSHLogin: client.SSHLogin{
 			ProxyAddr:         c.clusterClient.WebProxyAddr,
-			PubKey:            key.Pub,
+			PubKey:            key.MarshalSSHPublicKey(),
 			TTL:               c.clusterClient.KeyTTL,
 			Insecure:          c.clusterClient.InsecureSkipVerify,
 			Compatibility:     c.clusterClient.CertificateFormat,
@@ -276,4 +280,128 @@ func (c *Cluster) processAuthResponse(ctx context.Context, key *client.Key, resp
 	c.status = *status
 
 	return nil
+}
+
+// PasswordlessLogin processes passwordless logins for this cluster.
+func (c *Cluster) PasswordlessLogin(ctx context.Context, stream api.TerminalService_LoginPasswordlessServer) error {
+	if _, err := c.clusterClient.Ping(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
+	key, err := client.GenerateRSAKey()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO(alex-kovoy): SiteName needs to be reset if trying to login to a cluster with
+	// existing profile for the first time (investigate why)
+	c.clusterClient.SiteName = ""
+
+	response, err := client.SSHAgentPasswordlessLogin(ctx, client.SSHLoginPasswordless{
+		SSHLogin: client.SSHLogin{
+			ProxyAddr:         c.clusterClient.WebProxyAddr,
+			PubKey:            key.MarshalSSHPublicKey(),
+			TTL:               c.clusterClient.KeyTTL,
+			Insecure:          c.clusterClient.InsecureSkipVerify,
+			Compatibility:     c.clusterClient.CertificateFormat,
+			RouteToCluster:    c.clusterClient.SiteName,
+			KubernetesCluster: c.clusterClient.KubernetesCluster,
+		},
+		AuthenticatorAttachment: c.clusterClient.AuthenticatorAttachment,
+		CustomPrompt:            newPwdlessLoginPrompt(ctx, stream),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := c.processAuthResponse(ctx, key, response); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// pwdlessLoginPrompt is a implementation for wancli.LoginPrompt for teleterm passwordless logins.
+type pwdlessLoginPrompt struct {
+	Stream api.TerminalService_LoginPasswordlessServer
+}
+
+func newPwdlessLoginPrompt(ctx context.Context, stream api.TerminalService_LoginPasswordlessServer) *pwdlessLoginPrompt {
+	return &pwdlessLoginPrompt{
+		Stream: stream,
+	}
+}
+
+// PromptPIN prompts the user for a PIN.
+func (p *pwdlessLoginPrompt) PromptPIN() (string, error) {
+	if err := p.Stream.Send(&api.LoginPasswordlessResponse{
+		Prompt: api.PasswordlessPrompt_PASSWORDLESS_PROMPT_PIN,
+	}); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	req, err := p.Stream.Recv()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	pinRes := req.GetPin()
+	if pinRes == nil || pinRes.GetPin() == "" {
+		return "", trace.BadParameter("pin is required")
+	}
+
+	return pinRes.GetPin(), nil
+}
+
+// PromptTouch prompts the user for a security key touch.
+func (p *pwdlessLoginPrompt) PromptTouch() error {
+	return trace.Wrap(p.Stream.Send(&api.LoginPasswordlessResponse{Prompt: api.PasswordlessPrompt_PASSWORDLESS_PROMPT_TAP}))
+}
+
+// PromptCredential prompts the user to select a login name in the list of logins.
+func (p *pwdlessLoginPrompt) PromptCredential(deviceCreds []*wancli.CredentialInfo) (*wancli.CredentialInfo, error) {
+	// Shouldn't happen, but let's check just in case.
+	if len(deviceCreds) == 0 {
+		return nil, errors.New("attempted to prompt credential with empty credentials")
+	}
+
+	// Sorts in place.
+	sort.Slice(deviceCreds, func(i, j int) bool {
+		c1 := deviceCreds[i]
+		c2 := deviceCreds[j]
+		return c1.User.Name < c2.User.Name
+	})
+
+	// Convert to grpc message.
+	creds := make([]*api.CredentialInfo, len(deviceCreds))
+	for i, cred := range deviceCreds {
+		creds[i] = &api.CredentialInfo{
+			Username: cred.User.Name,
+		}
+	}
+
+	if err := p.Stream.Send(&api.LoginPasswordlessResponse{
+		Prompt:      api.PasswordlessPrompt_PASSWORDLESS_PROMPT_CREDENTIAL,
+		Credentials: creds,
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req, err := p.Stream.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	credRes := req.GetCredential()
+	if credRes == nil {
+		return nil, trace.BadParameter("login name must be selected")
+	}
+
+	// Test for out of range index values.
+	selectedIndex := credRes.GetIndex()
+	if selectedIndex < 0 || selectedIndex > int64(len(creds))-1 {
+		return nil, trace.BadParameter("invalid login name")
+	}
+
+	return deviceCreds[selectedIndex], nil
 }

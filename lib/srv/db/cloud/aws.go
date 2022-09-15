@@ -21,8 +21,8 @@ import (
 	"encoding/json"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/iam"
@@ -37,7 +37,7 @@ import (
 // awsConfig is the config for the client that configures IAM for AWS databases.
 type awsConfig struct {
 	// clients is an interface for creating AWS clients.
-	clients common.CloudClients
+	clients cloud.Clients
 	// identity is AWS identity this database agent is running as.
 	identity awslib.Identity
 	// database is the database instance to configure.
@@ -153,7 +153,7 @@ func (r *awsClient) enableIAMAuth(ctx context.Context) error {
 			EnableIAMDatabaseAuthentication: aws.Bool(true),
 			ApplyImmediately:                aws.Bool(true),
 		})
-		return common.ConvertError(err)
+		return awslib.ConvertIAMError(err)
 	}
 	if r.cfg.database.GetAWS().RDS.InstanceID != "" {
 		_, err = r.rds.ModifyDBInstanceWithContext(ctx, &rds.ModifyDBInstanceInput{
@@ -161,7 +161,7 @@ func (r *awsClient) enableIAMAuth(ctx context.Context) error {
 			EnableIAMDatabaseAuthentication: aws.Bool(true),
 			ApplyImmediately:                aws.Bool(true),
 		})
-		return common.ConvertError(err)
+		return awslib.ConvertIAMError(err)
 	}
 	return trace.BadParameter("no RDS cluster ID or instance ID for %v", r.cfg.database)
 }
@@ -229,10 +229,10 @@ func (r *awsClient) getIAMPolicy(ctx context.Context) (*awslib.PolicyDocument, e
 			RoleName:   aws.String(r.cfg.identity.GetName()),
 		})
 		if err != nil {
-			if trace.IsNotFound(common.ConvertError(err)) {
+			if trace.IsNotFound(awslib.ConvertIAMError(err)) {
 				return awslib.NewPolicyDocument(), nil
 			}
-			return nil, common.ConvertError(err)
+			return nil, awslib.ConvertIAMError(err)
 		}
 		policyDocument = aws.StringValue(out.PolicyDocument)
 	case awslib.User:
@@ -241,10 +241,10 @@ func (r *awsClient) getIAMPolicy(ctx context.Context) (*awslib.PolicyDocument, e
 			UserName:   aws.String(r.cfg.identity.GetName()),
 		})
 		if err != nil {
-			if trace.IsNotFound(common.ConvertError(err)) {
+			if trace.IsNotFound(awslib.ConvertIAMError(err)) {
 				return awslib.NewPolicyDocument(), nil
 			}
-			return nil, common.ConvertError(err)
+			return nil, awslib.ConvertIAMError(err)
 		}
 		policyDocument = aws.StringValue(out.PolicyDocument)
 	default:
@@ -276,7 +276,7 @@ func (r *awsClient) updateIAMPolicy(ctx context.Context, policy *awslib.PolicyDo
 	default:
 		return trace.BadParameter("can only update policies for roles or users, got %v", r.cfg.identity)
 	}
-	return common.ConvertError(err)
+	return awslib.ConvertIAMError(err)
 }
 
 // detachIAMPolicy detaches IAM access policy from the identity this agent is running as.
@@ -297,5 +297,5 @@ func (r *awsClient) detachIAMPolicy(ctx context.Context) error {
 	default:
 		return trace.BadParameter("can only detach policies from roles or users, got %v", r.cfg.identity)
 	}
-	return common.ConvertError(err)
+	return awslib.ConvertIAMError(err)
 }

@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -44,12 +45,34 @@ func (a *Server) checkTokenJoinRequestCommon(ctx context.Context, req *types.Reg
 	// make sure the token is valid
 	provisionToken, err := a.ValidateToken(ctx, req.Token)
 	if err != nil {
-		log.Warningf("%q [%v] can not join the cluster with role %s, token error: %v", req.NodeName, req.HostID, req.Role, err)
-		return nil, trace.AccessDenied(fmt.Sprintf("%q [%v] can not join the cluster with role %s, the token is not valid", req.NodeName, req.HostID, req.Role))
+		log.Warningf("%q can not join the cluster with role %s, token error: %v", req.NodeName, req.Role, err)
+		msg := "the token is not valid" // default to most generic message
+		if strings.Contains(err.Error(), TokenExpiredOrNotFound) {
+			// propagate ExpiredOrNotFound message so that clients can attempt
+			// assertion-based fallback if appropriate.
+			msg = TokenExpiredOrNotFound
+		}
+		return nil, trace.AccessDenied("%q can not join the cluster with role %q, %s", req.NodeName, req.Role, msg)
+	}
+
+	// instance certs can be requested by any agent that has at least one local service role (e.g. proxy, node, etc).
+	if req.Role == types.RoleInstance {
+		hasLocalServiceRole := false
+		for _, role := range provisionToken.GetRoles() {
+			if role.IsLocalService() {
+				hasLocalServiceRole = true
+				break
+			}
+		}
+		if !hasLocalServiceRole {
+			msg := fmt.Sprintf("%q [%v] cannot requisition instance certs (token contains no local service roles)", req.NodeName, req.HostID)
+			log.Warn(msg)
+			return nil, trace.AccessDenied(msg)
+		}
 	}
 
 	// make sure the caller is requesting a role allowed by the token
-	if !provisionToken.GetRoles().Include(req.Role) {
+	if !provisionToken.GetRoles().Include(req.Role) && req.Role != types.RoleInstance {
 		msg := fmt.Sprintf("node %q [%v] can not join the cluster, the token does not allow %q role", req.NodeName, req.HostID, req.Role)
 		log.Warn(msg)
 		return nil, trace.BadParameter(msg)
@@ -147,6 +170,20 @@ func (a *Server) generateCerts(ctx context.Context, provisionToken types.Provisi
 		log.Infof("Bot %q has joined the cluster.", botName)
 		return certs, nil
 	}
+
+	// instance certs include an additional field that specifies the list of
+	// all services authorized by the token.
+	var systemRoles []types.SystemRole
+	if req.Role == types.RoleInstance {
+		for _, r := range provisionToken.GetRoles() {
+			if r.IsLocalService() {
+				systemRoles = append(systemRoles, r)
+			} else {
+				log.Warnf("Omitting non-service system role from instance cert: %q", r)
+			}
+		}
+	}
+
 	// generate and return host certificate and keys
 	certs, err := a.GenerateHostCerts(ctx,
 		&proto.HostCertsRequest{
@@ -158,24 +195,11 @@ func (a *Server) generateCerts(ctx context.Context, provisionToken types.Provisi
 			PublicSSHKey:         req.PublicSSHKey,
 			RemoteAddr:           req.RemoteAddr,
 			DNSNames:             req.DNSNames,
+			SystemRoles:          systemRoles,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	log.Infof("Node %q [%v] has joined the cluster.", req.NodeName, req.HostID)
 	return certs, nil
-}
-
-func (a *Server) RegisterNewAuthServer(ctx context.Context, token string) error {
-	tok, err := a.GetToken(ctx, token)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if !tok.GetRoles().Include(types.RoleAuth) {
-		return trace.AccessDenied("role does not match")
-	}
-	if err := a.DeleteToken(ctx, token); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }

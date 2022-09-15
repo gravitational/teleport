@@ -145,7 +145,7 @@ func TestRootUsernameLimit(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// upack holds all ssh signing artefacts needed for signing and checking user keys
+// upack holds all ssh signing artifacts needed for signing and checking user keys
 type upack struct {
 	// key is a raw private user key
 	key []byte
@@ -268,7 +268,6 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(s.nodeClient),
 		regular.SetShell("/bin/sh"),
-		regular.SetSessionServer(s.nodeClient),
 		regular.SetPAMConfig(&pam.Config{Enabled: false}),
 		regular.SetLabels(
 			map[string]string{"foo": "bar"},

@@ -75,7 +75,7 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	return listResourcesGetResponse{
-		Items:      ui.MakeDatabases(h.auth.clusterName, types.DeduplicateDatabases(databases)),
+		Items:      ui.MakeDatabases(h.auth.clusterName, databases),
 		StartKey:   resp.NextKey,
 		TotalCount: resp.TotalCount,
 	}, nil
@@ -97,7 +97,6 @@ func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p h
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	windowsDesktops = types.DeduplicateDesktops(windowsDesktops)
 
 	return listResourcesGetResponse{
 		Items:      ui.MakeDesktops(windowsDesktops),

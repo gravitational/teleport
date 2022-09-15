@@ -18,6 +18,7 @@ package host
 
 import (
 	"bytes"
+	"errors"
 	"os/exec"
 	"strings"
 
@@ -116,4 +117,23 @@ func GetAllUsers() ([]string, int, error) {
 		}
 	}
 	return users, -1, nil
+}
+
+var ErrInvalidSudoers = errors.New("visudo: invalid sudoers file")
+
+// CheckSudoers tests a suders file using `visudo`. The contents
+// are written to the process via stdin pipe.
+func CheckSudoers(contents []byte) error {
+	visudoBin, err := exec.LookPath("visudo")
+	if err != nil {
+		return trace.Wrap(err, "cant find visudo binary")
+	}
+	cmd := exec.Command(visudoBin, "--check", "--file", "-")
+
+	cmd.Stdin = bytes.NewBuffer(contents)
+	output, err := cmd.Output()
+	if cmd.ProcessState.ExitCode() != 0 {
+		return trace.WrapWithMessage(ErrInvalidSudoers, string(output))
+	}
+	return trace.Wrap(err)
 }

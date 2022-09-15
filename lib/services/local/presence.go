@@ -52,7 +52,7 @@ type backendItemToResourceFunc func(item backend.Item) (types.ResourceWithLabels
 func NewPresenceService(b backend.Backend) *PresenceService {
 	return &PresenceService{
 		log:     logrus.WithFields(logrus.Fields{trace.Component: "Presence"}),
-		jitter:  utils.NewJitter(),
+		jitter:  utils.NewFullJitter(),
 		Backend: b,
 	}
 }
@@ -689,10 +689,10 @@ func (s *PresenceService) DeleteAllRemoteClusters() error {
 }
 
 // this combination of backoff parameters leads to worst-case total time spent
-// in backoff between 1200ms and 2400ms depending on jitter.  tests are in
+// in backoff between 1ms and 2000ms depending on jitter.  tests are in
 // place to verify that this is sufficient to resolve a 20-lease contention
 // event, which is worse than should ever occur in practice.
-const baseBackoff = time.Millisecond * 300
+const baseBackoff = time.Millisecond * 400
 const leaseRetryAttempts int64 = 6
 
 // AcquireSemaphore attempts to acquire the specified semaphore.  AcquireSemaphore will automatically handle
@@ -1038,6 +1038,7 @@ func (s *PresenceService) GetKubeServices(ctx context.Context) ([]types.Server, 
 }
 
 // DeleteKubeService deletes a named kubernetes service.
+// DELETE IN 13.0. Deprecated, use DeleteKubernetesServer.
 func (s *PresenceService) DeleteKubeService(ctx context.Context, name string) error {
 	if name == "" {
 		return trace.BadParameter("no name specified for kubernetes service deletion")
@@ -1046,12 +1047,121 @@ func (s *PresenceService) DeleteKubeService(ctx context.Context, name string) er
 }
 
 // DeleteAllKubeServices deletes all registered kubernetes services.
+// DELETE IN 13.0. Deprecated, use DeleteAllKubernetesServers.
 func (s *PresenceService) DeleteAllKubeServices(ctx context.Context) error {
 	return trace.Wrap(s.DeleteRange(
 		ctx,
 		backend.Key(kubeServicesPrefix),
 		backend.RangeEnd(backend.Key(kubeServicesPrefix)),
 	))
+}
+
+// UpsertKubernetesServer registers an kubernetes server.
+func (s *PresenceService) UpsertKubernetesServer(ctx context.Context, server types.KubeServer) (*types.KeepAlive, error) {
+	if err := server.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalKubeServer(server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Since a kube server represents a single proxied cluster, there may
+	// be multiple kubernetes servers on a single host, so they are stored under
+	// the following path in the backend:
+	//   /kubeServers/<host-uuid>/<name>
+	lease, err := s.Put(ctx, backend.Item{
+		Key: backend.Key(kubeServersPrefix,
+			server.GetHostID(),
+			server.GetName()),
+		Value:   value,
+		Expires: server.Expiry(),
+		ID:      server.GetResourceID(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if server.Expiry().IsZero() {
+		return &types.KeepAlive{}, nil
+	}
+	return &types.KeepAlive{
+		Type:      types.KeepAlive_KUBERNETES,
+		LeaseID:   lease.ID,
+		Name:      server.GetName(),
+		Namespace: server.GetNamespace(),
+		HostID:    server.GetHostID(),
+		Expires:   server.Expiry(),
+	}, nil
+}
+
+// DeleteKubernetesServer removes specified kubernetes server.
+func (s *PresenceService) DeleteKubernetesServer(ctx context.Context, hostID, name string) error {
+	if name == "" {
+		return trace.BadParameter("no name specified for kubernetes server deletion")
+	}
+	if hostID == "" {
+		return trace.BadParameter("no hostID specified for kubernetes server deletion")
+	}
+	key := backend.Key(kubeServersPrefix, hostID, name)
+	return s.Delete(ctx, key)
+}
+
+// DeleteAllKubernetesServers removes all registered kubernetes servers.
+func (s *PresenceService) DeleteAllKubernetesServers(ctx context.Context) error {
+	startKey := backend.Key(kubeServersPrefix)
+	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
+}
+
+// GetKubernetesServers returns all registered kubernetes servers.
+func (s *PresenceService) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
+	servers, err := s.getKubernetesServers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	legacyServers, err := s.getKubernetesServersLegacy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return append(servers, legacyServers...), nil
+}
+
+func (s *PresenceService) getKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
+	startKey := backend.Key(kubeServersPrefix)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers := make([]types.KubeServer, len(result.Items))
+	for i, item := range result.Items {
+		server, err := services.UnmarshalKubeServer(
+			item.Value,
+			services.WithResourceID(item.ID),
+			services.WithExpires(item.Expires))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		servers[i] = server
+	}
+	return servers, nil
+}
+
+// getKubernetesServersLegacy fetches legacy kubernetes servers that are
+// represented by types.Server and adapts them to the types.KubeServer type.
+//
+// DELETE IN 13.0.
+func (s *PresenceService) getKubernetesServersLegacy(ctx context.Context) ([]types.KubeServer, error) {
+	legacyServers, err := s.GetKubeServices(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var servers []types.KubeServer
+	for _, legacyServer := range legacyServers {
+		kubeServers, err := types.NewKubeServersV3FromServer(legacyServer)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		servers = append(servers, kubeServers...)
+	}
+	return servers, nil
 }
 
 // GetDatabaseServers returns all registered database proxy servers.
@@ -1348,7 +1458,11 @@ func (s *PresenceService) KeepAliveServer(ctx context.Context, h types.KeepAlive
 	case constants.KeepAliveWindowsDesktopService:
 		key = backend.Key(windowsDesktopServicesPrefix, h.Name)
 	case constants.KeepAliveKube:
-		key = backend.Key(kubeServicesPrefix, h.Name)
+		if h.HostID != "" {
+			key = backend.Key(kubeServersPrefix, h.HostID, h.Name)
+		} else { // DELETE IN 13.0. Legacy kube server is heartbeating back.
+			key = backend.Key(kubeServicesPrefix, h.Name)
+		}
 	default:
 		return trace.BadParameter("unknown keep-alive type %q", h.GetType())
 	}
@@ -1439,7 +1553,7 @@ func (s *PresenceService) DeleteWindowsDesktopService(ctx context.Context, name 
 
 // DeleteAllWindowsDesktopServices removes all registered Windows desktop services.
 func (s *PresenceService) DeleteAllWindowsDesktopServices(ctx context.Context) error {
-	startKey := backend.Key(windowsDesktopServicesPrefix)
+	startKey := backend.Key(windowsDesktopServicesPrefix, "")
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 
@@ -1502,6 +1616,9 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	case types.KindKubeService:
 		keyPrefix = []string{kubeServicesPrefix}
 		unmarshalItemFunc = backendItemToServer(types.KindKubeService)
+	case types.KindKubeServer:
+		keyPrefix = []string{kubeServersPrefix}
+		unmarshalItemFunc = backendItemToKubernetesServer
 	default:
 		return nil, trace.NotImplemented("%s not implemented at ListResources", req.ResourceType)
 	}
@@ -1530,7 +1647,7 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 				return false, trace.Wrap(err)
 			}
 
-			switch match, err := services.MatchResourceByFilters(resource, filter); {
+			switch match, err := services.MatchResourceByFilters(resource, filter, nil /* ignore dup matches */); {
 			case err != nil:
 				return false, trace.Wrap(err)
 			case match:
@@ -1601,6 +1718,36 @@ func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.L
 		}
 		resources = servers.AsResources()
 
+	case types.KindKubernetesCluster:
+		// GetKubernetesServers returns KubernetesServersV3 and legacy kubernetes services of type ServerV2
+		kubeServers, err := s.GetKubernetesServers(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Extract kube clusters into its own list.
+		var clusters []types.KubeCluster
+		for _, svc := range kubeServers {
+			clusters = append(clusters, svc.GetCluster())
+		}
+
+		sortedClusters := types.KubeClusters(clusters)
+		if err := sortedClusters.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = sortedClusters.AsResources()
+	case types.KindKubeServer:
+		servers, err := s.GetKubernetesServers(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		kubeServers := types.KubeServers(servers)
+		if err := kubeServers.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = kubeServers.AsResources()
+
 	default:
 		return nil, trace.NotImplemented("resource type %q is not supported for ListResourcesWithSort", req.ResourceType)
 	}
@@ -1609,37 +1756,13 @@ func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.L
 }
 
 // FakePaginate is used when we are working with an entire list of resources upfront but still requires pagination.
+// While applying filters, it will also deduplicate matches found.
 func FakePaginate(resources []types.ResourceWithLabels, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// filterAll is a flag to continue matching even after we found limit,
-	// to determine the total count.
-	filterAll := req.NeedTotalCount
-
-	// Trim resources that precede start key, except when total count
-	// was requested, then we have to filter all to get accurate count.
-	pageStart := 0
-	if req.StartKey != "" {
-		for i, resource := range resources {
-			if backend.GetPaginationKey(resource) == req.StartKey {
-				pageStart = i
-				break
-			}
-		}
-
-		if !filterAll {
-			resources = resources[pageStart:]
-		}
-	}
-
-	// Iterate and filter resources, finding match up to limit+1 (+1 to determine next key),
-	// and if total count is not required, we halt matching when we reach page limit, else
-	// we continue to match (but not include into list of filtered) to determine the total count.
-	matchCount := 0
 	limit := int(req.Limit)
-	var nextKey string
 	var filtered []types.ResourceWithLabels
 	filter := services.MatchResourceFilter{
 		ResourceKind:        req.ResourceType,
@@ -1648,40 +1771,45 @@ func FakePaginate(resources []types.ResourceWithLabels, req proto.ListResourcesR
 		PredicateExpression: req.PredicateExpression,
 	}
 
-	for currIndex, resource := range resources {
-		switch match, err := services.MatchResourceByFilters(resource, filter); {
+	// Iterate and filter every resource, deduplicating while matching.
+	seenResourceMap := make(map[services.ResourceSeenKey]struct{})
+	for _, resource := range resources {
+		switch match, err := services.MatchResourceByFilters(resource, filter, seenResourceMap); {
 		case err != nil:
 			return nil, trace.Wrap(err)
 		case !match:
 			continue
 		}
 
-		matchCount++
-		if filterAll && nextKey != "" {
-			continue
-		}
-
-		if len(filtered) == limit {
-			nextKey = backend.GetPaginationKey(resource)
-			if !filterAll {
-				break
-			}
-			continue
-		}
-
-		if !filterAll || currIndex >= pageStart {
-			filtered = append(filtered, resource)
-		}
+		filtered = append(filtered, resource)
 	}
 
-	if !filterAll {
-		matchCount = 0
+	totalCount := len(filtered)
+	pageStart := 0
+	pageEnd := limit
+
+	// Trim resources that precede start key.
+	if req.StartKey != "" {
+		for i, resource := range filtered {
+			if backend.GetPaginationKey(resource) == req.StartKey {
+				pageStart = i
+				break
+			}
+		}
+		pageEnd = limit + pageStart
+	}
+
+	var nextKey string
+	if pageEnd >= len(filtered) {
+		pageEnd = len(filtered)
+	} else {
+		nextKey = backend.GetPaginationKey(filtered[pageEnd])
 	}
 
 	return &types.ListResourcesResponse{
-		Resources:  filtered,
+		Resources:  filtered[pageStart:pageEnd],
 		NextKey:    nextKey,
-		TotalCount: matchCount,
+		TotalCount: totalCount,
 	}, nil
 }
 
@@ -1699,6 +1827,16 @@ func backendItemToDatabaseServer(item backend.Item) (types.ResourceWithLabels, e
 // `types.AppServer`, returning it as a `types.Resource`.
 func backendItemToApplicationServer(item backend.Item) (types.ResourceWithLabels, error) {
 	return services.UnmarshalAppServer(
+		item.Value,
+		services.WithResourceID(item.ID),
+		services.WithExpires(item.Expires),
+	)
+}
+
+// backendItemToKubernetesServer unmarshals `backend.Item` into a
+// `types.KubeServer`, returning it as a `types.Resource`.
+func backendItemToKubernetesServer(item backend.Item) (types.ResourceWithLabels, error) {
+	return services.UnmarshalKubeServer(
 		item.Value,
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),
@@ -1729,6 +1867,7 @@ const (
 	serversPrefix                = "servers"
 	dbServersPrefix              = "databaseServers"
 	appServersPrefix             = "appServers"
+	kubeServersPrefix            = "kubeServers"
 	namespacesPrefix             = "namespaces"
 	authServersPrefix            = "authservers"
 	proxiesPrefix                = "proxies"
