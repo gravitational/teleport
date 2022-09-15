@@ -377,7 +377,7 @@ func TestServiceInitExternalLog(t *testing.T) {
 				AuditEventsURI: tt.events,
 			})
 			require.NoError(t, err)
-			loggers, err := initAuthExternalAuditLog(context.Background(), auditConfig, backend, nil /* tracingProvider */)
+			loggers, err := initAuthExternalAuditLog(context.Background(), auditConfig, backend, nil /* tracingProvider */, logrus.New().WithField("test", "TestServiceInitExternalLog"))
 			if tt.isErr {
 				require.Error(t, err)
 			} else {
@@ -428,7 +428,7 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 				AuditSessionsURI: "s3://testbucket/sessions-rec",
 			})
 			require.NoError(t, err)
-			log, err := initAuthExternalAuditLog(context.Background(), auditConfig, backend, nil /* tracingProvider */)
+			log, err := initAuthExternalAuditLog(context.Background(), auditConfig, backend, nil /* tracingProvider */, logrus.New().WithField("test", "TestAthenaAuditLogSetup"))
 			tt.wantFn(t, log, err)
 		})
 	}
