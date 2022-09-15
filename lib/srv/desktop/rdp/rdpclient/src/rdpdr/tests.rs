@@ -534,7 +534,7 @@ fn test_scard_ioctl_listreadersw(c: &mut Client) {
     );
 }
 
-fn test_scard_ioctl_getdevicetypeid(c: &mut Client) {
+fn test_scard_ioctl_getdevicetypeid(c: &mut Client, context_value: u32) {
     test_payload_in_to_response_out(
         c,
         PayloadIn {
@@ -563,7 +563,7 @@ fn test_scard_ioctl_getdevicetypeid(c: &mut Client) {
             scard_ctl: Some(Box::new(GetDeviceTypeId_Call {
                 context: Context {
                     length: 4,
-                    value: 2,
+                    value: context_value,
                 },
                 reader_ptr: 131076,
                 reader_name: "Teleport".to_string(),
@@ -587,7 +587,7 @@ fn test_scard_ioctl_getdevicetypeid(c: &mut Client) {
     );
 }
 
-fn test_scard_ioctl_releasecontext(c: &mut Client) {
+fn test_scard_ioctl_releasecontext(c: &mut Client, context_value: u32) {
     test_payload_in_to_response_out(
         c,
         PayloadIn {
@@ -616,7 +616,7 @@ fn test_scard_ioctl_releasecontext(c: &mut Client) {
             scard_ctl: Some(Box::new(Context_Call {
                 context: Context {
                     length: 4,
-                    value: 2,
+                    value: context_value,
                 },
             })),
         },
@@ -639,6 +639,7 @@ fn test_scard_ioctl_releasecontext(c: &mut Client) {
 
 fn test_scard_ioctl_getstatuschangew(
     c: &mut Client,
+    context_value: u32,
     states: Vec<ReaderState>,
     responses_out: ResponseOut,
 ) {
@@ -670,7 +671,7 @@ fn test_scard_ioctl_getstatuschangew(
             scard_ctl: Some(Box::new(GetStatusChange_Call {
                 context: Context {
                     length: 4,
-                    value: 1,
+                    value: context_value,
                 },
                 timeout: 4294967295,
                 states_ptr_length: 2,
@@ -690,14 +691,25 @@ fn test_smartcard_initialization() {
     test_handle_server_capability(&mut c);
     test_handle_client_id_confirm(&mut c);
     test_handle_device_reply(&mut c);
+
+    // scard.log 25-32
     test_scard_ioctl_accessstartedevent(&mut c);
+    // scard.log 36-42
     test_scard_ioctl_establishcontext(&mut c, 0, 1);
+    // scard.log 43-49
     test_scard_ioctl_listreadersw(&mut c);
+    // scard.log 50-56
+    test_scard_ioctl_getdevicetypeid(&mut c, 1);
+    // scard.log 57-63
     test_scard_ioctl_establishcontext(&mut c, 0, 2);
-    test_scard_ioctl_getdevicetypeid(&mut c);
-    test_scard_ioctl_releasecontext(&mut c);
+    // scard.log 64-70
+    test_scard_ioctl_getdevicetypeid(&mut c, 2);
+    // scard.log 71-77
+    test_scard_ioctl_releasecontext(&mut c, 2);
+    // scard.log 78-84
     test_scard_ioctl_getstatuschangew(
         &mut c,
+        1,
         vec![
             ReaderState {
                 reader: "\\\\?PnP?\\Notification".to_string(),
@@ -738,8 +750,10 @@ fn test_smartcard_initialization() {
             }),
         )],
     );
+    // scard.log 85-90
     test_scard_ioctl_getstatuschangew(
         &mut c,
+        1,
         vec![
             ReaderState {
                 reader: "\\\\?PnP?\\Notification".to_string(),
@@ -769,6 +783,6 @@ fn test_smartcard_initialization() {
         ],
         vec![],
     );
+    // scard.log 91-97
     test_scard_ioctl_establishcontext(&mut c, 1, 3);
-    // TODO(isaiah): the remainder of the initialization sequence
 }
