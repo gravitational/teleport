@@ -957,8 +957,8 @@ fn encode_multistring_ascii(items: &[String]) -> RdpResult<Vec<u8>> {
 
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
-struct Context_Call {
-    context: Context,
+pub(crate) struct Context_Call {
+    pub context: Context,
 }
 
 impl Context_Call {
@@ -970,6 +970,21 @@ impl Context_Call {
         let mut context = Context::decode_ptr(payload, &mut index)?;
         context.decode_value(payload)?;
         Ok(Self { context })
+    }
+}
+
+impl Encode for Context_Call {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+
+        w.extend(RPCEStreamHeader::new().encode()?);
+        RPCETypeHeader::new(0).encode(&mut w)?;
+
+        let mut index = 0;
+        self.context.encode_ptr(&mut index, &mut w)?;
+        self.context.encode_value(&mut w)?;
+
+        Ok(w)
     }
 }
 

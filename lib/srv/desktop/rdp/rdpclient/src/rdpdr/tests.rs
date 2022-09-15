@@ -14,8 +14,8 @@
 
 use super::{
     scard::{
-        Context, EstablishContext_Call, GetDeviceTypeId_Call, IoctlCode, ListReaders_Call,
-        ScardAccessStartedEvent_Call, Scope,
+        Context, Context_Call, EstablishContext_Call, GetDeviceTypeId_Call, IoctlCode,
+        ListReaders_Call, ScardAccessStartedEvent_Call, Scope,
     },
     *,
 };
@@ -493,7 +493,6 @@ fn test_scard_ioctl_listreadersw(c: &mut Client) {
 }
 
 fn test_scard_ioctl_getdevicetypeid(c: &mut Client) {
-    init_logger();
     test_payload_in_to_response_out(
         c,
         PayloadIn {
@@ -546,6 +545,56 @@ fn test_scard_ioctl_getdevicetypeid(c: &mut Client) {
     );
 }
 
+fn test_scard_ioctl_releasecontext(c: &mut Client) {
+    test_payload_in_to_response_out(
+        c,
+        PayloadIn {
+            channel_pdu_header: ChannelPDUHeader {
+                length: 88,
+                flags: ChannelPDUFlags::CHANNEL_FLAG_FIRST
+                    | ChannelPDUFlags::CHANNEL_FLAG_LAST
+                    | ChannelPDUFlags::CHANNEL_FLAG_ONLY,
+            },
+            shared_header: SharedHeader {
+                component: Component::RDPDR_CTYP_CORE,
+                packet_id: PacketId::PAKID_CORE_DEVICE_IOREQUEST,
+            },
+            request: Box::new(DeviceControlRequest {
+                header: DeviceIoRequest {
+                    device_id: 1,
+                    file_id: 1,
+                    completion_id: 0,
+                    major_function: MajorFunction::IRP_MJ_DEVICE_CONTROL,
+                    minor_function: MinorFunction::IRP_MN_NONE,
+                },
+                output_buffer_length: 2048,
+                input_buffer_length: 32,
+                io_control_code: IoctlCode::SCARD_IOCTL_RELEASECONTEXT,
+            }),
+            scard_ctl: Some(Box::new(Context_Call {
+                context: Context {
+                    length: 4,
+                    value: 2,
+                },
+            })),
+        },
+        vec![(
+            PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
+            Box::new(DeviceControlResponse {
+                header: DeviceIoResponse {
+                    device_id: 1,
+                    completion_id: 0,
+                    io_status: 0,
+                },
+                output_buffer_length: 24,
+                output_buffer: vec![
+                    1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ],
+            }),
+        )],
+    );
+}
+
 #[test]
 fn test_smartcard_initialization() {
     let mut c = client();
@@ -570,5 +619,6 @@ fn test_smartcard_initialization() {
         ],
     );
     test_scard_ioctl_getdevicetypeid(&mut c);
+    test_scard_ioctl_releasecontext(&mut c)
     // TODO(isaiah): the remainder of the initialization sequence
 }
