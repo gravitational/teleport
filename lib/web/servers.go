@@ -105,6 +105,32 @@ func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p h
 	}, nil
 }
 
+// clusterDesktopServicesGet returns a list of desktops in a form the UI can present.
+func (h *Handler) clusterDesktopServicesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	// Get a client to the Auth Server with the logged in user's identity. The
+	// identity of the logged in user is used to fetch the list of nodes.
+	clt, err := ctx.GetUserClient(site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := listResources(clt, r, types.KindWindowsDesktopService)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	desktopServices, err := types.ResourcesWithLabels(resp.Resources).AsWindowsDesktopServices()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return listResourcesGetResponse{
+		Items:      ui.MakeDesktopServices(desktopServices),
+		StartKey:   resp.NextKey,
+		TotalCount: resp.TotalCount,
+	}, nil
+}
+
 // getDesktopHandle returns a desktop.
 func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	clt, err := ctx.GetUserClient(site)

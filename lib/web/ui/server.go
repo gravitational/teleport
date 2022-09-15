@@ -294,3 +294,52 @@ func MakeDesktops(windowsDesktops []types.WindowsDesktop) []Desktop {
 
 	return uiDesktops
 }
+
+// DesktopService describes a desktop to pass to the ui.
+type DesktopService struct {
+	// Hostname is hostname of the Windows Desktop Service.
+	Hostname string `json:"hostname"`
+	// Addr is the network address the Windows Desktop Service can be reached at.
+	Addr string `json:"addr"`
+	// Labels is a map of static and dynamic labels associated with a desktop.
+	Labels []Label `json:"labels"`
+}
+
+// MakeDesktop converts a desktop from its API form to a type the UI can display.
+func MakeDesktopService(desktopService types.WindowsDesktopService) DesktopService {
+	// stripRdpPort strips the default rdp port from an ip address since it is unimportant to display
+	stripRdpPort := func(addr string) string {
+		splitAddr := strings.Split(addr, ":")
+		if len(splitAddr) > 1 && splitAddr[1] == strconv.Itoa(defaults.RDPListenPort) {
+			return splitAddr[0]
+		}
+		return addr
+	}
+	uiLabels := []Label{}
+
+	for name, value := range desktopService.GetAllLabels() {
+		uiLabels = append(uiLabels, Label{
+			Name:  name,
+			Value: value,
+		})
+	}
+
+	sort.Sort(sortedLabels(uiLabels))
+
+	return DesktopService{
+		Hostname: desktopService.GetHostname(),
+		Addr:     stripRdpPort(desktopService.GetAddr()),
+		Labels:   uiLabels,
+	}
+}
+
+// MakeDesktopServices converts desktops from their API form to a type the UI can display.
+func MakeDesktopServices(windowsDesktopServices []types.WindowsDesktopService) []DesktopService {
+	desktopServices := make([]DesktopService, 0, len(windowsDesktopServices))
+
+	for _, desktopService := range windowsDesktopServices {
+		desktopServices = append(desktopServices, MakeDesktopService(desktopService))
+	}
+
+	return desktopServices
+}
