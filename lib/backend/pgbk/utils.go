@@ -17,6 +17,12 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 )
 
+const (
+	// MaxDatabaseNameLength is the maximum PostgreSQL identifier length.
+	// https://www.postgresql.org/docs/14/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS
+	MaxDatabaseNameLength = 63
+)
+
 // connectPostgres will open a single connection to the "postgres" database in
 // the database cluster specified in poolConfig.
 func connectPostgres(ctx context.Context, poolConfig *pgxpool.Config) (*pgx.Conn, error) {
@@ -88,4 +94,23 @@ func newRev() pgtype.UUID {
 		Bytes: uuid.New(),
 		Valid: true,
 	}
+}
+
+
+// ValidateDatabaseName returns true when name contains only alphanumeric and/or
+// underscore/dollar characters, the first character is not a digit, and the
+// name's length is less than MaxDatabaseNameLength (63 bytes).
+func ValidateDatabaseName(name string) error {
+	if MaxDatabaseNameLength <= len(name) {
+		return trace.BadParameter("invalid PostgreSQL database name, length exceeds %d bytes. See https://www.postgresql.org/docs/14/sql-syntax-lexical.html.", MaxDatabaseNameLength)
+	}
+	for i, r := range name {
+		switch {
+		case 'A' <= r && r <= 'Z', 'a' <= r && r <= 'z', r == '_':
+		case i > 0 && (r == '$' || '0' <= r && r <= '9'):
+		default:
+			return trace.BadParameter("invalid PostgreSQL database name: %v. See https://www.postgresql.org/docs/14/sql-syntax-lexical.html.", name)
+		}
+	}
+	return nil
 }
