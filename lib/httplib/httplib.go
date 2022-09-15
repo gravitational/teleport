@@ -153,13 +153,13 @@ func ConvertResponse(re *roundtrip.Response, err error) (*roundtrip.Response, er
 		if uerr, ok := err.(*url.Error); ok && uerr != nil && uerr.Err != nil {
 			// unescape any special characters from the URL (such as 'path%20foobar') to
 			// prevent MISSING from showing in connection problem logs
-			unescapedUrl, err := url.QueryUnescape(uerr.URL)
+			unescapedURL, err := url.QueryUnescape(uerr.URL)
 			if err != nil {
 				return nil, trace.ConvertSystemError(err)
 			}
 			// Replicates what uerr.Error() does but replaces the second argument of URL
 			// with our unescaped string instead
-			errorMessage := fmt.Sprintf("%s %q: %s", uerr.Op, unescapedUrl, uerr.Err)
+			errorMessage := fmt.Sprintf("%s %q: %s", uerr.Op, unescapedURL, uerr.Err)
 			return nil, trace.ConnectionProblem(uerr.Err, errorMessage)
 		}
 		if nerr, ok := errors.Unwrap(err).(net.Error); ok && nerr.Timeout() {
