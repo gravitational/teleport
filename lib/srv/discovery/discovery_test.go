@@ -17,8 +17,13 @@ limitations under the License.
 package discovery
 
 import (
+	"bufio"
 	"context"
+	"fmt"
+	"io"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -36,6 +41,7 @@ import (
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -61,15 +67,15 @@ func (sm *mockSSMClient) WaitUntilCommandExecutedWithContext(aws.Context, *ssm.G
 }
 
 type mockEmitter struct {
-	events       []events.AuditEvent
 	eventHandler func(*testing.T, events.AuditEvent, *Server)
 	server       *Server
 	t            *testing.T
 }
 
 func (me *mockEmitter) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
-	me.events = append(me.events, event)
-	me.eventHandler(me.t, event, me.server)
+	if me.eventHandler != nil {
+		me.eventHandler(me.t, event, me.server)
+	}
 	return nil
 }
 
@@ -91,6 +97,24 @@ type testClient struct {
 	types.Events
 }
 
+func genEC2Instances(n int) []*ec2.Instance {
+	var ec2Instances []*ec2.Instance
+	for i := 0; i < n; i++ {
+		id := fmt.Sprintf("instance-id-%d", i)
+		ec2Instances = append(ec2Instances, &ec2.Instance{
+			InstanceId: aws.String(id),
+			Tags: []*ec2.Tag{{
+				Key:   aws.String("env"),
+				Value: aws.String("dev"),
+			}},
+			State: &ec2.InstanceState{
+				Name: aws.String(ec2.InstanceStateNameRunning),
+			},
+		})
+	}
+	return ec2Instances
+}
+
 func TestDiscoveryServer(t *testing.T) {
 	t.Parallel()
 
@@ -101,6 +125,7 @@ func TestDiscoveryServer(t *testing.T) {
 		foundEC2Instances []*ec2.Instance
 		ssm               *mockSSMClient
 		emitter           *mockEmitter
+		logHandler        func(*testing.T, io.Reader, chan struct{})
 	}{
 		{
 			name:             "no nodes present, 1 found ",
@@ -148,62 +173,7 @@ func TestDiscoveryServer(t *testing.T) {
 			},
 		},
 		{
-			name: "nodes present, instance not filtered",
-			presentInstances: []types.Server{
-				&types.ServerV2{
-					Kind: types.KindNode,
-					Metadata: types.Metadata{
-						Name: "name",
-						Labels: map[string]string{
-							types.AWSAccountIDLabel:  "owner",
-							types.AWSInstanceIDLabel: "not-that-instance",
-						},
-					},
-				},
-			},
-			foundEC2Instances: []*ec2.Instance{
-				{
-					InstanceId: aws.String("instance-id-1"),
-					Tags: []*ec2.Tag{{
-						Key:   aws.String("env"),
-						Value: aws.String("dev"),
-					}},
-					State: &ec2.InstanceState{
-						Name: aws.String(ec2.InstanceStateNameRunning),
-					},
-				},
-			},
-			ssm: &mockSSMClient{
-				commandOutput: &ssm.SendCommandOutput{
-					Command: &ssm.Command{
-						CommandId: aws.String("command-id-1"),
-					},
-				},
-				invokeOutput: &ssm.GetCommandInvocationOutput{
-					Status:       aws.String(ssm.CommandStatusSuccess),
-					ResponseCode: aws.Int64(0),
-				},
-			},
-			emitter: &mockEmitter{
-				eventHandler: func(t *testing.T, ae events.AuditEvent, server *Server) {
-					defer server.Stop()
-					require.Equal(t, ae, &events.SSMRun{
-						Metadata: events.Metadata{
-							Type: libevents.SSMRunEvent,
-							Code: libevents.SSMRunSuccessCode,
-						},
-						CommandID:  "command-id-1",
-						AccountID:  "owner",
-						InstanceID: "instance-id-1",
-						Region:     "eu-central-1",
-						ExitCode:   0,
-						Status:     ssm.CommandStatusSuccess,
-					})
-				},
-			},
-		},
-		{
-			name: "nodes present, instance not filtered",
+			name: "nodes present, instance filtered",
 			presentInstances: []types.Server{
 				&types.ServerV2{
 					Kind: types.KindNode,
@@ -240,16 +210,107 @@ func TestDiscoveryServer(t *testing.T) {
 					ResponseCode: aws.Int64(0),
 				},
 			},
-			emitter: &mockEmitter{
-				eventHandler: func(t *testing.T, ae events.AuditEvent, server *Server) {
-					// todo(amk): handle this test case by checking the debug log
+			emitter: &mockEmitter{},
+			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
+				scanner := bufio.NewScanner(logs)
+				for scanner.Scan() {
+					if strings.Contains(scanner.Text(),
+						"All discovered EC2 instances are already part of the cluster.") {
+						done <- struct{}{}
+						return
+					}
+				}
+			},
+		},
+		{
+			name: "nodes present, instance not filtered",
+			presentInstances: []types.Server{
+				&types.ServerV2{
+					Kind: types.KindNode,
+					Metadata: types.Metadata{
+						Name: "name",
+						Labels: map[string]string{
+							types.AWSAccountIDLabel:  "owner",
+							types.AWSInstanceIDLabel: "wow-its-a-different-instance",
+						},
+						Namespace: defaults.Namespace,
+					},
 				},
+			},
+			foundEC2Instances: []*ec2.Instance{
+				{
+					InstanceId: aws.String("instance-id-1"),
+					Tags: []*ec2.Tag{{
+						Key:   aws.String("env"),
+						Value: aws.String("dev"),
+					}},
+					State: &ec2.InstanceState{
+						Name: aws.String(ec2.InstanceStateNameRunning),
+					},
+				},
+			},
+			ssm: &mockSSMClient{
+				commandOutput: &ssm.SendCommandOutput{
+					Command: &ssm.Command{
+						CommandId: aws.String("command-id-1"),
+					},
+				},
+				invokeOutput: &ssm.GetCommandInvocationOutput{
+					Status:       aws.String(ssm.CommandStatusSuccess),
+					ResponseCode: aws.Int64(0),
+				},
+			},
+			emitter: &mockEmitter{},
+			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
+				scanner := bufio.NewScanner(logs)
+				for scanner.Scan() {
+					if strings.Contains(scanner.Text(),
+						"Running Teleport installation on these instances: AccountID: owner, Instances: [instance-id-1]") {
+						done <- struct{}{}
+						return
+					}
+				}
+			},
+		},
+		{
+			name:              "chunked nodes get 2 log messages",
+			presentInstances:  []types.Server{},
+			foundEC2Instances: genEC2Instances(58),
+			ssm: &mockSSMClient{
+				commandOutput: &ssm.SendCommandOutput{
+					Command: &ssm.Command{
+						CommandId: aws.String("command-id-1"),
+					},
+				},
+				invokeOutput: &ssm.GetCommandInvocationOutput{
+					Status:       aws.String(ssm.CommandStatusSuccess),
+					ResponseCode: aws.Int64(0),
+				},
+			},
+			emitter: &mockEmitter{},
+			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
+				scanner := bufio.NewScanner(logs)
+				instances := genEC2Instances(58)
+				findAll := []string{genInstancesLogStr(instances[:50]), genInstancesLogStr(instances[50:])}
+				index := 0
+				for scanner.Scan() {
+					if index == len(findAll) {
+						done <- struct{}{}
+						return
+					}
+					if strings.Contains(scanner.Text(), findAll[index]) {
+						index += 1
+					}
+				}
 			},
 		},
 	}
 
 	for _, tc := range tcs {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			testClients := cloud.TestCloudClients{
 				EC2: &mockEC2Client{
 					output: &ec2.DescribeInstancesOutput{
@@ -287,8 +348,13 @@ func TestDiscoveryServer(t *testing.T) {
 					Client:    client,
 				},
 			})
-
 			require.NoError(t, err)
+			defer nodeWatcher.Close()
+
+			for !nodeWatcher.IsInitialized() {
+				time.Sleep(100 * time.Millisecond)
+			}
+
 			server, err := New(context.Background(), &Config{
 				Clients: &testClients,
 				Matchers: []services.AWSMatcher{{
@@ -300,11 +366,35 @@ func TestDiscoveryServer(t *testing.T) {
 				Emitter:     tc.emitter,
 				NodeWatcher: nodeWatcher,
 			})
+			require.NoError(t, err)
+
 			tc.emitter.server = server
 			tc.emitter.t = t
 
+			r, w := io.Pipe()
 			require.NoError(t, err)
+			if tc.logHandler != nil {
+				logger := logrus.New()
+				logger.SetOutput(w)
+				logger.SetLevel(logrus.DebugLevel)
+				server.log = logrus.NewEntry(logger)
+			}
 			go server.Start()
+
+			if tc.logHandler != nil {
+				done := make(chan struct{})
+				go tc.logHandler(t, r, done)
+				timeoutCtx, cancelfn := context.WithTimeout(ctx, time.Second*5)
+				defer cancelfn()
+				select {
+				case <-timeoutCtx.Done():
+					t.Fatal("Timeout waiting for log entries")
+					return
+				case <-done:
+					server.Stop()
+					return
+				}
+			}
 
 			server.Wait()
 		})
