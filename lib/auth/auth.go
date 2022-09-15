@@ -549,6 +549,9 @@ func (a *Server) checkForReleases(ctx context.Context) {
 		alert, err := types.NewClusterAlert(
 			alertID,
 			msg,
+			// Defaulting to "low" severity level. We may want to make this dynamic
+			// in the future depending on the distance from up-to-date.
+			types.WithAlertSeverity(types.AlertSeverity_LOW),
 			types.WithAlertLabel(types.AlertOnLogin, "yes"),
 			types.WithAlertLabel(types.AlertPermitAll, "yes"),
 		)
@@ -905,6 +908,9 @@ type certRequest struct {
 	// generation indicates the number of times this certificate has been
 	// renewed.
 	generation uint64
+	// connectionDiagnosticID contains the ID of the ConnectionDiagnostic.
+	// The Node/Agent will append connection traces to this instance.
+	connectionDiagnosticID string
 }
 
 // check verifies the cert request is valid.
@@ -1200,28 +1206,29 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	}
 
 	params := services.UserCertParams{
-		CASigner:              caSigner,
-		PublicUserKey:         req.publicKey,
-		Username:              req.user.GetName(),
-		Impersonator:          req.impersonator,
-		AllowedLogins:         allowedLogins,
-		TTL:                   sessionTTL,
-		Roles:                 req.checker.RoleNames(),
-		CertificateFormat:     certificateFormat,
-		PermitPortForwarding:  req.checker.CanPortForward(),
-		PermitAgentForwarding: req.checker.CanForwardAgents(),
-		PermitX11Forwarding:   req.checker.PermitX11Forwarding(),
-		RouteToCluster:        req.routeToCluster,
-		Traits:                req.traits,
-		ActiveRequests:        req.activeRequests,
-		MFAVerified:           req.mfaVerified,
-		ClientIP:              req.clientIP,
-		DisallowReissue:       req.disallowReissue,
-		Renewable:             req.renewable,
-		Generation:            req.generation,
-		CertificateExtensions: req.checker.CertificateExtensions(),
-		AllowedResourceIDs:    requestedResourcesStr,
-		SourceIP:              req.sourceIP,
+		CASigner:               caSigner,
+		PublicUserKey:          req.publicKey,
+		Username:               req.user.GetName(),
+		Impersonator:           req.impersonator,
+		AllowedLogins:          allowedLogins,
+		TTL:                    sessionTTL,
+		Roles:                  req.checker.RoleNames(),
+		CertificateFormat:      certificateFormat,
+		PermitPortForwarding:   req.checker.CanPortForward(),
+		PermitAgentForwarding:  req.checker.CanForwardAgents(),
+		PermitX11Forwarding:    req.checker.PermitX11Forwarding(),
+		RouteToCluster:         req.routeToCluster,
+		Traits:                 req.traits,
+		ActiveRequests:         req.activeRequests,
+		MFAVerified:            req.mfaVerified,
+		ClientIP:               req.clientIP,
+		DisallowReissue:        req.disallowReissue,
+		Renewable:              req.renewable,
+		Generation:             req.generation,
+		CertificateExtensions:  req.checker.CertificateExtensions(),
+		AllowedResourceIDs:     requestedResourcesStr,
+		SourceIP:               req.sourceIP,
+		ConnectionDiagnosticID: req.connectionDiagnosticID,
 	}
 	sshCert, err := a.Authority.GenerateUserCert(params)
 	if err != nil {
@@ -1983,7 +1990,17 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 	allowedResourceIDs := accessInfo.AllowedResourceIDs
 	accessRequests := identity.ActiveRequests
 
-	if req.AccessRequestID != "" {
+	if req.ReloadUser {
+		// We don't call from the cache layer because we want to
+		// retrieve the recently updated user. Otherwise the cache
+		// returns stale data.
+		user, err := a.Identity.GetUser(req.User, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		traits = user.GetTraits()
+
+	} else if req.AccessRequestID != "" {
 		accessRequest, err := a.getValidatedAccessRequest(ctx, req.User, req.AccessRequestID)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2007,9 +2024,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 		if expiresAt.After(accessRequest.GetAccessExpiry()) {
 			expiresAt = accessRequest.GetAccessExpiry()
 		}
-	}
-
-	if req.Switchback {
+	} else if req.Switchback {
 		if prevSession.GetLoginTime().IsZero() {
 			return nil, trace.BadParameter("Unable to switchback, log in time was not recorded.")
 		}

@@ -2110,9 +2110,28 @@ func (a *ServerWithRoles) DeleteUser(ctx context.Context, user string) error {
 func (a *ServerWithRoles) GenerateHostCert(
 	key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration,
 ) ([]byte, error) {
-	if err := a.action(apidefaults.Namespace, types.KindHostCert, types.VerbCreate); err != nil {
+	ctx := services.Context{
+		User: a.context.User,
+		HostCert: &services.HostCertContext{
+			HostID:      hostID,
+			NodeName:    nodeName,
+			Principals:  principals,
+			ClusterName: clusterName,
+			Role:        role,
+			TTL:         ttl,
+		},
+	}
+
+	// Instead of the usual RBAC checks, we'll manually call CheckAccessToRule
+	// here as we'll be evaluating `where` predicates with a custom RuleContext
+	// to expose cert request fields.
+	// We've only got a single verb to check so luckily it's pretty concise.
+	if err := a.withOptions().context.Checker.CheckAccessToRule(
+		&ctx, apidefaults.Namespace, types.KindHostCert, types.VerbCreate, false,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return a.authServer.GenerateHostCert(key, hostID, nodeName, principals, clusterName, role, ttl)
 }
 
@@ -2466,6 +2485,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		activeRequests: services.RequestIDs{
 			AccessRequests: req.AccessRequests,
 		},
+		connectionDiagnosticID: req.ConnectionDiagnosticID,
 	}
 	if user.GetName() != a.context.User.GetName() {
 		certReq.impersonator = a.context.User.GetName()
@@ -4966,6 +4986,15 @@ func (a *ServerWithRoles) UpdateConnectionDiagnostic(ctx context.Context, connec
 	}
 
 	return nil
+}
+
+// AppendDiagnosticTrace adds a new trace for the given ConnectionDiagnostic.
+func (a *ServerWithRoles) AppendDiagnosticTrace(ctx context.Context, name string, t *types.ConnectionDiagnosticTrace) (types.ConnectionDiagnostic, error) {
+	if err := a.action(apidefaults.Namespace, types.KindConnectionDiagnostic, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.AppendDiagnosticTrace(ctx, name, t)
 }
 
 // StartAccountRecovery is implemented by AuthService.StartAccountRecovery.

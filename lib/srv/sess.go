@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
@@ -943,32 +942,18 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 		return trace.Wrap(err)
 	}
 
-	// Open a BPF recording session. If BPF was not configured, not available,
-	// or running in a recording proxy, OpenSession is a NOP.
-	sessionContext := &bpf.SessionContext{
-		Context:   scx.srv.Context(),
-		PID:       s.term.PID(),
-		Emitter:   s.Recorder(),
-		Namespace: scx.srv.GetNamespace(),
-		SessionID: s.id.String(),
-		ServerID:  scx.srv.HostUUID(),
-		Login:     scx.Identity.Login,
-		User:      scx.Identity.TeleportUser,
-		Events:    scx.Identity.AccessChecker.EnhancedRecordingSet(),
-	}
-
-	if cgroupID, err := scx.srv.GetBPF().OpenSession(sessionContext); err != nil {
+	if cgroupID, err := scx.srv.OpenBPFSession(scx); err != nil {
 		scx.Errorf("Failed to open enhanced recording (interactive) session: %v: %v.", s.id, err)
 		return trace.Wrap(err)
 	} else if cgroupID > 0 {
 		// If a cgroup ID was assigned then enhanced session recording was enabled.
 		s.setHasEnhancedRecording(true)
-		scx.srv.GetRestrictedSessionManager().OpenSession(sessionContext, cgroupID)
+		scx.srv.OpenRestrictedSession(scx, cgroupID)
 		go func() {
 			// Close the BPF recording session once the session is closed
 			<-s.stopC
-			scx.srv.GetRestrictedSessionManager().CloseSession(sessionContext, cgroupID)
-			err = scx.srv.GetBPF().CloseSession(sessionContext)
+			scx.srv.CloseRestrictedSession(scx, cgroupID)
+			err = scx.srv.CloseBPFSession(scx)
 			if err != nil {
 				scx.Errorf("Failed to close enhanced recording (interactive) session: %v: %v.", s.id, err)
 			}
@@ -1140,18 +1125,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 
 	// Open a BPF recording session. If BPF was not configured, not available,
 	// or running in a recording proxy, OpenSession is a NOP.
-	sessionContext := &bpf.SessionContext{
-		Context:   scx.srv.Context(),
-		PID:       scx.ExecRequest.PID(),
-		Emitter:   s.Recorder(),
-		Namespace: scx.srv.GetNamespace(),
-		SessionID: string(s.id),
-		ServerID:  scx.srv.HostUUID(),
-		Login:     scx.Identity.Login,
-		User:      scx.Identity.TeleportUser,
-		Events:    scx.Identity.AccessChecker.EnhancedRecordingSet(),
-	}
-	cgroupID, err := scx.srv.GetBPF().OpenSession(sessionContext)
+	cgroupID, err := scx.srv.OpenBPFSession(scx)
 	if err != nil {
 		scx.Errorf("Failed to open enhanced recording (exec) session: %v: %v.", scx.ExecRequest.GetCommand(), err)
 		return trace.Wrap(err)
@@ -1160,7 +1134,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	// If a cgroup ID was assigned then enhanced session recording was enabled.
 	if cgroupID > 0 {
 		s.setHasEnhancedRecording(true)
-		scx.srv.GetRestrictedSessionManager().OpenSession(sessionContext, cgroupID)
+		scx.srv.OpenRestrictedSession(scx, cgroupID)
 	}
 
 	if tempUser != nil {
@@ -1188,11 +1162,11 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		// BPF session so everything can be recorded.
 		time.Sleep(2 * time.Second)
 
-		scx.srv.GetRestrictedSessionManager().CloseSession(sessionContext, cgroupID)
+		scx.srv.CloseRestrictedSession(scx, cgroupID)
 
 		// Close the BPF recording session. If BPF was not configured, not available,
 		// or running in a recording proxy, this is simply a NOP.
-		err = scx.srv.GetBPF().CloseSession(sessionContext)
+		err = scx.srv.CloseBPFSession(scx)
 		if err != nil {
 			scx.Errorf("Failed to close enhanced recording (exec) session: %v: %v.", s.id, err)
 		}
