@@ -12,11 +12,12 @@ The Teleport team delivers a new major release roughly every 3 months.
 
 Teleport 10.3 will bring Cassandra and Elasticsearch support to Database
 Access. Host certificate support will be added to Machine ID. Automatic
-discovery of servers on AWS will be added to Server Access.
+discovery of servers on AWS will be added to Server Access. Kubernetes
+support for Teleport Connect.
 
-In addition, Teleport will support trait transformation for SSO claims and TLS
-Routing with the Teleport Proxy Service deployed behind an ALB. `tsh` will
-support non-disk based certificates.
+
+In addition, and TLS Routing with the Teleport Proxy Service deployed behind an
+ALB. `tsh` will support non-disk based certificates.
 
 | Version     | Date                 | Description                |
 |-------------|----------------------|----------------------------|
@@ -33,12 +34,19 @@ Azure integration.
 - Desktop Access will add support for FIPS.
 - Machine ID will add support for popular CI/CD platforms like GitHub, GitLab,
   and CircleCI.
-- Teleport Connect will add support for Kubernetes Access and Access Requests.
+- Teleport Connect will add support for Access Requests.
+- Login Rules which will support trait transformation for SSO claims.
 
 | Version          | Date               | Description                                                 |
 |------------------|--------------------|-------------------------------------------------------------|
 | `11.0.0-alpha.1` | October 3rd, 2022  | Some features planned for the release may still be missing. |
 | Release          | October 24th, 2022 | Good to go for production.                                  |
+
+### Teleport 12
+
+Teleport 12 will focus on support for additional Clouds (GCP and Azure),
+Device Trust, improved resource onboarding, TUF-based Automatic Upgrades, and
+non-AD support for Desktop Access.
 
 ## Teleport Cloud
 
