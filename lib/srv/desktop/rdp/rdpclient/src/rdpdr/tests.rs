@@ -393,7 +393,7 @@ fn test_scard_ioctl_accessstartedevent(c: &mut Client) {
     );
 }
 
-fn test_scard_ioctl_establishcontext(c: &mut Client, output_buffer: Message) {
+fn test_scard_ioctl_establishcontext(c: &mut Client, completion_id: u32, context_value: u8) {
     test_payload_in_to_response_out(
         c,
         PayloadIn {
@@ -411,7 +411,7 @@ fn test_scard_ioctl_establishcontext(c: &mut Client, output_buffer: Message) {
                 header: DeviceIoRequest {
                     device_id: 1,
                     file_id: 1,
-                    completion_id: 0,
+                    completion_id,
                     major_function: MajorFunction::IRP_MJ_DEVICE_CONTROL,
                     minor_function: MinorFunction::IRP_MN_NONE,
                 },
@@ -428,11 +428,52 @@ fn test_scard_ioctl_establishcontext(c: &mut Client, output_buffer: Message) {
             Box::new(DeviceControlResponse {
                 header: DeviceIoResponse {
                     device_id: 1,
-                    completion_id: 0,
+                    completion_id,
                     io_status: 0,
                 },
-                output_buffer_length: output_buffer.len() as u32,
-                output_buffer,
+                output_buffer_length: 40,
+                output_buffer: vec![
+                    1,
+                    16,
+                    8,
+                    0,
+                    204,
+                    204,
+                    204,
+                    204,
+                    24,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    4,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    2,
+                    0,
+                    4,
+                    0,
+                    0,
+                    0,
+                    context_value,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                ],
             }),
         )],
     );
@@ -650,21 +691,9 @@ fn test_smartcard_initialization() {
     test_handle_client_id_confirm(&mut c);
     test_handle_device_reply(&mut c);
     test_scard_ioctl_accessstartedevent(&mut c);
-    test_scard_ioctl_establishcontext(
-        &mut c,
-        vec![
-            1, 16, 8, 0, 204, 204, 204, 204, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0,
-            2, 0, 4, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
-        ],
-    );
+    test_scard_ioctl_establishcontext(&mut c, 0, 1);
     test_scard_ioctl_listreadersw(&mut c);
-    test_scard_ioctl_establishcontext(
-        &mut c,
-        vec![
-            1, 16, 8, 0, 204, 204, 204, 204, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0,
-            2, 0, 4, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
-        ],
-    );
+    test_scard_ioctl_establishcontext(&mut c, 0, 2);
     test_scard_ioctl_getdevicetypeid(&mut c);
     test_scard_ioctl_releasecontext(&mut c);
     test_scard_ioctl_getstatuschangew(
@@ -740,5 +769,6 @@ fn test_smartcard_initialization() {
         ],
         vec![],
     );
+    test_scard_ioctl_establishcontext(&mut c, 1, 3);
     // TODO(isaiah): the remainder of the initialization sequence
 }
