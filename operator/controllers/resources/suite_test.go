@@ -195,6 +195,7 @@ type testSetup struct {
 	namespace      *core.Namespace
 	operator       manager.Manager
 	operatorCancel context.CancelFunc
+	operatorName   string
 }
 
 // setupTestEnv creates a Kubernetes server, a teleport server and starts the operator
@@ -239,7 +240,13 @@ func setupTestEnv(t *testing.T) *testSetup {
 		require.NoError(t, err)
 	})
 
-	setup := &testSetup{tClient: tClient, k8sClient: k8sClient, namespace: ns, k8sRestConfig: cfg}
+	setup := &testSetup{
+		tClient:       tClient,
+		k8sClient:     k8sClient,
+		namespace:     ns,
+		k8sRestConfig: cfg,
+		operatorName:  operatorName,
+	}
 
 	// Create and start the Kubernetes operator
 	setup.startKubernetesOperator(t)
