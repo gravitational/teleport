@@ -36,7 +36,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	if azure, _ := params["azure"].(bool); azure {
 		clientID, _ := params["azure_client_id"].(string)
 		log.WithField("client_id", clientID).Warn("Using Azure authentication.")
-		bc, err := azureBeforeConnect(clientID, log)
+		bc, err := AzureBeforeConnect(clientID, log)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
