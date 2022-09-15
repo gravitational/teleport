@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/tbot/identity"
 )
 
 // Bot is an interface covering various public tbot.Bot methods to circumvent
@@ -42,4 +43,11 @@ type Bot interface {
 
 	// Client retrieves the current auth client.
 	Client() auth.ClientI
+
+	// AuthenticatedUserClientFromIdentity returns a client backed by a specific
+	// identity.
+	AuthenticatedUserClientFromIdentity(ctx context.Context, id *identity.Identity) (auth.ClientI, error)
+
+	// Config returns the current bot config
+	Config() *BotConfig
 }
