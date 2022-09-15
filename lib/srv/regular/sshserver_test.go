@@ -1209,8 +1209,8 @@ func TestProxyRoundRobin(t *testing.T) {
 	up, err := newUpack(f.testSrv, f.user, []string{f.user}, wildcardAllow)
 	require.NoError(t, err)
 
-	resolver := func(context.Context) (*utils.NetAddr, error) {
-		return &utils.NetAddr{Addr: reverseTunnelAddress.Addr, AddrNetwork: "tcp"}, nil
+	resolver := func(context.Context) (*utils.NetAddr, types.ProxyListenerMode, error) {
+		return &utils.NetAddr{Addr: reverseTunnelAddress.Addr, AddrNetwork: "tcp"}, types.ProxyListenerMode_Separate, nil
 	}
 
 	pool1, err := reversetunnel.NewAgentPool(ctx, reversetunnel.AgentPoolConfig{
@@ -2190,7 +2190,7 @@ func newCertAuthorityWatcher(ctx context.Context, t *testing.T, client types.Eve
 //
 // See the following links for more details.
 //
-//   https://man7.org/linux/man-pages/man7/pipe.7.html
-//   https://github.com/afborchert/pipebuf
-//   https://unix.stackexchange.com/questions/11946/how-big-is-the-pipe-buffer
+//	https://man7.org/linux/man-pages/man7/pipe.7.html
+//	https://github.com/afborchert/pipebuf
+//	https://unix.stackexchange.com/questions/11946/how-big-is-the-pipe-buffer
 const maxPipeSize = 65536 + 1
