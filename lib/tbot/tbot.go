@@ -65,6 +65,11 @@ func New(cfg *config.BotConfig, log logrus.FieldLogger, reloadChan chan struct{}
 	}
 }
 
+// Config returns the current bot config
+func (b *Bot) Config() *config.BotConfig {
+	return b.cfg
+}
+
 // Client retrieves the current auth client.
 func (b *Bot) Client() auth.ClientI {
 	b.mu.Lock()
@@ -285,7 +290,7 @@ func (b *Bot) initialize(ctx context.Context) error {
 			b.log.Warn("Note: onboarding config ignored as identity was loaded from persistent storage")
 		}
 
-		authClient, err = b.authenticatedUserClientFromIdentity(ctx, ident, b.cfg.AuthServer)
+		authClient, err = b.AuthenticatedUserClientFromIdentity(ctx, ident)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -316,7 +321,7 @@ func (b *Bot) initialize(ctx context.Context) error {
 		}
 
 		b.log.Debug("Attempting first connection using initial auth client")
-		authClient, err = b.authenticatedUserClientFromIdentity(ctx, ident, b.cfg.AuthServer)
+		authClient, err = b.AuthenticatedUserClientFromIdentity(ctx, ident)
 		if err != nil {
 			return trace.Wrap(err)
 		}
