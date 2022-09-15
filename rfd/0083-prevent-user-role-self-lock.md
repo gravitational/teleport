@@ -103,6 +103,6 @@ I think `2.` approach is better since migration cost outweighs the benefits of t
 
 ### UI and behavior changes
 
-We need to change the UI to reflect the new policy. We need to add validation to all actions that can cause lock (in `WebUI` and `tctl`). The error messages should inform the user why this action is not allowed.
+We need to add validation to all actions that can cause lock (in `WebUI` and `tctl`). The error messages should inform the user why this action is not allowed.
 
 No changes are required in the `tsh` code.
