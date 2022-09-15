@@ -21,6 +21,7 @@ package httplib
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"mime"
 	"net"
 	"net/http"
@@ -150,7 +151,16 @@ func ReadJSON(r *http.Request, val interface{}) error {
 func ConvertResponse(re *roundtrip.Response, err error) (*roundtrip.Response, error) {
 	if err != nil {
 		if uerr, ok := err.(*url.Error); ok && uerr != nil && uerr.Err != nil {
-			return nil, trace.ConnectionProblem(uerr.Err, uerr.Error())
+			// unescape any special characters from the URL (such as 'path%20foobar') to
+			// prevent MISSING from showing in connection problem logs
+			unescapedUrl, err := url.QueryUnescape(uerr.URL)
+			if err != nil {
+				return nil, trace.ConvertSystemError(err)
+			}
+			// Replicates what uerr.Error() does but replaces the second argument of URL
+			// with our unescaped string instead
+			errorMessage := fmt.Sprintf("%s %q: %s", uerr.Op, unescapedUrl, uerr.Err)
+			return nil, trace.ConnectionProblem(uerr.Err, errorMessage)
 		}
 		if nerr, ok := errors.Unwrap(err).(net.Error); ok && nerr.Timeout() {
 			// Using `ConnectionProblem` instead of `LimitExceeded` allows us to preserve the original error
