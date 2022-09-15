@@ -4,9 +4,16 @@
 
 ### Breaking changes
 
+#### GitHub external SSO checking
+
+Teleport 11 agents will now refuse to use a GitHub authentication connector if
+one of the specified GitHub organizations uses external SSO and the Teleport 
+agent is not enterprise licensed. SSO is an enterprise feature that requires
+Teleport Enterprise to use.
+
 #### GitHub Connector `teams_to_logins`
 
-The `teams_to_logins` field in the GitHub connector was deprected in Teleport 10
+The `teams_to_logins` field in the GitHub connector was deprecated in Teleport 10
 and fully removed in Teleport 11. Please update your GitHub connector to use the
 new `teams_to_roles` setting before upgrading to Teleport 11.
 
