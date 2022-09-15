@@ -91,8 +91,9 @@ func (a *Server) upsertGithubConnector(ctx context.Context, connector types.Gith
 	return nil
 }
 
-// HTTPRequester allows a net/http.Client to be mocked for tests.
-type HTTPRequester interface {
+// httpRequester allows a net/http.Client to be mocked for tests.
+// TODO(capnspacehook): test without using this interface
+type httpRequester interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
@@ -101,7 +102,7 @@ type HTTPRequester interface {
 // If userTeams is not nil, only organizations that are both specified
 // in conn and in userTeams will be checked. If client is nil a
 // net/http.Client will be used.
-func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, userTeams []teamResponse, orgCache *utils.FnCache, client HTTPRequester) error {
+func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, userTeams []teamResponse, orgCache *utils.FnCache, client httpRequester) error {
 	version := modules.GetModules().BuildType()
 	if version == modules.BuildEnterprise {
 		return nil
@@ -123,6 +124,7 @@ func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, u
 	}
 
 	// Check each organization only once
+	// DELETE IN 12 (zmb3)
 	for _, mapping := range conn.GetTeamsToLogins() {
 		addOrg(mapping.Organization)
 	}
@@ -162,7 +164,7 @@ func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, u
 
 // orgUsesExternalSSO returns true if the Github organization org
 // uses external SSO.
-func orgUsesExternalSSO(ctx context.Context, org string, client HTTPRequester) (bool, error) {
+func orgUsesExternalSSO(ctx context.Context, org string, client httpRequester) (bool, error) {
 	// A Github organization will have a "sso" page reachable if it
 	// supports external SSO. There doesn't seem to be any way to get this
 	// information from the Github REST API without being an owner of the
@@ -172,15 +174,10 @@ func orgUsesExternalSSO(ctx context.Context, org string, client HTTPRequester) (
 	const retries = 3
 	var resp *http.Response
 	for i := 0; i < retries; i++ {
-		ctx, cancel := context.WithTimeout(ctx, defaults.HTTPRequestTimeout)
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, ssoURL, nil)
-		cancel()
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-
+		var err error
 		var urlErr *url.Error
-		resp, err = client.Do(req)
+
+		resp, err = makeHTTPGetReq(ctx, ssoURL, client)
 		if err == nil {
 			break
 		} else if errors.As(err, &urlErr) && urlErr.Timeout() {
@@ -207,6 +204,18 @@ func orgUsesExternalSSO(ctx context.Context, org string, client HTTPRequester) (
 
 	// "sso" page does not exist, org does not use external SSO
 	return false, nil
+}
+
+func makeHTTPGetReq(ctx context.Context, url string, client httpRequester) (*http.Response, error) {
+	ctx, cancel := context.WithTimeout(ctx, defaults.HTTPRequestTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return client.Do(req)
 }
 
 // deleteGithubConnector deletes a Github connector by name.
@@ -458,10 +467,15 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 		token:      token.AccessToken,
 		authServer: a,
 	}
-	teams, err := ghClient.getTeams()
+	userResp, err := ghClient.getUser()
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to query Github user info")
+	}
+	teamsResp, err := ghClient.getTeams()
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to query Github user teams")
 	}
+	log.Debugf("Retrieved %v teams for GitHub user %v.", len(teamsResp), userResp.Login)
 
 	// If we are running Teleport OSS, ensure that the Github organization
 	// the user is trying to authenticate with is not using external SSO.
@@ -469,13 +483,13 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *ssoDia
 	// This is checked when Github auth connectors get created or updated, but
 	// check again here in case the organization enabled external SSO after
 	// the auth connector was created.
-	if err := checkGithubOrgSSOSupport(ctx, connector, teams, a.githubOrgSSOCache, nil); err != nil {
+	if err := checkGithubOrgSSOSupport(ctx, connector, teamsResp, a.githubOrgSSOCache, nil); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Github does not support OIDC so user claims have to be populated
 	// by making requests to Github API using the access token
-	claims, err := populateGithubClaims(ghClient, teams)
+	claims, err := populateGithubClaims(userResp, teamsResp)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to query Github API for user claims.")
 	}
@@ -680,16 +694,9 @@ func (a *Server) createGithubUser(ctx context.Context, p *createUserParams, dryR
 	return user, nil
 }
 
-// populateGithubClaims retrieves information about user and its team
-// memberships by calling Github API using the access token
-func populateGithubClaims(client githubAPIClientI, teams []teamResponse) (*types.GithubClaims, error) {
-	// find out the username
-	user, err := client.getUser()
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to query Github user info")
-	}
-	log.Debugf("Retrieved %v teams for GitHub user %v.", len(teams), user.Login)
-
+// populateGithubClaims builds a GithubClaims using queried
+// user, organization and teams information.
+func populateGithubClaims(user *userResponse, teams []teamResponse) (*types.GithubClaims, error) {
 	orgToTeams := make(map[string][]string)
 	teamList := make([]string, 0, len(teams))
 	for _, team := range teams {
