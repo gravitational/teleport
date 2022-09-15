@@ -5,6 +5,12 @@ state: draft
 
 # RFD 0088 - Passwordless for windows CLI
 
+## Required Approvers
+
+* Engineering @rosstimothy && @codingllama
+* Security @reed
+* Product: (@xinding33 || @klizhentas )
+
 ## What
 
 Passwordless features for native windows CLIs, aka Windows Hello and FIDO
@@ -12,13 +18,13 @@ support for CLI/`tsh`.
 
 This is a part of the [Passwordless RFD][passwordless rfd].
 
-Passwordless is available as a preview in Teleport 10.
+Passwordless for Windows is available as a preview in Teleport 11.
 
 ## Why
 
 Native, non-browser windows clients lack support for Windows Hello or FIDO
-devices. This RFD explores how we can achieve that support for `tsh` in a secure
-way.
+devices. This RFD explores how we can achieve that support for `tsh` in a
+secure way.
 
 ## Details
 
@@ -64,7 +70,7 @@ ES256.
 won't be supported.
 
 If `webauthn.dll` is not found, `tsh` should disable Windows Hello or FIDO
-devices support.
+devices support. DLL will be loaded directly from system.
 Microsoft provides 4 versions of webauthn API and all should be supported.
 
 Interactions (touch messages and pin inputs) with Windows Hello or FIDO devices
@@ -177,7 +183,7 @@ solution.
 
 ### UX
 
-UX from `tsh` command perspective does not change at all in comaprison to
+UX from `tsh` command perspective does not change at all in comparison to
 [Passwordless RFD][passwordless rfd] and [TouchID RFD][touchid rfd].
 
 The only changes that will be visible to user is that now all interactions
