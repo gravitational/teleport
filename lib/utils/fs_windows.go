@@ -27,6 +27,10 @@ import (
 // themselves. On unlock we delete the .lock file.
 const lockPostfix = ".lock"
 
+func getPlatformLockFilePath(path string) string {
+	return path + lockPostfix
+}
+
 func unlockWrapper(unlockFn func() error, path string) func() error {
 	return func() error {
 		if unlockFn == nil {

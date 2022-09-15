@@ -19,8 +19,10 @@ limitations under the License.
 
 package utils
 
-// On non-windows we lock the target file itself.
-const lockPostfix = ""
+// On non-windows we just lock the target file itself.
+func getPlatformLockFilePath(path string) string {
+	return path
+}
 
 func unlockWrapper(unlockFn func() error, path string) func() error {
 	return func() error {
