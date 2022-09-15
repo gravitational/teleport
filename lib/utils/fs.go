@@ -154,10 +154,6 @@ func StatDir(path string) (os.FileInfo, error) {
 	return fi, nil
 }
 
-func getPlatformLockFilePath(path string) string {
-	return path + lockPostfix
-}
-
 // FSTryWriteLock tries to grab write lock, returns ErrUnsuccessfulLockTry
 // if lock is already acquired by someone else
 func FSTryWriteLock(filePath string) (unlock func() error, err error) {
